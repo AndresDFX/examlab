@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, roles: ["Admin", "Docente", "Estudiante"] },
   { to: "/app/admin/users", label: "Usuarios", icon: Users, roles: ["Admin"] },
   { to: "/app/admin/courses", label: "Cursos", icon: BookOpen, roles: ["Admin"] },
+  { to: "/app/teacher/courses", label: "Mis cursos", icon: BookOpen, roles: ["Docente"] },
   { to: "/app/teacher/exams", label: "Exámenes", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", label: "Calificaciones", icon: ClipboardList, roles: ["Docente"] },
   { to: "/app/teacher/workshops", label: "Talleres", icon: Hammer, roles: ["Docente"] },
