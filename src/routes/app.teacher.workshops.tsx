@@ -376,19 +376,13 @@ function TeacherWorkshops() {
                       {ws.status === "published" ? "Publicado" : ws.status === "closed" ? "Cerrado" : "Borrador"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button variant="ghost" size="sm" onClick={() => openAssign(ws)}>
-                      <Users className="h-4 w-4 mr-1" />Asignar
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => openGrading(ws)}>
-                      <CheckCircle2 className="h-4 w-4 mr-1" />Calificar
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setForm(ws); setOpen(true); }}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => remove(ws.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="sm" onClick={() => openAssign(ws)} title="Asignar estudiantes"><Users className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => openGrading(ws)} title="Calificar"><CheckCircle2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setForm(ws); setOpen(true); }} title="Editar"><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => remove(ws.id)} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

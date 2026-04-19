@@ -141,13 +141,15 @@ function TeacherExams() {
                   <TableCell className="text-sm">{new Date(e.start_time).toLocaleString()}</TableCell>
                   <TableCell className="text-sm">{e.time_limit_minutes} min</TableCell>
                   <TableCell><Badge variant="secondary" className="text-[10px]">{e.navigation_type}</Badge></TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }}>
-                      <Button variant="ghost" size="sm"><Monitor className="h-4 w-4 mr-1" />Monitor</Button>
-                    </Link>
-                    <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }}>
-                      <Button variant="ghost" size="sm"><Pencil className="h-4 w-4 mr-1" />Editar</Button>
-                    </Link>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }}>
+                        <Button variant="ghost" size="sm" title="Monitor en vivo"><Monitor className="h-4 w-4" /></Button>
+                      </Link>
+                      <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }}>
+                        <Button variant="ghost" size="sm" title="Editar"><Pencil className="h-4 w-4" /></Button>
+                      </Link>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
