@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   Clock, ExternalLink, Send, Loader2, CheckCircle2,
-  AlertTriangle, MessageSquare, Hammer,
+  AlertTriangle, MessageSquare, Upload, FileIcon, X, Download,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
@@ -24,12 +24,14 @@ type WorkshopRow = {
     course: { name: string };
   };
   submission?: {
-    id: string; content: string | null; external_link: string | null;
+    id: string; content: string | null; external_link: string | null; file_url: string | null;
     ai_grade: number | null; ai_feedback: string | null;
     final_grade: number | null; teacher_feedback: string | null;
     status: string; submitted_at: string | null;
   };
 };
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 function StudentWorkshops() {
   const { user } = useAuth();
@@ -38,7 +40,11 @@ function StudentWorkshops() {
   const [activeWs, setActiveWs] = useState<WorkshopRow | null>(null);
   const [content, setContent] = useState("");
   const [link, setLink] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -53,7 +59,7 @@ function StudentWorkshops() {
 
       const { data: subs } = ids.length
         ? await supabase.from("workshop_submissions")
-            .select("id, workshop_id, content, external_link, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at")
+            .select("id, workshop_id, content, external_link, file_url, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at")
             .in("workshop_id", ids)
             .eq("user_id", user.id)
         : { data: [] as any[] };
@@ -69,22 +75,71 @@ function StudentWorkshops() {
     setActiveWs(row);
     setContent(row.submission?.content ?? "");
     setLink(row.submission?.external_link ?? "");
+    setFile(null);
+    setExistingFileUrl(row.submission?.file_url ?? null);
     setSubmitOpen(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    if (selected.size > MAX_FILE_SIZE) {
+      toast.error("El archivo excede el límite de 50 MB");
+      return;
+    }
+    setFile(selected);
+  };
+
+  const removeFile = () => {
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const uploadFile = async (workshopId: string): Promise<string | null> => {
+    if (!file || !user) return existingFileUrl;
+
+    setUploading(true);
+    const ext = file.name.split(".").pop() ?? "bin";
+    const path = `${user.id}/${workshopId}/${Date.now()}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("workshop-files")
+      .upload(path, file, { upsert: true });
+
+    setUploading(false);
+
+    if (error) {
+      toast.error(`Error subiendo archivo: ${error.message}`);
+      return existingFileUrl;
+    }
+
+    return path;
+  };
+
+  const getFileDownloadUrl = async (path: string): Promise<string | null> => {
+    const { data } = await supabase.storage
+      .from("workshop-files")
+      .createSignedUrl(path, 3600); // 1 hour
+    return data?.signedUrl ?? null;
   };
 
   const handleSubmit = async () => {
     if (!user || !activeWs) return;
-    if (!content.trim() && !link.trim()) {
-      toast.error("Escribe algo o proporciona un link");
+    if (!content.trim() && !link.trim() && !file && !existingFileUrl) {
+      toast.error("Escribe algo, proporciona un link o sube un archivo");
       return;
     }
     setSubmitting(true);
+
+    // Upload file if selected
+    const fileUrl = await uploadFile(activeWs.workshop.id);
 
     const payload = {
       workshop_id: activeWs.workshop.id,
       user_id: user.id,
       content: content || null,
       external_link: link || null,
+      file_url: fileUrl,
       status: "entregado" as const,
       submitted_at: new Date().toISOString(),
     };
@@ -113,6 +168,17 @@ function StudentWorkshops() {
     setRows(prev => prev.map(r =>
       r.workshop.id === activeWs.workshop.id ? { ...r, submission: sub ?? undefined } : r
     ));
+  };
+
+  const downloadExistingFile = async (fileUrl: string) => {
+    const url = await getFileDownloadUrl(fileUrl);
+    if (url) window.open(url, "_blank");
+    else toast.error("No se pudo generar el enlace de descarga");
+  };
+
+  const getFileName = (path: string) => {
+    const parts = path.split("/");
+    return parts[parts.length - 1];
   };
 
   return (
@@ -171,6 +237,15 @@ function StudentWorkshops() {
                   </a>
                 )}
 
+                {submission?.file_url && (
+                  <button
+                    onClick={() => downloadExistingFile(submission.file_url!)}
+                    className="text-sm text-primary flex items-center gap-1 hover:underline"
+                  >
+                    <FileIcon className="h-3 w-3" /> {getFileName(submission.file_url)}
+                  </button>
+                )}
+
                 {submission?.teacher_feedback && (
                   <div className="bg-muted/50 p-2 rounded text-sm">
                     <div className="text-xs font-medium flex items-center gap-1 mb-1">
@@ -207,8 +282,60 @@ function StudentWorkshops() {
           <div className="space-y-3">
             <div>
               <Label>Tu respuesta / contenido</Label>
-              <Textarea rows={5} value={content} onChange={e => setContent(e.target.value)} placeholder="Escribe tu respuesta aquí..." />
+              <Textarea rows={4} value={content} onChange={e => setContent(e.target.value)} placeholder="Escribe tu respuesta aquí..." />
             </div>
+
+            {/* File upload */}
+            <div>
+              <Label>Archivo adjunto (máx. 50 MB)</Label>
+              <div className="mt-1.5">
+                {file ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/30">
+                    <FileIcon className="h-4 w-4 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{file.name}</div>
+                      <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={removeFile} className="h-7 w-7 p-0 shrink-0">
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : existingFileUrl ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/30">
+                    <FileIcon className="h-4 w-4 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{getFileName(existingFileUrl)}</div>
+                      <div className="text-xs text-muted-foreground">Archivo actual</div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setExistingFileUrl(null)} className="h-7 w-7 p-0 shrink-0" title="Quitar archivo">
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : null}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={file || existingFileUrl ? "mt-2" : ""}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-1.5" />
+                  {file || existingFileUrl ? "Cambiar archivo" : "Seleccionar archivo"}
+                </Button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.zip,.rar,.7z,.gz,.tar,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html,.png,.jpg,.jpeg,.gif,.webp,.json,.xml,.jar"
+                  onChange={handleFileSelect}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  PDF, ZIP, RAR, documentos Office, imágenes, código
+                </p>
+              </div>
+            </div>
+
             <div>
               <Label>Link externo (opcional)</Label>
               <Input placeholder="https://github.com/..." value={link} onChange={e => setLink(e.target.value)} />
@@ -216,13 +343,19 @@ function StudentWorkshops() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSubmitOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-              Entregar
+            <Button onClick={handleSubmit} disabled={submitting || uploading}>
+              {(submitting || uploading) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+              {uploading ? "Subiendo…" : "Entregar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

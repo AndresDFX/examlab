@@ -1,23 +1,21 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
-  Plus, Pencil, Trash2, Sparkles, Loader2, ExternalLink,
-  Users, CheckCircle2, Clock, MessageSquare,
+  Plus, Pencil, Trash2, ExternalLink,
+  Users, CheckCircle2, FileIcon, Download,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
@@ -32,7 +30,8 @@ type Workshop = {
 type Student = { id: string; full_name: string; institutional_email: string };
 type WsSub = {
   id: string; workshop_id: string; user_id: string; content: string | null;
-  external_link: string | null; ai_grade: number | null; ai_feedback: string | null;
+  external_link: string | null; file_url: string | null;
+  ai_grade: number | null; ai_feedback: string | null;
   final_grade: number | null; teacher_feedback: string | null; status: string;
   submitted_at: string | null;
   profile?: { full_name: string; institutional_email: string };
@@ -49,7 +48,6 @@ function TeacherWorkshops() {
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [gradingOpen, setGradingOpen] = useState(false);
-  const [gradingLoading, setGradingLoading] = useState(false);
 
   // Assignment
   const [assignWs, setAssignWs] = useState<Workshop | null>(null);
@@ -177,19 +175,6 @@ function TeacherWorkshops() {
       setWsSubs([]);
     }
     setGradingOpen(true);
-  };
-
-  const gradeWithAI = async (subId: string) => {
-    setGradingLoading(true);
-    try {
-      // For now, trigger AI grading via the existing edge function pattern
-      // This would be extended with a dedicated workshop grading function
-      toast.info("Calificación con IA en desarrollo. Use calificación manual.");
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setGradingLoading(false);
-    }
   };
 
   const saveGrade = async (subId: string, grade: number, feedback: string) => {
@@ -361,6 +346,20 @@ function TeacherWorkshops() {
                     </Badge>
                   </div>
                   {sub.content && <p className="text-sm bg-muted/50 p-2 rounded">{sub.content}</p>}
+                  {sub.file_url && (
+                    <button
+                      onClick={async () => {
+                        const { data } = await supabase.storage.from("workshop-files").createSignedUrl(sub.file_url!, 3600);
+                        if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                        else toast.error("No se pudo generar el enlace de descarga");
+                      }}
+                      className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                    >
+                      <FileIcon className="h-3.5 w-3.5" />
+                      <span className="truncate max-w-[200px]">{sub.file_url.split("/").pop()}</span>
+                      <Download className="h-3 w-3 shrink-0" />
+                    </button>
+                  )}
                   {sub.external_link && (
                     <a href={sub.external_link} target="_blank" rel="noopener noreferrer" className="text-sm text-primary flex items-center gap-1">
                       <ExternalLink className="h-3 w-3" /> {sub.external_link}
