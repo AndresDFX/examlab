@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
+import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
@@ -329,6 +330,11 @@ function TakeExam() {
                     showLanguageSelector={false}
                     showRunButton={true}
                     height="250px"
+                  />
+                ) : q.type === "diagrama" ? (
+                  <DiagramEditor
+                    value={answers[q.id] ?? ""}
+                    onChange={(code) => setAnswers({ ...answers, [q.id]: code })}
                   />
                 ) : (
                   <Textarea

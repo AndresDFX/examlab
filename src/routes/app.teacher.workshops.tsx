@@ -15,7 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus, Pencil, Trash2, ExternalLink,
-  Users, CheckCircle2, FileIcon, Download,
+  Users, CheckCircle2, FileIcon, Download, CheckSquare, XSquare,
+  Sparkles, Loader2, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
@@ -106,6 +107,7 @@ function TeacherWorkshops() {
       description: form.description ?? null,
       instructions: form.instructions ?? null,
       external_link: form.external_link || null,
+      start_date: (form as any).start_date ? new Date((form as any).start_date).toISOString() : null,
       due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
       max_score: Number(form.max_score) || 100,
       status: form.status ?? "draft",
@@ -193,7 +195,18 @@ function TeacherWorkshops() {
     const { error } = await supabase.from("workshop_assignments").insert(toAdd.map(s => ({ workshop_id: assignWs.id, user_id: s.id })));
     if (error) return toast.error(error.message);
     setAssignedIds(new Set(students.map(s => s.id)));
-    toast.success("Todos asignados");
+    toast.success(`${toAdd.length} estudiante(s) asignados`);
+  };
+
+  const unassignAll = async () => {
+    if (!assignWs) return;
+    const toRemove = students.filter(s => assignedIds.has(s.id));
+    if (!toRemove.length) return;
+    for (const s of toRemove) {
+      await supabase.from("workshop_assignments").delete().eq("workshop_id", assignWs.id).eq("user_id", s.id);
+    }
+    setAssignedIds(new Set());
+    toast.success(`${toRemove.length} asignación(es) removidas`);
   };
 
   const openGrading = async (ws: Workshop) => {
@@ -214,6 +227,87 @@ function TeacherWorkshops() {
     setGradingOpen(true);
   };
 
+  const [aiGradingId, setAiGradingId] = useState<string | null>(null);
+  const [aiGradingAll, setAiGradingAll] = useState(false);
+
+  const gradeOneWithAI = async (sub: WsSub) => {
+    if (!gradingWs) return;
+    setAiGradingId(sub.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
+        body: {
+          submissionId: sub.id,
+          workshopMode: true,
+          workshopTitle: gradingWs.title,
+          workshopInstructions: gradingWs.instructions,
+          workshopRubric: gradingWs.rubric,
+          maxScore: gradingWs.max_score,
+          studentContent: sub.content,
+          studentLink: sub.external_link,
+        },
+      });
+      if (error) throw error;
+      const aiGrade = data?.grade ?? null;
+      const aiFeedback = data?.feedback ?? "Sin retroalimentación de IA";
+      await supabase.from("workshop_submissions").update({
+        ai_grade: aiGrade,
+        ai_feedback: aiFeedback,
+        status: "ai_revisado",
+      }).eq("id", sub.id);
+      setWsSubs(prev => prev.map(s =>
+        s.id === sub.id ? { ...s, ai_grade: aiGrade, ai_feedback: aiFeedback, status: "ai_revisado" } : s
+      ));
+      toast.success("Calificación IA completada — pendiente de aprobación");
+    } catch (e: any) {
+      toast.error(`Error IA: ${e.message ?? "Error desconocido"}`);
+    } finally {
+      setAiGradingId(null);
+    }
+  };
+
+  const gradeAllWithAI = async () => {
+    if (!gradingWs) return;
+    const pending = wsSubs.filter(s => s.status === "entregado");
+    if (!pending.length) { toast.info("No hay entregas pendientes de calificación"); return; }
+    setAiGradingAll(true);
+    let graded = 0;
+    for (const sub of pending) {
+      try {
+        await gradeOneWithAI(sub);
+        graded++;
+      } catch { /* continue */ }
+    }
+    setAiGradingAll(false);
+    toast.success(`${graded} entrega(s) calificadas con IA — pendientes de aprobación`);
+  };
+
+  const approveAIGrade = async (subId: string) => {
+    const sub = wsSubs.find(s => s.id === subId);
+    if (!sub) return;
+    const { error } = await supabase.from("workshop_submissions").update({
+      final_grade: sub.ai_grade,
+      teacher_feedback: sub.ai_feedback,
+      status: "calificado",
+    }).eq("id", subId);
+    if (error) return toast.error(error.message);
+    setWsSubs(prev => prev.map(s =>
+      s.id === subId ? { ...s, final_grade: sub.ai_grade, teacher_feedback: sub.ai_feedback, status: "calificado" } : s
+    ));
+    toast.success("Calificación IA aprobada");
+  };
+
+  const rejectAIGrade = async (subId: string) => {
+    await supabase.from("workshop_submissions").update({
+      ai_grade: null,
+      ai_feedback: null,
+      status: "entregado",
+    }).eq("id", subId);
+    setWsSubs(prev => prev.map(s =>
+      s.id === subId ? { ...s, ai_grade: null, ai_feedback: null, status: "entregado" } : s
+    ));
+    toast.success("Calificación IA rechazada — puede calificar manualmente");
+  };
+
   const saveGrade = async (subId: string, grade: number, feedback: string) => {
     const { data, error } = await supabase.from("workshop_submissions").update({
       final_grade: grade,
@@ -230,7 +324,6 @@ function TeacherWorkshops() {
       return;
     }
     toast.success("Calificación guardada");
-    // Update local state immediately
     setWsSubs(prev => prev.map(s =>
       s.id === subId ? { ...s, final_grade: grade, teacher_feedback: feedback, status: "calificado" } : s
     ));
@@ -336,8 +429,12 @@ function TeacherWorkshops() {
             <div><Label>Instrucciones</Label><Textarea rows={4} value={form.instructions ?? ""} onChange={e => setForm({ ...form, instructions: e.target.value })} /></div>
             <div><Label>Link externo (opcional)</Label><Input placeholder="https://..." value={form.external_link ?? ""} onChange={e => setForm({ ...form, external_link: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
+              <div><Label>Fecha inicio (visible desde)</Label><Input type="datetime-local" value={(form as any).start_date ?? ""} onChange={e => setForm({ ...form, start_date: e.target.value } as any)} /></div>
               <div><Label>Fecha límite</Label><Input type="datetime-local" value={form.due_date as any ?? ""} onChange={e => setForm({ ...form, due_date: e.target.value })} /></div>
-              <div><Label>Puntaje máximo</Label><Input type="number" value={form.max_score || ""} onChange={e => setForm({ ...form, max_score: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
+            </div>
+            <div>
+              <Label>Puntaje máximo</Label>
+              <Input type="number" value={form.max_score || ""} onChange={e => setForm({ ...form, max_score: e.target.value === "" ? 0 : Number(e.target.value) })} />
             </div>
             <div>
               <Label>Estado</Label>
@@ -373,17 +470,27 @@ function TeacherWorkshops() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Asignar — {assignWs?.title}</DialogTitle></DialogHeader>
-          <div className="flex justify-end mb-2">
-            <Button size="sm" variant="outline" onClick={assignAll}>Asignar a todos</Button>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{assignedIds.size} de {students.length} asignados</span>
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={assignAll}>
+                <CheckSquare className="h-3 w-3" /> Seleccionar todos
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={unassignAll}>
+                <XSquare className="h-3 w-3" /> Deseleccionar todos
+              </Button>
+            </div>
           </div>
-          <div className="max-h-96 overflow-y-auto space-y-1.5">
+          <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
+            {students.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No hay estudiantes matriculados en este curso.</p>}
             {students.map(s => (
-              <label key={s.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-sm">
+              <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
                 <Checkbox checked={assignedIds.has(s.id)} onCheckedChange={(v) => toggleAssign(s.id, !!v)} />
-                <div className="flex-1">
-                  <div className="font-medium">{s.full_name}</div>
-                  <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{s.full_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{s.institutional_email}</div>
                 </div>
+                {assignedIds.has(s.id) && <Badge variant="secondary" className="text-[9px] shrink-0">Asignado</Badge>}
               </label>
             ))}
           </div>
@@ -393,22 +500,43 @@ function TeacherWorkshops() {
       {/* Grading Dialog */}
       <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle>
+          </DialogHeader>
+          {/* Bulk AI action */}
+          {wsSubs.some(s => s.status === "entregado") && (
+            <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
+              <div>
+                <p className="text-sm font-medium">Calificar con IA</p>
+                <p className="text-xs text-muted-foreground">Califica todas las entregas pendientes. Quedarán en revisión para tu aprobación.</p>
+              </div>
+              <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
+                {aiGradingAll ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                Calificar todo con IA
+              </Button>
+            </div>
+          )}
           <div className="space-y-3">
             {wsSubs.length === 0 && <p className="text-sm text-muted-foreground">No hay entregas aún.</p>}
             {wsSubs.map(sub => (
-              <Card key={sub.id}>
-                <CardContent className="p-4 space-y-2">
+              <Card key={sub.id} className={sub.status === "ai_revisado" ? "border-amber-400/50 dark:border-amber-500/30" : ""}>
+                <CardContent className="p-4 space-y-3">
+                  {/* Header */}
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium text-sm">{sub.profile?.full_name}</div>
                       <div className="text-xs text-muted-foreground">{sub.profile?.institutional_email}</div>
                     </div>
-                    <Badge variant={sub.status === "calificado" ? "default" : sub.status === "entregado" ? "secondary" : "outline"} className="text-[10px]">
-                      {sub.status === "calificado" ? "Calificado" : sub.status === "entregado" ? "Entregado" : "Pendiente"}
+                    <Badge
+                      variant={sub.status === "calificado" ? "default" : sub.status === "ai_revisado" ? "outline" : sub.status === "entregado" ? "secondary" : "outline"}
+                      className={`text-[10px] ${sub.status === "ai_revisado" ? "border-amber-400 text-amber-600 dark:text-amber-400" : ""}`}
+                    >
+                      {sub.status === "calificado" ? "Calificado" : sub.status === "ai_revisado" ? "Revisión IA" : sub.status === "entregado" ? "Entregado" : "Pendiente"}
                     </Badge>
                   </div>
-                  {sub.content && <p className="text-sm bg-muted/50 p-2 rounded">{sub.content}</p>}
+
+                  {/* Student content */}
+                  {sub.content && <p className="text-sm bg-muted/50 p-2.5 rounded whitespace-pre-wrap">{sub.content}</p>}
                   {sub.file_url && (
                     <button
                       onClick={async () => {
@@ -428,39 +556,76 @@ function TeacherWorkshops() {
                       <ExternalLink className="h-3 w-3" /> {sub.external_link}
                     </a>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Nota final</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={gradingWs?.max_score ?? 100}
-                        value={sub.final_grade ?? ""}
-                        onChange={e => {
-                          setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, final_grade: e.target.value === "" ? null : Number(e.target.value) } : s));
-                        }}
-                        className="h-8 text-sm"
-                      />
+
+                  {/* AI Review pending approval */}
+                  {sub.status === "ai_revisado" && sub.ai_grade != null && (
+                    <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium">Calificación IA: {sub.ai_grade}/{gradingWs?.max_score ?? 100}</span>
+                      </div>
+                      {sub.ai_feedback && <p className="text-sm text-muted-foreground">{sub.ai_feedback}</p>}
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" onClick={() => approveAIGrade(sub.id)}>
+                          <ThumbsUp className="h-3.5 w-3.5" /> Aprobar
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5" onClick={() => rejectAIGrade(sub.id)}>
+                          <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs">Retroalimentación</Label>
-                      <Input
-                        value={sub.teacher_feedback ?? ""}
-                        onChange={e => {
-                          setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s));
-                        }}
-                        className="h-8 text-sm"
-                        placeholder="Comentario..."
-                      />
+                  )}
+
+                  {/* Manual grading / override */}
+                  {sub.status !== "ai_revisado" && (
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="text-xs">Nota final</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={gradingWs?.max_score ?? 100}
+                          value={sub.final_grade ?? ""}
+                          onChange={e => {
+                            setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, final_grade: e.target.value === "" ? null : Number(e.target.value) } : s));
+                          }}
+                          className="h-8 text-sm mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Retroalimentación</Label>
+                        <Textarea
+                          rows={3}
+                          value={sub.teacher_feedback ?? ""}
+                          onChange={e => {
+                            setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s));
+                          }}
+                          className="text-sm mt-1"
+                          placeholder="Escribe tu retroalimentación detallada..."
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar nota
+                        </Button>
+                        {sub.status === "entregado" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => gradeOneWithAI(sub)}
+                            disabled={aiGradingId === sub.id}
+                          >
+                            {aiGradingId === sub.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                            Calificar con IA
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar nota
-                  </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}

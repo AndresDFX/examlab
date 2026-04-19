@@ -39,16 +39,22 @@ function StudentExams() {
     })();
   }, [user]);
 
+  // Only show exams whose start_time has arrived, or that have a submission already
+  const visibleRows = rows.filter(({ exam, submission }) => {
+    if (submission) return true; // always show if student already interacted
+    return new Date(exam.start_time).getTime() <= now;
+  });
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Exámenes</h1>
-        <p className="text-sm text-muted-foreground">{rows.length} exámenes asignados</p>
+        <p className="text-sm text-muted-foreground">{visibleRows.length} exámenes disponibles</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {rows.length === 0 && <p className="text-muted-foreground text-sm">No tienes exámenes asignados.</p>}
-        {rows.map(({ exam, submission }) => {
+        {visibleRows.length === 0 && <p className="text-muted-foreground text-sm">No tienes exámenes disponibles en este momento.</p>}
+        {visibleRows.map(({ exam, submission }) => {
           const start = new Date(exam.start_time).getTime();
           const end = new Date(exam.end_time).getTime();
           const isOpen = now >= start && now <= end;

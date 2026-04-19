@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Sparkles, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -81,8 +81,8 @@ function ExamEditor() {
 
   const addQuestion = async () => {
     if (!qContent.trim()) return toast.error("Contenido requerido");
-    if ((qType === "abierta" || qType === "codigo") && !qRubric.trim())
-      return toast.error("Rúbrica requerida para preguntas abiertas/código");
+    if ((qType === "abierta" || qType === "codigo" || qType === "diagrama") && !qRubric.trim())
+      return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama");
     const options = qType === "cerrada" ? { choices: qChoices, correct_index: qCorrect } : null;
     const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
     const { error } = await supabase.from("questions").insert({
@@ -145,7 +145,6 @@ function ExamEditor() {
     if (!toAdd.length) return;
     const { error } = await supabase.from("exam_assignments").insert(toAdd.map(s => ({ exam_id: examId, user_id: s.id })));
     if (error) return toast.error(error.message);
-    // Notify assigned students
     for (const s of toAdd) {
       await supabase.from("notifications").insert({
         user_id: s.id,
@@ -156,7 +155,17 @@ function ExamEditor() {
       });
     }
     setAssigned(new Set(students.map(s => s.id)));
-    toast.success("Todos asignados");
+    toast.success(`${toAdd.length} estudiante(s) asignados`);
+  };
+
+  const unassignAll = async () => {
+    const toRemove = students.filter(s => assigned.has(s.id));
+    if (!toRemove.length) return;
+    for (const s of toRemove) {
+      await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", s.id);
+    }
+    setAssigned(new Set());
+    toast.success(`${toRemove.length} asignación(es) removidas`);
   };
 
   if (!exam) return <p className="text-muted-foreground">Cargando…</p>;
@@ -215,6 +224,7 @@ function ExamEditor() {
                       <SelectItem value="abierta">Abierta</SelectItem>
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
                       <SelectItem value="codigo">Código</SelectItem>
+                      <SelectItem value="diagrama">Diagrama</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -238,6 +248,7 @@ function ExamEditor() {
                       <SelectItem value="abierta">Abierta</SelectItem>
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
                       <SelectItem value="codigo">Código</SelectItem>
+                      <SelectItem value="diagrama">Diagrama</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -297,19 +308,30 @@ function ExamEditor() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Estudiantes matriculados</CardTitle>
-                <Button size="sm" variant="outline" onClick={assignAll}>Asignar a todos</Button>
+                <div>
+                  <CardTitle className="text-base">Estudiantes matriculados</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">{assigned.size} de {students.length} asignados</p>
+                </div>
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="outline" className="gap-1" onClick={assignAll}>
+                    <CheckSquare className="h-3.5 w-3.5" /> Seleccionar todos
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1" onClick={unassignAll}>
+                    <XSquare className="h-3.5 w-3.5" /> Deseleccionar todos
+                  </Button>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-1.5">
+            <CardContent className="space-y-0.5">
               {students.length === 0 && <p className="text-sm text-muted-foreground">No hay estudiantes matriculados en este curso.</p>}
               {students.map(s => (
-                <label key={s.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-sm">
+                <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
                   <Checkbox checked={assigned.has(s.id)} onCheckedChange={(v) => toggleAssign(s.id, !!v)} />
-                  <div className="flex-1">
-                    <div className="font-medium">{s.full_name}</div>
-                    <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{s.full_name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.institutional_email}</div>
                   </div>
+                  {assigned.has(s.id) && <Badge variant="secondary" className="text-[9px] shrink-0">Asignado</Badge>}
                 </label>
               ))}
             </CardContent>

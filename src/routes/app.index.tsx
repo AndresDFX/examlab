@@ -271,7 +271,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .eq("user_id", userId);
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
-        .filter((e: any) => e && new Date(e.end_time) > new Date())
+        .filter((e: any) => e && new Date(e.start_time) <= new Date() && new Date(e.end_time) > new Date())
         .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
         .slice(0, 4);
       setUpcomingExams(exams);
@@ -283,7 +283,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .eq("user_id", userId);
       const ws = (wasg ?? [])
         .map((a: any) => a.workshop)
-        .filter((w: any) => w && w.status === "published")
+        .filter((w: any) => w && w.status === "published" && (!w.start_date || new Date(w.start_date) <= new Date()))
         .sort((a: any, b: any) => new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime())
         .slice(0, 4);
       setPendingWorkshops(ws);

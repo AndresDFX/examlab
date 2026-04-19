@@ -20,7 +20,8 @@ export const Route = createFileRoute("/app/student/workshops")({ component: Stud
 type WorkshopRow = {
   workshop: {
     id: string; title: string; description: string | null; instructions: string | null;
-    external_link: string | null; due_date: string | null; max_score: number; status: string;
+    external_link: string | null; due_date: string | null; start_date: string | null;
+    max_score: number; status: string;
     course: { name: string };
   };
   submission?: {
@@ -51,7 +52,7 @@ function StudentWorkshops() {
     (async () => {
       const { data: asg } = await supabase
         .from("workshop_assignments")
-        .select("workshop:workshops(id, title, description, instructions, external_link, due_date, max_score, status, course:courses(name))")
+        .select("workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, course:courses(name))")
         .eq("user_id", user.id);
 
       const workshops = (asg ?? []).map((a: any) => a.workshop).filter(Boolean);
@@ -138,6 +139,12 @@ function StudentWorkshops() {
 
   const handleSubmit = async () => {
     if (!user || !activeWs) return;
+    // Block if past due date
+    if (activeWs.workshop.due_date && new Date(activeWs.workshop.due_date).getTime() < Date.now()) {
+      toast.error("La fecha límite ha pasado. No es posible entregar.");
+      setSubmitOpen(false);
+      return;
+    }
     if (!content.trim() && !link.trim() && !file && !existingFileUrl) {
       toast.error("Escribe algo, proporciona un link o sube un archivo");
       return;
@@ -194,17 +201,25 @@ function StudentWorkshops() {
     return parts[parts.length - 1];
   };
 
+  // Only show workshops whose start_date has arrived (or has no start_date), or that have a submission
+  const now = Date.now();
+  const visibleRows = rows.filter(({ workshop, submission }) => {
+    if (submission) return true;
+    if (workshop.start_date && new Date(workshop.start_date).getTime() > now) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Talleres</h1>
-        <p className="text-sm text-muted-foreground">{rows.length} talleres asignados</p>
+        <p className="text-sm text-muted-foreground">{visibleRows.length} talleres disponibles</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {rows.length === 0 && <p className="text-muted-foreground text-sm">No tienes talleres asignados.</p>}
-        {rows.map(({ workshop, submission }) => {
-          const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < Date.now();
+        {visibleRows.length === 0 && <p className="text-muted-foreground text-sm">No tienes talleres disponibles en este momento.</p>}
+        {visibleRows.map(({ workshop, submission }) => {
+          const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
           return (
             <Card key={workshop.id}>
@@ -268,11 +283,17 @@ function StudentWorkshops() {
                   </div>
                 )}
 
-                {workshop.status === "published" && submission?.status !== "calificado" && (
+                {workshop.status === "published" && submission?.status !== "calificado" && !isOverdue && (
                   <Button size="sm" className="w-full" onClick={() => openSubmit({ workshop, submission })}>
                     <Send className="h-4 w-4 mr-1" />
                     {submission ? "Actualizar entrega" : "Entregar taller"}
                   </Button>
+                )}
+                {workshop.status === "published" && submission?.status !== "calificado" && isOverdue && !submission && (
+                  <p className="text-xs text-destructive text-center">La fecha límite ha pasado. No es posible entregar.</p>
+                )}
+                {workshop.status === "published" && isOverdue && submission?.status === "entregado" && (
+                  <p className="text-xs text-muted-foreground text-center">Entregado antes de la fecha límite. No se permiten modificaciones.</p>
                 )}
               </CardContent>
             </Card>

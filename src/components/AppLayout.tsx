@@ -169,8 +169,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1">
             <NotificationBell userId={user.id} variant="sidebar" />
             <ThemeToggle />
-            <Button variant="ghost" size="sm" onClick={signOut} className="flex-1 justify-start text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground">
-              <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
+            <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" title="Cerrar sesión">
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>

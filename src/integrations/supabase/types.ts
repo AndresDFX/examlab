@@ -586,6 +586,7 @@ export type Database = {
           instructions: string | null
           max_score: number
           rubric: Json | null
+          start_date: string | null
           status: string
           title: string
           updated_at: string
@@ -602,6 +603,7 @@ export type Database = {
           instructions?: string | null
           max_score?: number
           rubric?: Json | null
+          start_date?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -618,6 +620,7 @@ export type Database = {
           instructions?: string | null
           max_score?: number
           rubric?: Json | null
+          start_date?: string | null
           status?: string
           title?: string
           updated_at?: string
