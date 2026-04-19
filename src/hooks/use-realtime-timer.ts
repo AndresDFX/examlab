@@ -34,6 +34,15 @@ export function useRealtimeTimer({
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const secondsRef = useRef(initialSeconds);
+  const initializedRef = useRef(initialSeconds > 0);
+
+  // Initialize secondsLeft once initialSeconds becomes available (exam loaded after mount)
+  useEffect(() => {
+    if (initialSeconds > 0 && !initializedRef.current) {
+      setSecondsLeft(initialSeconds);
+      initializedRef.current = true;
+    }
+  }, [initialSeconds]);
 
   // Keep ref in sync
   useEffect(() => {
@@ -49,7 +58,9 @@ export function useRealtimeTimer({
 
     intervalRef.current = setInterval(() => {
       setSecondsLeft((s) => {
-        const next = Math.max(0, s - 1);
+        // Guard: don't tick or fire onTimeUp until we've been initialized with real data
+        if (!initializedRef.current || s <= 0) return s;
+        const next = s - 1;
         if (next === 0) onTimeUp?.();
         return next;
       });
