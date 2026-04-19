@@ -20,6 +20,8 @@ export const Route = createFileRoute("/app/admin/courses")({ component: AdminCou
 type Course = {
   id: string; name: string; description: string | null;
   period: string | null; start_date: string | null; end_date: string | null;
+  grade_scale_min: number; grade_scale_max: number;
+  exam_weight: number; workshop_weight: number; passing_grade: number;
 };
 type Profile = { id: string; full_name: string; institutional_email: string };
 
@@ -63,7 +65,11 @@ function AdminCourses() {
   // ── Course CRUD ──────────────────────────────────────────
 
   const openNew = () => {
-    setEditing({ id: "", name: "", description: "", period: "", start_date: "", end_date: "" });
+    setEditing({
+      id: "", name: "", description: "", period: "", start_date: "", end_date: "",
+      grade_scale_min: 0, grade_scale_max: 5,
+      exam_weight: 50, workshop_weight: 50, passing_grade: 3,
+    });
     setOpen(true);
   };
 
@@ -75,6 +81,11 @@ function AdminCourses() {
       period: editing.period || null,
       start_date: editing.start_date || null,
       end_date: editing.end_date || null,
+      grade_scale_min: Number(editing.grade_scale_min ?? 0),
+      grade_scale_max: Number(editing.grade_scale_max ?? 5),
+      exam_weight: Number(editing.exam_weight ?? 50),
+      workshop_weight: Number(editing.workshop_weight ?? 50),
+      passing_grade: Number(editing.passing_grade ?? 3),
     };
     if (editing.id) {
       const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
@@ -365,6 +376,35 @@ function AdminCourses() {
                 <div><Label>Fecha fin</Label><Input type="date" value={editing.end_date ?? ""} onChange={e => setEditing({ ...editing, end_date: e.target.value })} /></div>
               </div>
               <div><Label>Descripción</Label><Textarea value={editing.description ?? ""} onChange={e => setEditing({ ...editing, description: e.target.value })} /></div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-sm font-medium">Escala de calificación</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Nota mínima</Label>
+                    <Input type="number" step="0.1" value={editing.grade_scale_min ?? 0} onChange={e => setEditing({ ...editing, grade_scale_min: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nota máxima</Label>
+                    <Input type="number" step="0.1" value={editing.grade_scale_max ?? 5} onChange={e => setEditing({ ...editing, grade_scale_max: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Aprobar ≥</Label>
+                    <Input type="number" step="0.1" value={editing.passing_grade ?? 3} onChange={e => setEditing({ ...editing, passing_grade: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Peso exámenes (%)</Label>
+                    <Input type="number" step="1" value={editing.exam_weight ?? 50} onChange={e => setEditing({ ...editing, exam_weight: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Peso talleres (%)</Label>
+                    <Input type="number" step="1" value={editing.workshop_weight ?? 50} onChange={e => setEditing({ ...editing, workshop_weight: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Los pesos se normalizan automáticamente al calcular la nota final.</p>
+              </div>
             </div>
           )}
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={save}>Guardar</Button></DialogFooter>

@@ -17,6 +17,7 @@ import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.wo
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
+import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
 import { Route as AppStudentExamsRouteImport } from './routes/app.student.exams'
 import { Route as AppStudentCoursesRouteImport } from './routes/app.student.courses'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
@@ -64,6 +65,11 @@ const AppTeacherCoursesRoute = AppTeacherCoursesRouteImport.update({
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
   id: '/student/workshops',
   path: '/student/workshops',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudentGradesRoute = AppStudentGradesRouteImport.update({
+  id: '/student/grades',
+  path: '/student/grades',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentExamsRoute = AppStudentExamsRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
+  '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
+  '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
+  '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/app/admin/users'
     | '/app/student/courses'
     | '/app/student/exams'
+    | '/app/student/grades'
     | '/app/student/workshops'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/app/admin/users'
     | '/app/student/courses'
     | '/app/student/exams'
+    | '/app/student/grades'
     | '/app/student/workshops'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/app/admin/users'
     | '/app/student/courses'
     | '/app/student/exams'
+    | '/app/student/grades'
     | '/app/student/workshops'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
@@ -281,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentWorkshopsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/student/grades': {
+      id: '/app/student/grades'
+      path: '/student/grades'
+      fullPath: '/app/student/grades'
+      preLoaderRoute: typeof AppStudentGradesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/student/exams': {
       id: '/app/student/exams'
       path: '/student/exams'
@@ -346,6 +365,7 @@ interface AppRouteChildren {
   AppAdminUsersRoute: typeof AppAdminUsersRoute
   AppStudentCoursesRoute: typeof AppStudentCoursesRoute
   AppStudentExamsRoute: typeof AppStudentExamsRoute
+  AppStudentGradesRoute: typeof AppStudentGradesRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
@@ -362,6 +382,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminUsersRoute: AppAdminUsersRoute,
   AppStudentCoursesRoute: AppStudentCoursesRoute,
   AppStudentExamsRoute: AppStudentExamsRoute,
+  AppStudentGradesRoute: AppStudentGradesRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,

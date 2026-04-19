@@ -2,16 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Trash2, Loader2 } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Pencil, Loader2 } from "lucide-react";
 import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
@@ -26,14 +26,24 @@ type Row = {
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante"];
 
+const EMPTY_NEW: Row = {
+  id: "",
+  full_name: "",
+  institutional_email: "",
+  personal_email: "",
+  roles: ["Estudiante"],
+};
+
 function AdminUsers() {
   const { roles } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Row | null>(null);
+  const [password, setPassword] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
 
   const isAdmin = roles.includes("Admin");
 
@@ -61,27 +71,83 @@ function AdminUsers() {
     const toRemove = [...currentSet].filter(r => !newSet.has(r));
     if (toAdd.length) {
       const { error } = await supabase.from("user_roles").insert(toAdd.map(role => ({ user_id: userId, role })));
-      if (error) { toast.error(error.message); return; }
+      if (error) { toast.error(error.message); return false; }
     }
     if (toRemove.length) {
       const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).in("role", toRemove);
-      if (error) { toast.error(error.message); return; }
+      if (error) { toast.error(error.message); return false; }
     }
-    toast.success("Roles actualizados");
+    return true;
+  };
+
+  const openNew = () => {
+    setEditing({ ...EMPTY_NEW });
+    setPassword("");
+    setDialogOpen(true);
+  };
+
+  const openEdit = (r: Row) => {
+    setEditing({ ...r });
+    setPassword("");
+    setDialogOpen(true);
   };
 
   const saveProfile = async () => {
     if (!editing) return;
-    const { error } = await supabase.from("profiles").update({
-      full_name: editing.full_name,
-      personal_email: editing.personal_email,
-      institutional_email: editing.institutional_email,
-    }).eq("id", editing.id);
+    if (!editing.full_name.trim() || !editing.institutional_email.trim()) {
+      toast.error("Nombre y email institucional son requeridos");
+      return;
+    }
+    setSavingUser(true);
+    try {
+      if (editing.id) {
+        // Update
+        const { error } = await supabase.from("profiles").update({
+          full_name: editing.full_name,
+          personal_email: editing.personal_email || null,
+          institutional_email: editing.institutional_email,
+        }).eq("id", editing.id);
+        if (error) { toast.error(error.message); return; }
+        const ok = await saveRoles(editing.id, editing.roles);
+        if (!ok) return;
+        toast.success("Usuario actualizado");
+      } else {
+        // Create via bulk-import (single row)
+        if (!password || password.length < 8) {
+          toast.error("Contraseña requerida (mínimo 8 caracteres)");
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke("bulk-import-users", {
+          body: {
+            rows: [{
+              full_name: editing.full_name,
+              institutional_email: editing.institutional_email,
+              personal_email: editing.personal_email ?? "",
+              password,
+              roles: editing.roles.join("|"),
+            }],
+          },
+        });
+        if (error) { toast.error(error.message); return; }
+        const result = (data?.result ?? [])[0];
+        if (!result?.ok) { toast.error(result?.error ?? "Error al crear usuario"); return; }
+        toast.success("Usuario creado");
+      }
+      setDialogOpen(false);
+      setEditing(null);
+      load();
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const remove = async (r: Row) => {
+    if (!confirm(`¿Eliminar a ${r.full_name}? Esta acción no elimina la cuenta de autenticación, solo el perfil y sus roles.`)) return;
+    const { error: rolesErr } = await supabase.from("user_roles").delete().eq("user_id", r.id);
+    if (rolesErr) { toast.error(rolesErr.message); return; }
+    const { error } = await supabase.from("profiles").delete().eq("id", r.id);
     if (error) { toast.error(error.message); return; }
-    await saveRoles(editing.id, editing.roles);
-    toast.success("Usuario actualizado correctamente");
-    setDialogOpen(false);
-    setEditing(null);
+    toast.success("Usuario eliminado");
     load();
   };
 
@@ -140,10 +206,11 @@ function AdminUsers() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4 mr-1" />Template CSV</Button>
           <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Exportar</Button>
-          <Button size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
             {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />} Cargar CSV
           </Button>
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => e.target.files?.[0] && onImport(e.target.files[0])} />
+          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo usuario</Button>
         </div>
       </div>
 
@@ -164,6 +231,9 @@ function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {rows.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No hay usuarios.</TableCell></TableRow>
+                  )}
                   {rows.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.full_name}</TableCell>
@@ -171,11 +241,15 @@ function AdminUsers() {
                       <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{r.personal_email ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
+                          {r.roles.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
                           {r.roles.map(role => <Badge key={role} variant="secondary" className="text-[10px]">{role}</Badge>)}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...r }); setDialogOpen(true); }}>Editar</Button>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => remove(r)} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -188,12 +262,19 @@ function AdminUsers() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Editar usuario</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing?.id ? "Editar" : "Nuevo"} usuario</DialogTitle></DialogHeader>
           {editing && (
             <div className="space-y-3">
               <div><Label>Nombre completo</Label><Input value={editing.full_name} onChange={e => setEditing({ ...editing, full_name: e.target.value })} /></div>
-              <div><Label>Email institucional</Label><Input value={editing.institutional_email} onChange={e => setEditing({ ...editing, institutional_email: e.target.value })} /></div>
-              <div><Label>Email personal</Label><Input value={editing.personal_email ?? ""} onChange={e => setEditing({ ...editing, personal_email: e.target.value })} /></div>
+              <div><Label>Email institucional</Label><Input type="email" value={editing.institutional_email} onChange={e => setEditing({ ...editing, institutional_email: e.target.value })} /></div>
+              <div><Label>Email personal</Label><Input type="email" value={editing.personal_email ?? ""} onChange={e => setEditing({ ...editing, personal_email: e.target.value })} /></div>
+              {!editing.id && (
+                <div>
+                  <Label>Contraseña inicial</Label>
+                  <Input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
+                  <p className="text-xs text-muted-foreground mt-1">El usuario podrá cambiarla después.</p>
+                </div>
+              )}
               <div>
                 <Label className="mb-2 block">Roles</Label>
                 <div className="space-y-1.5">
@@ -213,8 +294,11 @@ function AdminUsers() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={saveProfile}>Guardar</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={savingUser}>Cancelar</Button>
+            <Button onClick={saveProfile} disabled={savingUser}>
+              {savingUser && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
