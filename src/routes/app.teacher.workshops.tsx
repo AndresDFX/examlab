@@ -177,10 +177,12 @@ function TeacherWorkshops() {
       const { error } = await supabase.from("workshop_assignments").insert({ workshop_id: assignWs.id, user_id: uid });
       if (error) return toast.error(error.message);
       setAssignedIds(new Set([...assignedIds, uid]));
+      toast.success("Estudiante asignado al taller");
     } else {
       const { error } = await supabase.from("workshop_assignments").delete().eq("workshop_id", assignWs.id).eq("user_id", uid);
       if (error) return toast.error(error.message);
       const ns = new Set(assignedIds); ns.delete(uid); setAssignedIds(ns);
+      toast.success("Asignación removida");
     }
   };
 

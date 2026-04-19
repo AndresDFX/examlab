@@ -79,6 +79,7 @@ function AdminUsers() {
     }).eq("id", editing.id);
     if (error) { toast.error(error.message); return; }
     await saveRoles(editing.id, editing.roles);
+    toast.success("Usuario actualizado correctamente");
     setDialogOpen(false);
     setEditing(null);
     load();
@@ -92,6 +93,7 @@ function AdminUsers() {
       roles: r.roles.join("|"),
     }));
     downloadCSV(`usuarios-${Date.now()}.csv`, toCSV(data));
+    toast.success("Archivo CSV descargado");
   };
 
   const downloadTemplate = () => {
@@ -104,6 +106,7 @@ function AdminUsers() {
       course_name: "Programación II",
     }]);
     downloadCSV("template-usuarios.csv", tmpl);
+    toast.success("Template CSV descargado");
   };
 
   const onImport = async (file: File) => {

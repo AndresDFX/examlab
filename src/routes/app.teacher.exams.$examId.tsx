@@ -131,10 +131,12 @@ function ExamEditor() {
         link: "/app/student/exams",
       });
       setAssigned(new Set([...assigned, uid]));
+      toast.success("Estudiante asignado al examen");
     } else {
       const { error } = await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", uid);
       if (error) return toast.error(error.message);
       const ns = new Set(assigned); ns.delete(uid); setAssigned(ns);
+      toast.success("Asignación removida");
     }
   };
 

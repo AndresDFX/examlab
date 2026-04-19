@@ -249,6 +249,7 @@ function Gradebook() {
 
     const courseName = courses.find(c => c.id === courseId)?.name ?? "curso";
     downloadCSV(`calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`, toCSV(csvRows));
+    toast.success("Archivo CSV descargado");
   };
 
   const hasEdits = Object.values(edits).some(v => v !== "");

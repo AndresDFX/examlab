@@ -122,10 +122,12 @@ function AdminCourses() {
       const { error } = await supabase.from("course_enrollments").insert({ course_id: enrollCourse.id, user_id: uid });
       if (error) return toast.error(error.message);
       setEnrolledIds(prev => new Set([...prev, uid]));
+      toast.success("Estudiante matriculado");
     } else {
       const { error } = await supabase.from("course_enrollments").delete().eq("course_id", enrollCourse.id).eq("user_id", uid);
       if (error) return toast.error(error.message);
       setEnrolledIds(prev => { const s = new Set(prev); s.delete(uid); return s; });
+      toast.success("Estudiante desmatriculado");
     }
   };
 
@@ -178,10 +180,12 @@ function AdminCourses() {
       const { error } = await supabase.from("course_teachers").insert({ course_id: teacherCourse.id, user_id: uid });
       if (error) return toast.error(error.message);
       setAssignedTeacherIds(prev => new Set([...prev, uid]));
+      toast.success("Docente asignado");
     } else {
       const { error } = await supabase.from("course_teachers").delete().eq("course_id", teacherCourse.id).eq("user_id", uid);
       if (error) return toast.error(error.message);
       setAssignedTeacherIds(prev => { const s = new Set(prev); s.delete(uid); return s; });
+      toast.success("Docente desasignado");
     }
   };
 
