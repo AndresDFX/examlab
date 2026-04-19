@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import {
   Plus, Pencil, Trash2, ExternalLink,
   Users, CheckCircle2, FileIcon, Download, CheckSquare, XSquare,
-  Sparkles, Loader2, ThumbsUp, ThumbsDown,
+  Sparkles, Loader2, ThumbsUp, ThumbsDown, HelpCircle,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
@@ -380,7 +380,14 @@ function TeacherWorkshops() {
                     <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="sm" onClick={() => openAssign(ws)} title="Asignar estudiantes"><Users className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => openGrading(ws)} title="Calificar"><CheckCircle2 className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => { setForm(ws); setOpen(true); }} title="Editar"><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setForm({
+                          ...ws,
+                          due_date: ws.due_date ? toLocalDatetime(ws.due_date) : "",
+                          start_date: (ws as any).start_date ? toLocalDatetime((ws as any).start_date) : "",
+                        } as any);
+                        setOpen(true);
+                      }} title="Editar"><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => remove(ws.id)} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </div>
                   </TableCell>
@@ -422,34 +429,68 @@ function TeacherWorkshops() {
             <div><Label>Descripción</Label><Textarea value={form.description ?? ""} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div><Label>Instrucciones</Label><Textarea rows={4} value={form.instructions ?? ""} onChange={e => setForm({ ...form, instructions: e.target.value })} /></div>
             <div><Label>Link externo (opcional)</Label><Input placeholder="https://..." value={form.external_link ?? ""} onChange={e => setForm({ ...form, external_link: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Fecha inicio (visible desde)</Label><Input type="datetime-local" value={(form as any).start_date ?? ""} onChange={e => setForm({ ...form, start_date: e.target.value } as any)} /></div>
-              <div><Label>Fecha límite</Label><Input type="datetime-local" value={form.due_date as any ?? ""} onChange={e => setForm({ ...form, due_date: e.target.value })} /></div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Fechas</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Visible desde</Label>
+                  <Input type="datetime-local" value={(form as any).start_date ?? ""} onChange={e => setForm({ ...form, start_date: e.target.value } as any)} className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs">Fecha límite</Label>
+                  <Input type="datetime-local" value={form.due_date as any ?? ""} onChange={e => setForm({ ...form, due_date: e.target.value })} className="mt-1" />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label>Puntaje máximo</Label>
+                <Input type="number" value={form.max_score || ""} onChange={e => setForm({ ...form, max_score: e.target.value === "" ? 0 : Number(e.target.value) })} className="mt-1" />
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <Select value={form.status ?? "draft"} onValueChange={(v) => setForm({ ...form, status: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="published">Publicado</SelectItem>
+                    <SelectItem value="closed">Cerrado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
-              <Label>Puntaje máximo</Label>
-              <Input type="number" value={form.max_score || ""} onChange={e => setForm({ ...form, max_score: e.target.value === "" ? 0 : Number(e.target.value) })} />
-            </div>
-            <div>
-              <Label>Estado</Label>
-              <Select value={form.status ?? "draft"} onValueChange={(v) => setForm({ ...form, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="published">Publicado</SelectItem>
-                  <SelectItem value="closed">Cerrado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Rúbrica de calificación IA (JSON, opcional)</Label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label>Rúbrica de calificación IA</Label>
+                <span className="text-xs text-muted-foreground">(JSON, opcional)</span>
+                <Dialog>
+                  <Button type="button" variant="ghost" size="sm" className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground" asChild>
+                    <span><HelpCircle className="h-3.5 w-3.5" /></span>
+                  </Button>
+                </Dialog>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3 mb-2 text-xs text-muted-foreground space-y-1.5">
+                <p className="font-medium text-foreground text-xs">¿Cómo funciona?</p>
+                <p>Define los criterios que la IA usará para calificar las entregas. Escribe un array JSON donde cada objeto tenga:</p>
+                <ul className="list-disc list-inside space-y-0.5 ml-1">
+                  <li><code className="bg-muted px-1 rounded">criterio</code>: nombre del criterio (ej: "Claridad")</li>
+                  <li><code className="bg-muted px-1 rounded">peso</code>: porcentaje del puntaje total (deben sumar 100)</li>
+                </ul>
+                <p className="font-medium mt-1">Ejemplo:</p>
+                <pre className="bg-muted p-2 rounded text-[11px] overflow-x-auto">{`[
+  { "criterio": "Claridad y redacción", "peso": 25 },
+  { "criterio": "Completitud del contenido", "peso": 40 },
+  { "criterio": "Uso correcto de conceptos", "peso": 35 }
+]`}</pre>
+              </div>
               <Textarea
                 rows={3}
                 placeholder='[{"criterio": "Claridad", "peso": 30}, {"criterio": "Completitud", "peso": 70}]'
-                value={form.rubric ? JSON.stringify(form.rubric) : ""}
+                value={form.rubric ? JSON.stringify(form.rubric, null, 2) : ""}
                 onChange={e => {
                   try { setForm({ ...form, rubric: JSON.parse(e.target.value) }); } catch { /* allow typing */ }
                 }}
+                className="font-mono text-xs"
               />
             </div>
           </div>
@@ -633,4 +674,14 @@ function TeacherWorkshops() {
 function toLocal(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Convert an ISO date string to datetime-local input format */
+function toLocalDatetime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch { return ""; }
 }

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Download, Calendar, CheckCircle2, X, Clock, AlertTriangle } from "lucide-react";
+import { Plus, Download, Calendar, CheckCircle2, X } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
@@ -24,8 +24,6 @@ type Record_ = { id: string; session_id: string; user_id: string; status: string
 const STATUS_OPTIONS = [
   { value: "presente", label: "Presente", icon: CheckCircle2, color: "text-emerald-600 dark:text-emerald-400" },
   { value: "ausente", label: "Ausente", icon: X, color: "text-destructive" },
-  { value: "tardanza", label: "Tardanza", icon: Clock, color: "text-amber-600 dark:text-amber-400" },
-  { value: "justificado", label: "Justificado", icon: AlertTriangle, color: "text-blue-600 dark:text-blue-400" },
 ];
 
 function TeacherAttendance() {
@@ -140,7 +138,7 @@ function TeacherAttendance() {
       const total = sessions.length;
       const present = sessions.filter(sess => {
         const st = getStatus(sess.id, s.id);
-        return st === "presente" || st === "tardanza" || st === "justificado";
+        return st === "presente";
       }).length;
       row["% Asistencia"] = total > 0 ? `${Math.round((present / total) * 100)}%` : "—";
       return row;
@@ -207,7 +205,7 @@ function TeacherAttendance() {
                 const total = sessions.length;
                 const present = sessions.filter(sess => {
                   const st = getStatus(sess.id, s.id);
-                  return st === "presente" || st === "tardanza" || st === "justificado";
+                  return st === "presente";
                 }).length;
                 const pct = total > 0 ? Math.round((present / total) * 100) : 0;
                 return (
