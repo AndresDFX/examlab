@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   GraduationCap, Users, BookOpen, FileText, ClipboardList,
   LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck, Hammer, Monitor,
+  ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -14,22 +22,39 @@ interface NavItem { to: string; label: string; icon: React.ComponentType<{ class
 
 const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, roles: ["Admin", "Docente", "Estudiante"] },
-  // Admin
   { to: "/app/admin/users", label: "Usuarios", icon: Users, roles: ["Admin"] },
   { to: "/app/admin/courses", label: "Cursos", icon: BookOpen, roles: ["Admin"] },
-  // Docente
   { to: "/app/teacher/exams", label: "Mis Exámenes", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", label: "Calificaciones", icon: ClipboardList, roles: ["Docente"] },
   { to: "/app/teacher/workshops", label: "Talleres", icon: Hammer, roles: ["Docente"] },
-  // Estudiante
   { to: "/app/student/exams", label: "Mis Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
   { to: "/app/student/workshops", label: "Talleres", icon: Hammer, roles: ["Estudiante"] },
 ];
 
-const ROLE_BADGE: Record<AppRole, { label: string; className: string; icon: React.ComponentType<{ className?: string }> }> = {
-  Admin: { label: "Admin", className: "bg-primary/15 text-primary border-primary/30", icon: ShieldCheck },
-  Docente: { label: "Docente", className: "bg-warning/15 text-warning-foreground border-warning/40", icon: UserCog },
-  Estudiante: { label: "Estudiante", className: "bg-success/15 text-success border-success/30", icon: GraduationCap },
+const ROLE_CONFIG: Record<AppRole, {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: string;      // sidebar pill (dark bg)
+  badgeClass: string;  // light-mode badge in footer
+}> = {
+  Admin: {
+    label: "Administrador",
+    icon: ShieldCheck,
+    accent: "text-indigo-300",
+    badgeClass: "bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25",
+  },
+  Docente: {
+    label: "Docente",
+    icon: UserCog,
+    accent: "text-amber-300",
+    badgeClass: "bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25",
+  },
+  Estudiante: {
+    label: "Estudiante",
+    icon: GraduationCap,
+    accent: "text-emerald-300",
+    badgeClass: "bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:bg-emerald-400/15 dark:text-emerald-300 dark:border-emerald-400/25",
+  },
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -55,6 +80,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   const visibleNav = NAV.filter(n => activeRole ? n.roles.includes(activeRole) : false);
+  const activeCfg = activeRole ? ROLE_CONFIG[activeRole] : null;
+  const ActiveIcon = activeCfg?.icon ?? GraduationCap;
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -72,29 +99,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {roles.length > 1 && (
-          <div className="px-4 py-3 border-b border-sidebar-border">
-            <div className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50 mb-2">Vista actual</div>
-            <div className="flex flex-wrap gap-1.5">
-              {roles.map(r => {
-                const cfg = ROLE_BADGE[r];
-                const Icon = cfg.icon;
-                const active = r === activeRole;
-                return (
-                  <button
-                    key={r}
-                    onClick={() => setActiveRole(r)}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors",
-                      active
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground border-sidebar-primary"
-                        : "bg-sidebar-accent/50 text-sidebar-foreground/80 border-sidebar-border hover:bg-sidebar-accent"
-                    )}
-                  >
-                    <Icon className="h-3 w-3" /> {cfg.label}
-                  </button>
-                );
-              })}
+        {/* Role selector */}
+        {roles.length > 1 ? (
+          <div className="px-3 py-3 border-b border-sidebar-border">
+            <Select value={activeRole ?? undefined} onValueChange={(v) => setActiveRole(v as AppRole)}>
+              <SelectTrigger
+                className="w-full h-9 bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent text-sm gap-2 [&>svg:last-child]:hidden"
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <ActiveIcon className={cn("h-4 w-4 shrink-0", activeCfg?.accent)} />
+                  <span className="truncate">{activeCfg?.label}</span>
+                </div>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map(r => {
+                  const cfg = ROLE_CONFIG[r];
+                  const Icon = cfg.icon;
+                  return (
+                    <SelectItem key={r} value={r}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        <span>{cfg.label}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : activeRole && (
+          <div className="px-3 py-3 border-b border-sidebar-border">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-sidebar-accent/60 text-sm">
+              <ActiveIcon className={cn("h-4 w-4 shrink-0", activeCfg?.accent)} />
+              <span>{activeCfg?.label}</span>
             </div>
           </div>
         )}
@@ -125,13 +163,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-2 py-2 mb-1.5">
             <div className="text-sm font-medium truncate">{profile?.full_name ?? user.email}</div>
             <div className="text-xs text-sidebar-foreground/60 truncate">{profile?.institutional_email}</div>
-            <div className="flex flex-wrap gap-1 mt-2">
-              {roles.map(r => (
-                <Badge key={r} variant="outline" className={cn("text-[10px] py-0 h-4", ROLE_BADGE[r].className)}>
-                  {ROLE_BADGE[r].label}
-                </Badge>
-              ))}
-            </div>
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
@@ -151,6 +182,29 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-semibold">ExamLab</span>
         </div>
         <div className="flex items-center gap-1">
+          {/* Mobile role selector */}
+          {roles.length > 1 && (
+            <Select value={activeRole ?? undefined} onValueChange={(v) => setActiveRole(v as AppRole)}>
+              <SelectTrigger className="h-8 w-auto bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground text-xs gap-1.5 px-2 [&>svg:last-child]:hidden">
+                <ActiveIcon className={cn("h-3.5 w-3.5 shrink-0", activeCfg?.accent)} />
+                <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map(r => {
+                  const cfg = ROLE_CONFIG[r];
+                  const Icon = cfg.icon;
+                  return (
+                    <SelectItem key={r} value={r}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        <span>{cfg.label}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          )}
           <ThemeToggle />
           <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground">
             <LogOut className="h-4 w-4" />
