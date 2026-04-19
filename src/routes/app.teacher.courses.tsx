@@ -12,8 +12,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { BookOpen, Users, UserPlus, Trash2, Loader2 } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
-import { EmptyState } from "@/components/EmptyState";
 
 export const Route = createFileRoute("/app/teacher/courses")({ component: TeacherCourses });
 
