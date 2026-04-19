@@ -4,6 +4,7 @@ import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
 import {
   GraduationCap, Users, BookOpen, FileText, ClipboardList,
   LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck, Hammer,
-  ChevronsUpDown, TrendingUp,
+  ChevronsUpDown, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -31,7 +32,7 @@ const NAV: NavItem[] = [
   { to: "/app/student/exams", label: "Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
   { to: "/app/student/workshops", label: "Talleres", icon: Hammer, roles: ["Estudiante"] },
   { to: "/app/student/courses", label: "Cursos", icon: BookOpen, roles: ["Estudiante"] },
-  { to: "/app/student/grades", label: "Mis notas", icon: TrendingUp, roles: ["Estudiante"] },
+  { to: "/app/student/grades", label: "Mis notas", icon: ClipboardList, roles: ["Estudiante"] },
 ];
 
 const ROLE_CONFIG: Record<AppRole, {
@@ -65,6 +66,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -170,12 +172,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1">
             <NotificationBell userId={user.id} variant="sidebar" />
             <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={() => setPwDialogOpen(true)} className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" title="Cambiar contraseña">
+              <KeyRound className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" title="Cerrar sesión">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </aside>
+
+      <ChangePasswordDialog open={pwDialogOpen} onOpenChange={setPwDialogOpen} />
 
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-sidebar text-sidebar-foreground border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
@@ -211,7 +218,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           )}
           <NotificationBell userId={user.id} />
           <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground">
+          <Button variant="ghost" size="sm" onClick={() => setPwDialogOpen(true)} className="text-sidebar-foreground" title="Cambiar contraseña">
+            <KeyRound className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground" title="Cerrar sesión">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

@@ -101,7 +101,7 @@ function AdminUsers() {
     setSavingUser(true);
     try {
       if (editing.id) {
-        // Update
+        // Update profile
         const { error } = await supabase.from("profiles").update({
           full_name: editing.full_name,
           personal_email: editing.personal_email || null,
@@ -110,7 +110,16 @@ function AdminUsers() {
         if (error) { toast.error(error.message); return; }
         const ok = await saveRoles(editing.id, editing.roles);
         if (!ok) return;
-        toast.success("Usuario actualizado");
+        // Update password if provided
+        if (password.trim()) {
+          if (password.length < 8) { toast.error("La contraseña debe tener al menos 8 caracteres"); return; }
+          const { data: pwRes, error: pwErr } = await supabase.functions.invoke("admin-update-password", {
+            body: { userId: editing.id, newPassword: password },
+          });
+          if (pwErr) { toast.error(pwErr.message); return; }
+          if (pwRes?.error) { toast.error(pwRes.error); return; }
+        }
+        toast.success(password.trim() ? "Usuario y contraseña actualizados" : "Usuario actualizado");
       } else {
         // Create via bulk-import (single row)
         if (!password || password.length < 8) {
@@ -273,6 +282,12 @@ function AdminUsers() {
                   <Label>Contraseña inicial</Label>
                   <Input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
                   <p className="text-xs text-muted-foreground mt-1">El usuario podrá cambiarla después.</p>
+                </div>
+              )}
+              {editing.id && (
+                <div>
+                  <Label>Nueva contraseña <span className="text-xs text-muted-foreground font-normal">(dejar vacío para no cambiar)</span></Label>
+                  <Input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
                 </div>
               )}
               <div>
