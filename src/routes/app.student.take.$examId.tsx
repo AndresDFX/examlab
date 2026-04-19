@@ -55,7 +55,7 @@ function TakeExam() {
         }
         setSubmissionId(sub.id);
         submissionIdRef.current = sub.id;
-        setAnswers(sub.answers ?? {});
+        setAnswers((sub.answers as Record<string, any>) ?? {});
         setWarnings(sub.focus_warnings ?? 0);
       }
     })();
