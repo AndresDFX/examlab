@@ -140,31 +140,46 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
+          exam_weight: number
+          grade_scale_max: number
+          grade_scale_min: number
           id: string
           name: string
+          passing_grade: number
           period: string | null
           start_date: string | null
           updated_at: string
+          workshop_weight: number
         }
         Insert: {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          exam_weight?: number
+          grade_scale_max?: number
+          grade_scale_min?: number
           id?: string
           name: string
+          passing_grade?: number
           period?: string | null
           start_date?: string | null
           updated_at?: string
+          workshop_weight?: number
         }
         Update: {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          exam_weight?: number
+          grade_scale_max?: number
+          grade_scale_min?: number
           id?: string
           name?: string
+          passing_grade?: number
           period?: string | null
           start_date?: string | null
           updated_at?: string
+          workshop_weight?: number
         }
         Relationships: []
       }
