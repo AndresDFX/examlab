@@ -191,8 +191,11 @@ function ExamEditor() {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inicio</Label><Input type="datetime-local" value={toLocal(exam.start_time)} onChange={e => {
                 const start = e.target.value;
-                const diffMin = exam.end_time ? Math.max(1, Math.round((new Date(exam.end_time).getTime() - new Date(start).getTime()) / 60000)) : exam.time_limit_minutes;
-                setExam({ ...exam, start_time: start, time_limit_minutes: diffMin });
+                const startMs = new Date(start).getTime();
+                const currentEnd = exam.end_time ? new Date(exam.end_time).getTime() : 0;
+                const autoEnd = currentEnd > startMs ? exam.end_time : toLocal(new Date(startMs + 60 * 60 * 1000).toISOString());
+                const diffMin = Math.max(1, Math.round((new Date(autoEnd).getTime() - startMs) / 60000));
+                setExam({ ...exam, start_time: start, end_time: autoEnd, time_limit_minutes: diffMin });
               }} /></div>
               <div><Label>Fin</Label><Input type="datetime-local" value={toLocal(exam.end_time)} onChange={e => {
                 const end = e.target.value;

@@ -182,8 +182,12 @@ function TeacherExams() {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inicio</Label><Input type="datetime-local" value={form.start_time as any} onChange={e => {
                 const start = e.target.value;
-                const diffMin = form.end_time ? Math.max(1, Math.round((new Date(form.end_time).getTime() - new Date(start).getTime()) / 60000)) : form.time_limit_minutes;
-                setForm({ ...form, start_time: start, time_limit_minutes: diffMin });
+                const startMs = new Date(start).getTime();
+                // Auto-set end to start + 1h if end is empty or not after start
+                const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
+                const autoEnd = currentEnd > startMs ? form.end_time : toLocal(new Date(startMs + 60 * 60 * 1000));
+                const diffMin = Math.max(1, Math.round((new Date(autoEnd!).getTime() - startMs) / 60000));
+                setForm({ ...form, start_time: start, end_time: autoEnd, time_limit_minutes: diffMin });
               }} /></div>
               <div><Label>Fin</Label><Input type="datetime-local" value={form.end_time as any} onChange={e => {
                 const end = e.target.value;

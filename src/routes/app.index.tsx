@@ -16,6 +16,23 @@ import {
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
+const DASHBOARD_NOTIF_LIMIT = 5;
+
+function formatNotifDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Ahora mismo";
+  if (diffMins < 60) return `Hace ${diffMins} min`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `Hace ${diffHours} h`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return `Ayer ${d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`;
+  if (diffDays < 7) return d.toLocaleDateString("es", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function Dashboard() {
   const { profile, roles, user } = useAuth();
   const activeRole = useActiveRole();
@@ -34,7 +51,7 @@ function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const recentNotifs = notifications.filter(n => !n.read).slice(0, 5);
+  const recentNotifs = notifications.slice(0, DASHBOARD_NOTIF_LIMIT);
 
   return (
     <div className="space-y-6">
@@ -55,24 +72,32 @@ function Dashboard() {
       {recentNotifs.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Bell className="h-4 w-4 text-primary" />
-              Notificaciones
-              <Badge className="text-[10px] h-5">{unreadCount}</Badge>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bell className="h-4 w-4 text-primary" />
+                Notificaciones
+                {unreadCount > 0 && <Badge className="text-[10px] h-5">{unreadCount} sin leer</Badge>}
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">Últimas {DASHBOARD_NOTIF_LIMIT}</span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
               {recentNotifs.map(n => (
                 <button
                   key={n.id}
-                  onClick={() => markAsRead(n.id)}
-                  className="w-full text-left flex items-start gap-2 p-2.5 rounded-md border bg-primary/5 hover:bg-muted/30 transition-colors"
+                  onClick={() => !n.read && markAsRead(n.id)}
+                  className={`w-full text-left flex items-start gap-2 p-2.5 rounded-md border transition-colors ${
+                    n.read ? "bg-muted/20 hover:bg-muted/30 opacity-70" : "bg-primary/5 hover:bg-primary/10 border-primary/20"
+                  }`}
                 >
-                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                  <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${n.read ? "bg-muted-foreground/30" : "bg-primary"}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{n.title}</div>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{n.body}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="text-sm font-medium truncate">{n.title}</div>
+                      <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{formatNotifDate(n.created_at)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{n.body}</p>
                   </div>
                 </button>
               ))}
