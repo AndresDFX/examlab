@@ -4,10 +4,13 @@ project_id = "rbfwsajdlfnlhhqyjedc"
 verify_jwt = false
 
 [functions.ai-generate-questions]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-grade-submission]
-verify_jwt = true
+verify_jwt = false
 
 [functions.bulk-import-users]
+verify_jwt = false
+
+[functions.execute-code]
 verify_jwt = false
