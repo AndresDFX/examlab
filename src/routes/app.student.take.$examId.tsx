@@ -39,6 +39,7 @@ function TakeExam() {
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
+  const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>([]);
 
   // Keep refs in sync with state for synchronous reads in event handlers
   useEffect(() => { warningsRef.current = warnings; }, [warnings]);
@@ -73,7 +74,6 @@ function TakeExam() {
       }
       const { data: asg } = await supabase.from("exam_assignments").select("id").eq("exam_id", examId).eq("user_id", user.id).maybeSingle();
       if (!asg) { toast.error("No estás asignado a este examen"); navigate({ to: "/app/student/exams" }); return; }
-      setExam(e);
       let { data: qs } = await supabase.from("questions").select("*").eq("exam_id", examId).order("position");
       if (e.shuffle_enabled && qs) qs = [...qs].sort(() => Math.random() - 0.5);
       setQuestions(qs ?? []);
@@ -86,14 +86,22 @@ function TakeExam() {
         // Resume existing in-progress submission
         setSubmissionId(sub.id);
         submissionIdRef.current = sub.id;
-        setAnswers((sub.answers as Record<string, any>) ?? {});
-        answersRef.current = (sub.answers as Record<string, any>) ?? {};
+        const existingAnswers = (sub.answers as Record<string, any>) ?? {};
+        setAnswers(existingAnswers);
+        answersRef.current = existingAnswers;
         const persistedWarnings = sub.focus_warnings ?? 0;
         setWarnings(persistedWarnings);
         warningsRef.current = persistedWarnings;
+        const persistedEvents = Array.isArray(existingAnswers.__warning_events)
+          ? existingAnswers.__warning_events
+          : [];
+        warningEventsRef.current = persistedEvents;
+        setExam(e);
         setStarted(true);
         // TODO: Re-enable fullscreen when ready
         // try { await document.documentElement.requestFullscreen(); } catch { }
+      } else {
+        setExam(e);
       }
     })();
   }, [examId, user, navigate]);
@@ -164,11 +172,20 @@ function TakeExam() {
             if (enrolledIds.has(r.user_id)) teacherIds.add(r.user_id);
           }
         }
+        // Build detailed event log for the notification body
+        const events = warningEventsRef.current.slice(-MAX_WARNINGS);
+        const eventLines = events.map((ev, i) => {
+          const when = new Date(ev.at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+          const where = ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
+          return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
+        }).join("\n");
+        const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${MAX_WARNINGS} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
+
         // Send notification to each teacher
         const notifications = [...teacherIds].map(tid => ({
           user_id: tid,
           title: "Examen sospechoso",
-          body: `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de advertencias (${MAX_WARNINGS} salidas de pestaña).`,
+          body,
           kind: "exam",
           link: `/app/teacher/monitor/${examId}`,
         }));
@@ -193,42 +210,55 @@ function TakeExam() {
     if (!submittedRef.current) submitExam(false);
   }, [submitExam]);
 
+  // Timer is absolute: counts down to exam.end_time regardless of when
+  // the student starts or resumes. Student who enters late gets less time.
+  const initialSeconds = (() => {
+    if (!exam?.end_time) return 0;
+    return Math.max(0, Math.floor((new Date(exam.end_time).getTime() - Date.now()) / 1000));
+  })();
+
   const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
     examId,
     userId: user?.id ?? "",
-    initialSeconds: exam?.time_limit_minutes ? exam.time_limit_minutes * 60 : 0,
+    initialSeconds,
     onTimeUp: handleTimeUp,
     onPause: () => toast.info("⏸ El docente ha pausado el temporizador"),
     onResume: () => toast.info("▶ El temporizador ha sido reanudado"),
     onTimeAdded: (secs) => toast.success(`+${Math.floor(secs / 60)} minuto(s) extra añadidos`),
   });
 
-  // Auto-save answers (with offline support)
+  // Persist current answers/warnings immediately (used by autosave, blur handlers, suspension)
+  const saveAnswersNow = useCallback(async () => {
+    if (!submissionIdRef.current) return;
+    const currentAnswers = answersRef.current;
+    const currentWarnings = warningsRef.current;
+    if (isOnline()) {
+      await supabase
+        .from("submissions")
+        .update({ answers: currentAnswers, focus_warnings: currentWarnings })
+        .eq("id", submissionIdRef.current);
+    }
+    await saveAnswersLocally(examId, {
+      submissionId: submissionIdRef.current,
+      answers: currentAnswers,
+      warnings: currentWarnings,
+      timestamp: Date.now(),
+    });
+  }, [examId]);
+
+  // Auto-save answers (debounced, also runs on warning increments)
   useEffect(() => {
     if (!started || !submissionIdRef.current) return;
-    const t = setTimeout(async () => {
-      if (isOnline()) {
-        supabase.from("submissions").update({ answers, focus_warnings: warnings }).eq("id", submissionIdRef.current!);
-      }
-      // Always save locally as backup
-      await saveAnswersLocally(examId, {
-        submissionId: submissionIdRef.current!,
-        answers,
-        warnings,
-        timestamp: Date.now(),
-      });
-    }, 1500);
+    const t = setTimeout(() => { saveAnswersNow(); }, 1500);
     return () => clearTimeout(t);
-  }, [answers, warnings, started, examId]);
+  }, [answers, warnings, started, saveAnswersNow]);
 
   // Proctoring: focus tracking, copy/paste blocking, fullscreen enforcement
   useEffect(() => {
     if (!started) return;
     let blurLockUntil = 0;
-    const onBlur = () => {
+    const recordWarning = (type: string) => {
       if (submittedRef.current) return;
-      // Debounce: ignore blur events within 500ms of the last one (prevents
-      // double-fires from iframe focus changes or StrictMode side-effects)
       const now = Date.now();
       if (now < blurLockUntil) return;
       blurLockUntil = now + 500;
@@ -237,10 +267,23 @@ function TakeExam() {
       warningsRef.current = nw;
       setWarnings(nw);
 
-      // Persist immediately so teacher monitor and resume-after-reload are accurate
+      const event = {
+        type,
+        at: new Date(now).toISOString(),
+        questionIdx: exam?.navigation_type === "secuencial" ? currentIdx : null,
+      };
+      warningEventsRef.current = [...warningEventsRef.current, event];
+
+      // Persist current answers + warning count + event log in one write
+      const updatedAnswers = {
+        ...answersRef.current,
+        __warning_events: warningEventsRef.current,
+      };
+      answersRef.current = updatedAnswers;
+      setAnswers(updatedAnswers);
       if (submissionIdRef.current && isOnline()) {
         supabase.from("submissions")
-          .update({ focus_warnings: nw })
+          .update({ focus_warnings: nw, answers: updatedAnswers })
           .eq("id", submissionIdRef.current)
           .then(() => {});
       }
@@ -249,9 +292,10 @@ function TakeExam() {
         toast.error("Has superado el límite de salidas. El examen se suspende.");
         submitExam(true);
       } else {
-        toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: no salgas de la pestaña`);
+        toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: ${warningLabel(type)}`);
       }
     };
+    const onBlur = () => recordWarning("pestaña");
     const onContext = (e: Event) => e.preventDefault();
     const onCopy = (e: Event) => { e.preventDefault(); toast.warning("Copiar/pegar deshabilitado"); };
     const onSelect = (e: Event) => e.preventDefault();
@@ -403,7 +447,12 @@ function TakeExam() {
                           type="radio"
                           name={`q-${q.id}`}
                           checked={answers[q.id] === ci}
-                          onChange={() => setAnswers({ ...answers, [q.id]: ci })}
+                          onChange={() => {
+                            const next = { ...answers, [q.id]: ci };
+                            setAnswers(next);
+                            answersRef.current = next;
+                            saveAnswersNow();
+                          }}
                           className="mt-1"
                         />
                         <span className="text-sm">{String.fromCharCode(65 + ci)}. {c}</span>
@@ -411,28 +460,33 @@ function TakeExam() {
                     ))}
                   </div>
                 ) : q.type === "codigo" ? (
-                  <CodeEditor
-                    value={answers[q.id] ?? q.starter_code ?? ""}
-                    onChange={(v) => setAnswers({ ...answers, [q.id]: v })}
-                    language={lang}
-                    onRun={() => runCode(q.id, lang)}
-                    output={codeOutputs[q.id]}
-                    isRunning={runningCode[q.id] ?? false}
-                    showLanguageSelector={false}
-                    showRunButton={true}
-                    height="250px"
-                  />
+                  <div onBlur={saveAnswersNow}>
+                    <CodeEditor
+                      value={answers[q.id] ?? q.starter_code ?? ""}
+                      onChange={(v) => setAnswers({ ...answers, [q.id]: v })}
+                      language={lang}
+                      onRun={() => runCode(q.id, lang)}
+                      output={codeOutputs[q.id]}
+                      isRunning={runningCode[q.id] ?? false}
+                      showLanguageSelector={false}
+                      showRunButton={true}
+                      height="250px"
+                    />
+                  </div>
                 ) : q.type === "diagrama" ? (
-                  <DiagramEditor
-                    value={answers[q.id] ?? ""}
-                    onChange={(code) => setAnswers({ ...answers, [q.id]: code })}
-                  />
+                  <div onBlur={saveAnswersNow}>
+                    <DiagramEditor
+                      value={answers[q.id] ?? ""}
+                      onChange={(code) => setAnswers({ ...answers, [q.id]: code })}
+                    />
+                  </div>
                 ) : (
                   <Textarea
                     rows={4}
                     placeholder="Tu respuesta…"
                     value={answers[q.id] ?? ""}
                     onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                    onBlur={saveAnswersNow}
                   />
                 )}
               </CardContent>
@@ -464,4 +518,15 @@ function TakeExam() {
       </div>
     </div>
   );
+}
+
+function warningLabel(type: string): string {
+  switch (type) {
+    case "pestaña": return "Salió de la pestaña o perdió el foco de la ventana";
+    case "copiar": return "Intentó copiar contenido";
+    case "pegar": return "Intentó pegar contenido";
+    case "cortar": return "Intentó cortar contenido";
+    case "menu": return "Intentó abrir el menú contextual";
+    default: return type;
+  }
 }
