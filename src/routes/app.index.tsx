@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,11 +18,12 @@ export const Route = createFileRoute("/app/")({ component: Dashboard });
 
 function Dashboard() {
   const { profile, roles, user } = useAuth();
+  const activeRole = useActiveRole();
   const { notifications, unreadCount, markAsRead } = useNotifications(user?.id);
 
-  const isAdmin = roles.includes("Admin");
-  const isTeacher = roles.includes("Docente");
-  const isStudent = roles.includes("Estudiante");
+  const isAdmin = activeRole === "Admin";
+  const isTeacher = activeRole === "Docente";
+  const isStudent = activeRole === "Estudiante";
 
   // Toast unread on mount
   useEffect(() => {
@@ -46,8 +48,8 @@ function Dashboard() {
       </div>
 
       {isAdmin && <AdminDashboard />}
-      {isTeacher && !isAdmin && <TeacherDashboard userId={user?.id} />}
-      {isStudent && !isTeacher && !isAdmin && <StudentDashboard userId={user?.id} />}
+      {isTeacher && <TeacherDashboard userId={user?.id} />}
+      {isStudent && <StudentDashboard userId={user?.id} />}
 
       {/* Notifications — shared across roles */}
       {recentNotifs.length > 0 && (

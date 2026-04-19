@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
+import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
 import {
@@ -9,11 +9,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   GraduationCap, Users, BookOpen, FileText, ClipboardList,
-  LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck, Hammer, Monitor,
+  LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck, Hammer,
   ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -236,13 +235,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="px-4 md:px-8 py-6 md:py-8 max-w-7xl mx-auto">
-          {children}
+          <ActiveRoleContext.Provider value={activeRole}>
+            {children}
+          </ActiveRoleContext.Provider>
         </div>
       </main>
     </div>
   );
-}
-
-export function useActiveRole(): AppRole | null {
-  return null;
 }
