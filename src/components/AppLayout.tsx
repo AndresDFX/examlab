@@ -3,6 +3,7 @@ import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import {
   Select,
   SelectContent,
@@ -24,11 +25,12 @@ const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, roles: ["Admin", "Docente", "Estudiante"] },
   { to: "/app/admin/users", label: "Usuarios", icon: Users, roles: ["Admin"] },
   { to: "/app/admin/courses", label: "Cursos", icon: BookOpen, roles: ["Admin"] },
-  { to: "/app/teacher/exams", label: "Mis Exámenes", icon: FileText, roles: ["Docente"] },
+  { to: "/app/teacher/exams", label: "Exámenes", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", label: "Calificaciones", icon: ClipboardList, roles: ["Docente"] },
   { to: "/app/teacher/workshops", label: "Talleres", icon: Hammer, roles: ["Docente"] },
-  { to: "/app/student/exams", label: "Mis Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
+  { to: "/app/student/exams", label: "Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
   { to: "/app/student/workshops", label: "Talleres", icon: Hammer, roles: ["Estudiante"] },
+  { to: "/app/student/courses", label: "Cursos", icon: BookOpen, roles: ["Estudiante"] },
 ];
 
 const ROLE_CONFIG: Record<AppRole, {
@@ -165,6 +167,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="text-xs text-sidebar-foreground/60 truncate">{profile?.institutional_email}</div>
           </div>
           <div className="flex items-center gap-1">
+            <NotificationBell userId={user.id} variant="sidebar" />
             <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={signOut} className="flex-1 justify-start text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground">
               <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
@@ -205,6 +208,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </SelectContent>
             </Select>
           )}
+          <NotificationBell userId={user.id} />
           <ThemeToggle />
           <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground">
             <LogOut className="h-4 w-4" />

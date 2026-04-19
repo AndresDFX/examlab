@@ -20,12 +20,12 @@ import {
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
 
-type Course = { id: string; name: string };
+type Course = { id: string; name: string; period: string | null };
 type Workshop = {
   id: string; course_id: string; title: string; description: string | null;
   instructions: string | null; external_link: string | null; ai_generated: boolean;
   due_date: string | null; rubric: any; max_score: number; status: string;
-  course?: { name: string };
+  course?: { name: string; period: string | null };
 };
 type Student = { id: string; full_name: string; institutional_email: string };
 type WsSub = {
@@ -54,15 +54,16 @@ function TeacherWorkshops() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
+  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
 
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   const load = async () => {
     const [{ data: cs }, { data: ws }] = await Promise.all([
-      supabase.from("courses").select("id, name").order("name"),
-      supabase.from("workshops").select("*, course:courses(name)").order("created_at", { ascending: false }),
+      supabase.from("courses").select("id, name, period").order("name"),
+      supabase.from("workshops").select("*, course:courses(name, period)").order("created_at", { ascending: false }),
     ]);
-    setCourses(cs ?? []);
+    setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
   };
   useEffect(() => { load(); }, []);
@@ -80,13 +81,27 @@ function TeacherWorkshops() {
       status: "draft",
       rubric: null,
     });
+    setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
   };
 
+  const toggleCourse = (id: string) => {
+    setSelectedCourseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      const first = [...next][0];
+      if (first) setForm(f => ({ ...f, course_id: first }));
+      return next;
+    });
+  };
+
   const save = async () => {
-    if (!form.title || !form.course_id || !user) { toast.error("Completa los campos"); return; }
-    const payload = {
-      course_id: form.course_id,
+    if (!form.title || !user) { toast.error("Completa los campos"); return; }
+    // If editing, use single course
+    const courseIds = form.id ? [form.course_id!] : [...selectedCourseIds];
+    if (courseIds.length === 0) { toast.error("Selecciona al menos un curso"); return; }
+
+    const basePayload = {
       title: form.title,
       description: form.description ?? null,
       instructions: form.instructions ?? null,
@@ -99,13 +114,33 @@ function TeacherWorkshops() {
     };
 
     if (form.id) {
-      const { error } = await supabase.from("workshops").update(payload).eq("id", form.id);
+      const { error } = await supabase.from("workshops").update({ ...basePayload, course_id: form.course_id! }).eq("id", form.id);
       if (error) return toast.error(error.message);
+      if (form.status === "published") {
+        await supabase.rpc("notify_course_students", {
+          _course_id: form.course_id!,
+          _title: "Nuevo taller disponible",
+          _body: `Se ha publicado el taller "${form.title}"`,
+          _kind: "workshop",
+          _link: "/app/student/workshops",
+        });
+      }
       toast.success("Taller actualizado");
     } else {
-      const { error } = await supabase.from("workshops").insert(payload);
-      if (error) return toast.error(error.message);
-      toast.success("Taller creado");
+      for (const cid of courseIds) {
+        const { error } = await supabase.from("workshops").insert({ ...basePayload, course_id: cid });
+        if (error) { toast.error(error.message); return; }
+        if (form.status === "published") {
+          await supabase.rpc("notify_course_students", {
+            _course_id: cid,
+            _title: "Nuevo taller disponible",
+            _body: `Se ha publicado el taller "${form.title}"`,
+            _kind: "workshop",
+            _link: "/app/student/workshops",
+          });
+        }
+      }
+      toast.success(courseIds.length > 1 ? `Taller creado en ${courseIds.length} cursos` : "Taller creado");
     }
     setOpen(false);
     load();
@@ -263,11 +298,26 @@ function TeacherWorkshops() {
           <div className="space-y-3">
             <div><Label>Título</Label><Input value={form.title ?? ""} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
             <div>
-              <Label>Curso</Label>
-              <Select value={form.course_id} onValueChange={(v) => setForm({ ...form, course_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Curso" /></SelectTrigger>
-                <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label>Cursos <span className="text-xs text-muted-foreground font-normal">{form.id ? "" : "(selecciona uno o más)"}</span></Label>
+              {form.id ? (
+                <Select value={form.course_id} onValueChange={(v) => setForm({ ...form, course_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Curso" /></SelectTrigger>
+                  <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.period ? ` (${c.period})` : ""}</SelectItem>)}</SelectContent>
+                </Select>
+              ) : (
+                <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
+                  {courses.map(c => (
+                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
+                      <Checkbox checked={selectedCourseIds.has(c.id)} onCheckedChange={() => toggleCourse(c.id)} />
+                      <span className="flex-1">{c.name}</span>
+                      {c.period && <Badge variant="outline" className="text-[9px]">{c.period}</Badge>}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {!form.id && selectedCourseIds.size > 1 && (
+                <p className="text-xs text-muted-foreground mt-1">Se creará una copia del taller en cada curso seleccionado.</p>
+              )}
             </div>
             <div><Label>Descripción</Label><Textarea value={form.description ?? ""} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div><Label>Instrucciones</Label><Textarea rows={4} value={form.instructions ?? ""} onChange={e => setForm({ ...form, instructions: e.target.value })} /></div>

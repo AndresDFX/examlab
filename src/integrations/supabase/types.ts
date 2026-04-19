@@ -43,12 +43,48 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          body: string
+          kind: string
+          link: string | null
+          read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          body: string
+          kind?: string
+          link?: string | null
+          read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          body?: string
+          kind?: string
+          link?: string | null
+          read?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       courses: {
         Row: {
           created_at: string
           description: string | null
           id: string
           name: string
+          period: string | null
+          start_date: string | null
+          end_date: string | null
           updated_at: string
         }
         Insert: {
@@ -56,6 +92,9 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          period?: string | null
+          start_date?: string | null
+          end_date?: string | null
           updated_at?: string
         }
         Update: {
@@ -63,6 +102,9 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          period?: string | null
+          start_date?: string | null
+          end_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -563,6 +605,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      notify_course_students: {
+        Args: {
+          _course_id: string
+          _title: string
+          _body: string
+          _kind: string
+          _link: string
+        }
+        Returns: number
       }
     }
     Enums: {

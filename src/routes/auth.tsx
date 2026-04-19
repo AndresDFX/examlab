@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { GraduationCap, Loader2 } from "lucide-react";
 
@@ -18,16 +17,8 @@ function AuthPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [seedingLoading, setSeedingLoading] = useState(false);
-
-  // login
-  const [email, setEmail] = useState("andres_dfx@hotmail.com");
-  const [password, setPassword] = useState("Tester#12345");
-
-  // signup
-  const [sName, setSName] = useState("");
-  const [sInst, setSInst] = useState("");
-  const [sPersonal, setSPersonal] = useState("");
-  const [sPass, setSPass] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -41,31 +32,11 @@ function AuthPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      if (error.message.toLowerCase().includes("invalid")) {
-        toast.error("Credenciales inválidas. Si es la primera vez, ejecuta el seeding.");
-      } else toast.error(error.message);
+      toast.error("Credenciales inválidas. Contacta a tu administrador si no tienes cuenta.");
       return;
     }
     toast.success("Bienvenido");
     navigate({ to: "/app" });
-  };
-
-  const onSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email: sInst,
-      password: sPass,
-      options: {
-        emailRedirectTo: `${window.location.origin}/app`,
-        data: { full_name: sName, institutional_email: sInst, personal_email: sPersonal },
-      },
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Cuenta creada. Iniciando sesión…");
-    const { error: e2 } = await supabase.auth.signInWithPassword({ email: sInst, password: sPass });
-    if (!e2) navigate({ to: "/app" });
   };
 
   const runSeed = async () => {
@@ -109,70 +80,45 @@ function AuthPage() {
         <div className="text-xs text-sidebar-foreground/50">© ExamLab 2026</div>
       </div>
 
-      {/* Auth panel */}
+      {/* Login panel */}
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-md shadow-sm">
           <CardHeader>
-            <CardTitle className="text-2xl">Acceso</CardTitle>
+            <div className="flex items-center gap-2 mb-2 lg:hidden">
+              <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
+                <GraduationCap className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <span className="font-semibold text-lg">ExamLab</span>
+            </div>
+            <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
             <CardDescription>
-              Usuario maestro: <code className="text-xs">andres_dfx@hotmail.com</code> / <code className="text-xs">Tester#12345</code>
+              Ingresa con las credenciales proporcionadas por tu administrador.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login">
-              <TabsList className="grid grid-cols-2 w-full">
-                <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
-                <TabsTrigger value="signup">Registrarse</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="login" className="space-y-3 mt-4">
-                <form onSubmit={onLogin} className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="li-email">Email institucional</Label>
-                    <Input id="li-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="li-pass">Contraseña</Label>
-                    <Input id="li-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Entrar
-                  </Button>
-                </form>
-                <div className="pt-3 border-t">
-                  <p className="text-xs text-muted-foreground mb-2">¿Primera vez? Carga el usuario maestro y datos de prueba:</p>
-                  <Button variant="outline" className="w-full" onClick={runSeed} disabled={seedingLoading}>
-                    {seedingLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Inicializar datos demo
-                  </Button>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="signup" className="space-y-3 mt-4">
-                <form onSubmit={onSignup} className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label>Nombre completo</Label>
-                    <Input value={sName} onChange={e => setSName(e.target.value)} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Email institucional</Label>
-                    <Input type="email" value={sInst} onChange={e => setSInst(e.target.value)} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Email personal (opcional)</Label>
-                    <Input type="email" value={sPersonal} onChange={e => setSPersonal(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Contraseña</Label>
-                    <Input type="password" value={sPass} onChange={e => setSPass(e.target.value)} required minLength={8} />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Crear cuenta
-                  </Button>
-                  <p className="text-xs text-muted-foreground">Por defecto se asigna rol Estudiante.</p>
-                </form>
-              </TabsContent>
-            </Tabs>
+            <form onSubmit={onLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="li-email">Email institucional</Label>
+                <Input id="li-email" type="email" placeholder="usuario@institucion.edu" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="li-pass">Contraseña</Label>
+                <Input id="li-pass" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Entrar
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground mt-4 text-center">
+              ¿No tienes cuenta? Contacta a tu administrador para que te registre en la plataforma.
+            </p>
+            <div className="pt-4 border-t mt-4">
+              <p className="text-xs text-muted-foreground mb-2">¿Primera vez configurando? Carga datos de prueba:</p>
+              <Button variant="outline" className="w-full" onClick={runSeed} disabled={seedingLoading}>
+                {seedingLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Inicializar datos demo
+              </Button>
+            </div>
             <div className="mt-4 text-center">
               <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Volver al inicio</Link>
             </div>

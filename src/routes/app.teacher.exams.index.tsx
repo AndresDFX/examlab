@@ -9,20 +9,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, GitBranch, Monitor } from "lucide-react";
+import { Plus, Pencil, GitBranch, Monitor, Copy } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
-type Course = { id: string; name: string };
+type Course = { id: string; name: string; period: string | null };
 type Exam = {
   id: string; course_id: string; title: string; description: string | null;
   start_time: string; end_time: string; time_limit_minutes: number;
   navigation_type: string; shuffle_enabled: boolean; parent_exam_id: string | null;
-  course?: { name: string };
+  course?: { name: string; period: string | null };
 };
 
 function TeacherExams() {
@@ -32,14 +33,15 @@ function TeacherExams() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
+  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   const load = async () => {
     const [{ data: cs }, { data: es }] = await Promise.all([
-      supabase.from("courses").select("id, name").order("name"),
-      supabase.from("exams").select("*, course:courses(name)").order("start_time", { ascending: false }),
+      supabase.from("courses").select("id, name, period").order("name"),
+      supabase.from("exams").select("*, course:courses(name, period)").order("start_time", { ascending: false }),
     ]);
-    setCourses(cs ?? []);
+    setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
   };
   useEffect(() => { load(); }, []);
@@ -57,13 +59,25 @@ function TeacherExams() {
       shuffle_enabled: false,
       parent_exam_id: null,
     });
+    setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
   };
 
+  const toggleCourse = (id: string) => {
+    setSelectedCourseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      // Keep form.course_id in sync with first selected
+      const first = [...next][0];
+      if (first) setForm(f => ({ ...f, course_id: first }));
+      return next;
+    });
+  };
+
   const save = async () => {
-    if (!form.title || !form.course_id || !user) { toast.error("Completa los campos"); return; }
-    const payload = {
-      course_id: form.course_id,
+    if (!form.title || selectedCourseIds.size === 0 || !user) { toast.error("Completa los campos y selecciona al menos un curso"); return; }
+    const courseIds = [...selectedCourseIds];
+    const basePayload = {
       title: form.title,
       description: form.description ?? null,
       start_time: new Date(form.start_time!).toISOString(),
@@ -74,11 +88,18 @@ function TeacherExams() {
       parent_exam_id: form.parent_exam_id || null,
       created_by: user.id,
     };
-    const { data, error } = await supabase.from("exams").insert(payload).select().single();
-    if (error) return toast.error(error.message);
-    toast.success("Examen creado");
+
+    // Create one exam per selected course
+    let firstId: string | null = null;
+    for (const cid of courseIds) {
+      const { data, error } = await supabase.from("exams").insert({ ...basePayload, course_id: cid }).select().single();
+      if (error) { toast.error(error.message); return; }
+      if (!firstId) firstId = data.id;
+    }
+
+    toast.success(courseIds.length > 1 ? `Examen creado en ${courseIds.length} cursos` : "Examen creado");
     setOpen(false);
-    navigate({ to: "/app/teacher/exams/$examId", params: { examId: data.id } });
+    if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
@@ -87,7 +108,7 @@ function TeacherExams() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mis Exámenes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Exámenes</h1>
           <p className="text-sm text-muted-foreground">{exams.length} exámenes</p>
         </div>
         <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo examen</Button>
@@ -113,7 +134,10 @@ function TeacherExams() {
                     {e.title}
                     {e.parent_exam_id && <Badge variant="outline" className="ml-2 text-[10px]"><GitBranch className="h-3 w-3 mr-1" />Supletorio</Badge>}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{e.course?.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {e.course?.name}
+                    {e.course?.period && <Badge variant="outline" className="ml-1.5 text-[9px]">{e.course.period}</Badge>}
+                  </TableCell>
                   <TableCell className="text-sm">{new Date(e.start_time).toLocaleString()}</TableCell>
                   <TableCell className="text-sm">{e.time_limit_minutes} min</TableCell>
                   <TableCell><Badge variant="secondary" className="text-[10px]">{e.navigation_type}</Badge></TableCell>
@@ -139,13 +163,19 @@ function TeacherExams() {
             <div><Label>Título</Label><Input value={form.title ?? ""} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
             <div><Label>Descripción</Label><Textarea value={form.description ?? ""} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div>
-              <Label>Curso</Label>
-              <Select value={form.course_id} onValueChange={(v) => setForm({ ...form, course_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Curso" /></SelectTrigger>
-                <SelectContent>
-                  {courses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label>Cursos <span className="text-xs text-muted-foreground font-normal">(selecciona uno o más)</span></Label>
+              <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
+                {courses.map(c => (
+                  <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
+                    <Checkbox checked={selectedCourseIds.has(c.id)} onCheckedChange={() => toggleCourse(c.id)} />
+                    <span className="flex-1">{c.name}</span>
+                    {c.period && <Badge variant="outline" className="text-[9px]">{c.period}</Badge>}
+                  </label>
+                ))}
+              </div>
+              {selectedCourseIds.size > 1 && (
+                <p className="text-xs text-muted-foreground mt-1">Se creará una copia del examen en cada curso seleccionado.</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inicio</Label><Input type="datetime-local" value={form.start_time as any} onChange={e => setForm({ ...form, start_time: e.target.value })} /></div>

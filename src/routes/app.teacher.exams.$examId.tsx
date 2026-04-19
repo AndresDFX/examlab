@@ -123,6 +123,13 @@ function ExamEditor() {
     if (checked) {
       const { error } = await supabase.from("exam_assignments").insert({ exam_id: examId, user_id: uid });
       if (error) return toast.error(error.message);
+      await supabase.from("notifications").insert({
+        user_id: uid,
+        title: "Examen asignado",
+        body: `Se te ha asignado el examen "${exam.title}"`,
+        kind: "exam",
+        link: "/app/student/exams",
+      });
       setAssigned(new Set([...assigned, uid]));
     } else {
       const { error } = await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", uid);
@@ -136,6 +143,16 @@ function ExamEditor() {
     if (!toAdd.length) return;
     const { error } = await supabase.from("exam_assignments").insert(toAdd.map(s => ({ exam_id: examId, user_id: s.id })));
     if (error) return toast.error(error.message);
+    // Notify assigned students
+    for (const s of toAdd) {
+      await supabase.from("notifications").insert({
+        user_id: s.id,
+        title: "Examen asignado",
+        body: `Se te ha asignado el examen "${exam.title}"`,
+        kind: "exam",
+        link: "/app/student/exams",
+      });
+    }
     setAssigned(new Set(students.map(s => s.id)));
     toast.success("Todos asignados");
   };
