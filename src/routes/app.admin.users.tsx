@@ -1,0 +1,220 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth, type AppRole } from "@/hooks/use-auth";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { Plus, Upload, Download, Trash2, Loader2 } from "lucide-react";
+import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
+
+export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
+
+type Row = {
+  id: string;
+  full_name: string;
+  institutional_email: string;
+  personal_email: string | null;
+  roles: AppRole[];
+};
+
+const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante"];
+
+function AdminUsers() {
+  const { roles } = useAuth();
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Row | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  const isAdmin = roles.includes("Admin");
+
+  const load = async () => {
+    setLoading(true);
+    const { data: profs } = await supabase.from("profiles").select("*").order("full_name");
+    const { data: rs } = await supabase.from("user_roles").select("user_id, role");
+    const grouped = new Map<string, AppRole[]>();
+    (rs ?? []).forEach((r: any) => {
+      const arr = grouped.get(r.user_id) ?? [];
+      arr.push(r.role);
+      grouped.set(r.user_id, arr);
+    });
+    setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const saveRoles = async (userId: string, newRoles: AppRole[]) => {
+    const { data: current } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const currentSet = new Set((current ?? []).map((r: any) => r.role as AppRole));
+    const newSet = new Set(newRoles);
+    const toAdd = newRoles.filter(r => !currentSet.has(r));
+    const toRemove = [...currentSet].filter(r => !newSet.has(r));
+    if (toAdd.length) {
+      const { error } = await supabase.from("user_roles").insert(toAdd.map(role => ({ user_id: userId, role })));
+      if (error) { toast.error(error.message); return; }
+    }
+    if (toRemove.length) {
+      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).in("role", toRemove);
+      if (error) { toast.error(error.message); return; }
+    }
+    toast.success("Roles actualizados");
+  };
+
+  const saveProfile = async () => {
+    if (!editing) return;
+    const { error } = await supabase.from("profiles").update({
+      full_name: editing.full_name,
+      personal_email: editing.personal_email,
+      institutional_email: editing.institutional_email,
+    }).eq("id", editing.id);
+    if (error) { toast.error(error.message); return; }
+    await saveRoles(editing.id, editing.roles);
+    setDialogOpen(false);
+    setEditing(null);
+    load();
+  };
+
+  const exportCSV = () => {
+    const data = rows.map(r => ({
+      full_name: r.full_name,
+      institutional_email: r.institutional_email,
+      personal_email: r.personal_email ?? "",
+      roles: r.roles.join("|"),
+    }));
+    downloadCSV(`usuarios-${Date.now()}.csv`, toCSV(data));
+  };
+
+  const downloadTemplate = () => {
+    const tmpl = toCSV([{
+      full_name: "Juan Pérez",
+      institutional_email: "juan.perez@institucion.edu",
+      personal_email: "juan.perez@gmail.com",
+      password: "Temporal#123",
+      roles: "Estudiante",
+      course_name: "Programación II",
+    }]);
+    downloadCSV("template-usuarios.csv", tmpl);
+  };
+
+  const onImport = async (file: File) => {
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = parseCSV(text);
+      const { data, error } = await supabase.functions.invoke("bulk-import-users", { body: { rows: parsed } });
+      if (error) throw error;
+      const ok = (data.result ?? []).filter((r: any) => r.ok).length;
+      const fail = (data.result ?? []).filter((r: any) => !r.ok).length;
+      toast.success(`Importados: ${ok}. Errores: ${fail}.`);
+      load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Error al importar");
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
+          <p className="text-sm text-muted-foreground">{rows.length} cuentas registradas</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4 mr-1" />Template CSV</Button>
+          <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Exportar</Button>
+          <Button size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+            {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />} Cargar CSV
+          </Button>
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => e.target.files?.[0] && onImport(e.target.files[0])} />
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-6 text-sm text-muted-foreground">Cargando…</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Email institucional</TableHead>
+                    <TableHead className="hidden md:table-cell">Email personal</TableHead>
+                    <TableHead>Roles</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map(r => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.full_name}</TableCell>
+                      <TableCell className="text-sm">{r.institutional_email}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{r.personal_email ?? "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {r.roles.map(role => <Badge key={role} variant="secondary" className="text-[10px]">{role}</Badge>)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...r }); setDialogOpen(true); }}>Editar</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar usuario</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div><Label>Nombre completo</Label><Input value={editing.full_name} onChange={e => setEditing({ ...editing, full_name: e.target.value })} /></div>
+              <div><Label>Email institucional</Label><Input value={editing.institutional_email} onChange={e => setEditing({ ...editing, institutional_email: e.target.value })} /></div>
+              <div><Label>Email personal</Label><Input value={editing.personal_email ?? ""} onChange={e => setEditing({ ...editing, personal_email: e.target.value })} /></div>
+              <div>
+                <Label className="mb-2 block">Roles</Label>
+                <div className="space-y-1.5">
+                  {ALL_ROLES.map(role => (
+                    <label key={role} className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={editing.roles.includes(role)} onCheckedChange={(v) => {
+                        setEditing({
+                          ...editing,
+                          roles: v ? [...editing.roles, role] : editing.roles.filter(x => x !== role),
+                        });
+                      }} />
+                      {role}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={saveProfile}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
