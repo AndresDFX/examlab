@@ -13,7 +13,7 @@ import {
 import {
   GraduationCap, Users, BookOpen, FileText, ClipboardList,
   LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck, Hammer,
-  ChevronsUpDown,
+  ChevronsUpDown, TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -31,6 +31,7 @@ const NAV: NavItem[] = [
   { to: "/app/student/exams", label: "Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
   { to: "/app/student/workshops", label: "Talleres", icon: Hammer, roles: ["Estudiante"] },
   { to: "/app/student/courses", label: "Cursos", icon: BookOpen, roles: ["Estudiante"] },
+  { to: "/app/student/grades", label: "Mis notas", icon: TrendingUp, roles: ["Estudiante"] },
 ];
 
 const ROLE_CONFIG: Record<AppRole, {
