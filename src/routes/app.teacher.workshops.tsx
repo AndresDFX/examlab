@@ -213,14 +213,25 @@ function TeacherWorkshops() {
   };
 
   const saveGrade = async (subId: string, grade: number, feedback: string) => {
-    const { error } = await supabase.from("workshop_submissions").update({
+    const { data, error } = await supabase.from("workshop_submissions").update({
       final_grade: grade,
       teacher_feedback: feedback,
       status: "calificado",
-    }).eq("id", subId);
-    if (error) return toast.error(error.message);
+    }).eq("id", subId).select().maybeSingle();
+
+    if (error) {
+      toast.error(`Error: ${error.message}`);
+      return;
+    }
+    if (!data) {
+      toast.error("No se pudo actualizar. Verifica los permisos.");
+      return;
+    }
     toast.success("Calificación guardada");
-    if (gradingWs) openGrading(gradingWs);
+    // Update local state immediately
+    setWsSubs(prev => prev.map(s =>
+      s.id === subId ? { ...s, final_grade: grade, teacher_feedback: feedback, status: "calificado" } : s
+    ));
   };
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
