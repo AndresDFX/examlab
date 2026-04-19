@@ -137,6 +137,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          attendance_weight: number
           created_at: string
           description: string | null
           end_date: string | null
@@ -152,6 +153,7 @@ export type Database = {
           workshop_weight: number
         }
         Insert: {
+          attendance_weight?: number
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -167,6 +169,7 @@ export type Database = {
           workshop_weight?: number
         }
         Update: {
+          attendance_weight?: number
           created_at?: string
           description?: string | null
           end_date?: string | null

@@ -20,6 +20,7 @@ type CourseRow = {
   grade_scale_max: number;
   exam_weight: number;
   workshop_weight: number;
+  attendance_weight: number;
   passing_grade: number;
 };
 
@@ -50,7 +51,7 @@ function StudentCourses() {
 
       const { data } = await supabase
         .from("courses")
-        .select("id, name, description, period, start_date, end_date, grade_scale_min, grade_scale_max, exam_weight, workshop_weight, passing_grade")
+        .select("id, name, description, period, start_date, end_date, grade_scale_min, grade_scale_max, exam_weight, workshop_weight, attendance_weight, passing_grade")
         .in("id", courseIds)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
@@ -204,7 +205,7 @@ function StudentCourses() {
                   </div>
                   <div>
                     <div className="text-muted-foreground">Pesos</div>
-                    <div className="font-medium tabular-nums">{selected.exam_weight}% / {selected.workshop_weight}%</div>
+                    <div className="font-medium tabular-nums">Exámenes {selected.exam_weight}% · Talleres {selected.workshop_weight}% · Asistencia {selected.attendance_weight}%</div>
                   </div>
                 </div>
               </div>

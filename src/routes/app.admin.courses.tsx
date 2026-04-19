@@ -21,7 +21,7 @@ type Course = {
   id: string; name: string; description: string | null;
   period: string | null; start_date: string | null; end_date: string | null;
   grade_scale_min: number; grade_scale_max: number;
-  exam_weight: number; workshop_weight: number; passing_grade: number;
+  exam_weight: number; workshop_weight: number; attendance_weight: number; passing_grade: number;
 };
 type Profile = { id: string; full_name: string; institutional_email: string };
 
@@ -68,7 +68,7 @@ function AdminCourses() {
     setEditing({
       id: "", name: "", description: "", period: "", start_date: "", end_date: "",
       grade_scale_min: 0, grade_scale_max: 5,
-      exam_weight: 50, workshop_weight: 50, passing_grade: 3,
+      exam_weight: 40, workshop_weight: 40, attendance_weight: 10, passing_grade: 3,
     });
     setOpen(true);
   };
@@ -83,8 +83,9 @@ function AdminCourses() {
       end_date: editing.end_date || null,
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
       grade_scale_max: Number(editing.grade_scale_max ?? 5),
-      exam_weight: Number(editing.exam_weight ?? 50),
-      workshop_weight: Number(editing.workshop_weight ?? 50),
+      exam_weight: Number(editing.exam_weight ?? 40),
+      workshop_weight: Number(editing.workshop_weight ?? 40),
+      attendance_weight: Number(editing.attendance_weight ?? 10),
       passing_grade: Number(editing.passing_grade ?? 3),
     };
     if (editing.id) {
@@ -449,17 +450,29 @@ function AdminCourses() {
                     <Input type="number" step="0.1" value={editing.passing_grade ?? 3} onChange={e => setEditing({ ...editing, passing_grade: Number(e.target.value) })} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs">Peso exámenes (%)</Label>
-                    <Input type="number" step="1" value={editing.exam_weight ?? 50} onChange={e => setEditing({ ...editing, exam_weight: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={editing.exam_weight || ""} onChange={e => setEditing({ ...editing, exam_weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
                   </div>
                   <div>
                     <Label className="text-xs">Peso talleres (%)</Label>
-                    <Input type="number" step="1" value={editing.workshop_weight ?? 50} onChange={e => setEditing({ ...editing, workshop_weight: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={editing.workshop_weight || ""} onChange={e => setEditing({ ...editing, workshop_weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Peso asistencia (%)</Label>
+                    <Input type="number" step="1" value={editing.attendance_weight || ""} onChange={e => setEditing({ ...editing, attendance_weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">Los pesos se normalizan automáticamente al calcular la nota final.</p>
+                {(() => {
+                  const total = (editing.exam_weight ?? 0) + (editing.workshop_weight ?? 0) + (editing.attendance_weight ?? 0);
+                  return (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">Total de pesos: debe sumar 100%</p>
+                      <Badge variant={total === 100 ? "default" : "destructive"} className="text-xs">{total}%</Badge>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
