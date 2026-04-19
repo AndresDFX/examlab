@@ -1,0 +1,154 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { Plus, Trash2, Users } from "lucide-react";
+
+export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
+
+type Course = { id: string; name: string; description: string | null };
+type Profile = { id: string; full_name: string; institutional_email: string };
+
+function AdminCourses() {
+  const { roles } = useAuth();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Course | null>(null);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [enrollCourse, setEnrollCourse] = useState<Course | null>(null);
+  const [students, setStudents] = useState<Profile[]>([]);
+  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const isAdmin = roles.includes("Admin");
+
+  const load = async () => {
+    const { data } = await supabase.from("courses").select("*").order("name");
+    setCourses(data ?? []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!editing?.name?.trim()) { toast.error("Nombre requerido"); return; }
+    if (editing.id) {
+      const { error } = await supabase.from("courses").update({ name: editing.name, description: editing.description }).eq("id", editing.id);
+      if (error) return toast.error(error.message);
+    } else {
+      const { error } = await supabase.from("courses").insert({ name: editing.name, description: editing.description });
+      if (error) return toast.error(error.message);
+    }
+    toast.success("Guardado");
+    setOpen(false); setEditing(null); load();
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm("¿Eliminar este curso? Borra también matrículas y exámenes.")) return;
+    const { error } = await supabase.from("courses").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Eliminado"); load();
+  };
+
+  const openEnroll = async (c: Course) => {
+    setEnrollCourse(c);
+    const [{ data: studs }, { data: enr }] = await Promise.all([
+      supabase.from("profiles").select("id, full_name, institutional_email").order("full_name"),
+      supabase.from("course_enrollments").select("user_id").eq("course_id", c.id),
+    ]);
+    setStudents(studs ?? []);
+    setEnrolledIds(new Set((enr ?? []).map((e: any) => e.user_id)));
+    setEnrollOpen(true);
+  };
+
+  const toggleEnroll = async (uid: string, checked: boolean) => {
+    if (!enrollCourse) return;
+    if (checked) {
+      const { error } = await supabase.from("course_enrollments").insert({ course_id: enrollCourse.id, user_id: uid });
+      if (error) return toast.error(error.message);
+      setEnrolledIds(new Set([...enrolledIds, uid]));
+    } else {
+      const { error } = await supabase.from("course_enrollments").delete().eq("course_id", enrollCourse.id).eq("user_id", uid);
+      if (error) return toast.error(error.message);
+      const ns = new Set(enrolledIds); ns.delete(uid); setEnrolledIds(ns);
+    }
+  };
+
+  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Cursos</h1>
+          <p className="text-sm text-muted-foreground">{courses.length} cursos activos</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing({ id: "", name: "", description: "" }); setOpen(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Nuevo curso
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead className="hidden md:table-cell">Descripción</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {courses.map(c => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell className="text-muted-foreground hidden md:table-cell">{c.description ?? "—"}</TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button variant="ghost" size="sm" onClick={() => openEnroll(c)}><Users className="h-4 w-4 mr-1" />Matrícula</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setEditing(c); setOpen(true); }}>Editar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editing?.id ? "Editar" : "Nuevo"} curso</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div><Label>Nombre</Label><Input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} /></div>
+              <div><Label>Descripción</Label><Textarea value={editing.description ?? ""} onChange={e => setEditing({ ...editing, description: e.target.value })} /></div>
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={save}>Guardar</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Matrículas — {enrollCourse?.name}</DialogTitle></DialogHeader>
+          <div className="max-h-96 overflow-y-auto space-y-1.5">
+            {students.map(s => (
+              <label key={s.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-sm">
+                <Checkbox checked={enrolledIds.has(s.id)} onCheckedChange={(v) => toggleEnroll(s.id, !!v)} />
+                <div className="flex-1">
+                  <div className="font-medium">{s.full_name}</div>
+                  <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
