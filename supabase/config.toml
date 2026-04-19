@@ -1,0 +1,13 @@
+project_id = "rbfwsajdlfnlhhqyjedc"
+
+[functions.seed-data]
+verify_jwt = false
+
+[functions.ai-generate-questions]
+verify_jwt = true
+
+[functions.ai-grade-submission]
+verify_jwt = true
+
+[functions.bulk-import-users]
+verify_jwt = true
