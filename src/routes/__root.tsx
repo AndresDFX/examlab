@@ -29,14 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "ExamLab" },
+      { name: "description", content: "ExamFlow is a web platform for online exam management and execution." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "ExamLab" },
+      { property: "og:description", content: "ExamFlow is a web platform for online exam management and execution." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "ExamLab" },
+      { name: "twitter:description", content: "ExamFlow is a web platform for online exam management and execution." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a3c63a5a-2bfc-4103-b0e9-5f4b2bda8a10/id-preview-e8b7a996--9f16eaeb-e983-4536-9a73-1461f295b2d3.lovable.app-1776576600874.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a3c63a5a-2bfc-4103-b0e9-5f4b2bda8a10/id-preview-e8b7a996--9f16eaeb-e983-4536-9a73-1461f295b2d3.lovable.app-1776576600874.png" },
     ],
     links: [
       {
