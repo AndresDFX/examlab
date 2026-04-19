@@ -1,0 +1,305 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import { BookOpen, Users, UserPlus, Trash2, Loader2 } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/EmptyState";
+
+export const Route = createFileRoute("/app/teacher/courses")({ component: TeacherCourses });
+
+type Course = {
+  id: string;
+  name: string;
+  description: string | null;
+  period: string | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+type Student = { id: string; full_name: string; institutional_email: string };
+
+function TeacherCourses() {
+  const { user, roles } = useAuth();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Course | null>(null);
+  const [enrolled, setEnrolled] = useState<Student[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [pickerIds, setPickerIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+
+  const loadCourses = async () => {
+    if (!user) return;
+    setLoading(true);
+    // Cursos donde el docente está asignado
+    const { data: links } = await supabase
+      .from("course_teachers")
+      .select("course_id")
+      .eq("user_id", user.id);
+    const ids = (links ?? []).map((l) => l.course_id);
+    if (!ids.length) {
+      setCourses([]);
+      setLoading(false);
+      return;
+    }
+    const { data: cs } = await supabase
+      .from("courses")
+      .select("*")
+      .in("id", ids)
+      .order("name");
+    setCourses(cs ?? []);
+    setLoading(false);
+  };
+
+  const loadEnrolled = async (courseId: string) => {
+    const { data: enrolls } = await supabase
+      .from("course_enrollments")
+      .select("user_id")
+      .eq("course_id", courseId);
+    const uids = (enrolls ?? []).map((e) => e.user_id);
+    if (!uids.length) {
+      setEnrolled([]);
+      return;
+    }
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("id, full_name, institutional_email")
+      .in("id", uids)
+      .order("full_name");
+    setEnrolled(profs ?? []);
+  };
+
+  useEffect(() => { loadCourses(); }, [user?.id]);
+
+  const openCourse = async (c: Course) => {
+    setSelected(c);
+    await loadEnrolled(c.id);
+  };
+
+  const openEnroll = async () => {
+    if (!selected) return;
+    // Cargar todos los estudiantes
+    const { data: roleRows } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "Estudiante");
+    const studentIds = [...new Set((roleRows ?? []).map((r) => r.user_id))];
+    if (!studentIds.length) {
+      setAllStudents([]);
+    } else {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, full_name, institutional_email")
+        .in("id", studentIds)
+        .order("full_name");
+      setAllStudents(profs ?? []);
+    }
+    setPickerIds(new Set(enrolled.map((e) => e.id)));
+    setEnrollOpen(true);
+  };
+
+  const saveEnrollments = async () => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const currentSet = new Set(enrolled.map((e) => e.id));
+      const newSet = pickerIds;
+      const toAdd = [...newSet].filter((id) => !currentSet.has(id));
+      const toRemove = [...currentSet].filter((id) => !newSet.has(id));
+
+      if (toAdd.length) {
+        const { error } = await supabase.from("course_enrollments").insert(
+          toAdd.map((uid) => ({ course_id: selected.id, user_id: uid })),
+        );
+        if (error) throw error;
+      }
+      if (toRemove.length) {
+        const { error } = await supabase
+          .from("course_enrollments")
+          .delete()
+          .eq("course_id", selected.id)
+          .in("user_id", toRemove);
+        if (error) throw error;
+      }
+      toast.success("Inscripciones actualizadas");
+      setEnrollOpen(false);
+      await loadEnrolled(selected.id);
+    } catch (e: any) {
+      toast.error(e.message ?? "Error al actualizar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeOne = async (uid: string) => {
+    if (!selected) return;
+    const { error } = await supabase
+      .from("course_enrollments")
+      .delete()
+      .eq("course_id", selected.id)
+      .eq("user_id", uid);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Estudiante retirado");
+    await loadEnrolled(selected.id);
+  };
+
+  if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+
+  const filtered = allStudents.filter((s) =>
+    !search ||
+    s.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    s.institutional_email.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={BookOpen}
+        title="Mis cursos"
+        description="Gestiona los estudiantes inscritos en los cursos que tienes asignados."
+      />
+
+      {loading ? (
+        <Card><CardContent className="p-6 text-sm text-muted-foreground">Cargando…</CardContent></Card>
+      ) : courses.length === 0 ? (
+        <EmptyState
+          icon={BookOpen}
+          title="Sin cursos asignados"
+          description="El administrador aún no te ha asignado a ningún curso. Contacta a tu administrador para que te vincule."
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {courses.map((c) => (
+            <Card
+              key={c.id}
+              className={`cursor-pointer transition hover:border-primary/50 ${selected?.id === c.id ? "border-primary" : ""}`}
+              onClick={() => openCourse(c)}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{c.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {c.description && <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>}
+                <div className="flex flex-wrap gap-1.5">
+                  {c.period && <Badge variant="secondary" className="text-[10px]">{c.period}</Badge>}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {selected && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                {selected.name}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">{enrolled.length} estudiantes inscritos</p>
+            </div>
+            <Button size="sm" onClick={openEnroll}>
+              <UserPlus className="h-4 w-4 mr-1" /> Gestionar inscripciones
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {enrolled.length === 0 ? (
+              <div className="p-6 text-sm text-muted-foreground">Sin estudiantes inscritos.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead className="hidden md:table-cell">Email institucional</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {enrolled.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium">{s.full_name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{s.institutional_email}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => removeOne(s.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Inscribir estudiantes — {selected?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Buscar</Label>
+              <Input
+                placeholder="Nombre o email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="max-h-80 overflow-y-auto border rounded-md divide-y">
+              {filtered.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">Sin estudiantes.</div>
+              ) : (
+                filtered.map((s) => (
+                  <label key={s.id} className="flex items-center gap-3 p-2.5 hover:bg-muted/40 cursor-pointer">
+                    <Checkbox
+                      checked={pickerIds.has(s.id)}
+                      onCheckedChange={(v) => {
+                        const next = new Set(pickerIds);
+                        if (v) next.add(s.id); else next.delete(s.id);
+                        setPickerIds(next);
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{s.full_name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{s.institutional_email}</div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{pickerIds.size} seleccionados</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnrollOpen(false)} disabled={busy}>Cancelar</Button>
+            <Button onClick={saveEnrollments} disabled={busy}>
+              {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
