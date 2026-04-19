@@ -16,7 +16,7 @@ import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sy
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
 type Question = { id: string; type: string; content: string; options: any; points: number; position: number; language?: string | null; starter_code?: string | null };
-type Exam = { id: string; title: string; time_limit_minutes: number; navigation_type: string; shuffle_enabled: boolean; start_time: string; end_time: string };
+type Exam = { id: string; title: string; time_limit_minutes: number; navigation_type: string; shuffle_enabled: boolean; start_time: string; end_time: string; course_id: string };
 
 const MAX_WARNINGS = 3;
 
@@ -77,10 +77,13 @@ function TakeExam() {
         if (sub.status === "completado" || sub.status === "sospechoso") {
           toast.info("Ya completaste este examen"); navigate({ to: "/app/student/exams" }); return;
         }
+        // Resume existing in-progress submission
         setSubmissionId(sub.id);
         submissionIdRef.current = sub.id;
         setAnswers((sub.answers as Record<string, any>) ?? {});
         setWarnings(sub.focus_warnings ?? 0);
+        setStarted(true);
+        try { await document.documentElement.requestFullscreen(); } catch { }
       }
     })();
   }, [examId, user, navigate]);
@@ -124,15 +127,52 @@ function TakeExam() {
       });
     }
 
+    // Notify course teachers if the exam is marked suspicious
+    if (markSuspicious && isOnline() && exam) {
+      try {
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
+        const studentName = profile?.full_name ?? "Un estudiante";
+        // Get teachers (created_by of the exam + users with Docente role)
+        const { data: examData } = await supabase.from("exams").select("created_by").eq("id", examId).single();
+        const teacherIds = new Set<string>();
+        if (examData?.created_by) teacherIds.add(examData.created_by);
+        // Also get all users with Docente role who have access (course creator, etc.)
+        const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "Docente");
+        if (roles) {
+          // Get teachers enrolled/associated with this course
+          const { data: courseTeachers } = await supabase
+            .from("course_enrollments")
+            .select("user_id")
+            .eq("course_id", exam.course_id);
+          const enrolledIds = new Set((courseTeachers ?? []).map((r: any) => r.user_id));
+          for (const r of roles) {
+            // Include teachers who created the exam or are enrolled in the course
+            if (enrolledIds.has(r.user_id)) teacherIds.add(r.user_id);
+          }
+        }
+        // Send notification to each teacher
+        const notifications = [...teacherIds].map(tid => ({
+          user_id: tid,
+          title: "Examen sospechoso",
+          body: `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de advertencias (${MAX_WARNINGS} salidas de pestaña).`,
+          kind: "exam",
+          link: `/app/teacher/monitor/${examId}`,
+        }));
+        if (notifications.length) {
+          await supabase.from("notifications").insert(notifications);
+        }
+      } catch (e) { console.error("Error notifying teachers:", e); }
+    }
+
     try { if (document.fullscreenElement) await document.exitFullscreen(); } catch { }
     try {
       if (isOnline()) {
         await supabase.functions.invoke("ai-grade-submission", { body: { submissionId: submissionIdRef.current } });
       }
     } catch (e) { console.error(e); }
-    toast.success("Examen entregado correctamente");
+    toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
     navigate({ to: "/app/student/exams" });
-  }, [answers, warnings, navigate, examId]);
+  }, [answers, warnings, navigate, examId, exam, user]);
 
   // Realtime timer
   const handleTimeUp = useCallback(() => {
@@ -167,14 +207,14 @@ function TakeExam() {
     return () => clearTimeout(t);
   }, [answers, warnings, started, examId]);
 
-  // Proctoring: focus tracking, copy/paste blocking
+  // Proctoring: focus tracking, copy/paste blocking, fullscreen enforcement
   useEffect(() => {
     if (!started) return;
     const onBlur = () => {
       setWarnings(w => {
         const nw = w + 1;
         if (nw >= MAX_WARNINGS) {
-          toast.error("Has superado el límite de salidas. El examen se marca como sospechoso.");
+          toast.error("Has superado el límite de salidas. El examen se suspende.");
           submitExam(true);
         } else {
           toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: no salgas de la pestaña`);
@@ -185,9 +225,30 @@ function TakeExam() {
     const onContext = (e: Event) => e.preventDefault();
     const onCopy = (e: Event) => { e.preventDefault(); toast.warning("Copiar/pegar deshabilitado"); };
     const onSelect = (e: Event) => e.preventDefault();
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Block Escape key to prevent exiting fullscreen
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // Block F11 too
+      if (e.key === "F11") {
+        e.preventDefault();
+      }
+      // Block Alt+Tab, Alt+F4 where possible
+      if (e.altKey && (e.key === "Tab" || e.key === "F4")) {
+        e.preventDefault();
+      }
+    };
     const onFsChange = () => {
       if (!document.fullscreenElement && started && !submittedRef.current) {
-        toast.warning("Mantén la pantalla completa");
+        toast.warning("Debes permanecer en pantalla completa");
+        // Re-request fullscreen after a brief delay
+        setTimeout(() => {
+          if (!document.fullscreenElement && !submittedRef.current) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+        }, 300);
       }
     };
     window.addEventListener("blur", onBlur);
@@ -196,6 +257,7 @@ function TakeExam() {
     document.addEventListener("cut", onCopy);
     document.addEventListener("paste", onCopy);
     document.addEventListener("selectstart", onSelect);
+    document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("fullscreenchange", onFsChange);
     return () => {
       window.removeEventListener("blur", onBlur);
@@ -204,6 +266,7 @@ function TakeExam() {
       document.removeEventListener("cut", onCopy);
       document.removeEventListener("paste", onCopy);
       document.removeEventListener("selectstart", onSelect);
+      document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("fullscreenchange", onFsChange);
     };
   }, [started, submitExam]);

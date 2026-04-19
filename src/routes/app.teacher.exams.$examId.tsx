@@ -189,11 +189,19 @@ function ExamEditor() {
             <div><Label>Título</Label><Input value={exam.title} onChange={e => setExam({ ...exam, title: e.target.value })} /></div>
             <div><Label>Descripción</Label><Textarea value={exam.description ?? ""} onChange={e => setExam({ ...exam, description: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Inicio</Label><Input type="datetime-local" value={toLocal(exam.start_time)} onChange={e => setExam({ ...exam, start_time: e.target.value })} /></div>
-              <div><Label>Fin</Label><Input type="datetime-local" value={toLocal(exam.end_time)} onChange={e => setExam({ ...exam, end_time: e.target.value })} /></div>
+              <div><Label>Inicio</Label><Input type="datetime-local" value={toLocal(exam.start_time)} onChange={e => {
+                const start = e.target.value;
+                const diffMin = exam.end_time ? Math.max(1, Math.round((new Date(exam.end_time).getTime() - new Date(start).getTime()) / 60000)) : exam.time_limit_minutes;
+                setExam({ ...exam, start_time: start, time_limit_minutes: diffMin });
+              }} /></div>
+              <div><Label>Fin</Label><Input type="datetime-local" value={toLocal(exam.end_time)} onChange={e => {
+                const end = e.target.value;
+                const diffMin = exam.start_time ? Math.max(1, Math.round((new Date(end).getTime() - new Date(exam.start_time).getTime()) / 60000)) : exam.time_limit_minutes;
+                setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
+              }} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Duración (min)</Label><Input type="number" value={exam.time_limit_minutes || ""} onChange={e => setExam({ ...exam, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
+              <div><Label>Duración (min)</Label><Input type="number" value={exam.time_limit_minutes || ""} onChange={e => setExam({ ...exam, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} disabled className="bg-muted/50" /></div>
               <div>
                 <Label>Navegación</Label>
                 <Select value={exam.navigation_type} onValueChange={(v) => setExam({ ...exam, navigation_type: v })}>

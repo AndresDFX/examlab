@@ -89,7 +89,7 @@ function StudentExams() {
                 {!completed && (
                   <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
                     <Button size="sm" disabled={!isOpen} className="w-full">
-                      <Play className="h-4 w-4 mr-1" />Iniciar examen
+                      <Play className="h-4 w-4 mr-1" />{submission?.status === "en_progreso" ? "Reanudar examen" : "Iniciar examen"}
                     </Button>
                   </Link>
                 )}

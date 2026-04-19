@@ -180,11 +180,19 @@ function TeacherExams() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Inicio</Label><Input type="datetime-local" value={form.start_time as any} onChange={e => setForm({ ...form, start_time: e.target.value })} /></div>
-              <div><Label>Fin</Label><Input type="datetime-local" value={form.end_time as any} onChange={e => setForm({ ...form, end_time: e.target.value })} /></div>
+              <div><Label>Inicio</Label><Input type="datetime-local" value={form.start_time as any} onChange={e => {
+                const start = e.target.value;
+                const diffMin = form.end_time ? Math.max(1, Math.round((new Date(form.end_time).getTime() - new Date(start).getTime()) / 60000)) : form.time_limit_minutes;
+                setForm({ ...form, start_time: start, time_limit_minutes: diffMin });
+              }} /></div>
+              <div><Label>Fin</Label><Input type="datetime-local" value={form.end_time as any} onChange={e => {
+                const end = e.target.value;
+                const diffMin = form.start_time ? Math.max(1, Math.round((new Date(end).getTime() - new Date(form.start_time!).getTime()) / 60000)) : form.time_limit_minutes;
+                setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
+              }} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Duración (min)</Label><Input type="number" value={form.time_limit_minutes || ""} onChange={e => setForm({ ...form, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
+              <div><Label>Duración (min)</Label><Input type="number" value={form.time_limit_minutes || ""} onChange={e => setForm({ ...form, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} disabled className="bg-muted/50" /></div>
               <div>
                 <Label>Navegación</Label>
                 <Select value={form.navigation_type} onValueChange={(v) => setForm({ ...form, navigation_type: v })}>
