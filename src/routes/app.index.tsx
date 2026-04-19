@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, BookOpen, FileText, ClipboardList, GraduationCap } from "lucide-react";
+import { Users, BookOpen, FileText, ClipboardList, GraduationCap, Hammer } from "lucide-react";
 
 export const Route = createFileRoute("/app/")({
   component: Dashboard,
@@ -64,8 +64,14 @@ function Dashboard() {
         {isTeacher && (
           <QuickCard to="/app/teacher/gradebook" title="Calificaciones" desc="Matriz de notas y exportación CSV" icon={ClipboardList} />
         )}
+        {isTeacher && (
+          <QuickCard to="/app/teacher/workshops" title="Talleres" desc="Crea y califica talleres con IA" icon={Hammer} />
+        )}
         {isStudent && (
           <QuickCard to="/app/student/exams" title="Mis exámenes" desc="Inicia exámenes asignados" icon={GraduationCap} />
+        )}
+        {isStudent && (
+          <QuickCard to="/app/student/workshops" title="Mis talleres" desc="Entrega y revisa talleres" icon={Hammer} />
         )}
       </div>
     </div>

@@ -2,7 +2,11 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, Users, BookOpen, FileText, ClipboardList, LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  GraduationCap, Users, BookOpen, FileText, ClipboardList,
+  LayoutDashboard, LogOut, ShieldCheck, UserCog, BookOpenCheck, Hammer, Monitor,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 
@@ -16,8 +20,10 @@ const NAV: NavItem[] = [
   // Docente
   { to: "/app/teacher/exams", label: "Mis Exámenes", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", label: "Calificaciones", icon: ClipboardList, roles: ["Docente"] },
+  { to: "/app/teacher/workshops", label: "Talleres", icon: Hammer, roles: ["Docente"] },
   // Estudiante
   { to: "/app/student/exams", label: "Mis Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
+  { to: "/app/student/workshops", label: "Talleres", icon: Hammer, roles: ["Estudiante"] },
 ];
 
 const ROLE_BADGE: Record<AppRole, { label: string; className: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -38,7 +44,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (roles.length && !activeRole) {
-      // Default: highest privilege
       const order: AppRole[] = ["Admin", "Docente", "Estudiante"];
       setActiveRole(order.find(r => roles.includes(r)) ?? roles[0]);
     }
@@ -57,12 +62,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
         <div className="px-5 py-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm">
               <GraduationCap className="h-5 w-5 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <div className="font-semibold tracking-tight">ExamLab</div>
-              <div className="text-xs text-sidebar-foreground/60">Plataforma de exámenes</div>
+              <div className="font-semibold tracking-tight text-base">ExamLab</div>
+              <div className="text-[10px] text-sidebar-foreground/50 tracking-wide">Plataforma de exámenes</div>
             </div>
           </div>
         </div>
@@ -128,21 +133,29 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground">
-            <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={signOut} className="flex-1 justify-start text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground">
+              <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
+            </Button>
+          </div>
         </div>
       </aside>
 
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-sidebar text-sidebar-foreground border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <GraduationCap className="h-5 w-5" />
+          <div className="h-7 w-7 rounded-md bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center">
+            <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
+          </div>
           <span className="font-semibold">ExamLab</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground">
-          <LogOut className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button variant="ghost" size="sm" onClick={signOut} className="text-sidebar-foreground">
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <main className="flex-1 min-w-0 pt-14 md:pt-0">
@@ -173,6 +186,5 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 export function useActiveRole(): AppRole | null {
-  // Simple shared via location? For now derive from local: pages will infer from path.
   return null;
 }

@@ -304,6 +304,254 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_timer_controls: {
+        Row: {
+          id: string
+          exam_id: string
+          target_user_id: string | null
+          action: string
+          extra_seconds: number
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id: string
+          target_user_id?: string | null
+          action: string
+          extra_seconds?: number
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string
+          target_user_id?: string | null
+          action?: string
+          extra_seconds?: number
+          created_by?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_timer_controls_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_executions: {
+        Row: {
+          id: string
+          submission_id: string | null
+          question_id: string
+          user_id: string
+          language: string
+          source_code: string
+          stdin: string | null
+          stdout: string | null
+          stderr: string | null
+          exit_code: number | null
+          execution_time_ms: number | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          submission_id?: string | null
+          question_id: string
+          user_id: string
+          language?: string
+          source_code: string
+          stdin?: string | null
+          stdout?: string | null
+          stderr?: string | null
+          exit_code?: number | null
+          execution_time_ms?: number | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          submission_id?: string | null
+          question_id?: string
+          user_id?: string
+          language?: string
+          source_code?: string
+          stdin?: string | null
+          stdout?: string | null
+          stderr?: string | null
+          exit_code?: number | null
+          execution_time_ms?: number | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_executions_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "code_executions_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshops: {
+        Row: {
+          id: string
+          course_id: string
+          created_by: string
+          title: string
+          description: string | null
+          instructions: string | null
+          external_link: string | null
+          ai_generated: boolean
+          due_date: string | null
+          rubric: Json | null
+          max_score: number
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          created_by: string
+          title: string
+          description?: string | null
+          instructions?: string | null
+          external_link?: string | null
+          ai_generated?: boolean
+          due_date?: string | null
+          rubric?: Json | null
+          max_score?: number
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          created_by?: string
+          title?: string
+          description?: string | null
+          instructions?: string | null
+          external_link?: string | null
+          ai_generated?: boolean
+          due_date?: string | null
+          rubric?: Json | null
+          max_score?: number
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshops_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_assignments: {
+        Row: {
+          id: string
+          workshop_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workshop_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workshop_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_assignments_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_submissions: {
+        Row: {
+          id: string
+          workshop_id: string
+          user_id: string
+          content: string | null
+          file_url: string | null
+          external_link: string | null
+          ai_grade: number | null
+          ai_feedback: string | null
+          final_grade: number | null
+          teacher_feedback: string | null
+          status: string
+          submitted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workshop_id: string
+          user_id: string
+          content?: string | null
+          file_url?: string | null
+          external_link?: string | null
+          ai_grade?: number | null
+          ai_feedback?: string | null
+          final_grade?: number | null
+          teacher_feedback?: string | null
+          status?: string
+          submitted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workshop_id?: string
+          user_id?: string
+          content?: string | null
+          file_url?: string | null
+          external_link?: string | null
+          ai_grade?: number | null
+          ai_feedback?: string | null
+          final_grade?: number | null
+          teacher_feedback?: string | null
+          status?: string
+          submitted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_submissions_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,4 +1,4 @@
-// AI question generator using Lovable AI Gateway (Gemini)
+// AI question generator via AI Gateway (Gemini)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {

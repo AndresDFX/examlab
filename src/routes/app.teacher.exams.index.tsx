@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, GitBranch } from "lucide-react";
+import { Plus, Pencil, GitBranch, Monitor } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
@@ -117,7 +117,10 @@ function TeacherExams() {
                   <TableCell className="text-sm">{new Date(e.start_time).toLocaleString()}</TableCell>
                   <TableCell className="text-sm">{e.time_limit_minutes} min</TableCell>
                   <TableCell><Badge variant="secondary" className="text-[10px]">{e.navigation_type}</Badge></TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right space-x-1">
+                    <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }}>
+                      <Button variant="ghost" size="sm"><Monitor className="h-4 w-4 mr-1" />Monitor</Button>
+                    </Link>
                     <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }}>
                       <Button variant="ghost" size="sm"><Pencil className="h-4 w-4 mr-1" />Editar</Button>
                     </Link>

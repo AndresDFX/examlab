@@ -1,4 +1,4 @@
-// AI grading: scores open/code answers against rubric using Lovable AI Gateway
+// AI grading: scores open/code answers against rubric via AI Gateway
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
