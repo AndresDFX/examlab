@@ -59,6 +59,19 @@ function TeacherWorkshops() {
 
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
+  /** Auto-assign a workshop to all students enrolled in the course */
+  const autoAssignWorkshop = async (workshopId: string, courseId: string) => {
+    const { data: enr } = await supabase.from("course_enrollments").select("user_id").eq("course_id", courseId);
+    if (!enr?.length) return;
+    // Get existing assignments to avoid duplicates
+    const { data: existing } = await supabase.from("workshop_assignments").select("user_id").eq("workshop_id", workshopId);
+    const existingSet = new Set((existing ?? []).map((e: any) => e.user_id));
+    const toAdd = enr.filter((e: any) => !existingSet.has(e.user_id));
+    if (toAdd.length) {
+      await supabase.from("workshop_assignments").insert(toAdd.map((e: any) => ({ workshop_id: workshopId, user_id: e.user_id })));
+    }
+  };
+
   const load = async () => {
     const [{ data: cs }, { data: ws }] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
@@ -118,7 +131,9 @@ function TeacherWorkshops() {
     if (form.id) {
       const { error } = await supabase.from("workshops").update({ ...basePayload, course_id: form.course_id! }).eq("id", form.id);
       if (error) return toast.error(error.message);
+      // Auto-assign all enrolled students when published
       if (form.status === "published") {
+        await autoAssignWorkshop(form.id, form.course_id!);
         await supabase.rpc("notify_course_students", {
           _course_id: form.course_id!,
           _title: "Nuevo taller disponible",
@@ -130,9 +145,11 @@ function TeacherWorkshops() {
       toast.success("Taller actualizado correctamente");
     } else {
       for (const cid of courseIds) {
-        const { error } = await supabase.from("workshops").insert({ ...basePayload, course_id: cid });
+        const { data: newWs, error } = await supabase.from("workshops").insert({ ...basePayload, course_id: cid }).select().single();
         if (error) { toast.error(error.message); return; }
-        if (form.status === "published") {
+        // Auto-assign all enrolled students when published
+        if (form.status === "published" && newWs) {
+          await autoAssignWorkshop(newWs.id, cid);
           await supabase.rpc("notify_course_students", {
             _course_id: cid,
             _title: "Nuevo taller disponible",
