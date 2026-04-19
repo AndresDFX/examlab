@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Notification {
@@ -15,6 +15,7 @@ export interface Notification {
 export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load notifications
   const load = useCallback(async () => {
@@ -35,8 +36,15 @@ export function useNotifications(userId: string | undefined) {
   // Realtime subscription for new notifications
   useEffect(() => {
     if (!userId) return;
+
+    // Clean up any existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     const channel = supabase
-      .channel(`notifications-${userId}`)
+      .channel(`notif-${userId}-${Date.now()}`)
       .on(
         "postgres_changes",
         {
@@ -53,7 +61,12 @@ export function useNotifications(userId: string | undefined) {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
   }, [userId]);
 
   const markAsRead = useCallback(async (id: string) => {
