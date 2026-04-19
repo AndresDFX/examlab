@@ -14,7 +14,7 @@ import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sy
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
-type Question = { id: string; type: string; content: string; options: any; points: number; position: number; language?: string; starter_code?: string };
+type Question = { id: string; type: string; content: string; options: any; points: number; position: number; language?: string | null; starter_code?: string | null };
 type Exam = { id: string; title: string; time_limit_minutes: number; navigation_type: string; shuffle_enabled: boolean; start_time: string; end_time: string };
 
 const MAX_WARNINGS = 3;

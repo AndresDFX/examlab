@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      code_executions: {
+        Row: {
+          created_at: string
+          execution_time_ms: number | null
+          exit_code: number | null
+          id: string
+          language: string
+          question_id: string
+          source_code: string
+          status: string
+          stderr: string | null
+          stdin: string | null
+          stdout: string | null
+          submission_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          execution_time_ms?: number | null
+          exit_code?: number | null
+          id?: string
+          language?: string
+          question_id: string
+          source_code: string
+          status?: string
+          stderr?: string | null
+          stdin?: string | null
+          stdout?: string | null
+          submission_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          execution_time_ms?: number | null
+          exit_code?: number | null
+          id?: string
+          language?: string
+          question_id?: string
+          source_code?: string
+          status?: string
+          stderr?: string | null
+          stdin?: string | null
+          stdout?: string | null
+          submission_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_executions_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "code_executions_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_enrollments: {
         Row: {
           course_id: string
@@ -43,68 +106,64 @@ export type Database = {
           },
         ]
       }
-      notifications: {
+      course_teachers: {
         Row: {
+          course_id: string
+          created_at: string
           id: string
           user_id: string
-          title: string
-          body: string
-          kind: string
-          link: string | null
-          read: boolean
-          created_at: string
         }
         Insert: {
+          course_id: string
+          created_at?: string
           id?: string
           user_id: string
-          title: string
-          body: string
-          kind?: string
-          link?: string | null
-          read?: boolean
-          created_at?: string
         }
         Update: {
+          course_id?: string
+          created_at?: string
           id?: string
           user_id?: string
-          title?: string
-          body?: string
-          kind?: string
-          link?: string | null
-          read?: boolean
-          created_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "course_teachers_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       courses: {
         Row: {
           created_at: string
           description: string | null
+          end_date: string | null
           id: string
           name: string
           period: string | null
           start_date: string | null
-          end_date: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           description?: string | null
+          end_date?: string | null
           id?: string
           name: string
           period?: string | null
           start_date?: string | null
-          end_date?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           description?: string | null
+          end_date?: string | null
           id?: string
           name?: string
           period?: string | null
           start_date?: string | null
-          end_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -131,6 +190,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "exam_assignments_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_timer_controls: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string
+          exam_id: string
+          extra_seconds: number | null
+          id: string
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          created_by: string
+          exam_id: string
+          extra_seconds?: number | null
+          id?: string
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string
+          exam_id?: string
+          extra_seconds?: number | null
+          id?: string
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_timer_controls_exam_id_fkey"
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
@@ -201,6 +298,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          read: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read?: boolean
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -235,9 +365,12 @@ export type Database = {
           exam_id: string
           expected_rubric: string | null
           id: string
+          language: string | null
           options: Json | null
           points: number
           position: number
+          starter_code: string | null
+          test_cases: Json | null
           type: string
         }
         Insert: {
@@ -246,9 +379,12 @@ export type Database = {
           exam_id: string
           expected_rubric?: string | null
           id?: string
+          language?: string | null
           options?: Json | null
           points?: number
           position?: number
+          starter_code?: string | null
+          test_cases?: Json | null
           type: string
         }
         Update: {
@@ -257,9 +393,12 @@ export type Database = {
           exam_id?: string
           expected_rubric?: string | null
           id?: string
+          language?: string | null
           options?: Json | null
           points?: number
           position?: number
+          starter_code?: string | null
+          test_cases?: Json | null
           type?: string
         }
         Relationships: [
@@ -346,184 +485,24 @@ export type Database = {
         }
         Relationships: []
       }
-      exam_timer_controls: {
-        Row: {
-          id: string
-          exam_id: string
-          target_user_id: string | null
-          action: string
-          extra_seconds: number
-          created_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          exam_id: string
-          target_user_id?: string | null
-          action: string
-          extra_seconds?: number
-          created_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          exam_id?: string
-          target_user_id?: string | null
-          action?: string
-          extra_seconds?: number
-          created_by?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exam_timer_controls_exam_id_fkey"
-            columns: ["exam_id"]
-            isOneToOne: false
-            referencedRelation: "exams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      code_executions: {
-        Row: {
-          id: string
-          submission_id: string | null
-          question_id: string
-          user_id: string
-          language: string
-          source_code: string
-          stdin: string | null
-          stdout: string | null
-          stderr: string | null
-          exit_code: number | null
-          execution_time_ms: number | null
-          status: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          submission_id?: string | null
-          question_id: string
-          user_id: string
-          language?: string
-          source_code: string
-          stdin?: string | null
-          stdout?: string | null
-          stderr?: string | null
-          exit_code?: number | null
-          execution_time_ms?: number | null
-          status?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          submission_id?: string | null
-          question_id?: string
-          user_id?: string
-          language?: string
-          source_code?: string
-          stdin?: string | null
-          stdout?: string | null
-          stderr?: string | null
-          exit_code?: number | null
-          execution_time_ms?: number | null
-          status?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "code_executions_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "code_executions_submission_id_fkey"
-            columns: ["submission_id"]
-            isOneToOne: false
-            referencedRelation: "submissions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshops: {
-        Row: {
-          id: string
-          course_id: string
-          created_by: string
-          title: string
-          description: string | null
-          instructions: string | null
-          external_link: string | null
-          ai_generated: boolean
-          due_date: string | null
-          rubric: Json | null
-          max_score: number
-          status: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          course_id: string
-          created_by: string
-          title: string
-          description?: string | null
-          instructions?: string | null
-          external_link?: string | null
-          ai_generated?: boolean
-          due_date?: string | null
-          rubric?: Json | null
-          max_score?: number
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          course_id?: string
-          created_by?: string
-          title?: string
-          description?: string | null
-          instructions?: string | null
-          external_link?: string | null
-          ai_generated?: boolean
-          due_date?: string | null
-          rubric?: Json | null
-          max_score?: number
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshops_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       workshop_assignments: {
         Row: {
-          id: string
-          workshop_id: string
-          user_id: string
           created_at: string
+          id: string
+          user_id: string
+          workshop_id: string
         }
         Insert: {
-          id?: string
-          workshop_id: string
-          user_id: string
           created_at?: string
+          id?: string
+          user_id: string
+          workshop_id: string
         }
         Update: {
-          id?: string
-          workshop_id?: string
-          user_id?: string
           created_at?: string
+          id?: string
+          user_id?: string
+          workshop_id?: string
         }
         Relationships: [
           {
@@ -537,52 +516,52 @@ export type Database = {
       }
       workshop_submissions: {
         Row: {
-          id: string
-          workshop_id: string
-          user_id: string
-          content: string | null
-          file_url: string | null
-          external_link: string | null
-          ai_grade: number | null
           ai_feedback: string | null
+          ai_grade: number | null
+          content: string | null
+          created_at: string
+          external_link: string | null
+          file_url: string | null
           final_grade: number | null
-          teacher_feedback: string | null
+          id: string
           status: string
           submitted_at: string | null
-          created_at: string
+          teacher_feedback: string | null
           updated_at: string
+          user_id: string
+          workshop_id: string
         }
         Insert: {
-          id?: string
-          workshop_id: string
-          user_id: string
-          content?: string | null
-          file_url?: string | null
-          external_link?: string | null
-          ai_grade?: number | null
           ai_feedback?: string | null
+          ai_grade?: number | null
+          content?: string | null
+          created_at?: string
+          external_link?: string | null
+          file_url?: string | null
           final_grade?: number | null
-          teacher_feedback?: string | null
+          id?: string
           status?: string
           submitted_at?: string | null
-          created_at?: string
+          teacher_feedback?: string | null
           updated_at?: string
+          user_id: string
+          workshop_id: string
         }
         Update: {
-          id?: string
-          workshop_id?: string
-          user_id?: string
-          content?: string | null
-          file_url?: string | null
-          external_link?: string | null
-          ai_grade?: number | null
           ai_feedback?: string | null
+          ai_grade?: number | null
+          content?: string | null
+          created_at?: string
+          external_link?: string | null
+          file_url?: string | null
           final_grade?: number | null
-          teacher_feedback?: string | null
+          id?: string
           status?: string
           submitted_at?: string | null
-          created_at?: string
+          teacher_feedback?: string | null
           updated_at?: string
+          user_id?: string
+          workshop_id?: string
         }
         Relationships: [
           {
@@ -590,6 +569,65 @@ export type Database = {
             columns: ["workshop_id"]
             isOneToOne: false
             referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshops: {
+        Row: {
+          ai_generated: boolean
+          course_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          external_link: string | null
+          id: string
+          instructions: string | null
+          max_score: number
+          rubric: Json | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ai_generated?: boolean
+          course_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          external_link?: string | null
+          id?: string
+          instructions?: string | null
+          max_score?: number
+          rubric?: Json | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ai_generated?: boolean
+          course_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          external_link?: string | null
+          id?: string
+          instructions?: string | null
+          max_score?: number
+          rubric?: Json | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshops_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]
@@ -608,11 +646,11 @@ export type Database = {
       }
       notify_course_students: {
         Args: {
-          _course_id: string
-          _title: string
           _body: string
-          _kind: string
-          _link: string
+          _course_id: string
+          _kind?: string
+          _link?: string
+          _title: string
         }
         Returns: number
       }
