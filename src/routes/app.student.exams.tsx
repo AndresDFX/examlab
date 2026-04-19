@@ -10,7 +10,7 @@ import { Clock, Play, CheckCircle2, AlertTriangle } from "lucide-react";
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
 type ExamRow = {
-  exam: { id: string; title: string; description: string | null; start_time: string; end_time: string; time_limit_minutes: number; course: { name: string } };
+  exam: { id: string; title: string; description: string | null; start_time: string; end_time: string; time_limit_minutes: number; course: { name: string; grade_scale_min: number; grade_scale_max: number } };
   submission?: { id: string; status: string; ai_grade: number | null; final_override_grade: number | null };
 };
 
@@ -28,7 +28,7 @@ function StudentExams() {
     if (!user) return;
     (async () => {
       const { data: asg } = await supabase.from("exam_assignments")
-        .select("exam:exams(id, title, description, start_time, end_time, time_limit_minutes, course:courses(name))")
+        .select("exam:exams(id, title, description, start_time, end_time, time_limit_minutes, course:courses(name, grade_scale_min, grade_scale_max))")
         .eq("user_id", user.id);
       const exams = (asg ?? []).map((a: any) => a.exam).filter(Boolean);
       const ids = exams.map((e: any) => e.id);
@@ -71,7 +71,7 @@ function StudentExams() {
                   {completed ? (
                     <Badge variant={submission?.status === "sospechoso" ? "destructive" : "default"} className="shrink-0">
                       {submission?.status === "sospechoso" ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                      {grade != null ? `Nota: ${grade}` : "Enviado"}
+                      {grade != null ? `Nota: ${grade}/${exam.course?.grade_scale_max ?? 5}` : "Enviado"}
                     </Badge>
                   ) : isOpen ? (
                     <Badge className="bg-success text-success-foreground shrink-0">Disponible</Badge>

@@ -21,7 +21,7 @@ import {
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
 
-type Course = { id: string; name: string; period: string | null };
+type Course = { id: string; name: string; period: string | null; grade_scale_min: number; grade_scale_max: number; passing_grade: number };
 type Workshop = {
   id: string; course_id: string; title: string; description: string | null;
   instructions: string | null; external_link: string | null; ai_generated: boolean;
@@ -74,7 +74,7 @@ function TeacherWorkshops() {
 
   const load = async () => {
     const [{ data: cs }, { data: ws }] = await Promise.all([
-      supabase.from("courses").select("id, name, period").order("name"),
+      supabase.from("courses").select("id, name, period, grade_scale_min, grade_scale_max, passing_grade").order("name"),
       supabase.from("workshops").select("*, course:courses(name, period)").order("created_at", { ascending: false }),
     ]);
     setCourses((cs ?? []) as Course[]);
@@ -311,8 +311,8 @@ function TeacherWorkshops() {
 
   const gradeAllWithAI = async () => {
     if (!gradingWs) return;
-    const pending = wsSubs.filter(s => s.status === "entregado");
-    if (!pending.length) { toast.info("No hay entregas pendientes de calificación"); return; }
+    const pending = wsSubs.filter(s => s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado");
+    if (!pending.length) { toast.info("No hay entregas para calificar"); return; }
     setAiGradingAll(true);
     let graded = 0;
     for (const sub of pending) {
@@ -369,6 +369,14 @@ function TeacherWorkshops() {
     setWsSubs(prev => prev.map(s =>
       s.id === subId ? { ...s, final_grade: grade, teacher_feedback: feedback, status: "calificado" } : s
     ));
+  };
+
+  const deleteSubmission = async (subId: string, studentName: string) => {
+    if (!confirm(`¿Eliminar la entrega de ${studentName}? Esta acción no se puede deshacer.`)) return;
+    const { error } = await supabase.from("workshop_submissions").delete().eq("id", subId);
+    if (error) return toast.error(error.message);
+    setWsSubs(prev => prev.filter(s => s.id !== subId));
+    toast.success("Entrega eliminada correctamente");
   };
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
@@ -580,12 +588,23 @@ function TeacherWorkshops() {
           <DialogHeader>
             <DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle>
           </DialogHeader>
+          {/* Course scale info */}
+          {(() => {
+            const course = courses.find(c => c.id === gradingWs?.course_id);
+            return course ? (
+              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground rounded-md border p-2 bg-muted/30">
+                <span>Escala del curso: <span className="font-medium text-foreground tabular-nums">{course.grade_scale_min}–{course.grade_scale_max}</span></span>
+                <span>Aprobar ≥ <span className="font-medium text-foreground tabular-nums">{course.passing_grade}</span></span>
+                <span>Puntaje taller: <span className="font-medium text-foreground tabular-nums">0–{gradingWs?.max_score ?? 100}</span></span>
+              </div>
+            ) : null;
+          })()}
           {/* Bulk AI action */}
-          {wsSubs.some(s => s.status === "entregado") && (
+          {wsSubs.length > 0 && (
             <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
               <div>
                 <p className="text-sm font-medium">Calificar con IA</p>
-                <p className="text-xs text-muted-foreground">Califica todas las entregas pendientes. Quedarán en revisión para tu aprobación.</p>
+                <p className="text-xs text-muted-foreground">Califica (o recalifica) todas las entregas con IA. Quedarán en revisión para tu aprobación.</p>
               </div>
               <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
                 {aiGradingAll ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
@@ -604,12 +623,17 @@ function TeacherWorkshops() {
                       <div className="font-medium text-sm">{sub.profile?.full_name}</div>
                       <div className="text-xs text-muted-foreground">{sub.profile?.institutional_email}</div>
                     </div>
-                    <Badge
-                      variant={sub.status === "calificado" ? "default" : sub.status === "ai_revisado" ? "outline" : sub.status === "entregado" ? "secondary" : "outline"}
-                      className={`text-[10px] ${sub.status === "ai_revisado" ? "border-amber-400 text-amber-600 dark:text-amber-400" : ""}`}
-                    >
-                      {sub.status === "calificado" ? "Calificado" : sub.status === "ai_revisado" ? "Revisión IA" : sub.status === "entregado" ? "Entregado" : "Pendiente"}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        variant={sub.status === "calificado" ? "default" : sub.status === "ai_revisado" ? "outline" : sub.status === "entregado" ? "secondary" : "outline"}
+                        className={`text-[10px] ${sub.status === "ai_revisado" ? "border-amber-400 text-amber-600 dark:text-amber-400" : ""}`}
+                      >
+                        {sub.status === "calificado" ? "Calificado" : sub.status === "ai_revisado" ? "Revisión IA" : sub.status === "entregado" ? "Entregado" : "Pendiente"}
+                      </Badge>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")} title="Eliminar entrega">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Student content */}
@@ -654,55 +678,51 @@ function TeacherWorkshops() {
                   )}
 
                   {/* Manual grading / override */}
-                  {sub.status !== "ai_revisado" && (
-                    <div className="space-y-2">
-                      <div>
-                        <Label className="text-xs">Nota final</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={gradingWs?.max_score ?? 100}
-                          value={sub.final_grade ?? ""}
-                          onChange={e => {
-                            setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, final_grade: e.target.value === "" ? null : Number(e.target.value) } : s));
-                          }}
-                          className="h-8 text-sm mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Retroalimentación</Label>
-                        <Textarea
-                          rows={3}
-                          value={sub.teacher_feedback ?? ""}
-                          onChange={e => {
-                            setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s));
-                          }}
-                          className="text-sm mt-1"
-                          placeholder="Escribe tu retroalimentación detallada..."
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")}
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar nota
-                        </Button>
-                        {sub.status === "entregado" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => gradeOneWithAI(sub)}
-                            disabled={aiGradingId === sub.id}
-                          >
-                            {aiGradingId === sub.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                            Calificar con IA
-                          </Button>
-                        )}
-                      </div>
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs">Nota final</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={gradingWs?.max_score ?? 100}
+                        value={sub.final_grade ?? ""}
+                        onChange={e => {
+                          setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, final_grade: e.target.value === "" ? null : Number(e.target.value) } : s));
+                        }}
+                        className="h-8 text-sm mt-1"
+                      />
                     </div>
-                  )}
+                    <div>
+                      <Label className="text-xs">Retroalimentación</Label>
+                      <Textarea
+                        rows={3}
+                        value={sub.teacher_feedback ?? ""}
+                        onChange={e => {
+                          setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s));
+                        }}
+                        className="text-sm mt-1"
+                        placeholder="Escribe tu retroalimentación detallada..."
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar nota
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => gradeOneWithAI(sub)}
+                        disabled={aiGradingId === sub.id}
+                      >
+                        {aiGradingId === sub.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                        {sub.status === "calificado" || sub.status === "ai_revisado" ? "Recalificar con IA" : "Calificar con IA"}
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))}

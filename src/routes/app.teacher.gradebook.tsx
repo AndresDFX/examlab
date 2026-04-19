@@ -9,12 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Download, GitBranch, FileText, Hammer, Save, Loader2 } from "lucide-react";
+import { Download, GitBranch, FileText, Hammer, Save, Loader2, Scale } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/app/teacher/gradebook")({ component: Gradebook });
 
-type Course = { id: string; name: string };
+type Course = {
+  id: string; name: string;
+  grade_scale_min: number; grade_scale_max: number; passing_grade: number;
+  exam_weight: number; workshop_weight: number;
+};
 type Exam = { id: string; title: string; parent_exam_id: string | null; course_id: string };
 type Workshop = { id: string; title: string; course_id: string; max_score: number };
 type Student = { id: string; full_name: string; institutional_email: string; personal_email: string | null };
@@ -48,7 +52,7 @@ function Gradebook() {
 
   // Load courses
   useEffect(() => {
-    supabase.from("courses").select("id, name").order("name").then(({ data }) => {
+    supabase.from("courses").select("id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight").order("name").then(({ data }) => {
       setCourses(data ?? []);
       if (data?.[0]) setCourseId(data[0].id);
     });
@@ -253,6 +257,7 @@ function Gradebook() {
   };
 
   const hasEdits = Object.values(edits).some(v => v !== "");
+  const selectedCourse = courses.find(c => c.id === courseId);
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
@@ -282,6 +287,22 @@ function Gradebook() {
         </div>
       </div>
 
+      {selectedCourse && (
+        <div className="flex flex-wrap items-center gap-4 rounded-md border p-3 bg-muted/30">
+          <div className="flex items-center gap-1.5 text-sm">
+            <Scale className="h-4 w-4 text-primary" />
+            <span className="font-medium">Escala:</span>
+            <span className="tabular-nums">{selectedCourse.grade_scale_min} – {selectedCourse.grade_scale_max}</span>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Aprobar ≥ <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Pesos: Exámenes <span className="font-medium tabular-nums">{selectedCourse.exam_weight}%</span> · Talleres <span className="font-medium tabular-nums">{selectedCourse.workshop_weight}%</span>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -299,7 +320,7 @@ function Gradebook() {
                         <span className="truncate max-w-24" title={col.title}>{col.title}</span>
                       </div>
                       <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                        {col.kind === "exam" ? "Examen" : "Taller"}
+                        {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
                       </Badge>
                     </div>
                   </TableHead>
@@ -332,6 +353,9 @@ function Gradebook() {
                           <div className="relative">
                             <Input
                               type="number"
+                              step="0.1"
+                              min={selectedCourse?.grade_scale_min ?? 0}
+                              max={col.kind === "workshop" ? (col.maxScore ?? 100) : (selectedCourse?.grade_scale_max ?? 100)}
                               value={displayGrade}
                               onChange={e => handleEdit(s.id, col.id, e.target.value)}
                               className="h-8 w-20 mx-auto text-center text-sm tabular-nums"

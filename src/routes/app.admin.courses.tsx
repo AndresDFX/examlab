@@ -224,6 +224,12 @@ function AdminCourses() {
         period: dupPeriod || null,
         start_date: dupSource.start_date,
         end_date: dupSource.end_date,
+        grade_scale_min: dupSource.grade_scale_min,
+        grade_scale_max: dupSource.grade_scale_max,
+        passing_grade: dupSource.passing_grade,
+        exam_weight: dupSource.exam_weight,
+        workshop_weight: dupSource.workshop_weight,
+        attendance_weight: dupSource.attendance_weight,
       }).select().single();
       if (cErr || !newCourse) throw new Error(cErr?.message ?? "Error creando curso");
 
@@ -382,6 +388,7 @@ function AdminCourses() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Periodo</TableHead>
+                <TableHead className="hidden sm:table-cell">Escala</TableHead>
                 <TableHead className="hidden md:table-cell">Fechas</TableHead>
                 <TableHead className="hidden lg:table-cell">Descripción</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -389,13 +396,19 @@ function AdminCourses() {
             </TableHeader>
             <TableBody>
               {courses.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No hay cursos creados.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No hay cursos creados.</TableCell></TableRow>
               )}
               {courses.map(c => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>
                     {c.period ? <Badge variant="outline" className="text-xs">{c.period}</Badge> : <span className="text-muted-foreground text-xs">—</span>}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="text-xs tabular-nums">
+                      <span className="font-medium">{c.grade_scale_min}–{c.grade_scale_max}</span>
+                      <span className="text-muted-foreground ml-1">(≥{c.passing_grade})</span>
+                    </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                     {c.start_date && c.end_date

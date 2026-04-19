@@ -22,7 +22,7 @@ type WorkshopRow = {
     id: string; title: string; description: string | null; instructions: string | null;
     external_link: string | null; due_date: string | null; start_date: string | null;
     max_score: number; status: string;
-    course: { name: string };
+    course: { name: string; grade_scale_min: number; grade_scale_max: number };
   };
   submission?: {
     id: string; content: string | null; external_link: string | null; file_url: string | null;
@@ -52,7 +52,7 @@ function StudentWorkshops() {
     (async () => {
       const { data: asg } = await supabase
         .from("workshop_assignments")
-        .select("workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, course:courses(name))")
+        .select("workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, course:courses(name, grade_scale_min, grade_scale_max))")
         .eq("user_id", user.id);
 
       const workshops = (asg ?? []).map((a: any) => a.workshop).filter(Boolean);
@@ -232,7 +232,7 @@ function StudentWorkshops() {
                   {submission?.status === "calificado" ? (
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Nota: {grade}
+                      Nota: {grade}/{workshop.max_score}
                     </Badge>
                   ) : submission?.status === "entregado" ? (
                     <Badge variant="secondary" className="shrink-0">Entregado</Badge>
@@ -255,7 +255,7 @@ function StudentWorkshops() {
                       <Clock className="h-3 w-3" />Fecha límite: {new Date(workshop.due_date).toLocaleString()}
                     </div>
                   )}
-                  <div>Puntaje máximo: {workshop.max_score}</div>
+                  <div>Puntaje máximo: {workshop.max_score} · Escala: {workshop.course?.grade_scale_min ?? 0}–{workshop.course?.grade_scale_max ?? 5}</div>
                 </div>
 
                 {workshop.external_link && (

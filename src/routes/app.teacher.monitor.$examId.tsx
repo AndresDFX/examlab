@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import {
   ArrowLeft, Pause, Play, Clock, Plus, Users, User,
-  AlertTriangle, CheckCircle2, Loader2,
+  AlertTriangle, CheckCircle2, Loader2, Sparkles, Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
@@ -21,6 +21,8 @@ type Submission = {
   status: string;
   focus_warnings: number;
   answers: any;
+  ai_grade: number | null;
+  final_override_grade: number | null;
   profile?: { full_name: string; institutional_email: string };
 };
 
@@ -39,7 +41,7 @@ function ExamMonitor() {
 
     const { data: subs } = await supabase
       .from("submissions")
-      .select("id, user_id, status, focus_warnings, answers")
+      .select("id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade")
       .eq("exam_id", examId);
 
     if (subs?.length) {
@@ -88,6 +90,36 @@ function ExamMonitor() {
       add_time: `+${Math.floor(extraSeconds / 60)} minuto(s) añadidos`,
     };
     toast.success(`${labels[action]} ${targetUserId ? "(estudiante)" : "(global)"}`);
+  };
+
+  const [aiGradingId, setAiGradingId] = useState<string | null>(null);
+
+  const reGradeWithAI = async (sub: Submission) => {
+    setAiGradingId(sub.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
+        body: { submissionId: sub.id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error ?? error?.message ?? "Error al calificar con IA");
+        return;
+      }
+      toast.success("Examen recalificado con IA correctamente");
+      load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Error desconocido");
+    } finally {
+      setAiGradingId(null);
+    }
+  };
+
+  const deleteSubmission = async (sub: Submission) => {
+    const name = sub.profile?.full_name ?? "este estudiante";
+    if (!confirm(`¿Eliminar la entrega de ${name}? Esta acción no se puede deshacer.`)) return;
+    const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
+    if (error) return toast.error(error.message);
+    setSubmissions(prev => prev.filter(s => s.id !== sub.id));
+    toast.success("Entrega eliminada correctamente");
   };
 
   if (!exam) return <p className="text-muted-foreground p-6">Cargando…</p>;
@@ -179,15 +211,16 @@ function ExamMonitor() {
               <TableRow>
                 <TableHead>Estudiante</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Nota</TableHead>
                 <TableHead>Advertencias</TableHead>
                 <TableHead>Respuestas</TableHead>
-                <TableHead className="text-right">Acciones individuales</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {submissions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     Ningún estudiante ha iniciado el examen aún.
                   </TableCell>
                 </TableRow>
@@ -215,6 +248,20 @@ function ExamMonitor() {
                         </Badge>
                       )}
                     </TableCell>
+                    <TableCell className="text-sm tabular-nums">
+                      {(() => {
+                        const grade = sub.final_override_grade ?? sub.ai_grade;
+                        if (grade == null) return <span className="text-muted-foreground">—</span>;
+                        return (
+                          <div className="flex flex-col items-start">
+                            <span className="font-medium">{grade}</span>
+                            {sub.final_override_grade != null && sub.ai_grade != null && sub.final_override_grade !== sub.ai_grade && (
+                              <span className="text-[10px] text-muted-foreground">IA: {sub.ai_grade}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={sub.focus_warnings > 0 ? "destructive" : "outline"} className="text-[10px]">
                         {sub.focus_warnings}/3
@@ -222,47 +269,69 @@ function ExamMonitor() {
                     </TableCell>
                     <TableCell className="text-sm">{answeredCount}</TableCell>
                     <TableCell className="text-right">
-                      {sub.status === "en_progreso" && (
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => sendTimerControl("pause", sub.user_id)}
-                            disabled={loading === `pause-${sub.user_id}`}
-                            title="Pausar este estudiante"
-                          >
-                            <Pause className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => sendTimerControl("resume", sub.user_id)}
-                            disabled={loading === `resume-${sub.user_id}`}
-                            title="Reanudar este estudiante"
-                          >
-                            <Play className="h-3.5 w-3.5" />
-                          </Button>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              min={1}
-                              max={120}
-                              value={extraMinutesStudent || ""}
-                              onChange={(e) => setExtraMinutesStudent(e.target.value === "" ? 0 : Number(e.target.value))}
-                              className="w-16 h-7 text-xs"
-                            />
+                      <div className="flex items-center justify-end gap-1">
+                        {sub.status === "en_progreso" && (
+                          <>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => sendTimerControl("add_time", sub.user_id, extraMinutesStudent * 60)}
-                              disabled={loading === `add_time-${sub.user_id}`}
-                              title="Añadir tiempo"
+                              onClick={() => sendTimerControl("pause", sub.user_id)}
+                              disabled={loading === `pause-${sub.user_id}`}
+                              title="Pausar este estudiante"
                             >
-                              <Plus className="h-3.5 w-3.5" />
+                              <Pause className="h-3.5 w-3.5" />
                             </Button>
-                          </div>
-                        </div>
-                      )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => sendTimerControl("resume", sub.user_id)}
+                              disabled={loading === `resume-${sub.user_id}`}
+                              title="Reanudar este estudiante"
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                min={1}
+                                max={120}
+                                value={extraMinutesStudent || ""}
+                                onChange={(e) => setExtraMinutesStudent(e.target.value === "" ? 0 : Number(e.target.value))}
+                                className="w-16 h-7 text-xs"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => sendTimerControl("add_time", sub.user_id, extraMinutesStudent * 60)}
+                                disabled={loading === `add_time-${sub.user_id}`}
+                                title="Añadir tiempo"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                        {(sub.status === "completado" || sub.status === "sospechoso") && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => reGradeWithAI(sub)}
+                            disabled={aiGradingId === sub.id}
+                            title="Recalificar con IA"
+                          >
+                            {aiGradingId === sub.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteSubmission(sub)}
+                          title="Eliminar entrega"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
