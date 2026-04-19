@@ -274,7 +274,7 @@ function TeacherWorkshops() {
             <div><Label>Link externo (opcional)</Label><Input placeholder="https://..." value={form.external_link ?? ""} onChange={e => setForm({ ...form, external_link: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Fecha límite</Label><Input type="datetime-local" value={form.due_date as any ?? ""} onChange={e => setForm({ ...form, due_date: e.target.value })} /></div>
-              <div><Label>Puntaje máximo</Label><Input type="number" value={form.max_score ?? 100} onChange={e => setForm({ ...form, max_score: Number(e.target.value) })} /></div>
+              <div><Label>Puntaje máximo</Label><Input type="number" value={form.max_score || ""} onChange={e => setForm({ ...form, max_score: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
             </div>
             <div>
               <Label>Estado</Label>
@@ -374,7 +374,7 @@ function TeacherWorkshops() {
                         max={gradingWs?.max_score ?? 100}
                         value={sub.final_grade ?? ""}
                         onChange={e => {
-                          setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, final_grade: Number(e.target.value) } : s));
+                          setWsSubs(prev => prev.map(s => s.id === sub.id ? { ...s, final_grade: e.target.value === "" ? null : Number(e.target.value) } : s));
                         }}
                         className="h-8 text-sm"
                       />

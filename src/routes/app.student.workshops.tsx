@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   Clock, ExternalLink, Send, Loader2, CheckCircle2,
-  AlertTriangle, MessageSquare, Upload, FileIcon, X, Download,
+  AlertTriangle, MessageSquare, Upload, FileIcon, X,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
@@ -34,7 +34,7 @@ type WorkshopRow = {
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 function StudentWorkshops() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [rows, setRows] = useState<WorkshopRow[]>([]);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [activeWs, setActiveWs] = useState<WorkshopRow | null>(null);
@@ -96,11 +96,24 @@ function StudentWorkshops() {
   };
 
   const uploadFile = async (workshopId: string): Promise<string | null> => {
-    if (!file || !user) return existingFileUrl;
+    if (!file || !user || !activeWs) return existingFileUrl;
 
     setUploading(true);
     const ext = file.name.split(".").pop() ?? "bin";
-    const path = `${user.id}/${workshopId}/${Date.now()}.${ext}`;
+
+    // Build descriptive filename: curso_taller_email.ext
+    const sanitize = (s: string) =>
+      s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // remove accents
+       .replace(/[^a-zA-Z0-9._-]/g, "_")                  // only safe chars
+       .replace(/_+/g, "_")                                // collapse underscores
+       .replace(/^_|_$/g, "")                              // trim underscores
+       .substring(0, 60);                                  // limit length
+
+    const courseName = sanitize(activeWs.workshop.course?.name ?? "curso");
+    const workshopTitle = sanitize(activeWs.workshop.title ?? "taller");
+    const emailPart = sanitize((profile?.institutional_email ?? user.email ?? "").split("@")[0]);
+    const fileName = `${courseName}_${workshopTitle}_${emailPart}.${ext}`;
+    const path = `${user.id}/${workshopId}/${fileName}`;
 
     const { error } = await supabase.storage
       .from("workshop-files")

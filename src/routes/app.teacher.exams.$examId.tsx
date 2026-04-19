@@ -165,7 +165,7 @@ function ExamEditor() {
               <div><Label>Fin</Label><Input type="datetime-local" value={toLocal(exam.end_time)} onChange={e => setExam({ ...exam, end_time: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Duración (min)</Label><Input type="number" value={exam.time_limit_minutes} onChange={e => setExam({ ...exam, time_limit_minutes: Number(e.target.value) })} /></div>
+              <div><Label>Duración (min)</Label><Input type="number" value={exam.time_limit_minutes || ""} onChange={e => setExam({ ...exam, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
               <div>
                 <Label>Navegación</Label>
                 <Select value={exam.navigation_type} onValueChange={(v) => setExam({ ...exam, navigation_type: v })}>
@@ -187,7 +187,7 @@ function ExamEditor() {
             <CardContent className="space-y-3">
               <div><Label>Temas</Label><Textarea placeholder="Ej: arrays, recursividad, complejidad..." value={aiTopics} onChange={e => setAiTopics(e.target.value)} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Cantidad</Label><Input type="number" min={1} max={10} value={aiCount} onChange={e => setAiCount(Number(e.target.value))} /></div>
+                <div><Label>Cantidad</Label><Input type="number" min={1} max={10} value={aiCount || ""} onChange={e => setAiCount(e.target.value === "" ? 0 : Number(e.target.value))} /></div>
                 <div>
                   <Label>Tipo</Label>
                   <Select value={aiType} onValueChange={setAiType}>
@@ -222,7 +222,7 @@ function ExamEditor() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Puntos</Label><Input type="number" value={qPoints} onChange={e => setQPoints(Number(e.target.value))} /></div>
+                <div><Label>Puntos</Label><Input type="number" value={qPoints || ""} onChange={e => setQPoints(e.target.value === "" ? 0 : Number(e.target.value))} /></div>
               </div>
               <div><Label>Enunciado</Label><Textarea value={qContent} onChange={e => setQContent(e.target.value)} /></div>
               {qType !== "cerrada" && (

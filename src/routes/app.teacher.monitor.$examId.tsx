@@ -142,8 +142,8 @@ function ExamMonitor() {
                 type="number"
                 min={1}
                 max={120}
-                value={extraMinutes}
-                onChange={(e) => setExtraMinutes(Number(e.target.value))}
+                value={extraMinutes || ""}
+                onChange={(e) => setExtraMinutes(e.target.value === "" ? 0 : Number(e.target.value))}
                 className="w-20 h-8 text-sm"
               />
               <span className="text-xs text-muted-foreground">min</span>
@@ -247,8 +247,8 @@ function ExamMonitor() {
                               type="number"
                               min={1}
                               max={120}
-                              value={extraMinutesStudent}
-                              onChange={(e) => setExtraMinutesStudent(Number(e.target.value))}
+                              value={extraMinutesStudent || ""}
+                              onChange={(e) => setExtraMinutesStudent(e.target.value === "" ? 0 : Number(e.target.value))}
                               className="w-16 h-7 text-xs"
                             />
                             <Button

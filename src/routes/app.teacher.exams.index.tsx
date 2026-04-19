@@ -152,7 +152,7 @@ function TeacherExams() {
               <div><Label>Fin</Label><Input type="datetime-local" value={form.end_time as any} onChange={e => setForm({ ...form, end_time: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Duración (min)</Label><Input type="number" value={form.time_limit_minutes} onChange={e => setForm({ ...form, time_limit_minutes: Number(e.target.value) })} /></div>
+              <div><Label>Duración (min)</Label><Input type="number" value={form.time_limit_minutes || ""} onChange={e => setForm({ ...form, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
               <div>
                 <Label>Navegación</Label>
                 <Select value={form.navigation_type} onValueChange={(v) => setForm({ ...form, navigation_type: v })}>
