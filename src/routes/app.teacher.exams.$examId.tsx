@@ -76,7 +76,7 @@ function ExamEditor() {
       navigation_type: exam.navigation_type, shuffle_enabled: !!exam.shuffle_enabled,
     }).eq("id", examId);
     if (error) return toast.error(error.message);
-    toast.success("Examen actualizado");
+    toast.success("Examen actualizado correctamente");
   };
 
   const addQuestion = async () => {
@@ -90,7 +90,7 @@ function ExamEditor() {
       options, points: qPoints, position: pos,
     });
     if (error) return toast.error(error.message);
-    toast.success("Pregunta agregada");
+    toast.success("Pregunta agregada correctamente");
     setQContent(""); setQRubric(""); setQChoices(["", "", "", ""]); setQCorrect(0);
     load();
   };
@@ -131,12 +131,12 @@ function ExamEditor() {
         link: "/app/student/exams",
       });
       setAssigned(new Set([...assigned, uid]));
-      toast.success("Estudiante asignado al examen");
+      toast.success("Estudiante asignado correctamente");
     } else {
       const { error } = await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", uid);
       if (error) return toast.error(error.message);
       const ns = new Set(assigned); ns.delete(uid); setAssigned(ns);
-      toast.success("Asignación removida");
+      toast.success("Asignación removida correctamente");
     }
   };
 
@@ -155,7 +155,7 @@ function ExamEditor() {
       });
     }
     setAssigned(new Set(students.map(s => s.id)));
-    toast.success(`${toAdd.length} estudiante(s) asignados`);
+    toast.success(`${toAdd.length} estudiante(s) asignados correctamente`);
   };
 
   const unassignAll = async () => {
@@ -165,7 +165,7 @@ function ExamEditor() {
       await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", s.id);
     }
     setAssigned(new Set());
-    toast.success(`${toRemove.length} asignación(es) removidas`);
+    toast.success(`${toRemove.length} asignación(es) removidas correctamente`);
   };
 
   if (!exam) return <p className="text-muted-foreground">Cargando…</p>;

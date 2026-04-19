@@ -25,14 +25,15 @@ const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, roles: ["Admin", "Docente", "Estudiante"] },
   { to: "/app/admin/users", label: "Usuarios", icon: Users, roles: ["Admin"] },
   { to: "/app/admin/courses", label: "Cursos", icon: BookOpen, roles: ["Admin"] },
-  { to: "/app/teacher/courses", label: "Mis cursos", icon: BookOpen, roles: ["Docente"] },
+  { to: "/app/teacher/courses", label: "Cursos", icon: BookOpen, roles: ["Docente"] },
   { to: "/app/teacher/exams", label: "Exámenes", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", label: "Calificaciones", icon: ClipboardList, roles: ["Docente"] },
   { to: "/app/teacher/workshops", label: "Talleres", icon: Hammer, roles: ["Docente"] },
+  { to: "/app/teacher/attendance", label: "Asistencia", icon: Users, roles: ["Docente"] },
   { to: "/app/student/exams", label: "Exámenes", icon: BookOpenCheck, roles: ["Estudiante"] },
   { to: "/app/student/workshops", label: "Talleres", icon: Hammer, roles: ["Estudiante"] },
   { to: "/app/student/courses", label: "Cursos", icon: BookOpen, roles: ["Estudiante"] },
-  { to: "/app/student/grades", label: "Mis notas", icon: ClipboardList, roles: ["Estudiante"] },
+  { to: "/app/student/grades", label: "Notas", icon: ClipboardList, roles: ["Estudiante"] },
 ];
 
 const ROLE_CONFIG: Record<AppRole, {

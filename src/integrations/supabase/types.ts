@@ -588,6 +588,108 @@ export type Database = {
           },
         ]
       }
+      course_grading_weights: {
+        Row: {
+          id: string
+          course_id: string
+          component: string
+          weight: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          component: string
+          weight?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          component?: string
+          weight?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_grading_weights_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_sessions: {
+        Row: {
+          id: string
+          course_id: string
+          session_date: string
+          title: string | null
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          session_date: string
+          title?: string | null
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          session_date?: string
+          title?: string | null
+          created_by?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_sessions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_records: {
+        Row: {
+          id: string
+          session_id: string
+          user_id: string
+          status: string
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          user_id: string
+          status?: string
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          user_id?: string
+          status?: string
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshops: {
         Row: {
           ai_generated: boolean

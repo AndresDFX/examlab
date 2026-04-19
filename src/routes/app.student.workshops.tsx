@@ -174,7 +174,7 @@ function StudentWorkshops() {
       if (error) { toast.error(error.message); setSubmitting(false); return; }
     }
 
-    toast.success("Taller entregado");
+    toast.success("Taller entregado correctamente");
     setSubmitOpen(false);
     setSubmitting(false);
 

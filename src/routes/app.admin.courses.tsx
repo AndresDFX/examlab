@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Users, Pencil, Copy, UserCog, Search, CheckSquare, XSquare, Loader2 } from "lucide-react";
+import { Plus, Trash2, Users, Pencil, Copy, UserCog, Search, CheckSquare, XSquare, Loader2, Settings } from "lucide-react";
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
@@ -94,7 +94,7 @@ function AdminCourses() {
       const { error } = await supabase.from("courses").insert(payload);
       if (error) return toast.error(error.message);
     }
-    toast.success("Guardado");
+    toast.success("Curso guardado correctamente");
     setOpen(false); setEditing(null); load();
   };
 
@@ -102,7 +102,7 @@ function AdminCourses() {
     if (!confirm("¿Eliminar este curso? Borra también matrículas, exámenes y talleres.")) return;
     const { error } = await supabase.from("courses").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Eliminado"); load();
+    toast.success("Curso eliminado correctamente"); load();
   };
 
   // ── Student Enrollment ───────────────────────────────────
@@ -133,12 +133,12 @@ function AdminCourses() {
       const { error } = await supabase.from("course_enrollments").insert({ course_id: enrollCourse.id, user_id: uid });
       if (error) return toast.error(error.message);
       setEnrolledIds(prev => new Set([...prev, uid]));
-      toast.success("Estudiante matriculado");
+      toast.success("Estudiante matriculado correctamente");
     } else {
       const { error } = await supabase.from("course_enrollments").delete().eq("course_id", enrollCourse.id).eq("user_id", uid);
       if (error) return toast.error(error.message);
       setEnrolledIds(prev => { const s = new Set(prev); s.delete(uid); return s; });
-      toast.success("Estudiante desmatriculado");
+      toast.success("Estudiante desmatriculado correctamente");
     }
   };
 
@@ -149,7 +149,7 @@ function AdminCourses() {
     const { error } = await supabase.from("course_enrollments").insert(toAdd.map(p => ({ course_id: enrollCourse.id, user_id: p.id })));
     if (error) return toast.error(error.message);
     setEnrolledIds(prev => new Set([...prev, ...toAdd.map(p => p.id)]));
-    toast.success(`${toAdd.length} estudiante(s) matriculados`);
+    toast.success(`${toAdd.length} estudiante(s) matriculados correctamente`);
   };
 
   const unenrollAll = async () => {
@@ -164,7 +164,7 @@ function AdminCourses() {
       toRemove.forEach(p => s.delete(p.id));
       return s;
     });
-    toast.success(`${toRemove.length} estudiante(s) desmatriculados`);
+    toast.success(`${toRemove.length} estudiante(s) desmatriculados correctamente`);
   };
 
   // ── Teacher Assignment ───────────────────────────────────
@@ -191,12 +191,12 @@ function AdminCourses() {
       const { error } = await supabase.from("course_teachers").insert({ course_id: teacherCourse.id, user_id: uid });
       if (error) return toast.error(error.message);
       setAssignedTeacherIds(prev => new Set([...prev, uid]));
-      toast.success("Docente asignado");
+      toast.success("Docente asignado correctamente");
     } else {
       const { error } = await supabase.from("course_teachers").delete().eq("course_id", teacherCourse.id).eq("user_id", uid);
       if (error) return toast.error(error.message);
       setAssignedTeacherIds(prev => { const s = new Set(prev); s.delete(uid); return s; });
-      toast.success("Docente desasignado");
+      toast.success("Docente desasignado correctamente");
     }
   };
 
@@ -305,6 +305,61 @@ function AdminCourses() {
     }
   };
 
+  // ── Grading Weights ──────────────────────────────────────
+
+  const [weightsOpen, setWeightsOpen] = useState(false);
+  const [weightsCourse, setWeightsCourse] = useState<Course | null>(null);
+  const [weights, setWeights] = useState<{ component: string; weight: number }[]>([]);
+  const [newComponent, setNewComponent] = useState("");
+
+  const openWeights = async (c: Course) => {
+    setWeightsCourse(c);
+    const { data } = await supabase.from("course_grading_weights").select("component, weight").eq("course_id", c.id).order("component");
+    const items = (data ?? []) as { component: string; weight: number }[];
+    // Ensure default components exist
+    const defaults = ["asistencia", "talleres", "parciales"];
+    defaults.forEach(d => {
+      if (!items.find(i => i.component === d)) items.push({ component: d, weight: 0 });
+    });
+    setWeights(items);
+    setWeightsOpen(true);
+  };
+
+  const updateWeight = (component: string, value: number) => {
+    setWeights(prev => prev.map(w => w.component === component ? { ...w, weight: value } : w));
+  };
+
+  const addComponent = () => {
+    if (!newComponent.trim()) return;
+    const name = newComponent.trim().toLowerCase();
+    if (weights.find(w => w.component === name)) { toast.error("Ya existe ese componente"); return; }
+    setWeights(prev => [...prev, { component: name, weight: 0 }]);
+    setNewComponent("");
+  };
+
+  const removeComponent = (component: string) => {
+    setWeights(prev => prev.filter(w => w.component !== component));
+  };
+
+  const saveWeights = async () => {
+    if (!weightsCourse) return;
+    const total = weights.reduce((sum, w) => sum + w.weight, 0);
+    if (total !== 100 && total !== 0) {
+      toast.error(`Los pesos suman ${total}%. Deben sumar 100%.`);
+      return;
+    }
+    // Delete existing and re-insert
+    await supabase.from("course_grading_weights").delete().eq("course_id", weightsCourse.id);
+    if (weights.filter(w => w.weight > 0).length) {
+      const { error } = await supabase.from("course_grading_weights").insert(
+        weights.filter(w => w.weight > 0).map(w => ({ course_id: weightsCourse.id, component: w.component, weight: w.weight }))
+      );
+      if (error) { toast.error(error.message); return; }
+    }
+    toast.success("Pesos de calificación guardados correctamente");
+    setWeightsOpen(false);
+  };
+
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
   return (
@@ -349,6 +404,7 @@ function AdminCourses() {
                   <TableCell className="text-muted-foreground hidden lg:table-cell max-w-48 truncate">{c.description ?? "—"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="sm" onClick={() => openWeights(c)} title="Pesos de calificación"><Settings className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => openEnroll(c)} title="Estudiantes"><Users className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => openTeachers(c)} title="Docentes"><UserCog className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => openDuplicate(c)} title="Duplicar"><Copy className="h-4 w-4" /></Button>
@@ -536,6 +592,61 @@ function AdminCourses() {
               {dupLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Copy className="h-4 w-4 mr-1" />}
               Duplicar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Grading Weights Dialog ── */}
+      <Dialog open={weightsOpen} onOpenChange={setWeightsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Pesos de calificación — {weightsCourse?.name}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Define qué porcentaje del 100% corresponde a cada componente.</p>
+          <div className="space-y-2">
+            {weights.map(w => (
+              <div key={w.component} className="flex items-center gap-2">
+                <span className="text-sm font-medium capitalize flex-1 min-w-0 truncate">{w.component}</span>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={w.weight || ""}
+                    onChange={e => updateWeight(w.component, e.target.value === "" ? 0 : Number(e.target.value))}
+                    className="w-16 h-8 text-sm text-center"
+                  />
+                  <span className="text-xs text-muted-foreground">%</span>
+                </div>
+                {!["asistencia", "talleres", "parciales"].includes(w.component) && (
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeComponent(w.component)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Add custom component */}
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <Input
+              value={newComponent}
+              onChange={e => setNewComponent(e.target.value)}
+              placeholder="Ej: participación, proyecto"
+              className="h-8 text-sm flex-1"
+              onKeyDown={e => e.key === "Enter" && addComponent()}
+            />
+            <Button variant="outline" size="sm" className="h-8" onClick={addComponent}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
+            </Button>
+          </div>
+          {/* Total indicator */}
+          <div className="flex items-center justify-between pt-2 border-t">
+            <span className="text-sm font-medium">Total</span>
+            <Badge variant={weights.reduce((s, w) => s + w.weight, 0) === 100 ? "default" : "destructive"} className="text-xs">
+              {weights.reduce((s, w) => s + w.weight, 0)}%
+            </Badge>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWeightsOpen(false)}>Cancelar</Button>
+            <Button onClick={saveWeights}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

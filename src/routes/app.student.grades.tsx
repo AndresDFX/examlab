@@ -150,7 +150,7 @@ function StudentGrades() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mis calificaciones</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
           <p className="text-sm text-muted-foreground">Consolidado por curso con tu nota actual</p>
         </div>
         {courses.length > 0 && (

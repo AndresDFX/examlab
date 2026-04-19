@@ -127,7 +127,7 @@ function TeacherWorkshops() {
           _link: "/app/student/workshops",
         });
       }
-      toast.success("Taller actualizado");
+      toast.success("Taller actualizado correctamente");
     } else {
       for (const cid of courseIds) {
         const { error } = await supabase.from("workshops").insert({ ...basePayload, course_id: cid });
@@ -142,7 +142,7 @@ function TeacherWorkshops() {
           });
         }
       }
-      toast.success(courseIds.length > 1 ? `Taller creado en ${courseIds.length} cursos` : "Taller creado");
+      toast.success(courseIds.length > 1 ? `Taller creado en ${courseIds.length} cursos correctamente` : "Taller creado correctamente");
     }
     setOpen(false);
     load();
@@ -152,7 +152,7 @@ function TeacherWorkshops() {
     if (!confirm("¿Eliminar este taller?")) return;
     const { error } = await supabase.from("workshops").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Eliminado");
+    toast.success("Taller eliminado correctamente");
     load();
   };
 
@@ -179,12 +179,12 @@ function TeacherWorkshops() {
       const { error } = await supabase.from("workshop_assignments").insert({ workshop_id: assignWs.id, user_id: uid });
       if (error) return toast.error(error.message);
       setAssignedIds(new Set([...assignedIds, uid]));
-      toast.success("Estudiante asignado al taller");
+      toast.success("Estudiante asignado correctamente");
     } else {
       const { error } = await supabase.from("workshop_assignments").delete().eq("workshop_id", assignWs.id).eq("user_id", uid);
       if (error) return toast.error(error.message);
       const ns = new Set(assignedIds); ns.delete(uid); setAssignedIds(ns);
-      toast.success("Asignación removida");
+      toast.success("Asignación removida correctamente");
     }
   };
 
@@ -195,7 +195,7 @@ function TeacherWorkshops() {
     const { error } = await supabase.from("workshop_assignments").insert(toAdd.map(s => ({ workshop_id: assignWs.id, user_id: s.id })));
     if (error) return toast.error(error.message);
     setAssignedIds(new Set(students.map(s => s.id)));
-    toast.success(`${toAdd.length} estudiante(s) asignados`);
+    toast.success(`${toAdd.length} estudiante(s) asignados correctamente`);
   };
 
   const unassignAll = async () => {
@@ -206,7 +206,7 @@ function TeacherWorkshops() {
       await supabase.from("workshop_assignments").delete().eq("workshop_id", assignWs.id).eq("user_id", s.id);
     }
     setAssignedIds(new Set());
-    toast.success(`${toRemove.length} asignación(es) removidas`);
+    toast.success(`${toRemove.length} asignación(es) removidas correctamente`);
   };
 
   const openGrading = async (ws: Workshop) => {
@@ -323,7 +323,7 @@ function TeacherWorkshops() {
       toast.error("No se pudo actualizar. Verifica los permisos.");
       return;
     }
-    toast.success("Calificación guardada");
+    toast.success("Calificación guardada correctamente");
     setWsSubs(prev => prev.map(s =>
       s.id === subId ? { ...s, final_grade: grade, teacher_feedback: feedback, status: "calificado" } : s
     ));

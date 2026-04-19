@@ -119,7 +119,7 @@ function AdminUsers() {
           if (pwErr) { toast.error(pwErr.message); return; }
           if (pwRes?.error) { toast.error(pwRes.error); return; }
         }
-        toast.success(password.trim() ? "Usuario y contraseña actualizados" : "Usuario actualizado");
+        toast.success(password.trim() ? "Usuario actualizado correctamente (contraseña incluida)" : "Usuario actualizado correctamente");
       } else {
         // Create via bulk-import (single row)
         if (!password || password.length < 8) {
@@ -140,7 +140,7 @@ function AdminUsers() {
         if (error) { toast.error(error.message); return; }
         const result = (data?.result ?? [])[0];
         if (!result?.ok) { toast.error(result?.error ?? "Error al crear usuario"); return; }
-        toast.success("Usuario creado");
+        toast.success("Usuario creado correctamente");
       }
       setDialogOpen(false);
       setEditing(null);
@@ -156,7 +156,7 @@ function AdminUsers() {
     if (rolesErr) { toast.error(rolesErr.message); return; }
     const { error } = await supabase.from("profiles").delete().eq("id", r.id);
     if (error) { toast.error(error.message); return; }
-    toast.success("Usuario eliminado");
+    toast.success("Usuario eliminado correctamente");
     load();
   };
 
@@ -168,7 +168,7 @@ function AdminUsers() {
       roles: r.roles.join("|"),
     }));
     downloadCSV(`usuarios-${Date.now()}.csv`, toCSV(data));
-    toast.success("Archivo CSV descargado");
+    toast.success("Archivo exportado correctamente");
   };
 
   const downloadTemplate = () => {
@@ -181,7 +181,7 @@ function AdminUsers() {
       course_name: "Programación II",
     }]);
     downloadCSV("template-usuarios.csv", tmpl);
-    toast.success("Template CSV descargado");
+    toast.success("Template descargado correctamente");
   };
 
   const onImport = async (file: File) => {

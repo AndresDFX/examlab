@@ -218,7 +218,7 @@ function Gradebook() {
     }
 
     setSaving(false);
-    if (saved > 0) toast.success(`${saved} calificación(es) guardada(s)`);
+    if (saved > 0) toast.success(`${saved} calificación(es) guardada(s) correctamente`);
     if (errors > 0) toast.error(`${errors} error(es) — solo se pueden editar entregas existentes`);
     setEdits({});
     loadCourse();
@@ -249,7 +249,7 @@ function Gradebook() {
 
     const courseName = courses.find(c => c.id === courseId)?.name ?? "curso";
     downloadCSV(`calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`, toCSV(csvRows));
-    toast.success("Archivo CSV descargado");
+    toast.success("Archivo exportado correctamente");
   };
 
   const hasEdits = Object.values(edits).some(v => v !== "");

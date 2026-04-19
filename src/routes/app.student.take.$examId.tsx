@@ -130,7 +130,7 @@ function TakeExam() {
         await supabase.functions.invoke("ai-grade-submission", { body: { submissionId: submissionIdRef.current } });
       }
     } catch (e) { console.error(e); }
-    toast.success("Examen entregado");
+    toast.success("Examen entregado correctamente");
     navigate({ to: "/app/student/exams" });
   }, [answers, warnings, navigate, examId]);
 

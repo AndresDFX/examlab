@@ -133,7 +133,7 @@ function TeacherCourses() {
           .in("user_id", toRemove);
         if (error) throw error;
       }
-      toast.success("Inscripciones actualizadas");
+      toast.success("Inscripciones actualizadas correctamente");
       setEnrollOpen(false);
       await loadEnrolled(selected.id);
     } catch (e: any) {
@@ -154,7 +154,7 @@ function TeacherCourses() {
       toast.error(error.message);
       return;
     }
-    toast.success("Estudiante retirado");
+    toast.success("Estudiante retirado correctamente");
     await loadEnrolled(selected.id);
   };
 
@@ -173,7 +173,7 @@ function TeacherCourses() {
           <BookOpen className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mis cursos</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Cursos asignados</h1>
           <p className="text-sm text-muted-foreground">Gestiona los estudiantes inscritos en los cursos que tienes asignados.</p>
         </div>
       </div>

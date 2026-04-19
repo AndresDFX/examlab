@@ -97,7 +97,7 @@ function TeacherExams() {
       if (!firstId) firstId = data.id;
     }
 
-    toast.success(courseIds.length > 1 ? `Examen creado en ${courseIds.length} cursos` : "Examen creado");
+    toast.success(courseIds.length > 1 ? `Examen creado en ${courseIds.length} cursos correctamente` : "Examen creado correctamente");
     setOpen(false);
     if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };
