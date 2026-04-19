@@ -168,20 +168,26 @@ function TeacherCourses() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={BookOpen}
-        title="Mis cursos"
-        description="Gestiona los estudiantes inscritos en los cursos que tienes asignados."
-      />
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+          <BookOpen className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Mis cursos</h1>
+          <p className="text-sm text-muted-foreground">Gestiona los estudiantes inscritos en los cursos que tienes asignados.</p>
+        </div>
+      </div>
 
       {loading ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">Cargando…</CardContent></Card>
       ) : courses.length === 0 ? (
-        <EmptyState
-          icon={BookOpen}
-          title="Sin cursos asignados"
-          description="El administrador aún no te ha asignado a ningún curso. Contacta a tu administrador para que te vincule."
-        />
+        <Card>
+          <CardContent className="p-10 text-center space-y-2">
+            <BookOpen className="h-10 w-10 mx-auto text-muted-foreground/60" />
+            <h3 className="font-medium">Sin cursos asignados</h3>
+            <p className="text-sm text-muted-foreground">El administrador aún no te ha asignado a ningún curso.</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {courses.map((c) => (
