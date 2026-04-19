@@ -52,9 +52,14 @@ function ExamEditor() {
     setQuestions(qs ?? []);
     if (e?.course_id) {
       const { data: enr } = await supabase.from("course_enrollments")
-        .select("user_id, profile:profiles!course_enrollments_user_id_fkey(id, full_name, institutional_email)")
+        .select("user_id")
         .eq("course_id", e.course_id);
-      const studs: Student[] = (enr ?? []).map((r: any) => r.profile).filter(Boolean);
+      const userIds = (enr ?? []).map((r: any) => r.user_id);
+      let studs: Student[] = [];
+      if (userIds.length) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, institutional_email").in("id", userIds);
+        studs = (profs ?? []) as Student[];
+      }
       setStudents(studs);
       const { data: asg } = await supabase.from("exam_assignments").select("user_id").eq("exam_id", examId);
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));

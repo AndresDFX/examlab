@@ -123,13 +123,17 @@ function TeacherWorkshops() {
 
   const openAssign = async (ws: Workshop) => {
     setAssignWs(ws);
-    const [{ data: studs }, { data: asg }] = await Promise.all([
-      supabase.from("course_enrollments")
-        .select("user_id, profile:profiles!course_enrollments_user_id_fkey(id, full_name, institutional_email)")
-        .eq("course_id", ws.course_id),
+    const [{ data: enr }, { data: asg }] = await Promise.all([
+      supabase.from("course_enrollments").select("user_id").eq("course_id", ws.course_id),
       supabase.from("workshop_assignments").select("user_id").eq("workshop_id", ws.id),
     ]);
-    setStudents((studs ?? []).map((r: any) => r.profile).filter(Boolean));
+    const userIds = (enr ?? []).map((r: any) => r.user_id);
+    if (userIds.length) {
+      const { data: profs } = await supabase.from("profiles").select("id, full_name, institutional_email").in("id", userIds);
+      setStudents((profs ?? []) as Student[]);
+    } else {
+      setStudents([]);
+    }
     setAssignedIds(new Set((asg ?? []).map((a: any) => a.user_id)));
     setAssignOpen(true);
   };

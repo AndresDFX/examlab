@@ -39,9 +39,15 @@ function Gradebook() {
       const { data: es } = await supabase.from("exams").select("id, title, parent_exam_id, course_id").eq("course_id", courseId);
       setExams(es ?? []);
       const { data: enr } = await supabase.from("course_enrollments")
-        .select("user_id, profile:profiles!course_enrollments_user_id_fkey(id, full_name, institutional_email, personal_email)")
+        .select("user_id")
         .eq("course_id", courseId);
-      setStudents((enr ?? []).map((r: any) => r.profile).filter(Boolean));
+      const userIds = (enr ?? []).map((r: any) => r.user_id);
+      if (userIds.length) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, institutional_email, personal_email").in("id", userIds);
+        setStudents((profs ?? []) as Student[]);
+      } else {
+        setStudents([]);
+      }
       const examIds = (es ?? []).map(e => e.id);
       if (examIds.length) {
         const { data: ss } = await supabase.from("submissions").select("exam_id, user_id, ai_grade, final_override_grade, status").in("exam_id", examIds);
