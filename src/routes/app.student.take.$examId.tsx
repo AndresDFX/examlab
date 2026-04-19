@@ -37,6 +37,12 @@ function TakeExam() {
   const [offline, setOffline] = useState(!isOnline());
   const submittedRef = useRef(false);
   const submissionIdRef = useRef<string | null>(null);
+  const warningsRef = useRef(0);
+  const answersRef = useRef<Record<string, any>>({});
+
+  // Keep refs in sync with state for synchronous reads in event handlers
+  useEffect(() => { warningsRef.current = warnings; }, [warnings]);
+  useEffect(() => { answersRef.current = answers; }, [answers]);
 
   // Offline sync setup
   useEffect(() => {
@@ -81,7 +87,10 @@ function TakeExam() {
         setSubmissionId(sub.id);
         submissionIdRef.current = sub.id;
         setAnswers((sub.answers as Record<string, any>) ?? {});
-        setWarnings(sub.focus_warnings ?? 0);
+        answersRef.current = (sub.answers as Record<string, any>) ?? {};
+        const persistedWarnings = sub.focus_warnings ?? 0;
+        setWarnings(persistedWarnings);
+        warningsRef.current = persistedWarnings;
         setStarted(true);
         // TODO: Re-enable fullscreen when ready
         // try { await document.documentElement.requestFullscreen(); } catch { }
@@ -111,10 +120,13 @@ function TakeExam() {
     submittedRef.current = true;
     setSubmitting(true);
 
+    const currentAnswers = answersRef.current;
+    const currentWarnings = warningsRef.current;
+
     const updateData = {
-      answers,
+      answers: currentAnswers,
       status: markSuspicious ? "sospechoso" : "completado",
-      focus_warnings: warnings,
+      focus_warnings: currentWarnings,
       submitted_at: new Date().toISOString(),
     };
 
@@ -123,8 +135,8 @@ function TakeExam() {
     } else {
       await saveAnswersLocally(examId, {
         submissionId: submissionIdRef.current,
-        answers,
-        warnings,
+        answers: currentAnswers,
+        warnings: currentWarnings,
         timestamp: Date.now(),
       });
     }
@@ -174,7 +186,7 @@ function TakeExam() {
     } catch (e) { console.error(e); }
     toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
     navigate({ to: "/app/student/exams" });
-  }, [answers, warnings, navigate, examId, exam, user]);
+  }, [navigate, examId, exam, user]);
 
   // Realtime timer
   const handleTimeUp = useCallback(() => {
@@ -212,17 +224,33 @@ function TakeExam() {
   // Proctoring: focus tracking, copy/paste blocking, fullscreen enforcement
   useEffect(() => {
     if (!started) return;
+    let blurLockUntil = 0;
     const onBlur = () => {
-      setWarnings(w => {
-        const nw = w + 1;
-        if (nw >= MAX_WARNINGS) {
-          toast.error("Has superado el límite de salidas. El examen se suspende.");
-          submitExam(true);
-        } else {
-          toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: no salgas de la pestaña`);
-        }
-        return nw;
-      });
+      if (submittedRef.current) return;
+      // Debounce: ignore blur events within 500ms of the last one (prevents
+      // double-fires from iframe focus changes or StrictMode side-effects)
+      const now = Date.now();
+      if (now < blurLockUntil) return;
+      blurLockUntil = now + 500;
+
+      const nw = warningsRef.current + 1;
+      warningsRef.current = nw;
+      setWarnings(nw);
+
+      // Persist immediately so teacher monitor and resume-after-reload are accurate
+      if (submissionIdRef.current && isOnline()) {
+        supabase.from("submissions")
+          .update({ focus_warnings: nw })
+          .eq("id", submissionIdRef.current)
+          .then(() => {});
+      }
+
+      if (nw >= MAX_WARNINGS) {
+        toast.error("Has superado el límite de salidas. El examen se suspende.");
+        submitExam(true);
+      } else {
+        toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: no salgas de la pestaña`);
+      }
     };
     const onContext = (e: Event) => e.preventDefault();
     const onCopy = (e: Event) => { e.preventDefault(); toast.warning("Copiar/pegar deshabilitado"); };

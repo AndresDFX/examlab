@@ -9,11 +9,16 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const { topics, type, count = 5, examId } = await req.json();
+    const { topics, type, count = 5, examId, language } = await req.json();
     if (!topics || !type || !examId) {
       return new Response(JSON.stringify({ error: "topics, type, examId requeridos" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    const allowedLanguages = new Set(["java", "python", "javascript"]);
+    let codeLanguage: string | null = null;
+    if (type === "codigo") {
+      codeLanguage = allowedLanguages.has(language) ? language : "java";
     }
 
     const KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -23,7 +28,7 @@ Deno.serve(async (req) => {
 
     const userPrompt = `Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
 ${type === "cerrada" ? "Cada pregunta debe tener 4 opciones (A, B, C, D) con UNA correcta." : ""}
-${type === "codigo" ? "Las preguntas deben pedir escribir código (especifica el lenguaje si aplica)." : ""}
+${type === "codigo" ? `Las preguntas deben pedir escribir código en el lenguaje ${codeLanguage}. Indica claramente en el enunciado que la solución debe implementarse en ${codeLanguage}.` : ""}
 La rúbrica debe describir los criterios para considerar correcta la respuesta.`;
 
     const tools = [{
@@ -106,6 +111,7 @@ La rúbrica debe describir los criterios para considerar correcta la respuesta.`
       options: q.options ?? null,
       position: ++pos,
       points: 1,
+      language: codeLanguage,
     }));
     const { data: inserted, error: insErr } = await admin.from("questions").insert(toInsert).select();
     if (insErr) throw insErr;

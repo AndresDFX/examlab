@@ -20,6 +20,7 @@ type Exam = any;
 type Question = {
   id: string; exam_id: string; type: string; content: string;
   expected_rubric: string | null; options: any; points: number; position: number;
+  language?: string | null;
 };
 type Student = { id: string; full_name: string; institutional_email: string };
 
@@ -38,11 +39,13 @@ function ExamEditor() {
   const [qChoices, setQChoices] = useState(["", "", "", ""]);
   const [qCorrect, setQCorrect] = useState(0);
   const [qPoints, setQPoints] = useState(1);
+  const [qLanguage, setQLanguage] = useState("java");
 
   // AI
   const [aiTopics, setAiTopics] = useState("");
   const [aiCount, setAiCount] = useState(3);
   const [aiType, setAiType] = useState("abierta");
+  const [aiLanguage, setAiLanguage] = useState("java");
   const [aiLoading, setAiLoading] = useState(false);
 
   const load = async () => {
@@ -88,6 +91,7 @@ function ExamEditor() {
     const { error } = await supabase.from("questions").insert({
       exam_id: examId, type: qType, content: qContent, expected_rubric: qRubric || null,
       options, points: qPoints, position: pos,
+      language: qType === "codigo" ? qLanguage : null,
     });
     if (error) return toast.error(error.message);
     toast.success("Pregunta agregada correctamente");
@@ -107,7 +111,7 @@ function ExamEditor() {
     setAiLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
-        body: { examId, topics: aiTopics, type: aiType, count: aiCount },
+        body: { examId, topics: aiTopics, type: aiType, count: aiCount, language: aiType === "codigo" ? aiLanguage : undefined },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -240,6 +244,19 @@ function ExamEditor() {
                   </Select>
                 </div>
               </div>
+              {aiType === "codigo" && (
+                <div>
+                  <Label>Lenguaje</Label>
+                  <Select value={aiLanguage} onValueChange={setAiLanguage}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="java">Java</SelectItem>
+                      <SelectItem value="python">Python</SelectItem>
+                      <SelectItem value="javascript">JavaScript</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button onClick={generateAI} disabled={aiLoading}>
                 {aiLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
                 Generar preguntas
@@ -266,6 +283,19 @@ function ExamEditor() {
                 <div><Label>Puntos</Label><Input type="number" value={qPoints || ""} onChange={e => setQPoints(e.target.value === "" ? 0 : Number(e.target.value))} /></div>
               </div>
               <div><Label>Enunciado</Label><Textarea value={qContent} onChange={e => setQContent(e.target.value)} /></div>
+              {qType === "codigo" && (
+                <div>
+                  <Label>Lenguaje</Label>
+                  <Select value={qLanguage} onValueChange={setQLanguage}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="java">Java</SelectItem>
+                      <SelectItem value="python">Python</SelectItem>
+                      <SelectItem value="javascript">JavaScript</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {qType !== "cerrada" && (
                 <div><Label>Rúbrica esperada *</Label><Textarea placeholder="Criterios para una respuesta correcta…" value={qRubric} onChange={e => setQRubric(e.target.value)} /></div>
               )}
@@ -294,6 +324,9 @@ function ExamEditor() {
                     <div className="flex items-center gap-2 mb-1">
                       <Badge variant="outline" className="text-[10px]">#{i + 1}</Badge>
                       <Badge variant="secondary" className="text-[10px]">{q.type}</Badge>
+                      {q.type === "codigo" && q.language && (
+                        <Badge variant="outline" className="text-[10px]">{q.language}</Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">{q.points} pt</span>
                     </div>
                     <p className="text-sm">{q.content}</p>
