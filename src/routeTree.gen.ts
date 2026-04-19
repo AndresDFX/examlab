@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
+import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -52,6 +53,11 @@ const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   path: '/teacher/exams/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherExamsExamIdRoute = AppTeacherExamsExamIdRouteImport.update({
+  id: '/teacher/exams/$examId',
+  path: '/teacher/exams/$examId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/exams': typeof AppTeacherExamsIndexRoute
 }
 export interface FileRoutesById {
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
 }
 export interface FileRouteTypes {
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/admin/courses'
     | '/app/admin/users'
+    | '/app/teacher/exams/$examId'
     | '/app/teacher/exams/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/admin/courses'
     | '/app/admin/users'
+    | '/app/teacher/exams/$examId'
     | '/app/teacher/exams'
   id:
     | '__root__'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/admin/courses'
     | '/app/admin/users'
+    | '/app/teacher/exams/$examId'
     | '/app/teacher/exams/'
   fileRoutesById: FileRoutesById
 }
@@ -166,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherExamsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/exams/$examId': {
+      id: '/app/teacher/exams/$examId'
+      path: '/teacher/exams/$examId'
+      fullPath: '/app/teacher/exams/$examId'
+      preLoaderRoute: typeof AppTeacherExamsExamIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -173,6 +192,7 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
   AppTeacherExamsIndexRoute: typeof AppTeacherExamsIndexRoute
 }
 
@@ -180,6 +200,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
+  AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
   AppTeacherExamsIndexRoute: AppTeacherExamsIndexRoute,
 }
 
