@@ -1,4 +1,4 @@
-// AI grading: scores open/code answers against rubric via AI Gateway
+// AI grading: scores exam answers or workshop submissions via AI Gateway
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -9,11 +9,68 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const { submissionId } = await req.json();
-    if (!submissionId) throw new Error("submissionId requerido");
-
+    const body = await req.json();
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
+
+    // ── Workshop grading mode ──
+    if (body.workshopGrading) {
+      const { workshopTitle, workshopInstructions, rubric, maxScore, studentAnswer } = body;
+      if (!studentAnswer) throw new Error("studentAnswer requerido");
+
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un evaluador académico imparcial. Calificas entregas de talleres según las instrucciones y rúbrica proporcionadas. Devuelves un puntaje numérico entre 0 y ${maxScore ?? 100}, y una retroalimentación detallada en español.`,
+            },
+            {
+              role: "user",
+              content: `Taller: ${workshopTitle ?? "Sin título"}\n\nInstrucciones: ${workshopInstructions ?? "Sin instrucciones específicas"}\n\nRúbrica de evaluación: ${rubric ?? "Evalúa calidad, completitud y corrección"}\n\nPuntaje máximo: ${maxScore ?? 100}\n\nRespuesta del estudiante:\n${studentAnswer}`,
+            },
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "score_workshop",
+              description: "Calificar entrega de taller",
+              parameters: {
+                type: "object",
+                properties: {
+                  score: { type: "number", description: `Puntaje entre 0 y ${maxScore ?? 100}` },
+                  feedback: { type: "string", description: "Retroalimentación detallada en español" },
+                },
+                required: ["score", "feedback"],
+              },
+            },
+          }],
+          tool_choice: { type: "function", function: { name: "score_workshop" } },
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error("AI error", aiRes.status, errText);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc ? JSON.parse(tc.function.arguments) : { score: 0, feedback: "No se pudo generar retroalimentación" };
+      const score = Math.max(0, Math.min(Number(maxScore ?? 100), Number(args.score) || 0));
+
+      return new Response(JSON.stringify({ ok: true, grade: score, feedback: args.feedback }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Exam grading mode (original) ──
+    const { submissionId } = body;
+    if (!submissionId) throw new Error("submissionId requerido");
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: sub, error: sErr } = await admin.from("submissions").select("*").eq("id", submissionId).single();
@@ -37,7 +94,6 @@ Deno.serve(async (req) => {
         earned += got;
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
       } else {
-        // AI grading
         if (!userAnswer || (typeof userAnswer === "string" && !userAnswer.trim())) {
           breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: "Sin respuesta" });
           continue;
@@ -48,7 +104,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
             messages: [
-              { role: "system", content: "Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves un puntaje entre 0 y el máximo, y una breve justificación." },
+              { role: "system", content: "Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves un puntaje entre 0 y el máximo, y una breve justificación en español." },
               { role: "user", content: `Pregunta: ${q.content}\n\nRúbrica esperada: ${q.expected_rubric}\n\nRespuesta del estudiante: ${userAnswer}\n\nPuntaje máximo: ${q.points}` },
             ],
             tools: [{

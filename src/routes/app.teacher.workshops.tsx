@@ -247,36 +247,63 @@ function TeacherWorkshops() {
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
 
-  const gradeOneWithAI = async (sub: WsSub) => {
-    if (!gradingWs) return;
+  const gradeOneWithAI = async (sub: WsSub): Promise<boolean> => {
+    if (!gradingWs) return false;
     setAiGradingId(sub.id);
     try {
-      const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
+      // Build the prompt for AI grading
+      const rubricText = gradingWs.rubric
+        ? JSON.stringify(gradingWs.rubric)
+        : "Evalúa la calidad, completitud y corrección de la respuesta.";
+
+      const studentAnswer = [
+        sub.content ? `Contenido: ${sub.content}` : "",
+        sub.external_link ? `Link: ${sub.external_link}` : "",
+      ].filter(Boolean).join("\n") || "Sin respuesta";
+
+      // Call AI via edge function with a generic approach
+      const { data: aiData, error: aiErr } = await supabase.functions.invoke("ai-grade-submission", {
         body: {
-          submissionId: sub.id,
-          workshopMode: true,
+          workshopGrading: true,
           workshopTitle: gradingWs.title,
-          workshopInstructions: gradingWs.instructions,
-          workshopRubric: gradingWs.rubric,
+          workshopInstructions: gradingWs.instructions ?? "",
+          rubric: rubricText,
           maxScore: gradingWs.max_score,
-          studentContent: sub.content,
-          studentLink: sub.external_link,
+          studentAnswer,
         },
       });
-      if (error) throw error;
-      const aiGrade = data?.grade ?? null;
-      const aiFeedback = data?.feedback ?? "Sin retroalimentación de IA";
-      await supabase.from("workshop_submissions").update({
+
+      let aiGrade: number | null = null;
+      let aiFeedback = "Sin retroalimentación de IA";
+
+      if (aiErr || aiData?.error) {
+        // Fallback: if edge function doesn't support workshop mode, do a simple scoring
+        toast.error("La calificación IA requiere actualizar la edge function. Usa calificación manual.");
+        return false;
+      } else {
+        aiGrade = aiData?.grade ?? null;
+        aiFeedback = aiData?.feedback ?? "Sin retroalimentación de IA";
+      }
+
+      // Save to DB
+      const { error: updateErr } = await supabase.from("workshop_submissions").update({
         ai_grade: aiGrade,
         ai_feedback: aiFeedback,
         status: "ai_revisado",
       }).eq("id", sub.id);
+
+      if (updateErr) {
+        toast.error(`Error guardando: ${updateErr.message}`);
+        return false;
+      }
+
       setWsSubs(prev => prev.map(s =>
         s.id === sub.id ? { ...s, ai_grade: aiGrade, ai_feedback: aiFeedback, status: "ai_revisado" } : s
       ));
-      toast.success("Calificación IA completada — pendiente de aprobación");
+      return true;
     } catch (e: any) {
       toast.error(`Error IA: ${e.message ?? "Error desconocido"}`);
+      return false;
     } finally {
       setAiGradingId(null);
     }
@@ -289,13 +316,11 @@ function TeacherWorkshops() {
     setAiGradingAll(true);
     let graded = 0;
     for (const sub of pending) {
-      try {
-        await gradeOneWithAI(sub);
-        graded++;
-      } catch { /* continue */ }
+      const ok = await gradeOneWithAI(sub);
+      if (ok) graded++;
     }
     setAiGradingAll(false);
-    toast.success(`${graded} entrega(s) calificadas con IA — pendientes de aprobación`);
+    if (graded > 0) toast.success(`${graded} entrega(s) calificadas con IA correctamente`);
   };
 
   const approveAIGrade = async (subId: string) => {
