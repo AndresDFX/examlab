@@ -83,7 +83,8 @@ function TakeExam() {
         setAnswers((sub.answers as Record<string, any>) ?? {});
         setWarnings(sub.focus_warnings ?? 0);
         setStarted(true);
-        try { await document.documentElement.requestFullscreen(); } catch { }
+        // TODO: Re-enable fullscreen when ready
+        // try { await document.documentElement.requestFullscreen(); } catch { }
       }
     })();
   }, [examId, user, navigate]);
@@ -100,7 +101,8 @@ function TakeExam() {
       setSubmissionId(sid);
       submissionIdRef.current = sid;
     }
-    try { await document.documentElement.requestFullscreen(); } catch { }
+    // TODO: Re-enable fullscreen when ready
+    // try { await document.documentElement.requestFullscreen(); } catch { }
     setStarted(true);
   };
 
@@ -225,40 +227,38 @@ function TakeExam() {
     const onContext = (e: Event) => e.preventDefault();
     const onCopy = (e: Event) => { e.preventDefault(); toast.warning("Copiar/pegar deshabilitado"); };
     const onSelect = (e: Event) => e.preventDefault();
-    const onKeyDown = (e: KeyboardEvent) => {
-      // Block Escape key to prevent exiting fullscreen
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      // Block F11 too
-      if (e.key === "F11") {
-        e.preventDefault();
-      }
-      // Block Alt+Tab, Alt+F4 where possible
-      if (e.altKey && (e.key === "Tab" || e.key === "F4")) {
-        e.preventDefault();
-      }
-    };
-    const onFsChange = () => {
-      if (!document.fullscreenElement && started && !submittedRef.current) {
-        toast.warning("Debes permanecer en pantalla completa");
-        // Re-request fullscreen after a brief delay
-        setTimeout(() => {
-          if (!document.fullscreenElement && !submittedRef.current) {
-            document.documentElement.requestFullscreen().catch(() => {});
-          }
-        }, 300);
-      }
-    };
+    // TODO: Re-enable fullscreen enforcement when ready
+    // const onKeyDown = (e: KeyboardEvent) => {
+    //   if (e.key === "Escape") {
+    //     e.preventDefault();
+    //     e.stopPropagation();
+    //   }
+    //   if (e.key === "F11") {
+    //     e.preventDefault();
+    //   }
+    //   if (e.altKey && (e.key === "Tab" || e.key === "F4")) {
+    //     e.preventDefault();
+    //   }
+    // };
+    // const onFsChange = () => {
+    //   if (!document.fullscreenElement && started && !submittedRef.current) {
+    //     toast.warning("Debes permanecer en pantalla completa");
+    //     setTimeout(() => {
+    //       if (!document.fullscreenElement && !submittedRef.current) {
+    //         document.documentElement.requestFullscreen().catch(() => {});
+    //       }
+    //     }, 300);
+    //   }
+    // };
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
     document.addEventListener("copy", onCopy);
     document.addEventListener("cut", onCopy);
     document.addEventListener("paste", onCopy);
     document.addEventListener("selectstart", onSelect);
-    document.addEventListener("keydown", onKeyDown, true);
-    document.addEventListener("fullscreenchange", onFsChange);
+    // TODO: Re-enable fullscreen enforcement
+    // document.addEventListener("keydown", onKeyDown, true);
+    // document.addEventListener("fullscreenchange", onFsChange);
     return () => {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
@@ -266,8 +266,8 @@ function TakeExam() {
       document.removeEventListener("cut", onCopy);
       document.removeEventListener("paste", onCopy);
       document.removeEventListener("selectstart", onSelect);
-      document.removeEventListener("keydown", onKeyDown, true);
-      document.removeEventListener("fullscreenchange", onFsChange);
+      // document.removeEventListener("keydown", onKeyDown, true);
+      // document.removeEventListener("fullscreenchange", onFsChange);
     };
   }, [started, submitExam]);
 
@@ -307,9 +307,9 @@ function TakeExam() {
               <p className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-warning-foreground" />Antes de comenzar</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>Duración: <strong>{exam.time_limit_minutes} minutos</strong>. El tiempo no se pausa.</li>
-                <li>El examen se ejecuta en <strong>pantalla completa</strong>.</li>
+                {/* <li>El examen se ejecuta en <strong>pantalla completa</strong>.</li> */}
                 <li>No puedes copiar, pegar ni hacer clic derecho.</li>
-                <li>Si sales de la pestaña <strong>{MAX_WARNINGS} veces</strong>, el examen se marca como sospechoso.</li>
+                <li>Si sales de la pestaña <strong>{MAX_WARNINGS} veces</strong>, el examen se suspende.</li>
                 <li>Las respuestas se guardan automáticamente (incluso sin conexión).</li>
               </ul>
             </div>
