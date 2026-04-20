@@ -239,7 +239,9 @@ function StudentExamReview() {
             {submission.final_override_grade != null &&
               submission.ai_grade != null &&
               submission.final_override_grade !== submission.ai_grade && (
-                <div className="text-[10px] text-muted-foreground">Nota IA previa: {submission.ai_grade}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Valor de referencia anterior: {submission.ai_grade}
+                </div>
               )}
           </div>
         </CardContent>
@@ -331,19 +333,13 @@ function StudentExamReview() {
                 )}
 
                 {(iaFeedback || teacherFeedback) && (
-                  <div className="space-y-2 border-t pt-3">
-                    {iaFeedback && (
-                      <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
-                        <span className="font-medium text-foreground">Retroalimentación (IA): </span>
-                        <span className="text-muted-foreground whitespace-pre-wrap">{iaFeedback}</span>
-                      </div>
-                    )}
-                    {teacherFeedback && (
-                      <div className="text-xs rounded-md border-l-2 border-amber-500/50 bg-amber-500/[0.06] pl-3 py-2 dark:bg-amber-500/10">
-                        <span className="font-medium text-foreground">Comentario del docente: </span>
-                        <span className="text-muted-foreground whitespace-pre-wrap">{teacherFeedback}</span>
-                      </div>
-                    )}
+                  <div className="border-t pt-3">
+                    <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
+                      <span className="font-medium text-foreground block mb-1">Retroalimentación</span>
+                      <span className="text-muted-foreground whitespace-pre-wrap">
+                        {[...new Set([teacherFeedback, iaFeedback].filter(Boolean) as string[])].join("\n\n")}
+                      </span>
+                    </div>
                   </div>
                 )}
 

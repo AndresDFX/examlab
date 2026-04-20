@@ -268,28 +268,14 @@ function StudentWorkshopDetail() {
             </CardContent>
           </Card>
 
-          {(submission.ai_feedback || submission.ai_grade != null) && (
+          {(submission.ai_feedback || submission.teacher_feedback) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Retroalimentación (IA)</CardTitle>
+                <CardTitle className="text-base">Retroalimentación</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {submission.ai_grade != null && (
-                  <p className="text-foreground mb-2">
-                    Nota sugerida por IA: <span className="font-medium tabular-nums">{submission.ai_grade}</span> / {workshop.max_score}
-                  </p>
-                )}
-                {submission.ai_feedback ?? "Sin texto de retroalimentación automática."}
+                {[...new Set([submission.teacher_feedback, submission.ai_feedback].filter(Boolean) as string[])].join("\n\n")}
               </CardContent>
-            </Card>
-          )}
-
-          {submission.teacher_feedback && (
-            <Card className="border-amber-500/30 bg-amber-500/[0.06] dark:bg-amber-500/10">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Comentario del docente</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm whitespace-pre-wrap">{submission.teacher_feedback}</CardContent>
             </Card>
           )}
         </>

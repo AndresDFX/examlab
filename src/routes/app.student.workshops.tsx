@@ -274,12 +274,14 @@ function StudentWorkshops() {
                   </button>
                 )}
 
-                {submission?.teacher_feedback && (
+                {(submission?.teacher_feedback || submission?.ai_feedback) && (
                   <div className="bg-muted/50 p-2 rounded text-sm">
                     <div className="text-xs font-medium flex items-center gap-1 mb-1">
-                      <MessageSquare className="h-3 w-3" /> Retroalimentación del docente
+                      <MessageSquare className="h-3 w-3" /> Retroalimentación
                     </div>
-                    {submission.teacher_feedback}
+                    <div className="whitespace-pre-wrap">
+                      {[...new Set([submission?.teacher_feedback, submission?.ai_feedback].filter(Boolean) as string[])].join("\n\n")}
+                    </div>
                   </div>
                 )}
 
