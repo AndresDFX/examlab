@@ -144,10 +144,20 @@ function StudentExams() {
                       Ver detalle y retroalimentación
                     </Button>
                   </Link>
+                ) : submission?.status === "en_progreso" && !isOpen ? (
+                  <div className="space-y-2">
+                    <Button size="sm" variant="outline" disabled className="w-full cursor-not-allowed">
+                      Ventana del examen cerrada
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                      El periodo del examen ya finalizó. Si necesitas ayuda, contacta a tu docente.
+                    </p>
+                  </div>
                 ) : (
                   <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
                     <Button size="sm" disabled={!isOpen} className="w-full">
-                      <Play className="h-4 w-4 mr-1" />{submission?.status === "en_progreso" ? "Reanudar examen" : "Iniciar examen"}
+                      <Play className="h-4 w-4 mr-1" />
+                      {submission?.status === "en_progreso" ? "Reanudar examen" : "Iniciar examen"}
                     </Button>
                   </Link>
                 )}

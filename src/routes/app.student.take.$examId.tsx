@@ -103,11 +103,9 @@ function TakeExam() {
   const [offline, setOffline] = useState(!isOnline());
   const [submitModal, setSubmitModal] = useState<{
     open: boolean;
-    reason: null | "manual_incomplete" | "timeout";
     unansweredIndices: number[];
-  }>({ open: false, reason: null, unansweredIndices: [] });
+  }>({ open: false, unansweredIndices: [] });
   const submittedRef = useRef(false);
-  const timeUpModalOpenedRef = useRef(false);
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
@@ -346,11 +344,7 @@ function TakeExam() {
             .join("\n");
           const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${MAX_WARNINGS} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
 
-          const rpc = supabase.rpc as unknown as (
-            fn: string,
-            args: Record<string, unknown>,
-          ) => Promise<{ error: { message: string } | null }>;
-          const { error: rpcErr } = await rpc("notify_exam_teachers", {
+          const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
             _exam_id: examId,
             _title: "Examen sospechoso",
             _body: body,
@@ -393,38 +387,31 @@ function TakeExam() {
     }
     setSubmitModal({
       open: true,
-      reason: "manual_incomplete",
       unansweredIndices: unanswered,
     });
   }, [submitting, saveAnswersNow, questions, performSubmit]);
 
   const confirmSubmitFromModal = useCallback(async () => {
-    setSubmitModal({ open: false, reason: null, unansweredIndices: [] });
+    setSubmitModal({ open: false, unansweredIndices: [] });
     await saveAnswersNow();
     await performSubmit(false);
   }, [performSubmit, saveAnswersNow]);
 
   const cancelManualSubmitModal = useCallback(() => {
-    setSubmitModal({ open: false, reason: null, unansweredIndices: [] });
+    setSubmitModal({ open: false, unansweredIndices: [] });
   }, []);
 
-  // Realtime timer → modal obligatorio (igual que entrega manual incompleta)
+  /** Tiempo global del examen agotado → guardar y entregar sin modal */
   const handleTimeUp = useCallback(() => {
-    if (submittedRef.current || timeUpModalOpenedRef.current) return;
-    timeUpModalOpenedRef.current = true;
+    if (submittedRef.current) return;
     void (async () => {
       await saveAnswersNow();
       const merged = mergeStarterCodeAnswers(questions, answersRef.current);
       answersRef.current = merged;
       setAnswers(merged);
-      const unanswered = getUnansweredIndices(questions, merged);
-      setSubmitModal({
-        open: true,
-        reason: "timeout",
-        unansweredIndices: unanswered,
-      });
+      await performSubmit(false);
     })();
-  }, [saveAnswersNow, questions]);
+  }, [saveAnswersNow, questions, performSubmit]);
 
   // Timer is absolute: counts down to exam.end_time regardless of when
   // the student starts or resumes. Student who enters late gets less time.
@@ -770,50 +757,19 @@ function TakeExam() {
         )}
       </div>
 
-      <Dialog
-        open={submitModal.open}
-        onOpenChange={(open) => {
-          if (!open && submitModal.reason === "timeout") {
-            return;
-          }
-          if (!open) cancelManualSubmitModal();
-        }}
-      >
-        <DialogContent
-          className={
-            submitModal.reason === "timeout"
-              ? "[&>button.absolute]:hidden sm:max-w-md"
-              : "sm:max-w-md"
-          }
-          onPointerDownOutside={(e) => {
-            if (submitModal.reason === "timeout") e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (submitModal.reason === "timeout") e.preventDefault();
-          }}
-        >
+      <Dialog open={submitModal.open} onOpenChange={(open) => !open && cancelManualSubmitModal()}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle
-                className={`h-5 w-5 shrink-0 ${submitModal.reason === "timeout" ? "text-destructive" : "text-amber-500"}`}
-              />
-              {submitModal.reason === "timeout"
-                ? "Tiempo agotado"
-                : "Quedan preguntas sin responder"}
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+              Quedan preguntas sin responder
             </DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-3 text-left text-sm text-muted-foreground">
-                {submitModal.reason === "timeout" ? (
-                  <p>
-                    El tiempo del examen ha terminado. Confirma la entrega para guardar tus respuestas
-                    y enviar el intento.
-                  </p>
-                ) : (
-                  <p>
-                    Aún no has respondido todas las preguntas. Puedes volver a revisarlas o entregar el
-                    examen tal como está; las respuestas que ya guardaste se incluirán.
-                  </p>
-                )}
+                <p>
+                  Aún no has respondido todas las preguntas. Puedes volver a revisarlas o entregar el
+                  examen tal como está; las respuestas que ya guardaste se incluirán.
+                </p>
                 {submitModal.unansweredIndices.length > 0 && (
                   <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
                     <p className="text-xs font-medium text-foreground mb-1.5">
@@ -841,35 +797,17 @@ function TakeExam() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            {submitModal.reason === "manual_incomplete" ? (
-              <>
-                <Button type="button" variant="outline" onClick={cancelManualSubmitModal}>
-                  Seguir editando
-                </Button>
-                <Button type="button" onClick={() => void confirmSubmitFromModal()} disabled={submitting}>
-                  {submitting ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-1" />
-                  )}
-                  Entregar de todas formas
-                </Button>
-              </>
-            ) : (
-              <Button
-                type="button"
-                className="w-full sm:w-auto"
-                onClick={() => void confirmSubmitFromModal()}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-1" />
-                )}
-                Entregar examen y guardar respuestas
-              </Button>
-            )}
+            <Button type="button" variant="outline" onClick={cancelManualSubmitModal}>
+              Seguir editando
+            </Button>
+            <Button type="button" onClick={() => void confirmSubmitFromModal()} disabled={submitting}>
+              {submitting ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-1" />
+              )}
+              Entregar de todas formas
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

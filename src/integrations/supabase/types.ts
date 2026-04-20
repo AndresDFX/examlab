@@ -783,6 +783,15 @@ export type Database = {
         }
         Returns: number
       }
+      notify_exam_teachers: {
+        Args: {
+          _exam_id: string
+          _title: string
+          _body: string
+          _link?: string | null
+        }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "Admin" | "Docente" | "Estudiante"
