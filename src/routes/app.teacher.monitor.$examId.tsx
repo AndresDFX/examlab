@@ -7,16 +7,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Pause, Play, Clock, Plus, Users,
-  AlertTriangle, CheckCircle2, Loader2, Sparkles, Trash2, Eye, Save,
+  ArrowLeft,
+  Pause,
+  Play,
+  Clock,
+  Plus,
+  Users,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+  Trash2,
+  Eye,
+  Save,
 } from "lucide-react";
+import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
+import {
+  computeFinalGrade,
+  type BreakdownItem as GradeBreakdown,
+  type ManualOverride as GradeManual,
+} from "@/utils/grade";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
 
@@ -54,18 +83,6 @@ type ManualOverride = { score: number; feedback?: string };
 
 const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
 
-const warningLabel = (type: string) => {
-  switch (type) {
-    case "blur": return "Salida de pestaña/ventana";
-    case "visibility_hidden": return "Pestaña oculta";
-    case "fullscreen_exit": return "Salida de pantalla completa";
-    case "copy": return "Intento de copiar";
-    case "paste": return "Intento de pegar";
-    case "context_menu": return "Menú contextual";
-    default: return type;
-  }
-};
-
 function ExamMonitor() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
@@ -80,11 +97,17 @@ function ExamMonitor() {
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [overrideValue, setOverrideValue] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
-  const [qOverrides, setQOverrides] = useState<Record<string, { score: string; feedback: string }>>({});
+  const [qOverrides, setQOverrides] = useState<Record<string, { score: string; feedback: string }>>(
+    {},
+  );
   const [savingQid, setSavingQid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data: e } = await supabase.from("exams").select("*, course:courses(name)").eq("id", examId).single();
+    const { data: e } = await supabase
+      .from("exams")
+      .select("*, course:courses(name)")
+      .eq("id", examId)
+      .single();
     setExam(e);
 
     const { data: subs } = await supabase
@@ -101,7 +124,7 @@ function ExamMonitor() {
 
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
       setSubmissions(
-        subs.map((s) => ({ ...s, profile: profileMap.get(s.user_id) })) as Submission[]
+        subs.map((s) => ({ ...s, profile: profileMap.get(s.user_id) })) as Submission[],
       );
     } else {
       setSubmissions([]);
@@ -147,7 +170,7 @@ function ExamMonitor() {
   const sendTimerControl = async (
     action: "pause" | "resume" | "add_time",
     targetUserId: string | null,
-    extraSeconds = 0
+    extraSeconds = 0,
   ) => {
     if (!user) return;
     const key = `${action}-${targetUserId ?? "global"}`;
@@ -181,7 +204,9 @@ function ExamMonitor() {
         toast.error(data?.error ?? error?.message ?? "Error al calificar con IA");
         return;
       }
-      toast.success(questionId ? "Pregunta recalificada con IA" : "Examen recalificado con IA correctamente");
+      toast.success(
+        questionId ? "Pregunta recalificada con IA" : "Examen recalificado con IA correctamente",
+      );
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Error desconocido");
@@ -196,7 +221,7 @@ function ExamMonitor() {
     if (!confirm(`¿Eliminar la entrega de ${name}? Esta acción no se puede deshacer.`)) return;
     const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
     if (error) return toast.error(error.message);
-    setSubmissions(prev => prev.filter(s => s.id !== sub.id));
+    setSubmissions((prev) => prev.filter((s) => s.id !== sub.id));
     toast.success("Entrega eliminada correctamente");
   };
 
@@ -227,8 +252,8 @@ function ExamMonitor() {
     setSavingOverride(false);
     if (error) return toast.error(error.message);
     toast.success(numValue == null ? "Nota manual eliminada" : "Nota guardada correctamente");
-    setSubmissions(prev =>
-      prev.map(s => s.id === sub.id ? { ...s, final_override_grade: numValue } : s)
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === sub.id ? { ...s, final_override_grade: numValue } : s)),
     );
   };
 
@@ -245,7 +270,9 @@ function ExamMonitor() {
     }
     setSavingQid(q.id);
     const prevAnswers = sub.answers ?? {};
-    const prevManual: Record<string, ManualOverride> = { ...(prevAnswers.__manual_overrides ?? {}) };
+    const prevManual: Record<string, ManualOverride> = {
+      ...(prevAnswers.__manual_overrides ?? {}),
+    };
     if (numScore == null) {
       delete prevManual[q.id];
     } else {
@@ -253,22 +280,14 @@ function ExamMonitor() {
     }
     const nextAnswers = { ...prevAnswers, __manual_overrides: prevManual };
 
-    // Recompute total from AI breakdown + manual overrides
-    const breakdown: BreakdownItem[] = Array.isArray(prevAnswers.__breakdown) ? prevAnswers.__breakdown : [];
-    const qPointsById = new Map(questions.map(qq => [qq.id, qq.points]));
-    let totalPoints = 0;
-    let earned = 0;
-    for (const qq of questions) {
-      totalPoints += Number(qq.points);
-      const manual = prevManual[qq.id];
-      if (manual) {
-        earned += Number(manual.score) || 0;
-      } else {
-        const b = breakdown.find(x => x.qid === qq.id);
-        if (b) earned += Number(b.earned) || 0;
-      }
-    }
-    const recomputed = totalPoints > 0 ? Number(((earned / totalPoints) * 10).toFixed(2)) : null;
+    const breakdown: GradeBreakdown[] = Array.isArray(prevAnswers.__breakdown)
+      ? prevAnswers.__breakdown
+      : [];
+    const recomputed = computeFinalGrade(
+      questions.map((qq) => ({ id: qq.id, points: qq.points })),
+      breakdown,
+      prevManual as Record<string, GradeManual>,
+    );
 
     const { error } = await supabase
       .from("submissions")
@@ -278,18 +297,17 @@ function ExamMonitor() {
     if (error) return toast.error(error.message);
     toast.success(numScore == null ? "Nota por pregunta eliminada" : "Nota por pregunta guardada");
 
-    setSubmissions(prev =>
-      prev.map(s => s.id === sub.id
-        ? { ...s, answers: nextAnswers, final_override_grade: recomputed }
-        : s)
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === sub.id ? { ...s, answers: nextAnswers, final_override_grade: recomputed } : s,
+      ),
     );
     setOverrideValue(recomputed != null ? String(recomputed) : "");
-    void qPointsById; // keep lint happy
   };
 
   const viewingSub = useMemo(
-    () => submissions.find(s => s.id === viewingId) ?? null,
-    [submissions, viewingId]
+    () => submissions.find((s) => s.id === viewingId) ?? null,
+    [submissions, viewingId],
   );
 
   if (!exam) return <p className="text-muted-foreground p-6">Cargando…</p>;
@@ -301,10 +319,15 @@ function ExamMonitor() {
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <Link to="/app/teacher/exams">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-1" />Volver</Button>
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Volver
+          </Button>
         </Link>
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Monitor: {exam.title}</h1>
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
+            Monitor: {exam.title}
+          </h1>
           <p className="text-sm text-muted-foreground">{exam.course?.name}</p>
         </div>
       </div>
@@ -318,7 +341,8 @@ function ExamMonitor() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Estos controles afectan a todos los estudiantes que están presentando el examen en tiempo real.
+            Estos controles afectan a todos los estudiantes que están presentando el examen en
+            tiempo real.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -327,7 +351,11 @@ function ExamMonitor() {
               onClick={() => sendTimerControl("pause", null)}
               disabled={loading === "pause-global"}
             >
-              {loading === "pause-global" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Pause className="h-4 w-4 mr-1" />}
+              {loading === "pause-global" ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Pause className="h-4 w-4 mr-1" />
+              )}
               Pausar todos
             </Button>
             <Button
@@ -336,7 +364,11 @@ function ExamMonitor() {
               onClick={() => sendTimerControl("resume", null)}
               disabled={loading === "resume-global"}
             >
-              {loading === "resume-global" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              {loading === "resume-global" ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-1" />
+              )}
               Reanudar todos
             </Button>
             <div className="flex items-center gap-1.5">
@@ -345,7 +377,9 @@ function ExamMonitor() {
                 min={1}
                 max={120}
                 value={extraMinutes || ""}
-                onChange={(e) => setExtraMinutes(e.target.value === "" ? 0 : Number(e.target.value))}
+                onChange={(e) =>
+                  setExtraMinutes(e.target.value === "" ? 0 : Number(e.target.value))
+                }
                 className="w-20 h-8 text-sm"
               />
               <span className="text-xs text-muted-foreground">min</span>
@@ -355,7 +389,11 @@ function ExamMonitor() {
                 onClick={() => sendTimerControl("add_time", null, extraMinutes * 60)}
                 disabled={loading === "add_time-global"}
               >
-                {loading === "add_time-global" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                {loading === "add_time-global" ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-1" />
+                )}
                 Añadir tiempo a todos
               </Button>
             </div>
@@ -397,18 +435,22 @@ function ExamMonitor() {
               )}
               {submissions.map((sub) => {
                 const answeredCount = Object.keys(sub.answers ?? {}).filter(
-                  (k) => !k.startsWith("__")
+                  (k) => !k.startsWith("__"),
                 ).length;
                 const finalState = isFinalStatus(sub.status);
                 return (
                   <TableRow key={sub.id}>
                     <TableCell>
                       <div className="font-medium">{sub.profile?.full_name ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">{sub.profile?.institutional_email}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {sub.profile?.institutional_email}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {sub.status === "en_progreso" ? (
-                        <Badge className="bg-success text-success-foreground text-[10px]">En progreso</Badge>
+                        <Badge className="bg-success text-success-foreground text-[10px]">
+                          En progreso
+                        </Badge>
                       ) : sub.status === "sospechoso" ? (
                         <Badge variant="destructive" className="text-[10px]">
                           <AlertTriangle className="h-3 w-3 mr-0.5" /> Sospechoso
@@ -426,15 +468,22 @@ function ExamMonitor() {
                         return (
                           <div className="flex flex-col items-start">
                             <span className="font-medium">{grade}</span>
-                            {sub.final_override_grade != null && sub.ai_grade != null && sub.final_override_grade !== sub.ai_grade && (
-                              <span className="text-[10px] text-muted-foreground">IA: {sub.ai_grade}</span>
-                            )}
+                            {sub.final_override_grade != null &&
+                              sub.ai_grade != null &&
+                              sub.final_override_grade !== sub.ai_grade && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  IA: {sub.ai_grade}
+                                </span>
+                              )}
                           </div>
                         );
                       })()}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={sub.focus_warnings > 0 ? "destructive" : "outline"} className="text-[10px]">
+                      <Badge
+                        variant={sub.focus_warnings > 0 ? "destructive" : "outline"}
+                        className="text-[10px]"
+                      >
                         {sub.focus_warnings}/3
                       </Badge>
                     </TableCell>
@@ -467,13 +516,23 @@ function ExamMonitor() {
                                 min={1}
                                 max={120}
                                 value={extraMinutesStudent || ""}
-                                onChange={(e) => setExtraMinutesStudent(e.target.value === "" ? 0 : Number(e.target.value))}
+                                onChange={(e) =>
+                                  setExtraMinutesStudent(
+                                    e.target.value === "" ? 0 : Number(e.target.value),
+                                  )
+                                }
                                 className="w-16 h-7 text-xs"
                               />
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => sendTimerControl("add_time", sub.user_id, extraMinutesStudent * 60)}
+                                onClick={() =>
+                                  sendTimerControl(
+                                    "add_time",
+                                    sub.user_id,
+                                    extraMinutesStudent * 60,
+                                  )
+                                }
                                 disabled={loading === `add_time-${sub.user_id}`}
                                 title="Añadir tiempo"
                               >
@@ -514,9 +573,7 @@ function ExamMonitor() {
       <Dialog open={viewingId != null} onOpenChange={(o) => !o && setViewingId(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>
-              Respuestas de {viewingSub?.profile?.full_name ?? "—"}
-            </DialogTitle>
+            <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
               {viewingSub?.profile?.institutional_email} · Estado: {viewingSub?.status}
             </DialogDescription>
@@ -526,9 +583,7 @@ function ExamMonitor() {
             <ScrollArea className="max-h-[55vh] pr-4">
               <div className="space-y-4">
                 {(() => {
-                  const events = (viewingSub.answers?.__warning_events ?? []) as Array<{
-                    type: string; ts?: number; at?: number; questionIdx?: number;
-                  }>;
+                  const events = (viewingSub.answers?.__warning_events ?? []) as WarningEvent[];
                   if (!events.length) return null;
                   return (
                     <Card className="border-destructive/40 bg-destructive/5">
@@ -540,7 +595,7 @@ function ExamMonitor() {
                       </CardHeader>
                       <CardContent className="text-xs space-y-1">
                         {events.map((ev, i) => {
-                          const ts = ev.ts ?? ev.at;
+                          const ts = warningEventTimestamp(ev);
                           return (
                             <div key={i} className="flex items-center gap-2">
                               <span className="text-muted-foreground tabular-nums">
@@ -548,7 +603,9 @@ function ExamMonitor() {
                               </span>
                               <span className="font-medium">{warningLabel(ev.type)}</span>
                               {typeof ev.questionIdx === "number" && (
-                                <span className="text-muted-foreground">· pregunta {ev.questionIdx + 1}</span>
+                                <span className="text-muted-foreground">
+                                  · pregunta {ev.questionIdx + 1}
+                                </span>
                               )}
                             </div>
                           );
@@ -563,9 +620,11 @@ function ExamMonitor() {
                 )}
                 {(() => {
                   const breakdown: BreakdownItem[] = Array.isArray(viewingSub.answers?.__breakdown)
-                    ? viewingSub.answers.__breakdown : [];
-                  const byId = new Map(breakdown.map(b => [b.qid, b]));
-                  const manual: Record<string, ManualOverride> = viewingSub.answers?.__manual_overrides ?? {};
+                    ? viewingSub.answers.__breakdown
+                    : [];
+                  const byId = new Map(breakdown.map((b) => [b.qid, b]));
+                  const manual: Record<string, ManualOverride> =
+                    viewingSub.answers?.__manual_overrides ?? {};
                   return questions.map((q, idx) => {
                     const ans = viewingSub.answers?.[q.id];
                     const correctIdx = q.options?.correct_index;
@@ -578,14 +637,20 @@ function ExamMonitor() {
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
                             <span>Pregunta {idx + 1}</span>
-                            <Badge variant="outline" className="text-[10px]">{q.type}</Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {q.type}
+                            </Badge>
                             {q.language && (
-                              <Badge variant="secondary" className="text-[10px]">{q.language}</Badge>
+                              <Badge variant="secondary" className="text-[10px]">
+                                {q.language}
+                              </Badge>
                             )}
                             <span className="text-xs text-muted-foreground ml-auto">
                               {bd ? `${bd.earned}` : "—"} / {q.points}
                               {override && (
-                                <span className="ml-1 text-primary">(manual: {override.score})</span>
+                                <span className="ml-1 text-primary">
+                                  (manual: {override.score})
+                                </span>
                               )}
                             </span>
                           </CardTitle>
@@ -605,10 +670,20 @@ function ExamMonitor() {
                                       isCorrect ? "border-success bg-success/10" : "border-border"
                                     } ${isStudent ? "ring-1 ring-primary" : ""}`}
                                   >
-                                    <span className="font-mono mr-2">{String.fromCharCode(65 + i)}.</span>
+                                    <span className="font-mono mr-2">
+                                      {String.fromCharCode(65 + i)}.
+                                    </span>
                                     {c}
-                                    {isStudent && <Badge variant="outline" className="ml-2 text-[9px]">elegida</Badge>}
-                                    {isCorrect && <Badge className="ml-1 text-[9px] bg-success text-success-foreground">correcta</Badge>}
+                                    {isStudent && (
+                                      <Badge variant="outline" className="ml-2 text-[9px]">
+                                        elegida
+                                      </Badge>
+                                    )}
+                                    {isCorrect && (
+                                      <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                        correcta
+                                      </Badge>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -617,9 +692,13 @@ function ExamMonitor() {
 
                           {q.type !== "cerrada" && (
                             <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
-                              {ans == null || ans === ""
-                                ? <span className="text-muted-foreground italic">Sin responder</span>
-                                : typeof ans === "string" ? ans : JSON.stringify(ans, null, 2)}
+                              {ans == null || ans === "" ? (
+                                <span className="text-muted-foreground italic">Sin responder</span>
+                              ) : typeof ans === "string" ? (
+                                ans
+                              ) : (
+                                JSON.stringify(ans, null, 2)
+                              )}
                             </div>
                           )}
 
@@ -631,7 +710,9 @@ function ExamMonitor() {
 
                           {q.expected_rubric && (
                             <details className="text-xs">
-                              <summary className="cursor-pointer text-muted-foreground">Rúbrica</summary>
+                              <summary className="cursor-pointer text-muted-foreground">
+                                Rúbrica
+                              </summary>
                               <p className="mt-1 whitespace-pre-wrap">{q.expected_rubric}</p>
                             </details>
                           )}
@@ -645,10 +726,15 @@ function ExamMonitor() {
                                 step={0.1}
                                 placeholder={`Nota manual 0-${q.points}`}
                                 value={qEntry.score}
-                                onChange={(e) => setQOverrides(prev => ({
-                                  ...prev,
-                                  [q.id]: { ...(prev[q.id] ?? { score: "", feedback: "" }), score: e.target.value },
-                                }))}
+                                onChange={(e) =>
+                                  setQOverrides((prev) => ({
+                                    ...prev,
+                                    [q.id]: {
+                                      ...(prev[q.id] ?? { score: "", feedback: "" }),
+                                      score: e.target.value,
+                                    },
+                                  }))
+                                }
                                 className="w-28 h-8 text-xs"
                               />
                               <Button
@@ -658,9 +744,11 @@ function ExamMonitor() {
                                 disabled={savingQid === q.id}
                                 className="h-8"
                               >
-                                {savingQid === q.id
-                                  ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                                  : <Save className="h-3.5 w-3.5 mr-1" />}
+                                {savingQid === q.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                ) : (
+                                  <Save className="h-3.5 w-3.5 mr-1" />
+                                )}
                                 Guardar
                               </Button>
                               <Button
@@ -671,19 +759,26 @@ function ExamMonitor() {
                                 className="h-8"
                                 title="Calificar esta pregunta con IA"
                               >
-                                {aiGradingQid === q.id
-                                  ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                                  : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                                {aiGradingQid === q.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                )}
                                 IA
                               </Button>
                             </div>
                             <Textarea
                               placeholder="Retroalimentación manual (opcional)"
                               value={qEntry.feedback}
-                              onChange={(e) => setQOverrides(prev => ({
-                                ...prev,
-                                [q.id]: { ...(prev[q.id] ?? { score: "", feedback: "" }), feedback: e.target.value },
-                              }))}
+                              onChange={(e) =>
+                                setQOverrides((prev) => ({
+                                  ...prev,
+                                  [q.id]: {
+                                    ...(prev[q.id] ?? { score: "", feedback: "" }),
+                                    feedback: e.target.value,
+                                  },
+                                }))
+                              }
                               className="text-xs min-h-[50px]"
                             />
                           </div>
@@ -700,9 +795,19 @@ function ExamMonitor() {
             {viewingSub && (
               <>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground sm:mr-auto">
-                  <span>IA: <span className="font-medium text-foreground">{viewingSub.ai_grade ?? "—"}</span></span>
+                  <span>
+                    IA:{" "}
+                    <span className="font-medium text-foreground">
+                      {viewingSub.ai_grade ?? "—"}
+                    </span>
+                  </span>
                   <span>·</span>
-                  <span>Final: <span className="font-medium text-foreground">{viewingSub.final_override_grade ?? viewingSub.ai_grade ?? "—"}</span></span>
+                  <span>
+                    Final:{" "}
+                    <span className="font-medium text-foreground">
+                      {viewingSub.final_override_grade ?? viewingSub.ai_grade ?? "—"}
+                    </span>
+                  </span>
                 </div>
                 <Button
                   variant="outline"
@@ -710,9 +815,11 @@ function ExamMonitor() {
                   onClick={() => reGradeWithAI(viewingSub)}
                   disabled={aiGradingId === viewingSub.id}
                 >
-                  {aiGradingId === viewingSub.id
-                    ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                  {aiGradingId === viewingSub.id ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                  )}
                   Recalificar todo con IA
                 </Button>
                 <div className="flex items-center gap-1">
@@ -731,9 +838,11 @@ function ExamMonitor() {
                     onClick={() => saveOverride(viewingSub)}
                     disabled={savingOverride}
                   >
-                    {savingOverride
-                      ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                      : <Save className="h-3.5 w-3.5 mr-1" />}
+                    {savingOverride ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5 mr-1" />
+                    )}
                     Guardar nota
                   </Button>
                 </div>

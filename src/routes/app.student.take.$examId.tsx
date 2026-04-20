@@ -20,6 +20,8 @@ import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff } from "
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
+import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
+import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -44,8 +46,6 @@ type Exam = {
   course_id: string;
 };
 
-const MAX_WARNINGS = 3;
-
 /** Considera contestada la celda según tipo (incluye plantilla de código si no hubo edición). */
 function isQuestionAnswered(q: Question, answers: Record<string, unknown>): boolean {
   const v = answers[q.id];
@@ -53,8 +53,7 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
     return typeof v === "number" && v >= 0;
   }
   if (q.type === "codigo") {
-    const code =
-      (typeof v === "string" ? v : "").trim() || (q.starter_code ?? "").trim();
+    const code = (typeof v === "string" ? v : "").trim() || (q.starter_code ?? "").trim();
     return code.length > 0;
   }
   if (q.type === "diagrama") {
@@ -156,8 +155,7 @@ function TakeExam() {
         navigate({ to: "/app/student/exams" });
         return;
       }
-      const now = Date.now();
-      if (now < new Date(e.start_time).getTime() || now > new Date(e.end_time).getTime()) {
+      if (!isExamOpen({ start_time: e.start_time, end_time: e.end_time })) {
         toast.error("Este examen no está disponible ahora");
         navigate({ to: "/app/student/exams" });
         return;
@@ -422,12 +420,7 @@ function TakeExam() {
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
-  // Timer is absolute: counts down to exam.end_time regardless of when
-  // the student starts or resumes. Student who enters late gets less time.
-  const initialSeconds = (() => {
-    if (!exam?.end_time) return 0;
-    return Math.max(0, Math.floor((new Date(exam.end_time).getTime() - Date.now()) / 1000));
-  })();
+  const initialSeconds = computeSecondsLeft(exam?.end_time);
 
   const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
     examId,
@@ -484,7 +477,7 @@ function TakeExam() {
           .then(() => {});
       }
 
-      if (nw >= MAX_WARNINGS) {
+      if (shouldMarkSuspicious(nw, MAX_WARNINGS)) {
         toast.error("Has superado el límite de salidas. El examen se suspende.");
         performSubmit(true);
       } else {
@@ -755,7 +748,11 @@ function TakeExam() {
             )}
           </>
         ) : (
-          <Button className="w-full" onClick={() => void requestManualSubmit()} disabled={submitting}>
+          <Button
+            className="w-full"
+            onClick={() => void requestManualSubmit()}
+            disabled={submitting}
+          >
             {submitting ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
@@ -776,8 +773,8 @@ function TakeExam() {
             <DialogDescription asChild>
               <div className="space-y-3 text-left text-sm text-muted-foreground">
                 <p>
-                  Aún no has respondido todas las preguntas. Puedes volver a revisarlas o entregar el
-                  examen tal como está; las respuestas que ya guardaste se incluirán.
+                  Aún no has respondido todas las preguntas. Puedes volver a revisarlas o entregar
+                  el examen tal como está; las respuestas que ya guardaste se incluirán.
                 </p>
                 {submitModal.unansweredIndices.length > 0 && (
                   <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
@@ -809,7 +806,11 @@ function TakeExam() {
             <Button type="button" variant="outline" onClick={cancelManualSubmitModal}>
               Seguir editando
             </Button>
-            <Button type="button" onClick={() => void confirmSubmitFromModal()} disabled={submitting}>
+            <Button
+              type="button"
+              onClick={() => void confirmSubmitFromModal()}
+              disabled={submitting}
+            >
               {submitting ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
@@ -822,21 +823,4 @@ function TakeExam() {
       </Dialog>
     </div>
   );
-}
-
-function warningLabel(type: string): string {
-  switch (type) {
-    case "pestaña":
-      return "Salió de la pestaña o perdió el foco de la ventana";
-    case "copiar":
-      return "Intentó copiar contenido";
-    case "pegar":
-      return "Intentó pegar contenido";
-    case "cortar":
-      return "Intentó cortar contenido";
-    case "menu":
-      return "Intentó abrir el menú contextual";
-    default:
-      return type;
-  }
 }
