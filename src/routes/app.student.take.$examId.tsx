@@ -15,8 +15,26 @@ import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sy
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
-type Question = { id: string; type: string; content: string; options: any; points: number; position: number; language?: string | null; starter_code?: string | null };
-type Exam = { id: string; title: string; time_limit_minutes: number; navigation_type: string; shuffle_enabled: boolean; start_time: string; end_time: string; course_id: string };
+type Question = {
+  id: string;
+  type: string;
+  content: string;
+  options: any;
+  points: number;
+  position: number;
+  language?: string | null;
+  starter_code?: string | null;
+};
+type Exam = {
+  id: string;
+  title: string;
+  time_limit_minutes: number;
+  navigation_type: string;
+  shuffle_enabled: boolean;
+  start_time: string;
+  end_time: string;
+  course_id: string;
+};
 
 const MAX_WARNINGS = 3;
 
@@ -39,11 +57,17 @@ function TakeExam() {
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
-  const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>([]);
+  const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
+    [],
+  );
 
   // Keep refs in sync with state for synchronous reads in event handlers
-  useEffect(() => { warningsRef.current = warnings; }, [warnings]);
-  useEffect(() => { answersRef.current = answers; }, [answers]);
+  useEffect(() => {
+    warningsRef.current = warnings;
+  }, [warnings]);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   // Update state AND ref synchronously so blur/suspend handlers never read
   // stale answers between a keystroke and the next render commit.
@@ -75,21 +99,47 @@ function TakeExam() {
     if (!user) return;
     (async () => {
       const { data: e } = await supabase.from("exams").select("*").eq("id", examId).single();
-      if (!e) { toast.error("Examen no encontrado"); navigate({ to: "/app/student/exams" }); return; }
+      if (!e) {
+        toast.error("Examen no encontrado");
+        navigate({ to: "/app/student/exams" });
+        return;
+      }
       const now = Date.now();
       if (now < new Date(e.start_time).getTime() || now > new Date(e.end_time).getTime()) {
-        toast.error("Este examen no está disponible ahora"); navigate({ to: "/app/student/exams" }); return;
+        toast.error("Este examen no está disponible ahora");
+        navigate({ to: "/app/student/exams" });
+        return;
       }
-      const { data: asg } = await supabase.from("exam_assignments").select("id").eq("exam_id", examId).eq("user_id", user.id).maybeSingle();
-      if (!asg) { toast.error("No estás asignado a este examen"); navigate({ to: "/app/student/exams" }); return; }
-      let { data: qs } = await supabase.from("questions").select("*").eq("exam_id", examId).order("position");
+      const { data: asg } = await supabase
+        .from("exam_assignments")
+        .select("id")
+        .eq("exam_id", examId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!asg) {
+        toast.error("No estás asignado a este examen");
+        navigate({ to: "/app/student/exams" });
+        return;
+      }
+      let { data: qs } = await supabase
+        .from("questions")
+        .select("*")
+        .eq("exam_id", examId)
+        .order("position");
       if (e.shuffle_enabled && qs) qs = [...qs].sort(() => Math.random() - 0.5);
       setQuestions(qs ?? []);
 
-      const { data: sub } = await supabase.from("submissions").select("*").eq("exam_id", examId).eq("user_id", user.id).maybeSingle();
+      const { data: sub } = await supabase
+        .from("submissions")
+        .select("*")
+        .eq("exam_id", examId)
+        .eq("user_id", user.id)
+        .maybeSingle();
       if (sub) {
         if (sub.status === "completado" || sub.status === "sospechoso") {
-          toast.info("Ya completaste este examen"); navigate({ to: "/app/student/exams" }); return;
+          toast.info("Ya completaste este examen");
+          navigate({ to: "/app/student/exams" });
+          return;
         }
         // Resume existing in-progress submission
         setSubmissionId(sub.id);
@@ -118,10 +168,20 @@ function TakeExam() {
     if (!user || !exam) return;
     let sid = submissionId;
     if (!sid) {
-      const { data, error } = await supabase.from("submissions").insert({
-        exam_id: examId, user_id: user.id, answers: {}, status: "en_progreso",
-      }).select().single();
-      if (error) { toast.error(error.message); return; }
+      const { data, error } = await supabase
+        .from("submissions")
+        .insert({
+          exam_id: examId,
+          user_id: user.id,
+          answers: {},
+          status: "en_progreso",
+        })
+        .select()
+        .single();
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       sid = data.id;
       setSubmissionId(sid);
       submissionIdRef.current = sid;
@@ -131,89 +191,116 @@ function TakeExam() {
     setStarted(true);
   };
 
-  const submitExam = useCallback(async (markSuspicious = false) => {
-    if (submittedRef.current || !submissionIdRef.current) return;
-    submittedRef.current = true;
-    setSubmitting(true);
+  const submitExam = useCallback(
+    async (markSuspicious = false) => {
+      if (submittedRef.current || !submissionIdRef.current) return;
+      submittedRef.current = true;
+      setSubmitting(true);
 
-    // Merge the latest warning events into answers so we never lose them
-    const currentAnswers = {
-      ...answersRef.current,
-      __warning_events: warningEventsRef.current,
-    };
-    const currentWarnings = warningsRef.current;
+      // Merge the latest warning events into answers so we never lose them
+      const currentAnswers = {
+        ...answersRef.current,
+        __warning_events: warningEventsRef.current,
+      };
+      const currentWarnings = warningsRef.current;
 
-    const updateData = {
-      answers: currentAnswers,
-      status: markSuspicious ? "sospechoso" : "completado",
-      focus_warnings: currentWarnings,
-      submitted_at: new Date().toISOString(),
-    };
-
-    // Persist locally first as a safety net — never lose answers
-    try {
-      await saveAnswersLocally(examId, {
-        submissionId: submissionIdRef.current,
+      const updateData = {
         answers: currentAnswers,
-        warnings: currentWarnings,
-        timestamp: Date.now(),
-      });
-    } catch (e) { console.error("local save failed:", e); }
+        status: markSuspicious ? "sospechoso" : "completado",
+        focus_warnings: currentWarnings,
+        submitted_at: new Date().toISOString(),
+      };
 
-    if (isOnline()) {
-      const { error: updateErr } = await supabase
-        .from("submissions")
-        .update(updateData)
-        .eq("id", submissionIdRef.current);
-      if (updateErr) {
-        console.error("submission update failed:", updateErr);
-        // Retry once — crucial on suspension so answers aren't lost
-        const { error: retryErr } = await supabase
+      // Persist locally first as a safety net — never lose answers
+      try {
+        await saveAnswersLocally(examId, {
+          submissionId: submissionIdRef.current,
+          answers: currentAnswers,
+          warnings: currentWarnings,
+          timestamp: Date.now(),
+        });
+      } catch (e) {
+        console.error("local save failed:", e);
+      }
+
+      if (isOnline()) {
+        const { error: updateErr } = await supabase
           .from("submissions")
           .update(updateData)
           .eq("id", submissionIdRef.current);
-        if (retryErr) {
-          console.error("submission update retry failed:", retryErr);
-          toast.error("No se pudieron guardar las respuestas. Se guardaron localmente.");
+        if (updateErr) {
+          console.error("submission update failed:", updateErr);
+          // Retry once — crucial on suspension so answers aren't lost
+          const { error: retryErr } = await supabase
+            .from("submissions")
+            .update(updateData)
+            .eq("id", submissionIdRef.current);
+          if (retryErr) {
+            console.error("submission update retry failed:", retryErr);
+            toast.error("No se pudieron guardar las respuestas. Se guardaron localmente.");
+          }
         }
       }
-    }
 
-    // Notify course teachers via RPC (students cannot INSERT into
-    // notifications directly under current RLS; the function runs with
-    // SECURITY DEFINER and authorizes by the caller's submission)
-    if (markSuspicious && isOnline() && exam) {
-      try {
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
-        const studentName = profile?.full_name ?? "Un estudiante";
+      // Notify course teachers via RPC (students cannot INSERT into
+      // notifications directly under current RLS; the function runs with
+      // SECURITY DEFINER and authorizes by the caller's submission)
+      if (markSuspicious && isOnline() && exam) {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user!.id)
+            .single();
+          const studentName = profile?.full_name ?? "Un estudiante";
 
-        const events = warningEventsRef.current.slice(-MAX_WARNINGS);
-        const eventLines = events.map((ev, i) => {
-          const when = new Date(ev.at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-          const where = ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
-          return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
-        }).join("\n");
-        const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${MAX_WARNINGS} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
+          const events = warningEventsRef.current.slice(-MAX_WARNINGS);
+          const eventLines = events
+            .map((ev, i) => {
+              const when = new Date(ev.at).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              });
+              const where = ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
+              return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
+            })
+            .join("\n");
+          const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${MAX_WARNINGS} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
 
-        const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
-          _exam_id: examId,
-          _title: "Examen sospechoso",
-          _body: body,
-          _link: `/app/teacher/monitor/${examId}`,
-        });
-        if (rpcErr) console.error("notify_exam_teachers RPC failed:", rpcErr);
-      } catch (e) { console.error("Error notifying teachers:", e); }
-    }
-
-    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch { }
-    try {
-      if (isOnline()) {
-        await supabase.functions.invoke("ai-grade-submission", { body: { submissionId: submissionIdRef.current } });
+          const rpc = supabase.rpc as unknown as (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ error: { message: string } | null }>;
+          const { error: rpcErr } = await rpc("notify_exam_teachers", {
+            _exam_id: examId,
+            _title: "Examen sospechoso",
+            _body: body,
+            _link: `/app/teacher/monitor/${examId}`,
+          });
+          if (rpcErr) console.error("notify_exam_teachers RPC failed:", rpcErr);
+        } catch (e) {
+          console.error("Error notifying teachers:", e);
+        }
       }
-    } catch (e) { console.error(e); }
-    toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
-    navigate({ to: "/app/student/exams" });
-  }, [navigate, examId, exam, user]);
+
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+      } catch {}
+      try {
+        if (isOnline()) {
+          await supabase.functions.invoke("ai-grade-submission", {
+            body: { submissionId: submissionIdRef.current },
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
+      navigate({ to: "/app/student/exams" });
+    },
+    [navigate, examId, exam, user],
+  );
 
   // Realtime timer
   const handleTimeUp = useCallback(() => {
@@ -259,7 +346,9 @@ function TakeExam() {
   // Auto-save answers (debounced, also runs on warning increments)
   useEffect(() => {
     if (!started || !submissionIdRef.current) return;
-    const t = setTimeout(() => { saveAnswersNow(); }, 1500);
+    const t = setTimeout(() => {
+      saveAnswersNow();
+    }, 1500);
     return () => clearTimeout(t);
   }, [answers, warnings, started, saveAnswersNow]);
 
@@ -292,7 +381,8 @@ function TakeExam() {
       answersRef.current = updatedAnswers;
       setAnswers(updatedAnswers);
       if (submissionIdRef.current && isOnline()) {
-        supabase.from("submissions")
+        supabase
+          .from("submissions")
           .update({ focus_warnings: nw, answers: updatedAnswers })
           .eq("id", submissionIdRef.current)
           .then(() => {});
@@ -307,7 +397,10 @@ function TakeExam() {
     };
     const onBlur = () => recordWarning("pestaña");
     const onContext = (e: Event) => e.preventDefault();
-    const onCopy = (e: Event) => { e.preventDefault(); toast.warning("Copiar/pegar deshabilitado"); };
+    const onCopy = (e: Event) => {
+      e.preventDefault();
+      toast.warning("Copiar/pegar deshabilitado");
+    };
     const onSelect = (e: Event) => e.preventDefault();
     // TODO: Re-enable fullscreen enforcement when ready
     // const onKeyDown = (e: KeyboardEvent) => {
@@ -356,8 +449,11 @@ function TakeExam() {
   // Run code for a question
   const runCode = async (questionId: string, language: CodeLanguage) => {
     const code = answers[questionId];
-    if (!code?.trim()) { toast.error("Escribe código antes de ejecutar"); return; }
-    setRunningCode(prev => ({ ...prev, [questionId]: true }));
+    if (!code?.trim()) {
+      toast.error("Escribe código antes de ejecutar");
+      return;
+    }
+    setRunningCode((prev) => ({ ...prev, [questionId]: true }));
     try {
       const { data, error } = await supabase.functions.invoke("execute-code", {
         body: {
@@ -369,11 +465,11 @@ function TakeExam() {
       });
       if (error) throw error;
       const output = data.stderr ? `${data.stdout}\n--- ERRORES ---\n${data.stderr}` : data.stdout;
-      setCodeOutputs(prev => ({ ...prev, [questionId]: output }));
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
     } catch (e: any) {
-      setCodeOutputs(prev => ({ ...prev, [questionId]: `Error: ${e.message}` }));
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${e.message}` }));
     } finally {
-      setRunningCode(prev => ({ ...prev, [questionId]: false }));
+      setRunningCode((prev) => ({ ...prev, [questionId]: false }));
     }
   };
 
@@ -386,17 +482,27 @@ function TakeExam() {
           <CardContent className="p-6 space-y-4">
             <h1 className="text-2xl font-semibold">{exam.title}</h1>
             <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm space-y-2">
-              <p className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-warning-foreground" />Antes de comenzar</p>
+              <p className="font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-warning-foreground" />
+                Antes de comenzar
+              </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                <li>Duración: <strong>{exam.time_limit_minutes} minutos</strong>. El tiempo no se pausa.</li>
+                <li>
+                  Duración: <strong>{exam.time_limit_minutes} minutos</strong>. El tiempo no se
+                  pausa.
+                </li>
                 {/* <li>El examen se ejecuta en <strong>pantalla completa</strong>.</li> */}
                 <li>No puedes copiar, pegar ni hacer clic derecho.</li>
-                <li>Si sales de la pestaña <strong>{MAX_WARNINGS} veces</strong>, el examen se suspende.</li>
+                <li>
+                  Si sales de la pestaña <strong>{MAX_WARNINGS} veces</strong>, el examen se
+                  suspende.
+                </li>
                 <li>Las respuestas se guardan automáticamente (incluso sin conexión).</li>
               </ul>
             </div>
             <Button size="lg" className="w-full" onClick={startExam}>
-              <Maximize2 className="h-4 w-4 mr-2" />Aceptar y comenzar
+              <Maximize2 className="h-4 w-4 mr-2" />
+              Aceptar y comenzar
             </Button>
           </CardContent>
         </Card>
@@ -404,7 +510,8 @@ function TakeExam() {
     );
   }
 
-  const visible = exam.navigation_type === "secuencial" ? [questions[currentIdx]].filter(Boolean) : questions;
+  const visible =
+    exam.navigation_type === "secuencial" ? [questions[currentIdx]].filter(Boolean) : questions;
 
   return (
     <div className="max-w-3xl mx-auto py-6 select-none">
@@ -412,24 +519,39 @@ function TakeExam() {
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 px-4 py-3 mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-semibold truncate">{exam.title}</div>
-          <div className="text-xs text-muted-foreground">Pregunta {exam.navigation_type === "secuencial" ? currentIdx + 1 : "—"} de {questions.length}</div>
+          <div className="text-xs text-muted-foreground">
+            Pregunta {exam.navigation_type === "secuencial" ? currentIdx + 1 : "—"} de{" "}
+            {questions.length}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {offline && (
-            <Badge variant="outline" className="text-xs text-warning-foreground border-warning/40 bg-warning/10">
-              <WifiOff className="h-3 w-3 mr-1" />Sin conexión
+            <Badge
+              variant="outline"
+              className="text-xs text-warning-foreground border-warning/40 bg-warning/10"
+            >
+              <WifiOff className="h-3 w-3 mr-1" />
+              Sin conexión
             </Badge>
           )}
           {isPaused && (
-            <Badge variant="outline" className="text-xs text-primary border-primary/40 bg-primary/10 animate-pulse">
-              <Pause className="h-3 w-3 mr-1" />Pausado
+            <Badge
+              variant="outline"
+              className="text-xs text-primary border-primary/40 bg-primary/10 animate-pulse"
+            >
+              <Pause className="h-3 w-3 mr-1" />
+              Pausado
             </Badge>
           )}
           <Badge variant={warnings > 0 ? "destructive" : "outline"} className="text-xs">
-            <AlertTriangle className="h-3 w-3 mr-1" />{warnings}/{MAX_WARNINGS}
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            {warnings}/{MAX_WARNINGS}
           </Badge>
-          <Badge className={`text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}>
-            <Clock className="h-3 w-3 mr-1" />{formattedTime}
+          <Badge
+            className={`text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+          >
+            <Clock className="h-3 w-3 mr-1" />
+            {formattedTime}
           </Badge>
         </div>
       </div>
@@ -443,8 +565,12 @@ function TakeExam() {
             <Card key={q.id}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px]">#{idx + 1}</Badge>
-                  <Badge variant="secondary" className="text-[10px]">{q.type}</Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    #{idx + 1}
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {q.type}
+                  </Badge>
                   <span className="text-xs text-muted-foreground">{q.points} pt</span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{q.content}</p>
@@ -452,15 +578,23 @@ function TakeExam() {
                 {q.type === "cerrada" && q.options?.choices ? (
                   <div className="space-y-1.5">
                     {q.options.choices.map((c: string, ci: number) => (
-                      <label key={ci} className="flex items-start gap-2 p-2 rounded border hover:bg-muted/50 cursor-pointer">
+                      <label
+                        key={ci}
+                        className="flex items-start gap-2 p-2 rounded border hover:bg-muted/50 cursor-pointer"
+                      >
                         <input
                           type="radio"
                           name={`q-${q.id}`}
                           checked={answers[q.id] === ci}
-                          onChange={() => { updateAnswer(q.id, ci); saveAnswersNow(); }}
+                          onChange={() => {
+                            updateAnswer(q.id, ci);
+                            saveAnswersNow();
+                          }}
                           className="mt-1"
                         />
-                        <span className="text-sm">{String.fromCharCode(65 + ci)}. {c}</span>
+                        <span className="text-sm">
+                          {String.fromCharCode(65 + ci)}. {c}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -490,7 +624,7 @@ function TakeExam() {
                     rows={4}
                     placeholder="Tu respuesta…"
                     value={answers[q.id] ?? ""}
-                    onChange={e => updateAnswer(q.id, e.target.value)}
+                    onChange={(e) => updateAnswer(q.id, e.target.value)}
                     onBlur={saveAnswersNow}
                   />
                 )}
@@ -504,19 +638,33 @@ function TakeExam() {
       <div className="flex items-center justify-between gap-2 mt-6">
         {exam.navigation_type === "secuencial" ? (
           <>
-            <Button variant="outline" disabled={currentIdx === 0} onClick={() => setCurrentIdx(i => i - 1)}>Anterior</Button>
+            <Button
+              variant="outline"
+              disabled={currentIdx === 0}
+              onClick={() => setCurrentIdx((i) => i - 1)}
+            >
+              Anterior
+            </Button>
             {currentIdx < questions.length - 1 ? (
-              <Button onClick={() => setCurrentIdx(i => i + 1)}>Siguiente</Button>
+              <Button onClick={() => setCurrentIdx((i) => i + 1)}>Siguiente</Button>
             ) : (
               <Button onClick={() => submitExam(false)} disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-1" />
+                )}
                 Entregar
               </Button>
             )}
           </>
         ) : (
           <Button className="w-full" onClick={() => submitExam(false)} disabled={submitting}>
-            {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+            {submitting ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4 mr-1" />
+            )}
             Entregar examen
           </Button>
         )}
@@ -527,11 +675,17 @@ function TakeExam() {
 
 function warningLabel(type: string): string {
   switch (type) {
-    case "pestaña": return "Salió de la pestaña o perdió el foco de la ventana";
-    case "copiar": return "Intentó copiar contenido";
-    case "pegar": return "Intentó pegar contenido";
-    case "cortar": return "Intentó cortar contenido";
-    case "menu": return "Intentó abrir el menú contextual";
-    default: return type;
+    case "pestaña":
+      return "Salió de la pestaña o perdió el foco de la ventana";
+    case "copiar":
+      return "Intentó copiar contenido";
+    case "pegar":
+      return "Intentó pegar contenido";
+    case "cortar":
+      return "Intentó cortar contenido";
+    case "menu":
+      return "Intentó abrir el menú contextual";
+    default:
+      return type;
   }
 }

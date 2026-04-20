@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Exam grading mode (original) ──
-    const { submissionId } = body;
+    const { submissionId, questionId } = body;
     if (!submissionId) throw new Error("submissionId requerido");
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -80,11 +80,25 @@ Deno.serve(async (req) => {
     if (qErr) throw qErr;
 
     const answers: Record<string, any> = sub.answers || {};
+    const prevBreakdown: any[] = Array.isArray(answers.__breakdown) ? answers.__breakdown : [];
+    const prevById = new Map(prevBreakdown.map((b: any) => [b.qid, b]));
     let totalPoints = 0;
     let earned = 0;
     const breakdown: any[] = [];
 
     for (const q of questions || []) {
+      // If only one question is requested, skip the rest but preserve prior scores
+      if (questionId && q.id !== questionId) {
+        const prev = prevById.get(q.id);
+        totalPoints += Number(q.points);
+        if (prev) {
+          earned += Number(prev.earned) || 0;
+          breakdown.push(prev);
+        } else {
+          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0 });
+        }
+        continue;
+      }
       totalPoints += Number(q.points);
       const userAnswer = answers[q.id];
 
