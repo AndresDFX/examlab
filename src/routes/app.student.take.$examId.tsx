@@ -7,6 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
@@ -38,6 +46,46 @@ type Exam = {
 
 const MAX_WARNINGS = 3;
 
+/** Considera contestada la celda según tipo (incluye plantilla de código si no hubo edición). */
+function isQuestionAnswered(q: Question, answers: Record<string, unknown>): boolean {
+  const v = answers[q.id];
+  if (q.type === "cerrada") {
+    return typeof v === "number" && v >= 0;
+  }
+  if (q.type === "codigo") {
+    const code =
+      (typeof v === "string" ? v : "").trim() || (q.starter_code ?? "").trim();
+    return code.length > 0;
+  }
+  if (q.type === "diagrama") {
+    return typeof v === "string" && v.trim().length > 0;
+  }
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+function getUnansweredIndices(questions: Question[], answers: Record<string, unknown>): number[] {
+  const out: number[] = [];
+  questions.forEach((q, i) => {
+    if (!isQuestionAnswered(q, answers)) out.push(i);
+  });
+  return out;
+}
+
+/** Persiste plantilla de código como respuesta si el estudiante no escribió nada (para entrega correcta). */
+function mergeStarterCodeAnswers(
+  questions: Question[],
+  answers: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...answers };
+  for (const q of questions) {
+    if (q.type !== "codigo") continue;
+    const cur = next[q.id];
+    const empty = cur === undefined || cur === null || String(cur).trim() === "";
+    if (empty && (q.starter_code ?? "").trim()) next[q.id] = q.starter_code;
+  }
+  return next;
+}
+
 function TakeExam() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
@@ -53,7 +101,13 @@ function TakeExam() {
   const [codeOutputs, setCodeOutputs] = useState<Record<string, string>>({});
   const [runningCode, setRunningCode] = useState<Record<string, boolean>>({});
   const [offline, setOffline] = useState(!isOnline());
+  const [submitModal, setSubmitModal] = useState<{
+    open: boolean;
+    reason: null | "manual_incomplete" | "timeout";
+    unansweredIndices: number[];
+  }>({ open: false, reason: null, unansweredIndices: [] });
   const submittedRef = useRef(false);
+  const timeUpModalOpenedRef = useRef(false);
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
@@ -191,9 +245,33 @@ function TakeExam() {
     setStarted(true);
   };
 
-  const submitExam = useCallback(
+  // Persistir respuestas inmediatamente (autosave, entrega, tiempo agotado)
+  const saveAnswersNow = useCallback(async () => {
+    if (!submissionIdRef.current) return;
+    const currentAnswers = answersRef.current;
+    const currentWarnings = warningsRef.current;
+    if (isOnline()) {
+      await supabase
+        .from("submissions")
+        .update({ answers: currentAnswers, focus_warnings: currentWarnings })
+        .eq("id", submissionIdRef.current);
+    }
+    await saveAnswersLocally(examId, {
+      submissionId: submissionIdRef.current,
+      answers: currentAnswers,
+      warnings: currentWarnings,
+      timestamp: Date.now(),
+    });
+  }, [examId]);
+
+  const performSubmit = useCallback(
     async (markSuspicious = false) => {
       if (submittedRef.current || !submissionIdRef.current) return;
+
+      const mergedPlain = mergeStarterCodeAnswers(questions, answersRef.current);
+      answersRef.current = mergedPlain;
+      setAnswers(mergedPlain);
+
       submittedRef.current = true;
       setSubmitting(true);
 
@@ -299,13 +377,54 @@ function TakeExam() {
       toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
       navigate({ to: "/app/student/exams" });
     },
-    [navigate, examId, exam, user],
+    [navigate, examId, exam, user, questions],
   );
 
-  // Realtime timer
+  const requestManualSubmit = useCallback(async () => {
+    if (submitting || submittedRef.current || !submissionIdRef.current) return;
+    await saveAnswersNow();
+    const merged = mergeStarterCodeAnswers(questions, answersRef.current);
+    answersRef.current = merged;
+    setAnswers(merged);
+    const unanswered = getUnansweredIndices(questions, merged);
+    if (unanswered.length === 0) {
+      await performSubmit(false);
+      return;
+    }
+    setSubmitModal({
+      open: true,
+      reason: "manual_incomplete",
+      unansweredIndices: unanswered,
+    });
+  }, [submitting, saveAnswersNow, questions, performSubmit]);
+
+  const confirmSubmitFromModal = useCallback(async () => {
+    setSubmitModal({ open: false, reason: null, unansweredIndices: [] });
+    await saveAnswersNow();
+    await performSubmit(false);
+  }, [performSubmit, saveAnswersNow]);
+
+  const cancelManualSubmitModal = useCallback(() => {
+    setSubmitModal({ open: false, reason: null, unansweredIndices: [] });
+  }, []);
+
+  // Realtime timer → modal obligatorio (igual que entrega manual incompleta)
   const handleTimeUp = useCallback(() => {
-    if (!submittedRef.current) submitExam(false);
-  }, [submitExam]);
+    if (submittedRef.current || timeUpModalOpenedRef.current) return;
+    timeUpModalOpenedRef.current = true;
+    void (async () => {
+      await saveAnswersNow();
+      const merged = mergeStarterCodeAnswers(questions, answersRef.current);
+      answersRef.current = merged;
+      setAnswers(merged);
+      const unanswered = getUnansweredIndices(questions, merged);
+      setSubmitModal({
+        open: true,
+        reason: "timeout",
+        unansweredIndices: unanswered,
+      });
+    })();
+  }, [saveAnswersNow, questions]);
 
   // Timer is absolute: counts down to exam.end_time regardless of when
   // the student starts or resumes. Student who enters late gets less time.
@@ -323,25 +442,6 @@ function TakeExam() {
     onResume: () => toast.info("▶ El temporizador ha sido reanudado"),
     onTimeAdded: (secs) => toast.success(`+${Math.floor(secs / 60)} minuto(s) extra añadidos`),
   });
-
-  // Persist current answers/warnings immediately (used by autosave, blur handlers, suspension)
-  const saveAnswersNow = useCallback(async () => {
-    if (!submissionIdRef.current) return;
-    const currentAnswers = answersRef.current;
-    const currentWarnings = warningsRef.current;
-    if (isOnline()) {
-      await supabase
-        .from("submissions")
-        .update({ answers: currentAnswers, focus_warnings: currentWarnings })
-        .eq("id", submissionIdRef.current);
-    }
-    await saveAnswersLocally(examId, {
-      submissionId: submissionIdRef.current,
-      answers: currentAnswers,
-      warnings: currentWarnings,
-      timestamp: Date.now(),
-    });
-  }, [examId]);
 
   // Auto-save answers (debounced, also runs on warning increments)
   useEffect(() => {
@@ -390,7 +490,7 @@ function TakeExam() {
 
       if (nw >= MAX_WARNINGS) {
         toast.error("Has superado el límite de salidas. El examen se suspende.");
-        submitExam(true);
+        performSubmit(true);
       } else {
         toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: ${warningLabel(type)}`);
       }
@@ -444,7 +544,7 @@ function TakeExam() {
       // document.removeEventListener("keydown", onKeyDown, true);
       // document.removeEventListener("fullscreenchange", onFsChange);
     };
-  }, [started, submitExam]);
+  }, [started, performSubmit]);
 
   // Run code for a question
   const runCode = async (questionId: string, language: CodeLanguage) => {
@@ -648,7 +748,7 @@ function TakeExam() {
             {currentIdx < questions.length - 1 ? (
               <Button onClick={() => setCurrentIdx((i) => i + 1)}>Siguiente</Button>
             ) : (
-              <Button onClick={() => submitExam(false)} disabled={submitting}>
+              <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
                 {submitting ? (
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                 ) : (
@@ -659,7 +759,7 @@ function TakeExam() {
             )}
           </>
         ) : (
-          <Button className="w-full" onClick={() => submitExam(false)} disabled={submitting}>
+          <Button className="w-full" onClick={() => void requestManualSubmit()} disabled={submitting}>
             {submitting ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
@@ -669,6 +769,110 @@ function TakeExam() {
           </Button>
         )}
       </div>
+
+      <Dialog
+        open={submitModal.open}
+        onOpenChange={(open) => {
+          if (!open && submitModal.reason === "timeout") {
+            return;
+          }
+          if (!open) cancelManualSubmitModal();
+        }}
+      >
+        <DialogContent
+          className={
+            submitModal.reason === "timeout"
+              ? "[&>button.absolute]:hidden sm:max-w-md"
+              : "sm:max-w-md"
+          }
+          onPointerDownOutside={(e) => {
+            if (submitModal.reason === "timeout") e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (submitModal.reason === "timeout") e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle
+                className={`h-5 w-5 shrink-0 ${submitModal.reason === "timeout" ? "text-destructive" : "text-amber-500"}`}
+              />
+              {submitModal.reason === "timeout"
+                ? "Tiempo agotado"
+                : "Quedan preguntas sin responder"}
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 text-left text-sm text-muted-foreground">
+                {submitModal.reason === "timeout" ? (
+                  <p>
+                    El tiempo del examen ha terminado. Confirma la entrega para guardar tus respuestas
+                    y enviar el intento.
+                  </p>
+                ) : (
+                  <p>
+                    Aún no has respondido todas las preguntas. Puedes volver a revisarlas o entregar el
+                    examen tal como está; las respuestas que ya guardaste se incluirán.
+                  </p>
+                )}
+                {submitModal.unansweredIndices.length > 0 && (
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+                    <p className="text-xs font-medium text-foreground mb-1.5">
+                      Sin responder: {submitModal.unansweredIndices.length}{" "}
+                      {submitModal.unansweredIndices.length === 1 ? "pregunta" : "preguntas"}
+                    </p>
+                    <ul className="max-h-32 overflow-y-auto text-xs space-y-0.5 list-disc list-inside">
+                      {submitModal.unansweredIndices.slice(0, 25).map((idx) => (
+                        <li key={idx}>
+                          Pregunta {idx + 1}
+                          {questions[idx]?.type ? (
+                            <span className="text-muted-foreground"> ({questions[idx].type})</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    {submitModal.unansweredIndices.length > 25 && (
+                      <p className="text-[10px] mt-1 text-muted-foreground">
+                        y {submitModal.unansweredIndices.length - 25} más…
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            {submitModal.reason === "manual_incomplete" ? (
+              <>
+                <Button type="button" variant="outline" onClick={cancelManualSubmitModal}>
+                  Seguir editando
+                </Button>
+                <Button type="button" onClick={() => void confirmSubmitFromModal()} disabled={submitting}>
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-1" />
+                  )}
+                  Entregar de todas formas
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() => void confirmSubmitFromModal()}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-1" />
+                )}
+                Entregar examen y guardar respuestas
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

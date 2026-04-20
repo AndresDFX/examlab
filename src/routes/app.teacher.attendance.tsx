@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Download, Calendar, CheckCircle2, X } from "lucide-react";
+import { Plus, Download, CheckCircle2, X, Eraser } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
@@ -93,18 +93,27 @@ function TeacherAttendance() {
     loadCourse();
   };
 
-  // Toggle attendance
+  // Toggle attendance ("none" = eliminar registro para esa celda)
   const setAttendance = async (sessionId: string, userId: string, status: string) => {
     const existing = records.find(r => r.session_id === sessionId && r.user_id === userId);
+    if (status === "none") {
+      if (!existing) return;
+      const { error } = await supabase.from("attendance_records").delete().eq("id", existing.id);
+      if (error) { toast.error(error.message); return; }
+      setRecords(prev => prev.filter(r => r.id !== existing.id));
+      return;
+    }
     if (existing) {
-      await supabase.from("attendance_records").update({ status }).eq("id", existing.id);
+      const { error } = await supabase.from("attendance_records").update({ status }).eq("id", existing.id);
+      if (error) { toast.error(error.message); return; }
       setRecords(prev => prev.map(r => r.id === existing.id ? { ...r, status } : r));
     } else {
-      const { data } = await supabase.from("attendance_records").insert({
+      const { data, error } = await supabase.from("attendance_records").insert({
         session_id: sessionId,
         user_id: userId,
         status,
       }).select().single();
+      if (error) { toast.error(error.message); return; }
       if (data) setRecords(prev => [...prev, data as Record_]);
     }
   };
@@ -114,14 +123,31 @@ function TeacherAttendance() {
     return records.find(r => r.session_id === sessionId && r.user_id === userId)?.status ?? "";
   };
 
-  // Mark all present for a session
+  // Marcar todos presentes en la sesión (sobrescribe ausentes / vacíos)
   const markAllPresent = async (sessionId: string) => {
+    if (!students.length) return;
     for (const s of students) {
-      if (!getStatus(sessionId, s.id)) {
-        await setAttendance(sessionId, s.id, "presente");
+      const existing = records.find(r => r.session_id === sessionId && r.user_id === s.id);
+      if (existing) {
+        await supabase.from("attendance_records").update({ status: "presente" }).eq("id", existing.id);
+      } else {
+        await supabase.from("attendance_records").insert({
+          session_id: sessionId,
+          user_id: s.id,
+          status: "presente",
+        });
       }
     }
-    toast.success("Todos marcados como presentes");
+    toast.success("Todos los estudiantes marcados como presentes");
+    loadCourse();
+  };
+
+  // Quitar todo registro de asistencia de la sesión
+  const clearSessionAttendance = async (sessionId: string) => {
+    if (!confirm("¿Quitar el registro de asistencia de todos los estudiantes en esta sesión?")) return;
+    const { error } = await supabase.from("attendance_records").delete().eq("session_id", sessionId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Asistencia de la sesión reiniciada");
     loadCourse();
   };
 
@@ -187,10 +213,40 @@ function TeacherAttendance() {
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
                 {sessions.map(sess => (
-                  <TableHead key={sess.id} className="text-center min-w-24">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-[10px]">{new Date(sess.session_date + "T00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}</span>
-                      {sess.title && <span className="text-[9px] text-muted-foreground truncate max-w-20">{sess.title}</span>}
+                  <TableHead key={sess.id} className="text-center min-w-[7.5rem] align-bottom p-2">
+                    <div className="flex flex-col items-stretch gap-1.5">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => markAllPresent(sess.id)}
+                          title="Marcar a todos como presentes"
+                        >
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => clearSessionAttendance(sess.id)}
+                          title="Quitar asistencia de todos (reiniciar sesión)"
+                        >
+                          <Eraser className="h-4 w-4 text-muted-foreground" aria-hidden />
+                        </Button>
+                      </div>
+                      <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
+                        <span className="text-[10px] font-medium leading-tight">
+                          {new Date(sess.session_date + "T12:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
+                        </span>
+                        {sess.title && (
+                          <span className="text-[9px] text-muted-foreground truncate max-w-[5.5rem]" title={sess.title ?? undefined}>
+                            {sess.title}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </TableHead>
                 ))}
@@ -219,13 +275,16 @@ function TeacherAttendance() {
                       return (
                         <TableCell key={sess.id} className="text-center p-1">
                           <Select value={status || "none"} onValueChange={(v) => setAttendance(sess.id, s.id, v)}>
-                            <SelectTrigger className="h-7 w-16 mx-auto text-[10px] px-1 [&>svg]:h-3 [&>svg]:w-3">
+                            <SelectTrigger className="h-8 w-[4.25rem] mx-auto text-[10px] px-1.5 [&>svg]:h-3 [&>svg]:w-3">
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">
+                                <span className="text-muted-foreground text-xs">Sin registrar</span>
+                              </SelectItem>
                               {STATUS_OPTIONS.map(opt => (
                                 <SelectItem key={opt.value} value={opt.value}>
-                                  <span className={`text-xs ${opt.color}`}>{opt.label.charAt(0)}</span>
+                                  <span className={`text-xs ${opt.color}`}>{opt.label}</span>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -241,20 +300,6 @@ function TeacherAttendance() {
                   </TableRow>
                 );
               })}
-              {/* Quick actions row */}
-              {sessions.length > 0 && students.length > 0 && (
-                <TableRow>
-                  <TableCell className="sticky left-0 z-10 bg-card text-xs text-muted-foreground">Acciones</TableCell>
-                  {sessions.map(sess => (
-                    <TableCell key={sess.id} className="text-center p-1">
-                      <Button variant="ghost" size="sm" className="h-6 text-[9px] px-1" onClick={() => markAllPresent(sess.id)} title="Marcar todos presentes">
-                        <CheckCircle2 className="h-3 w-3" />
-                      </Button>
-                    </TableCell>
-                  ))}
-                  <TableCell />
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>

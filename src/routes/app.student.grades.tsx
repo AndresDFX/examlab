@@ -31,6 +31,8 @@ type GradeItem = {
   status: string;
   /** Para exámenes: id del intento con entrega final (p. ej. recuperación); abre la vista de retroalimentación */
   reviewExamId?: string | null;
+  /** Taller con entrega: abre detalle / retroalimentación */
+  reviewWorkshopId?: string | null;
 };
 
 function StudentGrades() {
@@ -110,7 +112,15 @@ function StudentGrades() {
         const wsItems: GradeItem[] = (workshops ?? []).map((w: any) => {
           const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === w.id);
           const g = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-          return { id: w.id, title: w.title, kind: "workshop", grade: g, maxScore: w.max_score ?? 100, status: sub?.status ?? "pendiente" };
+          return {
+            id: w.id,
+            title: w.title,
+            kind: "workshop" as const,
+            grade: g,
+            maxScore: w.max_score ?? 100,
+            status: sub?.status ?? "pendiente",
+            reviewWorkshopId: sub ? w.id : null,
+          };
         });
 
         setItems([...examItems, ...wsItems]);
@@ -277,7 +287,14 @@ function StudentGrades() {
                               <Link to="/app/student/review/$examId" params={{ examId: it.reviewExamId }}>
                                 <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" title="Ver respuestas y retroalimentación">
                                   <MessageSquareText className="h-3.5 w-3.5" />
-                                  Retroalimentación
+                                  Detalle
+                                </Button>
+                              </Link>
+                            ) : it.kind === "workshop" && it.reviewWorkshopId ? (
+                              <Link to="/app/student/workshop/$workshopId" params={{ workshopId: it.reviewWorkshopId }}>
+                                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" title="Ver entrega y retroalimentación">
+                                  <MessageSquareText className="h-3.5 w-3.5" />
+                                  Detalle
                                 </Button>
                               </Link>
                             ) : (

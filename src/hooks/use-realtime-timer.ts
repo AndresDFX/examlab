@@ -71,8 +71,10 @@ export function useRealtimeTimer({
     };
   }, [isPaused, onTimeUp]);
 
-  // Load existing timer controls on mount
+  // Load existing timer controls on mount (requiere userId válido; si no, PostgREST arma `eq.` vacío → 400)
   useEffect(() => {
+    if (!examId || !userId) return;
+
     (async () => {
       const { data } = await supabase
         .from("exam_timer_controls")
@@ -101,6 +103,8 @@ export function useRealtimeTimer({
 
   // Subscribe to realtime changes
   useEffect(() => {
+    if (!examId || !userId) return;
+
     const channel = supabase
       .channel(`timer-${examId}-${userId}`)
       .on(

@@ -71,8 +71,15 @@ function StudentExamReview() {
           .eq("user_id", user.id)
           .maybeSingle();
 
+        const { data: subGate } = await supabase
+          .from("submissions")
+          .select("id")
+          .eq("exam_id", examId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
         if (cancelled) return;
-        if (!asg) {
+        if (!asg && !subGate) {
           setError("no_assignment");
           setExam(null);
           setSubmission(null);

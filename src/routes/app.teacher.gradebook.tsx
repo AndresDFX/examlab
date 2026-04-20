@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Download, GitBranch, FileText, Hammer, Save, Loader2, Scale } from "lucide-react";
+import { Download, GitBranch, FileText, Hammer, Save, Loader2, Scale, AlertTriangle } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/app/teacher/gradebook")({ component: Gradebook });
@@ -361,14 +361,19 @@ function Gradebook() {
                               className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
                               placeholder="—"
                             />
-                            <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                            <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
                               {g.isMakeup && (
-                                <Badge variant="outline" className="text-[8px] py-0 h-3">
-                                  <GitBranch className="h-2 w-2 mr-0.5" />S
+                                <Badge variant="outline" className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5">
+                                  <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
                                 </Badge>
                               )}
                               {g.status === "sospechoso" && (
-                                <Badge variant="destructive" className="text-[8px] py-0 h-3">!</Badge>
+                                <span
+                                  title="Intento marcado como sospechoso (alertas de integridad)"
+                                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
+                                >
+                                  <AlertTriangle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                                </span>
                               )}
                             </div>
                           </div>

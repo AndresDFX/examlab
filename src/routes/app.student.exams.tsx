@@ -10,8 +10,23 @@ import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText } from "luc
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
 type ExamRow = {
-  exam: { id: string; title: string; description: string | null; start_time: string; end_time: string; time_limit_minutes: number; course: { name: string; grade_scale_min: number; grade_scale_max: number } };
-  submission?: { id: string; status: string; ai_grade: number | null; final_override_grade: number | null };
+  exam: {
+    id: string;
+    title: string;
+    description: string | null;
+    start_time: string;
+    end_time: string;
+    time_limit_minutes: number;
+    parent_exam_id?: string | null;
+    course: { name: string; grade_scale_min: number; grade_scale_max: number };
+  };
+  submission?: {
+    id: string;
+    exam_id: string;
+    status: string;
+    ai_grade: number | null;
+    final_override_grade: number | null;
+  };
 };
 
 function StudentExams() {
@@ -28,14 +43,48 @@ function StudentExams() {
     if (!user) return;
     (async () => {
       const { data: asg } = await supabase.from("exam_assignments")
-        .select("exam:exams(id, title, description, start_time, end_time, time_limit_minutes, course:courses(name, grade_scale_min, grade_scale_max))")
+        .select("exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, course:courses(name, grade_scale_min, grade_scale_max))")
         .eq("user_id", user.id);
       const exams = (asg ?? []).map((a: any) => a.exam).filter(Boolean);
-      const ids = exams.map((e: any) => e.id);
-      const { data: subs } = ids.length
-        ? await supabase.from("submissions").select("id, exam_id, status, ai_grade, final_override_grade").in("exam_id", ids).eq("user_id", user.id)
-        : { data: [] as any[] };
-      setRows(exams.map((e: any) => ({ exam: e, submission: subs?.find((s: any) => s.exam_id === e.id) })));
+      const assignedIds = exams.map((e: any) => e.id);
+      let makeupRows: { id: string; parent_exam_id: string | null }[] = [];
+      if (assignedIds.length) {
+        const { data: mr } = await supabase
+          .from("exams")
+          .select("id, parent_exam_id")
+          .in("parent_exam_id", assignedIds);
+        makeupRows = mr ?? [];
+      }
+      const submissionExamIds = [...new Set([...assignedIds, ...makeupRows.map((m) => m.id)])];
+      type SubRow = {
+        id: string;
+        exam_id: string;
+        status: string;
+        ai_grade: number | null;
+        final_override_grade: number | null;
+      };
+      const { data: subs } = submissionExamIds.length
+        ? await supabase
+            .from("submissions")
+            .select("id, exam_id, status, ai_grade, final_override_grade")
+            .in("exam_id", submissionExamIds)
+            .eq("user_id", user.id)
+        : { data: [] as SubRow[] };
+
+      const findSubmission = (examId: string): SubRow | undefined => {
+        const list = subs as SubRow[] | undefined;
+        let sub = list?.find((s) => s.exam_id === examId);
+        if (sub) return sub;
+        const makeupIds = makeupRows.filter((m) => m.parent_exam_id === examId).map((m) => m.id);
+        return list?.find((s) => makeupIds.includes(s.exam_id));
+      };
+
+      setRows(
+        exams.map((e: any) => ({
+          exam: e,
+          submission: findSubmission(e.id),
+        })),
+      );
     })();
   }, [user]);
 
@@ -60,6 +109,8 @@ function StudentExams() {
           const isOpen = now >= start && now <= end;
           const completed = submission?.status === "completado" || submission?.status === "sospechoso";
           const grade = submission?.final_override_grade ?? submission?.ai_grade;
+          const reviewExamId =
+            completed && submission?.exam_id ? submission.exam_id : exam.id;
           return (
             <Card key={exam.id}>
               <CardContent className="p-5 space-y-3">
@@ -87,10 +138,10 @@ function StudentExams() {
                   <div>Duración: {exam.time_limit_minutes} min</div>
                 </div>
                 {completed ? (
-                  <Link to="/app/student/review/$examId" params={{ examId: exam.id }}>
+                  <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />
-                      Ver examen y retroalimentación
+                      Ver detalle y retroalimentación
                     </Button>
                   </Link>
                 ) : (
