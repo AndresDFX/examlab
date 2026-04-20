@@ -299,29 +299,40 @@ function TakeExam() {
         console.error("local save failed:", e);
       }
 
-      if (isOnline()) {
-        const { error: updateErr } = await supabase
+      // Siempre intentar persistir en servidor (navigator.onLine puede dar falsos negativos).
+      let serverUpdated = false;
+      const { error: updateErr } = await supabase
+        .from("submissions")
+        .update(updateData)
+        .eq("id", submissionIdRef.current);
+      if (!updateErr) {
+        serverUpdated = true;
+      } else {
+        console.error("submission update failed:", updateErr);
+        const { error: retryErr } = await supabase
           .from("submissions")
           .update(updateData)
           .eq("id", submissionIdRef.current);
-        if (updateErr) {
-          console.error("submission update failed:", updateErr);
-          // Retry once — crucial on suspension so answers aren't lost
-          const { error: retryErr } = await supabase
-            .from("submissions")
-            .update(updateData)
-            .eq("id", submissionIdRef.current);
-          if (retryErr) {
-            console.error("submission update retry failed:", retryErr);
-            toast.error("No se pudieron guardar las respuestas. Se guardaron localmente.");
-          }
+        if (!retryErr) {
+          serverUpdated = true;
+        } else {
+          console.error("submission update retry failed:", retryErr);
         }
+      }
+
+      if (!serverUpdated) {
+        submittedRef.current = false;
+        setSubmitting(false);
+        toast.error(
+          "No se pudo registrar la entrega en el servidor. Tus respuestas están guardadas localmente; revisa la conexión y vuelve a intentar entregar.",
+        );
+        return;
       }
 
       // Notify course teachers via RPC (students cannot INSERT into
       // notifications directly under current RLS; the function runs with
       // SECURITY DEFINER and authorizes by the caller's submission)
-      if (markSuspicious && isOnline() && exam) {
+      if (markSuspicious && exam) {
         try {
           const { data: profile } = await supabase
             .from("profiles")
@@ -360,11 +371,9 @@ function TakeExam() {
         if (document.fullscreenElement) await document.exitFullscreen();
       } catch {}
       try {
-        if (isOnline()) {
-          await supabase.functions.invoke("ai-grade-submission", {
-            body: { submissionId: submissionIdRef.current },
-          });
-        }
+        await supabase.functions.invoke("ai-grade-submission", {
+          body: { submissionId: submissionIdRef.current },
+        });
       } catch (e) {
         console.error(e);
       }

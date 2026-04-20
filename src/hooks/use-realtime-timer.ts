@@ -35,6 +35,8 @@ export function useRealtimeTimer({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const secondsRef = useRef(initialSeconds);
   const initializedRef = useRef(initialSeconds > 0);
+  const prevSecondsRef = useRef<number | null>(null);
+  const timeUpFiredRef = useRef(false);
 
   // Initialize secondsLeft once initialSeconds becomes available (exam loaded after mount)
   useEffect(() => {
@@ -49,6 +51,24 @@ export function useRealtimeTimer({
     secondsRef.current = secondsLeft;
   }, [secondsLeft]);
 
+  /** No disparar onTimeUp dentro del updater de setState (React); usar transición 1→0 */
+  useEffect(() => {
+    if (!initializedRef.current) return;
+
+    const prev = prevSecondsRef.current;
+    prevSecondsRef.current = secondsLeft;
+
+    if (
+      prev !== null &&
+      prev > 0 &&
+      secondsLeft === 0 &&
+      !timeUpFiredRef.current
+    ) {
+      timeUpFiredRef.current = true;
+      queueMicrotask(() => onTimeUp?.());
+    }
+  }, [secondsLeft, onTimeUp]);
+
   // Countdown timer
   useEffect(() => {
     if (isPaused) {
@@ -58,18 +78,16 @@ export function useRealtimeTimer({
 
     intervalRef.current = setInterval(() => {
       setSecondsLeft((s) => {
-        // Guard: don't tick or fire onTimeUp until we've been initialized with real data
+        // Guard: don't tick until we've been initialized with real data
         if (!initializedRef.current || s <= 0) return s;
-        const next = s - 1;
-        if (next === 0) onTimeUp?.();
-        return next;
+        return s - 1;
       });
     }, 1000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, onTimeUp]);
+  }, [isPaused]);
 
   // Load existing timer controls on mount (requiere userId válido; si no, PostgREST arma `eq.` vacío → 400)
   useEffect(() => {

@@ -121,8 +121,28 @@ function ExamMonitor() {
     load();
     loadQuestions();
     const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
-  }, [load, loadQuestions]);
+
+    const channel = supabase
+      .channel(`monitor-submissions-${examId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "submissions",
+          filter: `exam_id=eq.${examId}`,
+        },
+        () => {
+          void load();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [load, loadQuestions, examId]);
 
   const sendTimerControl = async (
     action: "pause" | "resume" | "add_time",
