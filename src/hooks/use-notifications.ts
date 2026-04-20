@@ -37,14 +37,20 @@ export function useNotifications(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
 
-    // Clean up any existing channel first
+    // Tear down any prior channel synchronously before creating a new one.
+    // A lingering same-named (subscribed) channel will cause
+    // `supabase.channel()` to return it and then throw on `.on()`.
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
-    const channel = supabase
-      .channel(`notif-${userId}-${Date.now()}`)
+    // Randomized suffix guarantees the name cannot collide with a channel
+    // whose cleanup is still in flight (StrictMode, fast route changes).
+    const channelName = `notif-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase.channel(channelName);
+
+    channel
       .on(
         "postgres_changes",
         {
@@ -64,7 +70,9 @@ export function useNotifications(userId: string | undefined) {
     channelRef.current = channel;
 
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe().finally(() => {
+        supabase.removeChannel(channel);
+      });
       channelRef.current = null;
     };
   }, [userId]);

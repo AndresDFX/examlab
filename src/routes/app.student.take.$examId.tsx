@@ -128,7 +128,11 @@ function TakeExam() {
     submittedRef.current = true;
     setSubmitting(true);
 
-    const currentAnswers = answersRef.current;
+    // Merge the latest warning events into answers so we never lose them
+    const currentAnswers = {
+      ...answersRef.current,
+      __warning_events: warningEventsRef.current,
+    };
     const currentWarnings = warningsRef.current;
 
     const updateData = {
@@ -138,15 +142,33 @@ function TakeExam() {
       submitted_at: new Date().toISOString(),
     };
 
-    if (isOnline()) {
-      await supabase.from("submissions").update(updateData).eq("id", submissionIdRef.current);
-    } else {
+    // Persist locally first as a safety net — never lose answers
+    try {
       await saveAnswersLocally(examId, {
         submissionId: submissionIdRef.current,
         answers: currentAnswers,
         warnings: currentWarnings,
         timestamp: Date.now(),
       });
+    } catch (e) { console.error("local save failed:", e); }
+
+    if (isOnline()) {
+      const { error: updateErr } = await supabase
+        .from("submissions")
+        .update(updateData)
+        .eq("id", submissionIdRef.current);
+      if (updateErr) {
+        console.error("submission update failed:", updateErr);
+        // Retry once — crucial on suspension so answers aren't lost
+        const { error: retryErr } = await supabase
+          .from("submissions")
+          .update(updateData)
+          .eq("id", submissionIdRef.current);
+        if (retryErr) {
+          console.error("submission update retry failed:", retryErr);
+          toast.error("No se pudieron guardar las respuestas. Se guardaron localmente.");
+        }
+      }
     }
 
     // Notify course teachers if the exam is marked suspicious
@@ -447,12 +469,7 @@ function TakeExam() {
                           type="radio"
                           name={`q-${q.id}`}
                           checked={answers[q.id] === ci}
-                          onChange={() => {
-                            const next = { ...answers, [q.id]: ci };
-                            setAnswers(next);
-                            answersRef.current = next;
-                            saveAnswersNow();
-                          }}
+                          onChange={() => { updateAnswer(q.id, ci); saveAnswersNow(); }}
                           className="mt-1"
                         />
                         <span className="text-sm">{String.fromCharCode(65 + ci)}. {c}</span>
@@ -463,7 +480,7 @@ function TakeExam() {
                   <div onBlur={saveAnswersNow}>
                     <CodeEditor
                       value={answers[q.id] ?? q.starter_code ?? ""}
-                      onChange={(v) => setAnswers({ ...answers, [q.id]: v })}
+                      onChange={(v) => updateAnswer(q.id, v)}
                       language={lang}
                       onRun={() => runCode(q.id, lang)}
                       output={codeOutputs[q.id]}
@@ -477,7 +494,7 @@ function TakeExam() {
                   <div onBlur={saveAnswersNow}>
                     <DiagramEditor
                       value={answers[q.id] ?? ""}
-                      onChange={(code) => setAnswers({ ...answers, [q.id]: code })}
+                      onChange={(code) => updateAnswer(q.id, code)}
                     />
                   </div>
                 ) : (
@@ -485,7 +502,7 @@ function TakeExam() {
                     rows={4}
                     placeholder="Tu respuesta…"
                     value={answers[q.id] ?? ""}
-                    onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                    onChange={e => updateAnswer(q.id, e.target.value)}
                     onBlur={saveAnswersNow}
                   />
                 )}
