@@ -27,6 +27,7 @@ import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.e
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
 import { Route as AppStudentTakeExamIdRouteImport } from './routes/app.student.take.$examId'
+import { Route as AppStudentReviewExamIdRouteImport } from './routes/app.student.review.$examId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -118,6 +119,11 @@ const AppStudentTakeExamIdRoute = AppStudentTakeExamIdRouteImport.update({
   path: '/student/take/$examId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppStudentReviewExamIdRoute = AppStudentReviewExamIdRouteImport.update({
+  id: '/student/review/$examId',
+  path: '/student/review/$examId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/workshops'
+    | '/app/student/review/$examId'
     | '/app/student/take/$examId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/monitor/$examId'
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/workshops'
+    | '/app/student/review/$examId'
     | '/app/student/take/$examId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/monitor/$examId'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/workshops'
+    | '/app/student/review/$examId'
     | '/app/student/take/$examId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/monitor/$examId'
@@ -375,6 +387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentTakeExamIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/student/review/$examId': {
+      id: '/app/student/review/$examId'
+      path: '/student/review/$examId'
+      fullPath: '/app/student/review/$examId'
+      preLoaderRoute: typeof AppStudentReviewExamIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -390,6 +409,7 @@ interface AppRouteChildren {
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
+  AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
   AppStudentTakeExamIdRoute: typeof AppStudentTakeExamIdRoute
   AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
   AppTeacherMonitorExamIdRoute: typeof AppTeacherMonitorExamIdRoute
@@ -408,6 +428,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
+  AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
   AppStudentTakeExamIdRoute: AppStudentTakeExamIdRoute,
   AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
   AppTeacherMonitorExamIdRoute: AppTeacherMonitorExamIdRoute,

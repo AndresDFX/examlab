@@ -320,30 +320,36 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          exam_id: string | null
           id: string
           kind: string
           link: string | null
           read: boolean
+          related_user_id: string | null
           title: string
           user_id: string
         }
         Insert: {
           body: string
           created_at?: string
+          exam_id?: string | null
           id?: string
           kind?: string
           link?: string | null
           read?: boolean
+          related_user_id?: string | null
           title: string
           user_id: string
         }
         Update: {
           body?: string
           created_at?: string
+          exam_id?: string | null
           id?: string
           kind?: string
           link?: string | null
           read?: boolean
+          related_user_id?: string | null
           title?: string
           user_id?: string
         }

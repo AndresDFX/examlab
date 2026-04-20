@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Play, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
@@ -86,7 +86,14 @@ function StudentExams() {
                   <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" />Disponible: {new Date(exam.start_time).toLocaleString()} → {new Date(exam.end_time).toLocaleString()}</div>
                   <div>Duración: {exam.time_limit_minutes} min</div>
                 </div>
-                {!completed && (
+                {completed ? (
+                  <Link to="/app/student/review/$examId" params={{ examId: exam.id }}>
+                    <Button variant="secondary" size="sm" className="w-full">
+                      <MessageSquareText className="h-4 w-4 mr-1" />
+                      Ver examen y retroalimentación
+                    </Button>
+                  </Link>
+                ) : (
                   <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
                     <Button size="sm" disabled={!isOpen} className="w-full">
                       <Play className="h-4 w-4 mr-1" />{submission?.status === "en_progreso" ? "Reanudar examen" : "Iniciar examen"}

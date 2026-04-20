@@ -1,12 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardList, FileText, Hammer, TrendingUp, CheckCircle2, XCircle, Scale } from "lucide-react";
+import { ClipboardList, FileText, Hammer, TrendingUp, CheckCircle2, XCircle, Scale, MessageSquareText } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/grades")({ component: StudentGrades });
 
@@ -28,6 +29,8 @@ type GradeItem = {
   grade: number | null;
   maxScore: number; // for workshops, the configured max; for exams we assume 100
   status: string;
+  /** Para exámenes: id del intento con entrega final (p. ej. recuperación); abre la vista de retroalimentación */
+  reviewExamId?: string | null;
 };
 
 function StudentGrades() {
@@ -73,7 +76,7 @@ function StudentGrades() {
         const [{ data: examSubs }, { data: wsSubs }] = await Promise.all([
           examIds.length
             ? supabase.from("submissions").select("exam_id, ai_grade, final_override_grade, status").in("exam_id", examIds).eq("user_id", user.id)
-            : Promise.resolve({ data: [] as any[] }),
+            : Promise.resolve({ data: [] as { exam_id: string; ai_grade: number | null; final_override_grade: number | null; status: string }[] }),
           wsIds.length
             ? supabase.from("workshop_submissions").select("workshop_id, ai_grade, final_grade, status").in("workshop_id", wsIds).eq("user_id", user.id)
             : Promise.resolve({ data: [] as any[] }),
@@ -91,7 +94,17 @@ function StudentGrades() {
             sub = (examSubs ?? []).find((s: any) => makeupIds.includes(s.exam_id));
           }
           const g = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
-          return { id: e.id, title: e.title, kind: "exam", grade: g, maxScore: 100, status: sub?.status ?? "sin_entrega" };
+          const reviewable =
+            !!sub && (sub.status === "completado" || sub.status === "sospechoso");
+          return {
+            id: e.id,
+            title: e.title,
+            kind: "exam" as const,
+            grade: g,
+            maxScore: 100,
+            status: sub?.status ?? "sin_entrega",
+            reviewExamId: sub && reviewable ? sub.exam_id : null,
+          };
         });
 
         const wsItems: GradeItem[] = (workshops ?? []).map((w: any) => {
@@ -234,6 +247,7 @@ function StudentGrades() {
                       <TableHead className="text-right">Nota</TableHead>
                       <TableHead className="text-right">Equiv. ({course.grade_scale_min}–{course.grade_scale_max})</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead className="text-right w-[1%]">Detalle</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -257,6 +271,18 @@ function StudentGrades() {
                           <TableCell className="text-right tabular-nums font-medium">{fmt(equiv)}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="text-[10px] capitalize">{it.status.replace(/_/g, " ")}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {it.kind === "exam" && it.reviewExamId ? (
+                              <Link to="/app/student/review/$examId" params={{ examId: it.reviewExamId }}>
+                                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" title="Ver respuestas y retroalimentación">
+                                  <MessageSquareText className="h-3.5 w-3.5" />
+                                  Retroalimentación
+                                </Button>
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
