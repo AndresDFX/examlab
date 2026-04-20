@@ -45,6 +45,14 @@ function TakeExam() {
   useEffect(() => { warningsRef.current = warnings; }, [warnings]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
+  // Update state AND ref synchronously so blur/suspend handlers never read
+  // stale answers between a keystroke and the next render commit.
+  const updateAnswer = useCallback((questionId: string, value: any) => {
+    const next = { ...answersRef.current, [questionId]: value };
+    answersRef.current = next;
+    setAnswers(next);
+  }, []);
+
   // Offline sync setup
   useEffect(() => {
     const handleOnline = () => setOffline(false);
@@ -171,30 +179,14 @@ function TakeExam() {
       }
     }
 
-    // Notify course teachers if the exam is marked suspicious
+    // Notify course teachers via RPC (students cannot INSERT into
+    // notifications directly under current RLS; the function runs with
+    // SECURITY DEFINER and authorizes by the caller's submission)
     if (markSuspicious && isOnline() && exam) {
       try {
         const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
         const studentName = profile?.full_name ?? "Un estudiante";
-        // Get teachers (created_by of the exam + users with Docente role)
-        const { data: examData } = await supabase.from("exams").select("created_by").eq("id", examId).single();
-        const teacherIds = new Set<string>();
-        if (examData?.created_by) teacherIds.add(examData.created_by);
-        // Also get all users with Docente role who have access (course creator, etc.)
-        const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "Docente");
-        if (roles) {
-          // Get teachers enrolled/associated with this course
-          const { data: courseTeachers } = await supabase
-            .from("course_enrollments")
-            .select("user_id")
-            .eq("course_id", exam.course_id);
-          const enrolledIds = new Set((courseTeachers ?? []).map((r: any) => r.user_id));
-          for (const r of roles) {
-            // Include teachers who created the exam or are enrolled in the course
-            if (enrolledIds.has(r.user_id)) teacherIds.add(r.user_id);
-          }
-        }
-        // Build detailed event log for the notification body
+
         const events = warningEventsRef.current.slice(-MAX_WARNINGS);
         const eventLines = events.map((ev, i) => {
           const when = new Date(ev.at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -203,17 +195,13 @@ function TakeExam() {
         }).join("\n");
         const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${MAX_WARNINGS} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
 
-        // Send notification to each teacher
-        const notifications = [...teacherIds].map(tid => ({
-          user_id: tid,
-          title: "Examen sospechoso",
-          body,
-          kind: "exam",
-          link: `/app/teacher/monitor/${examId}`,
-        }));
-        if (notifications.length) {
-          await supabase.from("notifications").insert(notifications);
-        }
+        const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
+          _exam_id: examId,
+          _title: "Examen sospechoso",
+          _body: body,
+          _link: `/app/teacher/monitor/${examId}`,
+        });
+        if (rpcErr) console.error("notify_exam_teachers RPC failed:", rpcErr);
       } catch (e) { console.error("Error notifying teachers:", e); }
     }
 
