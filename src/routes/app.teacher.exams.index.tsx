@@ -15,6 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy } from "lucide-react";
+import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { toCSV } from "@/lib/csv";
+
+const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
+Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
+Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30,30,secuencial,true`;
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
