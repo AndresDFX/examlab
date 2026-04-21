@@ -15,6 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy } from "lucide-react";
+import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { toCSV } from "@/lib/csv";
+
+const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
+Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
+Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30,30,secuencial,true`;
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
@@ -111,7 +117,50 @@ function TeacherExams() {
           <h1 className="text-2xl font-semibold tracking-tight">Exámenes</h1>
           <p className="text-sm text-muted-foreground">{exams.length} exámenes</p>
         </div>
-        <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo examen</Button>
+        <div className="flex flex-wrap gap-2">
+          <ImportExportMenu
+            label="Exámenes"
+            resourceName="examenes"
+            templateCsv={EXAMS_TEMPLATE}
+            onExport={() => {
+              if (!exams.length) return "";
+              return toCSV(exams.map(e => ({
+                course_name: e.course?.name ?? "",
+                title: e.title,
+                description: e.description ?? "",
+                start_time: e.start_time,
+                end_time: e.end_time,
+                time_limit_minutes: e.time_limit_minutes,
+                navigation_type: e.navigation_type,
+                shuffle_enabled: e.shuffle_enabled ? "true" : "false",
+              })));
+            }}
+            onImport={async (rows) => {
+              if (!user) throw new Error("Sesión no válida");
+              const courseByName = new Map(courses.map(c => [c.name.toLowerCase().trim(), c.id]));
+              let created = 0, skipped = 0;
+              for (const r of rows) {
+                const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
+                if (!cid || !r.title || !r.start_time || !r.end_time) { skipped++; continue; }
+                const { error } = await supabase.from("exams").insert({
+                  course_id: cid,
+                  title: r.title,
+                  description: r.description || null,
+                  start_time: new Date(r.start_time).toISOString(),
+                  end_time: new Date(r.end_time).toISOString(),
+                  time_limit_minutes: Number(r.time_limit_minutes) || 60,
+                  navigation_type: r.navigation_type || "libre",
+                  shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
+                  created_by: user.id,
+                });
+                if (error) skipped++; else created++;
+              }
+              await load();
+              return `${created} exámenes creados · ${skipped} omitidos`;
+            }}
+          />
+          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo examen</Button>
+        </div>
       </div>
 
       <Card>

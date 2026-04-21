@@ -11,9 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Download, CheckCircle2, X, Eraser } from "lucide-react";
-import { downloadCSV, toCSV } from "@/lib/csv";
+import { Plus, CheckCircle2, X, Eraser } from "lucide-react";
+import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { ImportExportMenu } from "@/components/ImportExportMenu";
+
+const SESSIONS_TEMPLATE = `session_date,title
+2025-08-01,Clase introductoria
+2025-08-03,Laboratorio 1
+2025-08-08,`;
+
+const ATTENDANCE_TEMPLATE = `email,session_date,status,note
+estudiante1@uni.edu,2025-08-01,presente,
+estudiante2@uni.edu,2025-08-01,ausente,Justificó por correo
+estudiante1@uni.edu,2025-08-03,presente,`;
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
 
@@ -159,27 +170,72 @@ function TeacherAttendance() {
     loadCourse();
   };
 
-  // Export CSV
-  const exportAttendance = () => {
-    if (!sessions.length || !students.length) { toast.info("No hay datos para exportar"); return; }
+  // Build CSV de exportación de asistencia (matriz)
+  const buildAttendanceCsv = (): string => {
+    if (!sessions.length || !students.length) return "";
     const csvRows = students.map(s => {
       const row: any = { nombre: s.full_name, email: s.institutional_email };
       sessions.forEach(sess => {
         const label = sess.title ? `${sess.session_date} - ${sess.title}` : sess.session_date;
         row[label] = getStatus(sess.id, s.id) || "—";
       });
-      // Summary
       const total = sessions.length;
-      const present = sessions.filter(sess => {
-        const st = getStatus(sess.id, s.id);
-        return st === "presente";
-      }).length;
+      const present = sessions.filter(sess => getStatus(sess.id, s.id) === "presente").length;
       row["% Asistencia"] = total > 0 ? `${Math.round((present / total) * 100)}%` : "—";
       return row;
     });
-    const courseName = courses.find(c => c.id === courseId)?.name ?? "curso";
-    downloadCSV(`asistencia-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`, toCSV(csvRows));
-    toast.success("Archivo exportado correctamente");
+    return toCSV(csvRows);
+  };
+
+  // Build CSV de exportación de sesiones/clases
+  const buildSessionsCsv = (): string => {
+    if (!sessions.length) return "";
+    return toCSV(sessions.map(s => ({ session_date: s.session_date, title: s.title ?? "" })));
+  };
+
+  // Importar sesiones desde CSV
+  const importSessions = async (rows: Record<string, string>[]) => {
+    if (!courseId || !user) throw new Error("Selecciona un curso");
+    const valid = rows.filter(r => r.session_date && /^\d{4}-\d{2}-\d{2}$/.test(r.session_date));
+    if (!valid.length) throw new Error("No hay filas con session_date válido (YYYY-MM-DD)");
+    const payload = valid.map(r => ({
+      course_id: courseId,
+      session_date: r.session_date,
+      title: r.title || null,
+      created_by: user.id,
+    }));
+    const { error } = await supabase.from("attendance_sessions").insert(payload);
+    if (error) throw new Error(error.message);
+    await loadCourse();
+    return `${payload.length} clase(s) importada(s) correctamente`;
+  };
+
+  // Importar registros de asistencia desde CSV
+  const importAttendance = async (rows: Record<string, string>[]) => {
+    if (!courseId) throw new Error("Selecciona un curso");
+    const sessionByDate = new Map(sessions.map(s => [s.session_date, s.id]));
+    const studentByEmail = new Map(students.map(s => [s.institutional_email.toLowerCase(), s.id]));
+
+    let inserted = 0, updated = 0, skipped = 0;
+    for (const r of rows) {
+      const email = (r.email || "").toLowerCase().trim();
+      const date = (r.session_date || "").trim();
+      const status = (r.status || "").toLowerCase().trim();
+      const note = r.note || null;
+      const sid = sessionByDate.get(date);
+      const uid = studentByEmail.get(email);
+      if (!sid || !uid || !["presente", "ausente"].includes(status)) { skipped++; continue; }
+      const existing = records.find(rec => rec.session_id === sid && rec.user_id === uid);
+      if (existing) {
+        const { error } = await supabase.from("attendance_records").update({ status, note }).eq("id", existing.id);
+        if (!error) updated++; else skipped++;
+      } else {
+        const { error } = await supabase.from("attendance_records").insert({ session_id: sid, user_id: uid, status, note });
+        if (!error) inserted++; else skipped++;
+      }
+    }
+    await loadCourse();
+    return `${inserted} insertados · ${updated} actualizados · ${skipped} omitidos`;
   };
 
   // Delete session
@@ -210,9 +266,22 @@ function TeacherAttendance() {
             <SelectTrigger className="w-56"><SelectValue placeholder="Curso" /></SelectTrigger>
             <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.period ? ` (${c.period})` : ""}</SelectItem>)}</SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={exportAttendance}>
-            <Download className="h-4 w-4 mr-1" />CSV
-          </Button>
+          <ImportExportMenu
+            label="Clases"
+            resourceName="clases"
+            templateCsv={SESSIONS_TEMPLATE}
+            onImport={importSessions}
+            onExport={buildSessionsCsv}
+            disabled={!courseId}
+          />
+          <ImportExportMenu
+            label="Asistencia"
+            resourceName="asistencia"
+            templateCsv={ATTENDANCE_TEMPLATE}
+            onImport={importAttendance}
+            onExport={buildAttendanceCsv}
+            disabled={!courseId}
+          />
           <Button size="sm" onClick={() => setNewSessionOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />Nueva sesión
           </Button>

@@ -19,6 +19,12 @@ import {
   Sparkles, Loader2, ThumbsUp, ThumbsDown, HelpCircle,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { toCSV } from "@/lib/csv";
+
+const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,max_score,status
+Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,100,published
+Programación I,Taller de árboles,,Resuelve los ejercicios 1-5,,2025-09-30T23:59,100,draft`;
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
 
@@ -402,7 +408,50 @@ function TeacherWorkshops() {
           <h1 className="text-2xl font-semibold tracking-tight">Talleres</h1>
           <p className="text-sm text-muted-foreground">{workshops.length} talleres creados</p>
         </div>
-        <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo taller</Button>
+        <div className="flex flex-wrap gap-2">
+          <ImportExportMenu
+            label="Talleres"
+            resourceName="talleres"
+            templateCsv={WORKSHOPS_TEMPLATE}
+            onExport={() => {
+              if (!workshops.length) return "";
+              return toCSV(workshops.map(w => ({
+                course_name: w.course?.name ?? "",
+                title: w.title,
+                description: w.description ?? "",
+                instructions: w.instructions ?? "",
+                external_link: w.external_link ?? "",
+                due_date: w.due_date ?? "",
+                max_score: w.max_score,
+                status: w.status,
+              })));
+            }}
+            onImport={async (rows) => {
+              if (!user) throw new Error("Sesión no válida");
+              const courseByName = new Map(courses.map(c => [c.name.toLowerCase().trim(), c.id]));
+              let created = 0, skipped = 0;
+              for (const r of rows) {
+                const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
+                if (!cid || !r.title) { skipped++; continue; }
+                const { error } = await supabase.from("workshops").insert({
+                  course_id: cid,
+                  title: r.title,
+                  description: r.description || null,
+                  instructions: r.instructions || null,
+                  external_link: r.external_link || null,
+                  due_date: r.due_date ? new Date(r.due_date).toISOString() : null,
+                  max_score: Number(r.max_score) || 100,
+                  status: r.status || "draft",
+                  created_by: user.id,
+                });
+                if (error) skipped++; else created++;
+              }
+              await load();
+              return `${created} talleres creados · ${skipped} omitidos`;
+            }}
+          />
+          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo taller</Button>
+        </div>
       </div>
 
       <Card>
