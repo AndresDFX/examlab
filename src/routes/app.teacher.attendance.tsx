@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Plus, Download, CheckCircle2, X, Eraser } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
 
@@ -28,6 +29,7 @@ const STATUS_OPTIONS = [
 
 function TeacherAttendance() {
   const { user, roles } = useAuth();
+  const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -144,7 +146,13 @@ function TeacherAttendance() {
 
   // Quitar todo registro de asistencia de la sesión
   const clearSessionAttendance = async (sessionId: string) => {
-    if (!confirm("¿Quitar el registro de asistencia de todos los estudiantes en esta sesión?")) return;
+    const ok = await confirm({
+      title: "Reiniciar asistencia",
+      description: "Se eliminarán los registros de asistencia de todos los estudiantes en esta sesión.",
+      confirmLabel: "Reiniciar",
+      tone: "warning",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("attendance_records").delete().eq("session_id", sessionId);
     if (error) { toast.error(error.message); return; }
     toast.success("Asistencia de la sesión reiniciada");
@@ -176,7 +184,13 @@ function TeacherAttendance() {
 
   // Delete session
   const deleteSession = async (id: string) => {
-    if (!confirm("¿Eliminar esta sesión y todos sus registros?")) return;
+    const ok = await confirm({
+      title: "Eliminar sesión",
+      description: "Se eliminará la sesión y todos sus registros de asistencia.",
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
     await supabase.from("attendance_sessions").delete().eq("id", id);
     toast.success("Sesión eliminada correctamente");
     loadCourse();
