@@ -45,6 +45,7 @@ function AdminUsers() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const confirm = useConfirm();
 
   const isAdmin = roles.includes("Admin");
 

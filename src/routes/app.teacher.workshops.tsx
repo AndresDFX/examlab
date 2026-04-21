@@ -41,6 +41,7 @@ type WsSub = {
 
 function TeacherWorkshops() {
   const { user, roles } = useAuth();
+  const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [open, setOpen] = useState(false);
