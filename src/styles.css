@@ -61,7 +61,7 @@
 
   --primary: oklch(0.55 0.22 265);
   --primary-foreground: oklch(0.99 0 0);
-  --primary-glow: oklch(0.65 0.20 265);
+  --primary-glow: oklch(0.65 0.2 265);
 
   --secondary: oklch(0.96 0.01 260);
   --secondary-foreground: oklch(0.25 0.04 260);
@@ -70,7 +70,7 @@
   --muted-foreground: oklch(0.48 0.03 260);
 
   --accent: oklch(0.94 0.04 265);
-  --accent-foreground: oklch(0.30 0.10 265);
+  --accent-foreground: oklch(0.3 0.1 265);
 
   --destructive: oklch(0.58 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
@@ -79,7 +79,7 @@
   --success-foreground: oklch(0.99 0 0);
 
   --warning: oklch(0.75 0.15 75);
-  --warning-foreground: oklch(0.20 0.04 260);
+  --warning-foreground: oklch(0.2 0.04 260);
 
   --border: oklch(0.92 0.008 260);
   --input: oklch(0.92 0.008 260);
@@ -87,12 +87,12 @@
 
   --sidebar: oklch(0.18 0.05 265);
   --sidebar-foreground: oklch(0.92 0.02 260);
-  --sidebar-primary: oklch(0.65 0.20 265);
+  --sidebar-primary: oklch(0.65 0.2 265);
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.26 0.06 265);
   --sidebar-accent-foreground: oklch(0.99 0 0);
   --sidebar-border: oklch(0.26 0.06 265);
-  --sidebar-ring: oklch(0.65 0.20 265);
+  --sidebar-ring: oklch(0.65 0.2 265);
 }
 
 .dark {
@@ -102,7 +102,7 @@
   --card-foreground: oklch(0.96 0.01 260);
   --popover: oklch(0.18 0.03 260);
   --popover-foreground: oklch(0.96 0.01 260);
-  --primary: oklch(0.65 0.20 265);
+  --primary: oklch(0.65 0.2 265);
   --primary-foreground: oklch(0.14 0.03 260);
   --secondary: oklch(0.24 0.03 260);
   --secondary-foreground: oklch(0.96 0.01 260);
@@ -115,30 +115,109 @@
   --success: oklch(0.62 0.16 155);
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.75 0.15 75);
-  --warning-foreground: oklch(0.20 0.04 260);
+  --warning-foreground: oklch(0.2 0.04 260);
   --border: oklch(0.28 0.03 260 / 50%);
   --input: oklch(0.28 0.03 260 / 50%);
-  --ring: oklch(0.65 0.20 265);
+  --ring: oklch(0.65 0.2 265);
   --sidebar: oklch(0.12 0.04 265);
   --sidebar-foreground: oklch(0.92 0.02 260);
-  --sidebar-primary: oklch(0.65 0.20 265);
+  --sidebar-primary: oklch(0.65 0.2 265);
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.22 0.05 265);
   --sidebar-accent-foreground: oklch(0.99 0 0);
   --sidebar-border: oklch(0.22 0.05 265);
-  --sidebar-ring: oklch(0.65 0.20 265);
+  --sidebar-ring: oklch(0.65 0.2 265);
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
+
+  /* Mobile-first: prevent accidental horizontal overflow at the document
+     root, respect iOS safe areas, and keep tap highlights subtle. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: hidden;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
   }
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     letter-spacing: -0.025em;
   }
+
+  /* iOS auto-zooms <input>/<select>/<textarea> when the font-size is <16px.
+     Our UI primitives use text-base (16px) on mobile and downscale to text-sm
+     on md+; cover native-only pickers and legacy selects explicitly. */
+  @media (max-width: 767px) {
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"],
+    input[type="month"],
+    input[type="week"],
+    input[type="number"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="password"],
+    input[type="text"],
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  /* Touch devices: guarantee 44×44 minimum hit area on interactive elements.
+     Desktop (fine pointer) keeps the compact sizing. */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    a[role="button"],
+    a.btn,
+    input[type="checkbox"],
+    input[type="radio"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    /* Checkboxes/radios are small by design — we expand the wrapper instead.
+       Revert to intrinsic size for the actual input but keep a generous
+       clickable wrapper via Label padding in our primitives. */
+    input[type="checkbox"],
+    input[type="radio"] {
+      min-height: 20px;
+      min-width: 20px;
+    }
+  }
+}
+
+/* Utility: apply min 44px hit area on any element (opt-in). */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Utility: visual hint that a table/overflow region scrolls horizontally
+   on small screens. Pairs with a wrapper that has `overflow-x-auto`. */
+.scroll-hint-x {
+  background:
+    linear-gradient(to right, var(--color-background), transparent 2rem) left center / 2rem 100%
+      no-repeat,
+    linear-gradient(to left, var(--color-background), transparent 2rem) right center / 2rem 100%
+      no-repeat;
+  background-attachment: local, local;
 }
