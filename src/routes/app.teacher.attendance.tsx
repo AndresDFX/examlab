@@ -11,9 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Download, CheckCircle2, X, Eraser } from "lucide-react";
-import { downloadCSV, toCSV } from "@/lib/csv";
+import { Plus, CheckCircle2, X, Eraser } from "lucide-react";
+import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { ImportExportMenu } from "@/components/ImportExportMenu";
+
+const SESSIONS_TEMPLATE = `session_date,title
+2025-08-01,Clase introductoria
+2025-08-03,Laboratorio 1
+2025-08-08,`;
+
+const ATTENDANCE_TEMPLATE = `email,session_date,status,note
+estudiante1@uni.edu,2025-08-01,presente,
+estudiante2@uni.edu,2025-08-01,ausente,Justificó por correo
+estudiante1@uni.edu,2025-08-03,presente,`;
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
 
