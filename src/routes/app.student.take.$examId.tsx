@@ -20,6 +20,7 @@ import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff } from "
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
+import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
@@ -89,6 +90,7 @@ function mergeStarterCodeAnswers(
 }
 
 function TakeExam() {
+  const { t } = useTranslation();
   const { examId } = Route.useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -575,7 +577,7 @@ function TakeExam() {
     }
   };
 
-  if (!exam) return <p className="text-muted-foreground p-6">Cargando…</p>;
+  if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
 
   if (!started) {
     return (
@@ -604,7 +606,7 @@ function TakeExam() {
             </div>
             <Button size="lg" className="w-full" onClick={startExam}>
               <Maximize2 className="h-4 w-4 mr-2" />
-              Aceptar y comenzar
+              {t("exam.start")}
             </Button>
           </CardContent>
         </Card>
@@ -622,8 +624,8 @@ function TakeExam() {
         <div className="min-w-0">
           <div className="font-semibold truncate">{exam.title}</div>
           <div className="text-xs text-muted-foreground">
-            Pregunta {exam.navigation_type === "secuencial" ? currentIdx + 1 : "—"} de{" "}
-            {questions.length}
+            {t("exam.question")} {exam.navigation_type === "secuencial" ? currentIdx + 1 : "—"}{" "}
+            {t("exam.of")} {questions.length}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -745,10 +747,10 @@ function TakeExam() {
               disabled={currentIdx === 0}
               onClick={() => setCurrentIdx((i) => i - 1)}
             >
-              Anterior
+              {t("exam.previous")}
             </Button>
             {currentIdx < questions.length - 1 ? (
-              <Button onClick={() => setCurrentIdx((i) => i + 1)}>Siguiente</Button>
+              <Button onClick={() => setCurrentIdx((i) => i + 1)}>{t("exam.next")}</Button>
             ) : (
               <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
                 {submitting ? (
@@ -756,7 +758,7 @@ function TakeExam() {
                 ) : (
                   <Send className="h-4 w-4 mr-1" />
                 )}
-                Entregar
+                {t("exam.finish")}
               </Button>
             )}
           </>
@@ -771,7 +773,7 @@ function TakeExam() {
             ) : (
               <Send className="h-4 w-4 mr-1" />
             )}
-            Entregar examen
+            {t("exam.submit")}
           </Button>
         )}
       </div>

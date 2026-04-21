@@ -109,7 +109,7 @@ function GradingConfigPage() {
           cutList.map((c: Cut) => c.id),
         );
       const grouped: Record<string, CutItem[]> = {};
-      for (const it of ((items ?? []) as unknown as CutItem[])) {
+      for (const it of (items ?? []) as unknown as CutItem[]) {
         (grouped[it.cut_id] ??= []).push(it);
       }
       setItemsByCut(grouped);

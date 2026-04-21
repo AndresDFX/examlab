@@ -501,17 +501,15 @@ function AdminCourses() {
     // Delete existing and re-insert
     await supabase.from("course_grading_weights").delete().eq("course_id", weightsCourse.id);
     if (weights.filter((w) => w.weight > 0).length) {
-      const { error } = await supabase
-        .from("course_grading_weights")
-        .insert(
-          weights
-            .filter((w) => w.weight > 0)
-            .map((w) => ({
-              course_id: weightsCourse.id,
-              component: w.component,
-              weight: w.weight,
-            })),
-        );
+      const { error } = await supabase.from("course_grading_weights").insert(
+        weights
+          .filter((w) => w.weight > 0)
+          .map((w) => ({
+            course_id: weightsCourse.id,
+            component: w.component,
+            weight: w.weight,
+          })),
+      );
       if (error) {
         toast.error(error.message);
         return;

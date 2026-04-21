@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,6 +62,7 @@ type Exam = {
 function TeacherExams() {
   const { user, roles } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [open, setOpen] = useState(false);
@@ -114,7 +116,7 @@ function TeacherExams() {
 
   const save = async () => {
     if (!form.title || selectedCourseIds.size === 0 || !user) {
-      toast.error("Completa los campos y selecciona al menos un curso");
+      toast.error(t("exam.completeFields"));
       return;
     }
     const courseIds = [...selectedCourseIds];
@@ -147,25 +149,27 @@ function TeacherExams() {
 
     toast.success(
       courseIds.length > 1
-        ? `Examen creado en ${courseIds.length} cursos correctamente`
-        : "Examen creado correctamente",
+        ? t("exam.createdIn", { count: courseIds.length })
+        : t("exam.createdOne"),
     );
     setOpen(false);
     if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };
 
-  if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+  if (!isTeacher) return <p className="text-muted-foreground">{t("exam.needsTeacherRole")}</p>;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Exámenes</h1>
-          <p className="text-sm text-muted-foreground">{exams.length} exámenes</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t("exam.subtitle", { count: exams.length })}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ImportExportMenu
-            label="Exámenes"
+            label={t("exam.title")}
             resourceName="examenes"
             templateCsv={EXAMS_TEMPLATE}
             onExport={() => {
@@ -209,12 +213,12 @@ function TeacherExams() {
                 else created++;
               }
               await load();
-              return `${created} exámenes creados · ${skipped} omitidos`;
+              return t("import.imported", { created, skipped });
             }}
           />
           <Button size="sm" onClick={openNew}>
             <Plus className="h-4 w-4 mr-1" />
-            Nuevo examen
+            {t("exam.newExam")}
           </Button>
         </div>
       </div>
@@ -224,12 +228,12 @@ function TeacherExams() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Título</TableHead>
-                <TableHead>Curso</TableHead>
-                <TableHead>Inicio</TableHead>
-                <TableHead>Duración</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>{t("exam.columns.title")}</TableHead>
+                <TableHead>{t("exam.columns.course")}</TableHead>
+                <TableHead>{t("exam.columns.start")}</TableHead>
+                <TableHead>{t("exam.columns.duration")}</TableHead>
+                <TableHead>{t("exam.columns.type")}</TableHead>
+                <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -240,7 +244,7 @@ function TeacherExams() {
                     {e.parent_exam_id && (
                       <Badge variant="outline" className="ml-2 text-[10px]">
                         <GitBranch className="h-3 w-3 mr-1" />
-                        Supletorio
+                        {t("exam.supletorio")}
                       </Badge>
                     )}
                   </TableCell>
@@ -255,7 +259,9 @@ function TeacherExams() {
                   <TableCell className="text-sm">
                     {new Date(e.start_time).toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-sm">{e.time_limit_minutes} min</TableCell>
+                  <TableCell className="text-sm">
+                    {e.time_limit_minutes} {t("common.min")}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-[10px]">
                       {e.navigation_type}
@@ -264,12 +270,12 @@ function TeacherExams() {
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
                       <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }}>
-                        <Button variant="ghost" size="sm" title="Monitor en vivo">
+                        <Button variant="ghost" size="sm" title={t("exam.liveMonitor")}>
                           <Monitor className="h-4 w-4" />
                         </Button>
                       </Link>
                       <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }}>
-                        <Button variant="ghost" size="sm" title="Editar">
+                        <Button variant="ghost" size="sm" title={t("common.edit")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </Link>
@@ -285,18 +291,18 @@ function TeacherExams() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuevo examen</DialogTitle>
+            <DialogTitle>{t("exam.newExam")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Título</Label>
+              <Label>{t("common.title")}</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
             <div>
-              <Label>Descripción</Label>
+              <Label>{t("common.description")}</Label>
               <Textarea
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -304,9 +310,9 @@ function TeacherExams() {
             </div>
             <div>
               <Label>
-                Cursos{" "}
+                {t("nav.courses")}{" "}
                 <span className="text-xs text-muted-foreground font-normal">
-                  (selecciona uno o más)
+                  {t("exam.selectCourses")}
                 </span>
               </Label>
               <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
@@ -329,14 +335,12 @@ function TeacherExams() {
                 ))}
               </div>
               {selectedCourseIds.size > 1 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Se creará una copia del examen en cada curso seleccionado.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{t("exam.coursesHelp")}</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Inicio</Label>
+                <Label>{t("common.start")}</Label>
                 <Input
                   type="datetime-local"
                   value={form.start_time as any}
@@ -363,7 +367,7 @@ function TeacherExams() {
                 />
               </div>
               <div>
-                <Label>Fin</Label>
+                <Label>{t("common.end")}</Label>
                 <Input
                   type="datetime-local"
                   value={form.end_time as any}
@@ -385,7 +389,9 @@ function TeacherExams() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Duración (min)</Label>
+                <Label>
+                  {t("common.duration")} ({t("common.min")})
+                </Label>
                 <Input
                   type="number"
                   value={form.time_limit_minutes || ""}
@@ -400,7 +406,7 @@ function TeacherExams() {
                 />
               </div>
               <div>
-                <Label>Navegación</Label>
+                <Label>{t("exam.navigation")}</Label>
                 <Select
                   value={form.navigation_type}
                   onValueChange={(v) => setForm({ ...form, navigation_type: v })}
@@ -409,30 +415,30 @@ function TeacherExams() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="libre">Libre</SelectItem>
-                    <SelectItem value="secuencial">Secuencial</SelectItem>
+                    <SelectItem value="libre">{t("exam.navigationFree")}</SelectItem>
+                    <SelectItem value="secuencial">{t("exam.navigationSequential")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <Label>Mezclar preguntas</Label>
+              <Label>{t("exam.shuffle")}</Label>
               <Switch
                 checked={!!form.shuffle_enabled}
                 onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
               />
             </div>
             <div>
-              <Label>Es supletorio de (opcional)</Label>
+              <Label>{t("exam.parentExam")}</Label>
               <Select
                 value={form.parent_exam_id ?? "none"}
                 onValueChange={(v) => setForm({ ...form, parent_exam_id: v === "none" ? null : v })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Examen original" />
+                  <SelectValue placeholder={t("exam.originalExam")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Ninguno</SelectItem>
+                  <SelectItem value="none">{t("common.none")}</SelectItem>
                   {exams
                     .filter((e) => !e.parent_exam_id && e.course_id === form.course_id)
                     .map((e) => (
@@ -446,9 +452,9 @@ function TeacherExams() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
-            <Button onClick={save}>Crear</Button>
+            <Button onClick={save}>{t("common.create")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

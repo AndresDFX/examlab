@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +32,7 @@ type ExamRow = {
 
 function StudentExams() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [rows, setRows] = useState<ExamRow[]>([]);
   const [now, setNow] = useState(Date.now());
 
@@ -100,15 +102,15 @@ function StudentExams() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Exámenes</h1>
-        <p className="text-sm text-muted-foreground">{visibleRows.length} exámenes disponibles</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
+        <p className="text-sm text-muted-foreground">
+          {t("exam.availableSubtitle", { count: visibleRows.length })}
+        </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            No tienes exámenes disponibles en este momento.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("exam.noExamsAvailable")}</p>
         )}
         {visibleRows.map(({ exam, submission }) => {
           const start = new Date(exam.start_time).getTime();
@@ -137,20 +139,20 @@ function StudentExams() {
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                       )}
                       {grade != null
-                        ? `Nota: ${grade}/${exam.course?.grade_scale_max ?? 5}`
-                        : "Enviado"}
+                        ? t("exam.gradeLabel", { grade, max: exam.course?.grade_scale_max ?? 5 })
+                        : t("exam.submitted")}
                     </Badge>
                   ) : isOpen ? (
                     <Badge className="bg-success text-success-foreground shrink-0">
-                      Disponible
+                      {t("exam.available")}
                     </Badge>
                   ) : now < start ? (
                     <Badge variant="outline" className="shrink-0">
-                      Próximo
+                      {t("exam.upcoming")}
                     </Badge>
                   ) : (
                     <Badge variant="secondary" className="shrink-0">
-                      Cerrado
+                      {t("exam.closed")}
                     </Badge>
                   )}
                 </div>
@@ -160,16 +162,18 @@ function StudentExams() {
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-3 w-3" />
-                    Disponible: {new Date(exam.start_time).toLocaleString()} →{" "}
-                    {new Date(exam.end_time).toLocaleString()}
+                    {t("exam.availability", {
+                      start: new Date(exam.start_time).toLocaleString(),
+                      end: new Date(exam.end_time).toLocaleString(),
+                    })}
                   </div>
-                  <div>Duración: {exam.time_limit_minutes} min</div>
+                  <div>{t("exam.duration", { min: exam.time_limit_minutes })}</div>
                 </div>
                 {completed ? (
                   <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />
-                      Ver detalle y retroalimentación
+                      {t("exam.viewDetail")}
                     </Button>
                   </Link>
                 ) : submission?.status === "en_progreso" && !isOpen ? (
@@ -180,17 +184,17 @@ function StudentExams() {
                       disabled
                       className="w-full cursor-not-allowed"
                     >
-                      Ventana del examen cerrada
+                      {t("exam.windowClosed")}
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
-                      El periodo del examen ya finalizó. Si necesitas ayuda, contacta a tu docente.
+                      {t("exam.windowClosedHelp")}
                     </p>
                   </div>
                 ) : (
                   <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
                     <Button size="sm" disabled={!isOpen} className="w-full">
                       <Play className="h-4 w-4 mr-1" />
-                      {submission?.status === "en_progreso" ? "Reanudar examen" : "Iniciar examen"}
+                      {submission?.status === "en_progreso" ? t("exam.resume") : t("exam.start")}
                     </Button>
                   </Link>
                 )}

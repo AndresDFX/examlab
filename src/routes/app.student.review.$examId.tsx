@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +48,7 @@ function isFinalStatus(s: string) {
 function StudentExamReview() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exam, setExam] = useState<ExamLoaded | null>(null);
@@ -137,11 +139,11 @@ function StudentExamReview() {
   }, [user, examId]);
 
   if (!user) {
-    return <p className="text-muted-foreground p-6">Inicia sesión para ver tus resultados.</p>;
+    return <p className="text-muted-foreground p-6">{t("exam.review.mustSignIn")}</p>;
   }
 
   if (loading) {
-    return <p className="text-muted-foreground p-6">Cargando resultado del examen…</p>;
+    return <p className="text-muted-foreground p-6">{t("exam.review.loadError")}</p>;
   }
 
   if (error === "no_assignment") {
@@ -150,12 +152,12 @@ function StudentExamReview() {
         <Link to="/app/student/exams">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Volver a exámenes
+            {t("exam.review.backToExams")}
           </Button>
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No tienes acceso a este examen o no está asignado a tu cuenta.
+            {t("exam.review.noAccess")}
           </CardContent>
         </Card>
       </div>
@@ -168,12 +170,12 @@ function StudentExamReview() {
         <Link to="/app/student/exams">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Volver a exámenes
+            {t("exam.review.backToExams")}
           </Button>
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No se encontró el examen.
+            {t("exam.review.notFound")}
           </CardContent>
         </Card>
       </div>
@@ -186,7 +188,7 @@ function StudentExamReview() {
         <BackHeader title={exam.title} courseName={exam.course?.name} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No hay una entrega registrada para este examen.
+            {t("exam.review.noSubmission")}
           </CardContent>
         </Card>
       </div>
@@ -199,12 +201,9 @@ function StudentExamReview() {
         <BackHeader title={exam.title} courseName={exam.course?.name} />
         <Card>
           <CardContent className="p-6 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Cuando completes y entregues el examen, aquí podrás ver tus respuestas y la
-              retroalimentación por pregunta (después de la calificación).
-            </p>
+            <p className="text-sm text-muted-foreground">{t("exam.review.pendingFinish")}</p>
             <Link to="/app/student/take/$examId" params={{ examId }}>
-              <Button size="sm">Ir al examen</Button>
+              <Button size="sm">{t("exam.review.goToExam")}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -231,11 +230,13 @@ function StudentExamReview() {
           <div className="flex items-center gap-2">
             <MessageSquareText className="h-5 w-5 text-primary shrink-0" />
             <div>
-              <div className="font-medium">Resultado global</div>
+              <div className="font-medium">{t("exam.review.globalResult")}</div>
               <div className="text-xs text-muted-foreground">
                 {submission.submitted_at
-                  ? `Entregado: ${new Date(submission.submitted_at).toLocaleString()}`
-                  : "Entregado"}
+                  ? t("exam.review.submittedAt", {
+                      when: new Date(submission.submitted_at).toLocaleString(),
+                    })
+                  : t("exam.review.submittedNoDate")}
               </div>
             </div>
           </div>
@@ -247,7 +248,7 @@ function StudentExamReview() {
               submission.ai_grade != null &&
               submission.final_override_grade !== submission.ai_grade && (
                 <div className="text-[10px] text-muted-foreground">
-                  Valor de referencia anterior: {submission.ai_grade}
+                  {t("exam.review.priorValue", { value: submission.ai_grade })}
                 </div>
               )}
           </div>
@@ -257,20 +258,15 @@ function StudentExamReview() {
       {submission.status === "sospechoso" && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Intento marcado por alertas</AlertTitle>
-          <AlertDescription>
-            Esta entrega fue registrada con advertencias de integridad (foco, pantalla completa u
-            otros eventos). La nota se muestra igualmente a efectos informativos.
-          </AlertDescription>
+          <AlertTitle>{t("exam.review.flagged")}</AlertTitle>
+          <AlertDescription>{t("exam.review.flaggedBody")}</AlertDescription>
         </Alert>
       )}
 
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Retroalimentación por pregunta</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{t("exam.review.title")}</h2>
         {questions.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Este examen no tiene preguntas registradas.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("exam.review.noQuestions")}</p>
         )}
         {questions.map((q, idx) => {
           const ans = answers[q.id];
@@ -288,7 +284,9 @@ function StudentExamReview() {
             <Card key={q.id}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex flex-wrap items-center gap-2">
-                  <span>Pregunta {idx + 1}</span>
+                  <span>
+                    {t("exam.question")} {idx + 1}
+                  </span>
                   <Badge variant="outline" className="text-[10px] capitalize">
                     {q.type.replace(/_/g, " ")}
                   </Badge>
@@ -321,12 +319,12 @@ function StudentExamReview() {
                           {c}
                           {isStudent && (
                             <Badge variant="outline" className="ml-2 text-[9px]">
-                              tu respuesta
+                              {t("exam.review.yourAnswer")}
                             </Badge>
                           )}
                           {isCorrect && (
                             <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
-                              correcta
+                              {t("exam.review.correct")}
                             </Badge>
                           )}
                         </div>
@@ -338,7 +336,9 @@ function StudentExamReview() {
                 {q.type !== "cerrada" && (
                   <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono min-h-[44px]">
                     {ans == null || ans === "" ? (
-                      <span className="text-muted-foreground italic font-sans">Sin respuesta</span>
+                      <span className="text-muted-foreground italic font-sans">
+                        {t("exam.review.noAnswer")}
+                      </span>
                     ) : typeof ans === "string" ? (
                       ans
                     ) : (
@@ -351,7 +351,7 @@ function StudentExamReview() {
                   <div className="border-t pt-3">
                     <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
                       <span className="font-medium text-foreground block mb-1">
-                        Retroalimentación
+                        {t("exam.review.feedback")}
                       </span>
                       <span className="text-muted-foreground whitespace-pre-wrap">
                         {[
@@ -364,14 +364,14 @@ function StudentExamReview() {
 
                 {!iaFeedback && !teacherFeedback && q.type !== "cerrada" && (
                   <p className="text-xs text-muted-foreground italic">
-                    No hay retroalimentación escrita para esta pregunta.
+                    {t("exam.review.noFeedback")}
                   </p>
                 )}
 
                 {q.expected_rubric && (
                   <details className="text-xs text-muted-foreground">
                     <summary className="cursor-pointer hover:text-foreground">
-                      Criterios de evaluación (referencia)
+                      {t("exam.review.rubric")}
                     </summary>
                     <p className="mt-2 whitespace-pre-wrap border rounded-md p-2 bg-muted/20">
                       {q.expected_rubric}
@@ -388,12 +388,13 @@ function StudentExamReview() {
 }
 
 function BackHeader({ title, courseName }: { title: string; courseName?: string | null }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-wrap items-start gap-3">
       <Link to="/app/student/exams">
         <Button variant="ghost" size="sm" className="shrink-0">
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Exámenes
+          {t("exam.review.backToExams")}
         </Button>
       </Link>
       <div className="min-w-0">

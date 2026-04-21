@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,6 +89,7 @@ function ExamMonitor() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
   const confirm = useConfirm();
+  const { t } = useTranslation();
   const [exam, setExam] = useState<any>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -318,7 +320,7 @@ function ExamMonitor() {
     [submissions, viewingId],
   );
 
-  if (!exam) return <p className="text-muted-foreground p-6">Cargando…</p>;
+  if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
 
   const inProgress = submissions.filter((s) => s.status === "en_progreso");
   const completed = submissions.filter((s) => isFinalStatus(s.status));
@@ -329,12 +331,12 @@ function ExamMonitor() {
         <Link to="/app/teacher/exams">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Volver
+            {t("common.back")}
           </Button>
         </Link>
         <div>
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
-            Monitor: {exam.title}
+            {t("monitor.title")}: {exam.title}
           </h1>
           <p className="text-sm text-muted-foreground">{exam.course?.name}</p>
         </div>
@@ -425,12 +427,12 @@ function ExamMonitor() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Estudiante</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Nota</TableHead>
-                <TableHead>Advertencias</TableHead>
-                <TableHead>Respuestas</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>{t("roles.Estudiante")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("dashboard.cards.grades")}</TableHead>
+                <TableHead>{t("monitor.warnings")}</TableHead>
+                <TableHead>{t("monitor.viewAnswers")}</TableHead>
+                <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

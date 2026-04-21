@@ -52,8 +52,8 @@ function AuthPage() {
     try {
       const { data, error } = await supabase.functions.invoke("seed-data", { body: {} });
       if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error ?? "Error de seeding");
-      toast.success("Datos iniciales cargados ✓");
+      if (!data?.ok) throw new Error(data?.error ?? "Error");
+      toast.success(t("auth.seedDone"));
     } catch (e: any) {
       toast.error(e.message ?? "Error");
     } finally {
@@ -71,18 +71,18 @@ function AuthPage() {
           </div>
           <div>
             <div className="text-xl font-semibold">ExamLab</div>
-            <div className="text-sm text-sidebar-foreground/60">Plataforma académica</div>
+            <div className="text-sm text-sidebar-foreground/60">{t("auth.brandSubtitle")}</div>
           </div>
         </div>
         <div className="space-y-6">
           <h1 className="text-4xl font-semibold tracking-tight leading-tight">
-            Diseña, asigna y califica exámenes con IA y proctoring integrado.
+            {t("auth.brandTagline")}
           </h1>
           <ul className="space-y-3 text-sidebar-foreground/80">
-            <li>• Tres módulos: Admin, Docente, Estudiante</li>
-            <li>• Asignación granular por estudiante y exámenes supletorios</li>
-            <li>• Proctoring: pantalla completa + tracking de foco</li>
-            <li>• Generación y calificación con IA</li>
+            <li>• {t("auth.featureRoles")}</li>
+            <li>• {t("auth.featureAssignment")}</li>
+            <li>• {t("auth.featureProctoring")}</li>
+            <li>• {t("auth.featureAI")}</li>
           </ul>
         </div>
         <div className="text-xs text-sidebar-foreground/50">© ExamLab 2026</div>
@@ -101,9 +101,7 @@ function AuthPage() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <CardTitle className="text-2xl">{t("auth.title")}</CardTitle>
-                <CardDescription>
-                  Ingresa con las credenciales proporcionadas por tu administrador.
-                </CardDescription>
+                <CardDescription>{t("auth.instructions")}</CardDescription>
               </div>
               <LanguageSwitcher />
             </div>
@@ -111,7 +109,7 @@ function AuthPage() {
           <CardContent>
             <form onSubmit={onLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="li-email">{t("auth.email")}</Label>
+                <Label htmlFor="li-email">{t("auth.institutionalEmail")}</Label>
                 <Input
                   id="li-email"
                   type="email"
@@ -138,12 +136,10 @@ function AuthPage() {
               </Button>
             </form>
             <p className="text-xs text-muted-foreground mt-4 text-center">
-              ¿No tienes cuenta? Contacta a tu administrador para que te registre en la plataforma.
+              {t("auth.contactAdmin")}
             </p>
             <div className="pt-4 border-t mt-4">
-              <p className="text-xs text-muted-foreground mb-2">
-                ¿Primera vez configurando? Carga datos de prueba:
-              </p>
+              <p className="text-xs text-muted-foreground mb-2">{t("auth.firstTime")}</p>
               <Button
                 variant="outline"
                 className="w-full"
@@ -151,12 +147,12 @@ function AuthPage() {
                 disabled={seedingLoading}
               >
                 {seedingLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Inicializar datos demo
+                {t("auth.seedDemo")}
               </Button>
             </div>
             <div className="mt-4 text-center">
               <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
-                ← Volver al inicio
+                {t("auth.backToHome")}
               </Link>
             </div>
           </CardContent>

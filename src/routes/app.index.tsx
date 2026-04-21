@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
@@ -33,21 +34,25 @@ export const Route = createFileRoute("/app/")({ component: Dashboard });
 
 const DASHBOARD_NOTIF_LIMIT = 5;
 
-function formatNotifDate(iso: string): string {
+function formatNotifDate(
+  iso: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  locale: string,
+): string {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Ahora mismo";
-  if (diffMins < 60) return `Hace ${diffMins} min`;
+  if (diffMins < 1) return t("dashboard.notifications.relativeNow");
+  if (diffMins < 60) return t("dashboard.notifications.relativeMins", { min: diffMins });
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `Hace ${diffHours} h`;
+  if (diffHours < 24) return t("dashboard.notifications.relativeHours", { hour: diffHours });
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1)
-    return `Ayer ${d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`;
+    return `${t("dashboard.notifications.relativeYesterday")} ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
   if (diffDays < 7)
-    return d.toLocaleDateString("es", { weekday: "short", hour: "2-digit", minute: "2-digit" });
-  return d.toLocaleDateString("es", {
+    return d.toLocaleDateString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString(locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -57,9 +62,11 @@ function formatNotifDate(iso: string): string {
 }
 
 function Dashboard() {
-  const { profile, roles, user } = useAuth();
+  const { profile, user } = useAuth();
   const activeRole = useActiveRole();
   const { notifications, unreadCount, markAsRead } = useNotifications(user?.id);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith("en") ? "en" : "es";
 
   const isAdmin = activeRole === "Admin";
   const isTeacher = activeRole === "Docente";
@@ -82,14 +89,14 @@ function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          Hola, {profile?.full_name?.split(" ")[0] ?? "👋"}
+          {t("dashboard.hello")}, {profile?.full_name?.split(" ")[0] ?? "👋"}
         </h1>
         <p className="text-muted-foreground">
           {isAdmin
-            ? "Panel de administración"
+            ? t("dashboard.greetingAdmin")
             : isTeacher
-              ? "Panel docente"
-              : "Tu espacio de estudio"}
+              ? t("dashboard.greetingTeacher")
+              : t("dashboard.greetingStudent")}
         </p>
       </div>
 
@@ -104,12 +111,16 @@ function Dashboard() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <Bell className="h-4 w-4 text-primary" />
-                Notificaciones
+                {t("dashboard.notifications.title")}
                 {unreadCount > 0 && (
-                  <Badge className="text-[10px] h-5">{unreadCount} sin leer</Badge>
+                  <Badge className="text-[10px] h-5">
+                    {t("dashboard.notifications.unread", { count: unreadCount })}
+                  </Badge>
                 )}
               </CardTitle>
-              <span className="text-xs text-muted-foreground">Últimas {DASHBOARD_NOTIF_LIMIT}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("dashboard.notifications.lastN", { count: DASHBOARD_NOTIF_LIMIT })}
+              </span>
             </div>
           </CardHeader>
           <CardContent>
@@ -131,7 +142,7 @@ function Dashboard() {
                     <div className="flex items-center justify-between gap-1">
                       <div className="text-sm font-medium truncate">{n.title}</div>
                       <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                        {formatNotifDate(n.created_at)}
+                        {formatNotifDate(n.created_at, t, locale)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{n.body}</p>
@@ -150,6 +161,7 @@ function Dashboard() {
    ADMIN DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
+  const { t } = useTranslation();
   const [counts, setCounts] = useState({
     users: 0,
     courses: 0,
@@ -192,31 +204,31 @@ function AdminDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={Users}
-          label="Usuarios"
+          label={t("dashboard.stats.users")}
           value={counts.users}
           color="text-indigo-500 dark:text-indigo-400"
         />
         <Stat
           icon={BookOpen}
-          label="Cursos"
+          label={t("dashboard.stats.courses")}
           value={counts.courses}
           color="text-blue-500 dark:text-blue-400"
         />
         <Stat
           icon={FileText}
-          label="Exámenes"
+          label={t("dashboard.stats.exams")}
           value={counts.exams}
           color="text-violet-500 dark:text-violet-400"
         />
         <Stat
           icon={Hammer}
-          label="Talleres"
+          label={t("dashboard.stats.workshops")}
           value={counts.workshops}
           color="text-amber-500 dark:text-amber-400"
         />
         <Stat
           icon={ClipboardList}
-          label="Entregas"
+          label={t("dashboard.stats.submissions")}
           value={counts.submissions}
           color="text-emerald-500 dark:text-emerald-400"
         />
@@ -226,7 +238,7 @@ function AdminDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4 text-indigo-500" /> Usuarios recientes
+              <Users className="h-4 w-4 text-indigo-500" /> {t("dashboard.recentUsers")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5">
@@ -245,26 +257,28 @@ function AdminDashboard() {
             ))}
             <Link to="/app/admin/users">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Gestionar usuarios <ArrowRight className="h-3 w-3 ml-1" />
+                {t("dashboard.manageUsers")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
         </Card>
 
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Administración</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">
+            {t("dashboard.administration")}
+          </h2>
           <div className="grid grid-cols-2 gap-3">
             <QuickCard
               to="/app/admin/users"
-              title="Usuarios"
-              desc="Crear, editar roles, importar CSV"
+              title={t("dashboard.cards.usersTitle")}
+              desc={t("dashboard.cards.usersDesc")}
               icon={Users}
               color="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
             />
             <QuickCard
               to="/app/admin/courses"
-              title="Cursos"
-              desc="Periodos, fechas, matrículas"
+              title={t("dashboard.cards.coursesTitle")}
+              desc={t("dashboard.cards.coursesDescAdmin")}
               icon={BookOpen}
               color="bg-blue-500/10 text-blue-600 dark:text-blue-400"
             />
@@ -279,6 +293,8 @@ function AdminDashboard() {
    TEACHER DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
+  const { t } = useTranslation();
+  void userId;
   const [counts, setCounts] = useState({ exams: 0, workshops: 0, pendingGrades: 0, courses: 0 });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
@@ -326,25 +342,25 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={FileText}
-          label="Exámenes"
+          label={t("dashboard.stats.exams")}
           value={counts.exams}
           color="text-violet-500 dark:text-violet-400"
         />
         <Stat
           icon={Hammer}
-          label="Talleres"
+          label={t("dashboard.stats.workshops")}
           value={counts.workshops}
           color="text-amber-500 dark:text-amber-400"
         />
         <Stat
           icon={Eye}
-          label="Por calificar"
+          label={t("dashboard.stats.pendingGrades")}
           value={counts.pendingGrades}
           color="text-rose-500 dark:text-rose-400"
         />
         <Stat
           icon={BookOpen}
-          label="Cursos"
+          label={t("dashboard.stats.courses")}
           value={counts.courses}
           color="text-blue-500 dark:text-blue-400"
         />
@@ -355,13 +371,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" /> Próximos
-              exámenes
+              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
+              {t("dashboard.upcomingExams")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {upcomingExams.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Sin exámenes próximos</p>
+              <p className="text-sm text-muted-foreground py-2">{t("dashboard.noUpcomingExams")}</p>
             ) : (
               upcomingExams.map((e: any) => {
                 const isOpen =
@@ -372,7 +388,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                     title={e.title}
                     subtitle={e.course?.name}
                     date={new Date(e.start_time).toLocaleDateString()}
-                    badge={isOpen ? "En curso" : undefined}
+                    badge={isOpen ? t("dashboard.inProgress") : undefined}
                     badgeColor="bg-success text-success-foreground"
                   />
                 );
@@ -380,7 +396,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             )}
             <Link to="/app/teacher/exams">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Gestionar <ArrowRight className="h-3 w-3 ml-1" />
+                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -390,25 +406,30 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Talleres activos
+              <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" />{" "}
+              {t("dashboard.activeWorkshops")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {activeWorkshops.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Sin talleres activos</p>
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noActiveWorkshops")}
+              </p>
             ) : (
               activeWorkshops.map((w: any) => (
                 <EventRow
                   key={w.id}
                   title={w.title}
                   subtitle={w.course?.name}
-                  date={w.due_date ? new Date(w.due_date).toLocaleDateString() : "Sin fecha"}
+                  date={
+                    w.due_date ? new Date(w.due_date).toLocaleDateString() : t("dashboard.noDate")
+                  }
                 />
               ))
             )}
             <Link to="/app/teacher/workshops">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Gestionar <ArrowRight className="h-3 w-3 ml-1" />
+                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -416,26 +437,26 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
 
         {/* Quick actions */}
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Acciones rápidas</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickActions")}</h2>
           <div className="space-y-2">
             <QuickCard
               to="/app/teacher/exams"
-              title="Crear examen"
-              desc="Diseña con IA y asigna"
+              title={t("dashboard.cards.createExam")}
+              desc={t("dashboard.cards.createExamDesc")}
               icon={FileText}
               color="bg-violet-500/10 text-violet-600 dark:text-violet-400"
             />
             <QuickCard
               to="/app/teacher/workshops"
-              title="Crear taller"
-              desc="Publica y asigna a cursos"
+              title={t("dashboard.cards.createWorkshop")}
+              desc={t("dashboard.cards.createWorkshopDesc")}
               icon={Hammer}
               color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             />
             <QuickCard
               to="/app/teacher/gradebook"
-              title="Calificaciones"
-              desc="Matriz de notas y CSV"
+              title={t("dashboard.cards.grades")}
+              desc={t("dashboard.cards.gradesDesc")}
               icon={ClipboardList}
               color="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
             />
@@ -450,6 +471,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    STUDENT DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function StudentDashboard({ userId }: { userId: string | undefined }) {
+  const { t } = useTranslation();
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
@@ -519,25 +541,25 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={FileText}
-          label="Exámenes pendientes"
+          label={t("dashboard.stats.pendingExams")}
           value={upcomingExams.length}
           color="text-violet-500 dark:text-violet-400"
         />
         <Stat
           icon={Hammer}
-          label="Talleres pendientes"
+          label={t("dashboard.stats.pendingWorkshops")}
           value={pendingWorkshops.length}
           color="text-amber-500 dark:text-amber-400"
         />
         <Stat
           icon={CheckCircle2}
-          label="Completados"
+          label={t("dashboard.stats.completed")}
           value={completedCount}
           color="text-emerald-500 dark:text-emerald-400"
         />
         <Stat
           icon={BookOpen}
-          label="Cursos"
+          label={t("dashboard.stats.courses")}
           value={courseCount}
           color="text-blue-500 dark:text-blue-400"
         />
@@ -548,13 +570,15 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" /> Próximos
-              exámenes
+              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
+              {t("dashboard.upcomingExams")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {upcomingExams.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">No tienes exámenes pendientes 🎉</p>
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noStudentUpcomingExams")}
+              </p>
             ) : (
               upcomingExams.map((e: any) => {
                 const isOpen =
@@ -572,12 +596,12 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{e.title}</div>
                         <div className="text-xs text-muted-foreground">
-                          {e.course?.name} · {e.time_limit_minutes} min
+                          {e.course?.name} · {e.time_limit_minutes} {t("common.min")}
                         </div>
                       </div>
                       {isOpen && (
                         <Badge className="bg-success text-success-foreground text-[10px] shrink-0">
-                          Iniciar
+                          {t("dashboard.start")}
                         </Badge>
                       )}
                     </div>
@@ -587,7 +611,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             )}
             <Link to="/app/student/exams">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -597,13 +621,15 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Talleres por
-              entregar
+              <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" />{" "}
+              {t("dashboard.pendingDeliveryWorkshops")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {pendingWorkshops.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Sin talleres pendientes 🎉</p>
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noPendingWorkshops")}
+              </p>
             ) : (
               pendingWorkshops.map((w: any) => {
                 const isOverdue = w.due_date && new Date(w.due_date) < new Date();
@@ -621,13 +647,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                       <div className="text-xs text-muted-foreground">{w.course?.name}</div>
                       {w.due_date && (
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          Entrega: {new Date(w.due_date).toLocaleDateString()}
+                          {t("dashboard.dueLabel")}: {new Date(w.due_date).toLocaleDateString()}
                         </div>
                       )}
                     </div>
                     {isOverdue && (
                       <Badge variant="destructive" className="text-[10px] shrink-0">
-                        Vencido
+                        {t("dashboard.overdue")}
                       </Badge>
                     )}
                   </div>
@@ -636,7 +662,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             )}
             <Link to="/app/student/workshops">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -644,26 +670,26 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
 
         {/* Quick links */}
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Acceso rápido</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickAccess")}</h2>
           <div className="space-y-2">
             <QuickCard
               to="/app/student/exams"
-              title="Exámenes"
-              desc="Inicia y revisa tus exámenes"
+              title={t("dashboard.cards.examsStudent")}
+              desc={t("dashboard.cards.examsStudentDesc")}
               icon={GraduationCap}
               color="bg-violet-500/10 text-violet-600 dark:text-violet-400"
             />
             <QuickCard
               to="/app/student/workshops"
-              title="Talleres"
-              desc="Entrega y revisa talleres"
+              title={t("dashboard.cards.workshopsStudent")}
+              desc={t("dashboard.cards.workshopsStudentDesc")}
               icon={Hammer}
               color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             />
             <QuickCard
               to="/app/student/courses"
-              title="Cursos"
-              desc="Información de tus cursos"
+              title={t("dashboard.cards.coursesStudent")}
+              desc={t("dashboard.cards.coursesStudentDesc")}
               icon={BookOpen}
               color="bg-blue-500/10 text-blue-600 dark:text-blue-400"
             />
