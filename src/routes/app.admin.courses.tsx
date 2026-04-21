@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Users, Pencil, Copy, UserCog, Search, CheckSquare, XSquare, Loader2, Settings } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
@@ -27,6 +28,7 @@ type Profile = { id: string; full_name: string; institutional_email: string };
 
 function AdminCourses() {
   const { roles } = useAuth();
+  const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
@@ -100,7 +102,13 @@ function AdminCourses() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("¿Eliminar este curso? Borra también matrículas, exámenes y talleres.")) return;
+    const ok = await confirm({
+      title: "Eliminar curso",
+      description: "Se eliminarán también las matrículas, exámenes y talleres asociados. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar curso",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("courses").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Curso eliminado correctamente"); load();

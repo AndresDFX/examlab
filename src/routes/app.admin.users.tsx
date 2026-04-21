@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Plus, Upload, Download, Trash2, Pencil, Loader2 } from "lucide-react";
 import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
 
@@ -44,6 +45,7 @@ function AdminUsers() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const confirm = useConfirm();
 
   const isAdmin = roles.includes("Admin");
 
@@ -151,7 +153,13 @@ function AdminUsers() {
   };
 
   const remove = async (r: Row) => {
-    if (!confirm(`¿Eliminar a ${r.full_name}? Esta acción no elimina la cuenta de autenticación, solo el perfil y sus roles.`)) return;
+    const ok = await confirm({
+      title: `Eliminar a ${r.full_name}`,
+      description: "Se eliminará el perfil y todos sus roles. La cuenta de autenticación no se borra.",
+      confirmLabel: "Eliminar usuario",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error: rolesErr } = await supabase.from("user_roles").delete().eq("user_id", r.id);
     if (rolesErr) { toast.error(rolesErr.message); return; }
     const { error } = await supabase.from("profiles").delete().eq("id", r.id);

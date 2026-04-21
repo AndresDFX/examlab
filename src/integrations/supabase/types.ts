@@ -14,6 +14,76 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_records: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          session_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          session_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          session_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_sessions: {
+        Row: {
+          course_id: string
+          created_at: string
+          created_by: string
+          id: string
+          session_date: string
+          title: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          session_date: string
+          title?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          session_date?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_sessions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       code_executions: {
         Row: {
           created_at: string
@@ -99,6 +169,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "course_enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_grading_weights: {
+        Row: {
+          component: string
+          course_id: string
+          created_at: string
+          id: string
+          weight: number
+        }
+        Insert: {
+          component: string
+          course_id: string
+          created_at?: string
+          id?: string
+          weight?: number
+        }
+        Update: {
+          component?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_grading_weights_course_id_fkey"
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
@@ -353,7 +455,15 @@ export type Database = {
           title?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -597,108 +707,6 @@ export type Database = {
           },
         ]
       }
-      course_grading_weights: {
-        Row: {
-          id: string
-          course_id: string
-          component: string
-          weight: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          course_id: string
-          component: string
-          weight?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          course_id?: string
-          component?: string
-          weight?: number
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_grading_weights_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attendance_sessions: {
-        Row: {
-          id: string
-          course_id: string
-          session_date: string
-          title: string | null
-          created_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          course_id: string
-          session_date: string
-          title?: string | null
-          created_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          course_id?: string
-          session_date?: string
-          title?: string | null
-          created_by?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_sessions_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attendance_records: {
-        Row: {
-          id: string
-          session_id: string
-          user_id: string
-          status: string
-          note: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          session_id: string
-          user_id: string
-          status?: string
-          note?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          session_id?: string
-          user_id?: string
-          status?: string
-          note?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_records_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "attendance_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       workshops: {
         Row: {
           ai_generated: boolean
@@ -785,10 +793,10 @@ export type Database = {
       }
       notify_exam_teachers: {
         Args: {
-          _exam_id: string
-          _title: string
           _body: string
-          _link?: string | null
+          _exam_id: string
+          _link?: string
+          _title: string
         }
         Returns: number
       }

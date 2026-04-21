@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -27,6 +28,7 @@ type Student = { id: string; full_name: string; institutional_email: string };
 function ExamEditor() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -100,7 +102,13 @@ function ExamEditor() {
   };
 
   const removeQuestion = async (id: string) => {
-    if (!confirm("¿Eliminar pregunta?")) return;
+    const ok = await confirm({
+      title: "Eliminar pregunta",
+      description: "Esta pregunta se eliminará permanentemente del examen.",
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("questions").delete().eq("id", id);
     if (error) return toast.error(error.message);
     load();

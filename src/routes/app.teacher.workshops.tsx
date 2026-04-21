@@ -18,6 +18,7 @@ import {
   Users, CheckCircle2, FileIcon, Download, CheckSquare, XSquare,
   Sparkles, Loader2, ThumbsUp, ThumbsDown, HelpCircle,
 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
 
@@ -40,6 +41,7 @@ type WsSub = {
 
 function TeacherWorkshops() {
   const { user, roles } = useAuth();
+  const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [open, setOpen] = useState(false);
@@ -166,7 +168,13 @@ function TeacherWorkshops() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("¿Eliminar este taller?")) return;
+    const ok = await confirm({
+      title: "Eliminar taller",
+      description: "Se eliminarán las asignaciones y entregas asociadas al taller.",
+      confirmLabel: "Eliminar taller",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("workshops").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Taller eliminado correctamente");
@@ -372,7 +380,13 @@ function TeacherWorkshops() {
   };
 
   const deleteSubmission = async (subId: string, studentName: string) => {
-    if (!confirm(`¿Eliminar la entrega de ${studentName}? Esta acción no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: `Eliminar entrega de ${studentName}`,
+      description: "Se eliminará la entrega del estudiante de forma permanente.",
+      confirmLabel: "Eliminar entrega",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("workshop_submissions").delete().eq("id", subId);
     if (error) return toast.error(error.message);
     setWsSubs(prev => prev.filter(s => s.id !== subId));

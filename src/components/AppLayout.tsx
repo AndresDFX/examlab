@@ -39,27 +39,44 @@ const NAV: NavItem[] = [
 const ROLE_CONFIG: Record<AppRole, {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  accent: string;      // sidebar pill (dark bg)
+  accent: string;      // sidebar pill (vivid in both light/dark)
   badgeClass: string;  // light-mode badge in footer
 }> = {
   Admin: {
     label: "Administrador",
     icon: ShieldCheck,
-    accent: "text-indigo-300",
+    accent: "text-indigo-400 dark:text-indigo-300",
     badgeClass: "bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25",
   },
   Docente: {
     label: "Docente",
     icon: UserCog,
-    accent: "text-amber-300",
+    accent: "text-amber-400 dark:text-amber-300",
     badgeClass: "bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25",
   },
   Estudiante: {
     label: "Estudiante",
     icon: GraduationCap,
-    accent: "text-emerald-300",
+    accent: "text-emerald-400 dark:text-emerald-300",
     badgeClass: "bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:bg-emerald-400/15 dark:text-emerald-300 dark:border-emerald-400/25",
   },
+};
+
+// Vivid icon colors per nav route key (path prefix → tailwind color class).
+// Works in both light and dark mode against the dark sidebar.
+const NAV_ICON_COLOR: Record<string, string> = {
+  "/app": "text-sky-300",
+  "/app/admin/users": "text-indigo-300",
+  "/app/admin/courses": "text-fuchsia-300",
+  "/app/teacher/courses": "text-fuchsia-300",
+  "/app/teacher/exams": "text-amber-300",
+  "/app/teacher/gradebook": "text-emerald-300",
+  "/app/teacher/workshops": "text-orange-300",
+  "/app/teacher/attendance": "text-cyan-300",
+  "/app/student/exams": "text-amber-300",
+  "/app/student/workshops": "text-orange-300",
+  "/app/student/courses": "text-fuchsia-300",
+  "/app/student/grades": "text-emerald-300",
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -147,18 +164,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {visibleNav.map(item => {
             const Icon = item.icon;
             const isActive = location.pathname === item.to || (item.to !== "/app" && location.pathname.startsWith(item.to));
+            const iconColor = NAV_ICON_COLOR[item.to] ?? "text-sky-300";
             return (
               <Link
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors group",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className={cn("h-4 w-4 transition-colors", iconColor)} />
                 {item.label}
               </Link>
             );
@@ -235,13 +253,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {visibleNav.map(item => {
               const Icon = item.icon;
               const isActive = location.pathname === item.to || (item.to !== "/app" && location.pathname.startsWith(item.to));
+              const iconColor = NAV_ICON_COLOR[item.to] ?? "text-primary";
               return (
                 <Link key={item.to} to={item.to}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap",
                     isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground bg-muted"
                   )}>
-                  <Icon className="h-3.5 w-3.5" />{item.label}
+                  <Icon className={cn("h-3.5 w-3.5", !isActive && iconColor)} />{item.label}
                 </Link>
               );
             })}
