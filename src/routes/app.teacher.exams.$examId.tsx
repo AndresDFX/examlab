@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +25,14 @@ export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: 
 
 type Exam = any;
 type Question = {
-  id: string; exam_id: string; type: string; content: string;
-  expected_rubric: string | null; options: any; points: number; position: number;
+  id: string;
+  exam_id: string;
+  type: string;
+  content: string;
+  expected_rubric: string | null;
+  options: any;
+  points: number;
+  position: number;
   language?: string | null;
 };
 type Student = { id: string; full_name: string; institutional_email: string };
@@ -53,33 +65,51 @@ function ExamEditor() {
   const load = async () => {
     const { data: e } = await supabase.from("exams").select("*").eq("id", examId).single();
     setExam(e);
-    const { data: qs } = await supabase.from("questions").select("*").eq("exam_id", examId).order("position");
+    const { data: qs } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("exam_id", examId)
+      .order("position");
     setQuestions(qs ?? []);
     if (e?.course_id) {
-      const { data: enr } = await supabase.from("course_enrollments")
+      const { data: enr } = await supabase
+        .from("course_enrollments")
         .select("user_id")
         .eq("course_id", e.course_id);
       const userIds = (enr ?? []).map((r: any) => r.user_id);
       let studs: Student[] = [];
       if (userIds.length) {
-        const { data: profs } = await supabase.from("profiles").select("id, full_name, institutional_email").in("id", userIds);
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", userIds);
         studs = (profs ?? []) as Student[];
       }
       setStudents(studs);
-      const { data: asg } = await supabase.from("exam_assignments").select("user_id").eq("exam_id", examId);
+      const { data: asg } = await supabase
+        .from("exam_assignments")
+        .select("user_id")
+        .eq("exam_id", examId);
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));
     }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [examId]);
+  useEffect(() => {
+    load(); /* eslint-disable-next-line */
+  }, [examId]);
 
   const saveExam = async () => {
-    const { error } = await supabase.from("exams").update({
-      title: exam.title, description: exam.description,
-      start_time: new Date(exam.start_time).toISOString(),
-      end_time: new Date(exam.end_time).toISOString(),
-      time_limit_minutes: Number(exam.time_limit_minutes),
-      navigation_type: exam.navigation_type, shuffle_enabled: !!exam.shuffle_enabled,
-    }).eq("id", examId);
+    const { error } = await supabase
+      .from("exams")
+      .update({
+        title: exam.title,
+        description: exam.description,
+        start_time: new Date(exam.start_time).toISOString(),
+        end_time: new Date(exam.end_time).toISOString(),
+        time_limit_minutes: Number(exam.time_limit_minutes),
+        navigation_type: exam.navigation_type,
+        shuffle_enabled: !!exam.shuffle_enabled,
+      })
+      .eq("id", examId);
     if (error) return toast.error(error.message);
     toast.success("Examen actualizado correctamente");
   };
@@ -91,13 +121,21 @@ function ExamEditor() {
     const options = qType === "cerrada" ? { choices: qChoices, correct_index: qCorrect } : null;
     const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
     const { error } = await supabase.from("questions").insert({
-      exam_id: examId, type: qType, content: qContent, expected_rubric: qRubric || null,
-      options, points: qPoints, position: pos,
+      exam_id: examId,
+      type: qType,
+      content: qContent,
+      expected_rubric: qRubric || null,
+      options,
+      points: qPoints,
+      position: pos,
       language: qType === "codigo" ? qLanguage : null,
     });
     if (error) return toast.error(error.message);
     toast.success("Pregunta agregada correctamente");
-    setQContent(""); setQRubric(""); setQChoices(["", "", "", ""]); setQCorrect(0);
+    setQContent("");
+    setQRubric("");
+    setQChoices(["", "", "", ""]);
+    setQCorrect(0);
     load();
   };
 
@@ -119,7 +157,13 @@ function ExamEditor() {
     setAiLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
-        body: { examId, topics: aiTopics, type: aiType, count: aiCount, language: aiType === "codigo" ? aiLanguage : undefined },
+        body: {
+          examId,
+          topics: aiTopics,
+          type: aiType,
+          count: aiCount,
+          language: aiType === "codigo" ? aiLanguage : undefined,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -128,12 +172,16 @@ function ExamEditor() {
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Error generando preguntas");
-    } finally { setAiLoading(false); }
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const toggleAssign = async (uid: string, checked: boolean) => {
     if (checked) {
-      const { error } = await supabase.from("exam_assignments").insert({ exam_id: examId, user_id: uid });
+      const { error } = await supabase
+        .from("exam_assignments")
+        .insert({ exam_id: examId, user_id: uid });
       if (error) return toast.error(error.message);
       await supabase.from("notifications").insert({
         user_id: uid,
@@ -145,17 +193,25 @@ function ExamEditor() {
       setAssigned(new Set([...assigned, uid]));
       toast.success("Estudiante asignado correctamente");
     } else {
-      const { error } = await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", uid);
+      const { error } = await supabase
+        .from("exam_assignments")
+        .delete()
+        .eq("exam_id", examId)
+        .eq("user_id", uid);
       if (error) return toast.error(error.message);
-      const ns = new Set(assigned); ns.delete(uid); setAssigned(ns);
+      const ns = new Set(assigned);
+      ns.delete(uid);
+      setAssigned(ns);
       toast.success("Asignación removida correctamente");
     }
   };
 
   const assignAll = async () => {
-    const toAdd = students.filter(s => !assigned.has(s.id));
+    const toAdd = students.filter((s) => !assigned.has(s.id));
     if (!toAdd.length) return;
-    const { error } = await supabase.from("exam_assignments").insert(toAdd.map(s => ({ exam_id: examId, user_id: s.id })));
+    const { error } = await supabase
+      .from("exam_assignments")
+      .insert(toAdd.map((s) => ({ exam_id: examId, user_id: s.id })));
     if (error) return toast.error(error.message);
     for (const s of toAdd) {
       await supabase.from("notifications").insert({
@@ -166,12 +222,12 @@ function ExamEditor() {
         link: "/app/student/exams",
       });
     }
-    setAssigned(new Set(students.map(s => s.id)));
+    setAssigned(new Set(students.map((s) => s.id)));
     toast.success(`${toAdd.length} estudiante(s) asignados correctamente`);
   };
 
   const unassignAll = async () => {
-    const toRemove = students.filter(s => assigned.has(s.id));
+    const toRemove = students.filter((s) => assigned.has(s.id));
     if (!toRemove.length) return;
     for (const s of toRemove) {
       await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", s.id);
@@ -185,7 +241,12 @@ function ExamEditor() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
-        <Link to="/app/teacher/exams"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-1" />Volver</Button></Link>
+        <Link to="/app/teacher/exams">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Volver
+          </Button>
+        </Link>
         <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{exam.title}</h1>
       </div>
 
@@ -193,56 +254,147 @@ function ExamEditor() {
         <TabsList>
           <TabsTrigger value="config">Configuración</TabsTrigger>
           <TabsTrigger value="questions">Preguntas ({questions.length})</TabsTrigger>
-          <TabsTrigger value="assignments">Asignaciones ({assigned.size}/{students.length})</TabsTrigger>
+          <TabsTrigger value="assignments">
+            Asignaciones ({assigned.size}/{students.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="config">
-          <Card><CardContent className="p-5 space-y-3">
-            <div><Label>Título</Label><Input value={exam.title} onChange={e => setExam({ ...exam, title: e.target.value })} /></div>
-            <div><Label>Descripción</Label><Textarea value={exam.description ?? ""} onChange={e => setExam({ ...exam, description: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Inicio</Label><Input type="datetime-local" value={toLocal(exam.start_time)} onChange={e => {
-                const start = e.target.value;
-                const startMs = new Date(start).getTime();
-                const currentEnd = exam.end_time ? new Date(exam.end_time).getTime() : 0;
-                const autoEnd = currentEnd > startMs ? exam.end_time : toLocal(new Date(startMs + 60 * 60 * 1000).toISOString());
-                const diffMin = Math.max(1, Math.round((new Date(autoEnd).getTime() - startMs) / 60000));
-                setExam({ ...exam, start_time: start, end_time: autoEnd, time_limit_minutes: diffMin });
-              }} /></div>
-              <div><Label>Fin</Label><Input type="datetime-local" value={toLocal(exam.end_time)} onChange={e => {
-                const end = e.target.value;
-                const diffMin = exam.start_time ? Math.max(1, Math.round((new Date(end).getTime() - new Date(exam.start_time).getTime()) / 60000)) : exam.time_limit_minutes;
-                setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
-              }} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Duración (min)</Label><Input type="number" value={exam.time_limit_minutes || ""} onChange={e => setExam({ ...exam, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} disabled className="bg-muted/50" /></div>
+          <Card>
+            <CardContent className="p-5 space-y-3">
               <div>
-                <Label>Navegación</Label>
-                <Select value={exam.navigation_type} onValueChange={(v) => setExam({ ...exam, navigation_type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="libre">Libre</SelectItem>
-                    <SelectItem value="secuencial">Secuencial</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Título</Label>
+                <Input
+                  value={exam.title}
+                  onChange={(e) => setExam({ ...exam, title: e.target.value })}
+                />
               </div>
-            </div>
-            <Button onClick={saveExam}>Guardar cambios</Button>
-          </CardContent></Card>
+              <div>
+                <Label>Descripción</Label>
+                <Textarea
+                  value={exam.description ?? ""}
+                  onChange={(e) => setExam({ ...exam, description: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Inicio</Label>
+                  <Input
+                    type="datetime-local"
+                    value={toLocal(exam.start_time)}
+                    onChange={(e) => {
+                      const start = e.target.value;
+                      const startMs = new Date(start).getTime();
+                      const currentEnd = exam.end_time ? new Date(exam.end_time).getTime() : 0;
+                      const autoEnd =
+                        currentEnd > startMs
+                          ? exam.end_time
+                          : toLocal(new Date(startMs + 60 * 60 * 1000).toISOString());
+                      const diffMin = Math.max(
+                        1,
+                        Math.round((new Date(autoEnd).getTime() - startMs) / 60000),
+                      );
+                      setExam({
+                        ...exam,
+                        start_time: start,
+                        end_time: autoEnd,
+                        time_limit_minutes: diffMin,
+                      });
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label>Fin</Label>
+                  <Input
+                    type="datetime-local"
+                    value={toLocal(exam.end_time)}
+                    onChange={(e) => {
+                      const end = e.target.value;
+                      const diffMin = exam.start_time
+                        ? Math.max(
+                            1,
+                            Math.round(
+                              (new Date(end).getTime() - new Date(exam.start_time).getTime()) /
+                                60000,
+                            ),
+                          )
+                        : exam.time_limit_minutes;
+                      setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Duración (min)</Label>
+                  <Input
+                    type="number"
+                    value={exam.time_limit_minutes || ""}
+                    onChange={(e) =>
+                      setExam({
+                        ...exam,
+                        time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    disabled
+                    className="bg-muted/50"
+                  />
+                </div>
+                <div>
+                  <Label>Navegación</Label>
+                  <Select
+                    value={exam.navigation_type}
+                    onValueChange={(v) => setExam({ ...exam, navigation_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="libre">Libre</SelectItem>
+                      <SelectItem value="secuencial">Secuencial</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={saveExam}>Guardar cambios</Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="questions" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Generar con IA</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Generar con IA
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
-              <div><Label>Temas</Label><Textarea placeholder="Ej: arrays, recursividad, complejidad..." value={aiTopics} onChange={e => setAiTopics(e.target.value)} /></div>
+              <div>
+                <Label>Temas</Label>
+                <Textarea
+                  placeholder="Ej: arrays, recursividad, complejidad..."
+                  value={aiTopics}
+                  onChange={(e) => setAiTopics(e.target.value)}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Cantidad</Label><Input type="number" min={1} max={10} value={aiCount || ""} onChange={e => setAiCount(e.target.value === "" ? 0 : Number(e.target.value))} /></div>
+                <div>
+                  <Label>Cantidad</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={aiCount || ""}
+                    onChange={(e) => setAiCount(e.target.value === "" ? 0 : Number(e.target.value))}
+                  />
+                </div>
                 <div>
                   <Label>Tipo</Label>
                   <Select value={aiType} onValueChange={setAiType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="abierta">Abierta</SelectItem>
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
@@ -256,7 +408,9 @@ function ExamEditor() {
                 <div>
                   <Label>Lenguaje</Label>
                   <Select value={aiLanguage} onValueChange={setAiLanguage}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="java">Java</SelectItem>
                       <SelectItem value="python">Python</SelectItem>
@@ -266,20 +420,28 @@ function ExamEditor() {
                 </div>
               )}
               <Button onClick={generateAI} disabled={aiLoading}>
-                {aiLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                {aiLoading ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
                 Generar preguntas
               </Button>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">Agregar manualmente</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Agregar manualmente</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Tipo</Label>
                   <Select value={qType} onValueChange={setQType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="abierta">Abierta</SelectItem>
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
@@ -288,14 +450,26 @@ function ExamEditor() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Puntos</Label><Input type="number" value={qPoints || ""} onChange={e => setQPoints(e.target.value === "" ? 0 : Number(e.target.value))} /></div>
+                <div>
+                  <Label>Puntos</Label>
+                  <Input
+                    type="number"
+                    value={qPoints || ""}
+                    onChange={(e) => setQPoints(e.target.value === "" ? 0 : Number(e.target.value))}
+                  />
+                </div>
               </div>
-              <div><Label>Enunciado</Label><Textarea value={qContent} onChange={e => setQContent(e.target.value)} /></div>
+              <div>
+                <Label>Enunciado</Label>
+                <Textarea value={qContent} onChange={(e) => setQContent(e.target.value)} />
+              </div>
               {qType === "codigo" && (
                 <div>
                   <Label>Lenguaje</Label>
                   <Select value={qLanguage} onValueChange={setQLanguage}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="java">Java</SelectItem>
                       <SelectItem value="python">Python</SelectItem>
@@ -305,22 +479,42 @@ function ExamEditor() {
                 </div>
               )}
               {qType !== "cerrada" && (
-                <div><Label>Rúbrica esperada *</Label><Textarea placeholder="Criterios para una respuesta correcta…" value={qRubric} onChange={e => setQRubric(e.target.value)} /></div>
+                <div>
+                  <Label>Rúbrica esperada *</Label>
+                  <Textarea
+                    placeholder="Criterios para una respuesta correcta…"
+                    value={qRubric}
+                    onChange={(e) => setQRubric(e.target.value)}
+                  />
+                </div>
               )}
               {qType === "cerrada" && (
                 <div className="space-y-2">
                   <Label>Opciones (marca la correcta)</Label>
                   {qChoices.map((c, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <input type="radio" checked={qCorrect === i} onChange={() => setQCorrect(i)} />
-                      <Input value={c} placeholder={`Opción ${String.fromCharCode(65 + i)}`} onChange={e => {
-                        const nc = [...qChoices]; nc[i] = e.target.value; setQChoices(nc);
-                      }} />
+                      <input
+                        type="radio"
+                        checked={qCorrect === i}
+                        onChange={() => setQCorrect(i)}
+                      />
+                      <Input
+                        value={c}
+                        placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                        onChange={(e) => {
+                          const nc = [...qChoices];
+                          nc[i] = e.target.value;
+                          setQChoices(nc);
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
               )}
-              <Button onClick={addQuestion}><Plus className="h-4 w-4 mr-1" />Agregar pregunta</Button>
+              <Button onClick={addQuestion}>
+                <Plus className="h-4 w-4 mr-1" />
+                Agregar pregunta
+              </Button>
             </CardContent>
           </Card>
 
@@ -330,26 +524,44 @@ function ExamEditor() {
                 <CardContent className="p-4 flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-[10px]">#{i + 1}</Badge>
-                      <Badge variant="secondary" className="text-[10px]">{q.type}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        #{i + 1}
+                      </Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {q.type}
+                      </Badge>
                       {q.type === "codigo" && q.language && (
-                        <Badge variant="outline" className="text-[10px]">{q.language}</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {q.language}
+                        </Badge>
                       )}
                       <span className="text-xs text-muted-foreground">{q.points} pt</span>
                     </div>
                     <p className="text-sm">{q.content}</p>
-                    {q.expected_rubric && <p className="text-xs text-muted-foreground mt-1 italic">Rúbrica: {q.expected_rubric}</p>}
+                    {q.expected_rubric && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">
+                        Rúbrica: {q.expected_rubric}
+                      </p>
+                    )}
                     {q.options?.choices && (
                       <ul className="text-xs text-muted-foreground mt-2 space-y-0.5">
                         {q.options.choices.map((c: string, idx: number) => (
-                          <li key={idx} className={idx === q.options.correct_index ? "text-success font-medium" : ""}>
-                            {String.fromCharCode(65 + idx)}. {c} {idx === q.options.correct_index && "✓"}
+                          <li
+                            key={idx}
+                            className={
+                              idx === q.options.correct_index ? "text-success font-medium" : ""
+                            }
+                          >
+                            {String.fromCharCode(65 + idx)}. {c}{" "}
+                            {idx === q.options.correct_index && "✓"}
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => removeQuestion(q.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => removeQuestion(q.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -362,7 +574,9 @@ function ExamEditor() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base">Estudiantes matriculados</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">{assigned.size} de {students.length} asignados</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {assigned.size} de {students.length} asignados
+                  </p>
                 </div>
                 <div className="flex gap-1.5">
                   <Button size="sm" variant="outline" className="gap-1" onClick={assignAll}>
@@ -375,15 +589,31 @@ function ExamEditor() {
               </div>
             </CardHeader>
             <CardContent className="space-y-0.5">
-              {students.length === 0 && <p className="text-sm text-muted-foreground">No hay estudiantes matriculados en este curso.</p>}
-              {students.map(s => (
-                <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
-                  <Checkbox checked={assigned.has(s.id)} onCheckedChange={(v) => toggleAssign(s.id, !!v)} />
+              {students.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No hay estudiantes matriculados en este curso.
+                </p>
+              )}
+              {students.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={assigned.has(s.id)}
+                    onCheckedChange={(v) => toggleAssign(s.id, !!v)}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{s.full_name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{s.institutional_email}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {s.institutional_email}
+                    </div>
                   </div>
-                  {assigned.has(s.id) && <Badge variant="secondary" className="text-[9px] shrink-0">Asignado</Badge>}
+                  {assigned.has(s.id) && (
+                    <Badge variant="secondary" className="text-[9px] shrink-0">
+                      Asignado
+                    </Badge>
+                  )}
                 </label>
               ))}
             </CardContent>

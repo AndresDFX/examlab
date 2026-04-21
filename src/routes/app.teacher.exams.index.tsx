@@ -7,12 +7,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy } from "lucide-react";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
@@ -26,9 +45,16 @@ export const Route = createFileRoute("/app/teacher/exams/")({ component: Teacher
 
 type Course = { id: string; name: string; period: string | null };
 type Exam = {
-  id: string; course_id: string; title: string; description: string | null;
-  start_time: string; end_time: string; time_limit_minutes: number;
-  navigation_type: string; shuffle_enabled: boolean; parent_exam_id: string | null;
+  id: string;
+  course_id: string;
+  title: string;
+  description: string | null;
+  start_time: string;
+  end_time: string;
+  time_limit_minutes: number;
+  navigation_type: string;
+  shuffle_enabled: boolean;
+  parent_exam_id: string | null;
   course?: { name: string; period: string | null };
 };
 
@@ -45,12 +71,17 @@ function TeacherExams() {
   const load = async () => {
     const [{ data: cs }, { data: es }] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
-      supabase.from("exams").select("*, course:courses(name, period)").order("start_time", { ascending: false }),
+      supabase
+        .from("exams")
+        .select("*, course:courses(name, period)")
+        .order("start_time", { ascending: false }),
     ]);
     setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const openNew = () => {
     const now = new Date();
@@ -70,18 +101,22 @@ function TeacherExams() {
   };
 
   const toggleCourse = (id: string) => {
-    setSelectedCourseIds(prev => {
+    setSelectedCourseIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       // Keep form.course_id in sync with first selected
       const first = [...next][0];
-      if (first) setForm(f => ({ ...f, course_id: first }));
+      if (first) setForm((f) => ({ ...f, course_id: first }));
       return next;
     });
   };
 
   const save = async () => {
-    if (!form.title || selectedCourseIds.size === 0 || !user) { toast.error("Completa los campos y selecciona al menos un curso"); return; }
+    if (!form.title || selectedCourseIds.size === 0 || !user) {
+      toast.error("Completa los campos y selecciona al menos un curso");
+      return;
+    }
     const courseIds = [...selectedCourseIds];
     const basePayload = {
       title: form.title,
@@ -98,12 +133,23 @@ function TeacherExams() {
     // Create one exam per selected course
     let firstId: string | null = null;
     for (const cid of courseIds) {
-      const { data, error } = await supabase.from("exams").insert({ ...basePayload, course_id: cid }).select().single();
-      if (error) { toast.error(error.message); return; }
+      const { data, error } = await supabase
+        .from("exams")
+        .insert({ ...basePayload, course_id: cid })
+        .select()
+        .single();
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       if (!firstId) firstId = data.id;
     }
 
-    toast.success(courseIds.length > 1 ? `Examen creado en ${courseIds.length} cursos correctamente` : "Examen creado correctamente");
+    toast.success(
+      courseIds.length > 1
+        ? `Examen creado en ${courseIds.length} cursos correctamente`
+        : "Examen creado correctamente",
+    );
     setOpen(false);
     if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };
@@ -124,24 +170,30 @@ function TeacherExams() {
             templateCsv={EXAMS_TEMPLATE}
             onExport={() => {
               if (!exams.length) return "";
-              return toCSV(exams.map(e => ({
-                course_name: e.course?.name ?? "",
-                title: e.title,
-                description: e.description ?? "",
-                start_time: e.start_time,
-                end_time: e.end_time,
-                time_limit_minutes: e.time_limit_minutes,
-                navigation_type: e.navigation_type,
-                shuffle_enabled: e.shuffle_enabled ? "true" : "false",
-              })));
+              return toCSV(
+                exams.map((e) => ({
+                  course_name: e.course?.name ?? "",
+                  title: e.title,
+                  description: e.description ?? "",
+                  start_time: e.start_time,
+                  end_time: e.end_time,
+                  time_limit_minutes: e.time_limit_minutes,
+                  navigation_type: e.navigation_type,
+                  shuffle_enabled: e.shuffle_enabled ? "true" : "false",
+                })),
+              );
             }}
             onImport={async (rows) => {
               if (!user) throw new Error("Sesión no válida");
-              const courseByName = new Map(courses.map(c => [c.name.toLowerCase().trim(), c.id]));
-              let created = 0, skipped = 0;
+              const courseByName = new Map(courses.map((c) => [c.name.toLowerCase().trim(), c.id]));
+              let created = 0,
+                skipped = 0;
               for (const r of rows) {
                 const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
-                if (!cid || !r.title || !r.start_time || !r.end_time) { skipped++; continue; }
+                if (!cid || !r.title || !r.start_time || !r.end_time) {
+                  skipped++;
+                  continue;
+                }
                 const { error } = await supabase.from("exams").insert({
                   course_id: cid,
                   title: r.title,
@@ -153,13 +205,17 @@ function TeacherExams() {
                   shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
                   created_by: user.id,
                 });
-                if (error) skipped++; else created++;
+                if (error) skipped++;
+                else created++;
               }
               await load();
               return `${created} exámenes creados · ${skipped} omitidos`;
             }}
           />
-          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo examen</Button>
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuevo examen
+          </Button>
         </div>
       </div>
 
@@ -177,26 +233,45 @@ function TeacherExams() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {exams.map(e => (
+              {exams.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium">
                     {e.title}
-                    {e.parent_exam_id && <Badge variant="outline" className="ml-2 text-[10px]"><GitBranch className="h-3 w-3 mr-1" />Supletorio</Badge>}
+                    {e.parent_exam_id && (
+                      <Badge variant="outline" className="ml-2 text-[10px]">
+                        <GitBranch className="h-3 w-3 mr-1" />
+                        Supletorio
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {e.course?.name}
-                    {e.course?.period && <Badge variant="outline" className="ml-1.5 text-[9px]">{e.course.period}</Badge>}
+                    {e.course?.period && (
+                      <Badge variant="outline" className="ml-1.5 text-[9px]">
+                        {e.course.period}
+                      </Badge>
+                    )}
                   </TableCell>
-                  <TableCell className="text-sm">{new Date(e.start_time).toLocaleString()}</TableCell>
+                  <TableCell className="text-sm">
+                    {new Date(e.start_time).toLocaleString()}
+                  </TableCell>
                   <TableCell className="text-sm">{e.time_limit_minutes} min</TableCell>
-                  <TableCell><Badge variant="secondary" className="text-[10px]">{e.navigation_type}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {e.navigation_type}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
                       <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }}>
-                        <Button variant="ghost" size="sm" title="Monitor en vivo"><Monitor className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" title="Monitor en vivo">
+                          <Monitor className="h-4 w-4" />
+                        </Button>
                       </Link>
                       <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }}>
-                        <Button variant="ghost" size="sm" title="Editar"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" title="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                       </Link>
                     </div>
                   </TableCell>
@@ -209,47 +284,130 @@ function TeacherExams() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Nuevo examen</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Nuevo examen</DialogTitle>
+          </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Título</Label><Input value={form.title ?? ""} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
-            <div><Label>Descripción</Label><Textarea value={form.description ?? ""} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div>
-              <Label>Cursos <span className="text-xs text-muted-foreground font-normal">(selecciona uno o más)</span></Label>
+              <Label>Título</Label>
+              <Input
+                value={form.title ?? ""}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Descripción</Label>
+              <Textarea
+                value={form.description ?? ""}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>
+                Cursos{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (selecciona uno o más)
+                </span>
+              </Label>
               <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
-                {courses.map(c => (
-                  <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
-                    <Checkbox checked={selectedCourseIds.has(c.id)} onCheckedChange={() => toggleCourse(c.id)} />
+                {courses.map((c) => (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={selectedCourseIds.has(c.id)}
+                      onCheckedChange={() => toggleCourse(c.id)}
+                    />
                     <span className="flex-1">{c.name}</span>
-                    {c.period && <Badge variant="outline" className="text-[9px]">{c.period}</Badge>}
+                    {c.period && (
+                      <Badge variant="outline" className="text-[9px]">
+                        {c.period}
+                      </Badge>
+                    )}
                   </label>
                 ))}
               </div>
               {selectedCourseIds.size > 1 && (
-                <p className="text-xs text-muted-foreground mt-1">Se creará una copia del examen en cada curso seleccionado.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se creará una copia del examen en cada curso seleccionado.
+                </p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Inicio</Label><Input type="datetime-local" value={form.start_time as any} onChange={e => {
-                const start = e.target.value;
-                const startMs = new Date(start).getTime();
-                // Auto-set end to start + 1h if end is empty or not after start
-                const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
-                const autoEnd = currentEnd > startMs ? form.end_time : toLocal(new Date(startMs + 60 * 60 * 1000));
-                const diffMin = Math.max(1, Math.round((new Date(autoEnd!).getTime() - startMs) / 60000));
-                setForm({ ...form, start_time: start, end_time: autoEnd, time_limit_minutes: diffMin });
-              }} /></div>
-              <div><Label>Fin</Label><Input type="datetime-local" value={form.end_time as any} onChange={e => {
-                const end = e.target.value;
-                const diffMin = form.start_time ? Math.max(1, Math.round((new Date(end).getTime() - new Date(form.start_time!).getTime()) / 60000)) : form.time_limit_minutes;
-                setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
-              }} /></div>
+              <div>
+                <Label>Inicio</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.start_time as any}
+                  onChange={(e) => {
+                    const start = e.target.value;
+                    const startMs = new Date(start).getTime();
+                    // Auto-set end to start + 1h if end is empty or not after start
+                    const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
+                    const autoEnd =
+                      currentEnd > startMs
+                        ? form.end_time
+                        : toLocal(new Date(startMs + 60 * 60 * 1000));
+                    const diffMin = Math.max(
+                      1,
+                      Math.round((new Date(autoEnd!).getTime() - startMs) / 60000),
+                    );
+                    setForm({
+                      ...form,
+                      start_time: start,
+                      end_time: autoEnd,
+                      time_limit_minutes: diffMin,
+                    });
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Fin</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.end_time as any}
+                  onChange={(e) => {
+                    const end = e.target.value;
+                    const diffMin = form.start_time
+                      ? Math.max(
+                          1,
+                          Math.round(
+                            (new Date(end).getTime() - new Date(form.start_time!).getTime()) /
+                              60000,
+                          ),
+                        )
+                      : form.time_limit_minutes;
+                    setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
+                  }}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Duración (min)</Label><Input type="number" value={form.time_limit_minutes || ""} onChange={e => setForm({ ...form, time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value) })} disabled className="bg-muted/50" /></div>
+              <div>
+                <Label>Duración (min)</Label>
+                <Input
+                  type="number"
+                  value={form.time_limit_minutes || ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value),
+                    })
+                  }
+                  disabled
+                  className="bg-muted/50"
+                />
+              </div>
               <div>
                 <Label>Navegación</Label>
-                <Select value={form.navigation_type} onValueChange={(v) => setForm({ ...form, navigation_type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.navigation_type}
+                  onValueChange={(v) => setForm({ ...form, navigation_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="libre">Libre</SelectItem>
                     <SelectItem value="secuencial">Secuencial</SelectItem>
@@ -259,23 +417,37 @@ function TeacherExams() {
             </div>
             <div className="flex items-center justify-between">
               <Label>Mezclar preguntas</Label>
-              <Switch checked={!!form.shuffle_enabled} onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })} />
+              <Switch
+                checked={!!form.shuffle_enabled}
+                onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
+              />
             </div>
             <div>
               <Label>Es supletorio de (opcional)</Label>
-              <Select value={form.parent_exam_id ?? "none"} onValueChange={(v) => setForm({ ...form, parent_exam_id: v === "none" ? null : v })}>
-                <SelectTrigger><SelectValue placeholder="Examen original" /></SelectTrigger>
+              <Select
+                value={form.parent_exam_id ?? "none"}
+                onValueChange={(v) => setForm({ ...form, parent_exam_id: v === "none" ? null : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Examen original" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Ninguno</SelectItem>
-                  {exams.filter(e => !e.parent_exam_id && e.course_id === form.course_id).map(e => (
-                    <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
-                  ))}
+                  {exams
+                    .filter((e) => !e.parent_exam_id && e.course_id === form.course_id)
+                    .map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.title}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
             <Button onClick={save}>Crear</Button>
           </DialogFooter>
         </DialogContent>

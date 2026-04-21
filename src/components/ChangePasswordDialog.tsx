@@ -3,7 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
 
@@ -59,7 +65,13 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset();
+        onOpenChange(v);
+      }}
+    >
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -74,7 +86,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
               <Input
                 type={showNew ? "text" : "password"}
                 value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
+                onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Mínimo 8 caracteres"
                 className="pr-9"
               />
@@ -92,7 +104,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             <Input
               type="password"
               value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repite la nueva contraseña"
               className="mt-1"
             />
@@ -102,8 +114,13 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+          >
             {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
             Guardar
           </Button>

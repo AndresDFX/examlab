@@ -1,20 +1,28 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
 import { GraduationCap, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Iniciar sesión — ExamLab" }, { name: "description", content: "Accede a la plataforma de exámenes" }] }),
+  head: () => ({
+    meta: [
+      { title: "Iniciar sesión — ExamLab" },
+      { name: "description", content: "Accede a la plataforma de exámenes" },
+    ],
+  }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [seedingLoading, setSeedingLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -32,10 +40,10 @@ function AuthPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast.error("Credenciales inválidas. Contacta a tu administrador si no tienes cuenta.");
+      toast.error(t("auth.invalidCredentials"));
       return;
     }
-    toast.success("Bienvenido");
+    toast.success(t("auth.welcome"));
     navigate({ to: "/app" });
   };
 
@@ -90,37 +98,66 @@ function AuthPage() {
               </div>
               <span className="font-semibold text-lg">ExamLab</span>
             </div>
-            <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
-            <CardDescription>
-              Ingresa con las credenciales proporcionadas por tu administrador.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-2xl">{t("auth.title")}</CardTitle>
+                <CardDescription>
+                  Ingresa con las credenciales proporcionadas por tu administrador.
+                </CardDescription>
+              </div>
+              <LanguageSwitcher />
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={onLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="li-email">Email institucional</Label>
-                <Input id="li-email" type="email" placeholder="usuario@institucion.edu" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+                <Label htmlFor="li-email">{t("auth.email")}</Label>
+                <Input
+                  id="li-email"
+                  type="email"
+                  placeholder="usuario@institucion.edu"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="li-pass">Contraseña</Label>
-                <Input id="li-pass" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+                <Label htmlFor="li-pass">{t("auth.password")}</Label>
+                <Input
+                  id="li-pass"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Entrar
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} {t("auth.submit")}
               </Button>
             </form>
             <p className="text-xs text-muted-foreground mt-4 text-center">
               ¿No tienes cuenta? Contacta a tu administrador para que te registre en la plataforma.
             </p>
             <div className="pt-4 border-t mt-4">
-              <p className="text-xs text-muted-foreground mb-2">¿Primera vez configurando? Carga datos de prueba:</p>
-              <Button variant="outline" className="w-full" onClick={runSeed} disabled={seedingLoading}>
+              <p className="text-xs text-muted-foreground mb-2">
+                ¿Primera vez configurando? Carga datos de prueba:
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={runSeed}
+                disabled={seedingLoading}
+              >
                 {seedingLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Inicializar datos demo
               </Button>
             </div>
             <div className="mt-4 text-center">
-              <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Volver al inicio</Link>
+              <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
+                ← Volver al inicio
+              </Link>
             </div>
           </CardContent>
         </Card>

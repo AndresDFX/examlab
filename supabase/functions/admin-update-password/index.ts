@@ -22,10 +22,13 @@ Deno.serve(async (req) => {
     }
 
     if (newPassword.length < 8) {
-      return new Response(JSON.stringify({ error: "La contraseña debe tener al menos 8 caracteres" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "La contraseña debe tener al menos 8 caracteres" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Verify the caller is an admin
@@ -33,7 +36,7 @@ Deno.serve(async (req) => {
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
-      { global: { headers: { Authorization: authHeader ?? "" } } }
+      { global: { headers: { Authorization: authHeader ?? "" } } },
     );
     const { data: caller } = await userClient.auth.getUser();
     if (!caller.user) {
@@ -44,13 +47,23 @@ Deno.serve(async (req) => {
     }
 
     // Check admin role
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: roleCheck } = await admin.from("user_roles").select("role").eq("user_id", caller.user.id).eq("role", "Admin");
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: roleCheck } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", caller.user.id)
+      .eq("role", "Admin");
     if (!roleCheck?.length) {
-      return new Response(JSON.stringify({ error: "Solo administradores pueden cambiar contraseñas" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Solo administradores pueden cambiar contraseñas" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Update the password

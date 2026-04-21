@@ -22,7 +22,9 @@ export async function saveAnswersLocally(examId: string, data: PendingAnswer): P
     // Fallback to localStorage
     try {
       localStorage.setItem(`${PENDING_PREFIX}${examId}`, JSON.stringify(data));
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }
 }
 
@@ -30,10 +32,14 @@ export async function saveAnswersLocally(examId: string, data: PendingAnswer): P
 export async function clearLocalAnswers(examId: string): Promise<void> {
   try {
     await del(`${PENDING_PREFIX}${examId}`);
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
   try {
     localStorage.removeItem(`${PENDING_PREFIX}${examId}`);
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 }
 
 /** Get all pending syncs */
@@ -51,7 +57,9 @@ export async function getPendingSyncs(): Promise<{ examId: string; data: Pending
         if (data) results.push({ examId, data: data as PendingAnswer });
       }
     }
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 
   // Check localStorage fallback
   try {
@@ -63,11 +71,15 @@ export async function getPendingSyncs(): Promise<{ examId: string; data: Pending
         if (raw) {
           try {
             results.push({ examId, data: JSON.parse(raw) });
-          } catch { /* silent */ }
+          } catch {
+            /* silent */
+          }
         }
       }
     }
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 
   return results;
 }
@@ -79,10 +91,13 @@ export async function syncPendingAnswers(): Promise<number> {
 
   for (const { examId, data } of pending) {
     try {
-      const { error } = await supabase.from("submissions").update({
-        answers: data.answers,
-        focus_warnings: data.warnings,
-      }).eq("id", data.submissionId);
+      const { error } = await supabase
+        .from("submissions")
+        .update({
+          answers: data.answers,
+          focus_warnings: data.warnings,
+        })
+        .eq("id", data.submissionId);
 
       if (!error) {
         await clearLocalAnswers(examId);

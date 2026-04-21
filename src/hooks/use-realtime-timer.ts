@@ -58,12 +58,7 @@ export function useRealtimeTimer({
     const prev = prevSecondsRef.current;
     prevSecondsRef.current = secondsLeft;
 
-    if (
-      prev !== null &&
-      prev > 0 &&
-      secondsLeft === 0 &&
-      !timeUpFiredRef.current
-    ) {
+    if (prev !== null && prev > 0 && secondsLeft === 0 && !timeUpFiredRef.current) {
       timeUpFiredRef.current = true;
       queueMicrotask(() => onTimeUp?.());
     }
@@ -153,7 +148,7 @@ export function useRealtimeTimer({
               onTimeAdded?.(ctrl.extra_seconds);
               break;
           }
-        }
+        },
       )
       .subscribe();
 

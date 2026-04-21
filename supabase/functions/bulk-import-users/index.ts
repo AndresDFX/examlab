@@ -12,7 +12,8 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "No autenticado" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -27,7 +28,8 @@ Deno.serve(async (req) => {
     const { data: u, error: uErr } = await userClient.auth.getUser();
     if (uErr || !u.user) {
       return new Response(JSON.stringify({ error: "Token inválido" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -36,7 +38,8 @@ Deno.serve(async (req) => {
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", u.user.id);
     if (!roles?.some((r) => r.role === "Admin")) {
       return new Response(JSON.stringify({ error: "Solo Admin puede importar" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -45,9 +48,20 @@ Deno.serve(async (req) => {
 
     const result: { email: string; ok: boolean; reason?: string }[] = [];
     for (const row of rows) {
-      const { full_name, institutional_email, personal_email, password, roles: rolesStr, course_name } = row;
+      const {
+        full_name,
+        institutional_email,
+        personal_email,
+        password,
+        roles: rolesStr,
+        course_name,
+      } = row;
       if (!institutional_email || !full_name) {
-        result.push({ email: institutional_email ?? "(vacío)", ok: false, reason: "faltan campos" });
+        result.push({
+          email: institutional_email ?? "(vacío)",
+          ok: false,
+          reason: "faltan campos",
+        });
         continue;
       }
       try {
@@ -63,24 +77,39 @@ Deno.serve(async (req) => {
           if (error) throw error;
           userId = data.user!.id;
         }
-        const roleList = (rolesStr || "Estudiante").split("|").map((r: string) => r.trim()).filter(Boolean);
+        const roleList = (rolesStr || "Estudiante")
+          .split("|")
+          .map((r: string) => r.trim())
+          .filter(Boolean);
         for (const r of roleList) {
           if (["Admin", "Docente", "Estudiante"].includes(r)) {
-            await admin.from("user_roles").upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });
+            await admin
+              .from("user_roles")
+              .upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });
           }
         }
         if (course_name) {
-          const { data: course } = await admin.from("courses").select("id").eq("name", course_name).maybeSingle();
+          const { data: course } = await admin
+            .from("courses")
+            .select("id")
+            .eq("name", course_name)
+            .maybeSingle();
           if (course) {
-            await admin.from("course_enrollments").upsert(
-              { course_id: course.id, user_id: userId },
-              { onConflict: "course_id,user_id" },
-            );
+            await admin
+              .from("course_enrollments")
+              .upsert(
+                { course_id: course.id, user_id: userId },
+                { onConflict: "course_id,user_id" },
+              );
           }
         }
         result.push({ email: institutional_email, ok: true });
       } catch (e) {
-        result.push({ email: institutional_email, ok: false, reason: e instanceof Error ? e.message : String(e) });
+        result.push({
+          email: institutional_email,
+          ok: false,
+          reason: e instanceof Error ? e.message : String(e),
+        });
       }
     }
     return new Response(JSON.stringify({ ok: true, result }), {
@@ -88,7 +117,8 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

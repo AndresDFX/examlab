@@ -187,12 +187,21 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
             className={cn(
               "w-full rounded-md border bg-muted/30 p-3 font-mono text-xs leading-relaxed resize-y",
               "focus:outline-none focus:ring-2 focus:ring-ring",
-              readOnly && "opacity-70 cursor-not-allowed"
+              readOnly && "opacity-70 cursor-not-allowed",
             )}
             placeholder="Escribe tu diagrama Mermaid aquí..."
           />
           <p className="text-[10px] text-muted-foreground mt-1">
-            Usa sintaxis <a href="https://mermaid.js.org/syntax/classDiagram.html" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Mermaid</a> para crear diagramas UML. Cambia a "Vista previa" para ver el resultado.
+            Usa sintaxis{" "}
+            <a
+              href="https://mermaid.js.org/syntax/classDiagram.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Mermaid
+            </a>{" "}
+            para crear diagramas UML. Cambia a "Vista previa" para ver el resultado.
           </p>
         </TabsContent>
 
@@ -200,13 +209,31 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
           <div className="rounded-md border bg-card min-h-[200px] relative overflow-hidden">
             {/* Zoom controls */}
             <div className="absolute top-2 right-2 z-10 flex gap-1">
-              <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(2, z + 0.2))}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setZoom((z) => Math.min(2, z + 0.2))}
+              >
                 <ZoomIn className="h-3.5 w-3.5" />
               </Button>
-              <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.4, z - 0.2))}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setZoom((z) => Math.max(0.4, z - 0.2))}
+              >
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
-              <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(1)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setZoom(1)}
+              >
                 <RotateCcw className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -226,7 +253,9 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
               />
             ) : (
               <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-                {value.trim() ? "Renderizando..." : "Escribe código Mermaid y cambia a vista previa"}
+                {value.trim()
+                  ? "Renderizando..."
+                  : "Escribe código Mermaid y cambia a vista previa"}
               </div>
             )}
           </div>

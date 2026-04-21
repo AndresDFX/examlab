@@ -8,7 +8,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function ThemeToggle({ variant = "ghost", size = "sm" }: { variant?: "ghost" | "outline"; size?: "sm" | "icon" }) {
+export function ThemeToggle({
+  variant = "ghost",
+  size = "sm",
+}: {
+  variant?: "ghost" | "outline";
+  size?: "sm" | "icon";
+}) {
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   return (

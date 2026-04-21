@@ -7,8 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { BookOpen, Users, UserPlus, Trash2, Loader2 } from "lucide-react";
@@ -54,11 +67,7 @@ function TeacherCourses() {
       setLoading(false);
       return;
     }
-    const { data: cs } = await supabase
-      .from("courses")
-      .select("*")
-      .in("id", ids)
-      .order("name");
+    const { data: cs } = await supabase.from("courses").select("*").in("id", ids).order("name");
     setCourses(cs ?? []);
     setLoading(false);
   };
@@ -81,7 +90,9 @@ function TeacherCourses() {
     setEnrolled(profs ?? []);
   };
 
-  useEffect(() => { loadCourses(); }, [user?.id]);
+  useEffect(() => {
+    loadCourses();
+  }, [user?.id]);
 
   const openCourse = async (c: Course) => {
     setSelected(c);
@@ -120,9 +131,9 @@ function TeacherCourses() {
       const toRemove = [...currentSet].filter((id) => !newSet.has(id));
 
       if (toAdd.length) {
-        const { error } = await supabase.from("course_enrollments").insert(
-          toAdd.map((uid) => ({ course_id: selected.id, user_id: uid })),
-        );
+        const { error } = await supabase
+          .from("course_enrollments")
+          .insert(toAdd.map((uid) => ({ course_id: selected.id, user_id: uid })));
         if (error) throw error;
       }
       if (toRemove.length) {
@@ -160,10 +171,11 @@ function TeacherCourses() {
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
-  const filtered = allStudents.filter((s) =>
-    !search ||
-    s.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    s.institutional_email.toLowerCase().includes(search.toLowerCase()),
+  const filtered = allStudents.filter(
+    (s) =>
+      !search ||
+      s.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      s.institutional_email.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -174,18 +186,24 @@ function TeacherCourses() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cursos asignados</h1>
-          <p className="text-sm text-muted-foreground">Gestiona los estudiantes inscritos en los cursos que tienes asignados.</p>
+          <p className="text-sm text-muted-foreground">
+            Gestiona los estudiantes inscritos en los cursos que tienes asignados.
+          </p>
         </div>
       </div>
 
       {loading ? (
-        <Card><CardContent className="p-6 text-sm text-muted-foreground">Cargando…</CardContent></Card>
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">Cargando…</CardContent>
+        </Card>
       ) : courses.length === 0 ? (
         <Card>
           <CardContent className="p-10 text-center space-y-2">
             <BookOpen className="h-10 w-10 mx-auto text-muted-foreground/60" />
             <h3 className="font-medium">Sin cursos asignados</h3>
-            <p className="text-sm text-muted-foreground">El administrador aún no te ha asignado a ningún curso.</p>
+            <p className="text-sm text-muted-foreground">
+              El administrador aún no te ha asignado a ningún curso.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -200,9 +218,15 @@ function TeacherCourses() {
                 <CardTitle className="text-base">{c.name}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {c.description && <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>}
+                {c.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
+                )}
                 <div className="flex flex-wrap gap-1.5">
-                  {c.period && <Badge variant="secondary" className="text-[10px]">{c.period}</Badge>}
+                  {c.period && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {c.period}
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -218,7 +242,9 @@ function TeacherCourses() {
                 <Users className="h-5 w-5 text-primary" />
                 {selected.name}
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">{enrolled.length} estudiantes inscritos</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {enrolled.length} estudiantes inscritos
+              </p>
             </div>
             <Button size="sm" onClick={openEnroll}>
               <UserPlus className="h-4 w-4 mr-1" /> Gestionar inscripciones
@@ -241,7 +267,9 @@ function TeacherCourses() {
                     {enrolled.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell className="font-medium">{s.full_name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{s.institutional_email}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
+                          {s.institutional_email}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm" onClick={() => removeOne(s.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -276,18 +304,24 @@ function TeacherCourses() {
                 <div className="p-4 text-sm text-muted-foreground">Sin estudiantes.</div>
               ) : (
                 filtered.map((s) => (
-                  <label key={s.id} className="flex items-center gap-3 p-2.5 hover:bg-muted/40 cursor-pointer">
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-3 p-2.5 hover:bg-muted/40 cursor-pointer"
+                  >
                     <Checkbox
                       checked={pickerIds.has(s.id)}
                       onCheckedChange={(v) => {
                         const next = new Set(pickerIds);
-                        if (v) next.add(s.id); else next.delete(s.id);
+                        if (v) next.add(s.id);
+                        else next.delete(s.id);
                         setPickerIds(next);
                       }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{s.full_name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{s.institutional_email}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {s.institutional_email}
+                      </div>
                     </div>
                   </label>
                 ))
@@ -296,7 +330,9 @@ function TeacherCourses() {
             <p className="text-xs text-muted-foreground">{pickerIds.size} seleccionados</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEnrollOpen(false)} disabled={busy}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEnrollOpen(false)} disabled={busy}>
+              Cancelar
+            </Button>
             <Button onClick={saveEnrollments} disabled={busy}>
               {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Guardar

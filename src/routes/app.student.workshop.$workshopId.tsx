@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, FileIcon, Loader2, MessageSquareText } from "lucide-react";
 
-export const Route = createFileRoute("/app/student/workshop/$workshopId")({ component: StudentWorkshopDetail });
+export const Route = createFileRoute("/app/student/workshop/$workshopId")({
+  component: StudentWorkshopDetail,
+});
 
 type WorkshopLoaded = {
   id: string;
@@ -99,7 +101,9 @@ function StudentWorkshopDetail() {
   }, [user, workshopId]);
 
   const downloadFile = async (path: string) => {
-    const { data, error } = await supabase.storage.from("workshop-files").createSignedUrl(path, 3600);
+    const { data, error } = await supabase.storage
+      .from("workshop-files")
+      .createSignedUrl(path, 3600);
     if (error || !data?.signedUrl) return;
     window.open(data.signedUrl, "_blank");
   };
@@ -144,7 +148,9 @@ function StudentWorkshopDetail() {
           </Button>
         </Link>
         <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">No se encontró el taller.</CardContent>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            No se encontró el taller.
+          </CardContent>
         </Card>
       </div>
     );
@@ -169,7 +175,8 @@ function StudentWorkshopDetail() {
       {!submission && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Aún no has entregado este taller. Desde la lista de talleres puedes enviar tu trabajo cuando el curso lo permita.
+            Aún no has entregado este taller. Desde la lista de talleres puedes enviar tu trabajo
+            cuando el curso lo permita.
           </CardContent>
         </Card>
       )}
@@ -179,7 +186,9 @@ function StudentWorkshopDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Descripción</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">{workshop.description}</CardContent>
+          <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
+            {workshop.description}
+          </CardContent>
         </Card>
       )}
 
@@ -223,12 +232,16 @@ function StudentWorkshopDetail() {
               {submission.content && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Contenido</div>
-                  <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">{submission.content}</div>
+                  <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
+                    {submission.content}
+                  </div>
                 </div>
               )}
               {submission.external_link && (
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Enlace entregado</div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Enlace entregado
+                  </div>
                   <a
                     href={submission.external_link}
                     target="_blank"
@@ -242,7 +255,13 @@ function StudentWorkshopDetail() {
               {submission.file_url && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Archivo</div>
-                  <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => downloadFile(submission.file_url!)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => downloadFile(submission.file_url!)}
+                  >
                     <FileIcon className="h-4 w-4" />
                     {fileLabel(submission.file_url)}
                   </Button>
@@ -258,7 +277,8 @@ function StudentWorkshopDetail() {
                 <div>
                   <div className="font-medium">Calificación</div>
                   <div className="text-xs text-muted-foreground">
-                    Escala del curso {workshop.course?.grade_scale_min}–{workshop.course?.grade_scale_max} · Máx. taller {workshop.max_score}
+                    Escala del curso {workshop.course?.grade_scale_min}–
+                    {workshop.course?.grade_scale_max} · Máx. taller {workshop.max_score}
                   </div>
                 </div>
               </div>
@@ -274,7 +294,13 @@ function StudentWorkshopDetail() {
                 <CardTitle className="text-base">Retroalimentación</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {[...new Set([submission.teacher_feedback, submission.ai_feedback].filter(Boolean) as string[])].join("\n\n")}
+                {[
+                  ...new Set(
+                    [submission.teacher_feedback, submission.ai_feedback].filter(
+                      Boolean,
+                    ) as string[],
+                  ),
+                ].join("\n\n")}
               </CardContent>
             </Card>
           )}

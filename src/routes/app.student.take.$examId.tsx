@@ -22,6 +22,7 @@ import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
 import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
+import { useCourseLanguage } from "@/hooks/use-course-language";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -44,6 +45,8 @@ type Exam = {
   start_time: string;
   end_time: string;
   course_id: string;
+  /** Populated via join `course:courses(language)` when available. */
+  course?: { language?: string | null } | null;
 };
 
 /** Considera contestada la celda según tipo (incluye plantilla de código si no hubo edición). */
@@ -90,6 +93,9 @@ function TakeExam() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [exam, setExam] = useState<Exam | null>(null);
+  // Force i18n language to the course's configured language while the student
+  // is taking the exam; restored when the hook unmounts.
+  useCourseLanguage(exam?.course?.language ?? null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -149,7 +155,14 @@ function TakeExam() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: e } = await supabase.from("exams").select("*").eq("id", examId).single();
+      // `courses.language` is introduced in migration 20260423000000; until the
+      // generated Supabase types are refreshed, cast the client for this join.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: e } = await (supabase as any)
+        .from("exams")
+        .select("*, course:courses(language)")
+        .eq("id", examId)
+        .single();
       if (!e) {
         toast.error("Examen no encontrado");
         navigate({ to: "/app/student/exams" });

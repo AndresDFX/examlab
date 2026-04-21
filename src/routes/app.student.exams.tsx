@@ -42,8 +42,11 @@ function StudentExams() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: asg } = await supabase.from("exam_assignments")
-        .select("exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, course:courses(name, grade_scale_min, grade_scale_max))")
+      const { data: asg } = await supabase
+        .from("exam_assignments")
+        .select(
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, course:courses(name, grade_scale_min, grade_scale_max))",
+        )
         .eq("user_id", user.id);
       const exams = (asg ?? []).map((a: any) => a.exam).filter(Boolean);
       const assignedIds = exams.map((e: any) => e.id);
@@ -102,15 +105,19 @@ function StudentExams() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {visibleRows.length === 0 && <p className="text-muted-foreground text-sm">No tienes exámenes disponibles en este momento.</p>}
+        {visibleRows.length === 0 && (
+          <p className="text-muted-foreground text-sm">
+            No tienes exámenes disponibles en este momento.
+          </p>
+        )}
         {visibleRows.map(({ exam, submission }) => {
           const start = new Date(exam.start_time).getTime();
           const end = new Date(exam.end_time).getTime();
           const isOpen = now >= start && now <= end;
-          const completed = submission?.status === "completado" || submission?.status === "sospechoso";
+          const completed =
+            submission?.status === "completado" || submission?.status === "sospechoso";
           const grade = submission?.final_override_grade ?? submission?.ai_grade;
-          const reviewExamId =
-            completed && submission?.exam_id ? submission.exam_id : exam.id;
+          const reviewExamId = completed && submission?.exam_id ? submission.exam_id : exam.id;
           return (
             <Card key={exam.id}>
               <CardContent className="p-5 space-y-3">
@@ -120,21 +127,42 @@ function StudentExams() {
                     <h3 className="font-semibold truncate">{exam.title}</h3>
                   </div>
                   {completed ? (
-                    <Badge variant={submission?.status === "sospechoso" ? "destructive" : "default"} className="shrink-0">
-                      {submission?.status === "sospechoso" ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                      {grade != null ? `Nota: ${grade}/${exam.course?.grade_scale_max ?? 5}` : "Enviado"}
+                    <Badge
+                      variant={submission?.status === "sospechoso" ? "destructive" : "default"}
+                      className="shrink-0"
+                    >
+                      {submission?.status === "sospechoso" ? (
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                      )}
+                      {grade != null
+                        ? `Nota: ${grade}/${exam.course?.grade_scale_max ?? 5}`
+                        : "Enviado"}
                     </Badge>
                   ) : isOpen ? (
-                    <Badge className="bg-success text-success-foreground shrink-0">Disponible</Badge>
+                    <Badge className="bg-success text-success-foreground shrink-0">
+                      Disponible
+                    </Badge>
                   ) : now < start ? (
-                    <Badge variant="outline" className="shrink-0">Próximo</Badge>
+                    <Badge variant="outline" className="shrink-0">
+                      Próximo
+                    </Badge>
                   ) : (
-                    <Badge variant="secondary" className="shrink-0">Cerrado</Badge>
+                    <Badge variant="secondary" className="shrink-0">
+                      Cerrado
+                    </Badge>
                   )}
                 </div>
-                {exam.description && <p className="text-sm text-muted-foreground line-clamp-2">{exam.description}</p>}
+                {exam.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{exam.description}</p>
+                )}
                 <div className="text-xs text-muted-foreground space-y-0.5">
-                  <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" />Disponible: {new Date(exam.start_time).toLocaleString()} → {new Date(exam.end_time).toLocaleString()}</div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3" />
+                    Disponible: {new Date(exam.start_time).toLocaleString()} →{" "}
+                    {new Date(exam.end_time).toLocaleString()}
+                  </div>
                   <div>Duración: {exam.time_limit_minutes} min</div>
                 </div>
                 {completed ? (
@@ -146,7 +174,12 @@ function StudentExams() {
                   </Link>
                 ) : submission?.status === "en_progreso" && !isOpen ? (
                   <div className="space-y-2">
-                    <Button size="sm" variant="outline" disabled className="w-full cursor-not-allowed">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      className="w-full cursor-not-allowed"
+                    >
                       Ventana del examen cerrada
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">

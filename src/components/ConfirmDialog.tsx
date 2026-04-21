@@ -27,8 +27,8 @@ interface InternalState extends ConfirmOptions {
   resolve?: (value: boolean) => void;
 }
 
-const ConfirmCtx = createContext<(opts: ConfirmOptions) => Promise<boolean>>(
-  () => Promise.resolve(false)
+const ConfirmCtx = createContext<(opts: ConfirmOptions) => Promise<boolean>>(() =>
+  Promise.resolve(false),
 );
 
 const TONE_ICON = {
@@ -76,11 +76,21 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   return (
     <ConfirmCtx.Provider value={confirm}>
       {children}
-      <AlertDialog open={state.open} onOpenChange={(o) => { if (!o) handleClose(false); }}>
+      <AlertDialog
+        open={state.open}
+        onOpenChange={(o) => {
+          if (!o) handleClose(false);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="flex items-start gap-3">
-              <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0", styles.iconWrap)}>
+              <div
+                className={cn(
+                  "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                  styles.iconWrap,
+                )}
+              >
                 <Icon className={cn("h-5 w-5", styles.iconColor)} />
               </div>
               <div className="flex-1 min-w-0 space-y-1.5">
@@ -95,10 +105,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             <AlertDialogCancel onClick={() => handleClose(false)}>
               {state.cancelLabel ?? "Cancelar"}
             </AlertDialogCancel>
-            <AlertDialogAction
-              className={cn(styles.action)}
-              onClick={() => handleClose(true)}
-            >
+            <AlertDialogAction className={cn(styles.action)} onClick={() => handleClose(true)}>
               {state.confirmLabel ?? "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>

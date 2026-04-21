@@ -7,9 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Upload, Download, Trash2, Pencil, Loader2 } from "lucide-react";
 import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
@@ -63,21 +76,38 @@ function AdminUsers() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const saveRoles = async (userId: string, newRoles: AppRole[]) => {
-    const { data: current } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const { data: current } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
     const currentSet = new Set((current ?? []).map((r: any) => r.role as AppRole));
     const newSet = new Set(newRoles);
-    const toAdd = newRoles.filter(r => !currentSet.has(r));
-    const toRemove = [...currentSet].filter(r => !newSet.has(r));
+    const toAdd = newRoles.filter((r) => !currentSet.has(r));
+    const toRemove = [...currentSet].filter((r) => !newSet.has(r));
     if (toAdd.length) {
-      const { error } = await supabase.from("user_roles").insert(toAdd.map(role => ({ user_id: userId, role })));
-      if (error) { toast.error(error.message); return false; }
+      const { error } = await supabase
+        .from("user_roles")
+        .insert(toAdd.map((role) => ({ user_id: userId, role })));
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
     }
     if (toRemove.length) {
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).in("role", toRemove);
-      if (error) { toast.error(error.message); return false; }
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .in("role", toRemove);
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
     }
     return true;
   };
@@ -104,24 +134,46 @@ function AdminUsers() {
     try {
       if (editing.id) {
         // Update profile
-        const { error } = await supabase.from("profiles").update({
-          full_name: editing.full_name,
-          personal_email: editing.personal_email || null,
-          institutional_email: editing.institutional_email,
-        }).eq("id", editing.id);
-        if (error) { toast.error(error.message); return; }
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            full_name: editing.full_name,
+            personal_email: editing.personal_email || null,
+            institutional_email: editing.institutional_email,
+          })
+          .eq("id", editing.id);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
         const ok = await saveRoles(editing.id, editing.roles);
         if (!ok) return;
         // Update password if provided
         if (password.trim()) {
-          if (password.length < 8) { toast.error("La contraseña debe tener al menos 8 caracteres"); return; }
-          const { data: pwRes, error: pwErr } = await supabase.functions.invoke("admin-update-password", {
-            body: { userId: editing.id, newPassword: password },
-          });
-          if (pwErr) { toast.error(pwErr.message); return; }
-          if (pwRes?.error) { toast.error(pwRes.error); return; }
+          if (password.length < 8) {
+            toast.error("La contraseña debe tener al menos 8 caracteres");
+            return;
+          }
+          const { data: pwRes, error: pwErr } = await supabase.functions.invoke(
+            "admin-update-password",
+            {
+              body: { userId: editing.id, newPassword: password },
+            },
+          );
+          if (pwErr) {
+            toast.error(pwErr.message);
+            return;
+          }
+          if (pwRes?.error) {
+            toast.error(pwRes.error);
+            return;
+          }
         }
-        toast.success(password.trim() ? "Usuario actualizado correctamente (contraseña incluida)" : "Usuario actualizado correctamente");
+        toast.success(
+          password.trim()
+            ? "Usuario actualizado correctamente (contraseña incluida)"
+            : "Usuario actualizado correctamente",
+        );
       } else {
         // Create via bulk-import (single row)
         if (!password || password.length < 8) {
@@ -130,18 +182,26 @@ function AdminUsers() {
         }
         const { data, error } = await supabase.functions.invoke("bulk-import-users", {
           body: {
-            rows: [{
-              full_name: editing.full_name,
-              institutional_email: editing.institutional_email,
-              personal_email: editing.personal_email ?? "",
-              password,
-              roles: editing.roles.join("|"),
-            }],
+            rows: [
+              {
+                full_name: editing.full_name,
+                institutional_email: editing.institutional_email,
+                personal_email: editing.personal_email ?? "",
+                password,
+                roles: editing.roles.join("|"),
+              },
+            ],
           },
         });
-        if (error) { toast.error(error.message); return; }
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
         const result = (data?.result ?? [])[0];
-        if (!result?.ok) { toast.error(result?.error ?? "Error al crear usuario"); return; }
+        if (!result?.ok) {
+          toast.error(result?.error ?? "Error al crear usuario");
+          return;
+        }
         toast.success("Usuario creado correctamente");
       }
       setDialogOpen(false);
@@ -155,21 +215,28 @@ function AdminUsers() {
   const remove = async (r: Row) => {
     const ok = await confirm({
       title: `Eliminar a ${r.full_name}`,
-      description: "Se eliminará el perfil y todos sus roles. La cuenta de autenticación no se borra.",
+      description:
+        "Se eliminará el perfil y todos sus roles. La cuenta de autenticación no se borra.",
       confirmLabel: "Eliminar usuario",
       tone: "destructive",
     });
     if (!ok) return;
     const { error: rolesErr } = await supabase.from("user_roles").delete().eq("user_id", r.id);
-    if (rolesErr) { toast.error(rolesErr.message); return; }
+    if (rolesErr) {
+      toast.error(rolesErr.message);
+      return;
+    }
     const { error } = await supabase.from("profiles").delete().eq("id", r.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Usuario eliminado correctamente");
     load();
   };
 
   const exportCSV = () => {
-    const data = rows.map(r => ({
+    const data = rows.map((r) => ({
       full_name: r.full_name,
       institutional_email: r.institutional_email,
       personal_email: r.personal_email ?? "",
@@ -180,14 +247,16 @@ function AdminUsers() {
   };
 
   const downloadTemplate = () => {
-    const tmpl = toCSV([{
-      full_name: "Juan Pérez",
-      institutional_email: "juan.perez@institucion.edu",
-      personal_email: "juan.perez@gmail.com",
-      password: "Temporal#123",
-      roles: "Estudiante",
-      course_name: "Programación II",
-    }]);
+    const tmpl = toCSV([
+      {
+        full_name: "Juan Pérez",
+        institutional_email: "juan.perez@institucion.edu",
+        personal_email: "juan.perez@gmail.com",
+        password: "Temporal#123",
+        roles: "Estudiante",
+        course_name: "Programación II",
+      },
+    ]);
     downloadCSV("template-usuarios.csv", tmpl);
     toast.success("Template descargado correctamente");
   };
@@ -197,7 +266,9 @@ function AdminUsers() {
     try {
       const text = await file.text();
       const parsed = parseCSV(text);
-      const { data, error } = await supabase.functions.invoke("bulk-import-users", { body: { rows: parsed } });
+      const { data, error } = await supabase.functions.invoke("bulk-import-users", {
+        body: { rows: parsed },
+      });
       if (error) throw error;
       const ok = (data.result ?? []).filter((r: any) => r.ok).length;
       const fail = (data.result ?? []).filter((r: any) => !r.ok).length;
@@ -221,13 +292,38 @@ function AdminUsers() {
           <p className="text-sm text-muted-foreground">{rows.length} cuentas registradas</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4 mr-1" />Template CSV</Button>
-          <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Exportar</Button>
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
-            {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />} Cargar CSV
+          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+            <Download className="h-4 w-4 mr-1" />
+            Template CSV
           </Button>
-          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => e.target.files?.[0] && onImport(e.target.files[0])} />
-          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nuevo usuario</Button>
+          <Button variant="outline" size="sm" onClick={exportCSV}>
+            <Download className="h-4 w-4 mr-1" />
+            Exportar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileRef.current?.click()}
+            disabled={importing}
+          >
+            {importing ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4 mr-1" />
+            )}{" "}
+            Cargar CSV
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
+          />
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuevo usuario
+          </Button>
         </div>
       </div>
 
@@ -249,23 +345,49 @@ function AdminUsers() {
                 </TableHeader>
                 <TableBody>
                   {rows.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No hay usuarios.</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        No hay usuarios.
+                      </TableCell>
+                    </TableRow>
                   )}
-                  {rows.map(r => (
+                  {rows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.full_name}</TableCell>
                       <TableCell className="text-sm">{r.institutional_email}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{r.personal_email ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
+                        {r.personal_email ?? "—"}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {r.roles.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
-                          {r.roles.map(role => <Badge key={role} variant="secondary" className="text-[10px]">{role}</Badge>)}
+                          {r.roles.length === 0 && (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                          {r.roles.map((role) => (
+                            <Badge key={role} variant="secondary" className="text-[10px]">
+                              {role}
+                            </Badge>
+                          ))}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => remove(r)} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEdit(r)}
+                            title="Editar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => remove(r)}
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -279,36 +401,80 @@ function AdminUsers() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing?.id ? "Editar" : "Nuevo"} usuario</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} usuario</DialogTitle>
+          </DialogHeader>
           {editing && (
             <div className="space-y-3">
-              <div><Label>Nombre completo</Label><Input value={editing.full_name} onChange={e => setEditing({ ...editing, full_name: e.target.value })} /></div>
-              <div><Label>Email institucional</Label><Input type="email" value={editing.institutional_email} onChange={e => setEditing({ ...editing, institutional_email: e.target.value })} /></div>
-              <div><Label>Email personal</Label><Input type="email" value={editing.personal_email ?? ""} onChange={e => setEditing({ ...editing, personal_email: e.target.value })} /></div>
+              <div>
+                <Label>Nombre completo</Label>
+                <Input
+                  value={editing.full_name}
+                  onChange={(e) => setEditing({ ...editing, full_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Email institucional</Label>
+                <Input
+                  type="email"
+                  value={editing.institutional_email}
+                  onChange={(e) => setEditing({ ...editing, institutional_email: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Email personal</Label>
+                <Input
+                  type="email"
+                  value={editing.personal_email ?? ""}
+                  onChange={(e) => setEditing({ ...editing, personal_email: e.target.value })}
+                />
+              </div>
               {!editing.id && (
                 <div>
                   <Label>Contraseña inicial</Label>
-                  <Input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
-                  <p className="text-xs text-muted-foreground mt-1">El usuario podrá cambiarla después.</p>
+                  <Input
+                    type="text"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 8 caracteres"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    El usuario podrá cambiarla después.
+                  </p>
                 </div>
               )}
               {editing.id && (
                 <div>
-                  <Label>Nueva contraseña <span className="text-xs text-muted-foreground font-normal">(dejar vacío para no cambiar)</span></Label>
-                  <Input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
+                  <Label>
+                    Nueva contraseña{" "}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (dejar vacío para no cambiar)
+                    </span>
+                  </Label>
+                  <Input
+                    type="text"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 8 caracteres"
+                  />
                 </div>
               )}
               <div>
                 <Label className="mb-2 block">Roles</Label>
                 <div className="space-y-1.5">
-                  {ALL_ROLES.map(role => (
+                  {ALL_ROLES.map((role) => (
                     <label key={role} className="flex items-center gap-2 text-sm">
-                      <Checkbox checked={editing.roles.includes(role)} onCheckedChange={(v) => {
-                        setEditing({
-                          ...editing,
-                          roles: v ? [...editing.roles, role] : editing.roles.filter(x => x !== role),
-                        });
-                      }} />
+                      <Checkbox
+                        checked={editing.roles.includes(role)}
+                        onCheckedChange={(v) => {
+                          setEditing({
+                            ...editing,
+                            roles: v
+                              ? [...editing.roles, role]
+                              : editing.roles.filter((x) => x !== role),
+                          });
+                        }}
+                      />
                       {role}
                     </label>
                   ))}
@@ -317,7 +483,9 @@ function AdminUsers() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={savingUser}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={savingUser}>
+              Cancelar
+            </Button>
             <Button onClick={saveProfile} disabled={savingUser}>
               {savingUser && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Guardar

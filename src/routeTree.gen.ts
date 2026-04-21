@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
@@ -25,6 +26,7 @@ import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
+import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
 import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
 import { Route as AppStudentWorkshopWorkshopIdRouteImport } from './routes/app.student.workshop.$workshopId'
 import { Route as AppStudentTakeExamIdRouteImport } from './routes/app.student.take.$examId'
@@ -48,6 +50,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
+  id: '/unauthorized',
+  path: '/unauthorized',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
@@ -110,6 +117,12 @@ const AppTeacherMonitorExamIdRoute = AppTeacherMonitorExamIdRouteImport.update({
   path: '/teacher/monitor/$examId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherGradingCourseIdRoute =
+  AppTeacherGradingCourseIdRouteImport.update({
+    id: '/teacher/grading/$courseId',
+    path: '/teacher/grading/$courseId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppTeacherExamsExamIdRoute = AppTeacherExamsExamIdRouteImport.update({
   id: '/teacher/exams/$examId',
   path: '/teacher/exams/$examId',
@@ -136,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
@@ -151,12 +165,14 @@ export interface FileRoutesByFullPath {
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
+  '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
@@ -172,6 +188,7 @@ export interface FileRoutesByTo {
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
+  '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
   '/app/teacher/exams': typeof AppTeacherExamsIndexRoute
 }
@@ -180,6 +197,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
@@ -195,6 +213,7 @@ export interface FileRoutesById {
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
+  '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
 }
@@ -204,6 +223,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/unauthorized'
     | '/app/'
     | '/app/admin/courses'
     | '/app/admin/users'
@@ -219,12 +239,14 @@ export interface FileRouteTypes {
     | '/app/student/take/$examId'
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
+    | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
     | '/app/teacher/exams/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/app/unauthorized'
     | '/app'
     | '/app/admin/courses'
     | '/app/admin/users'
@@ -240,6 +262,7 @@ export interface FileRouteTypes {
     | '/app/student/take/$examId'
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
+    | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
     | '/app/teacher/exams'
   id:
@@ -247,6 +270,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/unauthorized'
     | '/app/'
     | '/app/admin/courses'
     | '/app/admin/users'
@@ -262,6 +286,7 @@ export interface FileRouteTypes {
     | '/app/student/take/$examId'
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
+    | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
     | '/app/teacher/exams/'
   fileRoutesById: FileRoutesById
@@ -300,6 +325,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/unauthorized': {
+      id: '/app/unauthorized'
+      path: '/unauthorized'
+      fullPath: '/app/unauthorized'
+      preLoaderRoute: typeof AppUnauthorizedRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/workshops': {
@@ -386,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherMonitorExamIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/grading/$courseId': {
+      id: '/app/teacher/grading/$courseId'
+      path: '/teacher/grading/$courseId'
+      fullPath: '/app/teacher/grading/$courseId'
+      preLoaderRoute: typeof AppTeacherGradingCourseIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/exams/$examId': {
       id: '/app/teacher/exams/$examId'
       path: '/teacher/exams/$examId'
@@ -418,6 +457,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
@@ -433,11 +473,13 @@ interface AppRouteChildren {
   AppStudentTakeExamIdRoute: typeof AppStudentTakeExamIdRoute
   AppStudentWorkshopWorkshopIdRoute: typeof AppStudentWorkshopWorkshopIdRoute
   AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
+  AppTeacherGradingCourseIdRoute: typeof AppTeacherGradingCourseIdRoute
   AppTeacherMonitorExamIdRoute: typeof AppTeacherMonitorExamIdRoute
   AppTeacherExamsIndexRoute: typeof AppTeacherExamsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppIndexRoute: AppIndexRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
@@ -453,6 +495,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentTakeExamIdRoute: AppStudentTakeExamIdRoute,
   AppStudentWorkshopWorkshopIdRoute: AppStudentWorkshopWorkshopIdRoute,
   AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
+  AppTeacherGradingCourseIdRoute: AppTeacherGradingCourseIdRoute,
   AppTeacherMonitorExamIdRoute: AppTeacherMonitorExamIdRoute,
   AppTeacherExamsIndexRoute: AppTeacherExamsIndexRoute,
 }

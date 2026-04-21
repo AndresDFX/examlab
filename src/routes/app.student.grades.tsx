@@ -5,9 +5,31 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardList, FileText, Hammer, TrendingUp, CheckCircle2, XCircle, Scale, MessageSquareText } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ClipboardList,
+  FileText,
+  Hammer,
+  TrendingUp,
+  CheckCircle2,
+  XCircle,
+  Scale,
+  MessageSquareText,
+} from "lucide-react";
 
 export const Route = createFileRoute("/app/student/grades")({ component: StudentGrades });
 
@@ -46,12 +68,20 @@ function StudentGrades() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: enr } = await supabase.from("course_enrollments").select("course_id").eq("user_id", user.id);
+      const { data: enr } = await supabase
+        .from("course_enrollments")
+        .select("course_id")
+        .eq("user_id", user.id);
       const ids = (enr ?? []).map((e: any) => e.course_id);
-      if (!ids.length) { setCourses([]); return; }
+      if (!ids.length) {
+        setCourses([]);
+        return;
+      }
       const { data } = await supabase
         .from("courses")
-        .select("id, name, period, grade_scale_min, grade_scale_max, exam_weight, workshop_weight, passing_grade")
+        .select(
+          "id, name, period, grade_scale_min, grade_scale_max, exam_weight, workshop_weight, passing_grade",
+        )
         .in("id", ids)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
@@ -77,10 +107,25 @@ function StudentGrades() {
 
         const [{ data: examSubs }, { data: wsSubs }] = await Promise.all([
           examIds.length
-            ? supabase.from("submissions").select("exam_id, ai_grade, final_override_grade, status").in("exam_id", examIds).eq("user_id", user.id)
-            : Promise.resolve({ data: [] as { exam_id: string; ai_grade: number | null; final_override_grade: number | null; status: string }[] }),
+            ? supabase
+                .from("submissions")
+                .select("exam_id, ai_grade, final_override_grade, status")
+                .in("exam_id", examIds)
+                .eq("user_id", user.id)
+            : Promise.resolve({
+                data: [] as {
+                  exam_id: string;
+                  ai_grade: number | null;
+                  final_override_grade: number | null;
+                  status: string;
+                }[],
+              }),
           wsIds.length
-            ? supabase.from("workshop_submissions").select("workshop_id, ai_grade, final_grade, status").in("workshop_id", wsIds).eq("user_id", user.id)
+            ? supabase
+                .from("workshop_submissions")
+                .select("workshop_id, ai_grade, final_grade, status")
+                .in("workshop_id", wsIds)
+                .eq("user_id", user.id)
             : Promise.resolve({ data: [] as any[] }),
         ]);
 
@@ -92,12 +137,13 @@ function StudentGrades() {
           let sub = (examSubs ?? []).find((s: any) => s.exam_id === e.id);
           if (!sub) {
             // any makeup submission
-            const makeupIds = (exams ?? []).filter((x: any) => x.parent_exam_id === e.id).map((x: any) => x.id);
+            const makeupIds = (exams ?? [])
+              .filter((x: any) => x.parent_exam_id === e.id)
+              .map((x: any) => x.id);
             sub = (examSubs ?? []).find((s: any) => makeupIds.includes(s.exam_id));
           }
           const g = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
-          const reviewable =
-            !!sub && (sub.status === "completado" || sub.status === "sospechoso");
+          const reviewable = !!sub && (sub.status === "completado" || sub.status === "sospechoso");
           return {
             id: e.id,
             title: e.title,
@@ -130,7 +176,7 @@ function StudentGrades() {
     })();
   }, [user, courseId]);
 
-  const course = courses.find(c => c.id === courseId);
+  const course = courses.find((c) => c.id === courseId);
 
   // Compute averages normalized to course scale
   const computeAverages = () => {
@@ -142,8 +188,8 @@ function StudentGrades() {
       return course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
     };
 
-    const examsWithGrade = items.filter(i => i.kind === "exam" && i.grade != null);
-    const wsWithGrade = items.filter(i => i.kind === "workshop" && i.grade != null);
+    const examsWithGrade = items.filter((i) => i.kind === "exam" && i.grade != null);
+    const wsWithGrade = items.filter((i) => i.kind === "workshop" && i.grade != null);
 
     const examsAvg = examsWithGrade.length
       ? examsWithGrade.reduce((a, b) => a + scale(b.grade!, b.maxScore), 0) / examsWithGrade.length
@@ -167,7 +213,7 @@ function StudentGrades() {
   const { exams: examsAvg, workshops: wsAvg, final } = computeAverages();
   const passes = course && final != null ? final >= course.passing_grade : null;
 
-  const fmt = (n: number | null) => n == null ? "—" : n.toFixed(2);
+  const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
 
   return (
     <div className="space-y-5">
@@ -178,11 +224,14 @@ function StudentGrades() {
         </div>
         {courses.length > 0 && (
           <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-64"><SelectValue placeholder="Curso" /></SelectTrigger>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Curso" />
+            </SelectTrigger>
             <SelectContent>
-              {courses.map(c => (
+              {courses.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.name}{c.period ? ` · ${c.period}` : ""}
+                  {c.name}
+                  {c.period ? ` · ${c.period}` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -191,10 +240,12 @@ function StudentGrades() {
       </div>
 
       {courses.length === 0 ? (
-        <Card><CardContent className="p-10 text-center text-muted-foreground text-sm">
-          <ClipboardList className="h-10 w-10 mx-auto text-muted-foreground/60 mb-2" />
-          No estás matriculado en ningún curso.
-        </CardContent></Card>
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground text-sm">
+            <ClipboardList className="h-10 w-10 mx-auto text-muted-foreground/60 mb-2" />
+            No estás matriculado en ningún curso.
+          </CardContent>
+        </Card>
       ) : !course ? null : (
         <>
           {/* Summary cards */}
@@ -217,10 +268,20 @@ function StudentGrades() {
               value={`${course.grade_scale_min} – ${course.grade_scale_max}`}
               hint={`Aprobar ≥ ${course.passing_grade}`}
             />
-            <Card className={passes === true ? "border-emerald-500/40 bg-emerald-500/5" : passes === false ? "border-destructive/40 bg-destructive/5" : ""}>
+            <Card
+              className={
+                passes === true
+                  ? "border-emerald-500/40 bg-emerald-500/5"
+                  : passes === false
+                    ? "border-destructive/40 bg-destructive/5"
+                    : ""
+              }
+            >
               <CardContent className="p-4 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wide">Nota actual</span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Nota actual
+                  </span>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="text-2xl font-semibold tabular-nums">{fmt(final)}</div>
@@ -247,7 +308,9 @@ function StudentGrades() {
               {loading ? (
                 <div className="p-6 text-sm text-muted-foreground">Cargando…</div>
               ) : items.length === 0 ? (
-                <div className="p-10 text-center text-muted-foreground text-sm">No hay actividades en este curso.</div>
+                <div className="p-10 text-center text-muted-foreground text-sm">
+                  No hay actividades en este curso.
+                </div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -255,44 +318,79 @@ function StudentGrades() {
                       <TableHead>Actividad</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead className="text-right">Nota</TableHead>
-                      <TableHead className="text-right">Equiv. ({course.grade_scale_min}–{course.grade_scale_max})</TableHead>
+                      <TableHead className="text-right">
+                        Equiv. ({course.grade_scale_min}–{course.grade_scale_max})
+                      </TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead className="text-right w-[1%]">Detalle</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map(it => {
-                      const equiv = it.grade != null
-                        ? course.grade_scale_min + (it.grade / it.maxScore) * (course.grade_scale_max - course.grade_scale_min)
-                        : null;
+                    {items.map((it) => {
+                      const equiv =
+                        it.grade != null
+                          ? course.grade_scale_min +
+                            (it.grade / it.maxScore) *
+                              (course.grade_scale_max - course.grade_scale_min)
+                          : null;
                       return (
                         <TableRow key={`${it.kind}-${it.id}`}>
                           <TableCell className="font-medium">{it.title}</TableCell>
                           <TableCell>
                             {it.kind === "exam" ? (
-                              <Badge variant="outline" className="text-[10px]"><FileText className="h-3 w-3 mr-1" />Examen</Badge>
+                              <Badge variant="outline" className="text-[10px]">
+                                <FileText className="h-3 w-3 mr-1" />
+                                Examen
+                              </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px]"><Hammer className="h-3 w-3 mr-1" />Taller</Badge>
+                              <Badge variant="outline" className="text-[10px]">
+                                <Hammer className="h-3 w-3 mr-1" />
+                                Taller
+                              </Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {it.grade != null ? `${it.grade} / ${it.maxScore}` : <span className="text-muted-foreground">—</span>}
+                            {it.grade != null ? (
+                              `${it.grade} / ${it.maxScore}`
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{fmt(equiv)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">
+                            {fmt(equiv)}
+                          </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-[10px] capitalize">{it.status.replace(/_/g, " ")}</Badge>
+                            <Badge variant="secondary" className="text-[10px] capitalize">
+                              {it.status.replace(/_/g, " ")}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             {it.kind === "exam" && it.reviewExamId ? (
-                              <Link to="/app/student/review/$examId" params={{ examId: it.reviewExamId }}>
-                                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" title="Ver respuestas y retroalimentación">
+                              <Link
+                                to="/app/student/review/$examId"
+                                params={{ examId: it.reviewExamId }}
+                              >
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 gap-1 text-xs"
+                                  title="Ver respuestas y retroalimentación"
+                                >
                                   <MessageSquareText className="h-3.5 w-3.5" />
                                   Detalle
                                 </Button>
                               </Link>
                             ) : it.kind === "workshop" && it.reviewWorkshopId ? (
-                              <Link to="/app/student/workshop/$workshopId" params={{ workshopId: it.reviewWorkshopId }}>
-                                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" title="Ver entrega y retroalimentación">
+                              <Link
+                                to="/app/student/workshop/$workshopId"
+                                params={{ workshopId: it.reviewWorkshopId }}
+                              >
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 gap-1 text-xs"
+                                  title="Ver entrega y retroalimentación"
+                                >
                                   <MessageSquareText className="h-3.5 w-3.5" />
                                   Detalle
                                 </Button>
@@ -311,7 +409,9 @@ function StudentGrades() {
           </Card>
 
           <p className="text-xs text-muted-foreground">
-            La nota actual se calcula como promedio ponderado: exámenes ({course.exam_weight}%) y talleres ({course.workshop_weight}%), normalizado a la escala {course.grade_scale_min}–{course.grade_scale_max} del curso.
+            La nota actual se calcula como promedio ponderado: exámenes ({course.exam_weight}%) y
+            talleres ({course.workshop_weight}%), normalizado a la escala {course.grade_scale_min}–
+            {course.grade_scale_max} del curso.
           </p>
         </>
       )}
@@ -319,7 +419,17 @@ function StudentGrades() {
   );
 }
 
-function SummaryCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
+function SummaryCard({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <Card>
       <CardContent className="p-4 space-y-1">

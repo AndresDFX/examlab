@@ -13,11 +13,31 @@ const MASTER_NAME = "Andrés (Master)";
 const COURSES = ["Trabajo Integrador I", "Programación II", "Bases de Datos"];
 
 const DEMO_STUDENTS = [
-  { full_name: "María Pérez", institutional_email: "maria.perez@institucion.edu", personal_email: "maria.perez@gmail.com" },
-  { full_name: "Juan García", institutional_email: "juan.garcia@institucion.edu", personal_email: "juan.garcia@gmail.com" },
-  { full_name: "Lucía Torres", institutional_email: "lucia.torres@institucion.edu", personal_email: "lucia.torres@gmail.com" },
-  { full_name: "Carlos Ruiz", institutional_email: "carlos.ruiz@institucion.edu", personal_email: "carlos.ruiz@gmail.com" },
-  { full_name: "Ana Morales", institutional_email: "ana.morales@institucion.edu", personal_email: "ana.morales@gmail.com" },
+  {
+    full_name: "María Pérez",
+    institutional_email: "maria.perez@institucion.edu",
+    personal_email: "maria.perez@gmail.com",
+  },
+  {
+    full_name: "Juan García",
+    institutional_email: "juan.garcia@institucion.edu",
+    personal_email: "juan.garcia@gmail.com",
+  },
+  {
+    full_name: "Lucía Torres",
+    institutional_email: "lucia.torres@institucion.edu",
+    personal_email: "lucia.torres@gmail.com",
+  },
+  {
+    full_name: "Carlos Ruiz",
+    institutional_email: "carlos.ruiz@institucion.edu",
+    personal_email: "carlos.ruiz@gmail.com",
+  },
+  {
+    full_name: "Ana Morales",
+    institutional_email: "ana.morales@institucion.edu",
+    personal_email: "ana.morales@gmail.com",
+  },
 ];
 
 const DEMO_PASSWORD = "Estudiante#123";
@@ -34,7 +54,12 @@ Deno.serve(async (req) => {
     const log: string[] = [];
 
     // Helper: ensure user exists
-    async function ensureUser(email: string, password: string, full_name: string, personal_email: string | null) {
+    async function ensureUser(
+      email: string,
+      password: string,
+      full_name: string,
+      personal_email: string | null,
+    ) {
       const { data: list } = await supabase.auth.admin.listUsers();
       const existing = list?.users?.find((u: any) => u.email === email);
       if (existing) {
@@ -53,10 +78,9 @@ Deno.serve(async (req) => {
     }
 
     async function ensureRole(user_id: string, role: "Admin" | "Docente" | "Estudiante") {
-      const { error } = await supabase.from("user_roles").upsert(
-        { user_id, role },
-        { onConflict: "user_id,role" },
-      );
+      const { error } = await supabase
+        .from("user_roles")
+        .upsert({ user_id, role }, { onConflict: "user_id,role" });
       if (error) throw new Error(`role ${role}: ${error.message}`);
     }
 
@@ -70,12 +94,20 @@ Deno.serve(async (req) => {
     // Courses
     const courseIds: Record<string, string> = {};
     for (const name of COURSES) {
-      const { data: existing } = await supabase.from("courses").select("id").eq("name", name).maybeSingle();
+      const { data: existing } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("name", name)
+        .maybeSingle();
       if (existing) {
         courseIds[name] = existing.id;
         log.push(`✓ course exists: ${name}`);
       } else {
-        const { data, error } = await supabase.from("courses").insert({ name }).select("id").single();
+        const { data, error } = await supabase
+          .from("courses")
+          .insert({ name })
+          .select("id")
+          .single();
         if (error) throw error;
         courseIds[name] = data.id;
         log.push(`+ course created: ${name}`);
@@ -85,7 +117,12 @@ Deno.serve(async (req) => {
     // Demo students
     const studentIds: string[] = [];
     for (const s of DEMO_STUDENTS) {
-      const id = await ensureUser(s.institutional_email, DEMO_PASSWORD, s.full_name, s.personal_email);
+      const id = await ensureUser(
+        s.institutional_email,
+        DEMO_PASSWORD,
+        s.full_name,
+        s.personal_email,
+      );
       await ensureRole(id, "Estudiante");
       studentIds.push(id);
     }
@@ -93,10 +130,9 @@ Deno.serve(async (req) => {
     // Enroll all students + master in all courses
     for (const cid of Object.values(courseIds)) {
       for (const uid of [masterId, ...studentIds]) {
-        await supabase.from("course_enrollments").upsert(
-          { course_id: cid, user_id: uid },
-          { onConflict: "course_id,user_id" },
-        );
+        await supabase
+          .from("course_enrollments")
+          .upsert({ course_id: cid, user_id: uid }, { onConflict: "course_id,user_id" });
       }
     }
     log.push(`✓ enrollments synced`);

@@ -9,20 +9,53 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Users, Pencil, Copy, UserCog, Search, CheckSquare, XSquare, Loader2, Settings } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Users,
+  Pencil,
+  Copy,
+  UserCog,
+  Search,
+  CheckSquare,
+  XSquare,
+  Loader2,
+  Settings,
+} from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
 type Course = {
-  id: string; name: string; description: string | null;
-  period: string | null; start_date: string | null; end_date: string | null;
-  grade_scale_min: number; grade_scale_max: number;
-  exam_weight: number; workshop_weight: number; attendance_weight: number; passing_grade: number;
+  id: string;
+  name: string;
+  description: string | null;
+  period: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  grade_scale_min: number;
+  grade_scale_max: number;
+  exam_weight: number;
+  workshop_weight: number;
+  attendance_weight: number;
+  passing_grade: number;
 };
 type Profile = { id: string; full_name: string; institutional_email: string };
 
@@ -59,24 +92,42 @@ function AdminCourses() {
   const isAdmin = roles.includes("Admin");
 
   const load = async () => {
-    const { data } = await supabase.from("courses").select("*").order("period", { ascending: false, nullsFirst: false }).order("name");
+    const { data } = await supabase
+      .from("courses")
+      .select("*")
+      .order("period", { ascending: false, nullsFirst: false })
+      .order("name");
     setCourses((data ?? []) as Course[]);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   // ── Course CRUD ──────────────────────────────────────────
 
   const openNew = () => {
     setEditing({
-      id: "", name: "", description: "", period: "", start_date: "", end_date: "",
-      grade_scale_min: 0, grade_scale_max: 5,
-      exam_weight: 40, workshop_weight: 40, attendance_weight: 10, passing_grade: 3,
+      id: "",
+      name: "",
+      description: "",
+      period: "",
+      start_date: "",
+      end_date: "",
+      grade_scale_min: 0,
+      grade_scale_max: 5,
+      exam_weight: 40,
+      workshop_weight: 40,
+      attendance_weight: 10,
+      passing_grade: 3,
     });
     setOpen(true);
   };
 
   const save = async () => {
-    if (!editing?.name?.trim()) { toast.error("Nombre requerido"); return; }
+    if (!editing?.name?.trim()) {
+      toast.error("Nombre requerido");
+      return;
+    }
     const payload = {
       name: editing.name,
       description: editing.description || null,
@@ -98,20 +149,24 @@ function AdminCourses() {
       if (error) return toast.error(error.message);
     }
     toast.success("Curso guardado correctamente");
-    setOpen(false); setEditing(null); load();
+    setOpen(false);
+    setEditing(null);
+    load();
   };
 
   const remove = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar curso",
-      description: "Se eliminarán también las matrículas, exámenes y talleres asociados. Esta acción no se puede deshacer.",
+      description:
+        "Se eliminarán también las matrículas, exámenes y talleres asociados. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar curso",
       tone: "destructive",
     });
     if (!ok) return;
     const { error } = await supabase.from("courses").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Curso eliminado correctamente"); load();
+    toast.success("Curso eliminado correctamente");
+    load();
   };
 
   // ── Student Enrollment ───────────────────────────────────
@@ -131,46 +186,63 @@ function AdminCourses() {
   const filteredProfiles = useMemo(() => {
     if (!enrollSearch.trim()) return allProfiles;
     const q = enrollSearch.toLowerCase();
-    return allProfiles.filter(p =>
-      p.full_name.toLowerCase().includes(q) || p.institutional_email.toLowerCase().includes(q)
+    return allProfiles.filter(
+      (p) =>
+        p.full_name.toLowerCase().includes(q) || p.institutional_email.toLowerCase().includes(q),
     );
   }, [allProfiles, enrollSearch]);
 
   const toggleEnroll = async (uid: string, checked: boolean) => {
     if (!enrollCourse) return;
     if (checked) {
-      const { error } = await supabase.from("course_enrollments").insert({ course_id: enrollCourse.id, user_id: uid });
+      const { error } = await supabase
+        .from("course_enrollments")
+        .insert({ course_id: enrollCourse.id, user_id: uid });
       if (error) return toast.error(error.message);
-      setEnrolledIds(prev => new Set([...prev, uid]));
+      setEnrolledIds((prev) => new Set([...prev, uid]));
       toast.success("Estudiante matriculado correctamente");
     } else {
-      const { error } = await supabase.from("course_enrollments").delete().eq("course_id", enrollCourse.id).eq("user_id", uid);
+      const { error } = await supabase
+        .from("course_enrollments")
+        .delete()
+        .eq("course_id", enrollCourse.id)
+        .eq("user_id", uid);
       if (error) return toast.error(error.message);
-      setEnrolledIds(prev => { const s = new Set(prev); s.delete(uid); return s; });
+      setEnrolledIds((prev) => {
+        const s = new Set(prev);
+        s.delete(uid);
+        return s;
+      });
       toast.success("Estudiante desmatriculado correctamente");
     }
   };
 
   const enrollAll = async () => {
     if (!enrollCourse) return;
-    const toAdd = filteredProfiles.filter(p => !enrolledIds.has(p.id));
+    const toAdd = filteredProfiles.filter((p) => !enrolledIds.has(p.id));
     if (!toAdd.length) return;
-    const { error } = await supabase.from("course_enrollments").insert(toAdd.map(p => ({ course_id: enrollCourse.id, user_id: p.id })));
+    const { error } = await supabase
+      .from("course_enrollments")
+      .insert(toAdd.map((p) => ({ course_id: enrollCourse.id, user_id: p.id })));
     if (error) return toast.error(error.message);
-    setEnrolledIds(prev => new Set([...prev, ...toAdd.map(p => p.id)]));
+    setEnrolledIds((prev) => new Set([...prev, ...toAdd.map((p) => p.id)]));
     toast.success(`${toAdd.length} estudiante(s) matriculados correctamente`);
   };
 
   const unenrollAll = async () => {
     if (!enrollCourse) return;
-    const toRemove = filteredProfiles.filter(p => enrolledIds.has(p.id));
+    const toRemove = filteredProfiles.filter((p) => enrolledIds.has(p.id));
     if (!toRemove.length) return;
     for (const p of toRemove) {
-      await supabase.from("course_enrollments").delete().eq("course_id", enrollCourse.id).eq("user_id", p.id);
+      await supabase
+        .from("course_enrollments")
+        .delete()
+        .eq("course_id", enrollCourse.id)
+        .eq("user_id", p.id);
     }
-    setEnrolledIds(prev => {
+    setEnrolledIds((prev) => {
       const s = new Set(prev);
-      toRemove.forEach(p => s.delete(p.id));
+      toRemove.forEach((p) => s.delete(p.id));
       return s;
     });
     toast.success(`${toRemove.length} estudiante(s) desmatriculados correctamente`);
@@ -181,15 +253,25 @@ function AdminCourses() {
   const openTeachers = async (c: Course) => {
     setTeacherCourse(c);
     // Get all users with Docente role
-    const { data: roleRows } = await supabase.from("user_roles").select("user_id").eq("role", "Docente");
+    const { data: roleRows } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "Docente");
     const teacherIds = (roleRows ?? []).map((r: any) => r.user_id);
     if (teacherIds.length) {
-      const { data: profs } = await supabase.from("profiles").select("id, full_name, institutional_email").in("id", teacherIds).order("full_name");
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, full_name, institutional_email")
+        .in("id", teacherIds)
+        .order("full_name");
       setTeachers((profs ?? []) as Profile[]);
     } else {
       setTeachers([]);
     }
-    const { data: assigned } = await supabase.from("course_teachers").select("user_id").eq("course_id", c.id);
+    const { data: assigned } = await supabase
+      .from("course_teachers")
+      .select("user_id")
+      .eq("course_id", c.id);
     setAssignedTeacherIds(new Set((assigned ?? []).map((a: any) => a.user_id)));
     setTeacherOpen(true);
   };
@@ -197,14 +279,24 @@ function AdminCourses() {
   const toggleTeacher = async (uid: string, checked: boolean) => {
     if (!teacherCourse) return;
     if (checked) {
-      const { error } = await supabase.from("course_teachers").insert({ course_id: teacherCourse.id, user_id: uid });
+      const { error } = await supabase
+        .from("course_teachers")
+        .insert({ course_id: teacherCourse.id, user_id: uid });
       if (error) return toast.error(error.message);
-      setAssignedTeacherIds(prev => new Set([...prev, uid]));
+      setAssignedTeacherIds((prev) => new Set([...prev, uid]));
       toast.success("Docente asignado correctamente");
     } else {
-      const { error } = await supabase.from("course_teachers").delete().eq("course_id", teacherCourse.id).eq("user_id", uid);
+      const { error } = await supabase
+        .from("course_teachers")
+        .delete()
+        .eq("course_id", teacherCourse.id)
+        .eq("user_id", uid);
       if (error) return toast.error(error.message);
-      setAssignedTeacherIds(prev => { const s = new Set(prev); s.delete(uid); return s; });
+      setAssignedTeacherIds((prev) => {
+        const s = new Set(prev);
+        s.delete(uid);
+        return s;
+      });
       toast.success("Docente desasignado correctamente");
     }
   };
@@ -222,70 +314,99 @@ function AdminCourses() {
   };
 
   const doDuplicate = async () => {
-    if (!dupSource || !dupName.trim()) { toast.error("Nombre requerido"); return; }
+    if (!dupSource || !dupName.trim()) {
+      toast.error("Nombre requerido");
+      return;
+    }
     setDupLoading(true);
     try {
       // 1. Create new course
-      const { data: newCourse, error: cErr } = await supabase.from("courses").insert({
-        name: dupName,
-        description: dupSource.description,
-        period: dupPeriod || null,
-        start_date: dupSource.start_date,
-        end_date: dupSource.end_date,
-        grade_scale_min: dupSource.grade_scale_min,
-        grade_scale_max: dupSource.grade_scale_max,
-        passing_grade: dupSource.passing_grade,
-        exam_weight: dupSource.exam_weight,
-        workshop_weight: dupSource.workshop_weight,
-        attendance_weight: dupSource.attendance_weight,
-      }).select().single();
+      const { data: newCourse, error: cErr } = await supabase
+        .from("courses")
+        .insert({
+          name: dupName,
+          description: dupSource.description,
+          period: dupPeriod || null,
+          start_date: dupSource.start_date,
+          end_date: dupSource.end_date,
+          grade_scale_min: dupSource.grade_scale_min,
+          grade_scale_max: dupSource.grade_scale_max,
+          passing_grade: dupSource.passing_grade,
+          exam_weight: dupSource.exam_weight,
+          workshop_weight: dupSource.workshop_weight,
+          attendance_weight: dupSource.attendance_weight,
+        })
+        .select()
+        .single();
       if (cErr || !newCourse) throw new Error(cErr?.message ?? "Error creando curso");
 
       // 2. Copy students
       if (dupCopyStudents) {
-        const { data: enr } = await supabase.from("course_enrollments").select("user_id").eq("course_id", dupSource.id);
+        const { data: enr } = await supabase
+          .from("course_enrollments")
+          .select("user_id")
+          .eq("course_id", dupSource.id);
         if (enr?.length) {
-          await supabase.from("course_enrollments").insert(enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id })));
+          await supabase
+            .from("course_enrollments")
+            .insert(enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id })));
         }
       }
 
       // 3. Copy teachers
-      const { data: ct } = await supabase.from("course_teachers").select("user_id").eq("course_id", dupSource.id);
+      const { data: ct } = await supabase
+        .from("course_teachers")
+        .select("user_id")
+        .eq("course_id", dupSource.id);
       if (ct?.length) {
-        await supabase.from("course_teachers").insert(ct.map((t: any) => ({ course_id: newCourse.id, user_id: t.user_id })));
+        await supabase
+          .from("course_teachers")
+          .insert(ct.map((t: any) => ({ course_id: newCourse.id, user_id: t.user_id })));
       }
 
       // 4. Copy exams (without submissions/assignments)
       if (dupCopyExams) {
-        const { data: exams } = await supabase.from("exams").select("*").eq("course_id", dupSource.id);
+        const { data: exams } = await supabase
+          .from("exams")
+          .select("*")
+          .eq("course_id", dupSource.id);
         for (const exam of exams ?? []) {
-          const { data: newExam } = await supabase.from("exams").insert({
-            course_id: newCourse.id,
-            created_by: exam.created_by,
-            title: exam.title,
-            description: exam.description,
-            start_time: exam.start_time,
-            end_time: exam.end_time,
-            time_limit_minutes: exam.time_limit_minutes,
-            navigation_type: exam.navigation_type,
-            shuffle_enabled: exam.shuffle_enabled,
-          }).select().single();
+          const { data: newExam } = await supabase
+            .from("exams")
+            .insert({
+              course_id: newCourse.id,
+              created_by: exam.created_by,
+              title: exam.title,
+              description: exam.description,
+              start_time: exam.start_time,
+              end_time: exam.end_time,
+              time_limit_minutes: exam.time_limit_minutes,
+              navigation_type: exam.navigation_type,
+              shuffle_enabled: exam.shuffle_enabled,
+            })
+            .select()
+            .single();
           if (newExam) {
             // Copy questions
-            const { data: qs } = await supabase.from("questions").select("*").eq("exam_id", exam.id);
+            const { data: qs } = await supabase
+              .from("questions")
+              .select("*")
+              .eq("exam_id", exam.id);
             if (qs?.length) {
-              await supabase.from("questions").insert(qs.map((q: any) => ({
-                exam_id: newExam.id,
-                type: q.type,
-                content: q.content,
-                expected_rubric: q.expected_rubric,
-                options: q.options,
-                points: q.points,
-                position: q.position,
-                language: q.language,
-                starter_code: q.starter_code,
-                test_cases: q.test_cases,
-              })));
+              await supabase.from("questions").insert(
+                qs.map((q: any) => ({
+                  exam_id: newExam.id,
+                  type: q.type,
+                  content: q.content,
+                  expected_rubric: q.expected_rubric,
+                  options: q.options,
+                  points: q.points,
+                  position: q.position,
+                  language: q.language,
+                  starter_code: q.starter_code,
+                  test_cases: q.test_cases,
+                })),
+              );
             }
           }
         }
@@ -293,20 +414,25 @@ function AdminCourses() {
 
       // 5. Copy workshops (without submissions/assignments)
       if (dupCopyWorkshops) {
-        const { data: ws } = await supabase.from("workshops").select("*").eq("course_id", dupSource.id);
+        const { data: ws } = await supabase
+          .from("workshops")
+          .select("*")
+          .eq("course_id", dupSource.id);
         if (ws?.length) {
-          await supabase.from("workshops").insert(ws.map((w: any) => ({
-            course_id: newCourse.id,
-            created_by: w.created_by,
-            title: w.title,
-            description: w.description,
-            instructions: w.instructions,
-            external_link: w.external_link,
-            due_date: w.due_date,
-            rubric: w.rubric,
-            max_score: w.max_score,
-            status: "draft",
-          })));
+          await supabase.from("workshops").insert(
+            ws.map((w: any) => ({
+              course_id: newCourse.id,
+              created_by: w.created_by,
+              title: w.title,
+              description: w.description,
+              instructions: w.instructions,
+              external_link: w.external_link,
+              due_date: w.due_date,
+              rubric: w.rubric,
+              max_score: w.max_score,
+              status: "draft",
+            })),
+          );
         }
       }
 
@@ -329,31 +455,40 @@ function AdminCourses() {
 
   const openWeights = async (c: Course) => {
     setWeightsCourse(c);
-    const { data } = await supabase.from("course_grading_weights").select("component, weight").eq("course_id", c.id).order("component");
+    const { data } = await supabase
+      .from("course_grading_weights")
+      .select("component, weight")
+      .eq("course_id", c.id)
+      .order("component");
     const items = (data ?? []) as { component: string; weight: number }[];
     // Ensure default components exist
     const defaults = ["asistencia", "talleres", "parciales"];
-    defaults.forEach(d => {
-      if (!items.find(i => i.component === d)) items.push({ component: d, weight: 0 });
+    defaults.forEach((d) => {
+      if (!items.find((i) => i.component === d)) items.push({ component: d, weight: 0 });
     });
     setWeights(items);
     setWeightsOpen(true);
   };
 
   const updateWeight = (component: string, value: number) => {
-    setWeights(prev => prev.map(w => w.component === component ? { ...w, weight: value } : w));
+    setWeights((prev) =>
+      prev.map((w) => (w.component === component ? { ...w, weight: value } : w)),
+    );
   };
 
   const addComponent = () => {
     if (!newComponent.trim()) return;
     const name = newComponent.trim().toLowerCase();
-    if (weights.find(w => w.component === name)) { toast.error("Ya existe ese componente"); return; }
-    setWeights(prev => [...prev, { component: name, weight: 0 }]);
+    if (weights.find((w) => w.component === name)) {
+      toast.error("Ya existe ese componente");
+      return;
+    }
+    setWeights((prev) => [...prev, { component: name, weight: 0 }]);
     setNewComponent("");
   };
 
   const removeComponent = (component: string) => {
-    setWeights(prev => prev.filter(w => w.component !== component));
+    setWeights((prev) => prev.filter((w) => w.component !== component));
   };
 
   const saveWeights = async () => {
@@ -365,11 +500,22 @@ function AdminCourses() {
     }
     // Delete existing and re-insert
     await supabase.from("course_grading_weights").delete().eq("course_id", weightsCourse.id);
-    if (weights.filter(w => w.weight > 0).length) {
-      const { error } = await supabase.from("course_grading_weights").insert(
-        weights.filter(w => w.weight > 0).map(w => ({ course_id: weightsCourse.id, component: w.component, weight: w.weight }))
-      );
-      if (error) { toast.error(error.message); return; }
+    if (weights.filter((w) => w.weight > 0).length) {
+      const { error } = await supabase
+        .from("course_grading_weights")
+        .insert(
+          weights
+            .filter((w) => w.weight > 0)
+            .map((w) => ({
+              course_id: weightsCourse.id,
+              component: w.component,
+              weight: w.weight,
+            })),
+        );
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
     }
     toast.success("Pesos de calificación guardados correctamente");
     setWeightsOpen(false);
@@ -404,34 +550,95 @@ function AdminCourses() {
             </TableHeader>
             <TableBody>
               {courses.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No hay cursos creados.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    No hay cursos creados.
+                  </TableCell>
+                </TableRow>
               )}
-              {courses.map(c => (
+              {courses.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>
-                    {c.period ? <Badge variant="outline" className="text-xs">{c.period}</Badge> : <span className="text-muted-foreground text-xs">—</span>}
+                    {c.period ? (
+                      <Badge variant="outline" className="text-xs">
+                        {c.period}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <div className="text-xs tabular-nums">
-                      <span className="font-medium">{c.grade_scale_min}–{c.grade_scale_max}</span>
+                      <span className="font-medium">
+                        {c.grade_scale_min}–{c.grade_scale_max}
+                      </span>
                       <span className="text-muted-foreground ml-1">(≥{c.passing_grade})</span>
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                     {c.start_date && c.end_date
                       ? `${new Date(c.start_date + "T00:00").toLocaleDateString()} → ${new Date(c.end_date + "T00:00").toLocaleDateString()}`
-                      : c.start_date ? `Desde ${new Date(c.start_date + "T00:00").toLocaleDateString()}` : "—"}
+                      : c.start_date
+                        ? `Desde ${new Date(c.start_date + "T00:00").toLocaleDateString()}`
+                        : "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden lg:table-cell max-w-48 truncate">{c.description ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground hidden lg:table-cell max-w-48 truncate">
+                    {c.description ?? "—"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button variant="ghost" size="sm" onClick={() => openWeights(c)} title="Pesos de calificación"><Settings className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => openEnroll(c)} title="Estudiantes"><Users className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => openTeachers(c)} title="Docentes"><UserCog className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => openDuplicate(c)} title="Duplicar"><Copy className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => { setEditing(c); setOpen(true); }} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => remove(c.id)} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openWeights(c)}
+                        title="Pesos de calificación"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEnroll(c)}
+                        title="Estudiantes"
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openTeachers(c)}
+                        title="Docentes"
+                      >
+                        <UserCog className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDuplicate(c)}
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditing(c);
+                          setOpen(true);
+                        }}
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(c.id)}
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -444,60 +651,162 @@ function AdminCourses() {
       {/* ── Create/Edit Dialog ── */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing?.id ? "Editar" : "Nuevo"} curso</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} curso</DialogTitle>
+          </DialogHeader>
           {editing && (
             <div className="space-y-3">
-              <div><Label>Nombre</Label><Input value={editing.name ?? ""} onChange={e => setEditing({ ...editing, name: e.target.value })} placeholder="Ej: Programación II" /></div>
-              <div><Label>Periodo</Label><Input value={editing.period ?? ""} onChange={e => setEditing({ ...editing, period: e.target.value })} placeholder="Ej: 2026-1" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Fecha inicio</Label><Input type="date" value={editing.start_date ?? ""} onChange={e => setEditing({ ...editing, start_date: e.target.value })} /></div>
-                <div><Label>Fecha fin</Label><Input type="date" value={editing.end_date ?? ""} onChange={e => setEditing({ ...editing, end_date: e.target.value })} /></div>
+              <div>
+                <Label>Nombre</Label>
+                <Input
+                  value={editing.name ?? ""}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  placeholder="Ej: Programación II"
+                />
               </div>
-              <div><Label>Descripción</Label><Textarea value={editing.description ?? ""} onChange={e => setEditing({ ...editing, description: e.target.value })} /></div>
+              <div>
+                <Label>Periodo</Label>
+                <Input
+                  value={editing.period ?? ""}
+                  onChange={(e) => setEditing({ ...editing, period: e.target.value })}
+                  placeholder="Ej: 2026-1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Fecha inicio</Label>
+                  <Input
+                    type="date"
+                    value={editing.start_date ?? ""}
+                    onChange={(e) => setEditing({ ...editing, start_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Fecha fin</Label>
+                  <Input
+                    type="date"
+                    value={editing.end_date ?? ""}
+                    onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Descripción</Label>
+                <Textarea
+                  value={editing.description ?? ""}
+                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                />
+              </div>
 
               <div className="rounded-md border p-3 space-y-3">
                 <p className="text-sm font-medium">Escala de calificación</p>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs">Nota mínima</Label>
-                    <Input type="number" step="0.1" value={editing.grade_scale_min ?? 0} onChange={e => setEditing({ ...editing, grade_scale_min: Number(e.target.value) })} />
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editing.grade_scale_min ?? 0}
+                      onChange={(e) =>
+                        setEditing({ ...editing, grade_scale_min: Number(e.target.value) })
+                      }
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Nota máxima</Label>
-                    <Input type="number" step="0.1" value={editing.grade_scale_max ?? 5} onChange={e => setEditing({ ...editing, grade_scale_max: Number(e.target.value) })} />
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editing.grade_scale_max ?? 5}
+                      onChange={(e) =>
+                        setEditing({ ...editing, grade_scale_max: Number(e.target.value) })
+                      }
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Aprobar ≥</Label>
-                    <Input type="number" step="0.1" value={editing.passing_grade ?? 3} onChange={e => setEditing({ ...editing, passing_grade: Number(e.target.value) })} />
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editing.passing_grade ?? 3}
+                      onChange={(e) =>
+                        setEditing({ ...editing, passing_grade: Number(e.target.value) })
+                      }
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs">Peso exámenes (%)</Label>
-                    <Input type="number" step="1" value={editing.exam_weight || ""} onChange={e => setEditing({ ...editing, exam_weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
+                    <Input
+                      type="number"
+                      step="1"
+                      value={editing.exam_weight || ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          exam_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Peso talleres (%)</Label>
-                    <Input type="number" step="1" value={editing.workshop_weight || ""} onChange={e => setEditing({ ...editing, workshop_weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
+                    <Input
+                      type="number"
+                      step="1"
+                      value={editing.workshop_weight || ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          workshop_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Peso asistencia (%)</Label>
-                    <Input type="number" step="1" value={editing.attendance_weight || ""} onChange={e => setEditing({ ...editing, attendance_weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
+                    <Input
+                      type="number"
+                      step="1"
+                      value={editing.attendance_weight || ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          attendance_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                    />
                   </div>
                 </div>
                 {(() => {
-                  const total = (editing.exam_weight ?? 0) + (editing.workshop_weight ?? 0) + (editing.attendance_weight ?? 0);
+                  const total =
+                    (editing.exam_weight ?? 0) +
+                    (editing.workshop_weight ?? 0) +
+                    (editing.attendance_weight ?? 0);
                   return (
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">Total de pesos: debe sumar 100%</p>
-                      <Badge variant={total === 100 ? "default" : "destructive"} className="text-xs">{total}%</Badge>
+                      <p className="text-xs text-muted-foreground">
+                        Total de pesos: debe sumar 100%
+                      </p>
+                      <Badge
+                        variant={total === 100 ? "default" : "destructive"}
+                        className="text-xs"
+                      >
+                        {total}%
+                      </Badge>
                     </div>
                   );
                 })()}
               </div>
             </div>
           )}
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={save}>Guardar</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={save}>Guardar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -514,7 +823,7 @@ function AdminCourses() {
               <Input
                 placeholder="Buscar por nombre o email..."
                 value={enrollSearch}
-                onChange={e => setEnrollSearch(e.target.value)}
+                onChange={(e) => setEnrollSearch(e.target.value)}
                 className="pl-9 h-9"
               />
             </div>
@@ -525,11 +834,23 @@ function AdminCourses() {
                 {enrollSearch && ` · ${filteredProfiles.length} filtrados`}
               </span>
               <div className="flex gap-1.5">
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={enrollAll}>
-                  <CheckSquare className="h-3 w-3" /> Seleccionar {enrollSearch ? "filtrados" : "todos"}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={enrollAll}
+                >
+                  <CheckSquare className="h-3 w-3" /> Seleccionar{" "}
+                  {enrollSearch ? "filtrados" : "todos"}
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={unenrollAll}>
-                  <XSquare className="h-3 w-3" /> Deseleccionar {enrollSearch ? "filtrados" : "todos"}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={unenrollAll}
+                >
+                  <XSquare className="h-3 w-3" /> Deseleccionar{" "}
+                  {enrollSearch ? "filtrados" : "todos"}
                 </Button>
               </div>
             </div>
@@ -538,15 +859,25 @@ function AdminCourses() {
               {filteredProfiles.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">Sin resultados</p>
               )}
-              {filteredProfiles.map(s => (
-                <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
-                  <Checkbox checked={enrolledIds.has(s.id)} onCheckedChange={(v) => toggleEnroll(s.id, !!v)} />
+              {filteredProfiles.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={enrolledIds.has(s.id)}
+                    onCheckedChange={(v) => toggleEnroll(s.id, !!v)}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{s.full_name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{s.institutional_email}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {s.institutional_email}
+                    </div>
                   </div>
                   {enrolledIds.has(s.id) && (
-                    <Badge variant="secondary" className="text-[9px] shrink-0">Matriculado</Badge>
+                    <Badge variant="secondary" className="text-[9px] shrink-0">
+                      Matriculado
+                    </Badge>
                   )}
                 </label>
               ))}
@@ -564,17 +895,29 @@ function AdminCourses() {
           <p className="text-sm text-muted-foreground">Asigna uno o más docentes a este curso.</p>
           <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
             {teachers.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No hay usuarios con rol Docente.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No hay usuarios con rol Docente.
+              </p>
             )}
-            {teachers.map(t => (
-              <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
-                <Checkbox checked={assignedTeacherIds.has(t.id)} onCheckedChange={(v) => toggleTeacher(t.id, !!v)} />
+            {teachers.map((t) => (
+              <label
+                key={t.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+              >
+                <Checkbox
+                  checked={assignedTeacherIds.has(t.id)}
+                  onCheckedChange={(v) => toggleTeacher(t.id, !!v)}
+                />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{t.full_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{t.institutional_email}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {t.institutional_email}
+                  </div>
                 </div>
                 {assignedTeacherIds.has(t.id) && (
-                  <Badge variant="secondary" className="text-[9px] shrink-0">Asignado</Badge>
+                  <Badge variant="secondary" className="text-[9px] shrink-0">
+                    Asignado
+                  </Badge>
                 )}
               </label>
             ))}
@@ -585,45 +928,72 @@ function AdminCourses() {
       {/* ── Duplicate Course Dialog ── */}
       <Dialog open={dupOpen} onOpenChange={setDupOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Duplicar curso</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Duplicar curso</DialogTitle>
+          </DialogHeader>
           {dupSource && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Creará una copia de <strong>{dupSource.name}</strong> con la configuración seleccionada.
+                Creará una copia de <strong>{dupSource.name}</strong> con la configuración
+                seleccionada.
               </p>
-              <div><Label>Nombre del nuevo curso</Label><Input value={dupName} onChange={e => setDupName(e.target.value)} /></div>
-              <div><Label>Periodo</Label><Input value={dupPeriod} onChange={e => setDupPeriod(e.target.value)} placeholder="Ej: 2026-2" /></div>
+              <div>
+                <Label>Nombre del nuevo curso</Label>
+                <Input value={dupName} onChange={(e) => setDupName(e.target.value)} />
+              </div>
+              <div>
+                <Label>Periodo</Label>
+                <Input
+                  value={dupPeriod}
+                  onChange={(e) => setDupPeriod(e.target.value)}
+                  placeholder="Ej: 2026-2"
+                />
+              </div>
               <div className="space-y-3 rounded-md border p-3">
                 <p className="text-sm font-medium">¿Qué copiar?</p>
                 <label className="flex items-center justify-between">
                   <div>
                     <div className="text-sm">Exámenes y preguntas</div>
-                    <div className="text-xs text-muted-foreground">Se copian como borrador sin asignaciones</div>
+                    <div className="text-xs text-muted-foreground">
+                      Se copian como borrador sin asignaciones
+                    </div>
                   </div>
                   <Switch checked={dupCopyExams} onCheckedChange={setDupCopyExams} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
                     <div className="text-sm">Talleres</div>
-                    <div className="text-xs text-muted-foreground">Se copian como borrador sin entregas</div>
+                    <div className="text-xs text-muted-foreground">
+                      Se copian como borrador sin entregas
+                    </div>
                   </div>
                   <Switch checked={dupCopyWorkshops} onCheckedChange={setDupCopyWorkshops} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
                     <div className="text-sm">Estudiantes matriculados</div>
-                    <div className="text-xs text-muted-foreground">Copia las matrículas al nuevo curso</div>
+                    <div className="text-xs text-muted-foreground">
+                      Copia las matrículas al nuevo curso
+                    </div>
                   </div>
                   <Switch checked={dupCopyStudents} onCheckedChange={setDupCopyStudents} />
                 </label>
               </div>
-              <p className="text-xs text-muted-foreground">Los docentes asignados siempre se copian.</p>
+              <p className="text-xs text-muted-foreground">
+                Los docentes asignados siempre se copian.
+              </p>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDupOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setDupOpen(false)}>
+              Cancelar
+            </Button>
             <Button onClick={doDuplicate} disabled={dupLoading}>
-              {dupLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Copy className="h-4 w-4 mr-1" />}
+              {dupLoading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4 mr-1" />
+              )}
               Duplicar
             </Button>
           </DialogFooter>
@@ -633,25 +1003,38 @@ function AdminCourses() {
       {/* ── Grading Weights Dialog ── */}
       <Dialog open={weightsOpen} onOpenChange={setWeightsOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Pesos de calificación — {weightsCourse?.name}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Define qué porcentaje del 100% corresponde a cada componente.</p>
+          <DialogHeader>
+            <DialogTitle>Pesos de calificación — {weightsCourse?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Define qué porcentaje del 100% corresponde a cada componente.
+          </p>
           <div className="space-y-2">
-            {weights.map(w => (
+            {weights.map((w) => (
               <div key={w.component} className="flex items-center gap-2">
-                <span className="text-sm font-medium capitalize flex-1 min-w-0 truncate">{w.component}</span>
+                <span className="text-sm font-medium capitalize flex-1 min-w-0 truncate">
+                  {w.component}
+                </span>
                 <div className="flex items-center gap-1">
                   <Input
                     type="number"
                     min={0}
                     max={100}
                     value={w.weight || ""}
-                    onChange={e => updateWeight(w.component, e.target.value === "" ? 0 : Number(e.target.value))}
+                    onChange={(e) =>
+                      updateWeight(w.component, e.target.value === "" ? 0 : Number(e.target.value))
+                    }
                     className="w-16 h-8 text-sm text-center"
                   />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
                 {!["asistencia", "talleres", "parciales"].includes(w.component) && (
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeComponent(w.component)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={() => removeComponent(w.component)}
+                  >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </Button>
                 )}
@@ -662,10 +1045,10 @@ function AdminCourses() {
           <div className="flex items-center gap-2 pt-2 border-t">
             <Input
               value={newComponent}
-              onChange={e => setNewComponent(e.target.value)}
+              onChange={(e) => setNewComponent(e.target.value)}
               placeholder="Ej: participación, proyecto"
               className="h-8 text-sm flex-1"
-              onKeyDown={e => e.key === "Enter" && addComponent()}
+              onKeyDown={(e) => e.key === "Enter" && addComponent()}
             />
             <Button variant="outline" size="sm" className="h-8" onClick={addComponent}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
@@ -674,12 +1057,19 @@ function AdminCourses() {
           {/* Total indicator */}
           <div className="flex items-center justify-between pt-2 border-t">
             <span className="text-sm font-medium">Total</span>
-            <Badge variant={weights.reduce((s, w) => s + w.weight, 0) === 100 ? "default" : "destructive"} className="text-xs">
+            <Badge
+              variant={
+                weights.reduce((s, w) => s + w.weight, 0) === 100 ? "default" : "destructive"
+              }
+              className="text-xs"
+            >
               {weights.reduce((s, w) => s + w.weight, 0)}%
             </Badge>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setWeightsOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setWeightsOpen(false)}>
+              Cancelar
+            </Button>
             <Button onClick={saveWeights}>Guardar</Button>
           </DialogFooter>
         </DialogContent>

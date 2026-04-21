@@ -2,7 +2,13 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Play, Loader2, Terminal } from "lucide-react";
 
@@ -22,7 +28,10 @@ interface CodeEditorProps {
   showRunButton?: boolean;
 }
 
-const LANGUAGE_CONFIG: Record<CodeLanguage, { label: string; monacoLang: string; defaultCode: string }> = {
+const LANGUAGE_CONFIG: Record<
+  CodeLanguage,
+  { label: string; monacoLang: string; defaultCode: string }
+> = {
   java: {
     label: "Java",
     monacoLang: "java",
@@ -87,11 +96,23 @@ export function CodeEditor({
           </Select>
         )}
         {!showLanguageSelector && (
-          <Badge variant="outline" className="text-xs">{config.label}</Badge>
+          <Badge variant="outline" className="text-xs">
+            {config.label}
+          </Badge>
         )}
         {showRunButton && onRun && (
-          <Button size="sm" variant="outline" onClick={onRun} disabled={isRunning} className="h-8 text-xs">
-            {isRunning ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onRun}
+            disabled={isRunning}
+            className="h-8 text-xs"
+          >
+            {isRunning ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <Play className="h-3 w-3 mr-1" />
+            )}
             Ejecutar
           </Button>
         )}

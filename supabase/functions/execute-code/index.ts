@@ -36,7 +36,7 @@ const JDOODLE_LANGUAGES: Record<string, { language: string; versionIndex: string
 async function executeWithJDoodle(
   sourceCode: string,
   language: string,
-  stdin: string
+  stdin: string,
 ): Promise<ExecutionResult> {
   const clientId = Deno.env.get("JDOODLE_CLIENT_ID");
   const clientSecret = Deno.env.get("JDOODLE_CLIENT_SECRET");
@@ -69,7 +69,8 @@ async function executeWithJDoodle(
 
   return {
     stdout: result.output ?? "",
-    stderr: result.error ?? result.statusCode === 200 ? "" : (result.error ?? "Error de ejecución"),
+    stderr:
+      (result.error ?? result.statusCode === 200) ? "" : (result.error ?? "Error de ejecución"),
     exitCode: result.statusCode === 200 ? 0 : 1,
     executionTimeMs,
   };
@@ -77,25 +78,25 @@ async function executeWithJDoodle(
 
 function simulateExecution(sourceCode: string, language: string): ExecutionResult {
   // Development fallback: basic simulation
-  const hasMain = language === "java"
-    ? sourceCode.includes("public static void main")
-    : true;
+  const hasMain = language === "java" ? sourceCode.includes("public static void main") : true;
 
   if (!hasMain && language === "java") {
     return {
       stdout: "",
-      stderr: "Error: No se encontró el método main. Asegúrate de incluir 'public static void main(String[] args)'.",
+      stderr:
+        "Error: No se encontró el método main. Asegúrate de incluir 'public static void main(String[] args)'.",
       exitCode: 1,
       executionTimeMs: 50,
     };
   }
 
   // Extract print statements for simulation
-  const printRegex = language === "java"
-    ? /System\.out\.println\(["'](.+?)["']\)/g
-    : language === "python"
-      ? /print\(["'](.+?)["']\)/g
-      : /console\.log\(["'](.+?)["']\)/g;
+  const printRegex =
+    language === "java"
+      ? /System\.out\.println\(["'](.+?)["']\)/g
+      : language === "python"
+        ? /print\(["'](.+?)["']\)/g
+        : /console\.log\(["'](.+?)["']\)/g;
 
   const outputs: string[] = [];
   let match;
@@ -104,9 +105,10 @@ function simulateExecution(sourceCode: string, language: string): ExecutionResul
   }
 
   return {
-    stdout: outputs.length > 0
-      ? outputs.join("\n") + "\n"
-      : `[Simulación] Código ${language} recibido (${sourceCode.length} caracteres). Configure JDOODLE_CLIENT_ID para ejecución real.\n`,
+    stdout:
+      outputs.length > 0
+        ? outputs.join("\n") + "\n"
+        : `[Simulación] Código ${language} recibido (${sourceCode.length} caracteres). Configure JDOODLE_CLIENT_ID para ejecución real.\n`,
     stderr: "",
     exitCode: 0,
     executionTimeMs: 100,
@@ -117,7 +119,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { sourceCode, language, stdin = "", questionId, submissionId }: ExecutionRequest = await req.json();
+    const {
+      sourceCode,
+      language,
+      stdin = "",
+      questionId,
+      submissionId,
+    }: ExecutionRequest = await req.json();
 
     if (!sourceCode?.trim()) {
       return new Response(JSON.stringify({ error: "Código fuente requerido" }), {
@@ -135,10 +143,13 @@ Deno.serve(async (req) => {
 
     // Security: limit code size
     if (sourceCode.length > 10000) {
-      return new Response(JSON.stringify({ error: "Código demasiado largo (máx 10,000 caracteres)" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Código demasiado largo (máx 10,000 caracteres)" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Authenticate user
@@ -146,7 +157,7 @@ Deno.serve(async (req) => {
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
-      { global: { headers: { Authorization: authHeader ?? "" } } }
+      { global: { headers: { Authorization: authHeader ?? "" } } },
     );
     const { data: u } = await userClient.auth.getUser();
     if (!u.user) throw new Error("No autenticado");
@@ -155,7 +166,10 @@ Deno.serve(async (req) => {
     const result = await executeWithJDoodle(sourceCode, language, stdin);
 
     // Log execution in database
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
     await admin.from("code_executions").insert({
       submission_id: submissionId || null,
       question_id: questionId,

@@ -8,7 +8,7 @@ export function toCSV(rows: Record<string, any>[], columns?: string[]): string {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const header = cols.join(",");
-  const body = rows.map(r => cols.map(c => escape(r[c])).join(",")).join("\n");
+  const body = rows.map((r) => cols.map((c) => escape(r[c])).join(",")).join("\n");
   return `${header}\n${body}`;
 }
 
@@ -25,7 +25,10 @@ export function downloadCSV(filename: string, csv: string) {
 }
 
 export function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r/g, "").split("\n").filter(l => l.trim());
+  const lines = text
+    .replace(/\r/g, "")
+    .split("\n")
+    .filter((l) => l.trim());
   if (!lines.length) return [];
   const parseLine = (line: string): string[] => {
     const out: string[] = [];
@@ -34,23 +37,29 @@ export function parseCSV(text: string): Record<string, string>[] {
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if (inQ) {
-        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-        else if (ch === '"') inQ = false;
+        if (ch === '"' && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else if (ch === '"') inQ = false;
         else cur += ch;
       } else {
-        if (ch === ',') { out.push(cur); cur = ""; }
-        else if (ch === '"') inQ = true;
+        if (ch === ",") {
+          out.push(cur);
+          cur = "";
+        } else if (ch === '"') inQ = true;
         else cur += ch;
       }
     }
     out.push(cur);
     return out;
   };
-  const headers = parseLine(lines[0]).map(h => h.trim());
-  return lines.slice(1).map(l => {
+  const headers = parseLine(lines[0]).map((h) => h.trim());
+  return lines.slice(1).map((l) => {
     const vals = parseLine(l);
     const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
+    headers.forEach((h, i) => {
+      obj[h] = (vals[i] ?? "").trim();
+    });
     return obj;
   });
 }

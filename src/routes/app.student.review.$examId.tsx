@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
 
-export const Route = createFileRoute("/app/student/review/$examId")({ component: StudentExamReview });
+export const Route = createFileRoute("/app/student/review/$examId")({
+  component: StudentExamReview,
+});
 
 type QuestionRow = {
   id: string;
@@ -90,7 +92,9 @@ function StudentExamReview() {
         const [{ data: ex, error: exErr }, { data: sub }, { data: qs }] = await Promise.all([
           supabase
             .from("exams")
-            .select("id, title, description, course:courses(name, grade_scale_min, grade_scale_max)")
+            .select(
+              "id, title, description, course:courses(name, grade_scale_min, grade_scale_max)",
+            )
             .eq("id", examId)
             .single(),
           supabase
@@ -120,7 +124,7 @@ function StudentExamReview() {
             ai_grade: number | null;
             final_override_grade: number | null;
             submitted_at: string | null;
-          } | null
+          } | null,
         );
         setQuestions((qs ?? []) as QuestionRow[]);
       } finally {
@@ -168,7 +172,9 @@ function StudentExamReview() {
           </Button>
         </Link>
         <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">No se encontró el examen.</CardContent>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            No se encontró el examen.
+          </CardContent>
         </Card>
       </div>
     );
@@ -194,7 +200,8 @@ function StudentExamReview() {
         <Card>
           <CardContent className="p-6 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Cuando completes y entregues el examen, aquí podrás ver tus respuestas y la retroalimentación por pregunta (después de la calificación).
+              Cuando completes y entregues el examen, aquí podrás ver tus respuestas y la
+              retroalimentación por pregunta (después de la calificación).
             </p>
             <Link to="/app/student/take/$examId" params={{ examId }}>
               <Button size="sm">Ir al examen</Button>
@@ -252,7 +259,8 @@ function StudentExamReview() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Intento marcado por alertas</AlertTitle>
           <AlertDescription>
-            Esta entrega fue registrada con advertencias de integridad (foco, pantalla completa u otros eventos). La nota se muestra igualmente a efectos informativos.
+            Esta entrega fue registrada con advertencias de integridad (foco, pantalla completa u
+            otros eventos). La nota se muestra igualmente a efectos informativos.
           </AlertDescription>
         </Alert>
       )}
@@ -260,7 +268,9 @@ function StudentExamReview() {
       <div className="space-y-4">
         <h2 className="text-lg font-semibold tracking-tight">Retroalimentación por pregunta</h2>
         {questions.length === 0 && (
-          <p className="text-sm text-muted-foreground">Este examen no tiene preguntas registradas.</p>
+          <p className="text-sm text-muted-foreground">
+            Este examen no tiene preguntas registradas.
+          </p>
         )}
         {questions.map((q, idx) => {
           const ans = answers[q.id];
@@ -271,7 +281,8 @@ function StudentExamReview() {
           const correctIdx = q.options?.correct_index;
 
           const iaFeedback = bd?.feedback && String(bd.feedback).trim() ? bd.feedback : null;
-          const teacherFeedback = override?.feedback && String(override.feedback).trim() ? override.feedback : null;
+          const teacherFeedback =
+            override?.feedback && String(override.feedback).trim() ? override.feedback : null;
 
           return (
             <Card key={q.id}>
@@ -314,7 +325,9 @@ function StudentExamReview() {
                             </Badge>
                           )}
                           {isCorrect && (
-                            <Badge className="ml-1 text-[9px] bg-success text-success-foreground">correcta</Badge>
+                            <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                              correcta
+                            </Badge>
                           )}
                         </div>
                       );
@@ -324,20 +337,26 @@ function StudentExamReview() {
 
                 {q.type !== "cerrada" && (
                   <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono min-h-[44px]">
-                    {ans == null || ans === ""
-                      ? <span className="text-muted-foreground italic font-sans">Sin respuesta</span>
-                      : typeof ans === "string"
-                        ? ans
-                        : JSON.stringify(ans, null, 2)}
+                    {ans == null || ans === "" ? (
+                      <span className="text-muted-foreground italic font-sans">Sin respuesta</span>
+                    ) : typeof ans === "string" ? (
+                      ans
+                    ) : (
+                      JSON.stringify(ans, null, 2)
+                    )}
                   </div>
                 )}
 
                 {(iaFeedback || teacherFeedback) && (
                   <div className="border-t pt-3">
                     <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
-                      <span className="font-medium text-foreground block mb-1">Retroalimentación</span>
+                      <span className="font-medium text-foreground block mb-1">
+                        Retroalimentación
+                      </span>
                       <span className="text-muted-foreground whitespace-pre-wrap">
-                        {[...new Set([teacherFeedback, iaFeedback].filter(Boolean) as string[])].join("\n\n")}
+                        {[
+                          ...new Set([teacherFeedback, iaFeedback].filter(Boolean) as string[]),
+                        ].join("\n\n")}
                       </span>
                     </div>
                   </div>
@@ -351,8 +370,12 @@ function StudentExamReview() {
 
                 {q.expected_rubric && (
                   <details className="text-xs text-muted-foreground">
-                    <summary className="cursor-pointer hover:text-foreground">Criterios de evaluación (referencia)</summary>
-                    <p className="mt-2 whitespace-pre-wrap border rounded-md p-2 bg-muted/20">{q.expected_rubric}</p>
+                    <summary className="cursor-pointer hover:text-foreground">
+                      Criterios de evaluación (referencia)
+                    </summary>
+                    <p className="mt-2 whitespace-pre-wrap border rounded-md p-2 bg-muted/20">
+                      {q.expected_rubric}
+                    </p>
                   </details>
                 )}
               </CardContent>

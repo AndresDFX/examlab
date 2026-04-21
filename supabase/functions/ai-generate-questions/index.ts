@@ -9,10 +9,12 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const { topics, type, count = 5, examId, language } = await req.json();
+    const body = await req.json();
+    const { topics, type, count = 5, examId, language } = body;
     if (!topics || !type || !examId) {
       return new Response(JSON.stringify({ error: "topics, type, examId requeridos" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const allowedLanguages = new Set(["java", "python", "javascript"]);
@@ -24,59 +26,104 @@ Deno.serve(async (req) => {
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    const systemPrompt = `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad, en español. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).`;
+    // Determine course language: explicit body.courseLanguage wins; otherwise
+    // look it up from the exam's course. Defaults to Spanish for legacy calls.
+    const admin0 = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    let courseLanguage: "es" | "en" = "es";
+    if (body.courseLanguage === "en" || body.courseLanguage === "es") {
+      courseLanguage = body.courseLanguage;
+    } else if (examId) {
+      const { data: examRow } = await admin0
+        .from("exams")
+        .select("course:courses(language)")
+        .eq("id", examId)
+        .maybeSingle();
+      const lng = examRow?.course?.language;
+      if (lng === "en" || lng === "es") courseLanguage = lng;
+    }
+    const langName = courseLanguage === "en" ? "inglés (English)" : "español";
+
+    const systemPrompt = `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).
+REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${langName}. Todos los enunciados, opciones y rúbricas deben estar en ${langName}.`;
 
     const userPrompt = `Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
 ${type === "cerrada" ? "Cada pregunta debe tener 4 opciones (A, B, C, D) con UNA correcta." : ""}
 ${type === "codigo" ? `Las preguntas deben pedir escribir código en el lenguaje ${codeLanguage}. Indica claramente en el enunciado que la solución debe implementarse en ${codeLanguage}.` : ""}
-La rúbrica debe describir los criterios para considerar correcta la respuesta.`;
+La rúbrica debe describir los criterios para considerar correcta la respuesta.
+Idioma de salida obligatorio: ${langName}.`;
 
-    const tools = [{
-      type: "function",
-      function: {
-        name: "create_questions",
-        description: "Devuelve preguntas estructuradas",
-        parameters: {
-          type: "object",
-          properties: {
-            questions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  content: { type: "string" },
-                  expected_rubric: { type: "string" },
-                  options: type === "cerrada" ? {
-                    type: "object",
-                    properties: {
-                      choices: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
-                      correct_index: { type: "integer", minimum: 0, maximum: 3 },
-                    },
-                    required: ["choices", "correct_index"],
-                  } : { type: "object", properties: {} },
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "create_questions",
+          description: "Devuelve preguntas estructuradas",
+          parameters: {
+            type: "object",
+            properties: {
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    content: { type: "string" },
+                    expected_rubric: { type: "string" },
+                    options:
+                      type === "cerrada"
+                        ? {
+                            type: "object",
+                            properties: {
+                              choices: {
+                                type: "array",
+                                items: { type: "string" },
+                                minItems: 4,
+                                maxItems: 4,
+                              },
+                              correct_index: { type: "integer", minimum: 0, maximum: 3 },
+                            },
+                            required: ["choices", "correct_index"],
+                          }
+                        : { type: "object", properties: {} },
+                  },
+                  required: ["content", "expected_rubric"],
                 },
-                required: ["content", "expected_rubric"],
               },
             },
+            required: ["questions"],
           },
-          required: ["questions"],
         },
       },
-    }];
+    ];
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
         tools,
         tool_choice: { type: "function", function: { name: "create_questions" } },
       }),
     });
 
-    if (aiRes.status === 429) return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (aiRes.status === 402) return new Response(JSON.stringify({ error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (aiRes.status === 429)
+      return new Response(
+        JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    if (aiRes.status === 402)
+      return new Response(
+        JSON.stringify({
+          error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.",
+        }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     if (!aiRes.ok) {
       const t = await aiRes.text();
       console.error("AI error", aiRes.status, t);
@@ -96,11 +143,23 @@ La rúbrica debe describir los criterios para considerar correcta la respuesta.`
       { global: { headers: { Authorization: authHeader ?? "" } } },
     );
     const { data: u } = await userClient.auth.getUser();
-    if (!u.user) return new Response(JSON.stringify({ error: "No autenticado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!u.user)
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
 
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
     // Find current max position
-    const { data: existing } = await admin.from("questions").select("position").eq("exam_id", examId).order("position", { ascending: false }).limit(1);
+    const { data: existing } = await admin
+      .from("questions")
+      .select("position")
+      .eq("exam_id", examId)
+      .order("position", { ascending: false })
+      .limit(1);
     let pos = existing?.[0]?.position ?? -1;
 
     const toInsert = questions.map((q: any) => ({
@@ -113,7 +172,10 @@ La rúbrica debe describir los criterios para considerar correcta la respuesta.`
       points: 1,
       language: codeLanguage,
     }));
-    const { data: inserted, error: insErr } = await admin.from("questions").insert(toInsert).select();
+    const { data: inserted, error: insErr } = await admin
+      .from("questions")
+      .insert(toInsert)
+      .select();
     if (insErr) throw insErr;
 
     return new Response(JSON.stringify({ ok: true, inserted }), {
@@ -122,7 +184,8 @@ La rúbrica debe describir los criterios para considerar correcta la respuesta.`
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

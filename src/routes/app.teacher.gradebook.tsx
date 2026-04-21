@@ -5,25 +5,70 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
-import { Download, GitBranch, FileText, Hammer, Save, Loader2, Scale, AlertTriangle } from "lucide-react";
+import {
+  Download,
+  GitBranch,
+  FileText,
+  Hammer,
+  Save,
+  Loader2,
+  Scale,
+  AlertTriangle,
+} from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/app/teacher/gradebook")({ component: Gradebook });
 
 type Course = {
-  id: string; name: string;
-  grade_scale_min: number; grade_scale_max: number; passing_grade: number;
-  exam_weight: number; workshop_weight: number;
+  id: string;
+  name: string;
+  grade_scale_min: number;
+  grade_scale_max: number;
+  passing_grade: number;
+  exam_weight: number;
+  workshop_weight: number;
 };
 type Exam = { id: string; title: string; parent_exam_id: string | null; course_id: string };
 type Workshop = { id: string; title: string; course_id: string; max_score: number };
-type Student = { id: string; full_name: string; institutional_email: string; personal_email: string | null };
-type ExamSub = { id: string; exam_id: string; user_id: string; ai_grade: number | null; final_override_grade: number | null; status: string };
-type WsSub = { id: string; workshop_id: string; user_id: string; ai_grade: number | null; final_grade: number | null; status: string };
+type Student = {
+  id: string;
+  full_name: string;
+  institutional_email: string;
+  personal_email: string | null;
+};
+type ExamSub = {
+  id: string;
+  exam_id: string;
+  user_id: string;
+  ai_grade: number | null;
+  final_override_grade: number | null;
+  status: string;
+};
+type WsSub = {
+  id: string;
+  workshop_id: string;
+  user_id: string;
+  ai_grade: number | null;
+  final_grade: number | null;
+  status: string;
+};
 
 /** A column in the grid — either an exam or a workshop */
 type GradeColumn = {
@@ -52,10 +97,16 @@ function Gradebook() {
 
   // Load courses
   useEffect(() => {
-    supabase.from("courses").select("id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight").order("name").then(({ data }) => {
-      setCourses(data ?? []);
-      if (data?.[0]) setCourseId(data[0].id);
-    });
+    supabase
+      .from("courses")
+      .select(
+        "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight",
+      )
+      .order("name")
+      .then(({ data }) => {
+        setCourses(data ?? []);
+        if (data?.[0]) setCourseId(data[0].id);
+      });
   }, []);
 
   // Load data for selected course
@@ -80,11 +131,15 @@ function Gradebook() {
 
     // Build columns: original exams (no parent) + workshops
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
-      .filter(e => !e.parent_exam_id)
-      .map(e => ({ id: e.id, title: e.title, kind: "exam" as const, parentExamId: null }));
+      .filter((e) => !e.parent_exam_id)
+      .map((e) => ({ id: e.id, title: e.title, kind: "exam" as const, parentExamId: null }));
 
-    const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[])
-      .map(w => ({ id: w.id, title: w.title, kind: "workshop" as const, maxScore: w.max_score }));
+    const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[]).map((w) => ({
+      id: w.id,
+      title: w.title,
+      kind: "workshop" as const,
+      maxScore: w.max_score,
+    }));
 
     setColumns([...examCols, ...wsCols]);
 
@@ -133,41 +188,52 @@ function Gradebook() {
     setEdits({});
   }, [courseId]);
 
-  useEffect(() => { loadCourse(); }, [loadCourse]);
+  useEffect(() => {
+    loadCourse();
+  }, [loadCourse]);
 
   // Get the effective grade for a student + column
-  const getGrade = (studentId: string, col: GradeColumn): {
-    grade: number | null; isMakeup: boolean; status?: string; subId?: string;
+  const getGrade = (
+    studentId: string,
+    col: GradeColumn,
+  ): {
+    grade: number | null;
+    isMakeup: boolean;
+    status?: string;
+    subId?: string;
   } => {
     if (col.kind === "exam") {
       // Check direct submission
-      const own = examSubs.find(s => s.user_id === studentId && s.exam_id === col.id);
-      if (own) return {
-        grade: own.final_override_grade ?? own.ai_grade,
-        isMakeup: false,
-        status: own.status,
-        subId: own.id,
-      };
-      // Check makeup exams
-      const makeups = allExams.filter(e => e.parent_exam_id === col.id);
-      for (const m of makeups) {
-        const sub = examSubs.find(s => s.user_id === studentId && s.exam_id === m.id);
-        if (sub) return {
-          grade: sub.final_override_grade ?? sub.ai_grade,
-          isMakeup: true,
-          status: sub.status,
-          subId: sub.id,
+      const own = examSubs.find((s) => s.user_id === studentId && s.exam_id === col.id);
+      if (own)
+        return {
+          grade: own.final_override_grade ?? own.ai_grade,
+          isMakeup: false,
+          status: own.status,
+          subId: own.id,
         };
+      // Check makeup exams
+      const makeups = allExams.filter((e) => e.parent_exam_id === col.id);
+      for (const m of makeups) {
+        const sub = examSubs.find((s) => s.user_id === studentId && s.exam_id === m.id);
+        if (sub)
+          return {
+            grade: sub.final_override_grade ?? sub.ai_grade,
+            isMakeup: true,
+            status: sub.status,
+            subId: sub.id,
+          };
       }
       return { grade: null, isMakeup: false };
     } else {
-      const sub = wsSubs.find(s => s.user_id === studentId && s.workshop_id === col.id);
-      if (sub) return {
-        grade: sub.final_grade ?? sub.ai_grade,
-        isMakeup: false,
-        status: sub.status,
-        subId: sub.id,
-      };
+      const sub = wsSubs.find((s) => s.user_id === studentId && s.workshop_id === col.id);
+      if (sub)
+        return {
+          grade: sub.final_grade ?? sub.ai_grade,
+          isMakeup: false,
+          status: sub.status,
+          subId: sub.id,
+        };
       return { grade: null, isMakeup: false };
     }
   };
@@ -176,13 +242,16 @@ function Gradebook() {
   const cellKey = (studentId: string, colId: string) => `${studentId}::${colId}`;
 
   const handleEdit = (studentId: string, colId: string, value: string) => {
-    setEdits(prev => ({ ...prev, [cellKey(studentId, colId)]: value }));
+    setEdits((prev) => ({ ...prev, [cellKey(studentId, colId)]: value }));
   };
 
   // Save all edits
   const saveAll = async () => {
     const entries = Object.entries(edits).filter(([, v]) => v !== "");
-    if (!entries.length) { toast.info("No hay cambios para guardar"); return; }
+    if (!entries.length) {
+      toast.info("No hay cambios para guardar");
+      return;
+    }
 
     setSaving(true);
     let saved = 0;
@@ -190,11 +259,14 @@ function Gradebook() {
 
     for (const [key, value] of entries) {
       const [studentId, colId] = key.split("::");
-      const col = columns.find(c => c.id === colId);
+      const col = columns.find((c) => c.id === colId);
       if (!col) continue;
 
       const numValue = Number(value);
-      if (isNaN(numValue)) { errors++; continue; }
+      if (isNaN(numValue)) {
+        errors++;
+        continue;
+      }
 
       if (col.kind === "exam") {
         const g = getGrade(studentId, col);
@@ -203,7 +275,8 @@ function Gradebook() {
             .from("submissions")
             .update({ final_override_grade: numValue })
             .eq("id", g.subId);
-          if (error) errors++; else saved++;
+          if (error) errors++;
+          else saved++;
         } else {
           errors++; // No submission to update
         }
@@ -214,7 +287,8 @@ function Gradebook() {
             .from("workshop_submissions")
             .update({ final_grade: numValue, status: "calificado" })
             .eq("id", g.subId);
-          if (error) errors++; else saved++;
+          if (error) errors++;
+          else saved++;
         } else {
           errors++; // No submission to update
         }
@@ -230,15 +304,18 @@ function Gradebook() {
 
   // Export CSV
   const exportCourse = () => {
-    if (!students.length || !columns.length) { toast.info("No hay datos para exportar"); return; }
+    if (!students.length || !columns.length) {
+      toast.info("No hay datos para exportar");
+      return;
+    }
 
-    const csvRows = students.map(s => {
+    const csvRows = students.map((s) => {
       const row: Record<string, string> = {
         nombre: s.full_name,
         email_institucional: s.institutional_email,
         email_personal: s.personal_email ?? "",
       };
-      columns.forEach(col => {
+      columns.forEach((col) => {
         const g = getGrade(s.id, col);
         const prefix = col.kind === "workshop" ? "[T] " : "";
         const label = `${prefix}${col.title}`;
@@ -251,13 +328,16 @@ function Gradebook() {
       return row;
     });
 
-    const courseName = courses.find(c => c.id === courseId)?.name ?? "curso";
-    downloadCSV(`calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`, toCSV(csvRows));
+    const courseName = courses.find((c) => c.id === courseId)?.name ?? "curso";
+    downloadCSV(
+      `calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`,
+      toCSV(csvRows),
+    );
     toast.success("Archivo exportado correctamente");
   };
 
-  const hasEdits = Object.values(edits).some(v => v !== "");
-  const selectedCourse = courses.find(c => c.id === courseId);
+  const hasEdits = Object.values(edits).some((v) => v !== "");
+  const selectedCourse = courses.find((c) => c.id === courseId);
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
@@ -272,17 +352,30 @@ function Gradebook() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Curso" /></SelectTrigger>
-            <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Curso" />
+            </SelectTrigger>
+            <SelectContent>
+              {courses.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           {hasEdits && (
             <Button size="sm" onClick={saveAll} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-1" />
+              )}
               Guardar cambios
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={exportCourse}>
-            <Download className="h-4 w-4 mr-1" />CSV
+            <Download className="h-4 w-4 mr-1" />
+            CSV
           </Button>
         </div>
       </div>
@@ -292,13 +385,19 @@ function Gradebook() {
           <div className="flex items-center gap-1.5 text-sm">
             <Scale className="h-4 w-4 text-primary" />
             <span className="font-medium">Escala:</span>
-            <span className="tabular-nums">{selectedCourse.grade_scale_min} – {selectedCourse.grade_scale_max}</span>
+            <span className="tabular-nums">
+              {selectedCourse.grade_scale_min} – {selectedCourse.grade_scale_max}
+            </span>
           </div>
           <div className="text-sm text-muted-foreground">
-            Aprobar ≥ <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
+            Aprobar ≥{" "}
+            <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
           </div>
           <div className="text-sm text-muted-foreground">
-            Pesos: Exámenes <span className="font-medium tabular-nums">{selectedCourse.exam_weight}%</span> · Talleres <span className="font-medium tabular-nums">{selectedCourse.workshop_weight}%</span>
+            Pesos: Exámenes{" "}
+            <span className="font-medium tabular-nums">{selectedCourse.exam_weight}%</span> ·
+            Talleres{" "}
+            <span className="font-medium tabular-nums">{selectedCourse.workshop_weight}%</span>
           </div>
         </div>
       )}
@@ -309,15 +408,18 @@ function Gradebook() {
             <TableHeader>
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
-                {columns.map(col => (
+                {columns.map((col) => (
                   <TableHead key={col.id} className="text-center min-w-28">
                     <div className="flex flex-col items-center gap-0.5">
                       <div className="flex items-center gap-1">
-                        {col.kind === "exam"
-                          ? <FileText className="h-3 w-3 text-primary shrink-0" />
-                          : <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
-                        }
-                        <span className="truncate max-w-24" title={col.title}>{col.title}</span>
+                        {col.kind === "exam" ? (
+                          <FileText className="h-3 w-3 text-primary shrink-0" />
+                        ) : (
+                          <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                        )}
+                        <span className="truncate max-w-24" title={col.title}>
+                          {col.title}
+                        </span>
                       </div>
                       <Badge variant="outline" className="text-[9px] py-0 h-3.5">
                         {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
@@ -330,22 +432,29 @@ function Gradebook() {
             <TableBody>
               {students.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={columns.length + 1} className="text-center text-muted-foreground py-8">
+                  <TableCell
+                    colSpan={columns.length + 1}
+                    className="text-center text-muted-foreground py-8"
+                  >
                     No hay estudiantes matriculados en este curso.
                   </TableCell>
                 </TableRow>
               )}
-              {students.map(s => (
+              {students.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="sticky left-0 z-10 bg-card">
                     <div className="font-medium text-sm">{s.full_name}</div>
                     <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
                   </TableCell>
-                  {columns.map(col => {
+                  {columns.map((col) => {
                     const g = getGrade(s.id, col);
                     const key = cellKey(s.id, col.id);
                     const isEditing = key in edits;
-                    const displayGrade = isEditing ? edits[key] : (g.grade != null ? String(g.grade) : "");
+                    const displayGrade = isEditing
+                      ? edits[key]
+                      : g.grade != null
+                        ? String(g.grade)
+                        : "";
 
                     return (
                       <TableCell key={col.id} className="text-center p-1">
@@ -355,15 +464,22 @@ function Gradebook() {
                               type="number"
                               step="0.1"
                               min={selectedCourse?.grade_scale_min ?? 0}
-                              max={col.kind === "workshop" ? (col.maxScore ?? 100) : (selectedCourse?.grade_scale_max ?? 100)}
+                              max={
+                                col.kind === "workshop"
+                                  ? (col.maxScore ?? 100)
+                                  : (selectedCourse?.grade_scale_max ?? 100)
+                              }
                               value={displayGrade}
-                              onChange={e => handleEdit(s.id, col.id, e.target.value)}
+                              onChange={(e) => handleEdit(s.id, col.id, e.target.value)}
                               className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
                               placeholder="—"
                             />
                             <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
                               {g.isMakeup && (
-                                <Badge variant="outline" className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5"
+                                >
                                   <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
                                 </Badge>
                               )}

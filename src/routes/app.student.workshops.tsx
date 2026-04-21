@@ -8,27 +8,54 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Clock, ExternalLink, Send, Loader2, CheckCircle2,
-  AlertTriangle, MessageSquare, MessageSquareText, Upload, FileIcon, X,
+  Clock,
+  ExternalLink,
+  Send,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  MessageSquare,
+  MessageSquareText,
+  Upload,
+  FileIcon,
+  X,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
 type WorkshopRow = {
   workshop: {
-    id: string; title: string; description: string | null; instructions: string | null;
-    external_link: string | null; due_date: string | null; start_date: string | null;
-    max_score: number; status: string;
+    id: string;
+    title: string;
+    description: string | null;
+    instructions: string | null;
+    external_link: string | null;
+    due_date: string | null;
+    start_date: string | null;
+    max_score: number;
+    status: string;
     course: { name: string; grade_scale_min: number; grade_scale_max: number };
   };
   submission?: {
-    id: string; content: string | null; external_link: string | null; file_url: string | null;
-    ai_grade: number | null; ai_feedback: string | null;
-    final_grade: number | null; teacher_feedback: string | null;
-    status: string; submitted_at: string | null;
+    id: string;
+    content: string | null;
+    external_link: string | null;
+    file_url: string | null;
+    ai_grade: number | null;
+    ai_feedback: string | null;
+    final_grade: number | null;
+    teacher_feedback: string | null;
+    status: string;
+    submitted_at: string | null;
   };
 };
 
@@ -52,23 +79,30 @@ function StudentWorkshops() {
     (async () => {
       const { data: asg } = await supabase
         .from("workshop_assignments")
-        .select("workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, course:courses(name, grade_scale_min, grade_scale_max))")
+        .select(
+          "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, course:courses(name, grade_scale_min, grade_scale_max))",
+        )
         .eq("user_id", user.id);
 
       const workshops = (asg ?? []).map((a: any) => a.workshop).filter(Boolean);
       const ids = workshops.map((w: any) => w.id);
 
       const { data: subs } = ids.length
-        ? await supabase.from("workshop_submissions")
-            .select("id, workshop_id, content, external_link, file_url, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at")
+        ? await supabase
+            .from("workshop_submissions")
+            .select(
+              "id, workshop_id, content, external_link, file_url, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
+            )
             .in("workshop_id", ids)
             .eq("user_id", user.id)
         : { data: [] as any[] };
 
-      setRows(workshops.map((w: any) => ({
-        workshop: w,
-        submission: subs?.find((s: any) => s.workshop_id === w.id),
-      })));
+      setRows(
+        workshops.map((w: any) => ({
+          workshop: w,
+          submission: subs?.find((s: any) => s.workshop_id === w.id),
+        })),
+      );
     })();
   }, [user]);
 
@@ -104,11 +138,13 @@ function StudentWorkshops() {
 
     // Build descriptive filename: curso_taller_email.ext
     const sanitize = (s: string) =>
-      s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // remove accents
-       .replace(/[^a-zA-Z0-9._-]/g, "_")                  // only safe chars
-       .replace(/_+/g, "_")                                // collapse underscores
-       .replace(/^_|_$/g, "")                              // trim underscores
-       .substring(0, 60);                                  // limit length
+      s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/[^a-zA-Z0-9._-]/g, "_") // only safe chars
+        .replace(/_+/g, "_") // collapse underscores
+        .replace(/^_|_$/g, "") // trim underscores
+        .substring(0, 60); // limit length
 
     const courseName = sanitize(activeWs.workshop.course?.name ?? "curso");
     const workshopTitle = sanitize(activeWs.workshop.title ?? "taller");
@@ -131,9 +167,7 @@ function StudentWorkshops() {
   };
 
   const getFileDownloadUrl = async (path: string): Promise<string | null> => {
-    const { data } = await supabase.storage
-      .from("workshop-files")
-      .createSignedUrl(path, 3600); // 1 hour
+    const { data } = await supabase.storage.from("workshop-files").createSignedUrl(path, 3600); // 1 hour
     return data?.signedUrl ?? null;
   };
 
@@ -165,13 +199,22 @@ function StudentWorkshops() {
     };
 
     if (activeWs.submission) {
-      const { error } = await supabase.from("workshop_submissions")
+      const { error } = await supabase
+        .from("workshop_submissions")
         .update(payload)
         .eq("id", activeWs.submission.id);
-      if (error) { toast.error(error.message); setSubmitting(false); return; }
+      if (error) {
+        toast.error(error.message);
+        setSubmitting(false);
+        return;
+      }
     } else {
       const { error } = await supabase.from("workshop_submissions").insert(payload);
-      if (error) { toast.error(error.message); setSubmitting(false); return; }
+      if (error) {
+        toast.error(error.message);
+        setSubmitting(false);
+        return;
+      }
     }
 
     toast.success("Taller entregado correctamente");
@@ -179,15 +222,18 @@ function StudentWorkshops() {
     setSubmitting(false);
 
     // Refresh
-    const { data: sub } = await supabase.from("workshop_submissions")
+    const { data: sub } = await supabase
+      .from("workshop_submissions")
       .select("*")
       .eq("workshop_id", activeWs.workshop.id)
       .eq("user_id", user.id)
       .maybeSingle();
 
-    setRows(prev => prev.map(r =>
-      r.workshop.id === activeWs.workshop.id ? { ...r, submission: sub ?? undefined } : r
-    ));
+    setRows((prev) =>
+      prev.map((r) =>
+        r.workshop.id === activeWs.workshop.id ? { ...r, submission: sub ?? undefined } : r,
+      ),
+    );
   };
 
   const downloadExistingFile = async (fileUrl: string) => {
@@ -217,7 +263,11 @@ function StudentWorkshops() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {visibleRows.length === 0 && <p className="text-muted-foreground text-sm">No tienes talleres disponibles en este momento.</p>}
+        {visibleRows.length === 0 && (
+          <p className="text-muted-foreground text-sm">
+            No tienes talleres disponibles en este momento.
+          </p>
+        )}
         {visibleRows.map(({ workshop, submission }) => {
           const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
@@ -235,32 +285,49 @@ function StudentWorkshops() {
                       Nota: {grade}/{workshop.max_score}
                     </Badge>
                   ) : submission?.status === "entregado" ? (
-                    <Badge variant="secondary" className="shrink-0">Entregado</Badge>
+                    <Badge variant="secondary" className="shrink-0">
+                      Entregado
+                    </Badge>
                   ) : isOverdue ? (
                     <Badge variant="destructive" className="shrink-0">
-                      <AlertTriangle className="h-3 w-3 mr-1" />Vencido
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Vencido
                     </Badge>
                   ) : workshop.status === "published" ? (
                     <Badge className="bg-success text-success-foreground shrink-0">Abierto</Badge>
                   ) : (
-                    <Badge variant="outline" className="shrink-0">{workshop.status === "draft" ? "Próximo" : "Cerrado"}</Badge>
+                    <Badge variant="outline" className="shrink-0">
+                      {workshop.status === "draft" ? "Próximo" : "Cerrado"}
+                    </Badge>
                   )}
                 </div>
 
-                {workshop.description && <p className="text-sm text-muted-foreground line-clamp-2">{workshop.description}</p>}
+                {workshop.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {workshop.description}
+                  </p>
+                )}
 
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   {workshop.due_date && (
                     <div className="flex items-center gap-1.5">
-                      <Clock className="h-3 w-3" />Fecha límite: {new Date(workshop.due_date).toLocaleString()}
+                      <Clock className="h-3 w-3" />
+                      Fecha límite: {new Date(workshop.due_date).toLocaleString()}
                     </div>
                   )}
-                  <div>Puntaje máximo: {workshop.max_score} · Escala: {workshop.course?.grade_scale_min ?? 0}–{workshop.course?.grade_scale_max ?? 5}</div>
+                  <div>
+                    Puntaje máximo: {workshop.max_score} · Escala:{" "}
+                    {workshop.course?.grade_scale_min ?? 0}–{workshop.course?.grade_scale_max ?? 5}
+                  </div>
                 </div>
 
                 {workshop.external_link && (
-                  <a href={workshop.external_link} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-primary flex items-center gap-1 hover:underline">
+                  <a
+                    href={workshop.external_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary flex items-center gap-1 hover:underline"
+                  >
                     <ExternalLink className="h-3 w-3" /> Material del taller
                   </a>
                 )}
@@ -280,7 +347,13 @@ function StudentWorkshops() {
                       <MessageSquare className="h-3 w-3" /> Retroalimentación
                     </div>
                     <div className="whitespace-pre-wrap">
-                      {[...new Set([submission?.teacher_feedback, submission?.ai_feedback].filter(Boolean) as string[])].join("\n\n")}
+                      {[
+                        ...new Set(
+                          [submission?.teacher_feedback, submission?.ai_feedback].filter(
+                            Boolean,
+                          ) as string[],
+                        ),
+                      ].join("\n\n")}
                     </div>
                   </div>
                 )}
@@ -294,18 +367,33 @@ function StudentWorkshops() {
                   </Link>
                 )}
 
-                {workshop.status === "published" && submission?.status !== "calificado" && !isOverdue && (
-                  <Button size="sm" className="w-full" onClick={() => openSubmit({ workshop, submission })}>
-                    <Send className="h-4 w-4 mr-1" />
-                    {submission ? "Actualizar entrega" : "Entregar taller"}
-                  </Button>
-                )}
-                {workshop.status === "published" && submission?.status !== "calificado" && isOverdue && !submission && (
-                  <p className="text-xs text-destructive text-center">La fecha límite ha pasado. No es posible entregar.</p>
-                )}
-                {workshop.status === "published" && isOverdue && submission?.status === "entregado" && (
-                  <p className="text-xs text-muted-foreground text-center">Entregado antes de la fecha límite. No se permiten modificaciones.</p>
-                )}
+                {workshop.status === "published" &&
+                  submission?.status !== "calificado" &&
+                  !isOverdue && (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => openSubmit({ workshop, submission })}
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      {submission ? "Actualizar entrega" : "Entregar taller"}
+                    </Button>
+                  )}
+                {workshop.status === "published" &&
+                  submission?.status !== "calificado" &&
+                  isOverdue &&
+                  !submission && (
+                    <p className="text-xs text-destructive text-center">
+                      La fecha límite ha pasado. No es posible entregar.
+                    </p>
+                  )}
+                {workshop.status === "published" &&
+                  isOverdue &&
+                  submission?.status === "entregado" && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Entregado antes de la fecha límite. No se permiten modificaciones.
+                    </p>
+                  )}
               </CardContent>
             </Card>
           );
@@ -327,7 +415,12 @@ function StudentWorkshops() {
           <div className="space-y-3">
             <div>
               <Label>Tu respuesta / contenido</Label>
-              <Textarea rows={4} value={content} onChange={e => setContent(e.target.value)} placeholder="Escribe tu respuesta aquí..." />
+              <Textarea
+                rows={4}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Escribe tu respuesta aquí..."
+              />
             </div>
 
             {/* File upload */}
@@ -339,9 +432,16 @@ function StudentWorkshops() {
                     <FileIcon className="h-4 w-4 text-primary shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{file.name}</div>
-                      <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatFileSize(file.size)}
+                      </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={removeFile} className="h-7 w-7 p-0 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeFile}
+                      className="h-7 w-7 p-0 shrink-0"
+                    >
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -349,10 +449,18 @@ function StudentWorkshops() {
                   <div className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/30">
                     <FileIcon className="h-4 w-4 text-primary shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{getFileName(existingFileUrl)}</div>
+                      <div className="text-sm font-medium truncate">
+                        {getFileName(existingFileUrl)}
+                      </div>
                       <div className="text-xs text-muted-foreground">Archivo actual</div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setExistingFileUrl(null)} className="h-7 w-7 p-0 shrink-0" title="Quitar archivo">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExistingFileUrl(null)}
+                      className="h-7 w-7 p-0 shrink-0"
+                      title="Quitar archivo"
+                    >
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -383,13 +491,23 @@ function StudentWorkshops() {
 
             <div>
               <Label>Link externo (opcional)</Label>
-              <Input placeholder="https://github.com/..." value={link} onChange={e => setLink(e.target.value)} />
+              <Input
+                placeholder="https://github.com/..."
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSubmitOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setSubmitOpen(false)}>
+              Cancelar
+            </Button>
             <Button onClick={handleSubmit} disabled={submitting || uploading}>
-              {(submitting || uploading) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+              {submitting || uploading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-1" />
+              )}
               {uploading ? "Subiendo…" : "Entregar"}
             </Button>
           </DialogFooter>

@@ -15,8 +15,17 @@ Deno.serve(async (req) => {
 
     // ── Workshop grading mode ──
     if (body.workshopGrading) {
-      const { workshopTitle, workshopInstructions, rubric, maxScore, studentAnswer } = body;
+      const {
+        workshopTitle,
+        workshopInstructions,
+        rubric,
+        maxScore,
+        studentAnswer,
+        courseLanguage,
+      } = body;
       if (!studentAnswer) throw new Error("studentAnswer requerido");
+      const wsLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
+      const wsLangName = wsLang === "en" ? "inglés (English)" : "español";
 
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -26,28 +35,34 @@ Deno.serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `Eres un evaluador académico imparcial. Calificas entregas de talleres según las instrucciones y rúbrica proporcionadas. Devuelves un puntaje numérico entre 0 y ${maxScore ?? 100}, y una retroalimentación detallada en español.`,
+              content: `Eres un evaluador académico imparcial. Calificas entregas de talleres según las instrucciones y rúbrica proporcionadas. Devuelves un puntaje numérico entre 0 y ${maxScore ?? 100}, y una retroalimentación detallada.
+REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${wsLangName}. Toda la retroalimentación debe estar en ${wsLangName}.`,
             },
             {
               role: "user",
-              content: `Taller: ${workshopTitle ?? "Sin título"}\n\nInstrucciones: ${workshopInstructions ?? "Sin instrucciones específicas"}\n\nRúbrica de evaluación: ${rubric ?? "Evalúa calidad, completitud y corrección"}\n\nPuntaje máximo: ${maxScore ?? 100}\n\nRespuesta del estudiante:\n${studentAnswer}`,
+              content: `Taller: ${workshopTitle ?? "Sin título"}\n\nInstrucciones: ${workshopInstructions ?? "Sin instrucciones específicas"}\n\nRúbrica de evaluación: ${rubric ?? "Evalúa calidad, completitud y corrección"}\n\nPuntaje máximo: ${maxScore ?? 100}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wsLangName}.`,
             },
           ],
-          tools: [{
-            type: "function",
-            function: {
-              name: "score_workshop",
-              description: "Calificar entrega de taller",
-              parameters: {
-                type: "object",
-                properties: {
-                  score: { type: "number", description: `Puntaje entre 0 y ${maxScore ?? 100}` },
-                  feedback: { type: "string", description: "Retroalimentación detallada en español" },
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "score_workshop",
+                description: "Calificar entrega de taller",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number", description: `Puntaje entre 0 y ${maxScore ?? 100}` },
+                    feedback: {
+                      type: "string",
+                      description: "Retroalimentación detallada en español",
+                    },
+                  },
+                  required: ["score", "feedback"],
                 },
-                required: ["score", "feedback"],
               },
             },
-          }],
+          ],
           tool_choice: { type: "function", function: { name: "score_workshop" } },
         }),
       });
@@ -60,7 +75,9 @@ Deno.serve(async (req) => {
 
       const aiJson = await aiRes.json();
       const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
-      const args = tc ? JSON.parse(tc.function.arguments) : { score: 0, feedback: "No se pudo generar retroalimentación" };
+      const args = tc
+        ? JSON.parse(tc.function.arguments)
+        : { score: 0, feedback: "No se pudo generar retroalimentación" };
       const score = Math.max(0, Math.min(Number(maxScore ?? 100), Number(args.score) || 0));
 
       return new Response(JSON.stringify({ ok: true, grade: score, feedback: args.feedback }), {
@@ -72,12 +89,33 @@ Deno.serve(async (req) => {
     const { submissionId, questionId } = body;
     if (!submissionId) throw new Error("submissionId requerido");
 
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: sub, error: sErr } = await admin.from("submissions").select("*").eq("id", submissionId).single();
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: sub, error: sErr } = await admin
+      .from("submissions")
+      .select("*")
+      .eq("id", submissionId)
+      .single();
     if (sErr || !sub) throw new Error("Submission no encontrada");
 
-    const { data: questions, error: qErr } = await admin.from("questions").select("*").eq("exam_id", sub.exam_id).order("position");
+    const { data: questions, error: qErr } = await admin
+      .from("questions")
+      .select("*")
+      .eq("exam_id", sub.exam_id)
+      .order("position");
     if (qErr) throw qErr;
+
+    // Look up the course language via the exam → courses join. Defaults to
+    // Spanish for legacy exams without a configured language.
+    const { data: examMeta } = await admin
+      .from("exams")
+      .select("course:courses(language)")
+      .eq("id", sub.exam_id)
+      .maybeSingle();
+    const examLang: "es" | "en" = examMeta?.course?.language === "en" ? "en" : "es";
+    const examLangName = examLang === "en" ? "inglés (English)" : "español";
 
     const answers: Record<string, any> = sub.answers || {};
     const prevBreakdown: any[] = Array.isArray(answers.__breakdown) ? answers.__breakdown : [];
@@ -109,7 +147,13 @@ Deno.serve(async (req) => {
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
       } else {
         if (!userAnswer || (typeof userAnswer === "string" && !userAnswer.trim())) {
-          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: "Sin respuesta" });
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback: "Sin respuesta",
+          });
           continue;
         }
         const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -118,29 +162,44 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
             messages: [
-              { role: "system", content: "Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves un puntaje entre 0 y el máximo, y una breve justificación en español." },
-              { role: "user", content: `Pregunta: ${q.content}\n\nRúbrica esperada: ${q.expected_rubric}\n\nRespuesta del estudiante: ${userAnswer}\n\nPuntaje máximo: ${q.points}` },
+              {
+                role: "system",
+                content: `Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves un puntaje entre 0 y el máximo, y una breve justificación.
+REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${examLangName}. La retroalimentación debe estar en ${examLangName}.`,
+              },
+              {
+                role: "user",
+                content: `Pregunta: ${q.content}\n\nRúbrica esperada: ${q.expected_rubric}\n\nRespuesta del estudiante: ${userAnswer}\n\nPuntaje máximo: ${q.points}\n\nIdioma de salida obligatorio: ${examLangName}.`,
+              },
             ],
-            tools: [{
-              type: "function",
-              function: {
-                name: "score_answer",
-                description: "Calificar respuesta",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number" },
-                    feedback: { type: "string" },
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "score_answer",
+                  description: "Calificar respuesta",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      score: { type: "number" },
+                      feedback: { type: "string" },
+                    },
+                    required: ["score", "feedback"],
                   },
-                  required: ["score", "feedback"],
                 },
               },
-            }],
+            ],
             tool_choice: { type: "function", function: { name: "score_answer" } },
           }),
         });
         if (!aiRes.ok) {
-          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: "Error IA" });
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback: "Error IA",
+          });
           continue;
         }
         const aiJson = await aiRes.json();
@@ -148,18 +207,27 @@ Deno.serve(async (req) => {
         const args = tc ? JSON.parse(tc.function.arguments) : { score: 0, feedback: "" };
         const score = Math.max(0, Math.min(Number(q.points), Number(args.score) || 0));
         earned += score;
-        breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: score, feedback: args.feedback });
+        breakdown.push({
+          qid: q.id,
+          type: q.type,
+          points: q.points,
+          earned: score,
+          feedback: args.feedback,
+        });
       }
     }
 
-    const grade = totalPoints > 0 ? Number((earned / totalPoints * 10).toFixed(2)) : 0;
+    const grade = totalPoints > 0 ? Number(((earned / totalPoints) * 10).toFixed(2)) : 0;
 
-    await admin.from("submissions").update({
-      ai_grade: grade,
-      status: sub.status === "sospechoso" ? "sospechoso" : "completado",
-      submitted_at: sub.submitted_at ?? new Date().toISOString(),
-      answers: { ...answers, __breakdown: breakdown },
-    }).eq("id", submissionId);
+    await admin
+      .from("submissions")
+      .update({
+        ai_grade: grade,
+        status: sub.status === "sospechoso" ? "sospechoso" : "completado",
+        submitted_at: sub.submitted_at ?? new Date().toISOString(),
+        answers: { ...answers, __breakdown: breakdown },
+      })
+      .eq("id", submissionId);
 
     return new Response(JSON.stringify({ ok: true, grade, breakdown }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -167,7 +235,8 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

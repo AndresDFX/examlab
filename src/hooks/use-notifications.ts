@@ -28,10 +28,12 @@ export function useNotifications(userId: string | undefined) {
       .limit(50);
     const items = (data ?? []) as Notification[];
     setNotifications(items);
-    setUnreadCount(items.filter(n => !n.read).length);
+    setUnreadCount(items.filter((n) => !n.read).length);
   }, [userId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Realtime subscription for new notifications
   useEffect(() => {
@@ -61,9 +63,27 @@ export function useNotifications(userId: string | undefined) {
         },
         (payload) => {
           const n = payload.new as Notification;
-          setNotifications(prev => [n, ...prev]);
-          setUnreadCount(prev => prev + 1);
-        }
+          setNotifications((prev) => [n, ...prev]);
+          setUnreadCount((prev) => prev + 1);
+
+          // When the tab is hidden, hand the notification to the Service Worker
+          // so it can surface an OS-level toast. Requires user-granted permission.
+          if (
+            typeof document !== "undefined" &&
+            document.visibilityState === "hidden" &&
+            typeof navigator !== "undefined" &&
+            navigator.serviceWorker?.controller &&
+            typeof Notification !== "undefined" &&
+            Notification.permission === "granted"
+          ) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "examlab:notify",
+              title: n.title,
+              body: n.body,
+              link: n.link ?? "/app",
+            });
+          }
+        },
       )
       .subscribe();
 
@@ -79,14 +99,18 @@ export function useNotifications(userId: string | undefined) {
 
   const markAsRead = useCallback(async (id: string) => {
     await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
   }, []);
 
   const markAllAsRead = useCallback(async () => {
     if (!userId) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", userId)
+      .eq("read", false);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
   }, [userId]);
 
