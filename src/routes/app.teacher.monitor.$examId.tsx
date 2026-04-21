@@ -46,6 +46,7 @@ import {
   type BreakdownItem as GradeBreakdown,
   type ManualOverride as GradeManual,
 } from "@/utils/grade";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
 
@@ -86,6 +87,7 @@ const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
 function ExamMonitor() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [exam, setExam] = useState<any>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -218,7 +220,13 @@ function ExamMonitor() {
 
   const deleteSubmission = async (sub: Submission) => {
     const name = sub.profile?.full_name ?? "este estudiante";
-    if (!confirm(`¿Eliminar la entrega de ${name}? Esta acción no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: `Eliminar entrega de ${name}`,
+      description: "Se eliminará la entrega del estudiante de forma permanente.",
+      confirmLabel: "Eliminar entrega",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
     if (error) return toast.error(error.message);
     setSubmissions((prev) => prev.filter((s) => s.id !== sub.id));
