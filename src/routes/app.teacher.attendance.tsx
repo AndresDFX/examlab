@@ -266,9 +266,22 @@ function TeacherAttendance() {
             <SelectTrigger className="w-56"><SelectValue placeholder="Curso" /></SelectTrigger>
             <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.period ? ` (${c.period})` : ""}</SelectItem>)}</SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={exportAttendance}>
-            <Download className="h-4 w-4 mr-1" />CSV
-          </Button>
+          <ImportExportMenu
+            label="Clases"
+            resourceName="clases"
+            templateCsv={SESSIONS_TEMPLATE}
+            onImport={importSessions}
+            onExport={buildSessionsCsv}
+            disabled={!courseId}
+          />
+          <ImportExportMenu
+            label="Asistencia"
+            resourceName="asistencia"
+            templateCsv={ATTENDANCE_TEMPLATE}
+            onImport={importAttendance}
+            onExport={buildAttendanceCsv}
+            disabled={!courseId}
+          />
           <Button size="sm" onClick={() => setNewSessionOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />Nueva sesión
           </Button>
