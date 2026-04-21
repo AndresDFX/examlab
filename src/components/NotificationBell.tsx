@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Bell, CheckCheck, FileText, Hammer, Award, Info, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -74,7 +74,7 @@ export function NotificationBell({ userId, variant = "default" }: NotificationBe
             </Button>
           )}
         </div>
-        <ScrollArea className="h-80">
+        <div className="max-h-80 overflow-y-auto overscroll-contain">
           {notifications.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               Sin notificaciones
@@ -111,7 +111,7 @@ export function NotificationBell({ userId, variant = "default" }: NotificationBe
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );
