@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 
 import appCss from "../styles.css?url";
 
@@ -83,9 +84,9 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <>
+    <ConfirmProvider>
       <Outlet />
       <Toaster richColors position="top-right" />
-    </>
+    </ConfirmProvider>
   );
 }

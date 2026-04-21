@@ -74,7 +74,7 @@ export function NotificationBell({ userId, variant = "default" }: NotificationBe
             </Button>
           )}
         </div>
-        <ScrollArea className="max-h-80">
+        <ScrollArea className="h-80">
           {notifications.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               Sin notificaciones
