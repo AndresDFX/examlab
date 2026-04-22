@@ -129,11 +129,8 @@ export function useRealtimeTimer({
         },
         (payload) => {
           const ctrl = payload.new as TimerControl;
-
-          // Only process if it belongs to this exam and targets this user or is global
           if (ctrl.exam_id !== examId) return;
           if (ctrl.target_user_id && ctrl.target_user_id !== userId) return;
-
           switch (ctrl.action) {
             case "pause":
               setIsPaused(true);
@@ -156,6 +153,48 @@ export function useRealtimeTimer({
       supabase.removeChannel(channel);
     };
   }, [examId, userId, onPause, onResume, onTimeAdded]);
+
+  // Polling fallback: re-fetch controls every 4 s in case Realtime doesn't fire
+  const lastPollRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!examId || !userId) return;
+
+    const poll = async () => {
+      const { data } = await supabase
+        .from("exam_timer_controls")
+        .select("*")
+        .eq("exam_id", examId)
+        .or(`target_user_id.is.null,target_user_id.eq.${userId}`)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!data?.length) return;
+      const latest = data[0] as TimerControl;
+      if (latest.created_at === lastPollRef.current) return;
+      lastPollRef.current = latest.created_at;
+
+      // Re-compute full state from all controls
+      const { data: all } = await supabase
+        .from("exam_timer_controls")
+        .select("*")
+        .eq("exam_id", examId)
+        .or(`target_user_id.is.null,target_user_id.eq.${userId}`)
+        .order("created_at", { ascending: true });
+
+      if (!all?.length) return;
+      let paused = false;
+      let extraTime = 0;
+      for (const ctrl of all as TimerControl[]) {
+        if (ctrl.action === "pause") paused = true;
+        if (ctrl.action === "resume") paused = false;
+        if (ctrl.action === "add_time") extraTime += ctrl.extra_seconds;
+      }
+      setIsPaused(paused);
+    };
+
+    const id = setInterval(poll, 4000);
+    return () => clearInterval(id);
+  }, [examId, userId]);
 
   const formattedTime = useCallback(() => {
     const mins = Math.floor(secondsLeft / 60);
