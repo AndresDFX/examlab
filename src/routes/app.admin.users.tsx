@@ -291,12 +291,13 @@ function AdminUsers() {
           <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
           <p className="text-sm text-muted-foreground">{rows.length} cuentas registradas</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+          <Button variant="outline" size="sm" onClick={downloadTemplate} className="flex-1 sm:flex-none">
             <Download className="h-4 w-4 mr-1" />
-            Template CSV
+            <span className="hidden xs:inline">Template CSV</span>
+            <span className="xs:hidden">Plantilla</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCSV}>
+          <Button variant="outline" size="sm" onClick={exportCSV} className="flex-1 sm:flex-none">
             <Download className="h-4 w-4 mr-1" />
             Exportar
           </Button>
@@ -305,13 +306,15 @@ function AdminUsers() {
             size="sm"
             onClick={() => fileRef.current?.click()}
             disabled={importing}
+            className="flex-1 sm:flex-none"
           >
             {importing ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
               <Upload className="h-4 w-4 mr-1" />
             )}{" "}
-            Cargar CSV
+            <span className="hidden xs:inline">Cargar CSV</span>
+            <span className="xs:hidden">Cargar</span>
           </Button>
           <input
             ref={fileRef}
@@ -320,9 +323,10 @@ function AdminUsers() {
             className="hidden"
             onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
           />
-          <Button size="sm" onClick={openNew}>
+          <Button size="sm" onClick={openNew} className="flex-1 sm:flex-none">
             <Plus className="h-4 w-4 mr-1" />
-            Nuevo usuario
+            <span className="hidden xs:inline">Nuevo usuario</span>
+            <span className="xs:hidden">Nuevo</span>
           </Button>
         </div>
       </div>
@@ -337,9 +341,9 @@ function AdminUsers() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
-                    <TableHead>Email institucional</TableHead>
+                    <TableHead className="hidden sm:table-cell">Email institucional</TableHead>
                     <TableHead className="hidden md:table-cell">Email personal</TableHead>
-                    <TableHead>Roles</TableHead>
+                    <TableHead className="hidden xs:table-cell">Roles</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -353,12 +357,26 @@ function AdminUsers() {
                   )}
                   {rows.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.full_name}</TableCell>
-                      <TableCell className="text-sm">{r.institutional_email}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                          <span>{r.full_name}</span>
+                          <span className="text-xs text-muted-foreground sm:hidden truncate max-w-[14rem]">
+                            {r.institutional_email}
+                          </span>
+                          <div className="flex flex-wrap gap-1 sm:hidden">
+                            {r.roles.map((role) => (
+                              <Badge key={role} variant="secondary" className="text-[10px]">
+                                {role}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm hidden sm:table-cell">{r.institutional_email}</TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                         {r.personal_email ?? "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {r.roles.length === 0 && (
                             <span className="text-muted-foreground text-xs">—</span>

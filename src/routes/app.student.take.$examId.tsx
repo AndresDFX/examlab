@@ -618,43 +618,43 @@ function TakeExam() {
     exam.navigation_type === "secuencial" ? [questions[currentIdx]].filter(Boolean) : questions;
 
   return (
-    <div className="max-w-3xl mx-auto py-6 select-none">
-      {/* Sticky header with timer */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 px-4 py-3 mb-5 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-semibold truncate">{exam.title}</div>
-          <div className="text-xs text-muted-foreground">
+    <div className="max-w-3xl mx-auto py-4 sm:py-6 select-none">
+      {/* Sticky header with timer — full-bleed on mobile via negative margins matching AppLayout's px-4 */}
+      <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold truncate text-sm sm:text-base">{exam.title}</div>
+          <div className="text-[11px] sm:text-xs text-muted-foreground">
             {t("exam.question")} {exam.navigation_type === "secuencial" ? currentIdx + 1 : "—"}{" "}
             {t("exam.of")} {questions.length}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 flex-wrap justify-end">
           {offline && (
             <Badge
               variant="outline"
-              className="text-xs text-warning-foreground border-warning/40 bg-warning/10"
+              className="text-[10px] sm:text-xs text-warning-foreground border-warning/40 bg-warning/10"
             >
-              <WifiOff className="h-3 w-3 mr-1" />
-              Sin conexión
+              <WifiOff className="h-3 w-3 sm:mr-1" />
+              <span className="hidden sm:inline">Sin conexión</span>
             </Badge>
           )}
           {isPaused && (
             <Badge
               variant="outline"
-              className="text-xs text-primary border-primary/40 bg-primary/10 animate-pulse"
+              className="text-[10px] sm:text-xs text-primary border-primary/40 bg-primary/10 animate-pulse"
             >
-              <Pause className="h-3 w-3 mr-1" />
-              Pausado
+              <Pause className="h-3 w-3 sm:mr-1" />
+              <span className="hidden sm:inline">Pausado</span>
             </Badge>
           )}
-          <Badge variant={warnings > 0 ? "destructive" : "outline"} className="text-xs">
-            <AlertTriangle className="h-3 w-3 mr-1" />
+          <Badge variant={warnings > 0 ? "destructive" : "outline"} className="text-[10px] sm:text-xs">
+            <AlertTriangle className="h-3 w-3 mr-0.5 sm:mr-1" />
             {warnings}/{MAX_WARNINGS}
           </Badge>
           <Badge
-            className={`text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+            className={`text-[10px] sm:text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
           >
-            <Clock className="h-3 w-3 mr-1" />
+            <Clock className="h-3 w-3 mr-0.5 sm:mr-1" />
             {formattedTime}
           </Badge>
         </div>

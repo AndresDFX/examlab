@@ -45,6 +45,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --breakpoint-xs: 30rem; /* 480px — extra small screens (large phones) */
 }
 
 :root {

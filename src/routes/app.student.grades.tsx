@@ -304,7 +304,7 @@ function StudentGrades() {
 
           {/* Detail table */}
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               {loading ? (
                 <div className="p-6 text-sm text-muted-foreground">Cargando…</div>
               ) : items.length === 0 ? (
@@ -316,12 +316,12 @@ function StudentGrades() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Actividad</TableHead>
-                      <TableHead>Tipo</TableHead>
+                      <TableHead className="hidden sm:table-cell">Tipo</TableHead>
                       <TableHead className="text-right">Nota</TableHead>
-                      <TableHead className="text-right">
+                      <TableHead className="text-right hidden md:table-cell">
                         Equiv. ({course.grade_scale_min}–{course.grade_scale_max})
                       </TableHead>
-                      <TableHead>Estado</TableHead>
+                      <TableHead className="hidden md:table-cell">Estado</TableHead>
                       <TableHead className="text-right w-[1%]">Detalle</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -335,8 +335,31 @@ function StudentGrades() {
                           : null;
                       return (
                         <TableRow key={`${it.kind}-${it.id}`}>
-                          <TableCell className="font-medium">{it.title}</TableCell>
-                          <TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col gap-1">
+                              <span>{it.title}</span>
+                              <div className="flex items-center gap-1.5 sm:hidden">
+                                {it.kind === "exam" ? (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    <FileText className="h-3 w-3 mr-1" />
+                                    Examen
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    <Hammer className="h-3 w-3 mr-1" />
+                                    Taller
+                                  </Badge>
+                                )}
+                                <Badge variant="secondary" className="text-[10px] capitalize">
+                                  {it.status.replace(/_/g, " ")}
+                                </Badge>
+                              </div>
+                              <div className="md:hidden text-[11px] text-muted-foreground tabular-nums">
+                                Equiv: {fmt(equiv)} / {course.grade_scale_max}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             {it.kind === "exam" ? (
                               <Badge variant="outline" className="text-[10px]">
                                 <FileText className="h-3 w-3 mr-1" />
@@ -356,10 +379,10 @@ function StudentGrades() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">
+                          <TableCell className="text-right tabular-nums font-medium hidden md:table-cell">
                             {fmt(equiv)}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell">
                             <Badge variant="secondary" className="text-[10px] capitalize">
                               {it.status.replace(/_/g, " ")}
                             </Badge>
