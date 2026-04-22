@@ -291,12 +291,13 @@ function AdminUsers() {
           <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
           <p className="text-sm text-muted-foreground">{rows.length} cuentas registradas</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+          <Button variant="outline" size="sm" onClick={downloadTemplate} className="flex-1 sm:flex-none">
             <Download className="h-4 w-4 mr-1" />
-            Template CSV
+            <span className="hidden xs:inline">Template CSV</span>
+            <span className="xs:hidden">Plantilla</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCSV}>
+          <Button variant="outline" size="sm" onClick={exportCSV} className="flex-1 sm:flex-none">
             <Download className="h-4 w-4 mr-1" />
             Exportar
           </Button>
@@ -305,13 +306,15 @@ function AdminUsers() {
             size="sm"
             onClick={() => fileRef.current?.click()}
             disabled={importing}
+            className="flex-1 sm:flex-none"
           >
             {importing ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
               <Upload className="h-4 w-4 mr-1" />
             )}{" "}
-            Cargar CSV
+            <span className="hidden xs:inline">Cargar CSV</span>
+            <span className="xs:hidden">Cargar</span>
           </Button>
           <input
             ref={fileRef}
@@ -320,9 +323,10 @@ function AdminUsers() {
             className="hidden"
             onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
           />
-          <Button size="sm" onClick={openNew}>
+          <Button size="sm" onClick={openNew} className="flex-1 sm:flex-none">
             <Plus className="h-4 w-4 mr-1" />
-            Nuevo usuario
+            <span className="hidden xs:inline">Nuevo usuario</span>
+            <span className="xs:hidden">Nuevo</span>
           </Button>
         </div>
       </div>
