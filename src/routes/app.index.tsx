@@ -496,7 +496,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .map((a: any) => a.exam)
         .filter(
           (e: any) =>
-            e && new Date(e.start_time) <= new Date() && new Date(e.end_time) > new Date() && !doneExamIds.has(e.id),
+            e && new Date(e.end_time) > new Date() && !doneExamIds.has(e.id),
         )
         .sort(
           (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
