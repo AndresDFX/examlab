@@ -362,9 +362,9 @@ function TeacherAttendance() {
             {sessions.length} sesiones · {students.length} estudiantes
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-56">
+            <SelectTrigger className="w-full sm:w-56">
               <SelectValue placeholder="Curso" />
             </SelectTrigger>
             <SelectContent>
