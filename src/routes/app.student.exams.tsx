@@ -172,7 +172,7 @@ function StudentExams() {
                       {t("exam.viewDetail")}
                     </Button>
                   </Link>
-                ) : submission?.status === "en_progreso" && !isOpen ? (
+                ) : submission?.status === "en_progreso" && !isOpen && now > end ? (
                   <div className="space-y-2">
                     <Button
                       size="sm"
