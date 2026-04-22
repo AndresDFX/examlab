@@ -193,10 +193,20 @@ function StudentExams() {
                       {submission?.status === "en_progreso" ? t("exam.resume") : t("exam.start")}
                     </Button>
                   </Link>
+                ) : now < start ? (
+                  <div className="space-y-2">
+                    <Button size="sm" disabled variant="outline" className="w-full">
+                      <Play className="h-4 w-4 mr-1" />
+                      Aún no disponible
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                      Este examen está próximo a empezar. Podrás acceder cuando abra la ventana.
+                    </p>
+                  </div>
                 ) : (
                   <Button size="sm" disabled className="w-full">
                     <Play className="h-4 w-4 mr-1" />
-                    {now < new Date(exam.start_time).getTime() ? "Aún no disponible" : "Iniciar examen"}
+                    Iniciar examen
                   </Button>
                 )}
               </CardContent>
