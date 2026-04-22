@@ -352,7 +352,7 @@ function TeacherExams() {
                 <p className="text-xs text-muted-foreground mt-1">{t("exam.coursesHelp")}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>{t("common.start")}</Label>
                 <Input
@@ -401,7 +401,7 @@ function TeacherExams() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>
                   {t("common.duration")} ({t("common.min")})
