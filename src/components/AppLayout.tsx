@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { checkAccess } from "@/lib/rbac";
+import { checkAccess, homeForRole } from "@/lib/rbac";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -158,7 +158,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (loading || !activeRole) return;
     const redirect = checkAccess(location.pathname, activeRole, roles);
     if (redirect && redirect !== location.pathname) {
-      navigate({ to: redirect });
+      navigate({ to: homeForRole(activeRole) });
     }
   }, [loading, activeRole, roles, location.pathname, navigate]);
 
