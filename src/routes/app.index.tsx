@@ -487,11 +487,16 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           "exam:exams(id, title, start_time, end_time, time_limit_minutes, course:courses(name))",
         )
         .eq("user_id", userId);
+      const examIds = (asg ?? []).map((a: any) => a.exam?.id).filter(Boolean);
+      const { data: doneSubs } = examIds.length
+        ? await supabase.from("submissions").select("exam_id").eq("user_id", userId).in("exam_id", examIds).in("status", ["completado", "sospechoso"])
+        : { data: [] as any[] };
+      const doneExamIds = new Set((doneSubs ?? []).map((s: any) => s.exam_id));
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
         .filter(
           (e: any) =>
-            e && new Date(e.start_time) <= new Date() && new Date(e.end_time) > new Date(),
+            e && new Date(e.start_time) <= new Date() && new Date(e.end_time) > new Date() && !doneExamIds.has(e.id),
         )
         .sort(
           (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),

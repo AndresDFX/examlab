@@ -198,7 +198,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-3 py-3 border-b border-sidebar-border">
             <Select
               value={activeRole ?? undefined}
-              onValueChange={(v) => setActiveRole(v as AppRole)}
+              onValueChange={(v) => { setActiveRole(v as AppRole); navigate({ to: "/app" }); }}
             >
               <SelectTrigger className="w-full h-9 bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent text-sm gap-2 [&>svg:last-child]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -340,7 +340,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="px-3 py-3 border-b border-sidebar-border">
                   <Select
                     value={activeRole ?? undefined}
-                    onValueChange={(v) => setActiveRole(v as AppRole)}
+                    onValueChange={(v) => { setActiveRole(v as AppRole); navigate({ to: "/app" }); }}
                   >
                     <SelectTrigger className="w-full bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent gap-2 [&>svg:last-child]:hidden">
                       <div className="flex items-center gap-2 flex-1 min-w-0">

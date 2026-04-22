@@ -32,6 +32,7 @@ export function computeFinalGrade(
   questions: QuestionPoints[],
   breakdown: BreakdownItem[],
   overrides: Record<string, ManualOverride>,
+  gradeScaleMax: number = 10,
 ): number | null {
   if (!questions.length) return null;
 
@@ -56,5 +57,5 @@ export function computeFinalGrade(
   }
 
   if (!hasAny || totalPoints <= 0) return null;
-  return Number(((earned / totalPoints) * 10).toFixed(2));
+  return Number(((earned / totalPoints) * gradeScaleMax).toFixed(2));
 }

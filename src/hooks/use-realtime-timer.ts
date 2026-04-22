@@ -126,12 +126,12 @@ export function useRealtimeTimer({
           event: "INSERT",
           schema: "public",
           table: "exam_timer_controls",
-          filter: `exam_id=eq.${examId}`,
         },
         (payload) => {
           const ctrl = payload.new as TimerControl;
 
-          // Only process if it targets this user or is global
+          // Only process if it belongs to this exam and targets this user or is global
+          if (ctrl.exam_id !== examId) return;
           if (ctrl.target_user_id && ctrl.target_user_id !== userId) return;
 
           switch (ctrl.action) {

@@ -109,7 +109,7 @@ function ExamMonitor() {
   const load = useCallback(async () => {
     const { data: e } = await supabase
       .from("exams")
-      .select("*, course:courses(name)")
+      .select("*, course:courses(name, grade_scale_max)")
       .eq("id", examId)
       .single();
     setExam(e);
@@ -297,6 +297,7 @@ function ExamMonitor() {
       questions.map((qq) => ({ id: qq.id, points: qq.points })),
       breakdown,
       prevManual as Record<string, GradeManual>,
+      exam?.course?.grade_scale_max ?? 5,
     );
 
     const { error } = await supabase

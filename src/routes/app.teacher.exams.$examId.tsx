@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,6 +40,7 @@ type Student = { id: string; full_name: string; institutional_email: string };
 function ExamEditor() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -112,6 +113,7 @@ function ExamEditor() {
       .eq("id", examId);
     if (error) return toast.error(error.message);
     toast.success("Examen actualizado correctamente");
+    navigate({ to: "/app/teacher/exams" });
   };
 
   const addQuestion = async () => {

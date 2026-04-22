@@ -247,13 +247,8 @@ function StudentWorkshops() {
     return parts[parts.length - 1];
   };
 
-  // Only show workshops whose start_date has arrived (or has no start_date), or that have a submission
   const now = Date.now();
-  const visibleRows = rows.filter(({ workshop, submission }) => {
-    if (submission) return true;
-    if (workshop.start_date && new Date(workshop.start_date).getTime() > now) return false;
-    return true;
-  });
+  const visibleRows = rows;
 
   return (
     <div className="space-y-5">
@@ -293,8 +288,10 @@ function StudentWorkshops() {
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Vencido
                     </Badge>
-                  ) : workshop.status === "published" ? (
+                  ) : workshop.status === "published" && (!workshop.start_date || new Date(workshop.start_date).getTime() <= now) ? (
                     <Badge className="bg-success text-success-foreground shrink-0">Abierto</Badge>
+                  ) : workshop.start_date && new Date(workshop.start_date).getTime() > now ? (
+                    <Badge variant="outline" className="shrink-0">Próximo</Badge>
                   ) : (
                     <Badge variant="outline" className="shrink-0">
                       {workshop.status === "draft" ? "Próximo" : "Cerrado"}

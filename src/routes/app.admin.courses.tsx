@@ -128,6 +128,10 @@ function AdminCourses() {
       toast.error("Nombre requerido");
       return;
     }
+    if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
+      toast.error("La fecha de fin debe ser posterior a la fecha de inicio");
+      return;
+    }
     const payload = {
       name: editing.name,
       description: editing.description || null,
@@ -197,7 +201,7 @@ function AdminCourses() {
     if (checked) {
       const { error } = await supabase
         .from("course_enrollments")
-        .insert({ course_id: enrollCourse.id, user_id: uid });
+        .upsert({ course_id: enrollCourse.id, user_id: uid }, { onConflict: "course_id,user_id", ignoreDuplicates: true });
       if (error) return toast.error(error.message);
       setEnrolledIds((prev) => new Set([...prev, uid]));
       toast.success("Estudiante matriculado correctamente");

@@ -93,11 +93,7 @@ function StudentExams() {
     })();
   }, [user]);
 
-  // Only show exams whose start_time has arrived, or that have a submission already
-  const visibleRows = rows.filter(({ exam, submission }) => {
-    if (submission) return true; // always show if student already interacted
-    return new Date(exam.start_time).getTime() <= now;
-  });
+  const visibleRows = rows;
 
   return (
     <div className="space-y-5">
@@ -190,13 +186,18 @@ function StudentExams() {
                       {t("exam.windowClosedHelp")}
                     </p>
                   </div>
-                ) : (
+                ) : isOpen ? (
                   <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
-                    <Button size="sm" disabled={!isOpen} className="w-full">
+                    <Button size="sm" className="w-full">
                       <Play className="h-4 w-4 mr-1" />
                       {submission?.status === "en_progreso" ? t("exam.resume") : t("exam.start")}
                     </Button>
                   </Link>
+                ) : (
+                  <Button size="sm" disabled className="w-full">
+                    <Play className="h-4 w-4 mr-1" />
+                    {now < new Date(exam.start_time).getTime() ? "Aún no disponible" : "Iniciar examen"}
+                  </Button>
                 )}
               </CardContent>
             </Card>
