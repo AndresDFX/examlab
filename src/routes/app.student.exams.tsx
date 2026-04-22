@@ -204,10 +204,15 @@ function StudentExams() {
                     </p>
                   </div>
                 ) : (
-                  <Button size="sm" disabled className="w-full">
-                    <Play className="h-4 w-4 mr-1" />
-                    Iniciar examen
-                  </Button>
+                  <div className="space-y-2">
+                    <Button size="sm" disabled variant="outline" className="w-full">
+                      <Play className="h-4 w-4 mr-1" />
+                      Examen cerrado
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                      El periodo de este examen ya finalizó.
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
