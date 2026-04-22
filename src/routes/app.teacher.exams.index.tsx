@@ -224,15 +224,15 @@ function TeacherExams() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{t("exam.columns.title")}</TableHead>
-                <TableHead>{t("exam.columns.course")}</TableHead>
-                <TableHead>{t("exam.columns.start")}</TableHead>
-                <TableHead>{t("exam.columns.duration")}</TableHead>
-                <TableHead>{t("exam.columns.type")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("exam.columns.duration")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("exam.columns.type")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -240,15 +240,29 @@ function TeacherExams() {
               {exams.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium">
-                    {e.title}
-                    {e.parent_exam_id && (
-                      <Badge variant="outline" className="ml-2 text-[10px]">
-                        <GitBranch className="h-3 w-3 mr-1" />
-                        {t("exam.supletorio")}
-                      </Badge>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{e.title}</span>
+                        {e.parent_exam_id && (
+                          <Badge variant="outline" className="text-[10px]">
+                            <GitBranch className="h-3 w-3 mr-1" />
+                            {t("exam.supletorio")}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="md:hidden text-xs text-muted-foreground truncate">
+                        {e.course?.name}
+                        {e.course?.period && (
+                          <span className="ml-1.5 text-[10px]">({e.course.period})</span>
+                        )}
+                      </div>
+                      <div className="sm:hidden text-[11px] text-muted-foreground tabular-nums">
+                        {new Date(e.start_time).toLocaleString()} · {e.time_limit_minutes}{" "}
+                        {t("common.min")}
+                      </div>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground hidden md:table-cell">
                     {e.course?.name}
                     {e.course?.period && (
                       <Badge variant="outline" className="ml-1.5 text-[9px]">
@@ -256,13 +270,13 @@ function TeacherExams() {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm hidden sm:table-cell">
                     {new Date(e.start_time).toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm hidden lg:table-cell">
                     {e.time_limit_minutes} {t("common.min")}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     <Badge variant="secondary" className="text-[10px]">
                       {e.navigation_type}
                     </Badge>

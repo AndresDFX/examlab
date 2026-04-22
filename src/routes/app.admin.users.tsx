@@ -337,9 +337,9 @@ function AdminUsers() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
-                    <TableHead>Email institucional</TableHead>
+                    <TableHead className="hidden sm:table-cell">Email institucional</TableHead>
                     <TableHead className="hidden md:table-cell">Email personal</TableHead>
-                    <TableHead>Roles</TableHead>
+                    <TableHead className="hidden xs:table-cell">Roles</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -353,12 +353,26 @@ function AdminUsers() {
                   )}
                   {rows.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.full_name}</TableCell>
-                      <TableCell className="text-sm">{r.institutional_email}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                          <span>{r.full_name}</span>
+                          <span className="text-xs text-muted-foreground sm:hidden truncate max-w-[14rem]">
+                            {r.institutional_email}
+                          </span>
+                          <div className="flex flex-wrap gap-1 sm:hidden">
+                            {r.roles.map((role) => (
+                              <Badge key={role} variant="secondary" className="text-[10px]">
+                                {role}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm hidden sm:table-cell">{r.institutional_email}</TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                         {r.personal_email ?? "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {r.roles.length === 0 && (
                             <span className="text-muted-foreground text-xs">—</span>

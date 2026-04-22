@@ -538,12 +538,12 @@ function AdminCourses() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Periodo</TableHead>
+                <TableHead className="hidden sm:table-cell">Periodo</TableHead>
                 <TableHead className="hidden sm:table-cell">Escala</TableHead>
                 <TableHead className="hidden md:table-cell">Fechas</TableHead>
                 <TableHead className="hidden lg:table-cell">Descripción</TableHead>
@@ -560,8 +560,17 @@ function AdminCourses() {
               )}
               {courses.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col gap-1">
+                      <span>{c.name}</span>
+                      {c.period && (
+                        <Badge variant="outline" className="text-[10px] w-fit sm:hidden">
+                          {c.period}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {c.period ? (
                       <Badge variant="outline" className="text-xs">
                         {c.period}
