@@ -674,14 +674,11 @@ function TeacherWorkshops() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openAssign(ws)}
-                        title="Asignar estudiantes"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
+                      {/*
+                        Refactor: los talleres se asignan a nivel de Curso (auto-assign al publicar).
+                        Mantenemos el acceso al diálogo de asignación solo como herramienta de
+                        auditoría/excepción para Admin. El botón principal queda oculto.
+                      */}
                       <Button
                         variant="ghost"
                         size="sm"
