@@ -56,7 +56,15 @@ type Course = {
   workshop_weight: number;
   attendance_weight: number;
   passing_grade: number;
+  max_exam_attempts: number;
 };
+
+/** Normaliza un valor de fecha (ISO timestamp o YYYY-MM-DD) a YYYY-MM-DD para inputs <date>. */
+function toDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  // Si viene como ISO con tiempo, recorta. Si viene YYYY-MM-DD, la primera parte ya es eso.
+  return value.length >= 10 ? value.slice(0, 10) : value;
+}
 type Profile = { id: string; full_name: string; institutional_email: string };
 
 function AdminCourses() {
@@ -119,6 +127,7 @@ function AdminCourses() {
       workshop_weight: 40,
       attendance_weight: 10,
       passing_grade: 3,
+      max_exam_attempts: 1,
     });
     setOpen(true);
   };
@@ -128,7 +137,9 @@ function AdminCourses() {
       toast.error("Nombre requerido");
       return;
     }
-    if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
+    const startInput = toDateInput(editing.start_date);
+    const endInput = toDateInput(editing.end_date);
+    if (startInput && endInput && startInput > endInput) {
       toast.error("La fecha de fin debe ser posterior a la fecha de inicio");
       return;
     }
@@ -136,14 +147,15 @@ function AdminCourses() {
       name: editing.name,
       description: editing.description || null,
       period: editing.period || null,
-      start_date: editing.start_date || null,
-      end_date: editing.end_date || null,
+      start_date: startInput || null,
+      end_date: endInput || null,
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
       grade_scale_max: Number(editing.grade_scale_max ?? 5),
       exam_weight: Number(editing.exam_weight ?? 40),
       workshop_weight: Number(editing.workshop_weight ?? 40),
       attendance_weight: Number(editing.attendance_weight ?? 10),
       passing_grade: Number(editing.passing_grade ?? 3),
+      max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
     if (editing.id) {
       const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
@@ -313,7 +325,7 @@ function AdminCourses() {
     setDupPeriod(c.period ?? "");
     setDupCopyExams(true);
     setDupCopyWorkshops(true);
-    setDupCopyStudents(false);
+    setDupCopyStudents(true);
     setDupOpen(true);
   };
 
@@ -323,6 +335,7 @@ function AdminCourses() {
       return;
     }
     setDupLoading(true);
+    let copiedStudents = 0;
     try {
       // 1. Create new course
       const { data: newCourse, error: cErr } = await supabase
@@ -331,29 +344,38 @@ function AdminCourses() {
           name: dupName,
           description: dupSource.description,
           period: dupPeriod || null,
-          start_date: dupSource.start_date,
-          end_date: dupSource.end_date,
+          start_date: toDateInput(dupSource.start_date) || null,
+          end_date: toDateInput(dupSource.end_date) || null,
           grade_scale_min: dupSource.grade_scale_min,
           grade_scale_max: dupSource.grade_scale_max,
           passing_grade: dupSource.passing_grade,
           exam_weight: dupSource.exam_weight,
           workshop_weight: dupSource.workshop_weight,
           attendance_weight: dupSource.attendance_weight,
+          max_exam_attempts: dupSource.max_exam_attempts ?? 1,
         })
         .select()
         .single();
       if (cErr || !newCourse) throw new Error(cErr?.message ?? "Error creando curso");
 
-      // 2. Copy students
+      // 2. Copy students (CRÍTICO: replicar todas las matrículas)
       if (dupCopyStudents) {
-        const { data: enr } = await supabase
+        const { data: enr, error: enrErr } = await supabase
           .from("course_enrollments")
           .select("user_id")
           .eq("course_id", dupSource.id);
+        if (enrErr) console.error("read enrollments:", enrErr);
         if (enr?.length) {
-          await supabase
+          const rows = enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id }));
+          const { error: insErr, count } = await supabase
             .from("course_enrollments")
-            .insert(enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id })));
+            .insert(rows, { count: "exact" });
+          if (insErr) {
+            console.error("copy enrollments:", insErr);
+            toast.error(`No se pudieron copiar las matrículas: ${insErr.message}`);
+          } else {
+            copiedStudents = count ?? rows.length;
+          }
         }
       }
 
@@ -387,6 +409,7 @@ function AdminCourses() {
               time_limit_minutes: exam.time_limit_minutes,
               navigation_type: exam.navigation_type,
               shuffle_enabled: exam.shuffle_enabled,
+              max_attempts: (exam as any).max_attempts ?? null,
             })
             .select()
             .single();
@@ -440,7 +463,10 @@ function AdminCourses() {
         }
       }
 
-      toast.success("Curso duplicado correctamente");
+      const studentsMsg = dupCopyStudents
+        ? ` (${copiedStudents} estudiante${copiedStudents === 1 ? "" : "s"} copiado${copiedStudents === 1 ? "" : "s"})`
+        : "";
+      toast.success(`Curso duplicado correctamente${studentsMsg}`);
       setDupOpen(false);
       load();
     } catch (e: any) {
@@ -635,7 +661,13 @@ function AdminCourses() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditing(c);
+                          // Sanea fechas (Postgres `date` puede llegar como ISO si hay tz);
+                          // los inputs <date> requieren YYYY-MM-DD.
+                          setEditing({
+                            ...c,
+                            start_date: toDateInput(c.start_date),
+                            end_date: toDateInput(c.end_date),
+                          });
                           setOpen(true);
                         }}
                         title="Editar"
@@ -688,16 +720,20 @@ function AdminCourses() {
                   <Label>Fecha inicio</Label>
                   <Input
                     type="date"
-                    value={editing.start_date ?? ""}
-                    onChange={(e) => setEditing({ ...editing, start_date: e.target.value })}
+                    value={toDateInput(editing.start_date)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, start_date: e.target.value || null })
+                    }
                   />
                 </div>
                 <div>
                   <Label>Fecha fin</Label>
                   <Input
                     type="date"
-                    value={editing.end_date ?? ""}
-                    onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
+                    value={toDateInput(editing.end_date)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, end_date: e.target.value || null })
+                    }
                   />
                 </div>
               </div>
@@ -809,6 +845,37 @@ function AdminCourses() {
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* ── Reintentos por examen ── */}
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Intentos por examen</p>
+                    <p className="text-xs text-muted-foreground">
+                      Número máximo de veces que un estudiante puede presentar un examen de este
+                      curso (útil para quices). Al superar el límite, el último intento queda
+                      registrado y el examen se marca como suspendido.
+                    </p>
+                  </div>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    className="w-20 text-right"
+                    value={editing.max_exam_attempts ?? 1}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        max_exam_attempts: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Cada examen creado en este curso heredará este valor por defecto. Puedes ajustarlo
+                  individualmente desde el editor del examen.
+                </p>
               </div>
             </div>
           )}

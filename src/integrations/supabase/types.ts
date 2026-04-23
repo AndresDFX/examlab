@@ -277,6 +277,7 @@ export type Database = {
           grade_scale_min: number
           id: string
           language: string
+          max_exam_attempts: number
           name: string
           passing_grade: number
           period: string | null
@@ -294,6 +295,7 @@ export type Database = {
           grade_scale_min?: number
           id?: string
           language?: string
+          max_exam_attempts?: number
           name: string
           passing_grade?: number
           period?: string | null
@@ -311,6 +313,7 @@ export type Database = {
           grade_scale_min?: number
           id?: string
           language?: string
+          max_exam_attempts?: number
           name?: string
           passing_grade?: number
           period?: string | null
@@ -395,6 +398,7 @@ export type Database = {
           description: string | null
           end_time: string
           id: string
+          max_attempts: number | null
           navigation_type: string
           parent_exam_id: string | null
           shuffle_enabled: boolean
@@ -410,6 +414,7 @@ export type Database = {
           description?: string | null
           end_time: string
           id?: string
+          max_attempts?: number | null
           navigation_type?: string
           parent_exam_id?: string | null
           shuffle_enabled?: boolean
@@ -425,6 +430,7 @@ export type Database = {
           description?: string | null
           end_time?: string
           id?: string
+          max_attempts?: number | null
           navigation_type?: string
           parent_exam_id?: string | null
           shuffle_enabled?: boolean

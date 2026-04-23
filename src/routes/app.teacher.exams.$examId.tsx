@@ -64,7 +64,11 @@ function ExamEditor() {
   const [aiLoading, setAiLoading] = useState(false);
 
   const load = async () => {
-    const { data: e } = await supabase.from("exams").select("*").eq("id", examId).single();
+    const { data: e } = await supabase
+      .from("exams")
+      .select("*, course:courses(max_exam_attempts)")
+      .eq("id", examId)
+      .single();
     setExam(e);
     const { data: qs } = await supabase
       .from("questions")
@@ -99,6 +103,11 @@ function ExamEditor() {
   }, [examId]);
 
   const saveExam = async () => {
+    const rawAttempts = (exam as any).max_attempts;
+    const normalizedAttempts =
+      rawAttempts === null || rawAttempts === "" || rawAttempts === undefined
+        ? null
+        : Math.max(1, Number(rawAttempts) || 1);
     const { error } = await supabase
       .from("exams")
       .update({
@@ -109,6 +118,7 @@ function ExamEditor() {
         time_limit_minutes: Number(exam.time_limit_minutes),
         navigation_type: exam.navigation_type,
         shuffle_enabled: !!exam.shuffle_enabled,
+        max_attempts: normalizedAttempts,
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
@@ -356,6 +366,39 @@ function ExamEditor() {
                       <SelectItem value="secuencial">Secuencial</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Label className="text-sm">Intentos máximos (override)</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Vacío = hereda del curso
+                      {exam.course?.max_exam_attempts != null && (
+                        <>
+                          {" "}
+                          (<strong>{exam.course.max_exam_attempts}</strong> intento
+                          {exam.course.max_exam_attempts === 1 ? "" : "s"})
+                        </>
+                      )}
+                      . Si el estudiante supera el límite, el último intento se marca como
+                      suspendido.
+                    </p>
+                  </div>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder="Heredar"
+                    className="w-24 text-right"
+                    value={exam.max_attempts ?? ""}
+                    onChange={(e) =>
+                      setExam({
+                        ...exam,
+                        max_attempts: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
                 </div>
               </div>
               <Button onClick={saveExam}>Guardar cambios</Button>
