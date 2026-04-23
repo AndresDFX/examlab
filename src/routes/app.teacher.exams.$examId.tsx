@@ -99,6 +99,11 @@ function ExamEditor() {
   }, [examId]);
 
   const saveExam = async () => {
+    const rawAttempts = (exam as any).max_attempts;
+    const normalizedAttempts =
+      rawAttempts === null || rawAttempts === "" || rawAttempts === undefined
+        ? null
+        : Math.max(1, Number(rawAttempts) || 1);
     const { error } = await supabase
       .from("exams")
       .update({
@@ -109,6 +114,7 @@ function ExamEditor() {
         time_limit_minutes: Number(exam.time_limit_minutes),
         navigation_type: exam.navigation_type,
         shuffle_enabled: !!exam.shuffle_enabled,
+        max_attempts: normalizedAttempts,
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
