@@ -406,7 +406,62 @@ tocan los mismos archivos:
 | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1.0     | 2026-04-19 | Versión inicial alineada con rutas ExamLab (`/app/...`) por rol y módulo.                                                                                                                                                                              |
 | 1.1     | 2026-04-20 | Monitor restringido a estados finales, override por pregunta, recalificación IA granular, control temporal explícito del botón de inicio, retroalimentación por pregunta para estudiante, sección §18 con escenarios automatizados para desarrollador. |
+---
+
+## 22. FASE 4 — Cursos, Talleres por curso, Reintentos de examen
+
+Cubre los cambios introducidos para sanear bugs de cursos, refactorizar
+asignación de talleres y permitir reintentos parametrizables.
+
+### 22.1 Cursos — bugs corregidos
+
+| ID         | Módulo  | Rol   | Prioridad | Caso de prueba                                                                                                                                                                              | Estado    |
+| ---------- | ------- | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| CRS-FIX-01 | Cursos  | Admin | P0        | Editar un curso existente con `start_date`/`end_date` previos: las fechas precargan correctamente en los inputs `<input type="date">` (no quedan vacíos por formato ISO).                    | Pendiente |
+| CRS-FIX-02 | Cursos  | Admin | P0        | Crear curso nuevo, asignar fecha inicio/fin, guardar y reabrir el modal: las fechas se mantienen.                                                                                            | Pendiente |
+| CRS-FIX-03 | Cursos  | Admin | P0        | Duplicar un curso con N estudiantes matriculados y M exámenes/talleres: el curso clon contiene los mismos estudiantes (validar `course_enrollments`) y el toast indica el conteo copiado.   | Pendiente |
+| CRS-FIX-04 | Cursos  | Admin | P1        | Duplicar un curso sin matrículas: la operación se completa sin error y el conteo informado es 0.                                                                                            | Pendiente |
+
+### 22.2 Talleres — asignación a nivel de curso
+
+| ID        | Módulo   | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                     | Estado    |
+| --------- | -------- | ---------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| WSH-RF-01 | Talleres | Docente    | P0        | Crear un taller en un curso con N estudiantes matriculados: aparece automáticamente para los N estudiantes (vía `autoAssignWorkshop`) sin necesidad de seleccionarlos individualmente.             | Pendiente |
+| WSH-RF-02 | Talleres | Docente    | P1        | En el editor de taller ya no existe la UI de selección individual de estudiantes (refactor) — los talleres se entienden como ítems del curso.                                                       | Pendiente |
+| WSH-RF-03 | Talleres | Docente    | P1        | Matricular un nuevo estudiante en el curso después de publicar el taller: el estudiante recibe la asignación al matricularse (re-ejecutar autoasignación al editar/publicar).                        | Pendiente |
+| WSH-RF-04 | Talleres | Estudiante | P1        | Estudiante matriculado ve el taller en `/app/student/workshops` sin requerir asignación manual del docente.                                                                                          | Pendiente |
+
+### 22.3 Reintentos de examen (parametrización)
+
+| ID        | Módulo    | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                                                  | Estado    |
+| --------- | --------- | ---------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| RTY-01    | Cursos    | Docente    | P0        | En la edición del curso, configurar `max_exam_attempts = 3`: el valor persiste y se refleja al recargar.                                                                                                                          | Pendiente |
+| RTY-02    | Exámenes  | Docente    | P0        | Crear un examen sin override: hereda `max_exam_attempts` del curso. En el editor del examen el campo "intentos" muestra el valor del curso como placeholder/default.                                                              | Pendiente |
+| RTY-03    | Exámenes  | Docente    | P1        | Sobrescribir `max_attempts` por examen (ej. quiz con 5 intentos en un curso con default 1): el override prevalece para ese examen sin afectar al resto.                                                                          | Pendiente |
+| RTY-04    | Exámenes  | Estudiante | P0        | Examen con `max_attempts=2`. Primer intento → entregar → en el card aparece "Intento 1 de 2" y un botón "Reintentar examen" mientras la ventana siga abierta.                                                                     | Pendiente |
+| RTY-05    | Exámenes  | Estudiante | P0        | Tras agotar los intentos (`finishedCount >= maxAttempts`): el card muestra "Sin intentos disponibles" y el botón de inicio queda deshabilitado.                                                                                  | Pendiente |
+| RTY-06    | Exámenes  | Estudiante | P1        | Submission `en_progreso` con intentos disponibles: al volver, el botón dice "Reanudar" y NO consume un nuevo intento (la submission existente se retoma).                                                                         | Pendiente |
+| RTY-07    | Exámenes  | Estudiante | P2        | Examen con `max_attempts=1` (default): el badge "Intento X de Y" NO se muestra para evitar ruido visual; al entregar, sólo se ofrece "Ver detalle".                                                                              | Pendiente |
+| RTY-08    | Exámenes  | Docente    | P1        | Monitor del examen: las múltiples submissions de un mismo estudiante (cuando hay reintentos) son visibles y diferenciables por `started_at`.                                                                                     | Pendiente |
+
+### 22.4 Checklist de regresión post-FASE 4
+
+- [ ] **AUTH-01** sigue pasando.
+- [ ] **ST-T-03** timer absoluto sin reset al recargar (los reintentos no rompen el reloj).
+- [ ] **T-M-05** monitor solo permite ver respuestas en estado final (también para múltiples intentos).
+- [ ] **DEV-TIMER-02** suite automatizado pasa (`npm run test:run`).
+- [ ] Ningún taller de cursos ya existentes pierde sus asignaciones después del refactor.
+
+---
+
+## Control de versiones del documento
+
+| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                |
+| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1.0     | 2026-04-19 | Versión inicial alineada con rutas ExamLab (`/app/...`) por rol y módulo.                                                                                                                                                                              |
+| 1.1     | 2026-04-20 | Monitor restringido a estados finales, override por pregunta, recalificación IA granular, control temporal explícito del botón de inicio, retroalimentación por pregunta para estudiante, sección §18 con escenarios automatizados para desarrollador. |
 | 1.2     | 2026-04-21 | FASE 3 — i18n (ES default, EN opcional, idioma forzado por curso), cortes de evaluación y pesos, RBAC estricto + `/app/unauthorized`, notificaciones anti-spam para docentes y recordatorios para estudiantes (sección §19).                           |
+| 1.3     | 2026-04-23 | FASE 4 — fix selector de fechas y duplicación de cursos con matrículas, talleres asignados a nivel curso, parametrización de reintentos de examen (curso + override por examen) — sección §22.                                                          |
 
 ---
 

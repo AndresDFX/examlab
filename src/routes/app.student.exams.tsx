@@ -19,7 +19,13 @@ type ExamRow = {
     end_time: string;
     time_limit_minutes: number;
     parent_exam_id?: string | null;
-    course: { name: string; grade_scale_min: number; grade_scale_max: number };
+    max_attempts?: number | null;
+    course: {
+      name: string;
+      grade_scale_min: number;
+      grade_scale_max: number;
+      max_exam_attempts?: number;
+    };
   };
   submission?: {
     id: string;
@@ -28,6 +34,8 @@ type ExamRow = {
     ai_grade: number | null;
     final_override_grade: number | null;
   };
+  attemptsUsed: number;
+  maxAttempts: number;
 };
 
 function StudentExams() {
@@ -47,7 +55,7 @@ function StudentExams() {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, course:courses(name, grade_scale_min, grade_scale_max))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       const exams = (asg ?? []).map((a: any) => a.exam).filter(Boolean);
@@ -84,11 +92,24 @@ function StudentExams() {
         return list?.find((s) => makeupIds.includes(s.exam_id));
       };
 
+      const countAttempts = (examId: string): number => {
+        const list = (subs ?? []) as SubRow[];
+        return list.filter(
+          (s) => s.exam_id === examId && (s.status === "completado" || s.status === "sospechoso"),
+        ).length;
+      };
+
       setRows(
-        exams.map((e: any) => ({
-          exam: e,
-          submission: findSubmission(e.id),
-        })),
+        exams.map((e: any) => {
+          const courseMax = Number(e.course?.max_exam_attempts ?? 1) || 1;
+          const examMax = e.max_attempts != null ? Number(e.max_attempts) : courseMax;
+          return {
+            exam: e,
+            submission: findSubmission(e.id),
+            attemptsUsed: countAttempts(e.id),
+            maxAttempts: Math.max(1, examMax),
+          };
+        }),
       );
     })();
   }, [user]);
@@ -108,7 +129,7 @@ function StudentExams() {
         {visibleRows.length === 0 && (
           <p className="text-muted-foreground text-sm">{t("exam.noExamsAvailable")}</p>
         )}
-        {visibleRows.map(({ exam, submission }) => {
+        {visibleRows.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
           const start = new Date(exam.start_time).getTime();
           const end = new Date(exam.end_time).getTime();
           const isOpen = now >= start && now <= end;
@@ -116,6 +137,7 @@ function StudentExams() {
             submission?.status === "completado" || submission?.status === "sospechoso";
           const grade = submission?.final_override_grade ?? submission?.ai_grade;
           const reviewExamId = completed && submission?.exam_id ? submission.exam_id : exam.id;
+          const noAttemptsLeft = attemptsUsed >= maxAttempts;
           return (
             <Card key={exam.id}>
               <CardContent className="p-5 space-y-3">
@@ -163,9 +185,32 @@ function StudentExams() {
                       end: new Date(exam.end_time).toLocaleString(),
                     })}
                   </div>
-                  <div>{t("exam.duration", { min: exam.time_limit_minutes })}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{t("exam.duration", { min: exam.time_limit_minutes })}</span>
+                    {maxAttempts > 1 && (
+                      <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                        Intento {Math.min(attemptsUsed + (completed ? 0 : 1), maxAttempts)} de{" "}
+                        {maxAttempts}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                {completed ? (
+                {completed && !noAttemptsLeft && isOpen ? (
+                  <div className="space-y-2">
+                    <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
+                      <Button size="sm" className="w-full">
+                        <Play className="h-4 w-4 mr-1" />
+                        Reintentar examen
+                      </Button>
+                    </Link>
+                    <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
+                      <Button variant="ghost" size="sm" className="w-full">
+                        <MessageSquareText className="h-4 w-4 mr-1" />
+                        {t("exam.viewDetail")}
+                      </Button>
+                    </Link>
+                  </div>
+                ) : completed ? (
                   <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />
@@ -184,6 +229,16 @@ function StudentExams() {
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
                       {t("exam.windowClosedHelp")}
+                    </p>
+                  </div>
+                ) : noAttemptsLeft ? (
+                  <div className="space-y-2">
+                    <Button size="sm" disabled variant="outline" className="w-full">
+                      <Play className="h-4 w-4 mr-1" />
+                      Sin intentos disponibles
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                      Has agotado los {maxAttempts} intento(s) permitidos para este examen.
                     </p>
                   </div>
                 ) : isOpen ? (
