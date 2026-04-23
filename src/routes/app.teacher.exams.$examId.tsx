@@ -64,7 +64,11 @@ function ExamEditor() {
   const [aiLoading, setAiLoading] = useState(false);
 
   const load = async () => {
-    const { data: e } = await supabase.from("exams").select("*").eq("id", examId).single();
+    const { data: e } = await supabase
+      .from("exams")
+      .select("*, course:courses(max_exam_attempts)")
+      .eq("id", examId)
+      .single();
     setExam(e);
     const { data: qs } = await supabase
       .from("questions")
