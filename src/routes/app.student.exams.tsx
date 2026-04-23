@@ -129,7 +129,7 @@ function StudentExams() {
         {visibleRows.length === 0 && (
           <p className="text-muted-foreground text-sm">{t("exam.noExamsAvailable")}</p>
         )}
-        {visibleRows.map(({ exam, submission }) => {
+        {visibleRows.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
           const start = new Date(exam.start_time).getTime();
           const end = new Date(exam.end_time).getTime();
           const isOpen = now >= start && now <= end;
@@ -137,6 +137,7 @@ function StudentExams() {
             submission?.status === "completado" || submission?.status === "sospechoso";
           const grade = submission?.final_override_grade ?? submission?.ai_grade;
           const reviewExamId = completed && submission?.exam_id ? submission.exam_id : exam.id;
+          const noAttemptsLeft = attemptsUsed >= maxAttempts;
           return (
             <Card key={exam.id}>
               <CardContent className="p-5 space-y-3">
