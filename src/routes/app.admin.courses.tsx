@@ -720,16 +720,20 @@ function AdminCourses() {
                   <Label>Fecha inicio</Label>
                   <Input
                     type="date"
-                    value={editing.start_date ?? ""}
-                    onChange={(e) => setEditing({ ...editing, start_date: e.target.value })}
+                    value={toDateInput(editing.start_date)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, start_date: e.target.value || null })
+                    }
                   />
                 </div>
                 <div>
                   <Label>Fecha fin</Label>
                   <Input
                     type="date"
-                    value={editing.end_date ?? ""}
-                    onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
+                    value={toDateInput(editing.end_date)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, end_date: e.target.value || null })
+                    }
                   />
                 </div>
               </div>
