@@ -325,7 +325,7 @@ function AdminCourses() {
     setDupPeriod(c.period ?? "");
     setDupCopyExams(true);
     setDupCopyWorkshops(true);
-    setDupCopyStudents(false);
+    setDupCopyStudents(true);
     setDupOpen(true);
   };
 
