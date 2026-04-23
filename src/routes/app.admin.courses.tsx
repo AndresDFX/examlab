@@ -335,6 +335,7 @@ function AdminCourses() {
       return;
     }
     setDupLoading(true);
+    let copiedStudents = 0;
     try {
       // 1. Create new course
       const { data: newCourse, error: cErr } = await supabase
@@ -343,29 +344,38 @@ function AdminCourses() {
           name: dupName,
           description: dupSource.description,
           period: dupPeriod || null,
-          start_date: dupSource.start_date,
-          end_date: dupSource.end_date,
+          start_date: toDateInput(dupSource.start_date) || null,
+          end_date: toDateInput(dupSource.end_date) || null,
           grade_scale_min: dupSource.grade_scale_min,
           grade_scale_max: dupSource.grade_scale_max,
           passing_grade: dupSource.passing_grade,
           exam_weight: dupSource.exam_weight,
           workshop_weight: dupSource.workshop_weight,
           attendance_weight: dupSource.attendance_weight,
+          max_exam_attempts: dupSource.max_exam_attempts ?? 1,
         })
         .select()
         .single();
       if (cErr || !newCourse) throw new Error(cErr?.message ?? "Error creando curso");
 
-      // 2. Copy students
+      // 2. Copy students (CRÍTICO: replicar todas las matrículas)
       if (dupCopyStudents) {
-        const { data: enr } = await supabase
+        const { data: enr, error: enrErr } = await supabase
           .from("course_enrollments")
           .select("user_id")
           .eq("course_id", dupSource.id);
+        if (enrErr) console.error("read enrollments:", enrErr);
         if (enr?.length) {
-          await supabase
+          const rows = enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id }));
+          const { error: insErr, count } = await supabase
             .from("course_enrollments")
-            .insert(enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id })));
+            .insert(rows, { count: "exact" });
+          if (insErr) {
+            console.error("copy enrollments:", insErr);
+            toast.error(`No se pudieron copiar las matrículas: ${insErr.message}`);
+          } else {
+            copiedStudents = count ?? rows.length;
+          }
         }
       }
 
@@ -399,6 +409,7 @@ function AdminCourses() {
               time_limit_minutes: exam.time_limit_minutes,
               navigation_type: exam.navigation_type,
               shuffle_enabled: exam.shuffle_enabled,
+              max_attempts: (exam as any).max_attempts ?? null,
             })
             .select()
             .single();
@@ -452,7 +463,10 @@ function AdminCourses() {
         }
       }
 
-      toast.success("Curso duplicado correctamente");
+      const studentsMsg = dupCopyStudents
+        ? ` (${copiedStudents} estudiante${copiedStudents === 1 ? "" : "s"} copiado${copiedStudents === 1 ? "" : "s"})`
+        : "";
+      toast.success(`Curso duplicado correctamente${studentsMsg}`);
       setDupOpen(false);
       load();
     } catch (e: any) {
