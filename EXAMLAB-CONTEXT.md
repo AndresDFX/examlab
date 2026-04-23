@@ -104,6 +104,10 @@ supabase/functions/
 ### 6. `20260419100000` — Workshop Start Date
 - `workshops`: +start_date
 
+### 7. `20260423224445` — Reintentos de examen
+- `courses`: +max_exam_attempts (int, NOT NULL, default 1)
+- `exams`: +max_attempts (int, nullable → override puntual del curso)
+
 ## Patrones de UI Estandarizados
 
 ### Tablas de acciones
