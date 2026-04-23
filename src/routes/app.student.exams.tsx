@@ -55,7 +55,7 @@ function StudentExams() {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, course:courses(name, grade_scale_min, grade_scale_max))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       const exams = (asg ?? []).map((a: any) => a.exam).filter(Boolean);
@@ -92,11 +92,24 @@ function StudentExams() {
         return list?.find((s) => makeupIds.includes(s.exam_id));
       };
 
+      const countAttempts = (examId: string): number => {
+        const list = (subs ?? []) as SubRow[];
+        return list.filter(
+          (s) => s.exam_id === examId && (s.status === "completado" || s.status === "sospechoso"),
+        ).length;
+      };
+
       setRows(
-        exams.map((e: any) => ({
-          exam: e,
-          submission: findSubmission(e.id),
-        })),
+        exams.map((e: any) => {
+          const courseMax = Number(e.course?.max_exam_attempts ?? 1) || 1;
+          const examMax = e.max_attempts != null ? Number(e.max_attempts) : courseMax;
+          return {
+            exam: e,
+            submission: findSubmission(e.id),
+            attemptsUsed: countAttempts(e.id),
+            maxAttempts: Math.max(1, examMax),
+          };
+        }),
       );
     })();
   }, [user]);
