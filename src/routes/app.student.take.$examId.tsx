@@ -157,12 +157,11 @@ function TakeExam() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      // `courses.language` is introduced in migration 20260423000000; until the
-      // generated Supabase types are refreshed, cast the client for this join.
+      // `courses.language` se introduce en migraciones recientes; cast hasta refrescar tipos.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: e } = await (supabase as any)
         .from("exams")
-        .select("*, course:courses(language)")
+        .select("*, course:courses(language, max_exam_attempts)")
         .eq("id", examId)
         .single();
       if (!e) {
@@ -194,25 +193,31 @@ function TakeExam() {
       if (e.shuffle_enabled && qs) qs = [...qs].sort(() => Math.random() - 0.5);
       setQuestions(qs ?? []);
 
-      const { data: sub } = await supabase
+      // Reintentos: contar todas las submissions del estudiante para este examen
+      const { data: subs } = await supabase
         .from("submissions")
         .select("*")
         .eq("exam_id", examId)
         .eq("user_id", user.id)
-        .maybeSingle();
-      if (sub) {
-        if (sub.status === "completado" || sub.status === "sospechoso") {
-          toast.info("Ya completaste este examen");
-          navigate({ to: "/app/student/exams" });
-          return;
-        }
-        // Resume existing in-progress submission
-        setSubmissionId(sub.id);
-        submissionIdRef.current = sub.id;
-        const existingAnswers = (sub.answers as Record<string, any>) ?? {};
+        .order("created_at", { ascending: false });
+      const allSubs = subs ?? [];
+      const inProgress = allSubs.find((s: any) => s.status === "en_progreso");
+      const finishedCount = allSubs.filter(
+        (s: any) => s.status === "completado" || s.status === "sospechoso",
+      ).length;
+      const maxAttempts = Math.max(
+        1,
+        Number(e.max_attempts ?? e.course?.max_exam_attempts ?? 1) || 1,
+      );
+
+      if (inProgress) {
+        // Reanudar el intento en curso
+        setSubmissionId(inProgress.id);
+        submissionIdRef.current = inProgress.id;
+        const existingAnswers = (inProgress.answers as Record<string, any>) ?? {};
         setAnswers(existingAnswers);
         answersRef.current = existingAnswers;
-        const persistedWarnings = sub.focus_warnings ?? 0;
+        const persistedWarnings = inProgress.focus_warnings ?? 0;
         setWarnings(persistedWarnings);
         warningsRef.current = persistedWarnings;
         const persistedEvents = Array.isArray(existingAnswers.__warning_events)
@@ -221,11 +226,26 @@ function TakeExam() {
         warningEventsRef.current = persistedEvents;
         setExam(e);
         setStarted(true);
-        // TODO: Re-enable fullscreen when ready
-        // try { await document.documentElement.requestFullscreen(); } catch { }
-      } else {
-        setExam(e);
+        return;
       }
+
+      if (finishedCount >= maxAttempts) {
+        toast.info(
+          maxAttempts === 1
+            ? "Ya completaste este examen"
+            : `Ya usaste tus ${maxAttempts} intentos para este examen`,
+        );
+        navigate({ to: "/app/student/exams" });
+        return;
+      }
+
+      // Quedan intentos disponibles → mostrar pantalla de inicio
+      if (finishedCount > 0) {
+        toast.info(
+          `Intento ${finishedCount + 1} de ${maxAttempts}. Tu nota anterior se reemplazará por la de este intento.`,
+        );
+      }
+      setExam(e);
     })();
   }, [examId, user, navigate]);
 
