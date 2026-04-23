@@ -127,6 +127,7 @@ function AdminCourses() {
       workshop_weight: 40,
       attendance_weight: 10,
       passing_grade: 3,
+      max_exam_attempts: 1,
     });
     setOpen(true);
   };
