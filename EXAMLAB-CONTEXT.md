@@ -158,8 +158,24 @@ supabase/functions/
 
 ### Cursos
 - Campos: nombre, periodo (ej: 2026-1), fecha inicio/fin, descripción
-- Duplicar: copia exámenes+preguntas, talleres, estudiantes (configurable)
+- Configuración de evaluación a nivel curso: `max_exam_attempts` (intentos por defecto que heredan los exámenes del curso, configurable por el rol Docente)
+- Duplicar: copia exámenes+preguntas, talleres, **estudiantes matriculados** (clona `course_enrollments`) y muestra el conteo en el toast
 - Docentes asignados via `course_teachers`
+- Bug fix: las fechas se sanean a `YYYY-MM-DD` (`toDateInput()`) antes de cargarlas en `<input type="date">` para que el selector funcione con valores ISO previos
+
+### Talleres (asignación)
+- Los talleres se asignan **a nivel de curso**, no por estudiante individual
+- Al crear/publicar un taller, `autoAssignWorkshop` asegura que todos los estudiantes matriculados lo reciban
+- La UI de selección manual de estudiantes en el editor de taller fue retirada — los talleres son ítems del curso
+
+### Exámenes — Reintentos
+- Cada curso define `max_exam_attempts` (default 1) — aplica a todos los exámenes del curso
+- Cada examen puede sobrescribir con `exams.max_attempts` (nullable → si NULL hereda del curso). Útil para quices con múltiples intentos en un curso de un solo intento por defecto
+- El estudiante:
+  - Si tiene una submission `en_progreso`, el botón dice "Reanudar" y NO consume nuevo intento
+  - Si `finishedCount (completado + sospechoso) >= maxAttempts` → bloqueado con "Sin intentos disponibles"
+  - Mientras le queden intentos y la ventana esté abierta, puede iniciar un nuevo intento (botón "Reintentar examen")
+  - El badge "Intento X de Y" sólo se muestra si `maxAttempts > 1`
 
 ### Notificaciones
 - Realtime push via Supabase
