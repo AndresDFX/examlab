@@ -137,7 +137,9 @@ function AdminCourses() {
       toast.error("Nombre requerido");
       return;
     }
-    if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
+    const startInput = toDateInput(editing.start_date);
+    const endInput = toDateInput(editing.end_date);
+    if (startInput && endInput && startInput > endInput) {
       toast.error("La fecha de fin debe ser posterior a la fecha de inicio");
       return;
     }
@@ -145,14 +147,15 @@ function AdminCourses() {
       name: editing.name,
       description: editing.description || null,
       period: editing.period || null,
-      start_date: editing.start_date || null,
-      end_date: editing.end_date || null,
+      start_date: startInput || null,
+      end_date: endInput || null,
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
       grade_scale_max: Number(editing.grade_scale_max ?? 5),
       exam_weight: Number(editing.exam_weight ?? 40),
       workshop_weight: Number(editing.workshop_weight ?? 40),
       attendance_weight: Number(editing.attendance_weight ?? 10),
       passing_grade: Number(editing.passing_grade ?? 3),
+      max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
     if (editing.id) {
       const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
