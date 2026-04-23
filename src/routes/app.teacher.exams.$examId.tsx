@@ -368,6 +368,39 @@ function ExamEditor() {
                   </Select>
                 </div>
               </div>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Label className="text-sm">Intentos máximos (override)</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Vacío = hereda del curso
+                      {exam.course?.max_exam_attempts != null && (
+                        <>
+                          {" "}
+                          (<strong>{exam.course.max_exam_attempts}</strong> intento
+                          {exam.course.max_exam_attempts === 1 ? "" : "s"})
+                        </>
+                      )}
+                      . Si el estudiante supera el límite, el último intento se marca como
+                      suspendido.
+                    </p>
+                  </div>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder="Heredar"
+                    className="w-24 text-right"
+                    value={exam.max_attempts ?? ""}
+                    onChange={(e) =>
+                      setExam({
+                        ...exam,
+                        max_attempts: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
               <Button onClick={saveExam}>Guardar cambios</Button>
             </CardContent>
           </Card>
