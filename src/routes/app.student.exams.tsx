@@ -19,7 +19,13 @@ type ExamRow = {
     end_time: string;
     time_limit_minutes: number;
     parent_exam_id?: string | null;
-    course: { name: string; grade_scale_min: number; grade_scale_max: number };
+    max_attempts?: number | null;
+    course: {
+      name: string;
+      grade_scale_min: number;
+      grade_scale_max: number;
+      max_exam_attempts?: number;
+    };
   };
   submission?: {
     id: string;
@@ -28,6 +34,8 @@ type ExamRow = {
     ai_grade: number | null;
     final_override_grade: number | null;
   };
+  attemptsUsed: number;
+  maxAttempts: number;
 };
 
 function StudentExams() {
