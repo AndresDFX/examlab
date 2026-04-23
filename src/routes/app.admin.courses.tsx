@@ -846,6 +846,37 @@ function AdminCourses() {
                   );
                 })()}
               </div>
+
+              {/* ── Reintentos por examen ── */}
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Intentos por examen</p>
+                    <p className="text-xs text-muted-foreground">
+                      Número máximo de veces que un estudiante puede presentar un examen de este
+                      curso (útil para quices). Al superar el límite, el último intento queda
+                      registrado y el examen se marca como suspendido.
+                    </p>
+                  </div>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    className="w-20 text-right"
+                    value={editing.max_exam_attempts ?? 1}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        max_exam_attempts: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Cada examen creado en este curso heredará este valor por defecto. Puedes ajustarlo
+                  individualmente desde el editor del examen.
+                </p>
+              </div>
             </div>
           )}
           <DialogFooter>
