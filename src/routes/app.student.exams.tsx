@@ -185,9 +185,32 @@ function StudentExams() {
                       end: new Date(exam.end_time).toLocaleString(),
                     })}
                   </div>
-                  <div>{t("exam.duration", { min: exam.time_limit_minutes })}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{t("exam.duration", { min: exam.time_limit_minutes })}</span>
+                    {maxAttempts > 1 && (
+                      <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                        Intento {Math.min(attemptsUsed + (completed ? 0 : 1), maxAttempts)} de{" "}
+                        {maxAttempts}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                {completed ? (
+                {completed && !noAttemptsLeft && isOpen ? (
+                  <div className="space-y-2">
+                    <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
+                      <Button size="sm" className="w-full">
+                        <Play className="h-4 w-4 mr-1" />
+                        Reintentar examen
+                      </Button>
+                    </Link>
+                    <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
+                      <Button variant="ghost" size="sm" className="w-full">
+                        <MessageSquareText className="h-4 w-4 mr-1" />
+                        {t("exam.viewDetail")}
+                      </Button>
+                    </Link>
+                  </div>
+                ) : completed ? (
                   <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />
@@ -206,6 +229,16 @@ function StudentExams() {
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
                       {t("exam.windowClosedHelp")}
+                    </p>
+                  </div>
+                ) : noAttemptsLeft ? (
+                  <div className="space-y-2">
+                    <Button size="sm" disabled variant="outline" className="w-full">
+                      <Play className="h-4 w-4 mr-1" />
+                      Sin intentos disponibles
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                      Has agotado los {maxAttempts} intento(s) permitidos para este examen.
                     </p>
                   </div>
                 ) : isOpen ? (
