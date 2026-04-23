@@ -661,7 +661,13 @@ function AdminCourses() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditing(c);
+                          // Sanea fechas (Postgres `date` puede llegar como ISO si hay tz);
+                          // los inputs <date> requieren YYYY-MM-DD.
+                          setEditing({
+                            ...c,
+                            start_date: toDateInput(c.start_date),
+                            end_date: toDateInput(c.end_date),
+                          });
                           setOpen(true);
                         }}
                         title="Editar"
