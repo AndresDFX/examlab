@@ -56,7 +56,15 @@ type Course = {
   workshop_weight: number;
   attendance_weight: number;
   passing_grade: number;
+  max_exam_attempts: number;
 };
+
+/** Normaliza un valor de fecha (ISO timestamp o YYYY-MM-DD) a YYYY-MM-DD para inputs <date>. */
+function toDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  // Si viene como ISO con tiempo, recorta. Si viene YYYY-MM-DD, la primera parte ya es eso.
+  return value.length >= 10 ? value.slice(0, 10) : value;
+}
 type Profile = { id: string; full_name: string; institutional_email: string };
 
 function AdminCourses() {
