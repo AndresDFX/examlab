@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, CheckCircle2, XCircle, Clock, Upload } from "lucide-react";
+import { FileText, CheckCircle2, XCircle, Clock, Upload, ThumbsUp, ThumbsDown, User } from "lucide-react";
 
 export type ExamNote = {
   id: string;
