@@ -196,6 +196,9 @@ function StudentExams() {
                     )}
                   </div>
                 </div>
+                {!completed && user && (now < end) && (
+                  <StudentExamNotes examId={exam.id} userId={user.id} />
+                )}
                 {completed && !noAttemptsLeft && isOpen ? (
                   <div className="space-y-2">
                     <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
