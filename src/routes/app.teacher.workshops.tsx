@@ -932,58 +932,102 @@ function TeacherWorkshops() {
         </DialogContent>
       </Dialog>
 
-      {/* Assignment Dialog */}
+      {/* Assignment / Exclusion Dialog (course-level workshop) */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Asignar — {assignWs?.title}</DialogTitle>
+            <DialogTitle>Asignación del taller — {assignWs?.title}</DialogTitle>
           </DialogHeader>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {assignedIds.size} de {students.length} asignados
-            </span>
-            <div className="flex gap-1.5">
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={assignAll}>
-                <CheckSquare className="h-3 w-3" /> Seleccionar todos
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1"
-                onClick={unassignAll}
-              >
-                <XSquare className="h-3 w-3" /> Deseleccionar todos
-              </Button>
-            </div>
-          </div>
-          <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
-            {students.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No hay estudiantes matriculados en este curso.
+          <div className="space-y-3">
+            {/* Course selector (read-only — workshops belong to one course) */}
+            <div>
+              <Label className="text-xs">Curso al que se asigna</Label>
+              <Select value={assignWs?.course_id ?? undefined} disabled>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      {c.period ? ` (${c.period})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Los talleres se asignan a nivel de curso. Para moverlo a otro curso, edita el
+                taller.
               </p>
-            )}
-            {students.map((s) => (
-              <label
-                key={s.id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-              >
-                <Checkbox
-                  checked={assignedIds.has(s.id)}
-                  onCheckedChange={(v) => toggleAssign(s.id, !!v)}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{s.full_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {s.institutional_email}
-                  </div>
-                </div>
-                {assignedIds.has(s.id) && (
-                  <Badge variant="secondary" className="text-[9px] shrink-0">
-                    Asignado
-                  </Badge>
-                )}
-              </label>
-            ))}
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-2.5 text-xs text-muted-foreground">
+              Por defecto el taller se asigna a <strong>todos</strong> los estudiantes matriculados.
+              Desmarca abajo para <strong>excluir</strong> a quienes no deban recibirlo.
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {assignedIds.size} asignados · {students.length - assignedIds.size} excluidos
+              </span>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={assignAll}
+                >
+                  <CheckSquare className="h-3 w-3" /> Incluir a todos
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={unassignAll}
+                >
+                  <XSquare className="h-3 w-3" /> Excluir a todos
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
+              {students.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No hay estudiantes matriculados en este curso.
+                </p>
+              )}
+              {students.map((s) => {
+                const included = assignedIds.has(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={included}
+                      onCheckedChange={(v) => toggleAssign(s.id, !!v)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{s.full_name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {s.institutional_email}
+                      </div>
+                    </div>
+                    {included ? (
+                      <Badge variant="secondary" className="text-[9px] shrink-0">
+                        Incluido
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] shrink-0 border-destructive/40 text-destructive"
+                      >
+                        Excluido
+                      </Badge>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
