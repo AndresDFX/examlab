@@ -23,8 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { BookOpen, Users, UserPlus, Trash2, Loader2 } from "lucide-react";
+import { BookOpen, Users, UserPlus, Trash2, Loader2, Settings2 } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/courses")({ component: TeacherCourses });
 
@@ -35,6 +36,7 @@ type Course = {
   period: string | null;
   start_date: string | null;
   end_date: string | null;
+  max_exam_attempts: number;
 };
 
 type Student = { id: string; full_name: string; institutional_email: string };
@@ -50,6 +52,13 @@ function TeacherCourses() {
   const [pickerIds, setPickerIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // ── Evaluation config (max retries per exam) ──
+  const [evalOpen, setEvalOpen] = useState(false);
+  const [evalCourse, setEvalCourse] = useState<Course | null>(null);
+  const [evalAllowRetries, setEvalAllowRetries] = useState(false);
+  const [evalMax, setEvalMax] = useState(1);
+  const [evalSaving, setEvalSaving] = useState(false);
 
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
