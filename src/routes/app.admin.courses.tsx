@@ -95,6 +95,8 @@ function AdminCourses() {
   const [dupCopyExams, setDupCopyExams] = useState(true);
   const [dupCopyWorkshops, setDupCopyWorkshops] = useState(true);
   const [dupCopyStudents, setDupCopyStudents] = useState(false);
+  // Por defecto NO copiar docentes (opt-in).
+  const [dupCopyTeachers, setDupCopyTeachers] = useState(false);
   const [dupLoading, setDupLoading] = useState(false);
 
   const isAdmin = roles.includes("Admin");
@@ -326,6 +328,7 @@ function AdminCourses() {
     setDupCopyExams(true);
     setDupCopyWorkshops(true);
     setDupCopyStudents(true);
+    setDupCopyTeachers(false); // opt-in
     setDupOpen(true);
   };
 
@@ -379,15 +382,17 @@ function AdminCourses() {
         }
       }
 
-      // 3. Copy teachers
-      const { data: ct } = await supabase
-        .from("course_teachers")
-        .select("user_id")
-        .eq("course_id", dupSource.id);
-      if (ct?.length) {
-        await supabase
+      // 3. Copy teachers (opt-in)
+      if (dupCopyTeachers) {
+        const { data: ct } = await supabase
           .from("course_teachers")
-          .insert(ct.map((t: any) => ({ course_id: newCourse.id, user_id: t.user_id })));
+          .select("user_id")
+          .eq("course_id", dupSource.id);
+        if (ct?.length) {
+          await supabase
+            .from("course_teachers")
+            .insert(ct.map((t: any) => ({ course_id: newCourse.id, user_id: t.user_id })));
+        }
       }
 
       // 4. Copy exams (without submissions/assignments)
@@ -715,25 +720,50 @@ function AdminCourses() {
                   placeholder="Ej: 2026-1"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label>Fecha inicio</Label>
                   <Input
                     type="date"
-                    value={toDateInput(editing.start_date)}
+                    value={toDateInput(editing.start_date) ?? ""}
+                    // En Safari/iOS el calendario nativo no abre con click si el
+                    // input está dentro de un Dialog Radix (focus trapping).
+                    // Forzamos la apertura del picker explícitamente.
+                    onClick={(e) => {
+                      const el = e.currentTarget as HTMLInputElement & {
+                        showPicker?: () => void;
+                      };
+                      try {
+                        el.showPicker?.();
+                      } catch {
+                        /* showPicker requires user gesture; OK to ignore */
+                      }
+                    }}
                     onChange={(e) =>
                       setEditing({ ...editing, start_date: e.target.value || null })
                     }
+                    className="cursor-pointer"
                   />
                 </div>
                 <div>
                   <Label>Fecha fin</Label>
                   <Input
                     type="date"
-                    value={toDateInput(editing.end_date)}
+                    value={toDateInput(editing.end_date) ?? ""}
+                    onClick={(e) => {
+                      const el = e.currentTarget as HTMLInputElement & {
+                        showPicker?: () => void;
+                      };
+                      try {
+                        el.showPicker?.();
+                      } catch {
+                        /* noop */
+                      }
+                    }}
                     onChange={(e) =>
                       setEditing({ ...editing, end_date: e.target.value || null })
                     }
+                    className="cursor-pointer"
                   />
                 </div>
               </div>
