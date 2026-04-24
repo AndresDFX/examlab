@@ -67,11 +67,12 @@ type Record_ = {
 const STATUS_OPTIONS = [
   {
     value: "presente",
+    short: "P",
     label: "Presente",
     icon: CheckCircle2,
     color: "text-emerald-600 dark:text-emerald-400",
   },
-  { value: "ausente", label: "Ausente", icon: X, color: "text-destructive" },
+  { value: "ausente", short: "A", label: "Ausente", icon: X, color: "text-destructive" },
 ];
 
 function TeacherAttendance() {
@@ -490,16 +491,20 @@ function TeacherAttendance() {
                             value={status || "none"}
                             onValueChange={(v) => setAttendance(sess.id, s.id, v)}
                           >
-                            <SelectTrigger className="h-8 w-[4.25rem] mx-auto text-[10px] px-1.5 [&>svg]:h-3 [&>svg]:w-3">
+                            <SelectTrigger
+                              className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-emerald-600 dark:text-emerald-400 border-emerald-500/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
+                            >
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">
-                                <span className="text-muted-foreground text-xs">Sin registrar</span>
+                                <span className="text-muted-foreground text-xs">—</span>
                               </SelectItem>
                               {STATUS_OPTIONS.map((opt) => (
                                 <SelectItem key={opt.value} value={opt.value}>
-                                  <span className={`text-xs ${opt.color}`}>{opt.label}</span>
+                                  <span className={`text-xs ${opt.color}`}>
+                                    <strong>{opt.short}</strong> · {opt.label}
+                                  </span>
                                 </SelectItem>
                               ))}
                             </SelectContent>
