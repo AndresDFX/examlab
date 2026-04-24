@@ -178,6 +178,37 @@ function TeacherCourses() {
     await loadEnrolled(selected.id);
   };
 
+  // ── Evaluation config (max retries) ──────────────────────
+  const openEval = (c: Course) => {
+    setEvalCourse(c);
+    const cur = Math.max(1, Number(c.max_exam_attempts ?? 1) || 1);
+    setEvalAllowRetries(cur > 1);
+    setEvalMax(cur > 1 ? cur : 2); // Default propuesto al activar
+    setEvalOpen(true);
+  };
+
+  const saveEval = async () => {
+    if (!evalCourse) return;
+    setEvalSaving(true);
+    const next = evalAllowRetries ? Math.max(2, Math.floor(Number(evalMax) || 2)) : 1;
+    const { error } = await supabase
+      .from("courses")
+      .update({ max_exam_attempts: next })
+      .eq("id", evalCourse.id);
+    setEvalSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(
+      next > 1
+        ? `Reintentos habilitados (${next} intentos máximos por examen)`
+        : "Reintentos deshabilitados — los exámenes serán de un solo intento",
+    );
+    setEvalOpen(false);
+    await loadCourses();
+  };
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   const filtered = allStudents.filter(
