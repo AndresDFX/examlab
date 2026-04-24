@@ -683,6 +683,34 @@ function TakeExam() {
         </div>
       </div>
 
+      {/* Approved support notes — visible across all questions */}
+      {approvedNote && (
+        <Card className="mb-4 border-primary/40 bg-primary/5">
+          <CardContent className="p-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => setNotesOpen((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+            >
+              <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                <FileText className="h-3.5 w-3.5" />
+                Tus notas de apoyo (aprobadas)
+              </div>
+              {notesOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+            {notesOpen && (
+              <pre className="whitespace-pre-wrap text-xs bg-background/60 rounded p-2 max-h-48 overflow-y-auto">
+                {approvedNote}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Questions */}
       <div className="space-y-4">
         {visible.map((q, i) => {
