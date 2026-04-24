@@ -113,6 +113,8 @@ function TakeExam() {
     open: boolean;
     unansweredIndices: number[];
   }>({ open: false, unansweredIndices: [] });
+  const [notesOpen, setNotesOpen] = useState(true);
+  const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
