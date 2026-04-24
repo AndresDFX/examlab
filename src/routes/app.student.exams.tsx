@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText } from "lucide-react";
+import { StudentExamNotes } from "@/components/ExamNotesManager";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
@@ -195,6 +196,9 @@ function StudentExams() {
                     )}
                   </div>
                 </div>
+                {!completed && user && (now < end) && (
+                  <StudentExamNotes examId={exam.id} userId={user.id} />
+                )}
                 {completed && !noAttemptsLeft && isOpen ? (
                   <div className="space-y-2">
                     <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>

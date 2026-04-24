@@ -400,14 +400,6 @@ tocan los mismos archivos:
 
 ---
 
-## Control de versiones del documento
-
-| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                |
-| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1.0     | 2026-04-19 | Versión inicial alineada con rutas ExamLab (`/app/...`) por rol y módulo.                                                                                                                                                                              |
-| 1.1     | 2026-04-20 | Monitor restringido a estados finales, override por pregunta, recalificación IA granular, control temporal explícito del botón de inicio, retroalimentación por pregunta para estudiante, sección §18 con escenarios automatizados para desarrollador. |
----
-
 ## 22. FASE 4 — Cursos, Talleres por curso, Reintentos de examen
 
 Cubre los cambios introducidos para sanear bugs de cursos, refactorizar
@@ -454,6 +446,62 @@ asignación de talleres y permitir reintentos parametrizables.
 
 ---
 
+## 23. FASE 5 — Notas de apoyo, copia de docentes, asistencia P/A, asignación de talleres con exclusiones
+
+Cubre las nuevas funcionalidades introducidas para mejorar la experiencia
+docente/estudiante: aprobación de notas de examen, control sobre la copia
+de docentes al duplicar cursos, evaluación rápida de asistencia y selector
+de cursos con exclusión de estudiantes para talleres.
+
+### 23.1 Notas de apoyo en exámenes (cheat-sheet aprobada)
+
+| ID         | Módulo   | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                                       | Estado    |
+| ---------- | -------- | ---------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| NOTES-01   | Exámenes | Estudiante | P0        | En el card de un examen disponible (no completado, ventana abierta), aparece la sección "Notas de apoyo" con un textarea y botón "Enviar a revisión".                                                                  | Pendiente |
+| NOTES-02   | Exámenes | Estudiante | P0        | Al enviar texto plano, el estado cambia a `pendiente`, el textarea se bloquea y el botón desaparece hasta que el docente responda.                                                                                    | Pendiente |
+| NOTES-03   | Exámenes | Docente    | P0        | En el editor del examen → pestaña "Notas de apoyo" se listan todas las notas con nombre del estudiante, contenido y badges (Pendiente/Aprobada/Rechazada). Contadores arriba muestran totales por estado.            | Pendiente |
+| NOTES-04   | Exámenes | Docente    | P0        | Aprobar una nota: el estado pasa a `aprobada`, se registra `reviewed_by` y `reviewed_at`. El estudiante ve un badge "Aprobada" y el contenido en pre-formato dentro del card.                                          | Pendiente |
+| NOTES-05   | Exámenes | Docente    | P0        | Rechazar una nota: se obliga a ingresar motivo (botón deshabilitado mientras esté vacío). El estudiante ve el motivo dentro de un cuadro destructive y puede editar + reenviar (vuelve a `pendiente`).                | Pendiente |
+| NOTES-06   | Exámenes | Estudiante | P0        | Al iniciar un examen donde la nota fue aprobada, aparece un panel sticky superior (colapsable) con el contenido aprobado, visible en todas las preguntas.                                                              | Pendiente |
+| NOTES-07   | Exámenes | Estudiante | P1        | Si la nota no fue aprobada (o no se subió), el panel de notas NO se muestra durante el examen.                                                                                                                        | Pendiente |
+| NOTES-08   | Exámenes | Docente    | P1        | "Revocar / rechazar" sobre una nota ya aprobada exige nuevo motivo y revierte el estado a `rechazada`; el contenido aprobado deja de aparecer en el take del estudiante.                                              | Pendiente |
+| NOTES-09   | Seguridad | —         | P0        | RLS: un estudiante NO puede ver/editar las notas de otro (`exam_notes` con `auth.uid() = user_id`). Solo Docente/Admin pueden listar todas y actualizar `status`/`rejection_reason`.                                  | Pendiente |
+
+### 23.2 Duplicación de cursos — copia opcional de docentes
+
+| ID        | Módulo | Rol   | Prioridad | Caso de prueba                                                                                                                                                                | Estado    |
+| --------- | ------ | ----- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| DUP-T-01  | Cursos | Admin | P0        | En el modal de duplicar curso, el toggle "Copiar docentes" aparece **desactivado por defecto**.                                                                                | Pendiente |
+| DUP-T-02  | Cursos | Admin | P0        | Duplicar con el toggle apagado: el curso clon NO recibe los docentes del curso origen (`course_teachers` vacío para el clon).                                                  | Pendiente |
+| DUP-T-03  | Cursos | Admin | P0        | Duplicar con el toggle encendido: el curso clon recibe los mismos `course_teachers`. El toast confirma el conteo.                                                              | Pendiente |
+| DUP-T-04  | Cursos | Admin | P1        | Combinar copia de docentes con copia de matrículas (toggles independientes): cada uno actúa según su estado, sin afectar al otro.                                              | Pendiente |
+
+### 23.3 Asistencia rápida — selector P / A
+
+| ID        | Módulo     | Rol     | Prioridad | Caso de prueba                                                                                                                                                                | Estado    |
+| --------- | ---------- | ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| ATT-PA-01 | Asistencia | Docente | P0        | El selector de estado por estudiante muestra solo dos opciones visibles: **P** (Presente) y **A** (Ausente), en un control compacto.                                            | Pendiente |
+| ATT-PA-02 | Asistencia | Docente | P0        | Cambiar entre P y A persiste el cambio en `attendance_records.status` (`presente`/`ausente`).                                                                                  | Pendiente |
+| ATT-PA-03 | Asistencia | Docente | P1        | En viewport móvil (≤640px) la tabla es scrollable horizontalmente sin romper layout; las celdas de estado mantienen ancho fijo y son tappables.                                | Pendiente |
+
+### 23.4 Asignación de talleres por curso con exclusión de estudiantes
+
+| ID        | Módulo   | Rol     | Prioridad | Caso de prueba                                                                                                                                                                                          | Estado    |
+| --------- | -------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| WSH-EX-01 | Talleres | Docente | P0        | Al asignar un taller, el primer paso es elegir el **Curso** destino (selector). No se pide elegir estudiante por estudiante.                                                                              | Pendiente |
+| WSH-EX-02 | Talleres | Docente | P0        | Aparece un listado de los estudiantes del curso con badges "Incluido" / "Excluido" y checkboxes para excluir individualmente.                                                                            | Pendiente |
+| WSH-EX-03 | Talleres | Docente | P0        | Al confirmar, el taller se asigna a todos los estudiantes del curso EXCEPTO los marcados como excluidos. La operación es idempotente al editar/republicar.                                              | Pendiente |
+| WSH-EX-04 | Talleres | Docente | P1        | Cambiar el estado de un estudiante de "Excluido" a "Incluido" después de la asignación inicial: al guardar, recibe la asignación faltante sin duplicar entregas previas.                                 | Pendiente |
+
+### 23.5 Checklist de regresión post-FASE 5
+
+- [ ] §22 (FASE 4) sigue pasando: cursos, talleres y reintentos no se ven afectados por las nuevas notas.
+- [ ] El modal de duplicar curso sigue copiando exámenes, talleres y matrículas según los toggles previos.
+- [ ] El monitor del examen y la calificación IA siguen funcionando aunque el estudiante haya tenido notas aprobadas (las notas no contaminan `answers`).
+- [ ] La pestaña "Notas de apoyo" en el editor del examen no rompe la pestaña de Asignaciones ni Preguntas.
+
+---
+
 ## Control de versiones del documento
 
 | Versión | Fecha      | Cambios                                                                                                                                                                                                                                                |
@@ -462,6 +510,7 @@ asignación de talleres y permitir reintentos parametrizables.
 | 1.1     | 2026-04-20 | Monitor restringido a estados finales, override por pregunta, recalificación IA granular, control temporal explícito del botón de inicio, retroalimentación por pregunta para estudiante, sección §18 con escenarios automatizados para desarrollador. |
 | 1.2     | 2026-04-21 | FASE 3 — i18n (ES default, EN opcional, idioma forzado por curso), cortes de evaluación y pesos, RBAC estricto + `/app/unauthorized`, notificaciones anti-spam para docentes y recordatorios para estudiantes (sección §19).                           |
 | 1.3     | 2026-04-23 | FASE 4 — fix selector de fechas y duplicación de cursos con matrículas, talleres asignados a nivel curso, parametrización de reintentos de examen (curso + override por examen) — sección §22.                                                          |
+| 1.4     | 2026-04-24 | FASE 5 — notas de apoyo aprobables por examen, toggle de copia de docentes al duplicar curso, asistencia P/A compacta y responsive, asignación de talleres por curso con exclusión de estudiantes (sección §23).                                       |
 
 ---
 

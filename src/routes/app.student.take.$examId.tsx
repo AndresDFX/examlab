@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff } from "lucide-react";
+import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
+import { useApprovedExamNote } from "@/components/ExamNotesManager";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -112,6 +113,8 @@ function TakeExam() {
     open: boolean;
     unansweredIndices: number[];
   }>({ open: false, unansweredIndices: [] });
+  const [notesOpen, setNotesOpen] = useState(true);
+  const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
@@ -679,6 +682,34 @@ function TakeExam() {
           </Badge>
         </div>
       </div>
+
+      {/* Approved support notes — visible across all questions */}
+      {approvedNote && (
+        <Card className="mb-4 border-primary/40 bg-primary/5">
+          <CardContent className="p-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => setNotesOpen((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+            >
+              <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                <FileText className="h-3.5 w-3.5" />
+                Tus notas de apoyo (aprobadas)
+              </div>
+              {notesOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+            {notesOpen && (
+              <pre className="whitespace-pre-wrap text-xs bg-background/60 rounded p-2 max-h-48 overflow-y-auto">
+                {approvedNote}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Questions */}
       <div className="space-y-4">
