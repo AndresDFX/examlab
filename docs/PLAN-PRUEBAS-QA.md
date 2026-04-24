@@ -400,14 +400,6 @@ tocan los mismos archivos:
 
 ---
 
-## Control de versiones del documento
-
-| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                |
-| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1.0     | 2026-04-19 | Versión inicial alineada con rutas ExamLab (`/app/...`) por rol y módulo.                                                                                                                                                                              |
-| 1.1     | 2026-04-20 | Monitor restringido a estados finales, override por pregunta, recalificación IA granular, control temporal explícito del botón de inicio, retroalimentación por pregunta para estudiante, sección §18 con escenarios automatizados para desarrollador. |
----
-
 ## 22. FASE 4 — Cursos, Talleres por curso, Reintentos de examen
 
 Cubre los cambios introducidos para sanear bugs de cursos, refactorizar
