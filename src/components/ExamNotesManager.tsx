@@ -414,3 +414,5 @@ export function useApprovedExamNote(examId: string, userId: string | undefined) 
     };
   }, [examId, userId]);
   return content;
+}
+
