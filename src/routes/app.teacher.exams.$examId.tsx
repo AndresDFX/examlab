@@ -669,6 +669,24 @@ function ExamEditor() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="notes">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                Notas de apoyo de los estudiantes
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Aprueba o rechaza el material de apoyo que cada estudiante quiere tener disponible
+                durante este examen. Si rechazas, el estudiante podrá ajustarlo y reenviarlo.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <TeacherExamNotes examId={examId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
