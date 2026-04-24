@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff } from "lucide-react";
+import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
+import { useApprovedExamNote } from "@/components/ExamNotesManager";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
