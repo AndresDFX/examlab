@@ -182,6 +182,24 @@ supabase/functions/
   - Mientras le queden intentos y la ventana esté abierta, puede iniciar un nuevo intento (botón "Reintentar examen")
   - El badge "Intento X de Y" sólo se muestra si `maxAttempts > 1`
 
+### Notas de apoyo del examen (cheat-sheet aprobada)
+- Tabla `exam_notes`: el estudiante sube **texto plano** asociado a un examen desde su card en `/app/student/exams` (sólo si la ventana sigue abierta y el examen no está completado)
+- Estados: `pendiente` → `aprobada` (visible durante el take) | `rechazada` (con `rejection_reason` obligatorio → estudiante puede editar y reenviar)
+- El docente revisa/aprueba/rechaza desde el editor del examen (`/app/teacher/exams/$examId` → pestaña "Notas de apoyo") con `TeacherExamNotes`
+- Durante el examen (`take.$examId`), si existe nota `aprobada` para `(exam_id, user_id)`, se muestra un panel sticky colapsable arriba de las preguntas vía hook `useApprovedExamNote`
+- Componentes: `src/components/ExamNotesManager.tsx` exporta `StudentExamNotes`, `TeacherExamNotes`, `useApprovedExamNote`
+
+### Duplicación de cursos
+- Toggle "Copiar docentes" en el modal de duplicar (default **OFF** → no copia `course_teachers`)
+- Toggle "Copiar matrículas" preexistente sigue independiente
+
+### Asistencia rápida (Docente)
+- En `/app/teacher/attendance` el selector por estudiante muestra sólo **P** (Presente) / **A** (Ausente) en un control compacto `w-12`, optimizado para móvil
+
+### Talleres — asignación con exclusión
+- Modal de asignación: selector de **Curso** + listado de estudiantes del curso con checkboxes para **excluir** individualmente (badges "Incluido"/"Excluido")
+- Al confirmar, asigna a todos los estudiantes del curso EXCEPTO los excluidos
+
 ### Notificaciones
 - Realtime push via Supabase
 - Triggers: asignar examen, publicar taller
