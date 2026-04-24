@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText } from "lucide-react";
+import { StudentExamNotes } from "@/components/ExamNotesManager";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
