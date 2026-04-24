@@ -1086,10 +1086,16 @@ function AdminCourses() {
                   </div>
                   <Switch checked={dupCopyStudents} onCheckedChange={setDupCopyStudents} />
                 </label>
+                <label className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm">Docentes asignados</div>
+                    <div className="text-xs text-muted-foreground">
+                      Por defecto desactivado — habilita para clonar también el equipo docente
+                    </div>
+                  </div>
+                  <Switch checked={dupCopyTeachers} onCheckedChange={setDupCopyTeachers} />
+                </label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Los docentes asignados siempre se copian.
-              </p>
             </div>
           )}
           <DialogFooter>
