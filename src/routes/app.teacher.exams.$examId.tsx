@@ -18,8 +18,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare } from "lucide-react";
+import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare, FileText } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { TeacherExamNotes } from "@/components/ExamNotesManager";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -263,11 +264,15 @@ function ExamEditor() {
       </div>
 
       <Tabs defaultValue="config">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="config">Configuración</TabsTrigger>
           <TabsTrigger value="questions">Preguntas ({questions.length})</TabsTrigger>
           <TabsTrigger value="assignments">
             Asignaciones ({assigned.size}/{students.length})
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="gap-1">
+            <FileText className="h-3.5 w-3.5" />
+            Notas de apoyo
           </TabsTrigger>
         </TabsList>
 
