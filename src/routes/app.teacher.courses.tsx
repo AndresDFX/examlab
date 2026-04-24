@@ -286,9 +286,14 @@ function TeacherCourses() {
                 {enrolled.length} estudiantes inscritos
               </p>
             </div>
-            <Button size="sm" onClick={openEnroll}>
-              <UserPlus className="h-4 w-4 mr-1" /> Gestionar inscripciones
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => openEval(selected)}>
+                <Settings2 className="h-4 w-4 mr-1" /> Configurar evaluación
+              </Button>
+              <Button size="sm" onClick={openEnroll}>
+                <UserPlus className="h-4 w-4 mr-1" /> Gestionar inscripciones
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {enrolled.length === 0 ? (
@@ -375,6 +380,68 @@ function TeacherCourses() {
             </Button>
             <Button onClick={saveEnrollments} disabled={busy}>
               {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Configurar evaluación (reintentos) ── */}
+      <Dialog open={evalOpen} onOpenChange={setEvalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configurar evaluación — {evalCourse?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Esta configuración aplica por defecto a <strong>todos los exámenes</strong> creados en
+              este curso. Cada examen puede sobrescribirla puntualmente desde su editor.
+            </p>
+            <div className="rounded-md border p-3 space-y-3">
+              <label className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Permitir reintentos en exámenes</div>
+                  <div className="text-xs text-muted-foreground">
+                    Útil para quices o evaluaciones formativas. Si está desactivado, cada examen es
+                    de un solo intento.
+                  </div>
+                </div>
+                <Switch
+                  checked={evalAllowRetries}
+                  onCheckedChange={(v) => {
+                    setEvalAllowRetries(v);
+                    if (v && evalMax < 2) setEvalMax(2);
+                  }}
+                />
+              </label>
+              {evalAllowRetries && (
+                <div className="flex items-center justify-between gap-3 pt-2 border-t">
+                  <div>
+                    <div className="text-sm font-medium">Intentos máximos</div>
+                    <div className="text-xs text-muted-foreground">
+                      Tras alcanzar el máximo, el último intento se marca como suspendido.
+                    </div>
+                  </div>
+                  <Input
+                    type="number"
+                    min={2}
+                    step={1}
+                    value={evalMax || ""}
+                    onChange={(e) =>
+                      setEvalMax(e.target.value === "" ? 2 : Math.max(2, Number(e.target.value)))
+                    }
+                    className="w-20 text-right"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEvalOpen(false)} disabled={evalSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={saveEval} disabled={evalSaving}>
+              {evalSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Guardar
             </Button>
           </DialogFooter>
