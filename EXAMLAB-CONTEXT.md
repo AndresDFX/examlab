@@ -108,6 +108,11 @@ supabase/functions/
 - `courses`: +max_exam_attempts (int, NOT NULL, default 1)
 - `exams`: +max_attempts (int, nullable → override puntual del curso)
 
+### 8. `20260424015642` — Notas de apoyo en exámenes
+- `exam_notes` (id, exam_id FK, user_id, content TEXT, status `pendiente|aprobada|rechazada`, rejection_reason, reviewed_by, reviewed_at)
+- RLS: estudiante puede CRUD sólo sus propias notas (`auth.uid() = user_id`); docente/admin pueden leer todas y `UPDATE` para aprobar/rechazar
+- Trigger `update_updated_at_column()` aplicado para mantener `updated_at`
+
 ## Patrones de UI Estandarizados
 
 ### Tablas de acciones
