@@ -220,3 +220,32 @@ VITE_SUPABASE_ANON_KEY=...
 - **Supabase types**: Actualizar manualmente en `src/integrations/supabase/types.ts` al agregar tablas/columnas
 - **Dark mode**: CSS variables OKLch en styles.css, toggle via use-theme.ts
 - **Rol activo**: Compartido via React Context (ActiveRoleContext) desde AppLayout
+
+## Talleres tipo examen (FASE 6 — migración 20260425004949)
+
+### Tablas
+- **`workshop_questions`**: preguntas asociadas a un taller (`type` ∈ `abierta | cerrada | codigo | diagrama`), con `content`, `options` (jsonb), `points`, `expected_rubric`, `starter_code`, `language`, `position`.
+- **`workshop_submission_answers`**: respuesta por pregunta de cada `workshop_submissions` (`answer_text`, `selected_option`, `code_content`, `diagram_code`, `ai_grade`, `ai_feedback`).
+
+### Reglas de negocio
+- Un taller puede operar en modo **clásico** (entrega libre con archivo/link/contenido) y/o en modo **preguntas** (banco de `workshop_questions`). Ambos modos coexisten — no es excluyente.
+- El docente crea preguntas **manualmente** o las **genera con IA** (edge function `ai-generate-questions`, modo `workshop`). Tipos soportados: abierta, cerrada (opciones múltiples + correcta), código (con `starter_code`), diagrama (Mermaid).
+- El estudiante responde desde `app.student.workshops.tsx` → botón "Responder preguntas" → componente `StudentWorkshopTaker`. La calificación es **inmediata, por pregunta**, vía edge function `ai-grade-submission` con `mode = "workshopQuestionGrading"`.
+  - **Diagramas Mermaid**: la IA valida sintaxis + pertinencia respecto a la rúbrica.
+  - **Código**: la IA evalúa correctitud + estilo respecto a la rúbrica/casos esperados.
+  - **Cerradas**: comparación directa con `selected_option`.
+  - **Abiertas**: la IA puntúa según rúbrica.
+- La nota final del taller (`workshop_submissions.final_grade`) se calcula como suma ponderada de `ai_grade` por pregunta (peso = `points`).
+- El docente puede sobrescribir `final_grade` manualmente desde el panel de calificación existente.
+
+### UI
+- **Docente** (`app.teacher.workshops.tsx`): botón "Preguntas" (icono `ListChecks`) por taller → abre dialog con `TeacherWorkshopQuestionsEditor` (tabs: Manual / IA).
+- **Estudiante** (`app.student.workshops.tsx`): botón "Responder preguntas" en cada card de taller publicado y no vencido → abre dialog con `StudentWorkshopTaker`.
+
+## Asistencia (FASE 6 — UI)
+
+- Vista de docente (`app.teacher.attendance.tsx`):
+  - Encima de la grilla se muestra una **leyenda** explicando: **P = Presente**, **A = Ausente**.
+  - Selectores de estado por estudiante muestran únicamente las iniciales `P` / `A` (sin etiquetas largas) para optimizar densidad de información en cursos grandes.
+  - Persistencia y RLS sin cambios respecto a fases anteriores.
+
