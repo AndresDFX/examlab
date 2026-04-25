@@ -208,7 +208,7 @@ ${extraInstructions}`,
       .select("course:courses(language)")
       .eq("id", sub.exam_id)
       .maybeSingle();
-    const examLang: "es" | "en" = examMeta?.course?.language === "en" ? "en" : "es";
+    const examLang: "es" | "en" = (examMeta as any)?.course?.language === "en" ? "en" : "es";
     const examLangName = examLang === "en" ? "inglés (English)" : "español";
 
     const answers: Record<string, any> = sub.answers || {};

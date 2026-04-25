@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
         .select("course:courses(language)")
         .eq("id", examId)
         .maybeSingle();
-      const lng = examRow?.course?.language;
+      const lng = (examRow as any)?.course?.language;
       if (lng === "en" || lng === "es") courseLanguage = lng;
     }
     const langName = courseLanguage === "en" ? "inglés (English)" : "español";
