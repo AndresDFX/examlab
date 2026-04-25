@@ -28,7 +28,9 @@ import {
   Upload,
   FileIcon,
   X,
+  ListChecks,
 } from "lucide-react";
+import { StudentWorkshopTaker } from "@/components/WorkshopQuestions";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
@@ -73,6 +75,8 @@ function StudentWorkshops() {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -364,6 +368,21 @@ function StudentWorkshops() {
                   </Link>
                 )}
 
+                {workshop.status === "published" && !isOverdue && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setQuestionsWs({ workshop, submission });
+                      setQuestionsOpen(true);
+                    }}
+                  >
+                    <ListChecks className="h-4 w-4 mr-1" />
+                    Responder preguntas
+                  </Button>
+                )}
+
                 {workshop.status === "published" &&
                   submission?.status !== "calificado" &&
                   !isOverdue && (
@@ -396,6 +415,25 @@ function StudentWorkshops() {
           );
         })}
       </div>
+
+      {/* Workshop Questions Dialog */}
+      <Dialog open={questionsOpen} onOpenChange={setQuestionsOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Preguntas — {questionsWs?.workshop.title}
+            </DialogTitle>
+          </DialogHeader>
+          {questionsWs && (
+            <StudentWorkshopTaker
+              workshopId={questionsWs.workshop.id}
+              workshopTitle={questionsWs.workshop.title}
+              maxScore={questionsWs.workshop.max_score}
+              courseLanguage={"es"}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Submit Dialog */}
       <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>

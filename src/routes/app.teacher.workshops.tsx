@@ -1298,6 +1298,25 @@ function TeacherWorkshops() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Workshop questions editor dialog */}
+      <Dialog open={questionsOpen} onOpenChange={setQuestionsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Preguntas del taller {questionsWs ? `— ${questionsWs.title}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {questionsWs && (
+            <TeacherWorkshopQuestionsEditor
+              workshopId={questionsWs.id}
+              courseLanguage={
+                (courses.find((c) => c.id === questionsWs.course_id) as any)?.language ?? "es"
+              }
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

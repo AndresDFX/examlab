@@ -305,200 +305,94 @@ entorno `jsdom`, setup en [src/test/setup.ts](../src/test/setup.ts).
 
 ---
 
-## 19. FASE 3 — i18n, Cortes y Notificaciones
+## 24. FASE 6 — Talleres tipo examen, calificación automática, validación Mermaid y asistencia P/A
 
-> **Regla estricta.** Esta sección **añade** casos nuevos. No elimina ni
-> sobrescribe ningún caso previo de las secciones 1–18. Si un caso aquí
-> depende de un flujo ya cubierto (ej. login), ese caso previo sigue siendo la
-> fuente de verdad — no se duplica, solo se referencia.
+> **Regla estricta.** Esta sección **reemplaza** los planes de FASES 3, 4 y 5 (ya gestionadas y verificadas en producción) por los nuevos casos focales de FASE 6. Las secciones §1–§18 siguen siendo el plan base permanente y NO deben modificarse.
 
-**Alcance.** Validar manualmente los cambios introducidos por la fase 3:
-internacionalización, modelo de evaluación por cortes, RBAC estricto y
-notificaciones (push in-app + resumen diario de docentes).
+### 24.1 Editor de preguntas del taller (docente) — `/app/teacher/workshops`
 
-### 19.1 Internacionalización (i18n)
+| ID      | Caso                                                                                                                                                                              | Estado |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.1.1  | El listado de talleres muestra el botón **Preguntas** (icono `ListChecks`) por fila, además de los botones existentes (Asignación, Calificar, Editar, Eliminar).                  | [ ]    |
+| 24.1.2  | Al hacer clic en **Preguntas**, se abre un dialog con el `TeacherWorkshopQuestionsEditor` y dos pestañas: **Manual** e **IA**.                                                    | [ ]    |
+| 24.1.3  | **Manual / Abierta**: se puede crear una pregunta tipo `abierta` con `content`, `expected_rubric` y `points`. Se persiste en `workshop_questions` con `position` correlativo.     | [ ]    |
+| 24.1.4  | **Manual / Cerrada**: se pueden definir 2–4 opciones y marcar la correcta. Se persiste como `selected_option` esperada en `options.correct`.                                      | [ ]    |
+| 24.1.5  | **Manual / Código**: se puede definir `starter_code`, `language` (java por defecto) y `expected_rubric`. La pregunta se guarda con `type='codigo'`.                               | [ ]    |
+| 24.1.6  | **Manual / Diagrama**: se puede crear una pregunta `diagrama` con `expected_rubric`. El estudiante deberá responder con código Mermaid válido.                                    | [ ]    |
+| 24.1.7  | **IA**: introduciendo temas + tipo + cantidad y pulsando "Generar", la edge function `ai-generate-questions` (modo `workshop`) devuelve N preguntas y se persisten en bloque.     | [ ]    |
+| 24.1.8  | Al cerrar y reabrir el dialog, las preguntas previamente creadas siguen visibles y ordenadas por `position`.                                                                      | [ ]    |
+| 24.1.9  | Eliminar una pregunta pide confirmación y la elimina de `workshop_questions` sin borrar el resto.                                                                                 | [ ]    |
+| 24.1.10 | El idioma del curso (`courses.language`) se propaga al editor (`courseLanguage` prop) y se usa en los prompts de IA para generar preguntas en el idioma correcto.                 | [ ]    |
 
-| ID      | Descripción                                                  | Pasos                                                                                                                                                                                                                                 | Resultado esperado                                                                                                                                                                  |
-| ------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I18N-01 | El idioma por defecto es español al entrar por primera vez   | 1. Abrir la app en una ventana nueva (sin `localStorage` previo, usar "Incognito"). 2. Observar el shell (sidebar, dashboard, auth).                                                                                                  | Todos los textos de shell/nav/auth aparecen en español.                                                                                                                             |
-| I18N-02 | Cambio manual ES → EN persiste tras recarga                  | 1. Hacer login. 2. En el footer del sidebar, abrir el switcher de idioma y elegir **English**. 3. Navegar entre rutas. 4. Recargar (Ctrl+R).                                                                                          | Tras cambiar, el shell aparece en inglés (Dashboard, Exams, Sign out…). Tras recargar, el idioma sigue en inglés (se persiste en `localStorage:examlab:lang`).                      |
-| I18N-03 | Cambio EN → ES vuelve a español sin recargar                 | 1. Con el idioma en inglés, seleccionar **Español** en el switcher.                                                                                                                                                                   | Toda la UI se re-renderiza en español sin necesidad de recarga.                                                                                                                     |
-| I18N-04 | Curso en inglés fuerza idioma del estudiante en el take flow | 1. Como Admin, editar un curso y poner `language='en'` (vía Supabase Studio o migración). 2. Como docente asignar un examen de ese curso a un estudiante. 3. Como estudiante (con preferencia ES), abrir `/app/student/take/$examId`. | El take flow aparece en inglés (header, botones, mensajes de tiempo) mientras está dentro del examen. Al salir a `/app/student/exams`, vuelve al idioma de preferencia del usuario. |
-| I18N-05 | Curso en español no altera la preferencia del usuario        | 1. Con preferencia del usuario en inglés, abrir take de un curso con `language='es'`.                                                                                                                                                 | Take flow se muestra en español durante el examen. Al salir, se restaura inglés.                                                                                                    |
-| I18N-06 | Fallback a español para claves faltantes en inglés           | 1. Cambiar a inglés. 2. Entrar a una ruta no traducida (ej. `/app/teacher/exams`).                                                                                                                                                    | Los textos no traducidos se muestran en español (default); la app no crashea ni muestra claves crudas (`exam.submit` como literal).                                                 |
-| I18N-07 | IA genera preguntas en el idioma del curso                   | 1. Curso en `language='en'`. 2. Docente abre ese examen y usa "Generar con IA" sobre un tema.                                                                                                                                         | Las preguntas creadas llegan en **inglés** (enunciado + rúbrica + opciones si aplica).                                                                                              |
-| I18N-08 | IA califica y da feedback en el idioma del curso             | 1. Curso en `language='en'`. 2. Estudiante entrega un examen con preguntas abiertas. 3. Docente recalifica con IA.                                                                                                                    | El `feedback` del breakdown aparece en inglés.                                                                                                                                      |
-| I18N-09 | Login muestra switcher de idioma antes de autenticar         | 1. Logout. 2. Abrir `/auth`.                                                                                                                                                                                                          | Hay un switcher de idioma visible en la tarjeta de login. Cambiarlo afecta de inmediato los labels del formulario.                                                                  |
+### 24.2 Presentación del taller (estudiante) — `/app/student/workshops`
 
-### 19.2 RBAC — rutas bloqueadas
+| ID      | Caso                                                                                                                                                                                  | Estado |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.2.1  | En cada card de taller publicado y dentro de fecha, aparece el botón **Responder preguntas** (icono `ListChecks`) además del existente "Entregar taller".                             | [ ]    |
+| 24.2.2  | Si el taller NO tiene preguntas en `workshop_questions`, el componente `StudentWorkshopTaker` muestra un mensaje "Este taller no tiene preguntas". No se rompe la UI.                 | [ ]    |
+| 24.2.3  | Si el taller tiene preguntas, se renderizan ordenadas por `position` con el componente adecuado: `Textarea` (abierta), `RadioGroup` (cerrada), `CodeEditor` (código), `DiagramEditor` (diagrama). | [ ]    |
+| 24.2.4  | El botón "Calificar pregunta" envía la respuesta a la edge function `ai-grade-submission` con `mode: workshopQuestionGrading` y persiste `ai_grade` y `ai_feedback` en `workshop_submission_answers`. | [ ]    |
+| 24.2.5  | Tras calificar todas las preguntas, el botón "Finalizar y calcular nota" suma ponderadamente (`SUM(ai_grade * points) / SUM(points) * max_score`) y actualiza `workshop_submissions.final_grade` y `status='ai_revisado'`. | [ ]    |
+| 24.2.6  | Si el taller está vencido (`due_date < now()`), el botón "Responder preguntas" no aparece — solo se permite ver feedback existente.                                                  | [ ]    |
+| 24.2.7  | Si el estudiante refresca a mitad de respuesta, las respuestas previamente calificadas se restauran (`workshop_submission_answers` filtrado por `submission_id`).                     | [ ]    |
 
-| ID      | Descripción                                                           | Pasos                                                                                                                                                                                              | Resultado esperado                                                                                            |
-| ------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| RBAC-01 | Estudiante no puede acceder a rutas de docente por URL                | 1. Login como usuario con rol **Estudiante** únicamente. 2. Pegar manualmente en la URL `/app/teacher/exams`.                                                                                      | Redirección inmediata a `/app/unauthorized`, se ve el mensaje "Sin permisos" y un botón "Ir al inicio".       |
-| RBAC-02 | Estudiante no puede acceder a admin                                   | 1. Como estudiante, ir a `/app/admin/users`.                                                                                                                                                       | Redirección a `/app/unauthorized`.                                                                            |
-| RBAC-03 | Docente no puede acceder a admin                                      | 1. Login como usuario con rol Docente únicamente. 2. Ir a `/app/admin/courses`.                                                                                                                    | Redirección a `/app/unauthorized`.                                                                            |
-| RBAC-04 | Docente no puede ver rutas de estudiante                              | 1. Como docente, ir a `/app/student/take/xxx`.                                                                                                                                                     | Redirección a `/app/unauthorized` (aunque la ruta sería 404 si el id fuera válido, el guard dispara primero). |
-| RBAC-05 | Usuario multi-rol puede cambiar a rol compatible                      | 1. Login como usuario con roles **Docente + Estudiante**. 2. Cambiar rol activo a Estudiante en el sidebar. 3. Ir a `/app/teacher/exams`.                                                          | Redirige a `/app/unauthorized`. Cambiar rol activo a Docente y repetir — ahora entra.                         |
-| RBAC-06 | RLS bloquea consultas directas a la API                               | 1. Como Estudiante autenticado, abrir devtools → Network. 2. Ejecutar en consola: `supabase.from('grade_cuts').select('*').eq('course_id','...')` para un curso en el que **no** está matriculado. | La respuesta tiene `data: []` (o error de policy). Nunca devuelve cortes de cursos ajenos.                    |
-| RBAC-07 | `/app/unauthorized` está accesible para cualquier usuario autenticado | 1. Como estudiante, visitar directamente `/app/unauthorized`.                                                                                                                                      | Se muestra correctamente (no hay bucle de redirección).                                                       |
-| RBAC-08 | Sin sesión, cualquier `/app/*` manda a `/auth`                        | 1. Cerrar sesión. 2. Pegar `/app/teacher/grading/abc`.                                                                                                                                             | Redirección a `/auth`, no a `/app/unauthorized`.                                                              |
+### 24.3 Validación de Mermaid e IA por tipo de pregunta
 
-### 19.3 Cortes y pesos de evaluación
+| ID      | Caso                                                                                                                                                                                                       | Estado |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.3.1  | Pregunta tipo **diagrama**: si el estudiante envía un diagrama Mermaid sintácticamente inválido, la IA detecta el error de parse, devuelve `ai_grade=0` y `ai_feedback` describe el error de sintaxis.     | [ ]    |
+| 24.3.2  | Pregunta tipo **diagrama**: si el diagrama es válido pero NO responde a la rúbrica (e.g. flowchart cuando se pide secuencia), la IA penaliza la pertinencia (`ai_grade < points * 0.5`).                   | [ ]    |
+| 24.3.3  | Pregunta tipo **diagrama**: un diagrama válido y pertinente recibe una nota cercana a `points` con feedback positivo.                                                                                      | [ ]    |
+| 24.3.4  | Pregunta tipo **código**: la IA evalúa correctitud algorítmica + estilo + cumplimiento de la rúbrica. Si hay `test_cases`, los considera en el feedback.                                                   | [ ]    |
+| 24.3.5  | Pregunta tipo **cerrada**: la calificación es determinista (no usa IA). Si `selected_option == options.correct`, otorga `points`; en caso contrario, `0`.                                                  | [ ]    |
+| 24.3.6  | Pregunta tipo **abierta**: la IA puntúa según la rúbrica con feedback narrativo en el idioma del curso.                                                                                                    | [ ]    |
+| 24.3.7  | Si la edge function devuelve **429** (rate limit) o **402** (créditos), la UI del estudiante muestra un toast claro ("Servicio de IA no disponible — intenta más tarde") y NO marca la pregunta calificada. | [ ]    |
 
-| ID     | Descripción                                                           | Pasos                                                                                                                                    | Resultado esperado                                                                                                                                 |
-| ------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CUT-01 | Docente accede a configuración de calificaciones de un curso asignado | 1. Login docente. 2. Ir a `/app/teacher/grading/$courseId` de un curso que le pertenece.                                                 | Carga la página con el nombre del curso, el bloque "Proyecto final vs. coursework" y la lista de cortes.                                           |
-| CUT-02 | Docente **no** asignado al curso no puede ver cortes del mismo        | 1. Login como docente A. 2. Intentar abrir `/app/teacher/grading/$courseId` de un curso asignado a docente B.                            | RLS devuelve datos vacíos y la UI no muestra cortes. El guard RBAC permite la ruta (es docente) pero los datos permanecen vacíos.                  |
-| CUT-03 | Suma de peso proyecto + coursework debe ser 100 para guardar          | 1. Entrar a la config. 2. Poner 60 proyecto y 30 coursework. 3. Pulsar Guardar.                                                          | Badge muestra "Suma actual: 90" en rojo; toast de error "Los pesos deben sumar 100"; no se llama al backend.                                       |
-| CUT-04 | Guardar config válida (60+40) persiste                                | 1. Poner 60 proyecto + 40 coursework → Guardar. 2. Recargar.                                                                             | Los valores persisten tras recarga. Toast "Configuración guardada".                                                                                |
-| CUT-05 | Crear cortes y asignar pesos que sumen 100                            | 1. Crear Corte 1, Corte 2, Final con pesos 30/30/40. 2. Observar badge en el encabezado de "Cortes".                                     | Badge "Suma actual: 100" en color de éxito (secondary).                                                                                            |
-| CUT-06 | Intentar exceder 100 en suma de cortes falla en DB                    | 1. Sobre la configuración anterior, editar Corte 1 a 50.                                                                                 | Toast de error de Postgres: "La suma de pesos de cortes excede 100". El valor no queda guardado.                                                   |
-| CUT-07 | Items de un corte deben sumar 100 para ser válidos                    | 1. Entrar a Corte 1. 2. Añadir 2 items (examen+taller) con pesos 50/40.                                                                  | Badge del corte muestra "Suma actual: 90". (La UI lo permite mientras editas; la validación de 100 es visual).                                     |
-| CUT-08 | Intentar exceder 100 en items del mismo corte falla en DB             | 1. Con items 50/40, editar el segundo a 70.                                                                                              | Toast de error de trigger: "La suma de pesos de items del corte excede 100".                                                                       |
-| CUT-09 | Eliminar un corte elimina sus items en cascada                        | 1. Crear un corte con 2 items. 2. Eliminar el corte (confirmación).                                                                      | El corte y sus items desaparecen. Ningún orphan visible tras recarga.                                                                              |
-| CUT-10 | Item tipo `project` requiere título, no exam_id ni workshop_id        | 1. Crear item project. 2. Dejar título vacío.                                                                                            | El constraint de CHECK permite la fila mientras title no sea null (default "Proyecto"). Cambiar a cadena vacía debe dar error de check al guardar. |
-| CUT-11 | Estudiante matriculado puede leer (SELECT) los cortes                 | 1. Como estudiante de un curso que ya tiene cortes. 2. Abrir devtools: `supabase.from('grade_cuts').select('*').eq('course_id','<id>')`. | Devuelve las filas del curso.                                                                                                                      |
-| CUT-12 | Estudiante no matriculado no puede leerlos                            | 1. Como estudiante NO matriculado en el curso. 2. Idem consulta.                                                                         | Devuelve array vacío.                                                                                                                              |
-| CUT-13 | Fecha fin anterior a inicio es rechazada                              | 1. Editar un corte con `start_date=2026-05-10` y `end_date=2026-05-01`.                                                                  | Error por constraint `grade_cuts_dates_ok`.                                                                                                        |
+### 24.4 Carga de código (`CodeEditor`) en preguntas tipo `codigo`
 
-### 19.4 Notificaciones — estudiantes
+| ID      | Caso                                                                                                                                                                              | Estado |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.4.1  | El `CodeEditor` carga el `starter_code` definido por el docente al abrir la pregunta por primera vez.                                                                             | [ ]    |
+| 24.4.2  | El estudiante puede editar el código, cambiar `language` si el editor lo permite, y enviar.                                                                                       | [ ]    |
+| 24.4.3  | El código se persiste en `workshop_submission_answers.code_content` y NO en `answer_text`.                                                                                        | [ ]    |
+| 24.4.4  | Al recargar la página, el código previamente enviado se restaura en el editor.                                                                                                    | [ ]    |
+| 24.4.5  | Si el estudiante envía cadena vacía, la UI bloquea el envío y muestra "El código no puede estar vacío".                                                                           | [ ]    |
 
-| ID       | Descripción                                                      | Pasos                                                                                                                                                                                            | Resultado esperado                                                                                                                                                                             |
-| -------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NOT-S-01 | Estudiante notificado cuando un corte cierra en 3 días           | 1. Crear corte con `end_date = CURRENT_DATE + 3` en un curso con estudiantes matriculados. 2. Ejecutar `SELECT notify_students_cut_closing(3);` (o invocar edge function `daily-notifications`). | Cada estudiante matriculado recibe una notificación "Corte X cerrando pronto" en la campana. Toast si la app está en foco; OS-level notification si hay permiso y la pestaña está oculta.      |
-| NOT-S-02 | No duplica notificaciones si el job corre dos veces el mismo día | 1. Tras NOT-S-01, ejecutar otra vez la función ese mismo día.                                                                                                                                    | `notify_students_cut_closing` devuelve `0`; la tabla `notifications` no crece.                                                                                                                 |
-| NOT-S-03 | Estudiante notificado cuando el curso cierra en 7 días           | 1. Curso con `end_date = CURRENT_DATE + 7`. 2. Ejecutar `SELECT notify_students_course_closing(7);`.                                                                                             | Notificación "Curso X cerrando pronto" a cada estudiante matriculado.                                                                                                                          |
-| NOT-S-04 | Estudiante notificado al tener nueva calificación                | 1. Como docente, guardar un override manual o lanzar IA sobre una entrega. 2. Al finalizar el update, verificar la campana del estudiante.                                                       | (Requiere trigger/edge posterior; por ahora validar que `submissions.final_override_grade` cambió. El hook de notificación sigue la integración de `notify_course_students` si se implementa.) |
+### 24.5 Selector de asistencia P/A — `/app/teacher/attendance`
 
-### 19.5 Notificaciones — docentes (anti-spam)
+| ID      | Caso                                                                                                                                                                              | Estado |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.5.1  | Encima de la grilla de estudiantes se muestra una **leyenda** explicando: **P = Presente**, **A = Ausente**.                                                                      | [ ]    |
+| 24.5.2  | Cada selector de estado en la fila del estudiante muestra únicamente **`P`** o **`A`** (sin texto adicional como "Presente" / "Ausente").                                         | [ ]    |
+| 24.5.3  | El cambio de estado persiste correctamente en `attendance_records.status` (valores `presente` / `ausente` en BD).                                                                 | [ ]    |
+| 24.5.4  | La leyenda y los selectores son legibles tanto en desktop (≥1024px) como en mobile (≤640px).                                                                                      | [ ]    |
+| 24.5.5  | El cambio de estado NO recarga toda la tabla — solo actualiza el registro modificado (UX fluida).                                                                                 | [ ]    |
+| 24.5.6  | Las pestañas / filtros existentes (sesión, fecha) siguen funcionando sin regresión.                                                                                               | [ ]    |
 
-| ID       | Descripción                                                    | Pasos                                                                                                                                               | Resultado esperado                                                                                                                                                                                                       |
-| -------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| NOT-T-01 | Docente **no** recibe notificación por cada entrega individual | 1. 3 estudiantes entregan un taller en la misma mañana. 2. Verificar la campana del docente.                                                        | **0** notificaciones nuevas por las entregas (regla anti-spam).                                                                                                                                                          |
-| NOT-T-02 | Resumen: taller vence mañana                                   | 1. Taller con `due_date = CURRENT_DATE + 1`. 2. Ejecutar `SELECT notify_teachers_workshop_due_tomorrow();`.                                         | Cada docente del curso recibe UNA notificación con el conteo.                                                                                                                                                            |
-| NOT-T-03 | Resumen: entregas pendientes después del cierre                | 1. Taller con `due_date < now()` y submissions `entregado`/`ai_revisado` (no calificadas). 2. Ejecutar `SELECT notify_teachers_pending_grading();`. | Cada docente recibe UNA notificación "N entrega(s) pendientes por calificar en curso X".                                                                                                                                 |
-| NOT-T-04 | Cambios en el día no crean duplicados en el mismo día          | 1. Tras NOT-T-02 hoy, agregar otro taller para mañana. 2. Correr la función otra vez.                                                               | Ya existe notificación de hoy con el link `/app/teacher/workshops`; el NOT EXISTS la deduplica y `ROW_COUNT=0`. (Nota: este es un trade-off conservador; en la próxima iteración se puede segmentar por curso/workshop). |
+### 24.6 Calificación automática del taller — flujo end-to-end
 
-### 19.6 PWA / Service Worker
+| ID      | Caso                                                                                                                                                                              | Estado |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.6.1  | El docente crea un taller con preguntas mixtas (1 abierta, 1 cerrada, 1 código, 1 diagrama), `max_score=100` y `points` distintos por pregunta.                                   | [ ]    |
+| 24.6.2  | El estudiante responde y califica las 4 preguntas. Cada `ai_grade` se persiste por separado en `workshop_submission_answers`.                                                     | [ ]    |
+| 24.6.3  | Al pulsar "Finalizar", `final_grade` se calcula como suma ponderada (Σ `ai_grade * points`) / (Σ `points`) × `max_score`. La fórmula es verificable manualmente en BD.            | [ ]    |
+| 24.6.4  | El `status` del `workshop_submissions` cambia a `ai_revisado` al finalizar la calificación automática.                                                                            | [ ]    |
+| 24.6.5  | El docente puede ver la entrega en la UI de calificación existente y **sobrescribir** `final_grade` manualmente — el override se respeta y NO se recalcula con IA.                 | [ ]    |
+| 24.6.6  | Si el estudiante recalifica una pregunta, su `ai_grade` se actualiza y `final_grade` se recalcula al "Finalizar" de nuevo (sin duplicar registros en `workshop_submission_answers`). | [ ]    |
+| 24.6.7  | El modo **clásico** del taller (entrega libre con archivo / link / contenido) sigue funcionando sin regresión — los dos modos coexisten.                                          | [ ]    |
 
-| ID     | Descripción                                                     | Pasos                                                                                                                                                                        | Resultado esperado                                                                                                  |
-| ------ | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| PWA-01 | Service Worker se actualiza sin romper la sesión                | 1. Desplegar nueva versión. 2. Recargar con la pestaña abierta.                                                                                                              | Nueva versión activa tras recarga; no hay pérdida de sesión.                                                        |
-| PWA-02 | Notificaciones OS-level se muestran con pestaña oculta          | 1. Conceder permiso `Notification.requestPermission()`. 2. Con la pestaña minimizada, disparar una notificación realtime (insertar fila en `notifications` para el usuario). | Aparece notificación del sistema operativo con título y cuerpo. Clic lleva a `/app` o al `link` de la notificación. |
-| PWA-03 | Con pestaña visible, solo suena el toast in-app (no duplica OS) | 1. Misma prueba con la pestaña en foco.                                                                                                                                      | Sólo se ve el toast de sonner y se actualiza la campana; **no** se muestra notificación OS-level.                   |
+### 24.7 Compatibilidad y regresión cruzada
 
-### 19.7 Checklist de regresión ligera después de fase 3
+| ID      | Caso                                                                                                                                                                          | Estado |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 24.7.1  | Talleres antiguos sin preguntas (`workshop_questions` vacío) siguen comportándose en modo clásico exactamente como antes — botón "Entregar taller" disponible y funcional. | [ ]    |
+| 24.7.2  | El monitor de exámenes (`/app/teacher/monitor/$examId`) y la calificación IA de exámenes siguen sin verse afectados por las nuevas tablas de talleres.                    | [ ]    |
+| 24.7.3  | Las RLS de `workshop_questions` y `workshop_submission_answers` impiden que un estudiante acceda a respuestas/preguntas de otros (verificable via `supabase__read_query`).  | [ ]    |
+| 24.7.4  | La duplicación de cursos (FASE 4/5) sigue funcionando — los talleres se duplican; las preguntas asociadas NO se duplican automáticamente (decisión consciente de FASE 6).  | [ ]    |
+| 24.7.5  | El plan de cortes y notas (FASE 3) sigue calculando correctamente la nota final del curso usando `final_grade` de talleres, independientemente del modo (clásico o preguntas). | [ ]    |
+| 24.7.6  | La asistencia P/A compactada NO altera el cálculo de la nota de asistencia en cortes/notas (regresión sobre FASE 3).                                                       | [ ]    |
 
-Antes de marcar la fase como lista, una pasada corta sobre casos fase 2 que
-tocan los mismos archivos:
 
-- [ ] **AUTH-01** sigue pasando (login con credenciales válidas).
-- [ ] **ST-T-03** timer absoluto sin reset al recargar.
-- [ ] **ST-T-09** suspensión al cruzar MAX_WARNINGS.
-- [ ] **T-M-05** monitor solo permite ver respuestas en estado final.
-- [ ] **DEV-TIMER-02** suite automatizado pasa (`npm run test:run`).
-
----
-
-## 22. FASE 4 — Cursos, Talleres por curso, Reintentos de examen
-
-Cubre los cambios introducidos para sanear bugs de cursos, refactorizar
-asignación de talleres y permitir reintentos parametrizables.
-
-### 22.1 Cursos — bugs corregidos
-
-| ID         | Módulo  | Rol   | Prioridad | Caso de prueba                                                                                                                                                                              | Estado    |
-| ---------- | ------- | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| CRS-FIX-01 | Cursos  | Admin | P0        | Editar un curso existente con `start_date`/`end_date` previos: las fechas precargan correctamente en los inputs `<input type="date">` (no quedan vacíos por formato ISO).                    | Pendiente |
-| CRS-FIX-02 | Cursos  | Admin | P0        | Crear curso nuevo, asignar fecha inicio/fin, guardar y reabrir el modal: las fechas se mantienen.                                                                                            | Pendiente |
-| CRS-FIX-03 | Cursos  | Admin | P0        | Duplicar un curso con N estudiantes matriculados y M exámenes/talleres: el curso clon contiene los mismos estudiantes (validar `course_enrollments`) y el toast indica el conteo copiado.   | Pendiente |
-| CRS-FIX-04 | Cursos  | Admin | P1        | Duplicar un curso sin matrículas: la operación se completa sin error y el conteo informado es 0.                                                                                            | Pendiente |
-
-### 22.2 Talleres — asignación a nivel de curso
-
-| ID        | Módulo   | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                     | Estado    |
-| --------- | -------- | ---------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| WSH-RF-01 | Talleres | Docente    | P0        | Crear un taller en un curso con N estudiantes matriculados: aparece automáticamente para los N estudiantes (vía `autoAssignWorkshop`) sin necesidad de seleccionarlos individualmente.             | Pendiente |
-| WSH-RF-02 | Talleres | Docente    | P1        | En el editor de taller ya no existe la UI de selección individual de estudiantes (refactor) — los talleres se entienden como ítems del curso.                                                       | Pendiente |
-| WSH-RF-03 | Talleres | Docente    | P1        | Matricular un nuevo estudiante en el curso después de publicar el taller: el estudiante recibe la asignación al matricularse (re-ejecutar autoasignación al editar/publicar).                        | Pendiente |
-| WSH-RF-04 | Talleres | Estudiante | P1        | Estudiante matriculado ve el taller en `/app/student/workshops` sin requerir asignación manual del docente.                                                                                          | Pendiente |
-
-### 22.3 Reintentos de examen (parametrización)
-
-| ID        | Módulo    | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                                                  | Estado    |
-| --------- | --------- | ---------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| RTY-01    | Cursos    | Docente    | P0        | En la edición del curso, configurar `max_exam_attempts = 3`: el valor persiste y se refleja al recargar.                                                                                                                          | Pendiente |
-| RTY-02    | Exámenes  | Docente    | P0        | Crear un examen sin override: hereda `max_exam_attempts` del curso. En el editor del examen el campo "intentos" muestra el valor del curso como placeholder/default.                                                              | Pendiente |
-| RTY-03    | Exámenes  | Docente    | P1        | Sobrescribir `max_attempts` por examen (ej. quiz con 5 intentos en un curso con default 1): el override prevalece para ese examen sin afectar al resto.                                                                          | Pendiente |
-| RTY-04    | Exámenes  | Estudiante | P0        | Examen con `max_attempts=2`. Primer intento → entregar → en el card aparece "Intento 1 de 2" y un botón "Reintentar examen" mientras la ventana siga abierta.                                                                     | Pendiente |
-| RTY-05    | Exámenes  | Estudiante | P0        | Tras agotar los intentos (`finishedCount >= maxAttempts`): el card muestra "Sin intentos disponibles" y el botón de inicio queda deshabilitado.                                                                                  | Pendiente |
-| RTY-06    | Exámenes  | Estudiante | P1        | Submission `en_progreso` con intentos disponibles: al volver, el botón dice "Reanudar" y NO consume un nuevo intento (la submission existente se retoma).                                                                         | Pendiente |
-| RTY-07    | Exámenes  | Estudiante | P2        | Examen con `max_attempts=1` (default): el badge "Intento X de Y" NO se muestra para evitar ruido visual; al entregar, sólo se ofrece "Ver detalle".                                                                              | Pendiente |
-| RTY-08    | Exámenes  | Docente    | P1        | Monitor del examen: las múltiples submissions de un mismo estudiante (cuando hay reintentos) son visibles y diferenciables por `started_at`.                                                                                     | Pendiente |
-
-### 22.4 Checklist de regresión post-FASE 4
-
-- [ ] **AUTH-01** sigue pasando.
-- [ ] **ST-T-03** timer absoluto sin reset al recargar (los reintentos no rompen el reloj).
-- [ ] **T-M-05** monitor solo permite ver respuestas en estado final (también para múltiples intentos).
-- [ ] **DEV-TIMER-02** suite automatizado pasa (`npm run test:run`).
-- [ ] Ningún taller de cursos ya existentes pierde sus asignaciones después del refactor.
-
----
-
-## 23. FASE 5 — Notas de apoyo, copia de docentes, asistencia P/A, asignación de talleres con exclusiones
-
-Cubre las nuevas funcionalidades introducidas para mejorar la experiencia
-docente/estudiante: aprobación de notas de examen, control sobre la copia
-de docentes al duplicar cursos, evaluación rápida de asistencia y selector
-de cursos con exclusión de estudiantes para talleres.
-
-### 23.1 Notas de apoyo en exámenes (cheat-sheet aprobada)
-
-| ID         | Módulo   | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                                       | Estado    |
-| ---------- | -------- | ---------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| NOTES-01   | Exámenes | Estudiante | P0        | En el card de un examen disponible (no completado, ventana abierta), aparece la sección "Notas de apoyo" con un textarea y botón "Enviar a revisión".                                                                  | Pendiente |
-| NOTES-02   | Exámenes | Estudiante | P0        | Al enviar texto plano, el estado cambia a `pendiente`, el textarea se bloquea y el botón desaparece hasta que el docente responda.                                                                                    | Pendiente |
-| NOTES-03   | Exámenes | Docente    | P0        | En el editor del examen → pestaña "Notas de apoyo" se listan todas las notas con nombre del estudiante, contenido y badges (Pendiente/Aprobada/Rechazada). Contadores arriba muestran totales por estado.            | Pendiente |
-| NOTES-04   | Exámenes | Docente    | P0        | Aprobar una nota: el estado pasa a `aprobada`, se registra `reviewed_by` y `reviewed_at`. El estudiante ve un badge "Aprobada" y el contenido en pre-formato dentro del card.                                          | Pendiente |
-| NOTES-05   | Exámenes | Docente    | P0        | Rechazar una nota: se obliga a ingresar motivo (botón deshabilitado mientras esté vacío). El estudiante ve el motivo dentro de un cuadro destructive y puede editar + reenviar (vuelve a `pendiente`).                | Pendiente |
-| NOTES-06   | Exámenes | Estudiante | P0        | Al iniciar un examen donde la nota fue aprobada, aparece un panel sticky superior (colapsable) con el contenido aprobado, visible en todas las preguntas.                                                              | Pendiente |
-| NOTES-07   | Exámenes | Estudiante | P1        | Si la nota no fue aprobada (o no se subió), el panel de notas NO se muestra durante el examen.                                                                                                                        | Pendiente |
-| NOTES-08   | Exámenes | Docente    | P1        | "Revocar / rechazar" sobre una nota ya aprobada exige nuevo motivo y revierte el estado a `rechazada`; el contenido aprobado deja de aparecer en el take del estudiante.                                              | Pendiente |
-| NOTES-09   | Seguridad | —         | P0        | RLS: un estudiante NO puede ver/editar las notas de otro (`exam_notes` con `auth.uid() = user_id`). Solo Docente/Admin pueden listar todas y actualizar `status`/`rejection_reason`.                                  | Pendiente |
-
-### 23.2 Duplicación de cursos — copia opcional de docentes
-
-| ID        | Módulo | Rol   | Prioridad | Caso de prueba                                                                                                                                                                | Estado    |
-| --------- | ------ | ----- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| DUP-T-01  | Cursos | Admin | P0        | En el modal de duplicar curso, el toggle "Copiar docentes" aparece **desactivado por defecto**.                                                                                | Pendiente |
-| DUP-T-02  | Cursos | Admin | P0        | Duplicar con el toggle apagado: el curso clon NO recibe los docentes del curso origen (`course_teachers` vacío para el clon).                                                  | Pendiente |
-| DUP-T-03  | Cursos | Admin | P0        | Duplicar con el toggle encendido: el curso clon recibe los mismos `course_teachers`. El toast confirma el conteo.                                                              | Pendiente |
-| DUP-T-04  | Cursos | Admin | P1        | Combinar copia de docentes con copia de matrículas (toggles independientes): cada uno actúa según su estado, sin afectar al otro.                                              | Pendiente |
-
-### 23.3 Asistencia rápida — selector P / A
-
-| ID        | Módulo     | Rol     | Prioridad | Caso de prueba                                                                                                                                                                | Estado    |
-| --------- | ---------- | ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| ATT-PA-01 | Asistencia | Docente | P0        | El selector de estado por estudiante muestra solo dos opciones visibles: **P** (Presente) y **A** (Ausente), en un control compacto.                                            | Pendiente |
-| ATT-PA-02 | Asistencia | Docente | P0        | Cambiar entre P y A persiste el cambio en `attendance_records.status` (`presente`/`ausente`).                                                                                  | Pendiente |
-| ATT-PA-03 | Asistencia | Docente | P1        | En viewport móvil (≤640px) la tabla es scrollable horizontalmente sin romper layout; las celdas de estado mantienen ancho fijo y son tappables.                                | Pendiente |
-
-### 23.4 Asignación de talleres por curso con exclusión de estudiantes
-
-| ID        | Módulo   | Rol     | Prioridad | Caso de prueba                                                                                                                                                                                          | Estado    |
-| --------- | -------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| WSH-EX-01 | Talleres | Docente | P0        | Al asignar un taller, el primer paso es elegir el **Curso** destino (selector). No se pide elegir estudiante por estudiante.                                                                              | Pendiente |
-| WSH-EX-02 | Talleres | Docente | P0        | Aparece un listado de los estudiantes del curso con badges "Incluido" / "Excluido" y checkboxes para excluir individualmente.                                                                            | Pendiente |
-| WSH-EX-03 | Talleres | Docente | P0        | Al confirmar, el taller se asigna a todos los estudiantes del curso EXCEPTO los marcados como excluidos. La operación es idempotente al editar/republicar.                                              | Pendiente |
-| WSH-EX-04 | Talleres | Docente | P1        | Cambiar el estado de un estudiante de "Excluido" a "Incluido" después de la asignación inicial: al guardar, recibe la asignación faltante sin duplicar entregas previas.                                 | Pendiente |
-
-### 23.5 Checklist de regresión post-FASE 5
-
-- [ ] §22 (FASE 4) sigue pasando: cursos, talleres y reintentos no se ven afectados por las nuevas notas.
-- [ ] El modal de duplicar curso sigue copiando exámenes, talleres y matrículas según los toggles previos.
-- [ ] El monitor del examen y la calificación IA siguen funcionando aunque el estudiante haya tenido notas aprobadas (las notas no contaminan `answers`).
-- [ ] La pestaña "Notas de apoyo" en el editor del examen no rompe la pestaña de Asignaciones ni Preguntas.
 
 ---
 
@@ -511,6 +405,7 @@ de cursos con exclusión de estudiantes para talleres.
 | 1.2     | 2026-04-21 | FASE 3 — i18n (ES default, EN opcional, idioma forzado por curso), cortes de evaluación y pesos, RBAC estricto + `/app/unauthorized`, notificaciones anti-spam para docentes y recordatorios para estudiantes (sección §19).                           |
 | 1.3     | 2026-04-23 | FASE 4 — fix selector de fechas y duplicación de cursos con matrículas, talleres asignados a nivel curso, parametrización de reintentos de examen (curso + override por examen) — sección §22.                                                          |
 | 1.4     | 2026-04-24 | FASE 5 — notas de apoyo aprobables por examen, toggle de copia de docentes al duplicar curso, asistencia P/A compacta y responsive, asignación de talleres por curso con exclusión de estudiantes (sección §23).                                       |
+| 1.5     | 2026-04-25 | FASE 6 — talleres tipo examen con preguntas (abierta/cerrada/código/diagrama), generación y calificación IA inmediata por pregunta, validación de Mermaid, leyenda P/A en asistencia. Reemplaza secciones de fase previas (§19, §22, §23) por §24 unificada. |
 
 ---
 
