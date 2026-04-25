@@ -85,6 +85,100 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ws
       });
     }
 
+    // ── Workshop QUESTION grading (per-question, supports diagrama/codigo) ──
+    if (body.workshopQuestionGrading) {
+      const {
+        questionType,
+        questionContent,
+        expectedRubric,
+        maxPoints = 1,
+        studentAnswer,
+        language,
+        courseLanguage,
+      } = body;
+      if (!studentAnswer || !questionType) {
+        throw new Error("questionType y studentAnswer requeridos");
+      }
+      const wqLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
+      const wqLangName = wqLang === "en" ? "inglés (English)" : "español";
+
+      let extraInstructions = "";
+      if (questionType === "diagrama") {
+        extraInstructions = `La respuesta del estudiante es código en sintaxis Mermaid. Evalúa: (1) que la sintaxis sea válida y parseable por Mermaid, (2) que represente correctamente el escenario solicitado, (3) que use los nodos/relaciones adecuados según la rúbrica. Penaliza errores de sintaxis y representaciones incorrectas.`;
+      } else if (questionType === "codigo") {
+        extraInstructions = `La respuesta es código en ${language ?? "el lenguaje solicitado"}. Evalúa corrección, lógica, manejo de casos borde y claridad. Si el código no compila o tiene errores graves, penaliza.`;
+      } else if (questionType === "cerrada") {
+        extraInstructions = `La respuesta es la opción seleccionada. Compara contra la opción correcta indicada en la rúbrica.`;
+      }
+
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un evaluador académico imparcial. Calificas la respuesta de un estudiante a UNA pregunta de taller. Devuelves un puntaje entre 0 y ${maxPoints}, y retroalimentación útil en ${wqLangName}.
+${extraInstructions}`,
+            },
+            {
+              role: "user",
+              content: `Tipo de pregunta: ${questionType}\n\nEnunciado: ${questionContent ?? ""}\n\nRúbrica esperada: ${expectedRubric ?? "Evalúa corrección y completitud."}\n\nPuntaje máximo: ${maxPoints}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wqLangName}.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "score_question",
+                description: "Calificar respuesta a pregunta de taller",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number" },
+                    feedback: { type: "string" },
+                  },
+                  required: ["score", "feedback"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "score_question" } },
+        }),
+      });
+
+      if (aiRes.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (aiRes.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Sin créditos de IA. Agrega créditos al workspace." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error("AI error", aiRes.status, errText);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc
+        ? JSON.parse(tc.function.arguments)
+        : { score: 0, feedback: "Sin retroalimentación" };
+      const score = Math.max(0, Math.min(Number(maxPoints), Number(args.score) || 0));
+
+      return new Response(
+        JSON.stringify({ ok: true, grade: score, feedback: args.feedback }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── Exam grading mode (original) ──
     const { submissionId, questionId } = body;
     if (!submissionId) throw new Error("submissionId requerido");
