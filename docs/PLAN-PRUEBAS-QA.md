@@ -405,6 +405,7 @@ entorno `jsdom`, setup en [src/test/setup.ts](../src/test/setup.ts).
 | 1.2     | 2026-04-21 | FASE 3 — i18n (ES default, EN opcional, idioma forzado por curso), cortes de evaluación y pesos, RBAC estricto + `/app/unauthorized`, notificaciones anti-spam para docentes y recordatorios para estudiantes (sección §19).                           |
 | 1.3     | 2026-04-23 | FASE 4 — fix selector de fechas y duplicación de cursos con matrículas, talleres asignados a nivel curso, parametrización de reintentos de examen (curso + override por examen) — sección §22.                                                          |
 | 1.4     | 2026-04-24 | FASE 5 — notas de apoyo aprobables por examen, toggle de copia de docentes al duplicar curso, asistencia P/A compacta y responsive, asignación de talleres por curso con exclusión de estudiantes (sección §23).                                       |
+| 1.5     | 2026-04-25 | FASE 6 — talleres tipo examen con preguntas (abierta/cerrada/código/diagrama), generación y calificación IA inmediata por pregunta, validación de Mermaid, leyenda P/A en asistencia. Reemplaza secciones de fase previas (§19, §22, §23) por §24 unificada. |
 
 ---
 
