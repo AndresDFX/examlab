@@ -83,11 +83,85 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').catch(function() {});
+              (function () {
+                // ── Service Worker registration + auto-update ────────────────
+                // Si hay una versión nueva del SW publicada (deploy reciente),
+                // queremos tomarla sin pedirle al usuario un hard-refresh:
+                //  1) registramos /sw.js
+                //  2) en cada visibilitychange revisamos si hay update
+                //  3) cuando un nuevo SW toma control (controllerchange), si no
+                //     es la primera instalación, recargamos una sola vez para
+                //     que el HTML pida los chunks nuevos.
+                if ('serviceWorker' in navigator) {
+                  var refreshing = false;
+                  navigator.serviceWorker.addEventListener('controllerchange', function () {
+                    if (refreshing) return;
+                    refreshing = true;
+                    // Solo recarga si ya había un controller (no primer install).
+                    if (window.__hadController) window.location.reload();
+                  });
+
+                  window.addEventListener('load', function () {
+                    window.__hadController = !!navigator.serviceWorker.controller;
+                    navigator.serviceWorker
+                      .register('/sw.js')
+                      .then(function (reg) {
+                        // Pide al SW nuevo (waiting) que tome control inmediatamente.
+                        if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+                        reg.addEventListener('updatefound', function () {
+                          var sw = reg.installing;
+                          if (!sw) return;
+                          sw.addEventListener('statechange', function () {
+                            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                              sw.postMessage('skipWaiting');
+                            }
+                          });
+                        });
+                        document.addEventListener('visibilitychange', function () {
+                          if (document.visibilityState === 'visible') {
+                            try { reg.update(); } catch (e) {}
+                          }
+                        });
+                      })
+                      .catch(function () {});
+                }
+
+                // ── Chunk-load failure recovery ──────────────────────────────
+                // Si un dynamic import falla (deploy nuevo borró el chunk con
+                // hash que el HTML viejo todavía referencia), recargamos UNA
+                // vez. Marcador en sessionStorage para evitar bucles.
+                function reloadOnce() {
+                  try {
+                    if (sessionStorage.getItem('examlab:reloaded') === '1') return;
+                    sessionStorage.setItem('examlab:reloaded', '1');
+                  } catch (e) {}
+                  window.location.reload();
+                }
+                function isChunkError(msg) {
+                  if (!msg) return false;
+                  msg = String(msg);
+                  return (
+                    msg.indexOf('ChunkLoadError') !== -1 ||
+                    msg.indexOf('Loading chunk') !== -1 ||
+                    msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+                    msg.indexOf('Importing a module script failed') !== -1
+                  );
+                }
+                window.addEventListener('error', function (ev) {
+                  if (isChunkError(ev.message) || (ev.error && isChunkError(ev.error.message))) {
+                    reloadOnce();
+                  }
                 });
-              }
+                window.addEventListener('unhandledrejection', function (ev) {
+                  var reason = ev.reason;
+                  var msg = reason && (reason.message || reason.toString());
+                  if (isChunkError(msg)) reloadOnce();
+                });
+                // Si la navegación cargó OK, limpiamos la marca de recarga.
+                window.addEventListener('load', function () {
+                  try { sessionStorage.removeItem('examlab:reloaded'); } catch (e) {}
+                });
+              })();
             `,
           }}
         />

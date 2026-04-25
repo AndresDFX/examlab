@@ -1,110 +1,115 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = "examlab-v2";
-const STATIC_ASSETS = ["/", "/auth"];
+/**
+ * ExamLab service worker.
+ *
+ * Cambios vs. v2:
+ *  - **No** se cachean respuestas de navegación (HTML). El HTML referencia
+ *    chunks con hash en su nombre; cachear HTML stale hace que tras un deploy
+ *    el navegador pida chunks viejos que ya no existen y termine en 503.
+ *  - El `.catch()` de los handlers de assets ya **no** fabrica un
+ *    `Response("", { status: 503 })`. Eso confundía al chunk-loader de Vite
+ *    (que veía un 503 sintético en lugar del error de red real). Ahora se
+ *    deja propagar el rechazo del fetch — el cliente lo detecta y dispara
+ *    una recarga (ver __root.tsx → window 'error' listener).
+ *  - Cache name v3 invalida las versiones anteriores en `activate`.
+ */
 
-// Install: cache shell
+const CACHE_NAME = "examlab-v3";
+// Solo cacheamos assets inmutables (los que llevan hash en el nombre).
+// El HTML siempre se sirve desde la red — si la red falla, mostramos un
+// fallback offline mínimo construido al vuelo, no uno cacheado.
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));
+  // No precacheamos nada: el HTML debe ser fresco siempre, y los chunks con
+  // hash se irán cacheando bajo demanda al primer fetch exitoso.
+  event.waitUntil(caches.open(CACHE_NAME));
   self.skipWaiting();
 });
 
-// Activate: clean old caches
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
       .then((names) =>
         Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))),
-      ),
+      )
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for static
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and Supabase API calls
   if (request.method !== "GET") return;
   if (url.hostname.includes("supabase")) return;
 
-  // For navigation requests, try network first, fall back to cache
+  // Navegación: SIEMPRE red. Sin cache. Si la red falla mostramos un
+  // fallback offline mínimo. NO reusamos HTML cacheado entre deploys porque
+  // referenciaría chunks viejos.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful navigation responses
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() =>
-          caches.match("/").then(
-            (r) =>
-              r ||
-              new Response("Offline — ExamLab", {
-                status: 503,
-                headers: { "Content-Type": "text/html" },
-              }),
+      fetch(request).catch(
+        () =>
+          new Response(
+            "<!doctype html><meta charset=utf-8><title>ExamLab</title><body style='font-family:system-ui;padding:2rem;text-align:center'><h1>Sin conexión</h1><p>Reintenta cuando tengas internet.</p></body>",
+            { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
           ),
-        ),
+      ),
     );
     return;
   }
 
-  // For static assets (JS, CSS, images, fonts), cache-first with network fallback
+  // Assets estáticos con hash inmutable (JS/CSS/images/fonts) → cache-first
+  // con caída a red. Si la red rechaza el fetch (no hay 4xx/5xx, sino
+  // network error), DEJAMOS que el rechazo se propague: el chunk-loader de
+  // Vite lo verá como un `ChunkLoadError` real y nuestro window 'error'
+  // listener (en __root.tsx) recargará la página una vez para tomar el
+  // HTML/chunks nuevos.
   if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|woff2?|ico|webp)$/)) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
           cached ||
-          fetch(request)
-            .then((response) => {
-              if (response.ok) {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-              }
-              return response;
-            })
-            .catch(() => new Response("", { status: 503 })),
+          fetch(request).then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          }),
+        // sin .catch — propagar el error de red real
       ),
     );
     return;
   }
 
-  // For Google Fonts, cache-first
+  // Google Fonts → cache-first con caída a red, idem propagación.
   if (url.hostname.includes("fonts.googleapis.com") || url.hostname.includes("fonts.gstatic.com")) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
           cached ||
-          fetch(request)
-            .then((response) => {
-              if (response.ok) {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-              }
-              return response;
-            })
-            .catch(() => new Response("", { status: 503 })),
+          fetch(request).then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          }),
       ),
     );
     return;
   }
 });
 
-// Listen for messages from the app
 self.addEventListener("message", (event) => {
   if (event.data === "skipWaiting") {
     self.skipWaiting();
     return;
   }
 
-  // The app forwards Supabase Realtime notifications here when the window is
-  // hidden so we can show an OS-level toast. Shape:
-  //   { type: "examlab:notify", title, body, link }
   if (event.data && event.data.type === "examlab:notify") {
     const { title, body, link } = event.data;
     if (self.registration && self.registration.showNotification) {
@@ -119,8 +124,6 @@ self.addEventListener("message", (event) => {
   }
 });
 
-// Web Push (server-side subscription flow is out of scope for Phase 3; this
-// handler is provided so future push endpoints work without redeploying SW).
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   let payload = {};
