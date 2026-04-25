@@ -120,6 +120,10 @@ function TeacherWorkshops() {
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
 
+  // Questions editor
+  const [questionsWs, setQuestionsWs] = useState<Workshop | null>(null);
+  const [questionsOpen, setQuestionsOpen] = useState(false);
+
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   /** Auto-assign a workshop to all students enrolled in the course */
