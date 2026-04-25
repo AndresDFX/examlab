@@ -416,6 +416,25 @@ function StudentWorkshops() {
         })}
       </div>
 
+      {/* Workshop Questions Dialog */}
+      <Dialog open={questionsOpen} onOpenChange={setQuestionsOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Preguntas — {questionsWs?.workshop.title}
+            </DialogTitle>
+          </DialogHeader>
+          {questionsWs && (
+            <StudentWorkshopTaker
+              workshopId={questionsWs.workshop.id}
+              workshopTitle={questionsWs.workshop.title}
+              maxScore={questionsWs.workshop.max_score}
+              courseLanguage={"es"}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Submit Dialog */}
       <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
         <DialogContent className="max-w-lg">
