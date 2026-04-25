@@ -691,6 +691,17 @@ function TeacherWorkshops() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => {
+                          setQuestionsWs(ws);
+                          setQuestionsOpen(true);
+                        }}
+                        title="Preguntas del taller"
+                      >
+                        <ListChecks className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => openGrading(ws)}
                         title="Calificar"
                       >
