@@ -368,6 +368,21 @@ function StudentWorkshops() {
                   </Link>
                 )}
 
+                {workshop.status === "published" && !isOverdue && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setQuestionsWs({ workshop, submission });
+                      setQuestionsOpen(true);
+                    }}
+                  >
+                    <ListChecks className="h-4 w-4 mr-1" />
+                    Responder preguntas
+                  </Button>
+                )}
+
                 {workshop.status === "published" &&
                   submission?.status !== "calificado" &&
                   !isOverdue && (
