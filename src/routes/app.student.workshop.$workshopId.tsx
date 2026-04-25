@@ -1,11 +1,24 @@
+/**
+ * Student-side workshop detail / review page.
+ *
+ * Refactor de talleres: la entrega ya no es archivo + link, sino respuestas
+ * por pregunta calificadas con IA al enviar. Esta página muestra:
+ *  - Datos del taller (descripción, instrucciones).
+ *  - Si hay submission `calificado`: nota global + cada pregunta con la
+ *    respuesta del estudiante, puntaje obtenido y feedback IA.
+ *  - Si la submission existe pero está `entregado` (no calificada todavía,
+ *    p.ej. caso edge si el estudiante recargó antes del grading), muestra
+ *    estado pendiente.
+ */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, FileIcon, Loader2, MessageSquareText } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, MessageSquareText } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,
@@ -24,9 +37,7 @@ type WorkshopLoaded = {
 };
 
 type SubmissionRow = {
-  content: string | null;
-  external_link: string | null;
-  file_url: string | null;
+  id: string;
   ai_grade: number | null;
   ai_feedback: string | null;
   final_grade: number | null;
@@ -35,13 +46,37 @@ type SubmissionRow = {
   submitted_at: string | null;
 };
 
+type WorkshopQuestion = {
+  id: string;
+  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  content: string;
+  options: { choices?: string[]; correct_index?: number } | null;
+  position: number;
+  points: number;
+  expected_rubric: string | null;
+  language: string | null;
+};
+
+type AnswerRow = {
+  question_id: string;
+  answer_text: string | null;
+  selected_option: string | null;
+  code_content: string | null;
+  diagram_code: string | null;
+  ai_grade: number | null;
+  ai_feedback: string | null;
+};
+
 function StudentWorkshopDetail() {
   const { workshopId } = Route.useParams();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workshop, setWorkshop] = useState<WorkshopLoaded | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
+  const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
+  const [answersByQid, setAnswersByQid] = useState<Record<string, AnswerRow>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -65,7 +100,7 @@ function StudentWorkshopDetail() {
           return;
         }
 
-        const [{ data: ws, error: wsErr }, { data: sub }] = await Promise.all([
+        const [{ data: ws, error: wsErr }, { data: sub }, { data: qs }] = await Promise.all([
           supabase
             .from("workshops")
             .select(
@@ -76,11 +111,16 @@ function StudentWorkshopDetail() {
           supabase
             .from("workshop_submissions")
             .select(
-              "content, external_link, file_url, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
+              "id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
             )
             .eq("workshop_id", workshopId)
             .eq("user_id", user.id)
             .maybeSingle(),
+          supabase
+            .from("workshop_questions")
+            .select("id, type, content, options, position, points, expected_rubric, language")
+            .eq("workshop_id", workshopId)
+            .order("position"),
         ]);
 
         if (cancelled) return;
@@ -91,6 +131,19 @@ function StudentWorkshopDetail() {
 
         setWorkshop(ws as WorkshopLoaded);
         setSubmission(sub as SubmissionRow | null);
+        setQuestions((qs ?? []) as WorkshopQuestion[]);
+
+        if (sub?.id) {
+          const { data: ans } = await supabase
+            .from("workshop_submission_answers")
+            .select(
+              "question_id, answer_text, selected_option, code_content, diagram_code, ai_grade, ai_feedback",
+            )
+            .eq("submission_id", sub.id);
+          const map: Record<string, AnswerRow> = {};
+          for (const a of (ans ?? []) as AnswerRow[]) map[a.question_id] = a;
+          if (!cancelled) setAnswersByQid(map);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -100,24 +153,14 @@ function StudentWorkshopDetail() {
     };
   }, [user, workshopId]);
 
-  const downloadFile = async (path: string) => {
-    const { data, error } = await supabase.storage
-      .from("workshop-files")
-      .createSignedUrl(path, 3600);
-    if (error || !data?.signedUrl) return;
-    window.open(data.signedUrl, "_blank");
-  };
-
-  const fileLabel = (path: string) => path.split("/").pop() ?? path;
-
   if (!user) {
-    return <p className="text-muted-foreground p-6">Inicia sesión para ver esta página.</p>;
+    return <p className="text-muted-foreground p-6">{t("exam.review.mustSignIn")}</p>;
   }
 
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground p-6">
-        <Loader2 className="h-4 w-4 animate-spin" /> Cargando taller…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("common.loading")}
       </div>
     );
   }
@@ -127,12 +170,12 @@ function StudentWorkshopDetail() {
       <div className="space-y-4 p-2">
         <Link to="/app/student/workshops">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Talleres
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
           </Button>
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No tienes acceso a este taller.
+            {t("exam.review.noAccess")}
           </CardContent>
         </Card>
       </div>
@@ -144,12 +187,12 @@ function StudentWorkshopDetail() {
       <div className="space-y-4 p-2">
         <Link to="/app/student/workshops">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Talleres
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
           </Button>
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No se encontró el taller.
+            {t("exam.review.notFound")}
           </CardContent>
         </Card>
       </div>
@@ -158,12 +201,62 @@ function StudentWorkshopDetail() {
 
   const gradeShow = submission?.final_grade ?? submission?.ai_grade;
 
+  // Helper: extract the actual answer string for a question.
+  const renderAnswer = (q: WorkshopQuestion, ans: AnswerRow | undefined) => {
+    if (!ans)
+      return <span className="text-muted-foreground italic">{t("exam.review.noAnswer")}</span>;
+    if (q.type === "cerrada") {
+      const idx = ans.selected_option != null ? Number(ans.selected_option) : -1;
+      const choice = q.options?.choices?.[idx];
+      return (
+        <div className="space-y-1.5">
+          {(q.options?.choices ?? []).map((c, i) => {
+            const isStudent = i === idx;
+            const isCorrect = q.options?.correct_index === i;
+            return (
+              <div
+                key={i}
+                className={`text-xs p-2 rounded-md border ${
+                  isCorrect ? "border-success bg-success/10" : "border-border"
+                } ${isStudent ? "ring-1 ring-primary" : ""}`}
+              >
+                <span className="font-mono mr-2">{String.fromCharCode(65 + i)}.</span>
+                {c}
+                {isStudent && (
+                  <Badge variant="outline" className="ml-2 text-[9px]">
+                    {t("exam.review.yourAnswer")}
+                  </Badge>
+                )}
+                {isCorrect && (
+                  <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                    {t("exam.review.correct")}
+                  </Badge>
+                )}
+              </div>
+            );
+          })}
+          {choice == null && (
+            <span className="text-muted-foreground italic">{t("exam.review.noAnswer")}</span>
+          )}
+        </div>
+      );
+    }
+    const raw = ans.code_content ?? ans.diagram_code ?? ans.answer_text ?? "";
+    if (!raw.trim())
+      return <span className="text-muted-foreground italic">{t("exam.review.noAnswer")}</span>;
+    return (
+      <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono">
+        {raw}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <div className="flex flex-wrap items-start gap-3">
         <Link to="/app/student/workshops">
           <Button variant="ghost" size="sm" className="shrink-0">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Talleres
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
           </Button>
         </Link>
         <div className="min-w-0">
@@ -175,8 +268,7 @@ function StudentWorkshopDetail() {
       {!submission && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Aún no has entregado este taller. Desde la lista de talleres puedes enviar tu trabajo
-            cuando el curso lo permita.
+            {t("exam.review.noSubmission")}
           </CardContent>
         </Card>
       )}
@@ -184,7 +276,7 @@ function StudentWorkshopDetail() {
       {workshop.description && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Descripción</CardTitle>
+            <CardTitle className="text-base">{t("common.description")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
             {workshop.description}
@@ -195,7 +287,7 @@ function StudentWorkshopDetail() {
       {workshop.instructions && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Instrucciones</CardTitle>
+            <CardTitle className="text-base">{t("dashboard.cards.workshopsStudent")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm whitespace-pre-wrap">{workshop.instructions}</CardContent>
         </Card>
@@ -208,90 +300,42 @@ function StudentWorkshopDetail() {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
         >
-          <ExternalLink className="h-4 w-4" /> Material o enlace del docente
+          <ExternalLink className="h-4 w-4" /> {t("dashboard.cards.workshopsStudent")}
         </a>
       )}
 
       {submission && (
         <>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex flex-wrap items-center gap-2">
-                Tu entrega
-                <Badge variant="outline" className="text-[10px] capitalize">
-                  {submission.status.replace(/_/g, " ")}
-                </Badge>
-              </CardTitle>
-              {submission.submitted_at && (
-                <p className="text-xs text-muted-foreground">
-                  Enviado: {new Date(submission.submitted_at).toLocaleString()}
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {submission.content && (
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Contenido</div>
-                  <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
-                    {submission.content}
-                  </div>
-                </div>
-              )}
-              {submission.external_link && (
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Enlace entregado
-                  </div>
-                  <a
-                    href={submission.external_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary break-all hover:underline"
-                  >
-                    {submission.external_link}
-                  </a>
-                </div>
-              )}
-              {submission.file_url && (
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Archivo</div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => downloadFile(submission.file_url!)}
-                  >
-                    <FileIcon className="h-4 w-4" />
-                    {fileLabel(submission.file_url)}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <MessageSquareText className="h-5 w-5 text-primary shrink-0" />
                 <div>
-                  <div className="font-medium">Calificación</div>
+                  <div className="font-medium">{t("exam.review.globalResult")}</div>
                   <div className="text-xs text-muted-foreground">
-                    Escala del curso {workshop.course?.grade_scale_min}–
-                    {workshop.course?.grade_scale_max} · Máx. taller {workshop.max_score}
+                    {submission.submitted_at
+                      ? t("exam.review.submittedAt", {
+                          when: new Date(submission.submitted_at).toLocaleString(),
+                        })
+                      : t("exam.review.submittedNoDate")}
                   </div>
                 </div>
               </div>
-              <div className="text-2xl font-semibold tabular-nums">
-                {gradeShow != null ? `${gradeShow} / ${workshop.max_score}` : "—"}
+              <div className="text-right">
+                <div className="text-2xl font-semibold tabular-nums">
+                  {gradeShow != null ? `${gradeShow} / ${workshop.max_score}` : "—"}
+                </div>
+                <Badge variant="outline" className="text-[10px] capitalize mt-1">
+                  {submission.status.replace(/_/g, " ")}
+                </Badge>
               </div>
             </CardContent>
           </Card>
 
-          {(submission.ai_feedback || submission.teacher_feedback) && (
+          {(submission.teacher_feedback || submission.ai_feedback) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Retroalimentación</CardTitle>
+                <CardTitle className="text-base">{t("exam.review.feedback")}</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {[
@@ -304,6 +348,66 @@ function StudentWorkshopDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Per-question review (mirrors the exam review UX) */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold tracking-tight">{t("exam.review.title")}</h2>
+            {questions.length === 0 && (
+              <p className="text-sm text-muted-foreground">{t("exam.review.noQuestions")}</p>
+            )}
+            {questions.map((q, idx) => {
+              const ans = answersByQid[q.id];
+              const earned = ans?.ai_grade;
+              return (
+                <Card key={q.id}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                      <span>
+                        {t("exam.question")} {idx + 1}
+                      </span>
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        {q.type}
+                      </Badge>
+                      {q.language && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {q.language}
+                        </Badge>
+                      )}
+                      <span className="text-sm font-normal text-muted-foreground ml-auto tabular-nums">
+                        {earned != null ? earned : "—"} / {q.points} pts
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="text-foreground whitespace-pre-wrap">{q.content}</div>
+                    {renderAnswer(q, ans)}
+                    {ans?.ai_feedback && (
+                      <div className="border-t pt-3">
+                        <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
+                          <span className="font-medium text-foreground block mb-1">
+                            {t("exam.review.feedback")}
+                          </span>
+                          <span className="text-muted-foreground whitespace-pre-wrap">
+                            {ans.ai_feedback}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {q.expected_rubric && (
+                      <details className="text-xs text-muted-foreground">
+                        <summary className="cursor-pointer hover:text-foreground">
+                          {t("exam.review.rubric")}
+                        </summary>
+                        <p className="mt-2 whitespace-pre-wrap border rounded-md p-2 bg-muted/20">
+                          {q.expected_rubric}
+                        </p>
+                      </details>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </>
       )}
     </div>
