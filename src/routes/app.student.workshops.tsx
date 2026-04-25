@@ -75,6 +75,8 @@ function StudentWorkshops() {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
 
   useEffect(() => {
     if (!user) return;
