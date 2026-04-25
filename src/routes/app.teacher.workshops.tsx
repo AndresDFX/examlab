@@ -52,6 +52,8 @@ import {
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
+import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
+import { ListChecks } from "lucide-react";
 
 const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,max_score,status
 Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,100,published
@@ -117,6 +119,10 @@ function TeacherWorkshops() {
   const [students, setStudents] = useState<Student[]>([]);
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
+
+  // Questions editor
+  const [questionsWs, setQuestionsWs] = useState<Workshop | null>(null);
+  const [questionsOpen, setQuestionsOpen] = useState(false);
 
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
@@ -681,6 +687,17 @@ function TeacherWorkshops() {
                         title="Asignación / excluir estudiantes"
                       >
                         <Users className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setQuestionsWs(ws);
+                          setQuestionsOpen(true);
+                        }}
+                        title="Preguntas del taller"
+                      >
+                        <ListChecks className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"

@@ -400,6 +400,30 @@ function TeacherAttendance() {
         </div>
       </div>
 
+      {/* Legend (above the grid) */}
+      <Card className="bg-muted/30 border-dashed">
+        <CardContent className="p-3 flex flex-wrap items-center gap-4 text-xs">
+          <span className="font-medium text-muted-foreground">Leyenda:</span>
+          {STATUS_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <div key={opt.value} className="flex items-center gap-1.5">
+                <span
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded border text-[11px] font-bold ${opt.color}`}
+                >
+                  {opt.short}
+                </span>
+                <span className="text-muted-foreground">
+                  <Icon className={`inline h-3 w-3 mr-1 ${opt.color}`} />
+                  {opt.short} = {opt.label}
+                </span>
+              </div>
+            );
+          })}
+          <span className="text-muted-foreground">— = sin registro</span>
+        </CardContent>
+      </Card>
+
       {/* Attendance grid */}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
@@ -502,8 +526,8 @@ function TeacherAttendance() {
                               </SelectItem>
                               {STATUS_OPTIONS.map((opt) => (
                                 <SelectItem key={opt.value} value={opt.value}>
-                                  <span className={`text-xs ${opt.color}`}>
-                                    <strong>{opt.short}</strong> · {opt.label}
+                                  <span className={`text-xs font-bold ${opt.color}`}>
+                                    {opt.short}
                                   </span>
                                 </SelectItem>
                               ))}
@@ -527,18 +551,6 @@ function TeacherAttendance() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        {STATUS_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
-          return (
-            <div key={opt.value} className="flex items-center gap-1">
-              <Icon className={`h-3 w-3 ${opt.color}`} /> {opt.label}
-            </div>
-          );
-        })}
-      </div>
 
       {/* New session dialog */}
       <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
