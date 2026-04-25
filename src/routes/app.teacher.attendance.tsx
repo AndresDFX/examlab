@@ -526,8 +526,8 @@ function TeacherAttendance() {
                               </SelectItem>
                               {STATUS_OPTIONS.map((opt) => (
                                 <SelectItem key={opt.value} value={opt.value}>
-                                  <span className={`text-xs ${opt.color}`}>
-                                    <strong>{opt.short}</strong> · {opt.label}
+                                  <span className={`text-xs font-bold ${opt.color}`}>
+                                    {opt.short}
                                   </span>
                                 </SelectItem>
                               ))}
