@@ -552,18 +552,6 @@ function TeacherAttendance() {
         </CardContent>
       </Card>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        {STATUS_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
-          return (
-            <div key={opt.value} className="flex items-center gap-1">
-              <Icon className={`h-3 w-3 ${opt.color}`} /> {opt.label}
-            </div>
-          );
-        })}
-      </div>
-
       {/* New session dialog */}
       <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
         <DialogContent className="max-w-sm">
