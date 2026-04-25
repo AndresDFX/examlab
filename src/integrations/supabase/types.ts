@@ -832,6 +832,93 @@ export type Database = {
           },
         ]
       }
+      workshop_questions: {
+        Row: {
+          content: string
+          created_at: string
+          expected_rubric: string | null
+          id: string
+          language: string | null
+          options: Json | null
+          points: number
+          position: number
+          starter_code: string | null
+          test_cases: Json | null
+          type: string
+          workshop_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          expected_rubric?: string | null
+          id?: string
+          language?: string | null
+          options?: Json | null
+          points?: number
+          position?: number
+          starter_code?: string | null
+          test_cases?: Json | null
+          type: string
+          workshop_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          expected_rubric?: string | null
+          id?: string
+          language?: string | null
+          options?: Json | null
+          points?: number
+          position?: number
+          starter_code?: string | null
+          test_cases?: Json | null
+          type?: string
+          workshop_id?: string
+        }
+        Relationships: []
+      }
+      workshop_submission_answers: {
+        Row: {
+          ai_feedback: string | null
+          ai_grade: number | null
+          answer_text: string | null
+          code_content: string | null
+          created_at: string
+          diagram_code: string | null
+          id: string
+          question_id: string
+          selected_option: string | null
+          submission_id: string
+          updated_at: string
+        }
+        Insert: {
+          ai_feedback?: string | null
+          ai_grade?: number | null
+          answer_text?: string | null
+          code_content?: string | null
+          created_at?: string
+          diagram_code?: string | null
+          id?: string
+          question_id: string
+          selected_option?: string | null
+          submission_id: string
+          updated_at?: string
+        }
+        Update: {
+          ai_feedback?: string | null
+          ai_grade?: number | null
+          answer_text?: string | null
+          code_content?: string | null
+          created_at?: string
+          diagram_code?: string | null
+          id?: string
+          question_id?: string
+          selected_option?: string | null
+          submission_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       workshop_submissions: {
         Row: {
           ai_feedback: string | null
