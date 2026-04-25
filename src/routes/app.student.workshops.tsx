@@ -28,7 +28,9 @@ import {
   Upload,
   FileIcon,
   X,
+  ListChecks,
 } from "lucide-react";
+import { StudentWorkshopTaker } from "@/components/WorkshopQuestions";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
