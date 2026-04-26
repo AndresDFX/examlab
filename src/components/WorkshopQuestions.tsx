@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { Plus, Trash2, Loader2, Sparkles, Send } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { MarkdownInline } from "@/components/MarkdownInline";
 
 export type WorkshopQuestion = {
   id: string;
