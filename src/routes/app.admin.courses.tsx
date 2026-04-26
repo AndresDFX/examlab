@@ -38,9 +38,14 @@ import {
   XSquare,
   Loader2,
   Settings,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { CutsEditor } from "@/components/CutsEditor";
+
+// grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
@@ -61,9 +66,9 @@ type Course = {
   max_exam_attempts: number;
 };
 
-type Cut = {
-  id: string;
-  course_id: string;
+type DraftCut = {
+  // Present only when the cut already exists in the DB.
+  id?: string;
   name: string;
   position: number;
   start_date: string | null;
@@ -89,6 +94,13 @@ function AdminCourses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
+
+  // Cortes evaluativos del curso en edición (en memoria; se persiste al guardar).
+  const [editingCuts, setEditingCuts] = useState<DraftCut[]>([]);
+  // IDs que existían al abrir el diálogo. Lo que falte al guardar se elimina.
+  const [originalCutIds, setOriginalCutIds] = useState<Set<string>>(new Set());
+  // Cortes expandidos en la UI para ver/editar sub-pesos.
+  const [expandedCuts, setExpandedCuts] = useState<Set<number>>(new Set());
 
   // Enrollment
   const [enrollOpen, setEnrollOpen] = useState(false);
@@ -148,7 +160,107 @@ function AdminCourses() {
       passing_grade: 3,
       max_exam_attempts: 1,
     });
+    setEditingCuts([]);
+    setOriginalCutIds(new Set());
+    setExpandedCuts(new Set());
     setOpen(true);
+  };
+
+  /** Carga los cortes existentes del curso al abrir el diálogo en modo edición. */
+  const openEdit = async (c: Course) => {
+    setEditing({
+      ...c,
+      start_date: toDateInput(c.start_date),
+      end_date: toDateInput(c.end_date),
+    });
+    const { data: cuts } = await db
+      .from("grade_cuts")
+      .select("*")
+      .eq("course_id", c.id)
+      .order("position");
+    const list = ((cuts ?? []) as DraftCut[]).map((x) => ({
+      id: x.id,
+      name: x.name,
+      position: x.position,
+      start_date: x.start_date,
+      end_date: x.end_date,
+      weight: Number(x.weight ?? 0),
+      exam_weight: Number(x.exam_weight ?? 0),
+      workshop_weight: Number(x.workshop_weight ?? 0),
+      attendance_weight: Number(x.attendance_weight ?? 0),
+      project_weight: Number(x.project_weight ?? 0),
+    }));
+    setEditingCuts(list);
+    setOriginalCutIds(new Set(list.map((x) => x.id!).filter(Boolean)));
+    setExpandedCuts(new Set());
+    setOpen(true);
+  };
+
+  /** Crea un corte vacío con defaults razonables. */
+  const makeEmptyCut = (position: number, n: number): DraftCut => ({
+    name: `Corte ${position + 1}`,
+    position,
+    start_date: null,
+    end_date: null,
+    weight: n > 0 ? Math.round(100 / n) : 0,
+    exam_weight: 40,
+    workshop_weight: 30,
+    attendance_weight: 10,
+    project_weight: 20,
+  });
+
+  /** Cambia el número total de cortes. Pide confirmación si se reduce y hay items. */
+  const handleCutCountChange = async (next: number) => {
+    const target = Math.max(0, Math.min(20, Math.floor(next || 0)));
+    const current = editingCuts.length;
+    if (target === current) return;
+
+    if (target > current) {
+      // Aumentar: agregar cortes vacíos al final.
+      const additions: DraftCut[] = [];
+      for (let i = current; i < target; i++) additions.push(makeEmptyCut(i, target));
+      setEditingCuts([...editingCuts, ...additions]);
+      return;
+    }
+
+    // Reducir: revisar si los cortes a eliminar (ya en BD) tienen items.
+    const toRemove = editingCuts.slice(target);
+    const idsInDb = toRemove.map((c) => c.id).filter(Boolean) as string[];
+    let itemsCount = 0;
+    if (idsInDb.length) {
+      const { count } = await db
+        .from("grade_cut_items")
+        .select("id", { count: "exact", head: true })
+        .in("cut_id", idsInDb);
+      itemsCount = count ?? 0;
+    }
+    const ok = await confirm({
+      title: `Reducir cortes a ${target}`,
+      description:
+        itemsCount > 0
+          ? `Se eliminarán ${toRemove.length} corte(s) y ${itemsCount} item(s) asociado(s). Esta acción se aplica al guardar y no se puede deshacer.`
+          : `Se eliminarán ${toRemove.length} corte(s). Esta acción se aplica al guardar.`,
+      confirmLabel: "Reducir",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    setEditingCuts(editingCuts.slice(0, target));
+    setExpandedCuts(new Set());
+  };
+
+  /** Aplica un parche a un corte por índice. */
+  const updateDraftCut = (index: number, patch: Partial<DraftCut>) => {
+    setEditingCuts((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)));
+  };
+
+  /** Toggle expand/collapse para los sub-pesos. */
+  const toggleExpand = (index: number) => {
+    setExpandedCuts((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   };
 
   const save = async () => {
@@ -177,16 +289,71 @@ function AdminCourses() {
       passing_grade: Number(editing.passing_grade ?? 3),
       max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
+    let courseId = editing.id ?? "";
     if (editing.id) {
       const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
       if (error) return toast.error(error.message);
     } else {
-      const { error } = await supabase.from("courses").insert(payload);
-      if (error) return toast.error(error.message);
+      const { data: created, error } = await supabase
+        .from("courses")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error || !created) return toast.error(error?.message ?? "Error creando curso");
+      courseId = created.id as string;
     }
+
+    // ── Persistencia de cortes evaluativos ──
+    try {
+      // 1) Eliminar cortes que estaban en la BD pero ya no en editingCuts.
+      const currentIds = new Set(editingCuts.map((c) => c.id).filter(Boolean) as string[]);
+      const toDelete = [...originalCutIds].filter((id) => !currentIds.has(id));
+      if (toDelete.length) {
+        // Borrar primero los items (no asumimos cascade en la FK).
+        await db.from("grade_cut_items").delete().in("cut_id", toDelete);
+        const { error: delErr } = await db.from("grade_cuts").delete().in("id", toDelete);
+        if (delErr) throw delErr;
+      }
+
+      // 2) Actualizar/insertar el resto.
+      for (let i = 0; i < editingCuts.length; i++) {
+        const c = editingCuts[i];
+        const cutPayload = {
+          course_id: courseId,
+          name: c.name?.trim() || `Corte ${i + 1}`,
+          position: i,
+          start_date: c.start_date || null,
+          end_date: c.end_date || null,
+          weight: Number(c.weight || 0),
+          exam_weight: Number(c.exam_weight || 0),
+          workshop_weight: Number(c.workshop_weight || 0),
+          attendance_weight: Number(c.attendance_weight || 0),
+          project_weight: Number(c.project_weight || 0),
+        };
+        if (c.id) {
+          const { error } = await db.from("grade_cuts").update(cutPayload).eq("id", c.id);
+          if (error) throw error;
+        } else {
+          const { error } = await db.from("grade_cuts").insert(cutPayload);
+          if (error) throw error;
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Curso guardado, pero falló la sincronización de cortes: ${msg}`);
+      setOpen(false);
+      setEditing(null);
+      setEditingCuts([]);
+      setOriginalCutIds(new Set());
+      load();
+      return;
+    }
+
     toast.success("Curso guardado correctamente");
     setOpen(false);
     setEditing(null);
+    setEditingCuts([]);
+    setOriginalCutIds(new Set());
     load();
   };
 
@@ -684,16 +851,7 @@ function AdminCourses() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          // Sanea fechas (Postgres `date` puede llegar como ISO si hay tz);
-                          // los inputs <date> requieren YYYY-MM-DD.
-                          setEditing({
-                            ...c,
-                            start_date: toDateInput(c.start_date),
-                            end_date: toDateInput(c.end_date),
-                          });
-                          setOpen(true);
-                        }}
+                        onClick={() => openEdit(c)}
                         title="Editar"
                       >
                         <Pencil className="h-4 w-4" />
@@ -910,14 +1068,191 @@ function AdminCourses() {
                   );
                 })()}
 
-                {/* ── Cortes evaluativos ── */}
-                {editing.id ? (
-                  <CutsEditor courseId={editing.id} />
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">
-                    Guarda el curso primero para configurar cortes evaluativos.
-                  </p>
-                )}
+                {/* ── Cortes evaluativos (inline, en memoria) ── */}
+                <div className="rounded-md border p-3 space-y-3">
+                  <div className="flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <Label className="text-xs">Cantidad de cortes</Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Define cuántos cortes evaluativos tiene este curso. 0 = sin cortes.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={20}
+                        className="w-20 text-right"
+                        value={editingCuts.length}
+                        onChange={(e) => {
+                          const v = e.target.value === "" ? 0 : Number(e.target.value);
+                          void handleCutCountChange(v);
+                        }}
+                      />
+                      {editingCuts.length > 0 &&
+                        (() => {
+                          const sumCuts = editingCuts.reduce(
+                            (a, c) => a + Number(c.weight || 0),
+                            0,
+                          );
+                          return (
+                            <Badge
+                              variant={sumCuts === 100 ? "default" : "destructive"}
+                              className="text-xs"
+                            >
+                              Total: {sumCuts}%
+                            </Badge>
+                          );
+                        })()}
+                    </div>
+                  </div>
+
+                  {editingCuts.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Sin cortes configurados.
+                    </p>
+                  )}
+
+                  <div className="space-y-2">
+                    {editingCuts.map((cut, idx) => {
+                      const subSum =
+                        Number(cut.exam_weight || 0) +
+                        Number(cut.workshop_weight || 0) +
+                        Number(cut.attendance_weight || 0) +
+                        Number(cut.project_weight || 0);
+                      const isOpen = expandedCuts.has(idx);
+                      return (
+                        <div
+                          key={cut.id ?? `new-${idx}`}
+                          className="rounded border bg-muted/30 p-2 space-y-2"
+                        >
+                          <div className="grid items-center gap-2 md:grid-cols-[auto_2fr_1fr_1fr_1fr]">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleExpand(idx)}
+                              className="h-8 w-8 p-0"
+                              title={isOpen ? "Ocultar sub-pesos" : "Ver sub-pesos"}
+                            >
+                              {isOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Input
+                              value={cut.name}
+                              onChange={(e) => updateDraftCut(idx, { name: e.target.value })}
+                              placeholder={`Corte ${idx + 1}`}
+                            />
+                            <Input
+                              type="date"
+                              value={cut.start_date ?? ""}
+                              onChange={(e) =>
+                                updateDraftCut(idx, { start_date: e.target.value || null })
+                              }
+                            />
+                            <Input
+                              type="date"
+                              value={cut.end_date ?? ""}
+                              onChange={(e) =>
+                                updateDraftCut(idx, { end_date: e.target.value || null })
+                              }
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={cut.weight || ""}
+                              onChange={(e) =>
+                                updateDraftCut(idx, {
+                                  weight: e.target.value === "" ? 0 : Number(e.target.value),
+                                })
+                              }
+                              placeholder="Peso %"
+                            />
+                          </div>
+
+                          {isOpen && (
+                            <div className="space-y-2 rounded bg-background p-2">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <div>
+                                  <Label className="text-xs">Exámenes %</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={cut.exam_weight || ""}
+                                    onChange={(e) =>
+                                      updateDraftCut(idx, {
+                                        exam_weight:
+                                          e.target.value === "" ? 0 : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Talleres %</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={cut.workshop_weight || ""}
+                                    onChange={(e) =>
+                                      updateDraftCut(idx, {
+                                        workshop_weight:
+                                          e.target.value === "" ? 0 : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Asistencia %</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={cut.attendance_weight || ""}
+                                    onChange={(e) =>
+                                      updateDraftCut(idx, {
+                                        attendance_weight:
+                                          e.target.value === "" ? 0 : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Proyecto %</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={cut.project_weight || ""}
+                                    onChange={(e) =>
+                                      updateDraftCut(idx, {
+                                        project_weight:
+                                          e.target.value === "" ? 0 : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-end">
+                                <Badge
+                                  variant={subSum === 100 ? "secondary" : "destructive"}
+                                  className="text-xs"
+                                >
+                                  Sub-pesos: {subSum}%
+                                </Badge>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {/* ── Reintentos por examen ── */}
