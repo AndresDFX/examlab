@@ -289,16 +289,71 @@ function AdminCourses() {
       passing_grade: Number(editing.passing_grade ?? 3),
       max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
+    let courseId = editing.id ?? "";
     if (editing.id) {
       const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
       if (error) return toast.error(error.message);
     } else {
-      const { error } = await supabase.from("courses").insert(payload);
-      if (error) return toast.error(error.message);
+      const { data: created, error } = await supabase
+        .from("courses")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error || !created) return toast.error(error?.message ?? "Error creando curso");
+      courseId = created.id as string;
     }
+
+    // ── Persistencia de cortes evaluativos ──
+    try {
+      // 1) Eliminar cortes que estaban en la BD pero ya no en editingCuts.
+      const currentIds = new Set(editingCuts.map((c) => c.id).filter(Boolean) as string[]);
+      const toDelete = [...originalCutIds].filter((id) => !currentIds.has(id));
+      if (toDelete.length) {
+        // Borrar primero los items (no asumimos cascade en la FK).
+        await db.from("grade_cut_items").delete().in("cut_id", toDelete);
+        const { error: delErr } = await db.from("grade_cuts").delete().in("id", toDelete);
+        if (delErr) throw delErr;
+      }
+
+      // 2) Actualizar/insertar el resto.
+      for (let i = 0; i < editingCuts.length; i++) {
+        const c = editingCuts[i];
+        const cutPayload = {
+          course_id: courseId,
+          name: c.name?.trim() || `Corte ${i + 1}`,
+          position: i,
+          start_date: c.start_date || null,
+          end_date: c.end_date || null,
+          weight: Number(c.weight || 0),
+          exam_weight: Number(c.exam_weight || 0),
+          workshop_weight: Number(c.workshop_weight || 0),
+          attendance_weight: Number(c.attendance_weight || 0),
+          project_weight: Number(c.project_weight || 0),
+        };
+        if (c.id) {
+          const { error } = await db.from("grade_cuts").update(cutPayload).eq("id", c.id);
+          if (error) throw error;
+        } else {
+          const { error } = await db.from("grade_cuts").insert(cutPayload);
+          if (error) throw error;
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Curso guardado, pero falló la sincronización de cortes: ${msg}`);
+      setOpen(false);
+      setEditing(null);
+      setEditingCuts([]);
+      setOriginalCutIds(new Set());
+      load();
+      return;
+    }
+
     toast.success("Curso guardado correctamente");
     setOpen(false);
     setEditing(null);
+    setEditingCuts([]);
+    setOriginalCutIds(new Set());
     load();
   };
 
