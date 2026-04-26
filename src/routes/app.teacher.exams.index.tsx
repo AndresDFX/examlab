@@ -67,21 +67,24 @@ function TeacherExams() {
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   const load = async () => {
-    const [{ data: cs }, { data: es }] = await Promise.all([
+    const [{ data: cs }, { data: es }, { data: cs2 }] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
       supabase
         .from("exams")
         .select("*, course:courses(name, period)")
         .order("start_time", { ascending: false }),
+      (supabase as any).from("grade_cuts").select("id, course_id, name").order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
+    setCuts((cs2 ?? []) as Cut[]);
   };
   useEffect(() => {
     load();
