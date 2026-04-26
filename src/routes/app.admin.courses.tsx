@@ -796,16 +796,7 @@ function AdminCourses() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          // Sanea fechas (Postgres `date` puede llegar como ISO si hay tz);
-                          // los inputs <date> requieren YYYY-MM-DD.
-                          setEditing({
-                            ...c,
-                            start_date: toDateInput(c.start_date),
-                            end_date: toDateInput(c.end_date),
-                          });
-                          setOpen(true);
-                        }}
+                        onClick={() => openEdit(c)}
                         title="Editar"
                       >
                         <Pencil className="h-4 w-4" />
