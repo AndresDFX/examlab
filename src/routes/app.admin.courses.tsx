@@ -141,8 +141,9 @@ function AdminCourses() {
       grade_scale_min: 0,
       grade_scale_max: 5,
       exam_weight: 40,
-      workshop_weight: 40,
+      workshop_weight: 30,
       attendance_weight: 10,
+      project_weight: 20,
       passing_grade: 3,
       max_exam_attempts: 1,
     });
