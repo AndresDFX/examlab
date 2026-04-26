@@ -44,6 +44,7 @@ function ExamEditor() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
+  const [cuts, setCuts] = useState<Array<{ id: string; name: string }>>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
