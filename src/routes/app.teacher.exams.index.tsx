@@ -136,6 +136,7 @@ function TeacherExams() {
       shuffle_enabled: !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
       created_by: user.id,
+      cut_id: courseIds.length === 1 ? form.cut_id || null : null,
     };
 
     // Create one exam per selected course
