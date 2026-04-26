@@ -1471,6 +1471,165 @@ function TeacherWorkshops() {
                     </div>
                   )}
 
+                  {/* Per-question review & grading (editable) */}
+                  {wsQuestions.length > 0 && (
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
+                        <AccordionTrigger className="px-3 py-2 text-sm">
+                          Revisar respuestas por pregunta ({wsQuestions.length})
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3 space-y-3">
+                          {wsQuestions.map((q, idx) => {
+                            const ans = (answersBySub[sub.id] ?? []).find(
+                              (a) => a.question_id === q.id,
+                            );
+                            const raw =
+                              ans?.code_content ??
+                              ans?.diagram_code ??
+                              ans?.selected_option ??
+                              ans?.answer_text ??
+                              "";
+                            return (
+                              <div key={q.id} className="rounded-md border p-3 space-y-2 bg-muted/20">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {idx + 1}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-[10px] capitalize">
+                                    {q.type}
+                                  </Badge>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    máx {q.points} pts
+                                  </span>
+                                </div>
+                                <div className="text-sm">
+                                  <MarkdownInline>{q.content}</MarkdownInline>
+                                </div>
+                                <div>
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    Respuesta del estudiante
+                                  </Label>
+                                  {q.type === "cerrada" ? (
+                                    <div className="text-sm mt-1">
+                                      {(() => {
+                                        const i =
+                                          ans?.selected_option != null
+                                            ? Number(ans.selected_option)
+                                            : -1;
+                                        const choice = q.options?.choices?.[i];
+                                        const correct = q.options?.correct_index;
+                                        return choice != null ? (
+                                          <span
+                                            className={
+                                              correct === i
+                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                : "text-destructive"
+                                            }
+                                          >
+                                            {String.fromCharCode(65 + i)}. {choice}
+                                          </span>
+                                        ) : (
+                                          <span className="italic text-muted-foreground">
+                                            Sin respuesta
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+                                  ) : raw ? (
+                                    <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
+                                      {raw}
+                                    </pre>
+                                  ) : (
+                                    <p className="text-xs italic text-muted-foreground mt-1">
+                                      Sin respuesta
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
+                                  <div>
+                                    <Label className="text-[11px]">Nota IA</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      max={q.points}
+                                      step="0.1"
+                                      value={ans?.ai_grade ?? ""}
+                                      onChange={(e) =>
+                                        patchAnswer(sub.id, q.id, {
+                                          ai_grade:
+                                            e.target.value === "" ? null : Number(e.target.value),
+                                        })
+                                      }
+                                      className="h-8 text-sm mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[11px]">Retroalimentación</Label>
+                                    <Textarea
+                                      rows={2}
+                                      value={ans?.ai_feedback ?? ""}
+                                      onChange={(e) =>
+                                        patchAnswer(sub.id, q.id, { ai_feedback: e.target.value })
+                                      }
+                                      className="text-sm mt-1"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => saveAnswerGrade(sub.id, q.id)}
+                                    disabled={savingAnswerId === ans?.id}
+                                  >
+                                    {savingAnswerId === ans?.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                    )}
+                                    Guardar pregunta
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => aiRegradeAnswer(sub.id, q, ans)}
+                                    disabled={aiGradingAnswerId === ans?.id}
+                                  >
+                                    {aiGradingAnswerId === ans?.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                    )}
+                                    Recalificar IA
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                const newFinal = recomputeFinalGrade(sub.id);
+                                setWsSubs((prev) =>
+                                  prev.map((s) =>
+                                    s.id === sub.id ? { ...s, final_grade: newFinal } : s,
+                                  ),
+                                );
+                                toast.info(
+                                  `Nota global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar nota" para persistir.`,
+                                );
+                              }}
+                            >
+                              Recalcular nota global
+                            </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
+
                   {/* Manual grading / override */}
                   <div className="space-y-2">
                     <div>
