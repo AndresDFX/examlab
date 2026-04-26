@@ -40,7 +40,10 @@ import {
   Settings,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { CutsEditor } from "@/components/CutsEditor";
+
+// grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
