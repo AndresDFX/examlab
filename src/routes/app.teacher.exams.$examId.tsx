@@ -414,6 +414,32 @@ function ExamEditor() {
                   />
                 </div>
               </div>
+              <div>
+                <Label>Corte de evaluación (opcional)</Label>
+                <Select
+                  value={(exam as any).cut_id ?? "__none__"}
+                  onValueChange={(v) =>
+                    setExam({ ...exam, cut_id: v === "__none__" ? null : v } as any)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin corte asignado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                    {cuts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {cuts.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este curso aún no tiene cortes definidos.
+                  </p>
+                )}
+              </div>
               <Button onClick={saveExam}>Guardar cambios</Button>
             </CardContent>
           </Card>
