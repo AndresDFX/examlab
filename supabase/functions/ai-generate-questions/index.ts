@@ -98,12 +98,19 @@ Idioma obligatorio: ${langName}.`,
       });
     }
 
-    const { topics, type, count = 5, examId, language } = body;
-    if (!topics || !type || !examId) {
-      return new Response(JSON.stringify({ error: "topics, type, examId requeridos" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const { topics, type, count = 5, examId, language, targetTable } = body;
+    // targetTable: "questions" (default, exam questions) | "workshop_questions"
+    const isWorkshop = targetTable === "workshop_questions";
+    // For workshop flow the client passes the workshopId in `examId` (legacy field reuse).
+    const targetId = examId;
+    if (!topics || !type || !targetId) {
+      return new Response(
+        JSON.stringify({ error: "topics, type y (examId|workshopId) requeridos" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
     const allowedLanguages = new Set(["java", "python", "javascript"]);
     let codeLanguage: string | null = null;
