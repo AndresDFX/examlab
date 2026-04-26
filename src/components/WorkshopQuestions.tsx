@@ -135,44 +135,21 @@ export function TeacherWorkshopQuestionsEditor({
     }
     setAiLoading(true);
     try {
-      // Reuse the exam AI generator with a synthetic flow: we ask AI Gateway directly
-      // by calling the exam endpoint and storing in workshop_questions.
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
         body: {
           topics: aiTopics,
           type: aiType,
           count: aiCount,
-          examId: workshopId, // stored only for prompt language lookup; ignored for inserts here
+          examId: workshopId, // legacy field reused by the function as targetId
           language: aiLanguage,
           courseLanguage,
           targetTable: "workshop_questions",
         },
       });
-      if (error || data?.error) {
-        // Fallback: function may not yet support targetTable. Insert generated payload manually.
-        if (data?.inserted && Array.isArray(data.inserted)) {
-          // Move records: copy generated content into workshop_questions, then delete the bogus exam rows
-          const rows = data.inserted as any[];
-          const payload = rows.map((r, i) => ({
-            workshop_id: workshopId,
-            type: r.type,
-            content: r.content,
-            expected_rubric: r.expected_rubric,
-            options: r.options,
-            position: questions.length + i,
-            points: 1,
-            language: r.language,
-          }));
-          await supabase.from("workshop_questions").insert(payload);
-          // best-effort cleanup of mistakenly-inserted exam questions (no exam exists with that id)
-          await supabase.from("questions").delete().in(
-            "id",
-            rows.map((r) => r.id),
-          );
-          toast.success(`${payload.length} pregunta(s) generadas con IA`);
-        } else {
-          toast.error(error?.message ?? data?.error ?? "Error generando con IA");
-        }
+      if (error) {
+        toast.error(error.message ?? "Error generando con IA");
+      } else if (data?.error) {
+        toast.error(data.error);
       } else if (data?.inserted) {
         toast.success(`${data.inserted.length} pregunta(s) generadas con IA`);
       }

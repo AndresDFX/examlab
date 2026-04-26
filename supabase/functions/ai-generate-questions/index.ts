@@ -98,12 +98,19 @@ Idioma obligatorio: ${langName}.`,
       });
     }
 
-    const { topics, type, count = 5, examId, language } = body;
-    if (!topics || !type || !examId) {
-      return new Response(JSON.stringify({ error: "topics, type, examId requeridos" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const { topics, type, count = 5, examId, language, targetTable } = body;
+    // targetTable: "questions" (default, exam questions) | "workshop_questions"
+    const isWorkshop = targetTable === "workshop_questions";
+    // For workshop flow the client passes the workshopId in `examId` (legacy field reuse).
+    const targetId = examId;
+    if (!topics || !type || !targetId) {
+      return new Response(
+        JSON.stringify({ error: "topics, type y (examId|workshopId) requeridos" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
     const allowedLanguages = new Set(["java", "python", "javascript"]);
     let codeLanguage: string | null = null;
@@ -123,14 +130,24 @@ Idioma obligatorio: ${langName}.`,
     let courseLanguage: "es" | "en" = "es";
     if (body.courseLanguage === "en" || body.courseLanguage === "es") {
       courseLanguage = body.courseLanguage;
-    } else if (examId) {
-      const { data: examRow } = await admin0
-        .from("exams")
-        .select("course:courses(language)")
-        .eq("id", examId)
-        .maybeSingle();
-      const lng = (examRow as any)?.course?.language;
-      if (lng === "en" || lng === "es") courseLanguage = lng;
+    } else if (targetId) {
+      if (isWorkshop) {
+        const { data: wRow } = await admin0
+          .from("workshops")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (wRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      } else {
+        const { data: examRow } = await admin0
+          .from("exams")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (examRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      }
     }
     const langName = courseLanguage === "en" ? "inglés (English)" : "español";
 
@@ -241,17 +258,20 @@ Idioma de salida obligatorio: ${langName}.`;
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+    const tableName = isWorkshop ? "workshop_questions" : "questions";
+    const fkColumn = isWorkshop ? "workshop_id" : "exam_id";
+
     // Find current max position
     const { data: existing } = await admin
-      .from("questions")
+      .from(tableName)
       .select("position")
-      .eq("exam_id", examId)
+      .eq(fkColumn, targetId)
       .order("position", { ascending: false })
       .limit(1);
     let pos = existing?.[0]?.position ?? -1;
 
     const toInsert = questions.map((q: any) => ({
-      exam_id: examId,
+      [fkColumn]: targetId,
       type,
       content: q.content,
       expected_rubric: q.expected_rubric,
@@ -261,17 +281,33 @@ Idioma de salida obligatorio: ${langName}.`;
       language: codeLanguage,
     }));
     const { data: inserted, error: insErr } = await admin
-      .from("questions")
+      .from(tableName)
       .insert(toInsert)
       .select();
-    if (insErr) throw insErr;
+    if (insErr) {
+      console.error("Insert error:", insErr);
+      return new Response(
+        JSON.stringify({
+          error: insErr.message ?? "Error al insertar preguntas",
+          details: insErr.details ?? null,
+          code: insErr.code ?? null,
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(JSON.stringify({ ok: true, inserted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error(e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+    console.error("ai-generate-questions error:", e);
+    const msg =
+      e instanceof Error
+        ? e.message
+        : typeof e === "object" && e !== null
+          ? JSON.stringify(e)
+          : String(e);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
