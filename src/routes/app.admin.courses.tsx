@@ -830,7 +830,7 @@ function AdminCourses() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
                     <Label className="text-xs">Peso exámenes (%)</Label>
                     <Input
@@ -873,12 +873,27 @@ function AdminCourses() {
                       }
                     />
                   </div>
+                  <div>
+                    <Label className="text-xs">Peso proyecto (%)</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={editing.project_weight || ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          project_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
                 {(() => {
                   const total =
                     (editing.exam_weight ?? 0) +
                     (editing.workshop_weight ?? 0) +
-                    (editing.attendance_weight ?? 0);
+                    (editing.attendance_weight ?? 0) +
+                    (editing.project_weight ?? 0);
                   return (
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground">
@@ -893,6 +908,15 @@ function AdminCourses() {
                     </div>
                   );
                 })()}
+
+                {/* ── Cortes evaluativos ── */}
+                {editing.id ? (
+                  <CutsEditor courseId={editing.id} />
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Guarda el curso primero para configurar cortes evaluativos.
+                  </p>
+                )}
               </div>
 
               {/* ── Reintentos por examen ── */}
