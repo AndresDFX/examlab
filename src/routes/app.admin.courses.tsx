@@ -1113,7 +1113,9 @@ function AdminCourses() {
                     </p>
                   )}
 
-                  <div className="space-y-2">
+                  <div
+                    className={`space-y-2 ${editingCuts.length > 3 ? "max-h-[40vh] overflow-y-auto pr-1" : ""}`}
+                  >
                     {editingCuts.map((cut, idx) => {
                       const subSum =
                         Number(cut.exam_weight || 0) +
@@ -1124,15 +1126,16 @@ function AdminCourses() {
                       return (
                         <div
                           key={cut.id ?? `new-${idx}`}
-                          className="rounded border bg-muted/30 p-2 space-y-2"
+                          className="rounded border bg-muted/30 p-2 space-y-2 min-w-0"
                         >
-                          <div className="grid items-center gap-2 md:grid-cols-[auto_2fr_1fr_1fr_1fr]">
+                          {/* Fila 1: chevron + nombre (siempre full width en mobile) */}
+                          <div className="flex items-center gap-2 min-w-0">
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               onClick={() => toggleExpand(idx)}
-                              className="h-8 w-8 p-0"
+                              className="h-8 w-8 p-0 shrink-0"
                               title={isOpen ? "Ocultar sub-pesos" : "Ver sub-pesos"}
                             >
                               {isOpen ? (
@@ -1145,54 +1148,55 @@ function AdminCourses() {
                               value={cut.name}
                               onChange={(e) => updateDraftCut(idx, { name: e.target.value })}
                               placeholder={`Corte ${idx + 1}`}
+                              className="min-w-0 flex-1"
                             />
-                            <Input
-                              type="date"
-                              value={cut.start_date ?? ""}
-                              onChange={(e) =>
-                                updateDraftCut(idx, { start_date: e.target.value || null })
-                              }
-                            />
-                            <Input
-                              type="date"
-                              value={cut.end_date ?? ""}
-                              onChange={(e) =>
-                                updateDraftCut(idx, { end_date: e.target.value || null })
-                              }
-                            />
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={cut.weight || ""}
-                              onChange={(e) =>
-                                updateDraftCut(idx, {
-                                  weight: e.target.value === "" ? 0 : Number(e.target.value),
-                                })
-                              }
-                              placeholder="Peso %"
-                            />
+                          </div>
+                          {/* Fila 2: fechas + peso (3 columnas desde sm) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 min-w-0">
+                            <div className="min-w-0">
+                              <Label className="text-[10px] text-muted-foreground">Inicio</Label>
+                              <Input
+                                type="date"
+                                value={cut.start_date ?? ""}
+                                onChange={(e) =>
+                                  updateDraftCut(idx, { start_date: e.target.value || null })
+                                }
+                                className="min-w-0 w-full"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <Label className="text-[10px] text-muted-foreground">Fin</Label>
+                              <Input
+                                type="date"
+                                value={cut.end_date ?? ""}
+                                onChange={(e) =>
+                                  updateDraftCut(idx, { end_date: e.target.value || null })
+                                }
+                                className="min-w-0 w-full"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <Label className="text-[10px] text-muted-foreground">Peso %</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={cut.weight || ""}
+                                onChange={(e) =>
+                                  updateDraftCut(idx, {
+                                    weight: e.target.value === "" ? 0 : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="0-100"
+                                className="min-w-0 w-full"
+                              />
+                            </div>
                           </div>
 
                           {isOpen && (
-                            <div className="space-y-2 rounded bg-background p-2">
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                <div>
-                                  <Label className="text-xs">Exámenes %</Label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={cut.exam_weight || ""}
-                                    onChange={(e) =>
-                                      updateDraftCut(idx, {
-                                        exam_weight:
-                                          e.target.value === "" ? 0 : Number(e.target.value),
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <div>
+                            <div className="space-y-2 rounded bg-background p-2 min-w-0">
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
+                                <div className="min-w-0">
                                   <Label className="text-xs">Talleres %</Label>
                                   <Input
                                     type="number"
@@ -1205,9 +1209,42 @@ function AdminCourses() {
                                           e.target.value === "" ? 0 : Number(e.target.value),
                                       })
                                     }
+                                    className="h-8 min-w-0 w-full"
                                   />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
+                                  <Label className="text-xs">Exámenes %</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={cut.exam_weight || ""}
+                                    onChange={(e) =>
+                                      updateDraftCut(idx, {
+                                        exam_weight:
+                                          e.target.value === "" ? 0 : Number(e.target.value),
+                                      })
+                                    }
+                                    className="h-8 min-w-0 w-full"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <Label className="text-xs">Proyectos %</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={cut.project_weight || ""}
+                                    onChange={(e) =>
+                                      updateDraftCut(idx, {
+                                        project_weight:
+                                          e.target.value === "" ? 0 : Number(e.target.value),
+                                      })
+                                    }
+                                    className="h-8 min-w-0 w-full"
+                                  />
+                                </div>
+                                <div className="min-w-0">
                                   <Label className="text-xs">Asistencia %</Label>
                                   <Input
                                     type="number"
@@ -1220,21 +1257,7 @@ function AdminCourses() {
                                           e.target.value === "" ? 0 : Number(e.target.value),
                                       })
                                     }
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Proyecto %</Label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={cut.project_weight || ""}
-                                    onChange={(e) =>
-                                      updateDraftCut(idx, {
-                                        project_weight:
-                                          e.target.value === "" ? 0 : Number(e.target.value),
-                                      })
-                                    }
+                                    className="h-8 min-w-0 w-full"
                                   />
                                 </div>
                               </div>
