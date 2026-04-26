@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeFinalGrade,
+  computeCutGrade,
+  computeCourseFinalGrade,
   type BreakdownItem,
+  type CutWeights,
   type ManualOverride,
   type QuestionPoints,
 } from "./grade";
