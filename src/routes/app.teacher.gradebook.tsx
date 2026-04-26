@@ -33,6 +33,16 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import {
+  computeCutGrade,
+  computeCourseFinalGrade,
+  type CutComponentScores,
+  type CutWeights,
+} from "@/utils/grade";
+
+// grade_cuts/projects pueden no estar en types.ts auto-generados
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export const Route = createFileRoute("/app/teacher/gradebook")({ component: Gradebook });
 
@@ -45,8 +55,48 @@ type Course = {
   exam_weight: number;
   workshop_weight: number;
 };
-type Exam = { id: string; title: string; parent_exam_id: string | null; course_id: string };
-type Workshop = { id: string; title: string; course_id: string; max_score: number };
+type Exam = {
+  id: string;
+  title: string;
+  parent_exam_id: string | null;
+  course_id: string;
+  cut_id?: string | null;
+};
+type Workshop = {
+  id: string;
+  title: string;
+  course_id: string;
+  max_score: number;
+  cut_id?: string | null;
+};
+type Project = {
+  id: string;
+  title: string;
+  course_id: string;
+  max_score: number;
+  cut_id: string | null;
+};
+type Cut = {
+  id: string;
+  name: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+  weight: number;
+  workshop_weight: number;
+  exam_weight: number;
+  project_weight: number;
+  attendance_weight: number;
+};
+type AttSession = { id: string; session_date: string };
+type AttRecord = { session_id: string; user_id: string; status: string };
+type ProjectSub = {
+  project_id: string;
+  user_id: string;
+  ai_grade: number | null;
+  final_grade: number | null;
+  status: string;
+};
 type Student = {
   id: string;
   full_name: string;
