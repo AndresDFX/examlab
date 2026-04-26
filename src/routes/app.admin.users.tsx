@@ -199,7 +199,13 @@ function AdminUsers() {
         }
         const result = (data?.result ?? [])[0];
         if (!result?.ok) {
-          toast.error(result?.error ?? "Error al crear usuario");
+          if (result?.duplicate) {
+            toast.error(
+              `No se pudo crear: ya existe un usuario con el email "${editing.institutional_email}"`,
+            );
+          } else {
+            toast.error(result?.error ?? result?.reason ?? "Error al crear usuario");
+          }
           return;
         }
         toast.success("Usuario creado correctamente");
