@@ -48,17 +48,26 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ws
               type: "function",
               function: {
                 name: "score_workshop",
-                description: "Calificar entrega de taller",
+                description: "Calificar entrega de taller y estimar si fue generada por IA",
                 parameters: {
                   type: "object",
                   properties: {
                     score: { type: "number", description: `Puntaje entre 0 y ${maxScore ?? 100}` },
                     feedback: {
                       type: "string",
-                      description: "Retroalimentación detallada en español",
+                      description: "Retroalimentación detallada",
+                    },
+                    ai_likelihood: {
+                      type: "number",
+                      description:
+                        "Probabilidad 0..1 de que la respuesta del estudiante haya sido generada por IA",
+                    },
+                    ai_reasons: {
+                      type: "string",
+                      description: "Breve razonamiento sobre la detección de IA",
                     },
                   },
-                  required: ["score", "feedback"],
+                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
                 },
               },
             },
@@ -77,12 +86,23 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ws
       const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
       const args = tc
         ? JSON.parse(tc.function.arguments)
-        : { score: 0, feedback: "No se pudo generar retroalimentación" };
+        : { score: 0, feedback: "No se pudo generar retroalimentación", ai_likelihood: 0, ai_reasons: "" };
       const score = Math.max(0, Math.min(Number(maxScore ?? 100), Number(args.score) || 0));
+      const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
 
-      return new Response(JSON.stringify({ ok: true, grade: score, feedback: args.feedback }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          grade: score,
+          feedback: args.feedback,
+          ai_likelihood: aiLikelihood,
+          ai_detected: aiLikelihood >= 0.6,
+          ai_reasons: args.ai_reasons ?? "",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // ── Workshop QUESTION grading (per-question, supports diagrama/codigo) ──
