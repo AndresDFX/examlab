@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +33,16 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import {
+  computeCutGrade,
+  computeCourseFinalGrade,
+  type CutComponentScores,
+  type CutWeights,
+} from "@/utils/grade";
+
+// grade_cuts/projects pueden no estar en types.ts auto-generados
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export const Route = createFileRoute("/app/teacher/gradebook")({ component: Gradebook });
 
@@ -45,8 +55,48 @@ type Course = {
   exam_weight: number;
   workshop_weight: number;
 };
-type Exam = { id: string; title: string; parent_exam_id: string | null; course_id: string };
-type Workshop = { id: string; title: string; course_id: string; max_score: number };
+type Exam = {
+  id: string;
+  title: string;
+  parent_exam_id: string | null;
+  course_id: string;
+  cut_id?: string | null;
+};
+type Workshop = {
+  id: string;
+  title: string;
+  course_id: string;
+  max_score: number;
+  cut_id?: string | null;
+};
+type Project = {
+  id: string;
+  title: string;
+  course_id: string;
+  max_score: number;
+  cut_id: string | null;
+};
+type Cut = {
+  id: string;
+  name: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+  weight: number;
+  workshop_weight: number;
+  exam_weight: number;
+  project_weight: number;
+  attendance_weight: number;
+};
+type AttSession = { id: string; session_date: string };
+type AttRecord = { session_id: string; user_id: string; status: string };
+type ProjectSub = {
+  project_id: string;
+  user_id: string;
+  ai_grade: number | null;
+  final_grade: number | null;
+  status: string;
+};
 type Student = {
   id: string;
   full_name: string;
@@ -91,6 +141,12 @@ function Gradebook() {
   const [examSubs, setExamSubs] = useState<ExamSub[]>([]);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [allExams, setAllExams] = useState<Exam[]>([]);
+  const [allWorkshops, setAllWorkshops] = useState<Workshop[]>([]);
+  const [cuts, setCuts] = useState<Cut[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectSubs, setProjectSubs] = useState<ProjectSub[]>([]);
+  const [attSessions, setAttSessions] = useState<AttSession[]>([]);
+  const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
   const [edits, setEdits] = useState<EditMap>({});
   const [saving, setSaving] = useState(false);
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
@@ -113,21 +169,46 @@ function Gradebook() {
   const loadCourse = useCallback(async () => {
     if (!courseId) return;
 
-    // Exams
+    // Exams (incluye cut_id para el consolidado de cortes)
     const { data: exams } = await supabase
       .from("exams")
-      .select("id, title, parent_exam_id, course_id")
+      .select("id, title, parent_exam_id, course_id, cut_id")
       .eq("course_id", courseId)
       .order("start_time");
 
     // Workshops
     const { data: workshops } = await supabase
       .from("workshops")
-      .select("id, title, course_id, max_score")
+      .select("id, title, course_id, max_score, cut_id")
       .eq("course_id", courseId)
       .order("created_at");
 
+    // Cortes evaluativos
+    const { data: cutsData } = await db
+      .from("grade_cuts")
+      .select(
+        "id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+      )
+      .eq("course_id", courseId)
+      .order("position");
+
+    // Proyectos
+    const { data: projectsData } = await db
+      .from("projects")
+      .select("id, title, course_id, max_score, cut_id")
+      .eq("course_id", courseId);
+
+    // Sesiones de asistencia
+    const { data: sessions } = await db
+      .from("attendance_sessions")
+      .select("id, session_date")
+      .eq("course_id", courseId);
+
     setAllExams((exams ?? []) as Exam[]);
+    setAllWorkshops((workshops ?? []) as Workshop[]);
+    setCuts((cutsData ?? []) as Cut[]);
+    setProjects((projectsData ?? []) as Project[]);
+    setAttSessions((sessions ?? []) as AttSession[]);
 
     // Build columns: original exams (no parent) + workshops
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
@@ -183,6 +264,30 @@ function Gradebook() {
       setWsSubs((ws ?? []) as WsSub[]);
     } else {
       setWsSubs([]);
+    }
+
+    // Project submissions (todos los estudiantes)
+    const prjIds = ((projectsData ?? []) as Project[]).map((p) => p.id);
+    if (prjIds.length && userIds.length) {
+      const { data: ps } = await db
+        .from("project_submissions")
+        .select("project_id, user_id, ai_grade, final_grade, status")
+        .in("project_id", prjIds);
+      setProjectSubs((ps ?? []) as ProjectSub[]);
+    } else {
+      setProjectSubs([]);
+    }
+
+    // Attendance records (todas las sesiones del curso)
+    const sessIds = ((sessions ?? []) as AttSession[]).map((s) => s.id);
+    if (sessIds.length && userIds.length) {
+      const { data: ar } = await db
+        .from("attendance_records")
+        .select("session_id, user_id, status")
+        .in("session_id", sessIds);
+      setAttRecords((ar ?? []) as AttRecord[]);
+    } else {
+      setAttRecords([]);
     }
 
     setEdits({});
@@ -339,6 +444,115 @@ function Gradebook() {
   const hasEdits = Object.values(edits).some((v) => v !== "");
   const selectedCourse = courses.find((c) => c.id === courseId);
 
+  // ───────── Consolidado por cortes (Curso → Cortes → 4 componentes) ─────────
+  // Reusa la misma lógica que la vista del estudiante para garantizar consistencia.
+  const consolidated = useMemo(() => {
+    if (!selectedCourse || !cuts.length || !students.length) return null;
+
+    const min = selectedCourse.grade_scale_min;
+    const max = selectedCourse.grade_scale_max;
+    const toScale = (raw: number, rawMax: number) => {
+      const pct = rawMax > 0 ? raw / rawMax : 0;
+      return min + pct * (max - min);
+    };
+
+    const recordsBySessionUser = new Map<string, string>();
+    for (const r of attRecords) {
+      recordsBySessionUser.set(`${r.session_id}::${r.user_id}`, r.status);
+    }
+
+    return students.map((stu) => {
+      const cutGrades = cuts.map((cut) => {
+        // Exámenes del corte (originales, escalados a 0..course.max desde 0..10)
+        const cutExams = allExams.filter(
+          (e) => !e.parent_exam_id && (e.cut_id ?? null) === cut.id,
+        );
+        const examScores: number[] = [];
+        for (const e of cutExams) {
+          let sub = examSubs.find((s) => s.user_id === stu.id && s.exam_id === e.id);
+          if (!sub) {
+            const makeups = allExams.filter((m) => m.parent_exam_id === e.id).map((m) => m.id);
+            sub = examSubs.find((s) => s.user_id === stu.id && makeups.includes(s.exam_id));
+          }
+          const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
+          if (raw != null) examScores.push(toScale(Number(raw), 10));
+        }
+        const examAvg = examScores.length
+          ? examScores.reduce((a, b) => a + b, 0) / examScores.length
+          : null;
+
+        // Talleres del corte
+        const cutWorkshops = allWorkshops.filter((w) => (w.cut_id ?? null) === cut.id);
+        const wsScores: number[] = [];
+        for (const w of cutWorkshops) {
+          const sub = wsSubs.find((s) => s.user_id === stu.id && s.workshop_id === w.id);
+          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          if (raw != null) wsScores.push(toScale(Number(raw), w.max_score ?? 100));
+        }
+        const wsAvg = wsScores.length
+          ? wsScores.reduce((a, b) => a + b, 0) / wsScores.length
+          : null;
+
+        // Proyectos del corte
+        const cutProjects = projects.filter((p) => (p.cut_id ?? null) === cut.id);
+        const prjScores: number[] = [];
+        for (const p of cutProjects) {
+          const sub = projectSubs.find((s) => s.user_id === stu.id && s.project_id === p.id);
+          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          if (raw != null) prjScores.push(toScale(Number(raw), p.max_score ?? 100));
+        }
+        const prjAvg = prjScores.length
+          ? prjScores.reduce((a, b) => a + b, 0) / prjScores.length
+          : null;
+
+        // Asistencia del corte (sesiones cuya fecha cae en el rango del corte)
+        let attAvg: number | null = null;
+        if (cut.start_date && cut.end_date) {
+          const sessionsInCut = attSessions.filter(
+            (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
+          );
+          if (sessionsInCut.length > 0) {
+            const present = sessionsInCut.filter(
+              (s) => recordsBySessionUser.get(`${s.id}::${stu.id}`) === "presente",
+            ).length;
+            attAvg = min + (present / sessionsInCut.length) * (max - min);
+          }
+        }
+
+        const componentScores: CutComponentScores = {
+          workshop: wsAvg,
+          exam: examAvg,
+          project: prjAvg,
+          attendance: attAvg,
+        };
+        const weights: CutWeights = {
+          workshop: cut.workshop_weight,
+          exam: cut.exam_weight,
+          project: cut.project_weight,
+          attendance: cut.attendance_weight,
+        };
+        return { cutId: cut.id, grade: computeCutGrade(componentScores, weights) };
+      });
+
+      const finalGrade = computeCourseFinalGrade(
+        cutGrades.map((cg, i) => ({ weight: cuts[i].weight, grade: cg.grade })),
+      );
+      return { student: stu, cutGrades, finalGrade };
+    });
+  }, [
+    selectedCourse,
+    cuts,
+    students,
+    allExams,
+    allWorkshops,
+    projects,
+    examSubs,
+    wsSubs,
+    projectSubs,
+    attSessions,
+    attRecords,
+  ]);
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   return (
@@ -399,6 +613,84 @@ function Gradebook() {
             estudiantes ven el consolidado en su vista de Calificaciones.
           </div>
         </div>
+      )}
+
+      {/* Consolidado por cortes — solo lectura */}
+      {selectedCourse && consolidated && cuts.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold">Consolidado por cortes</h2>
+              <p className="text-xs text-muted-foreground">
+                Curso → Σ(Cortes × peso) → Σ(Talleres, Exámenes, Proyectos, Asistencia × peso)
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[10px]">
+              Solo lectura
+            </Badge>
+          </div>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+                    Estudiante
+                  </TableHead>
+                  {cuts.map((c) => (
+                    <TableHead key={c.id} className="text-center min-w-24">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="truncate max-w-28" title={c.name}>
+                          {c.name}
+                        </span>
+                        <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                          {c.weight}%
+                        </Badge>
+                      </div>
+                    </TableHead>
+                  ))}
+                  <TableHead className="text-center min-w-24 bg-muted/40">Final</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {consolidated.map((row) => {
+                  const passes =
+                    row.finalGrade != null
+                      ? row.finalGrade >= selectedCourse.passing_grade
+                      : null;
+                  return (
+                    <TableRow key={row.student.id}>
+                      <TableCell className="sticky left-0 z-10 bg-card">
+                        <div className="font-medium text-sm">{row.student.full_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {row.student.institutional_email}
+                        </div>
+                      </TableCell>
+                      {row.cutGrades.map((cg) => (
+                        <TableCell
+                          key={cg.cutId}
+                          className="text-center text-sm tabular-nums"
+                        >
+                          {cg.grade != null ? cg.grade.toFixed(2) : "—"}
+                        </TableCell>
+                      ))}
+                      <TableCell
+                        className={`text-center text-sm font-semibold tabular-nums bg-muted/30 ${
+                          passes === true
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : passes === false
+                              ? "text-destructive"
+                              : ""
+                        }`}
+                      >
+                        {row.finalGrade != null ? row.finalGrade.toFixed(2) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
