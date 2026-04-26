@@ -410,3 +410,24 @@ entorno `jsdom`, setup en [src/test/setup.ts](../src/test/setup.ts).
 ---
 
 _Generado para el proyecto ExamLab. Ajustar casos si se añaden rutas o funciones nuevas._
+
+---
+
+## 11. Cortes evaluativos y nueva jerarquía de calificación
+
+> **Regla de negocio inmutable** (ver `EXAMLAB-CONTEXT.md`):
+> Curso → Σ(Cortes × peso) → Σ([Talleres, Exámenes, Proyectos, Asistencia] × peso interno).
+> Las pruebas de esta sección reemplazan los casos previos basados en `course.exam_weight` /
+> `course.workshop_weight` globales.
+
+| ID         | Módulo                | Rol        | Prioridad | Caso de prueba                                                                                                                                                                                                                                            | Estado    |
+| ---------- | --------------------- | ---------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| CUT-UI-01  | Admin · Cursos        | Admin      | P1        | En el diálogo "Nuevo curso" → "Cantidad de cortes" = 5: las 5 cajas se renderizan dentro del diálogo, el modal hace scroll vertical, ningún input se desborda en viewport 375×667 ni 1024×768; el botón "Guardar" siempre es alcanzable.                  | Pendiente |
+| CUT-UI-02  | Admin · Cursos        | Admin      | P2        | Reducir cortes de 5 a 2: aparece confirmación, el layout permanece estable y los 2 cortes restantes conservan sus datos.                                                                                                                                  | Pendiente |
+| CUT-UI-03  | Admin · Cursos        | Admin      | P2        | Expandir el bloque de sub-pesos en cada corte muestra 4 inputs (Talleres / Exámenes / Proyectos / Asistencia) que en mobile (375px) van a 2 columnas y en desktop a 4, sin desbordamiento.                                                                | Pendiente |
+| CUT-CALC-01| Cálculo de cortes     | Automatizado| P0       | Suite `computeCutGrade` (src/utils/grade.test.ts): para Talleres=4.0 (30%), Exámenes=3.0 (40%), Proyecto=5.0 (20%), Asistencia=4.5 (10%) → resultado **3.85**.                                                                                              | OK        |
+| CUT-CALC-02| Cálculo de cortes     | Automatizado| P0       | `computeCutGrade` con Proyecto=null reescala los pesos restantes (workshop+exam+attendance = 80%) y devuelve **3.56**.                                                                                                                                    | OK        |
+| CUT-CALC-03| Cálculo final curso   | Automatizado| P0       | `computeCourseFinalGrade` con Corte1=3.75 (40%) + Corte2=4.0 (60%) → **3.9**. Cortes con grade=null o weight=0 se ignoran y los pesos se reescalan.                                                                                                       | OK        |
+| CUT-CALC-04| Estudiante            | Estudiante | P1        | En `/app/student/grades`: cada corte muestra una tarjeta resumen con su nota; la tarjeta "Nota final" coincide con `computeCourseFinalGrade` aplicado a los cortes del curso. Items sin `cut_id` aparecen en sección "Sin corte asignado" sin afectar.    | Pendiente |
+| CUT-CALC-05| Estudiante            | Estudiante | P2        | Asistencia: en cursos con sesiones registradas dentro del rango `start_date`/`end_date` del corte, la fila "Asistencia (X/Y sesiones)" aparece con la nota equivalente; cortes sin fechas o sin sesiones no muestran la fila y no penalizan.              | Pendiente |
+| CUT-DEPR-01| Docente · Grading     | Docente    | P3        | `/app/teacher/grading/$courseId`: muestra banner ámbar "Vista en transición" indicando que la configuración oficial vive en el diálogo de curso y que los cambios aquí no afectan el cálculo final.                                                       | Pendiente |
