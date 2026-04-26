@@ -401,24 +401,175 @@ function TeacherWorkshops() {
 
   const openGrading = async (ws: Workshop) => {
     setGradingWs(ws);
-    const { data: subs } = await supabase
-      .from("workshop_submissions")
-      .select("*")
-      .eq("workshop_id", ws.id);
+    setWsQuestions([]);
+    setAnswersBySub({});
+    const [{ data: subs }, { data: qs }] = await Promise.all([
+      supabase.from("workshop_submissions").select("*").eq("workshop_id", ws.id),
+      supabase
+        .from("workshop_questions")
+        .select(
+          "id, workshop_id, type, content, options, position, points, expected_rubric, language",
+        )
+        .eq("workshop_id", ws.id)
+        .order("position"),
+    ]);
+    setWsQuestions((qs ?? []) as WsQuestion[]);
 
     if (subs?.length) {
       const userIds = subs.map((s: any) => s.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email")
-        .in("id", userIds);
+      const subIds = subs.map((s: any) => s.id);
+      const [{ data: profiles }, { data: ans }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", userIds),
+        supabase
+          .from("workshop_submission_answers")
+          .select(
+            "id, submission_id, question_id, answer_text, selected_option, code_content, diagram_code, ai_grade, ai_feedback",
+          )
+          .in("submission_id", subIds),
+      ]);
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+      const grouped: Record<string, WsAnswer[]> = {};
+      for (const a of (ans ?? []) as WsAnswer[]) {
+        (grouped[a.submission_id] ||= []).push(a);
+      }
+      setAnswersBySub(grouped);
       setWsSubs(subs.map((s: any) => ({ ...s, profile: profileMap.get(s.user_id) })));
     } else {
       setWsSubs([]);
     }
     setGradingOpen(true);
   };
+
+  /** Recompute the global grade of a submission from its per-question ai_grade
+   *  values (capped at each question's `points`) and scale it to max_score. */
+  const recomputeFinalGrade = (subId: string) => {
+    const answers = answersBySub[subId] ?? [];
+    const totalPoints = wsQuestions.reduce((s, q) => s + Number(q.points || 0), 0);
+    if (totalPoints <= 0 || !gradingWs) return 0;
+    const earned = wsQuestions.reduce((s, q) => {
+      const a = answers.find((x) => x.question_id === q.id);
+      const g = Math.min(Number(a?.ai_grade ?? 0) || 0, Number(q.points) || 0);
+      return s + g;
+    }, 0);
+    return Number(((earned / totalPoints) * Number(gradingWs.max_score)).toFixed(2));
+  };
+
+  /** Update a single answer's grade/feedback in local state. */
+  const patchAnswer = (subId: string, questionId: string, patch: Partial<WsAnswer>) => {
+    setAnswersBySub((prev) => {
+      const list = (prev[subId] ?? []).slice();
+      const idx = list.findIndex((a) => a.question_id === questionId);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...patch };
+      } else {
+        list.push({
+          id: "",
+          submission_id: subId,
+          question_id: questionId,
+          answer_text: null,
+          selected_option: null,
+          code_content: null,
+          diagram_code: null,
+          ai_grade: null,
+          ai_feedback: null,
+          ...patch,
+        });
+      }
+      return { ...prev, [subId]: list };
+    });
+  };
+
+  /** Persist the per-question grade and refresh the submission's final grade. */
+  const saveAnswerGrade = async (subId: string, questionId: string) => {
+    const answer = (answersBySub[subId] ?? []).find((a) => a.question_id === questionId);
+    if (!answer || !answer.id) {
+      toast.error("Esta entrega aún no tiene respuesta para la pregunta.");
+      return;
+    }
+    setSavingAnswerId(answer.id);
+    try {
+      const { error } = await supabase
+        .from("workshop_submission_answers")
+        .update({
+          ai_grade: answer.ai_grade,
+          ai_feedback: answer.ai_feedback,
+        })
+        .eq("id", answer.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const newFinal = recomputeFinalGrade(subId);
+      const { error: subErr } = await supabase
+        .from("workshop_submissions")
+        .update({ final_grade: newFinal, status: "calificado" })
+        .eq("id", subId);
+      if (subErr) {
+        toast.error(`Calificación guardada, pero falló recalcular nota global: ${subErr.message}`);
+      } else {
+        setWsSubs((prev) =>
+          prev.map((s) =>
+            s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
+          ),
+        );
+        toast.success(`Pregunta guardada · nota global: ${newFinal}/${gradingWs?.max_score ?? 100}`);
+      }
+    } finally {
+      setSavingAnswerId(null);
+    }
+  };
+
+  /** Recalificar una sola respuesta con IA. Reusa la edge function. */
+  const aiRegradeAnswer = async (
+    subId: string,
+    question: WsQuestion,
+    answer: WsAnswer | undefined,
+  ) => {
+    if (!answer || !answer.id) {
+      toast.error("Sin respuesta para recalificar.");
+      return;
+    }
+    const raw =
+      answer.code_content ?? answer.diagram_code ?? answer.selected_option ?? answer.answer_text ?? "";
+    setAiGradingAnswerId(answer.id);
+    try {
+      const courseLanguage =
+        (courses.find((c) => c.id === gradingWs?.course_id) as any)?.language === "en"
+          ? "en"
+          : "es";
+      const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
+        body: {
+          workshopQuestionGrading: true,
+          questionType: question.type,
+          questionContent: question.content,
+          expectedRubric: question.expected_rubric,
+          maxPoints: question.points,
+          studentAnswer: String(raw),
+          language: question.language,
+          courseLanguage,
+        },
+      });
+      if (error || data?.error) {
+        toast.error(`Error IA: ${error?.message ?? data?.error}`);
+        return;
+      }
+      const newGrade = Number(data?.grade ?? 0);
+      const newFeedback = String(data?.feedback ?? "");
+      patchAnswer(subId, question.id, { ai_grade: newGrade, ai_feedback: newFeedback });
+      // Persist immediately so the recalc is consistent.
+      await supabase
+        .from("workshop_submission_answers")
+        .update({ ai_grade: newGrade, ai_feedback: newFeedback })
+        .eq("id", answer.id);
+      toast.success("Pregunta recalificada con IA");
+    } finally {
+      setAiGradingAnswerId(null);
+    }
+  };
+
 
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
