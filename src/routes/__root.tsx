@@ -89,20 +89,48 @@ function RootShell({ children }: { children: React.ReactNode }) {
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
-                // ── Service Worker registration + auto-update ────────────────
-                // Si hay una versión nueva del SW publicada (deploy reciente),
-                // queremos tomarla sin pedirle al usuario un hard-refresh:
-                //  1) registramos /sw.js
-                //  2) en cada visibilitychange revisamos si hay update
-                //  3) cuando un nuevo SW toma control (controllerchange), si no
-                //     es la primera instalación, recargamos una sola vez para
-                //     que el HTML pida los chunks nuevos.
-                if ('serviceWorker' in navigator) {
+                // ── Detect Lovable preview / iframe contexts ────────────────
+                // El service worker NO debe correr dentro del iframe de la
+                // vista previa de Lovable: cachea HTML/chunks viejos, intercepta
+                // llamadas a Supabase Functions (causando timeouts tipo
+                // "NetworkMonitor: Timeout") y rompe la hidratación SSR.
+                // En esos contextos: desinstalamos cualquier SW previo y
+                // limpiamos todas las cachés.
+                var isInIframe = false;
+                try { isInIframe = window.self !== window.top; } catch (e) { isInIframe = true; }
+                var host = window.location.hostname || '';
+                var isPreviewHost =
+                  host.indexOf('id-preview--') !== -1 ||
+                  host.indexOf('lovableproject.com') !== -1 ||
+                  host.indexOf('lovable.app') !== -1; // incluye published; ver nota abajo
+
+                // En published (lovable.app) sí queremos SW, pero solo si NO
+                // estamos embebidos en un iframe. Reajustamos:
+                var disableSW = isInIframe || host.indexOf('id-preview--') !== -1 ||
+                  host.indexOf('lovableproject.com') !== -1;
+
+                if ('serviceWorker' in navigator && disableSW) {
+                  // Desinstala SW legacy (que pueden estar interceptando fetch
+                  // y devolviendo respuestas viejas/rotas) y limpia caches.
+                  try {
+                    navigator.serviceWorker.getRegistrations().then(function (regs) {
+                      regs.forEach(function (r) { try { r.unregister(); } catch (e) {} });
+                    });
+                  } catch (e) {}
+                  try {
+                    if (window.caches && caches.keys) {
+                      caches.keys().then(function (names) {
+                        names.forEach(function (n) { try { caches.delete(n); } catch (e) {} });
+                      });
+                    }
+                  } catch (e) {}
+                }
+
+                if ('serviceWorker' in navigator && !disableSW) {
                   var refreshing = false;
                   navigator.serviceWorker.addEventListener('controllerchange', function () {
                     if (refreshing) return;
                     refreshing = true;
-                    // Solo recarga si ya había un controller (no primer install).
                     if (window.__hadController) window.location.reload();
                   });
 
@@ -111,7 +139,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
                     navigator.serviceWorker
                       .register('/sw.js')
                       .then(function (reg) {
-                        // Pide al SW nuevo (waiting) que tome control inmediatamente.
                         if (reg.waiting) reg.waiting.postMessage('skipWaiting');
                         reg.addEventListener('updatefound', function () {
                           var sw = reg.installing;
@@ -129,6 +156,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
                         });
                       })
                       .catch(function () {});
+                  });
                 }
 
                 // ── Chunk-load failure recovery ──────────────────────────────
