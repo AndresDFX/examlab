@@ -442,6 +442,7 @@ export type Database = {
           course_id: string
           created_at: string
           created_by: string
+          cut_id: string | null
           description: string | null
           end_time: string
           id: string
@@ -458,6 +459,7 @@ export type Database = {
           course_id: string
           created_at?: string
           created_by: string
+          cut_id?: string | null
           description?: string | null
           end_time: string
           id?: string
@@ -474,6 +476,7 @@ export type Database = {
           course_id?: string
           created_at?: string
           created_by?: string
+          cut_id?: string | null
           description?: string | null
           end_time?: string
           id?: string
@@ -492,6 +495,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exams_cut_id_fkey"
+            columns: ["cut_id"]
+            isOneToOne: false
+            referencedRelation: "grade_cuts"
             referencedColumns: ["id"]
           },
           {
@@ -984,6 +994,7 @@ export type Database = {
           course_id: string
           created_at: string
           created_by: string
+          cut_id: string | null
           description: string | null
           due_date: string | null
           external_link: string | null
@@ -1001,6 +1012,7 @@ export type Database = {
           course_id: string
           created_at?: string
           created_by: string
+          cut_id?: string | null
           description?: string | null
           due_date?: string | null
           external_link?: string | null
@@ -1018,6 +1030,7 @@ export type Database = {
           course_id?: string
           created_at?: string
           created_by?: string
+          cut_id?: string | null
           description?: string | null
           due_date?: string | null
           external_link?: string | null
@@ -1036,6 +1049,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshops_cut_id_fkey"
+            columns: ["cut_id"]
+            isOneToOne: false
+            referencedRelation: "grade_cuts"
             referencedColumns: ["id"]
           },
         ]

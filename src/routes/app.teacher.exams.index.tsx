@@ -45,9 +45,11 @@ Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
 type Course = { id: string; name: string; period: string | null };
+type Cut = { id: string; course_id: string; name: string };
 type Exam = {
   id: string;
   course_id: string;
+  cut_id: string | null;
   title: string;
   description: string | null;
   start_time: string;
@@ -65,21 +67,24 @@ function TeacherExams() {
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   const load = async () => {
-    const [{ data: cs }, { data: es }] = await Promise.all([
+    const [{ data: cs }, { data: es }, { data: cs2 }] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
       supabase
         .from("exams")
         .select("*, course:courses(name, period)")
         .order("start_time", { ascending: false }),
+      (supabase as any).from("grade_cuts").select("id, course_id, name").order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
+    setCuts((cs2 ?? []) as Cut[]);
   };
   useEffect(() => {
     load();
@@ -91,6 +96,7 @@ function TeacherExams() {
     setForm({
       title: "",
       course_id: courses[0]?.id,
+      cut_id: null,
       start_time: toLocal(now),
       end_time: toLocal(end),
       time_limit_minutes: 60,
@@ -130,6 +136,7 @@ function TeacherExams() {
       shuffle_enabled: !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
       created_by: user.id,
+      cut_id: courseIds.length === 1 ? form.cut_id || null : null,
     };
 
     // Create one exam per selected course
@@ -441,6 +448,45 @@ function TeacherExams() {
                 checked={!!form.shuffle_enabled}
                 onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
               />
+            </div>
+            <div>
+              <Label>
+                Corte de evaluación{" "}
+                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              {(() => {
+                const single = selectedCourseIds.size === 1;
+                const targetCourseId = [...selectedCourseIds][0];
+                const availableCuts = single
+                  ? cuts.filter((c) => c.course_id === targetCourseId)
+                  : [];
+                return (
+                  <Select
+                    value={form.cut_id ?? "__none__"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                    }
+                    disabled={!single}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin corte asignado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                      {availableCuts.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+              {selectedCourseIds.size > 1 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecciona un único curso para asignar un corte.
+                </p>
+              )}
             </div>
             <div>
               <Label>{t("exam.parentExam")}</Label>

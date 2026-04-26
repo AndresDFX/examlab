@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const results: Record<string, number | string> = {};
 
-    const calls: Array<[string, () => Promise<{ data: unknown; error: unknown }>]> = [
+    const calls: Array<[string, () => PromiseLike<{ data: unknown; error: unknown }>]> = [
       ["cut_closing", () => admin.rpc("notify_students_cut_closing", { _days: 3 })],
       ["course_closing", () => admin.rpc("notify_students_course_closing", { _days: 7 })],
       ["workshop_due_tomorrow", () => admin.rpc("notify_teachers_workshop_due_tomorrow")],

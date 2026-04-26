@@ -44,6 +44,7 @@ function ExamEditor() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
+  const [cuts, setCuts] = useState<Array<{ id: string; name: string }>>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
@@ -97,6 +98,12 @@ function ExamEditor() {
         .select("user_id")
         .eq("exam_id", examId);
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));
+      const { data: cs } = await (supabase as any)
+        .from("grade_cuts")
+        .select("id, name")
+        .eq("course_id", e.course_id)
+        .order("position");
+      setCuts((cs ?? []) as Array<{ id: string; name: string }>);
     }
   };
   useEffect(() => {
@@ -120,6 +127,7 @@ function ExamEditor() {
         navigation_type: exam.navigation_type,
         shuffle_enabled: !!exam.shuffle_enabled,
         max_attempts: normalizedAttempts,
+        cut_id: (exam as any).cut_id || null,
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
@@ -405,6 +413,32 @@ function ExamEditor() {
                     }
                   />
                 </div>
+              </div>
+              <div>
+                <Label>Corte de evaluación (opcional)</Label>
+                <Select
+                  value={(exam as any).cut_id ?? "__none__"}
+                  onValueChange={(v) =>
+                    setExam({ ...exam, cut_id: v === "__none__" ? null : v } as any)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin corte asignado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                    {cuts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {cuts.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este curso aún no tiene cortes definidos.
+                  </p>
+                )}
               </div>
               <Button onClick={saveExam}>Guardar cambios</Button>
             </CardContent>

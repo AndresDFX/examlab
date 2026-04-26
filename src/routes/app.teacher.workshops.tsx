@@ -72,6 +72,7 @@ type Course = {
 type Workshop = {
   id: string;
   course_id: string;
+  cut_id: string | null;
   title: string;
   description: string | null;
   instructions: string | null;
@@ -83,6 +84,7 @@ type Workshop = {
   status: string;
   course?: { name: string; period: string | null };
 };
+type Cut = { id: string; course_id: string; name: string };
 type Student = { id: string; full_name: string; institutional_email: string };
 type WsSub = {
   id: string;
@@ -105,6 +107,7 @@ function TeacherWorkshops() {
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
 
@@ -148,7 +151,7 @@ function TeacherWorkshops() {
   };
 
   const load = async () => {
-    const [{ data: cs }, { data: ws }] = await Promise.all([
+    const [{ data: cs }, { data: ws }, { data: cuts }] = await Promise.all([
       supabase
         .from("courses")
         .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
@@ -157,9 +160,11 @@ function TeacherWorkshops() {
         .from("workshops")
         .select("*, course:courses(name, period)")
         .order("created_at", { ascending: false }),
+      (supabase as any).from("grade_cuts").select("id, course_id, name").order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
+    setCuts((cuts ?? []) as Cut[]);
   };
   useEffect(() => {
     load();
@@ -170,6 +175,7 @@ function TeacherWorkshops() {
     setForm({
       title: "",
       course_id: courses[0]?.id,
+      cut_id: null,
       description: "",
       instructions: "",
       external_link: "",
@@ -218,6 +224,7 @@ function TeacherWorkshops() {
       status: form.status ?? "draft",
       rubric: form.rubric ?? null,
       created_by: user.id,
+      cut_id: form.cut_id || null,
     };
 
     if (form.id) {
@@ -805,6 +812,58 @@ function TeacherWorkshops() {
                   Se creará una copia del taller en cada curso seleccionado.
                 </p>
               )}
+            </div>
+            <div>
+              <Label>
+                Corte de evaluación{" "}
+                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              {(() => {
+                const targetCourseIds = form.id
+                  ? form.course_id
+                    ? [form.course_id]
+                    : []
+                  : [...selectedCourseIds];
+                const availableCuts = cuts.filter((c) => targetCourseIds.includes(c.course_id));
+                const showCuts =
+                  form.id || selectedCourseIds.size === 1 ? availableCuts : [];
+                return (
+                  <Select
+                    value={form.cut_id ?? "__none__"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                    }
+                    disabled={!form.id && selectedCourseIds.size !== 1}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Sin corte asignado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                      {showCuts.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+              {!form.id && selectedCourseIds.size > 1 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecciona un único curso para asignar un corte.
+                </p>
+              )}
+              {(form.id || selectedCourseIds.size === 1) &&
+                cuts.filter((c) =>
+                  form.id
+                    ? c.course_id === form.course_id
+                    : selectedCourseIds.has(c.course_id),
+                ).length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este curso aún no tiene cortes definidos.
+                  </p>
+                )}
             </div>
             <div>
               <Label>Descripción</Label>
