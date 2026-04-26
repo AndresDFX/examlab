@@ -55,8 +55,23 @@ type Course = {
   exam_weight: number;
   workshop_weight: number;
   attendance_weight: number;
+  project_weight: number;
   passing_grade: number;
   max_exam_attempts: number;
+};
+
+type Cut = {
+  id: string;
+  course_id: string;
+  name: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+  weight: number;
+  exam_weight: number;
+  workshop_weight: number;
+  attendance_weight: number;
+  project_weight: number;
 };
 
 /** Normaliza un valor de fecha (ISO timestamp o YYYY-MM-DD) a YYYY-MM-DD para inputs <date>. */
