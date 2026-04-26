@@ -12,7 +12,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
