@@ -814,6 +814,58 @@ function TeacherWorkshops() {
               )}
             </div>
             <div>
+              <Label>
+                Corte de evaluación{" "}
+                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              {(() => {
+                const targetCourseIds = form.id
+                  ? form.course_id
+                    ? [form.course_id]
+                    : []
+                  : [...selectedCourseIds];
+                const availableCuts = cuts.filter((c) => targetCourseIds.includes(c.course_id));
+                const showCuts =
+                  form.id || selectedCourseIds.size === 1 ? availableCuts : [];
+                return (
+                  <Select
+                    value={form.cut_id ?? "__none__"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                    }
+                    disabled={!form.id && selectedCourseIds.size !== 1}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Sin corte asignado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                      {showCuts.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+              {!form.id && selectedCourseIds.size > 1 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecciona un único curso para asignar un corte.
+                </p>
+              )}
+              {(form.id || selectedCourseIds.size === 1) &&
+                cuts.filter((c) =>
+                  form.id
+                    ? c.course_id === form.course_id
+                    : selectedCourseIds.has(c.course_id),
+                ).length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este curso aún no tiene cortes definidos.
+                  </p>
+                )}
+            </div>
+            <div>
               <Label>Descripción</Label>
               <Textarea
                 value={form.description ?? ""}
