@@ -375,14 +375,22 @@ export function StudentWorkshopTaker({
   onGraded?: (finalGrade: number) => void;
 }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [graded, setGraded] = useState<{ grade: number; breakdown: any[] } | null>(null);
+  // Track which workshopId we have already loaded so that auth refresh
+  // events (TOKEN_REFRESHED on tab refocus) don't re-fetch and visually
+  // "reload" the modal while the student is mid-submission.
+  const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    if (loadedForRef.current === workshopId) return;
+    loadedForRef.current = workshopId;
+    let cancelled = false;
     (async () => {
       setLoading(true);
       const { data: qs } = await supabase
@@ -390,6 +398,7 @@ export function StudentWorkshopTaker({
         .select("*")
         .eq("workshop_id", workshopId)
         .order("position");
+      if (cancelled) return;
       setQuestions((qs ?? []) as WorkshopQuestion[]);
 
       // Load existing submission/answers if any
@@ -409,14 +418,21 @@ export function StudentWorkshopTaker({
           map[a.question_id] =
             a.code_content ?? a.diagram_code ?? a.selected_option ?? a.answer_text ?? "";
         });
+        if (cancelled) return;
         setAnswers(map);
         if (sub.status === "calificado" && sub.final_grade != null) {
           setGraded({ grade: Number(sub.final_grade), breakdown: [] });
         }
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     })();
-  }, [workshopId, user]);
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally exclude `user` so a token refresh does not refetch
+    // and lose in-progress answers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workshopId]);
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
