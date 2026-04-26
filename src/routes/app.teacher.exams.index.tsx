@@ -450,6 +450,45 @@ function TeacherExams() {
               />
             </div>
             <div>
+              <Label>
+                Corte de evaluación{" "}
+                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              {(() => {
+                const single = selectedCourseIds.size === 1;
+                const targetCourseId = [...selectedCourseIds][0];
+                const availableCuts = single
+                  ? cuts.filter((c) => c.course_id === targetCourseId)
+                  : [];
+                return (
+                  <Select
+                    value={form.cut_id ?? "__none__"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                    }
+                    disabled={!single}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin corte asignado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                      {availableCuts.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+              {selectedCourseIds.size > 1 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecciona un único curso para asignar un corte.
+                </p>
+              )}
+            </div>
+            <div>
               <Label>{t("exam.parentExam")}</Label>
               <Select
                 value={form.parent_exam_id ?? "none"}
