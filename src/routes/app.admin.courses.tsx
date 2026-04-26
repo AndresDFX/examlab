@@ -40,6 +40,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { CutsEditor } from "@/components/CutsEditor";
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
