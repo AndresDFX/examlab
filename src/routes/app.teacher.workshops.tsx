@@ -53,6 +53,13 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
+import { MarkdownInline } from "@/components/MarkdownInline";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { ListChecks } from "lucide-react";
 
 const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,max_score,status
