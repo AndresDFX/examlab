@@ -170,8 +170,9 @@ function AdminCourses() {
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
       grade_scale_max: Number(editing.grade_scale_max ?? 5),
       exam_weight: Number(editing.exam_weight ?? 40),
-      workshop_weight: Number(editing.workshop_weight ?? 40),
+      workshop_weight: Number(editing.workshop_weight ?? 30),
       attendance_weight: Number(editing.attendance_weight ?? 10),
+      project_weight: Number(editing.project_weight ?? 20),
       passing_grade: Number(editing.passing_grade ?? 3),
       max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
