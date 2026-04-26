@@ -151,7 +151,7 @@ function TeacherWorkshops() {
   };
 
   const load = async () => {
-    const [{ data: cs }, { data: ws }] = await Promise.all([
+    const [{ data: cs }, { data: ws }, { data: cuts }] = await Promise.all([
       supabase
         .from("courses")
         .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
@@ -160,9 +160,11 @@ function TeacherWorkshops() {
         .from("workshops")
         .select("*, course:courses(name, period)")
         .order("created_at", { ascending: false }),
+      (supabase as any).from("grade_cuts").select("id, course_id, name").order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
+    setCuts((cuts ?? []) as Cut[]);
   };
   useEffect(() => {
     load();
