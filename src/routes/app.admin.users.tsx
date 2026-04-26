@@ -276,9 +276,36 @@ function AdminUsers() {
         body: { rows: parsed },
       });
       if (error) throw error;
-      const ok = (data.result ?? []).filter((r: any) => r.ok).length;
-      const fail = (data.result ?? []).filter((r: any) => !r.ok).length;
-      toast.success(`Importados: ${ok}. Errores: ${fail}.`);
+      const results = (data.result ?? []) as Array<{
+        email: string;
+        ok: boolean;
+        reason?: string;
+        duplicate?: boolean;
+      }>;
+      const ok = results.filter((r) => r.ok).length;
+      const duplicates = results.filter((r) => !r.ok && r.duplicate);
+      const otherFails = results.filter((r) => !r.ok && !r.duplicate);
+
+      if (duplicates.length === 0 && otherFails.length === 0) {
+        toast.success(`Importados correctamente: ${ok}`);
+      } else {
+        toast.warning(
+          `Importados: ${ok} · Duplicados: ${duplicates.length} · Errores: ${otherFails.length}`,
+          {
+            duration: 12000,
+            description:
+              duplicates.length > 0
+                ? `Ya existían: ${duplicates
+                    .slice(0, 5)
+                    .map((d) => d.email)
+                    .join(", ")}${duplicates.length > 5 ? ` y ${duplicates.length - 5} más` : ""}`
+                : otherFails
+                    .slice(0, 3)
+                    .map((f) => `${f.email}: ${f.reason}`)
+                    .join(" | "),
+          },
+        );
+      }
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Error al importar");
