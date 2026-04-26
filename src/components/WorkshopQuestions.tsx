@@ -623,7 +623,7 @@ export function StudentWorkshopTaker({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-sm whitespace-pre-wrap">{q.content}</p>
+            <MarkdownInline>{q.content}</MarkdownInline>
             {q.type === "abierta" && (
               <Textarea
                 rows={4}
@@ -669,11 +669,16 @@ export function StudentWorkshopTaker({
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         <Button onClick={submit} disabled={submitting} className="w-full">
           {submitting ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            <>
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              {t("workshop.submitting")}
+            </>
           ) : (
-            <Send className="h-4 w-4 mr-1" />
+            <>
+              <Send className="h-4 w-4 mr-1" />
+              {t("workshop.submit")}
+            </>
           )}
-          Enviar y calificar inmediatamente
         </Button>
       </div>
     </div>
