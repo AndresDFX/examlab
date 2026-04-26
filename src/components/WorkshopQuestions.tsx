@@ -388,8 +388,13 @@ export function StudentWorkshopTaker({
 
   useEffect(() => {
     if (!user) return;
-    if (loadedForRef.current === workshopId) return;
-    loadedForRef.current = workshopId;
+    // Gate: solo cargar una vez por (workshopId + userId). Esto evita que
+    // un TOKEN_REFRESHED en focus dispare un refetch y "recargue" el modal,
+    // pero permite que el primer render con user=null no nos deje colgados:
+    // cuando user llega, el effect re-corre y sí carga.
+    const key = `${workshopId}::${user.id}`;
+    if (loadedForRef.current === key) return;
+    loadedForRef.current = key;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -429,10 +434,7 @@ export function StudentWorkshopTaker({
     return () => {
       cancelled = true;
     };
-    // We intentionally exclude `user` so a token refresh does not refetch
-    // and lose in-progress answers.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workshopId]);
+  }, [workshopId, user?.id]);
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
