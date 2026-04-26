@@ -292,5 +292,11 @@
   "import": {
     "template": "Template",
     "imported": "{{created}} created · {{skipped}} skipped"
+  },
+  "workshop": {
+    "startSubmission": "Start submission",
+    "submit": "Submit",
+    "submitting": "Submitting…",
+    "aiGradedNotice": "The grade was generated automatically by AI when you submitted the workshop. If you need a manual review, please contact your teacher."
   }
 }

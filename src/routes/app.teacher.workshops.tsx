@@ -53,6 +53,13 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
+import { MarkdownInline } from "@/components/MarkdownInline";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { ListChecks } from "lucide-react";
 
 const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,max_score,status
@@ -102,6 +109,29 @@ type WsSub = {
   profile?: { full_name: string; institutional_email: string };
 };
 
+type WsQuestion = {
+  id: string;
+  workshop_id: string;
+  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  content: string;
+  options: { choices?: string[]; correct_index?: number } | null;
+  position: number;
+  points: number;
+  expected_rubric: string | null;
+  language: string | null;
+};
+type WsAnswer = {
+  id: string;
+  submission_id: string;
+  question_id: string;
+  answer_text: string | null;
+  selected_option: string | null;
+  code_content: string | null;
+  diagram_code: string | null;
+  ai_grade: number | null;
+  ai_feedback: string | null;
+};
+
 function TeacherWorkshops() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
@@ -115,6 +145,13 @@ function TeacherWorkshops() {
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [gradingOpen, setGradingOpen] = useState(false);
+  // Per-question grading: questions of the workshop, and answers grouped
+  // by submission. Edits live in `answersBySub` until the teacher saves a
+  // single question or recomputes the global grade.
+  const [wsQuestions, setWsQuestions] = useState<WsQuestion[]>([]);
+  const [answersBySub, setAnswersBySub] = useState<Record<string, WsAnswer[]>>({});
+  const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
+  const [aiGradingAnswerId, setAiGradingAnswerId] = useState<string | null>(null);
 
   // Assignment
   const [assignWs, setAssignWs] = useState<Workshop | null>(null);
@@ -364,24 +401,175 @@ function TeacherWorkshops() {
 
   const openGrading = async (ws: Workshop) => {
     setGradingWs(ws);
-    const { data: subs } = await supabase
-      .from("workshop_submissions")
-      .select("*")
-      .eq("workshop_id", ws.id);
+    setWsQuestions([]);
+    setAnswersBySub({});
+    const [{ data: subs }, { data: qs }] = await Promise.all([
+      supabase.from("workshop_submissions").select("*").eq("workshop_id", ws.id),
+      supabase
+        .from("workshop_questions")
+        .select(
+          "id, workshop_id, type, content, options, position, points, expected_rubric, language",
+        )
+        .eq("workshop_id", ws.id)
+        .order("position"),
+    ]);
+    setWsQuestions((qs ?? []) as WsQuestion[]);
 
     if (subs?.length) {
       const userIds = subs.map((s: any) => s.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email")
-        .in("id", userIds);
+      const subIds = subs.map((s: any) => s.id);
+      const [{ data: profiles }, { data: ans }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", userIds),
+        supabase
+          .from("workshop_submission_answers")
+          .select(
+            "id, submission_id, question_id, answer_text, selected_option, code_content, diagram_code, ai_grade, ai_feedback",
+          )
+          .in("submission_id", subIds),
+      ]);
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+      const grouped: Record<string, WsAnswer[]> = {};
+      for (const a of (ans ?? []) as WsAnswer[]) {
+        (grouped[a.submission_id] ||= []).push(a);
+      }
+      setAnswersBySub(grouped);
       setWsSubs(subs.map((s: any) => ({ ...s, profile: profileMap.get(s.user_id) })));
     } else {
       setWsSubs([]);
     }
     setGradingOpen(true);
   };
+
+  /** Recompute the global grade of a submission from its per-question ai_grade
+   *  values (capped at each question's `points`) and scale it to max_score. */
+  const recomputeFinalGrade = (subId: string) => {
+    const answers = answersBySub[subId] ?? [];
+    const totalPoints = wsQuestions.reduce((s, q) => s + Number(q.points || 0), 0);
+    if (totalPoints <= 0 || !gradingWs) return 0;
+    const earned = wsQuestions.reduce((s, q) => {
+      const a = answers.find((x) => x.question_id === q.id);
+      const g = Math.min(Number(a?.ai_grade ?? 0) || 0, Number(q.points) || 0);
+      return s + g;
+    }, 0);
+    return Number(((earned / totalPoints) * Number(gradingWs.max_score)).toFixed(2));
+  };
+
+  /** Update a single answer's grade/feedback in local state. */
+  const patchAnswer = (subId: string, questionId: string, patch: Partial<WsAnswer>) => {
+    setAnswersBySub((prev) => {
+      const list = (prev[subId] ?? []).slice();
+      const idx = list.findIndex((a) => a.question_id === questionId);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...patch };
+      } else {
+        list.push({
+          id: "",
+          submission_id: subId,
+          question_id: questionId,
+          answer_text: null,
+          selected_option: null,
+          code_content: null,
+          diagram_code: null,
+          ai_grade: null,
+          ai_feedback: null,
+          ...patch,
+        });
+      }
+      return { ...prev, [subId]: list };
+    });
+  };
+
+  /** Persist the per-question grade and refresh the submission's final grade. */
+  const saveAnswerGrade = async (subId: string, questionId: string) => {
+    const answer = (answersBySub[subId] ?? []).find((a) => a.question_id === questionId);
+    if (!answer || !answer.id) {
+      toast.error("Esta entrega aún no tiene respuesta para la pregunta.");
+      return;
+    }
+    setSavingAnswerId(answer.id);
+    try {
+      const { error } = await supabase
+        .from("workshop_submission_answers")
+        .update({
+          ai_grade: answer.ai_grade,
+          ai_feedback: answer.ai_feedback,
+        })
+        .eq("id", answer.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const newFinal = recomputeFinalGrade(subId);
+      const { error: subErr } = await supabase
+        .from("workshop_submissions")
+        .update({ final_grade: newFinal, status: "calificado" })
+        .eq("id", subId);
+      if (subErr) {
+        toast.error(`Calificación guardada, pero falló recalcular nota global: ${subErr.message}`);
+      } else {
+        setWsSubs((prev) =>
+          prev.map((s) =>
+            s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
+          ),
+        );
+        toast.success(`Pregunta guardada · nota global: ${newFinal}/${gradingWs?.max_score ?? 100}`);
+      }
+    } finally {
+      setSavingAnswerId(null);
+    }
+  };
+
+  /** Recalificar una sola respuesta con IA. Reusa la edge function. */
+  const aiRegradeAnswer = async (
+    subId: string,
+    question: WsQuestion,
+    answer: WsAnswer | undefined,
+  ) => {
+    if (!answer || !answer.id) {
+      toast.error("Sin respuesta para recalificar.");
+      return;
+    }
+    const raw =
+      answer.code_content ?? answer.diagram_code ?? answer.selected_option ?? answer.answer_text ?? "";
+    setAiGradingAnswerId(answer.id);
+    try {
+      const courseLanguage =
+        (courses.find((c) => c.id === gradingWs?.course_id) as any)?.language === "en"
+          ? "en"
+          : "es";
+      const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
+        body: {
+          workshopQuestionGrading: true,
+          questionType: question.type,
+          questionContent: question.content,
+          expectedRubric: question.expected_rubric,
+          maxPoints: question.points,
+          studentAnswer: String(raw),
+          language: question.language,
+          courseLanguage,
+        },
+      });
+      if (error || data?.error) {
+        toast.error(`Error IA: ${error?.message ?? data?.error}`);
+        return;
+      }
+      const newGrade = Number(data?.grade ?? 0);
+      const newFeedback = String(data?.feedback ?? "");
+      patchAnswer(subId, question.id, { ai_grade: newGrade, ai_feedback: newFeedback });
+      // Persist immediately so the recalc is consistent.
+      await supabase
+        .from("workshop_submission_answers")
+        .update({ ai_grade: newGrade, ai_feedback: newFeedback })
+        .eq("id", answer.id);
+      toast.success("Pregunta recalificada con IA");
+    } finally {
+      setAiGradingAnswerId(null);
+    }
+  };
+
 
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
@@ -1281,6 +1469,165 @@ function TeacherWorkshops() {
                         </Button>
                       </div>
                     </div>
+                  )}
+
+                  {/* Per-question review & grading (editable) */}
+                  {wsQuestions.length > 0 && (
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
+                        <AccordionTrigger className="px-3 py-2 text-sm">
+                          Revisar respuestas por pregunta ({wsQuestions.length})
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3 space-y-3">
+                          {wsQuestions.map((q, idx) => {
+                            const ans = (answersBySub[sub.id] ?? []).find(
+                              (a) => a.question_id === q.id,
+                            );
+                            const raw =
+                              ans?.code_content ??
+                              ans?.diagram_code ??
+                              ans?.selected_option ??
+                              ans?.answer_text ??
+                              "";
+                            return (
+                              <div key={q.id} className="rounded-md border p-3 space-y-2 bg-muted/20">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {idx + 1}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-[10px] capitalize">
+                                    {q.type}
+                                  </Badge>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    máx {q.points} pts
+                                  </span>
+                                </div>
+                                <div className="text-sm">
+                                  <MarkdownInline>{q.content}</MarkdownInline>
+                                </div>
+                                <div>
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    Respuesta del estudiante
+                                  </Label>
+                                  {q.type === "cerrada" ? (
+                                    <div className="text-sm mt-1">
+                                      {(() => {
+                                        const i =
+                                          ans?.selected_option != null
+                                            ? Number(ans.selected_option)
+                                            : -1;
+                                        const choice = q.options?.choices?.[i];
+                                        const correct = q.options?.correct_index;
+                                        return choice != null ? (
+                                          <span
+                                            className={
+                                              correct === i
+                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                : "text-destructive"
+                                            }
+                                          >
+                                            {String.fromCharCode(65 + i)}. {choice}
+                                          </span>
+                                        ) : (
+                                          <span className="italic text-muted-foreground">
+                                            Sin respuesta
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+                                  ) : raw ? (
+                                    <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
+                                      {raw}
+                                    </pre>
+                                  ) : (
+                                    <p className="text-xs italic text-muted-foreground mt-1">
+                                      Sin respuesta
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
+                                  <div>
+                                    <Label className="text-[11px]">Nota IA</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      max={q.points}
+                                      step="0.1"
+                                      value={ans?.ai_grade ?? ""}
+                                      onChange={(e) =>
+                                        patchAnswer(sub.id, q.id, {
+                                          ai_grade:
+                                            e.target.value === "" ? null : Number(e.target.value),
+                                        })
+                                      }
+                                      className="h-8 text-sm mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[11px]">Retroalimentación</Label>
+                                    <Textarea
+                                      rows={2}
+                                      value={ans?.ai_feedback ?? ""}
+                                      onChange={(e) =>
+                                        patchAnswer(sub.id, q.id, { ai_feedback: e.target.value })
+                                      }
+                                      className="text-sm mt-1"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => saveAnswerGrade(sub.id, q.id)}
+                                    disabled={savingAnswerId === ans?.id}
+                                  >
+                                    {savingAnswerId === ans?.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                    )}
+                                    Guardar pregunta
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => aiRegradeAnswer(sub.id, q, ans)}
+                                    disabled={aiGradingAnswerId === ans?.id}
+                                  >
+                                    {aiGradingAnswerId === ans?.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                    )}
+                                    Recalificar IA
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                const newFinal = recomputeFinalGrade(sub.id);
+                                setWsSubs((prev) =>
+                                  prev.map((s) =>
+                                    s.id === sub.id ? { ...s, final_grade: newFinal } : s,
+                                  ),
+                                );
+                                toast.info(
+                                  `Nota global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar nota" para persistir.`,
+                                );
+                              }}
+                            >
+                              Recalcular nota global
+                            </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   )}
 
                   {/* Manual grading / override */}

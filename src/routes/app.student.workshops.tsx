@@ -227,7 +227,7 @@ function StudentWorkshops() {
                     }}
                   >
                     <ListChecks className="h-4 w-4 mr-1" />
-                    {submission ? t("common.update") : t("exam.start")}
+                    {submission ? t("common.update") : t("workshop.startSubmission")}
                   </Button>
                 )}
 

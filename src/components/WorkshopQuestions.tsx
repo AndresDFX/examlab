@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { Plus, Trash2, Loader2, Sparkles, Send } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { MarkdownInline } from "@/components/MarkdownInline";
 
 export type WorkshopQuestion = {
   id: string;
@@ -193,7 +195,9 @@ export function TeacherWorkshopQuestionsEditor({
                     </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
                   </div>
-                  <p className="text-sm whitespace-pre-wrap">{q.content}</p>
+                  <div className="text-sm">
+                    <MarkdownInline>{q.content}</MarkdownInline>
+                  </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => removeQ(q.id)}>
                   <Trash2 className="h-4 w-4" />
@@ -371,14 +375,22 @@ export function StudentWorkshopTaker({
   onGraded?: (finalGrade: number) => void;
 }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [graded, setGraded] = useState<{ grade: number; breakdown: any[] } | null>(null);
+  // Track which workshopId we have already loaded so that auth refresh
+  // events (TOKEN_REFRESHED on tab refocus) don't re-fetch and visually
+  // "reload" the modal while the student is mid-submission.
+  const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    if (loadedForRef.current === workshopId) return;
+    loadedForRef.current = workshopId;
+    let cancelled = false;
     (async () => {
       setLoading(true);
       const { data: qs } = await supabase
@@ -386,6 +398,7 @@ export function StudentWorkshopTaker({
         .select("*")
         .eq("workshop_id", workshopId)
         .order("position");
+      if (cancelled) return;
       setQuestions((qs ?? []) as WorkshopQuestion[]);
 
       // Load existing submission/answers if any
@@ -405,14 +418,21 @@ export function StudentWorkshopTaker({
           map[a.question_id] =
             a.code_content ?? a.diagram_code ?? a.selected_option ?? a.answer_text ?? "";
         });
+        if (cancelled) return;
         setAnswers(map);
         if (sub.status === "calificado" && sub.final_grade != null) {
           setGraded({ grade: Number(sub.final_grade), breakdown: [] });
         }
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     })();
-  }, [workshopId, user]);
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally exclude `user` so a token refresh does not refetch
+    // and lose in-progress answers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workshopId]);
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
@@ -580,7 +600,7 @@ export function StudentWorkshopTaker({
             {graded.grade} / {maxScore}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            La calificación fue generada automáticamente por IA al enviar el taller.
+            {t("workshop.aiGradedNotice")}
           </p>
         </CardContent>
       </Card>
@@ -589,7 +609,6 @@ export function StudentWorkshopTaker({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">{workshopTitle}</h3>
       {questions.map((q, idx) => (
         <Card key={q.id}>
           <CardHeader className="pb-2">
@@ -604,7 +623,7 @@ export function StudentWorkshopTaker({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-sm whitespace-pre-wrap">{q.content}</p>
+            <MarkdownInline>{q.content}</MarkdownInline>
             {q.type === "abierta" && (
               <Textarea
                 rows={4}
@@ -650,11 +669,16 @@ export function StudentWorkshopTaker({
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         <Button onClick={submit} disabled={submitting} className="w-full">
           {submitting ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            <>
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              {t("workshop.submitting")}
+            </>
           ) : (
-            <Send className="h-4 w-4 mr-1" />
+            <>
+              <Send className="h-4 w-4 mr-1" />
+              {t("workshop.submit")}
+            </>
           )}
-          Enviar y calificar inmediatamente
         </Button>
       </div>
     </div>

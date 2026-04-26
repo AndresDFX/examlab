@@ -292,5 +292,11 @@
   "import": {
     "template": "Plantilla",
     "imported": "{{created}} creados · {{skipped}} omitidos"
+  },
+  "workshop": {
+    "startSubmission": "Iniciar entrega",
+    "submit": "Entregar",
+    "submitting": "Entregando…",
+    "aiGradedNotice": "La calificación fue generada automáticamente por IA al enviar el taller. Si necesita una revisión manual, contacte a su docente."
   }
 }
