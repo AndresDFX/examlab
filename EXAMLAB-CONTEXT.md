@@ -249,3 +249,32 @@ VITE_SUPABASE_ANON_KEY=...
   - Selectores de estado por estudiante muestran únicamente las iniciales `P` / `A` (sin etiquetas largas) para optimizar densidad de información en cursos grandes.
   - Persistencia y RLS sin cambios respecto a fases anteriores.
 
+
+## Jerarquía de calificación (REGLA DE NEGOCIO INMUTABLE)
+
+La nota final de un curso se calcula EXCLUSIVAMENTE así:
+
+  Curso → Σ(Cortes ponderados)
+  Corte → Σ(Talleres, Exámenes, Proyectos, Asistencia ponderados)
+
+- Los pesos a nivel curso (`courses.exam_weight`, `workshop_weight`,
+  `attendance_weight`, `project_weight`) son **DEPRECADOS** para el cálculo
+  final; se conservan solo como defaults al sembrar nuevos cortes.
+- Cada `grade_cuts` define `weight` (% del curso) y los 4 sub-pesos
+  (`workshop_weight`, `exam_weight`, `project_weight`, `attendance_weight`)
+  que deben sumar 100 dentro del corte.
+- Exámenes, talleres y proyectos pertenecen a un corte vía `cut_id`.
+- La asistencia se acumula por corte usando `attendance_sessions.session_date`
+  contra `grade_cuts.start_date`/`end_date`.
+- Si un componente de un corte no tiene datos, su peso se REESCALA entre los
+  componentes restantes (no se penaliza al estudiante). Misma regla aplica
+  entre cortes para la nota final del curso.
+- Helpers canónicos: `computeCutGrade()` y `computeCourseFinalGrade()` en
+  `src/utils/grade.ts`. Cualquier vista nueva que muestre nota agregada DEBE
+  usarlos.
+- La pantalla legacy `/app/teacher/grading/$courseId` y las tablas
+  `course_grading_config`/`grade_cut_items` quedan congeladas y no se usan en
+  el cálculo nuevo.
+- La configuración de cortes vive en el diálogo "Nuevo / Editar curso"
+  (`/app/admin/courses`), sección "Escala de calificación" → "Cantidad de
+  cortes".
