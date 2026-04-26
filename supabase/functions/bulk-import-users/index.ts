@@ -43,10 +43,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { rows } = await req.json();
+    const { rows, allowExisting } = await req.json();
     if (!Array.isArray(rows)) throw new Error("rows[] requerido");
 
-    const result: { email: string; ok: boolean; reason?: string }[] = [];
+    // Pre-fetch all auth users once for O(1) duplicate lookups
+    const { data: authList } = await admin.auth.admin.listUsers({ page: 1, perPage: 10000 });
+    const emailToId = new Map<string, string>();
+    (authList?.users ?? []).forEach((u: any) => {
+      if (u.email) emailToId.set(u.email.toLowerCase(), u.id);
+    });
+
+    const result: { email: string; ok: boolean; reason?: string; duplicate?: boolean }[] = [];
+    const seenInBatch = new Set<string>();
     for (const row of rows) {
       const {
         full_name,
@@ -60,13 +68,36 @@ Deno.serve(async (req) => {
         result.push({
           email: institutional_email ?? "(vacío)",
           ok: false,
-          reason: "faltan campos",
+          reason: "Faltan campos requeridos (nombre o email)",
         });
         continue;
       }
+      const emailKey = institutional_email.toLowerCase().trim();
+
+      // Duplicate within the same CSV batch
+      if (seenInBatch.has(emailKey)) {
+        result.push({
+          email: institutional_email,
+          ok: false,
+          duplicate: true,
+          reason: "Email duplicado dentro del archivo CSV",
+        });
+        continue;
+      }
+      seenInBatch.add(emailKey);
+
       try {
-        const { data: list } = await admin.auth.admin.listUsers();
-        let userId = list?.users?.find((x: any) => x.email === institutional_email)?.id;
+        let userId = emailToId.get(emailKey);
+        if (userId && !allowExisting) {
+          // Reject duplicates by default — caller must opt-in to update existing
+          result.push({
+            email: institutional_email,
+            ok: false,
+            duplicate: true,
+            reason: "Ya existe un usuario con este email institucional",
+          });
+          continue;
+        }
         if (!userId) {
           const { data, error } = await admin.auth.admin.createUser({
             email: institutional_email,
@@ -76,6 +107,7 @@ Deno.serve(async (req) => {
           });
           if (error) throw error;
           userId = data.user!.id;
+          emailToId.set(emailKey, userId);
         }
         const roleList = (rolesStr || "Estudiante")
           .split("|")
