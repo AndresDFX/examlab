@@ -72,6 +72,7 @@ type Course = {
 type Workshop = {
   id: string;
   course_id: string;
+  cut_id: string | null;
   title: string;
   description: string | null;
   instructions: string | null;
@@ -83,6 +84,7 @@ type Workshop = {
   status: string;
   course?: { name: string; period: string | null };
 };
+type Cut = { id: string; course_id: string; name: string };
 type Student = { id: string; full_name: string; institutional_email: string };
 type WsSub = {
   id: string;
