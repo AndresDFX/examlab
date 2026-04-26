@@ -615,6 +615,84 @@ function Gradebook() {
         </div>
       )}
 
+      {/* Consolidado por cortes — solo lectura */}
+      {selectedCourse && consolidated && cuts.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold">Consolidado por cortes</h2>
+              <p className="text-xs text-muted-foreground">
+                Curso → Σ(Cortes × peso) → Σ(Talleres, Exámenes, Proyectos, Asistencia × peso)
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[10px]">
+              Solo lectura
+            </Badge>
+          </div>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+                    Estudiante
+                  </TableHead>
+                  {cuts.map((c) => (
+                    <TableHead key={c.id} className="text-center min-w-24">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="truncate max-w-28" title={c.name}>
+                          {c.name}
+                        </span>
+                        <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                          {c.weight}%
+                        </Badge>
+                      </div>
+                    </TableHead>
+                  ))}
+                  <TableHead className="text-center min-w-24 bg-muted/40">Final</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {consolidated.map((row) => {
+                  const passes =
+                    row.finalGrade != null
+                      ? row.finalGrade >= selectedCourse.passing_grade
+                      : null;
+                  return (
+                    <TableRow key={row.student.id}>
+                      <TableCell className="sticky left-0 z-10 bg-card">
+                        <div className="font-medium text-sm">{row.student.full_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {row.student.institutional_email}
+                        </div>
+                      </TableCell>
+                      {row.cutGrades.map((cg) => (
+                        <TableCell
+                          key={cg.cutId}
+                          className="text-center text-sm tabular-nums"
+                        >
+                          {cg.grade != null ? cg.grade.toFixed(2) : "—"}
+                        </TableCell>
+                      ))}
+                      <TableCell
+                        className={`text-center text-sm font-semibold tabular-nums bg-muted/30 ${
+                          passes === true
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : passes === false
+                              ? "text-destructive"
+                              : ""
+                        }`}
+                      >
+                        {row.finalGrade != null ? row.finalGrade.toFixed(2) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
