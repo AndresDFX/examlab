@@ -127,6 +127,7 @@ function ExamEditor() {
         navigation_type: exam.navigation_type,
         shuffle_enabled: !!exam.shuffle_enabled,
         max_attempts: normalizedAttempts,
+        cut_id: (exam as any).cut_id || null,
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
