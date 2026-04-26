@@ -169,21 +169,46 @@ function Gradebook() {
   const loadCourse = useCallback(async () => {
     if (!courseId) return;
 
-    // Exams
+    // Exams (incluye cut_id para el consolidado de cortes)
     const { data: exams } = await supabase
       .from("exams")
-      .select("id, title, parent_exam_id, course_id")
+      .select("id, title, parent_exam_id, course_id, cut_id")
       .eq("course_id", courseId)
       .order("start_time");
 
     // Workshops
     const { data: workshops } = await supabase
       .from("workshops")
-      .select("id, title, course_id, max_score")
+      .select("id, title, course_id, max_score, cut_id")
       .eq("course_id", courseId)
       .order("created_at");
 
+    // Cortes evaluativos
+    const { data: cutsData } = await db
+      .from("grade_cuts")
+      .select(
+        "id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+      )
+      .eq("course_id", courseId)
+      .order("position");
+
+    // Proyectos
+    const { data: projectsData } = await db
+      .from("projects")
+      .select("id, title, course_id, max_score, cut_id")
+      .eq("course_id", courseId);
+
+    // Sesiones de asistencia
+    const { data: sessions } = await db
+      .from("attendance_sessions")
+      .select("id, session_date")
+      .eq("course_id", courseId);
+
     setAllExams((exams ?? []) as Exam[]);
+    setAllWorkshops((workshops ?? []) as Workshop[]);
+    setCuts((cutsData ?? []) as Cut[]);
+    setProjects((projectsData ?? []) as Project[]);
+    setAttSessions((sessions ?? []) as AttSession[]);
 
     // Build columns: original exams (no parent) + workshops
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
@@ -239,6 +264,30 @@ function Gradebook() {
       setWsSubs((ws ?? []) as WsSub[]);
     } else {
       setWsSubs([]);
+    }
+
+    // Project submissions (todos los estudiantes)
+    const prjIds = ((projectsData ?? []) as Project[]).map((p) => p.id);
+    if (prjIds.length && userIds.length) {
+      const { data: ps } = await db
+        .from("project_submissions")
+        .select("project_id, user_id, ai_grade, final_grade, status")
+        .in("project_id", prjIds);
+      setProjectSubs((ps ?? []) as ProjectSub[]);
+    } else {
+      setProjectSubs([]);
+    }
+
+    // Attendance records (todas las sesiones del curso)
+    const sessIds = ((sessions ?? []) as AttSession[]).map((s) => s.id);
+    if (sessIds.length && userIds.length) {
+      const { data: ar } = await db
+        .from("attendance_records")
+        .select("session_id, user_id, status")
+        .in("session_id", sessIds);
+      setAttRecords((ar ?? []) as AttRecord[]);
+    } else {
+      setAttRecords([]);
     }
 
     setEdits({});
