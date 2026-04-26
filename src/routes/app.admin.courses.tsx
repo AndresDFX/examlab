@@ -64,9 +64,9 @@ type Course = {
   max_exam_attempts: number;
 };
 
-type Cut = {
-  id: string;
-  course_id: string;
+type DraftCut = {
+  // Present only when the cut already exists in the DB.
+  id?: string;
   name: string;
   position: number;
   start_date: string | null;
