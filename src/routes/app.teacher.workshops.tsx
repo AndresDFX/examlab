@@ -175,6 +175,7 @@ function TeacherWorkshops() {
     setForm({
       title: "",
       course_id: courses[0]?.id,
+      cut_id: null,
       description: "",
       instructions: "",
       external_link: "",
