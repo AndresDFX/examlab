@@ -141,6 +141,12 @@ function Gradebook() {
   const [examSubs, setExamSubs] = useState<ExamSub[]>([]);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [allExams, setAllExams] = useState<Exam[]>([]);
+  const [allWorkshops, setAllWorkshops] = useState<Workshop[]>([]);
+  const [cuts, setCuts] = useState<Cut[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectSubs, setProjectSubs] = useState<ProjectSub[]>([]);
+  const [attSessions, setAttSessions] = useState<AttSession[]>([]);
+  const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
   const [edits, setEdits] = useState<EditMap>({});
   const [saving, setSaving] = useState(false);
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
