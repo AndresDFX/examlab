@@ -12,7 +12,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -233,6 +233,20 @@ function GradingConfigPage() {
             {t("grading.configTitle")}
           </h1>
           <p className="text-muted-foreground text-sm">{courseName}</p>
+        </div>
+      </div>
+
+      {/* Banner de deprecación: la nueva configuración vive en el diálogo de curso. */}
+      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+        <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div className="space-y-1">
+          <p className="font-medium">Vista en transición</p>
+          <p className="text-muted-foreground">
+            Esta pantalla quedará obsoleta. La configuración oficial de cortes evaluativos vive
+            ahora en el diálogo de creación/edición de curso. La nueva jerarquía de calificación
+            es: <strong>Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]</strong>.
+            Los cambios realizados aquí ya no afectan el cálculo final del estudiante.
+          </p>
         </div>
       </div>
 

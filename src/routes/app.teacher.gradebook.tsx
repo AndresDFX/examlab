@@ -394,10 +394,9 @@ function Gradebook() {
             <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
           </div>
           <div className="text-sm text-muted-foreground">
-            Pesos: Exámenes{" "}
-            <span className="font-medium tabular-nums">{selectedCourse.exam_weight}%</span> ·
-            Talleres{" "}
-            <span className="font-medium tabular-nums">{selectedCourse.workshop_weight}%</span>
+            La nota final del curso se calcula desde los <strong>cortes evaluativos</strong>{" "}
+            configurados (Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]). Los
+            estudiantes ven el consolidado en su vista de Calificaciones.
           </div>
         </div>
       )}
