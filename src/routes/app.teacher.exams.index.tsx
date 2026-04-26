@@ -96,6 +96,7 @@ function TeacherExams() {
     setForm({
       title: "",
       course_id: courses[0]?.id,
+      cut_id: null,
       start_time: toLocal(now),
       end_time: toLocal(end),
       time_limit_minutes: 60,
