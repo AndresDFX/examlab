@@ -98,6 +98,12 @@ function ExamEditor() {
         .select("user_id")
         .eq("exam_id", examId);
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));
+      const { data: cs } = await (supabase as any)
+        .from("grade_cuts")
+        .select("id, name")
+        .eq("course_id", e.course_id)
+        .order("position");
+      setCuts((cs ?? []) as Array<{ id: string; name: string }>);
     }
   };
   useEffect(() => {
