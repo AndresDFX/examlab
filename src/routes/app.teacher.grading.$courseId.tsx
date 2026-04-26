@@ -236,6 +236,20 @@ function GradingConfigPage() {
         </div>
       </div>
 
+      {/* Banner de deprecación: la nueva configuración vive en el diálogo de curso. */}
+      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+        <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div className="space-y-1">
+          <p className="font-medium">Vista en transición</p>
+          <p className="text-muted-foreground">
+            Esta pantalla quedará obsoleta. La configuración oficial de cortes evaluativos vive
+            ahora en el diálogo de creación/edición de curso. La nueva jerarquía de calificación
+            es: <strong>Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]</strong>.
+            Los cambios realizados aquí ya no afectan el cálculo final del estudiante.
+          </p>
+        </div>
+      </div>
+
       {/* Final project vs. coursework */}
       <Card>
         <CardHeader>
