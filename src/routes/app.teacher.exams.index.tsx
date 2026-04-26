@@ -45,9 +45,11 @@ Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
 type Course = { id: string; name: string; period: string | null };
+type Cut = { id: string; course_id: string; name: string };
 type Exam = {
   id: string;
   course_id: string;
+  cut_id: string | null;
   title: string;
   description: string | null;
   start_time: string;
