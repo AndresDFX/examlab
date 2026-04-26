@@ -600,7 +600,7 @@ export function StudentWorkshopTaker({
             {graded.grade} / {maxScore}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            La calificación fue generada automáticamente por IA al enviar el taller.
+            {t("workshop.aiGradedNotice")}
           </p>
         </CardContent>
       </Card>
@@ -609,7 +609,6 @@ export function StudentWorkshopTaker({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">{workshopTitle}</h3>
       {questions.map((q, idx) => (
         <Card key={q.id}>
           <CardHeader className="pb-2">
