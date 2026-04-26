@@ -38,6 +38,8 @@ import {
   XSquare,
   Loader2,
   Settings,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 
