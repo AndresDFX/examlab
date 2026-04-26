@@ -40,6 +40,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { CutsEditor } from "@/components/CutsEditor";
 
 export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
 
@@ -55,8 +56,23 @@ type Course = {
   exam_weight: number;
   workshop_weight: number;
   attendance_weight: number;
+  project_weight: number;
   passing_grade: number;
   max_exam_attempts: number;
+};
+
+type Cut = {
+  id: string;
+  course_id: string;
+  name: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+  weight: number;
+  exam_weight: number;
+  workshop_weight: number;
+  attendance_weight: number;
+  project_weight: number;
 };
 
 /** Normaliza un valor de fecha (ISO timestamp o YYYY-MM-DD) a YYYY-MM-DD para inputs <date>. */
@@ -126,8 +142,9 @@ function AdminCourses() {
       grade_scale_min: 0,
       grade_scale_max: 5,
       exam_weight: 40,
-      workshop_weight: 40,
+      workshop_weight: 30,
       attendance_weight: 10,
+      project_weight: 20,
       passing_grade: 3,
       max_exam_attempts: 1,
     });
@@ -154,8 +171,9 @@ function AdminCourses() {
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
       grade_scale_max: Number(editing.grade_scale_max ?? 5),
       exam_weight: Number(editing.exam_weight ?? 40),
-      workshop_weight: Number(editing.workshop_weight ?? 40),
+      workshop_weight: Number(editing.workshop_weight ?? 30),
       attendance_weight: Number(editing.attendance_weight ?? 10),
+      project_weight: Number(editing.project_weight ?? 20),
       passing_grade: Number(editing.passing_grade ?? 3),
       max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
@@ -355,6 +373,7 @@ function AdminCourses() {
           exam_weight: dupSource.exam_weight,
           workshop_weight: dupSource.workshop_weight,
           attendance_weight: dupSource.attendance_weight,
+          project_weight: dupSource.project_weight ?? 0,
           max_exam_attempts: dupSource.max_exam_attempts ?? 1,
         })
         .select()
@@ -812,7 +831,7 @@ function AdminCourses() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
                     <Label className="text-xs">Peso exámenes (%)</Label>
                     <Input
@@ -855,12 +874,27 @@ function AdminCourses() {
                       }
                     />
                   </div>
+                  <div>
+                    <Label className="text-xs">Peso proyecto (%)</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={editing.project_weight || ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          project_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
                 {(() => {
                   const total =
                     (editing.exam_weight ?? 0) +
                     (editing.workshop_weight ?? 0) +
-                    (editing.attendance_weight ?? 0);
+                    (editing.attendance_weight ?? 0) +
+                    (editing.project_weight ?? 0);
                   return (
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground">
@@ -875,6 +909,15 @@ function AdminCourses() {
                     </div>
                   );
                 })()}
+
+                {/* ── Cortes evaluativos ── */}
+                {editing.id ? (
+                  <CutsEditor courseId={editing.id} />
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Guarda el curso primero para configurar cortes evaluativos.
+                  </p>
+                )}
               </div>
 
               {/* ── Reintentos por examen ── */}

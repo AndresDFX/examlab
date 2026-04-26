@@ -281,6 +281,7 @@ export type Database = {
           name: string
           passing_grade: number
           period: string | null
+          project_weight: number
           start_date: string | null
           updated_at: string
           workshop_weight: number
@@ -299,6 +300,7 @@ export type Database = {
           name: string
           passing_grade?: number
           period?: string | null
+          project_weight?: number
           start_date?: string | null
           updated_at?: string
           workshop_weight?: number
@@ -317,6 +319,7 @@ export type Database = {
           name?: string
           passing_grade?: number
           period?: string | null
+          project_weight?: number
           start_date?: string | null
           updated_at?: string
           workshop_weight?: number
@@ -570,37 +573,49 @@ export type Database = {
       }
       grade_cuts: {
         Row: {
+          attendance_weight: number
           course_id: string
           created_at: string
           end_date: string | null
+          exam_weight: number
           id: string
           name: string
           position: number
+          project_weight: number
           start_date: string | null
           updated_at: string
           weight: number
+          workshop_weight: number
         }
         Insert: {
+          attendance_weight?: number
           course_id: string
           created_at?: string
           end_date?: string | null
+          exam_weight?: number
           id?: string
           name: string
           position?: number
+          project_weight?: number
           start_date?: string | null
           updated_at?: string
           weight?: number
+          workshop_weight?: number
         }
         Update: {
+          attendance_weight?: number
           course_id?: string
           created_at?: string
           end_date?: string | null
+          exam_weight?: number
           id?: string
           name?: string
           position?: number
+          project_weight?: number
           start_date?: string | null
           updated_at?: string
           weight?: number
+          workshop_weight?: number
         }
         Relationships: [
           {
@@ -686,6 +701,117 @@ export type Database = {
         }
         Relationships: []
       }
+      project_submissions: {
+        Row: {
+          ai_detected: boolean
+          ai_detected_reasons: string | null
+          ai_detected_score: number | null
+          ai_feedback: string | null
+          ai_grade: number | null
+          created_at: string
+          final_grade: number | null
+          id: string
+          project_id: string
+          status: string
+          submitted_at: string | null
+          teacher_feedback: string | null
+          updated_at: string
+          user_id: string
+          zip_url: string | null
+        }
+        Insert: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
+          ai_feedback?: string | null
+          ai_grade?: number | null
+          created_at?: string
+          final_grade?: number | null
+          id?: string
+          project_id: string
+          status?: string
+          submitted_at?: string | null
+          teacher_feedback?: string | null
+          updated_at?: string
+          user_id: string
+          zip_url?: string | null
+        }
+        Update: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
+          ai_feedback?: string | null
+          ai_grade?: number | null
+          created_at?: string
+          final_grade?: number | null
+          id?: string
+          project_id?: string
+          status?: string
+          submitted_at?: string | null
+          teacher_feedback?: string | null
+          updated_at?: string
+          user_id?: string
+          zip_url?: string | null
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          ai_generated: boolean
+          course_id: string
+          created_at: string
+          created_by: string
+          cut_id: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          instructions: string | null
+          max_files: number
+          max_score: number
+          project_type: string
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ai_generated?: boolean
+          course_id: string
+          created_at?: string
+          created_by: string
+          cut_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          instructions?: string | null
+          max_files?: number
+          max_score?: number
+          project_type?: string
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ai_generated?: boolean
+          course_id?: string
+          created_at?: string
+          created_by?: string
+          cut_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          instructions?: string | null
+          max_files?: number
+          max_score?: number
+          project_type?: string
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       questions: {
         Row: {
           content: string
@@ -741,6 +867,9 @@ export type Database = {
       }
       submissions: {
         Row: {
+          ai_detected: boolean
+          ai_detected_reasons: string | null
+          ai_detected_score: number | null
           ai_grade: number | null
           answers: Json
           created_at: string
@@ -755,6 +884,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
           ai_grade?: number | null
           answers?: Json
           created_at?: string
@@ -769,6 +901,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
           ai_grade?: number | null
           answers?: Json
           created_at?: string
@@ -889,6 +1024,9 @@ export type Database = {
       }
       workshop_submission_answers: {
         Row: {
+          ai_detected: boolean
+          ai_detected_reasons: string | null
+          ai_detected_score: number | null
           ai_feedback: string | null
           ai_grade: number | null
           answer_text: string | null
@@ -902,6 +1040,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
           answer_text?: string | null
@@ -915,6 +1056,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
           answer_text?: string | null
@@ -931,6 +1075,9 @@ export type Database = {
       }
       workshop_submissions: {
         Row: {
+          ai_detected: boolean
+          ai_detected_reasons: string | null
+          ai_detected_score: number | null
           ai_feedback: string | null
           ai_grade: number | null
           content: string | null
@@ -947,6 +1094,9 @@ export type Database = {
           workshop_id: string
         }
         Insert: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
           content?: string | null
@@ -963,6 +1113,9 @@ export type Database = {
           workshop_id: string
         }
         Update: {
+          ai_detected?: boolean
+          ai_detected_reasons?: string | null
+          ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
           content?: string | null

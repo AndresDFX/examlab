@@ -10,6 +10,94 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
+
+    // ── Modo: generación de enunciado de PROYECTO ──
+    if (body.projectStatement) {
+      const KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!KEY) throw new Error("LOVABLE_API_KEY missing");
+      const {
+        topic,
+        projectType = "escrito", // 'escrito' | 'codigo' | 'diagrama'
+        maxFiles = 5,
+        courseLanguage,
+      } = body;
+      if (!topic) throw new Error("topic requerido");
+      const lang: "es" | "en" =
+        courseLanguage === "en" || courseLanguage === "es" ? courseLanguage : "es";
+      const langName = lang === "en" ? "inglés (English)" : "español";
+
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-pro",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un docente experto que diseña enunciados de proyectos académicos claros, retadores y bien estructurados.
+Devuelve un enunciado completo en ${langName} con: contexto/objetivo, alcance, entregables (respetando exactamente el número máximo de archivos), criterios de evaluación y restricciones técnicas según el tipo de proyecto.`,
+            },
+            {
+              role: "user",
+              content: `Tema: ${topic}
+Tipo de proyecto: ${projectType} (escrito = ensayo/informe; codigo = solución de programación; diagrama = modelado UML/ER/flujo)
+Número máximo de archivos a entregar: ${maxFiles}
+El estudiante deberá subir los archivos comprimidos en un ZIP.
+Idioma obligatorio: ${langName}.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "build_project_statement",
+                description: "Devuelve el enunciado del proyecto",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    description: { type: "string" },
+                    instructions: {
+                      type: "string",
+                      description: "Enunciado completo en Markdown con secciones",
+                    },
+                  },
+                  required: ["title", "description", "instructions"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "build_project_statement" } },
+        }),
+      });
+
+      if (aiRes.status === 429) {
+        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (aiRes.status === 402) {
+        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        console.error("AI error", aiRes.status, err);
+        throw new Error("Error en gateway de IA");
+      }
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc
+        ? JSON.parse(tc.function.arguments)
+        : { title: topic, description: "", instructions: "" };
+      return new Response(JSON.stringify({ ok: true, ...args }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { topics, type, count = 5, examId, language } = body;
     if (!topics || !type || !examId) {
       return new Response(JSON.stringify({ error: "topics, type, examId requeridos" }), {
