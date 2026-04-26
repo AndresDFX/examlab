@@ -195,7 +195,9 @@ export function TeacherWorkshopQuestionsEditor({
                     </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
                   </div>
-                  <p className="text-sm whitespace-pre-wrap">{q.content}</p>
+                  <div className="text-sm">
+                    <MarkdownInline>{q.content}</MarkdownInline>
+                  </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => removeQ(q.id)}>
                   <Trash2 className="h-4 w-4" />
