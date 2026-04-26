@@ -95,6 +95,13 @@ function AdminCourses() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
 
+  // Cortes evaluativos del curso en edición (en memoria; se persiste al guardar).
+  const [editingCuts, setEditingCuts] = useState<DraftCut[]>([]);
+  // IDs que existían al abrir el diálogo. Lo que falte al guardar se elimina.
+  const [originalCutIds, setOriginalCutIds] = useState<Set<string>>(new Set());
+  // Cortes expandidos en la UI para ver/editar sub-pesos.
+  const [expandedCuts, setExpandedCuts] = useState<Set<number>>(new Set());
+
   // Enrollment
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [enrollCourse, setEnrollCourse] = useState<Course | null>(null);
