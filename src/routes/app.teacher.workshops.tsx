@@ -224,6 +224,7 @@ function TeacherWorkshops() {
       status: form.status ?? "draft",
       rubric: form.rubric ?? null,
       created_by: user.id,
+      cut_id: form.cut_id || null,
     };
 
     if (form.id) {
