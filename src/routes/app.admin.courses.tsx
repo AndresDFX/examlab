@@ -372,6 +372,7 @@ function AdminCourses() {
           exam_weight: dupSource.exam_weight,
           workshop_weight: dupSource.workshop_weight,
           attendance_weight: dupSource.attendance_weight,
+          project_weight: dupSource.project_weight ?? 0,
           max_exam_attempts: dupSource.max_exam_attempts ?? 1,
         })
         .select()
