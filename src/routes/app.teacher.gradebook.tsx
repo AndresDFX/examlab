@@ -444,6 +444,115 @@ function Gradebook() {
   const hasEdits = Object.values(edits).some((v) => v !== "");
   const selectedCourse = courses.find((c) => c.id === courseId);
 
+  // ───────── Consolidado por cortes (Curso → Cortes → 4 componentes) ─────────
+  // Reusa la misma lógica que la vista del estudiante para garantizar consistencia.
+  const consolidated = useMemo(() => {
+    if (!selectedCourse || !cuts.length || !students.length) return null;
+
+    const min = selectedCourse.grade_scale_min;
+    const max = selectedCourse.grade_scale_max;
+    const toScale = (raw: number, rawMax: number) => {
+      const pct = rawMax > 0 ? raw / rawMax : 0;
+      return min + pct * (max - min);
+    };
+
+    const recordsBySessionUser = new Map<string, string>();
+    for (const r of attRecords) {
+      recordsBySessionUser.set(`${r.session_id}::${r.user_id}`, r.status);
+    }
+
+    return students.map((stu) => {
+      const cutGrades = cuts.map((cut) => {
+        // Exámenes del corte (originales, escalados a 0..course.max desde 0..10)
+        const cutExams = allExams.filter(
+          (e) => !e.parent_exam_id && (e.cut_id ?? null) === cut.id,
+        );
+        const examScores: number[] = [];
+        for (const e of cutExams) {
+          let sub = examSubs.find((s) => s.user_id === stu.id && s.exam_id === e.id);
+          if (!sub) {
+            const makeups = allExams.filter((m) => m.parent_exam_id === e.id).map((m) => m.id);
+            sub = examSubs.find((s) => s.user_id === stu.id && makeups.includes(s.exam_id));
+          }
+          const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
+          if (raw != null) examScores.push(toScale(Number(raw), 10));
+        }
+        const examAvg = examScores.length
+          ? examScores.reduce((a, b) => a + b, 0) / examScores.length
+          : null;
+
+        // Talleres del corte
+        const cutWorkshops = allWorkshops.filter((w) => (w.cut_id ?? null) === cut.id);
+        const wsScores: number[] = [];
+        for (const w of cutWorkshops) {
+          const sub = wsSubs.find((s) => s.user_id === stu.id && s.workshop_id === w.id);
+          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          if (raw != null) wsScores.push(toScale(Number(raw), w.max_score ?? 100));
+        }
+        const wsAvg = wsScores.length
+          ? wsScores.reduce((a, b) => a + b, 0) / wsScores.length
+          : null;
+
+        // Proyectos del corte
+        const cutProjects = projects.filter((p) => (p.cut_id ?? null) === cut.id);
+        const prjScores: number[] = [];
+        for (const p of cutProjects) {
+          const sub = projectSubs.find((s) => s.user_id === stu.id && s.project_id === p.id);
+          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          if (raw != null) prjScores.push(toScale(Number(raw), p.max_score ?? 100));
+        }
+        const prjAvg = prjScores.length
+          ? prjScores.reduce((a, b) => a + b, 0) / prjScores.length
+          : null;
+
+        // Asistencia del corte (sesiones cuya fecha cae en el rango del corte)
+        let attAvg: number | null = null;
+        if (cut.start_date && cut.end_date) {
+          const sessionsInCut = attSessions.filter(
+            (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
+          );
+          if (sessionsInCut.length > 0) {
+            const present = sessionsInCut.filter(
+              (s) => recordsBySessionUser.get(`${s.id}::${stu.id}`) === "presente",
+            ).length;
+            attAvg = min + (present / sessionsInCut.length) * (max - min);
+          }
+        }
+
+        const componentScores: CutComponentScores = {
+          workshop: wsAvg,
+          exam: examAvg,
+          project: prjAvg,
+          attendance: attAvg,
+        };
+        const weights: CutWeights = {
+          workshop: cut.workshop_weight,
+          exam: cut.exam_weight,
+          project: cut.project_weight,
+          attendance: cut.attendance_weight,
+        };
+        return { cutId: cut.id, grade: computeCutGrade(componentScores, weights) };
+      });
+
+      const finalGrade = computeCourseFinalGrade(
+        cutGrades.map((cg, i) => ({ weight: cuts[i].weight, grade: cg.grade })),
+      );
+      return { student: stu, cutGrades, finalGrade };
+    });
+  }, [
+    selectedCourse,
+    cuts,
+    students,
+    allExams,
+    allWorkshops,
+    projects,
+    examSubs,
+    wsSubs,
+    projectSubs,
+    attSessions,
+    attRecords,
+  ]);
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   return (
