@@ -130,14 +130,24 @@ Idioma obligatorio: ${langName}.`,
     let courseLanguage: "es" | "en" = "es";
     if (body.courseLanguage === "en" || body.courseLanguage === "es") {
       courseLanguage = body.courseLanguage;
-    } else if (examId) {
-      const { data: examRow } = await admin0
-        .from("exams")
-        .select("course:courses(language)")
-        .eq("id", examId)
-        .maybeSingle();
-      const lng = (examRow as any)?.course?.language;
-      if (lng === "en" || lng === "es") courseLanguage = lng;
+    } else if (targetId) {
+      if (isWorkshop) {
+        const { data: wRow } = await admin0
+          .from("workshops")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (wRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      } else {
+        const { data: examRow } = await admin0
+          .from("exams")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (examRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      }
     }
     const langName = courseLanguage === "en" ? "inglés (English)" : "español";
 
