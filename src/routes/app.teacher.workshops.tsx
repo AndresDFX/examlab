@@ -109,6 +109,29 @@ type WsSub = {
   profile?: { full_name: string; institutional_email: string };
 };
 
+type WsQuestion = {
+  id: string;
+  workshop_id: string;
+  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  content: string;
+  options: { choices?: string[]; correct_index?: number } | null;
+  position: number;
+  points: number;
+  expected_rubric: string | null;
+  language: string | null;
+};
+type WsAnswer = {
+  id: string;
+  submission_id: string;
+  question_id: string;
+  answer_text: string | null;
+  selected_option: string | null;
+  code_content: string | null;
+  diagram_code: string | null;
+  ai_grade: number | null;
+  ai_feedback: string | null;
+};
+
 function TeacherWorkshops() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
@@ -122,6 +145,13 @@ function TeacherWorkshops() {
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [gradingOpen, setGradingOpen] = useState(false);
+  // Per-question grading: questions of the workshop, and answers grouped
+  // by submission. Edits live in `answersBySub` until the teacher saves a
+  // single question or recomputes the global grade.
+  const [wsQuestions, setWsQuestions] = useState<WsQuestion[]>([]);
+  const [answersBySub, setAnswersBySub] = useState<Record<string, WsAnswer[]>>({});
+  const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
+  const [aiGradingAnswerId, setAiGradingAnswerId] = useState<string | null>(null);
 
   // Assignment
   const [assignWs, setAssignWs] = useState<Workshop | null>(null);
