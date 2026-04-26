@@ -152,14 +152,20 @@ ${extraInstructions}`,
               type: "function",
               function: {
                 name: "score_question",
-                description: "Calificar respuesta a pregunta de taller",
+                description:
+                  "Calificar respuesta a pregunta de taller y estimar si fue generada por IA",
                 parameters: {
                   type: "object",
                   properties: {
                     score: { type: "number" },
                     feedback: { type: "string" },
+                    ai_likelihood: {
+                      type: "number",
+                      description: "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
+                    },
+                    ai_reasons: { type: "string" },
                   },
-                  required: ["score", "feedback"],
+                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
                 },
               },
             },
@@ -190,11 +196,206 @@ ${extraInstructions}`,
       const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
       const args = tc
         ? JSON.parse(tc.function.arguments)
-        : { score: 0, feedback: "Sin retroalimentación" };
+        : { score: 0, feedback: "Sin retroalimentación", ai_likelihood: 0, ai_reasons: "" };
       const score = Math.max(0, Math.min(Number(maxPoints), Number(args.score) || 0));
+      const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
 
       return new Response(
-        JSON.stringify({ ok: true, grade: score, feedback: args.feedback }),
+        JSON.stringify({
+          ok: true,
+          grade: score,
+          feedback: args.feedback,
+          ai_likelihood: aiLikelihood,
+          ai_detected: aiLikelihood >= 0.6,
+          ai_reasons: args.ai_reasons ?? "",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ── PROJECT grading mode (ZIP) ──
+    if (body.projectGrading) {
+      const { submissionId, courseLanguage } = body;
+      if (!submissionId) throw new Error("submissionId requerido");
+      const lang: "es" | "en" =
+        courseLanguage === "en" || courseLanguage === "es" ? courseLanguage : "es";
+      const langName = lang === "en" ? "inglés (English)" : "español";
+
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { data: psub, error: psErr } = await admin
+        .from("project_submissions")
+        .select("*, project:projects(*)")
+        .eq("id", submissionId)
+        .single();
+      if (psErr || !psub) throw new Error("Entrega de proyecto no encontrada");
+      const project = (psub as any).project;
+      if (!psub.zip_url) throw new Error("La entrega no tiene archivo ZIP");
+
+      // Descarga el ZIP
+      const dl = await admin.storage.from("workshop-files").download(psub.zip_url);
+      if (dl.error || !dl.data) throw new Error("No se pudo descargar el ZIP");
+      const zipBuf = new Uint8Array(await dl.data.arrayBuffer());
+
+      // Descomprime con fflate
+      const fflate = await import("https://esm.sh/fflate@0.8.2");
+      const unzipped = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+        fflate.unzip(zipBuf, (err, files) => (err ? reject(err) : resolve(files)));
+      });
+
+      const TEXT_EXT = new Set([
+        "py", "js", "ts", "tsx", "jsx", "java", "c", "h", "cpp", "hpp", "cs", "go",
+        "rb", "php", "html", "css", "scss", "md", "txt", "json", "yaml", "yml",
+        "xml", "sql", "mmd", "puml", "kt", "swift", "rs", "sh",
+      ]);
+      const MAX_FILE_BYTES = 50_000;
+      const MAX_TOTAL_BYTES = 250_000;
+      const MAX_FILES_INCLUDED = 30;
+
+      const decoder = new TextDecoder("utf-8", { fatal: false });
+      const filesIncluded: { path: string; content: string }[] = [];
+      const filesSkipped: string[] = [];
+      let totalBytes = 0;
+      const allPaths = Object.keys(unzipped).filter((p) => !p.endsWith("/"));
+      for (const path of allPaths) {
+        const ext = path.split(".").pop()?.toLowerCase() ?? "";
+        const data = unzipped[path];
+        if (!TEXT_EXT.has(ext)) {
+          filesSkipped.push(path + " (binario)");
+          continue;
+        }
+        if (data.byteLength > MAX_FILE_BYTES) {
+          filesSkipped.push(path + " (>50KB)");
+          continue;
+        }
+        if (totalBytes + data.byteLength > MAX_TOTAL_BYTES) {
+          filesSkipped.push(path + " (límite total)");
+          continue;
+        }
+        if (filesIncluded.length >= MAX_FILES_INCLUDED) {
+          filesSkipped.push(path + " (límite de archivos)");
+          continue;
+        }
+        try {
+          filesIncluded.push({ path, content: decoder.decode(data) });
+          totalBytes += data.byteLength;
+        } catch {
+          filesSkipped.push(path + " (no decodificable)");
+        }
+      }
+
+      const filesContext = filesIncluded
+        .map((f) => `--- archivo: ${f.path} ---\n${f.content}`)
+        .join("\n\n");
+
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-pro",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un evaluador académico imparcial y experto. Calificas un proyecto académico de tipo "${project.project_type}" basándote en sus archivos. Devuelves nota entre 0 y ${project.max_score}, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones.
+REGLA DE IDIOMA: responde en ${langName}.`,
+            },
+            {
+              role: "user",
+              content: `Título: ${project.title}
+Tipo: ${project.project_type}
+Instrucciones del proyecto:
+${project.instructions ?? project.description ?? "Sin instrucciones."}
+
+Puntaje máximo: ${project.max_score}
+Total de archivos en el ZIP: ${allPaths.length}
+Archivos incluidos para revisión (${filesIncluded.length}):
+${filesIncluded.map((f) => f.path).join(", ") || "(ninguno)"}
+${filesSkipped.length ? `Archivos omitidos: ${filesSkipped.slice(0, 20).join(", ")}` : ""}
+
+Contenido de los archivos:
+${filesContext || "(sin contenido legible)"}
+
+Idioma de salida: ${langName}.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "score_project",
+                description:
+                  "Calificar el proyecto y estimar probabilidad de que fue generado por IA",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number" },
+                    feedback: { type: "string" },
+                    ai_likelihood: { type: "number" },
+                    ai_reasons: { type: "string" },
+                  },
+                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "score_project" } },
+        }),
+      });
+
+      if (aiRes.status === 429) {
+        return new Response(JSON.stringify({ error: "Límite de uso de IA." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (aiRes.status === 402) {
+        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error("AI error", aiRes.status, errText);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc
+        ? JSON.parse(tc.function.arguments)
+        : { score: 0, feedback: "Sin retroalimentación", ai_likelihood: 0, ai_reasons: "" };
+      const score = Math.max(0, Math.min(Number(project.max_score), Number(args.score) || 0));
+      const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
+      const aiDetected = aiLikelihood >= 0.6;
+
+      const newStatus = aiDetected ? "requiere_revision" : "ai_revisado";
+      await admin
+        .from("project_submissions")
+        .update({
+          ai_grade: score,
+          ai_feedback: args.feedback,
+          ai_detected: aiDetected,
+          ai_detected_score: aiLikelihood,
+          ai_detected_reasons: args.ai_reasons ?? "",
+          status: newStatus,
+        })
+        .eq("id", submissionId);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          grade: score,
+          feedback: args.feedback,
+          ai_likelihood: aiLikelihood,
+          ai_detected: aiDetected,
+          ai_reasons: args.ai_reasons ?? "",
+          files_included: filesIncluded.length,
+          files_skipped: filesSkipped.length,
+          status: newStatus,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
