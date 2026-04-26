@@ -160,7 +160,107 @@ function AdminCourses() {
       passing_grade: 3,
       max_exam_attempts: 1,
     });
+    setEditingCuts([]);
+    setOriginalCutIds(new Set());
+    setExpandedCuts(new Set());
     setOpen(true);
+  };
+
+  /** Carga los cortes existentes del curso al abrir el diálogo en modo edición. */
+  const openEdit = async (c: Course) => {
+    setEditing({
+      ...c,
+      start_date: toDateInput(c.start_date),
+      end_date: toDateInput(c.end_date),
+    });
+    const { data: cuts } = await db
+      .from("grade_cuts")
+      .select("*")
+      .eq("course_id", c.id)
+      .order("position");
+    const list = ((cuts ?? []) as DraftCut[]).map((x) => ({
+      id: x.id,
+      name: x.name,
+      position: x.position,
+      start_date: x.start_date,
+      end_date: x.end_date,
+      weight: Number(x.weight ?? 0),
+      exam_weight: Number(x.exam_weight ?? 0),
+      workshop_weight: Number(x.workshop_weight ?? 0),
+      attendance_weight: Number(x.attendance_weight ?? 0),
+      project_weight: Number(x.project_weight ?? 0),
+    }));
+    setEditingCuts(list);
+    setOriginalCutIds(new Set(list.map((x) => x.id!).filter(Boolean)));
+    setExpandedCuts(new Set());
+    setOpen(true);
+  };
+
+  /** Crea un corte vacío con defaults razonables. */
+  const makeEmptyCut = (position: number, n: number): DraftCut => ({
+    name: `Corte ${position + 1}`,
+    position,
+    start_date: null,
+    end_date: null,
+    weight: n > 0 ? Math.round(100 / n) : 0,
+    exam_weight: 40,
+    workshop_weight: 30,
+    attendance_weight: 10,
+    project_weight: 20,
+  });
+
+  /** Cambia el número total de cortes. Pide confirmación si se reduce y hay items. */
+  const handleCutCountChange = async (next: number) => {
+    const target = Math.max(0, Math.min(20, Math.floor(next || 0)));
+    const current = editingCuts.length;
+    if (target === current) return;
+
+    if (target > current) {
+      // Aumentar: agregar cortes vacíos al final.
+      const additions: DraftCut[] = [];
+      for (let i = current; i < target; i++) additions.push(makeEmptyCut(i, target));
+      setEditingCuts([...editingCuts, ...additions]);
+      return;
+    }
+
+    // Reducir: revisar si los cortes a eliminar (ya en BD) tienen items.
+    const toRemove = editingCuts.slice(target);
+    const idsInDb = toRemove.map((c) => c.id).filter(Boolean) as string[];
+    let itemsCount = 0;
+    if (idsInDb.length) {
+      const { count } = await db
+        .from("grade_cut_items")
+        .select("id", { count: "exact", head: true })
+        .in("cut_id", idsInDb);
+      itemsCount = count ?? 0;
+    }
+    const ok = await confirm({
+      title: `Reducir cortes a ${target}`,
+      description:
+        itemsCount > 0
+          ? `Se eliminarán ${toRemove.length} corte(s) y ${itemsCount} item(s) asociado(s). Esta acción se aplica al guardar y no se puede deshacer.`
+          : `Se eliminarán ${toRemove.length} corte(s). Esta acción se aplica al guardar.`,
+      confirmLabel: "Reducir",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    setEditingCuts(editingCuts.slice(0, target));
+    setExpandedCuts(new Set());
+  };
+
+  /** Aplica un parche a un corte por índice. */
+  const updateDraftCut = (index: number, patch: Partial<DraftCut>) => {
+    setEditingCuts((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)));
+  };
+
+  /** Toggle expand/collapse para los sub-pesos. */
+  const toggleExpand = (index: number) => {
+    setExpandedCuts((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   };
 
   const save = async () => {
