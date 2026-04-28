@@ -296,16 +296,18 @@ function AdminDashboard() {
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   void userId;
-  const [counts, setCounts] = useState({ exams: 0, workshops: 0, pendingGrades: 0, courses: 0 });
+  const [counts, setCounts] = useState({ exams: 0, workshops: 0, projects: 0, pendingGrades: 0, courses: 0 });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
+  const [activeProjects, setActiveProjects] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
-      const [e, w, pg, c] = await Promise.all([
+      const [e, w, pr, pg, c] = await Promise.all([
         supabase.from("exams").select("id", { count: "exact", head: true }),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
+        (supabase as any).from("projects").select("id", { count: "exact", head: true }),
         supabase
           .from("submissions")
           .select("id", { count: "exact", head: true })
@@ -316,6 +318,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       setCounts({
         exams: e.count ?? 0,
         workshops: w.count ?? 0,
+        projects: pr.count ?? 0,
         pendingGrades: pg.count ?? 0,
         courses: c.count ?? 0,
       });
@@ -335,6 +338,14 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(4);
       setActiveWorkshops(ws ?? []);
+
+      const { data: pjs } = await (supabase as any)
+        .from("projects")
+        .select("id, title, due_date, status, course:courses(name)")
+        .eq("status", "published")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(4);
+      setActiveProjects(pjs ?? []);
     })();
   }, []);
 
