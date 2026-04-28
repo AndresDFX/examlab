@@ -98,6 +98,145 @@ Idioma obligatorio: ${langName}.`,
       });
     }
 
+    // ── Modo: generación de ARCHIVOS esperados de un proyecto ──
+    // Body: { projectFilesGeneration: true, projectId, topic, count, courseLanguage }
+    // Devuelve y persiste N rows en `project_files` con title/description/expected_rubric.
+    if (body.projectFilesGeneration) {
+      const KEY2 = Deno.env.get("LOVABLE_API_KEY");
+      if (!KEY2) throw new Error("LOVABLE_API_KEY missing");
+      const { projectId, topic, count: pfCount = 3, courseLanguage: pfLang } = body;
+      if (!projectId || !topic) {
+        return new Response(JSON.stringify({ error: "projectId y topic requeridos" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const cnt = Math.max(1, Math.min(20, Number(pfCount) || 3));
+
+      // Resolve course language from project → course
+      const adminPF = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      let pfCourseLang: "es" | "en" = "es";
+      if (pfLang === "en" || pfLang === "es") {
+        pfCourseLang = pfLang;
+      } else {
+        const { data: pRow } = await adminPF
+          .from("projects")
+          .select("course:courses(language)")
+          .eq("id", projectId)
+          .maybeSingle();
+        const lng = (pRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") pfCourseLang = lng;
+      }
+      const pfLangName = pfCourseLang === "en" ? "inglés (English)" : "español";
+
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY2}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un docente experto que diseña proyectos académicos. Dado un tema, debes producir EXACTAMENTE ${cnt} archivos esperados que un estudiante debe entregar para completar el proyecto. Cada archivo es una pieza textual independiente (documento de diseño, código, evidencias, manual de usuario, etc.) que el estudiante pegará en una caja de texto y la IA calificará con la rúbrica que tú escribas.
+REGLA DE IDIOMA: responde siempre en ${pfLangName}.`,
+            },
+            {
+              role: "user",
+              content: `Tema del proyecto: ${topic}
+Número exacto de archivos: ${cnt}
+Para cada archivo devuelve: title (corto), description (qué debe contener desde la perspectiva del estudiante), expected_rubric (criterios objetivos para calificar).
+Idioma obligatorio: ${pfLangName}.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "build_project_files",
+                description: "Devuelve los archivos esperados del proyecto",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    files: {
+                      type: "array",
+                      minItems: cnt,
+                      maxItems: cnt,
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          description: { type: "string" },
+                          expected_rubric: { type: "string" },
+                        },
+                        required: ["title", "description", "expected_rubric"],
+                      },
+                    },
+                  },
+                  required: ["files"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "build_project_files" } },
+        }),
+      });
+
+      if (aiRes.status === 429) {
+        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (aiRes.status === 402) {
+        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        console.error("AI error", aiRes.status, err);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc ? JSON.parse(tc.function.arguments) : { files: [] };
+      const generated: Array<{ title: string; description: string; expected_rubric: string }> =
+        args.files ?? [];
+
+      // Continuar la posición desde el último existente
+      const { data: existing } = await adminPF
+        .from("project_files")
+        .select("position")
+        .eq("project_id", projectId)
+        .order("position", { ascending: false })
+        .limit(1);
+      let pos = (existing?.[0]?.position ?? -1) as number;
+
+      const toInsert = generated.map((g) => ({
+        project_id: projectId,
+        title: g.title,
+        description: g.description ?? null,
+        expected_rubric: g.expected_rubric ?? null,
+        position: ++pos,
+        points: 1,
+      }));
+
+      const { data: inserted, error: insErr } = await adminPF
+        .from("project_files")
+        .insert(toInsert)
+        .select();
+      if (insErr) throw insErr;
+
+      return new Response(JSON.stringify({ ok: true, inserted }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { topics, type, count = 5, examId, language, targetTable } = body;
     // targetTable: "questions" (default, exam questions) | "workshop_questions"
     const isWorkshop = targetTable === "workshop_questions";

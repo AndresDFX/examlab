@@ -1,207 +1,272 @@
 /**
- * Student Projects — list and upload ZIP submissions.
+ * Student Projects — list assigned projects, deliver via per-file text boxes.
+ *
+ * Refactor del flujo ZIP previo: ahora cada proyecto muestra N cajas de
+ * texto (una por `project_files` row); el estudiante pega el contenido de
+ * cada archivo y al enviar la IA califica caja por caja. La nota final se
+ * calcula sobre `max_score` del proyecto.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { Upload, FileArchive, Sparkles, Bot } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  MessageSquare,
+  MessageSquareText,
+  ListChecks,
+  FileText,
+} from "lucide-react";
+import { StudentProjectTaker } from "@/components/ProjectFiles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 export const Route = createFileRoute("/app/student/projects")({ component: StudentProjects });
 
-type Project = {
-  id: string;
-  course_id: string;
-  title: string;
-  description: string | null;
-  instructions: string | null;
-  project_type: string;
-  max_files: number;
-  max_score: number;
-  due_date: string | null;
-};
-type Sub = {
-  id: string;
-  project_id: string;
-  zip_url: string | null;
-  status: string;
-  ai_grade: number | null;
-  ai_feedback: string | null;
-  ai_detected: boolean;
-  final_grade: number | null;
-  teacher_feedback: string | null;
+type ProjectRow = {
+  project: {
+    id: string;
+    title: string;
+    description: string | null;
+    instructions: string | null;
+    start_date: string | null;
+    due_date: string | null;
+    max_files: number;
+    max_score: number;
+    status: string;
+    course: {
+      name: string;
+      grade_scale_min: number;
+      grade_scale_max: number;
+      language?: string | null;
+    };
+  };
+  submission?: {
+    id: string;
+    ai_grade: number | null;
+    ai_feedback: string | null;
+    final_grade: number | null;
+    teacher_feedback: string | null;
+    status: string;
+    submitted_at: string | null;
+  };
 };
 
 function StudentProjects() {
   const { user } = useAuth();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [subs, setSubs] = useState<Record<string, Sub>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<ProjectRow[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState<ProjectRow | null>(null);
 
-  const load = async () => {
-    if (!user) return;
-    const { data: enr } = await supabase
-      .from("course_enrollments")
-      .select("course_id")
-      .eq("user_id", user.id);
-    const courseIds = (enr ?? []).map((e: { course_id: string }) => e.course_id);
-    if (!courseIds.length) {
-      setProjects([]);
-      return;
-    }
-    const { data: ps } = await db
-      .from("projects")
-      .select("*")
-      .in("course_id", courseIds)
-      .eq("status", "published")
-      .order("due_date", { ascending: true });
-    setProjects((ps ?? []) as Project[]);
-    if (ps?.length) {
-      const { data: ss } = await db
-        .from("project_submissions")
-        .select("*")
-        .eq("user_id", user.id)
-        .in(
-          "project_id",
-          ps.map((p: Project) => p.id),
-        );
-      const map: Record<string, Sub> = {};
-      (ss ?? []).forEach((s: Sub) => (map[s.project_id] = s));
-      setSubs(map);
-    }
+  const reload = async (uid: string) => {
+    const { data: asg } = await db
+      .from("project_assignments")
+      .select(
+        "project:projects(id, title, description, instructions, start_date, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language))",
+      )
+      .eq("user_id", uid);
+
+    const projects = ((asg ?? []) as { project: ProjectRow["project"] | null }[])
+      .map((a) => a.project)
+      .filter(Boolean) as ProjectRow["project"][];
+
+    const ids = projects.map((p) => p.id);
+    const { data: subs } = ids.length
+      ? await db
+          .from("project_submissions")
+          .select(
+            "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
+          )
+          .in("project_id", ids)
+          .eq("user_id", uid)
+      : { data: [] as Array<ProjectRow["submission"] & { project_id: string }> };
+
+    setRows(
+      projects.map((p) => ({
+        project: p,
+        submission: (subs ?? []).find(
+          (s: { project_id: string }) => s.project_id === p.id,
+        ) as ProjectRow["submission"],
+      })),
+    );
   };
 
   useEffect(() => {
-    void load();
+    if (!user) return;
+    void reload(user.id);
   }, [user]);
 
-  const upload = async (project: Project, file: File) => {
-    if (!user) return;
-    if (!file.name.toLowerCase().endsWith(".zip")) {
-      return toast.error("Debe ser un archivo .zip");
-    }
-    setBusy(project.id);
-    const path = `projects/${project.id}/${user.id}/${Date.now()}_${file.name}`;
-    const { error: upErr } = await supabase.storage
-      .from("workshop-files")
-      .upload(path, file, { upsert: true });
-    if (upErr) {
-      setBusy(null);
-      return toast.error(upErr.message);
-    }
-    // upsert submission
-    const existing = subs[project.id];
-    const payload = {
-      project_id: project.id,
-      user_id: user.id,
-      zip_url: path,
-      status: "entregado",
-      submitted_at: new Date().toISOString(),
-    };
-    const { error } = existing
-      ? await db.from("project_submissions").update(payload).eq("id", existing.id)
-      : await db.from("project_submissions").insert(payload);
-    setBusy(null);
-    if (error) return toast.error(error.message);
-    toast.success("Entrega guardada");
-    void load();
-  };
+  const now = Date.now();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Proyectos</h1>
-        <p className="text-sm text-muted-foreground">Sube tu entrega como un único archivo ZIP.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
+        <p className="text-sm text-muted-foreground">
+          {rows.length} proyectos asignados
+        </p>
       </div>
-      <div className="grid gap-3">
-        {projects.length === 0 && (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              No tienes proyectos asignados.
-            </CardContent>
-          </Card>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        {rows.length === 0 && (
+          <p className="text-muted-foreground text-sm">{t("common.empty")}</p>
         )}
-        {projects.map((p) => {
-          const s = subs[p.id];
+        {rows.map(({ project, submission }) => {
+          const isOverdue = project.due_date && new Date(project.due_date).getTime() < now;
+          const isUpcoming =
+            project.start_date && new Date(project.start_date).getTime() > now;
+          const grade = submission?.final_grade ?? submission?.ai_grade;
+          const isGraded = submission?.status === "calificado";
+          const isOpen = project.status === "published" && !isOverdue && !isUpcoming;
+
           return (
-            <Card key={p.id}>
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-base">{p.title}</CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="outline" className="capitalize">{p.project_type}</Badge>
-                  <Badge variant="outline">Máx. {p.max_files} archivos</Badge>
-                  {p.due_date && (
-                    <span className="text-muted-foreground">
-                      Entrega: {new Date(p.due_date).toLocaleString()}
-                    </span>
+            <Card key={project.id}>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted-foreground">{project.course?.name}</div>
+                    <h3 className="font-semibold truncate">{project.title}</h3>
+                  </div>
+                  {isGraded ? (
+                    <Badge className="shrink-0">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      {grade != null ? `${grade}/${project.max_score}` : t("exam.submitted")}
+                    </Badge>
+                  ) : submission?.status === "entregado" ? (
+                    <Badge variant="secondary" className="shrink-0">
+                      {t("exam.submitted")}
+                    </Badge>
+                  ) : isOverdue ? (
+                    <Badge variant="destructive" className="shrink-0">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      {t("dashboard.overdue")}
+                    </Badge>
+                  ) : isOpen ? (
+                    <Badge className="bg-success text-success-foreground shrink-0">
+                      {t("exam.available")}
+                    </Badge>
+                  ) : isUpcoming ? (
+                    <Badge variant="outline" className="shrink-0">
+                      {t("exam.upcoming")}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="shrink-0">
+                      {t("exam.closed")}
+                    </Badge>
                   )}
-                  {s && <Badge>{s.status}</Badge>}
-                  {s?.final_grade != null && <Badge variant="secondary">Final: {s.final_grade}</Badge>}
-                  {s?.ai_grade != null && <Badge variant="outline">IA: {s.ai_grade}</Badge>}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {p.instructions && (
-                  <div className="text-sm whitespace-pre-wrap rounded bg-muted/30 p-3">
-                    {p.instructions}
+
+                {project.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
+
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  {project.due_date && (
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3" />
+                      {t("dashboard.dueLabel")}: {new Date(project.due_date).toLocaleString()}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="h-3 w-3" />
+                    {project.max_files} archivos esperados
+                  </div>
+                </div>
+
+                {(submission?.teacher_feedback || submission?.ai_feedback) && (
+                  <div className="bg-muted/50 p-2 rounded text-sm">
+                    <div className="text-xs font-medium flex items-center gap-1 mb-1">
+                      <MessageSquare className="h-3 w-3" />
+                      {t("exam.review.feedback")}
+                    </div>
+                    <div className="whitespace-pre-wrap">
+                      {[
+                        ...new Set(
+                          [submission?.teacher_feedback, submission?.ai_feedback].filter(
+                            Boolean,
+                          ) as string[],
+                        ),
+                      ].join("\n\n")}
+                    </div>
                   </div>
                 )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    type="file"
-                    accept=".zip,application/zip"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void upload(p, f);
+
+                {isOpen && !isGraded && (
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setActive({ project, submission });
+                      setOpen(true);
                     }}
-                    disabled={busy === p.id}
-                    className="max-w-sm"
-                  />
-                  {busy === p.id && (
-                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                      <Upload className="h-3 w-3" />Subiendo...
-                    </span>
-                  )}
-                  {s?.zip_url && (
-                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                      <FileArchive className="h-3 w-3" />Entrega registrada
-                    </span>
-                  )}
-                </div>
-                {s?.ai_feedback && (
-                  <div className="rounded border p-3 text-sm space-y-1">
-                    <p className="font-medium inline-flex items-center gap-1">
-                      <Sparkles className="h-3 w-3" />Retroalimentación IA
-                    </p>
-                    <p className="whitespace-pre-wrap text-muted-foreground">{s.ai_feedback}</p>
-                  </div>
+                  >
+                    <ListChecks className="h-4 w-4 mr-1" />
+                    {submission ? t("common.update") : t("exam.start")}
+                  </Button>
                 )}
-                {s?.teacher_feedback && (
-                  <div className="rounded border p-3 text-sm">
-                    <p className="font-medium">Retroalimentación del docente</p>
-                    <p className="whitespace-pre-wrap text-muted-foreground">{s.teacher_feedback}</p>
-                  </div>
+
+                {submission && (
+                  <Link to="/app/student/project/$projectId" params={{ projectId: project.id }}>
+                    <Button variant="secondary" size="sm" className="w-full">
+                      <MessageSquareText className="h-4 w-4 mr-1" />
+                      {t("exam.viewDetail")}
+                    </Button>
+                  </Link>
                 )}
-                {s?.ai_detected && (
-                  <div className="rounded bg-destructive/10 p-2 text-xs inline-flex items-center gap-1">
-                    <Bot className="h-3 w-3" />
-                    Tu entrega fue marcada como posiblemente generada por IA. El docente revisará.
-                  </div>
+
+                {project.status === "published" && isOverdue && !submission && (
+                  <p className="text-xs text-destructive text-center">
+                    {t("exam.windowClosedHelp")}
+                  </p>
                 )}
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o && user) void reload(user.id);
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{active?.project.title}</DialogTitle>
+          </DialogHeader>
+          {active && (
+            <>
+              {active.project.instructions && (
+                <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap">
+                  {active.project.instructions}
+                </div>
+              )}
+              <StudentProjectTaker
+                projectId={active.project.id}
+                projectTitle={active.project.title}
+                maxScore={active.project.max_score}
+                courseLanguage={active.project.course?.language === "en" ? "en" : "es"}
+                onGraded={() => {
+                  if (user) void reload(user.id);
+                }}
+              />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -61,8 +61,10 @@
     "attendance": "Asistencia",
     "studentExams": "Exámenes",
     "studentWorkshops": "Talleres",
+    "studentProjects": "Proyectos",
     "studentCourses": "Cursos",
     "studentGrades": "Notas",
+    "projects": "Proyectos",
     "signOut": "Cerrar sesión",
     "changePassword": "Cambiar contraseña",
     "theme": "Tema"

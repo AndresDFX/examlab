@@ -24,6 +24,7 @@ import {
   ChevronsUpDown,
   KeyRound,
   Menu,
+  FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -49,6 +50,12 @@ const NAV: NavItem[] = [
   { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", labelKey: "nav.grades", icon: ClipboardList, roles: ["Docente"] },
   { to: "/app/teacher/workshops", labelKey: "nav.workshops", icon: Hammer, roles: ["Docente"] },
+  {
+    to: "/app/teacher/projects",
+    labelKey: "nav.projects",
+    icon: FolderKanban,
+    roles: ["Docente"],
+  },
   { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: Users, roles: ["Docente"] },
   {
     to: "/app/student/exams",
@@ -60,6 +67,12 @@ const NAV: NavItem[] = [
     to: "/app/student/workshops",
     labelKey: "nav.studentWorkshops",
     icon: Hammer,
+    roles: ["Estudiante"],
+  },
+  {
+    to: "/app/student/projects",
+    labelKey: "nav.studentProjects",
+    icon: FolderKanban,
     roles: ["Estudiante"],
   },
   {
@@ -118,9 +131,11 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/teacher/exams": "text-amber-300",
   "/app/teacher/gradebook": "text-emerald-300",
   "/app/teacher/workshops": "text-orange-300",
+  "/app/teacher/projects": "text-rose-300",
   "/app/teacher/attendance": "text-cyan-300",
   "/app/student/exams": "text-amber-300",
   "/app/student/workshops": "text-orange-300",
+  "/app/student/projects": "text-rose-300",
   "/app/student/courses": "text-fuchsia-300",
   "/app/student/grades": "text-emerald-300",
 };

@@ -61,8 +61,10 @@
     "attendance": "Attendance",
     "studentExams": "Exams",
     "studentWorkshops": "Workshops",
+    "studentProjects": "Projects",
     "studentCourses": "Courses",
     "studentGrades": "Grades",
+    "projects": "Projects",
     "signOut": "Sign out",
     "changePassword": "Change password",
     "theme": "Theme"

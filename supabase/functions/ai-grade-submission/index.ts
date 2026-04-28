@@ -105,6 +105,120 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ws
       );
     }
 
+    // ── Project FILE grading (per-file, contenido textual) ──
+    // Body: { projectFileGrading: true, fileTitle, fileDescription, expectedRubric,
+    //         maxPoints, studentContent, courseLanguage }
+    // Devuelve { ok, grade, feedback, ai_likelihood, ai_reasons }.
+    if (body.projectFileGrading) {
+      const {
+        fileTitle,
+        fileDescription,
+        expectedRubric,
+        maxPoints = 1,
+        studentContent,
+        courseLanguage,
+      } = body;
+      if (!studentContent || !fileTitle) {
+        throw new Error("fileTitle y studentContent requeridos");
+      }
+      const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
+      const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
+
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un evaluador académico imparcial. Calificas el contenido textual de UN archivo del proyecto de un estudiante. Devuelves un puntaje entre 0 y ${maxPoints} y retroalimentación útil, además de una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.
+REGLA DE IDIOMA: responde siempre en ${pfLangName}.`,
+            },
+            {
+              role: "user",
+              content: `Archivo: ${fileTitle}
+Descripción esperada: ${fileDescription ?? "(sin descripción)"}
+Rúbrica esperada: ${expectedRubric ?? "Evalúa corrección, completitud y claridad."}
+Puntaje máximo: ${maxPoints}
+
+Contenido entregado por el estudiante:
+${studentContent}
+
+Idioma de salida obligatorio: ${pfLangName}.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "score_project_file",
+                description: "Calificar contenido de un archivo de proyecto",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number" },
+                    feedback: { type: "string" },
+                    ai_likelihood: {
+                      type: "number",
+                      description:
+                        "Probabilidad 0..1 de que el contenido haya sido generado por IA",
+                    },
+                    ai_reasons: {
+                      type: "string",
+                      description: "Breve razonamiento sobre la detección de IA",
+                    },
+                  },
+                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "score_project_file" } },
+        }),
+      });
+
+      if (aiRes.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (aiRes.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Sin créditos de IA. Agrega créditos al workspace." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error("AI error", aiRes.status, errText);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc
+        ? JSON.parse(tc.function.arguments)
+        : { score: 0, feedback: "", ai_likelihood: 0, ai_reasons: "" };
+      const score = Math.max(0, Math.min(Number(maxPoints) || 0, Number(args.score) || 0));
+      const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          grade: score,
+          feedback: args.feedback,
+          ai_likelihood: aiLikelihood,
+          ai_detected: aiLikelihood >= 0.6,
+          ai_reasons: args.ai_reasons ?? "",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // ── Workshop QUESTION grading (per-question, supports diagrama/codigo) ──
     if (body.workshopQuestionGrading) {
       const {

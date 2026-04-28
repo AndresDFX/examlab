@@ -1,37 +1,25 @@
 /**
- * Teacher Projects — list, create/edit, AI statement generation, grade with AI.
+ * Teacher — Projects CRUD (refactor: entregas en cajas de texto + IA).
  *
- * A project is a deliverable that students upload as a single ZIP. The
- * teacher can trigger AI grading which downloads, unzips, evaluates and
- * stores the score (see edge function `ai-grade-submission` mode `projectGrading`).
+ * Espejo del módulo de talleres pero con "archivos" en vez de preguntas.
+ * Cada proyecto tiene N archivos esperados (`project_files` rows). El
+ * estudiante NO sube ZIPs: pega el contenido textual de cada archivo en
+ * una caja, y al enviar la IA califica cada caja.
+ *
+ * Reusa `projects.max_files` (entero) como número de archivos esperados.
+ * La generación con IA crea N rows en `project_files` con título, descripción
+ * y rúbrica para que la calificación sea consistente.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Sparkles,
-  Download,
-  Bot,
-  AlertTriangle,
-  CheckCircle2,
-} from "lucide-react";
-
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -39,17 +27,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import { Plus, Pencil, Trash2, Users, FileText, Loader2 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 
-// projects/project_submissions tables aren't in the auto-generated types yet.
+// projects, project_* aún no están en los tipos generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 export const Route = createFileRoute("/app/teacher/projects")({ component: TeacherProjects });
 
-type Course = { id: string; name: string };
-type Cut = { id: string; name: string; course_id: string };
+type Course = { id: string; name: string; period: string | null; language?: string | null };
+type Cut = { id: string; course_id: string; name: string };
+type Student = { id: string; full_name: string; institutional_email: string };
+
 type Project = {
   id: string;
   course_id: string;
@@ -57,515 +66,517 @@ type Project = {
   title: string;
   description: string | null;
   instructions: string | null;
-  project_type: "escrito" | "codigo" | "diagrama";
   max_files: number;
-  max_score: number;
   start_date: string | null;
   due_date: string | null;
-  status: string;
-  ai_generated: boolean;
+  max_score: number;
+  status: "draft" | "published" | "closed";
+  course?: { name: string; period: string | null; language?: string | null };
 };
-type ProjectSubmission = {
-  id: string;
-  project_id: string;
-  user_id: string;
-  zip_url: string | null;
-  status: string;
-  ai_grade: number | null;
-  ai_feedback: string | null;
-  ai_detected: boolean;
-  ai_detected_score: number | null;
-  ai_detected_reasons: string | null;
-  final_grade: number | null;
-  teacher_feedback: string | null;
-  submitted_at: string | null;
-};
-type Profile = { id: string; full_name: string };
-
-function toLocalInput(value: string | null | undefined) {
-  if (!value) return "";
-  const d = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 function TeacherProjects() {
+  const { user, roles } = useAuth();
+  const { t } = useTranslation();
   const confirm = useConfirm();
+  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string>("");
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Partial<Project> | null>(null);
+  const [editing, setEditing] = useState<Project | null>(null);
+  const [form, setForm] = useState<Partial<Project>>({});
 
-  // AI statement dialog
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiTopic, setAiTopic] = useState("");
-  const [aiType, setAiType] = useState<"escrito" | "codigo" | "diagrama">("escrito");
-  const [aiMaxFiles, setAiMaxFiles] = useState(5);
-  const [aiBusy, setAiBusy] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [filesProject, setFilesProject] = useState<Project | null>(null);
 
-  // Submissions panel
-  const [subsProject, setSubsProject] = useState<Project | null>(null);
-  const [subs, setSubs] = useState<ProjectSubmission[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
-  const [gradingId, setGradingId] = useState<string | null>(null);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignProject, setAssignProject] = useState<Project | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [assigned, setAssigned] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    const { data: cs } = await supabase.from("courses").select("id, name").order("name");
-    setCourses((cs ?? []) as Course[]);
-    if (!selectedCourse && cs?.length) setSelectedCourse(cs[0].id);
-  }, [selectedCourse]);
+  const load = async () => {
+    const [cs, ps, cs2] = await Promise.all([
+      db.from("courses").select("id, name, period, language").order("name"),
+      db
+        .from("projects")
+        .select("*, course:courses(name, period, language)")
+        .order("created_at", { ascending: false }),
+      db.from("grade_cuts").select("id, course_id, name").order("position"),
+    ]);
+    setCourses((cs.data ?? []) as Course[]);
+    setProjects((ps.data ?? []) as Project[]);
+    setCuts((cs2.data ?? []) as Cut[]);
+  };
 
   useEffect(() => {
+    if (!isTeacher) return;
     void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!selectedCourse) return;
-    void (async () => {
-      const [{ data: ps }, { data: gs }] = await Promise.all([
-        db.from("projects").select("*").eq("course_id", selectedCourse).order("created_at", { ascending: false }),
-        db.from("grade_cuts").select("id, name, course_id").eq("course_id", selectedCourse).order("position"),
-      ]);
-      setProjects((ps ?? []) as Project[]);
-      setCuts((gs ?? []) as Cut[]);
-    })();
-  }, [selectedCourse]);
-
-  const cutsForCourse = useMemo(
-    () => cuts.filter((c) => c.course_id === selectedCourse),
-    [cuts, selectedCourse],
-  );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher]);
 
   const openNew = () => {
-    setEditing({
-      course_id: selectedCourse,
+    setEditing(null);
+    setForm({
       title: "",
       description: "",
       instructions: "",
-      project_type: "escrito",
-      max_files: 5,
-      max_score: 100,
+      course_id: courses[0]?.id,
       cut_id: null,
+      max_files: 3,
+      max_score: 100,
       status: "draft",
     });
+    setOpen(true);
+  };
+
+  const openEdit = (p: Project) => {
+    setEditing(p);
+    setForm({ ...p });
     setOpen(true);
   };
 
   const save = async () => {
-    if (!editing?.title?.trim()) return toast.error("Título requerido");
-    const { data: u } = await supabase.auth.getUser();
+    if (!form.title || !form.course_id || !user) {
+      toast.error("Título y curso son obligatorios");
+      return;
+    }
+    const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
     const payload = {
-      ...editing,
-      course_id: selectedCourse,
-      created_by: u.user?.id,
-      start_date: editing.start_date || null,
-      due_date: editing.due_date || null,
-      cut_id: editing.cut_id || null,
+      course_id: form.course_id,
+      cut_id: form.cut_id || null,
+      title: form.title,
+      description: form.description ?? null,
+      instructions: form.instructions ?? null,
+      max_files: maxFiles,
+      start_date: form.start_date ? new Date(form.start_date).toISOString() : null,
+      due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
+      max_score: Number(form.max_score) || 100,
+      status: form.status ?? "draft",
     };
-    const { error } = editing.id
-      ? await db.from("projects").update(payload).eq("id", editing.id)
-      : await db.from("projects").insert(payload);
-    if (error) return toast.error(error.message);
-    toast.success("Proyecto guardado");
+
+    if (editing) {
+      const { error } = await db.from("projects").update(payload).eq("id", editing.id);
+      if (error) return toast.error(error.message);
+      toast.success("Proyecto actualizado");
+    } else {
+      const { error } = await db.from("projects").insert({ ...payload, created_by: user.id });
+      if (error) return toast.error(error.message);
+      toast.success("Proyecto creado");
+    }
     setOpen(false);
-    setEditing(null);
-    const { data: ps } = await db.from("projects").select("*").eq("course_id", selectedCourse).order("created_at", { ascending: false });
-    setProjects((ps ?? []) as Project[]);
+    await load();
   };
 
   const remove = async (p: Project) => {
     const ok = await confirm({
-      title: "Eliminar proyecto",
-      description: "Se eliminarán también todas sus entregas.",
+      title: `Eliminar ${p.title}`,
+      description: "Se eliminará el proyecto y todas sus entregas.",
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
-    await db.from("project_submissions").delete().eq("project_id", p.id);
     const { error } = await db.from("projects").delete().eq("id", p.id);
     if (error) return toast.error(error.message);
-    setProjects((prev) => prev.filter((x) => x.id !== p.id));
+    toast.success("Proyecto eliminado");
+    await load();
   };
 
-  const togglePublish = async (p: Project) => {
-    const next = p.status === "published" ? "draft" : "published";
-    const { error } = await db.from("projects").update({ status: next }).eq("id", p.id);
-    if (error) return toast.error(error.message);
-    setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: next } : x)));
+  const openFilesDialog = (p: Project) => {
+    setFilesProject(p);
+    setFilesOpen(true);
   };
 
-  const generateStatement = async () => {
-    if (!aiTopic.trim()) return toast.error("Tema requerido");
-    setAiBusy(true);
-    const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
-      body: {
-        projectStatement: true,
-        topic: aiTopic,
-        projectType: aiType,
-        maxFiles: aiMaxFiles,
-      },
-    });
-    setAiBusy(false);
-    if (error) return toast.error(error.message);
-    if (data?.error) return toast.error(data.error);
-    setEditing({
-      course_id: selectedCourse,
-      title: data.title,
-      description: data.description,
-      instructions: data.instructions,
-      project_type: aiType,
-      max_files: aiMaxFiles,
-      max_score: 100,
-      cut_id: null,
-      status: "draft",
-      ai_generated: true,
-    });
-    setAiOpen(false);
-    setOpen(true);
-    setAiTopic("");
+  const openAssignDialog = async (p: Project) => {
+    setAssignProject(p);
+    const { data: enr } = await db
+      .from("course_enrollments")
+      .select("user_id, profile:profiles(id, full_name, institutional_email)")
+      .eq("course_id", p.course_id);
+    const list: Student[] = (enr ?? [])
+      .map((e: { profile: Student | null }) => e.profile)
+      .filter(Boolean) as Student[];
+    setStudents(list);
+    const { data: asgn } = await db
+      .from("project_assignments")
+      .select("user_id")
+      .eq("project_id", p.id);
+    setAssigned(new Set((asgn ?? []).map((a: { user_id: string }) => a.user_id)));
+    setAssignOpen(true);
   };
 
-  const openSubs = async (p: Project) => {
-    setSubsProject(p);
-    const { data: ss } = await db.from("project_submissions").select("*").eq("project_id", p.id);
-    const subsList = (ss ?? []) as ProjectSubmission[];
-    setSubs(subsList);
-    if (subsList.length) {
-      const ids = Array.from(new Set(subsList.map((s) => s.user_id)));
-      const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", ids);
-      const map: Record<string, Profile> = {};
-      (profs ?? []).forEach((p: Profile) => (map[p.id] = p));
-      setProfiles(map);
+  const toggleAssign = async (uid: string) => {
+    if (!assignProject) return;
+    const has = assigned.has(uid);
+    if (has) {
+      const { error } = await db
+        .from("project_assignments")
+        .delete()
+        .eq("project_id", assignProject.id)
+        .eq("user_id", uid);
+      if (error) return toast.error(error.message);
+      setAssigned((prev) => {
+        const next = new Set(prev);
+        next.delete(uid);
+        return next;
+      });
+    } else {
+      const { error } = await db
+        .from("project_assignments")
+        .insert({ project_id: assignProject.id, user_id: uid });
+      if (error) return toast.error(error.message);
+      setAssigned((prev) => new Set(prev).add(uid));
     }
   };
 
-  const downloadZip = async (s: ProjectSubmission) => {
-    if (!s.zip_url) return;
-    const { data, error } = await supabase.storage.from("workshop-files").createSignedUrl(s.zip_url, 60);
-    if (error || !data) return toast.error("No se pudo generar enlace");
-    window.open(data.signedUrl, "_blank");
-  };
-
-  const gradeWithAI = async (s: ProjectSubmission) => {
-    setGradingId(s.id);
-    const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
-      body: { projectGrading: true, submissionId: s.id },
-    });
-    setGradingId(null);
+  const assignAll = async () => {
+    if (!assignProject) return;
+    const toAdd = students.filter((s) => !assigned.has(s.id));
+    if (!toAdd.length) return;
+    const rows = toAdd.map((s) => ({ project_id: assignProject.id, user_id: s.id }));
+    const { error } = await db.from("project_assignments").insert(rows);
     if (error) return toast.error(error.message);
-    if (data?.error) return toast.error(data.error);
-    toast.success(`Nota IA: ${data.grade}`);
-    if (subsProject) await openSubs(subsProject);
+    setAssigned(new Set(students.map((s) => s.id)));
+    toast.success(`${toAdd.length} estudiantes asignados`);
   };
 
-  const updateFinal = async (s: ProjectSubmission, grade: number, feedback: string) => {
+  const unassignAll = async () => {
+    if (!assignProject) return;
     const { error } = await db
-      .from("project_submissions")
-      .update({ final_grade: grade, teacher_feedback: feedback, status: "calificado" })
-      .eq("id", s.id);
+      .from("project_assignments")
+      .delete()
+      .eq("project_id", assignProject.id);
     if (error) return toast.error(error.message);
-    toast.success("Nota guardada");
-    if (subsProject) await openSubs(subsProject);
+    setAssigned(new Set());
+    toast.success("Asignaciones eliminadas");
   };
+
+  const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
+
+  if (!isTeacher) return <p className="text-muted-foreground">{t("exam.needsTeacherRole")}</p>;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Proyectos</h1>
-          <p className="text-sm text-muted-foreground">Crea proyectos por curso, con corte opcional.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
+          <p className="text-sm text-muted-foreground">{projects.length} proyectos</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Curso" />
-            </SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
+        <Button onClick={openNew}>
+          <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Título</TableHead>
+                <TableHead>Curso</TableHead>
+                <TableHead>Corte</TableHead>
+                <TableHead>Archivos</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Entrega</TableHead>
+                <TableHead className="text-right">{t("common.actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.title}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {p.course?.name}
+                    {p.course?.period && (
+                      <Badge variant="outline" className="ml-1.5 text-[9px]">
+                        {p.course.period}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px]">
+                      <FileText className="h-3 w-3 mr-1" />
+                      {p.max_files}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={p.status === "published" ? "default" : "secondary"}
+                      className="text-[10px] capitalize"
+                    >
+                      {p.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {p.due_date ? new Date(p.due_date).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Archivos esperados"
+                        onClick={() => openFilesDialog(p)}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Asignar estudiantes"
+                        onClick={() => openAssignDialog(p)}
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title={t("common.edit")}
+                        onClick={() => openEdit(p)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title={t("common.delete")}
+                        onClick={() => remove(p)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={() => setAiOpen(true)} disabled={!selectedCourse}>
-            <Sparkles className="mr-1 h-4 w-4" />
-            Generar con IA
-          </Button>
-          <Button onClick={openNew} disabled={!selectedCourse}>
-            <Plus className="mr-1 h-4 w-4" />
-            Nuevo proyecto
-          </Button>
-        </div>
-      </div>
+              {projects.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    {t("common.empty")}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <div className="grid gap-3">
-        {projects.length === 0 && (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Sin proyectos en este curso.
-            </CardContent>
-          </Card>
-        )}
-        {projects.map((p) => (
-          <Card key={p.id}>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-              <div className="space-y-1">
-                <CardTitle className="text-base">{p.title}</CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="outline" className="capitalize">{p.project_type}</Badge>
-                  <Badge variant={p.status === "published" ? "default" : "secondary"}>
-                    {p.status}
-                  </Badge>
-                  {p.ai_generated && (
-                    <Badge variant="outline">
-                      <Sparkles className="mr-1 h-3 w-3" />IA
-                    </Badge>
-                  )}
-                  {p.cut_id && (
-                    <Badge variant="outline">
-                      Corte: {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
-                    </Badge>
-                  )}
-                  {p.due_date && (
-                    <span className="text-muted-foreground">
-                      Entrega: {new Date(p.due_date).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-1">
-                <Button size="sm" variant="ghost" onClick={() => openSubs(p)}>
-                  Entregas
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => togglePublish(p)}>
-                  {p.status === "published" ? "Despublicar" : "Publicar"}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => { setEditing(p); setOpen(true); }}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => remove(p)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            {p.description && (
-              <CardContent className="text-sm text-muted-foreground">{p.description}</CardContent>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      {/* Edit dialog */}
+      {/* New / edit project dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing?.id ? "Editar proyecto" : "Nuevo proyecto"}</DialogTitle>
-          </DialogHeader>
-          {editing && (
-            <div className="space-y-3">
-              <div>
-                <Label>Título</Label>
-                <Input value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
-              </div>
-              <div>
-                <Label>Descripción</Label>
-                <Textarea value={editing.description ?? ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
-              </div>
-              <div>
-                <Label>Instrucciones / enunciado</Label>
-                <Textarea
-                  rows={8}
-                  value={editing.instructions ?? ""}
-                  onChange={(e) => setEditing({ ...editing, instructions: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <div>
-                  <Label>Tipo</Label>
-                  <Select
-                    value={editing.project_type ?? "escrito"}
-                    onValueChange={(v) => setEditing({ ...editing, project_type: v as Project["project_type"] })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="escrito">Escrito</SelectItem>
-                      <SelectItem value="codigo">Código</SelectItem>
-                      <SelectItem value="diagrama">Diagrama</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Máx. archivos</Label>
-                  <Input type="number" min={1} value={editing.max_files ?? 5} onChange={(e) => setEditing({ ...editing, max_files: Number(e.target.value) })} />
-                </div>
-                <div>
-                  <Label>Puntaje máx.</Label>
-                  <Input type="number" min={1} value={editing.max_score ?? 100} onChange={(e) => setEditing({ ...editing, max_score: Number(e.target.value) })} />
-                </div>
-                <div>
-                  <Label>Corte</Label>
-                  <Select
-                    value={editing.cut_id ?? "__none__"}
-                    onValueChange={(v) => setEditing({ ...editing, cut_id: v === "__none__" ? null : v })}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sin corte</SelectItem>
-                      {cutsForCourse.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label>Inicio</Label>
-                  <Input
-                    type="datetime-local"
-                    value={toLocalInput(editing.start_date)}
-                    onChange={(e) => setEditing({ ...editing, start_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                  />
-                </div>
-                <div>
-                  <Label>Fecha de entrega</Label>
-                  <Input
-                    type="datetime-local"
-                    value={toLocalInput(editing.due_date)}
-                    onChange={(e) => setEditing({ ...editing, due_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={save}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* AI generate statement */}
-      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Generar enunciado con IA</DialogTitle>
+            <DialogTitle>{editing ? "Editar proyecto" : "Nuevo proyecto"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Tema</Label>
-              <Input value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="Ej: API REST de inventario" />
+              <Label>Título</Label>
+              <Input
+                value={form.title ?? ""}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>{t("common.description")}</Label>
+              <Textarea
+                rows={2}
+                value={form.description ?? ""}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Instrucciones</Label>
+              <Textarea
+                rows={4}
+                value={form.instructions ?? ""}
+                onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Tipo</Label>
-                <Select value={aiType} onValueChange={(v) => setAiType(v as typeof aiType)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>{t("nav.courses")}</Label>
+                <Select
+                  value={form.course_id ?? ""}
+                  onValueChange={(v) => setForm({ ...form, course_id: v, cut_id: null })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="escrito">Escrito</SelectItem>
-                    <SelectItem value="codigo">Código</SelectItem>
-                    <SelectItem value="diagrama">Diagrama</SelectItem>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Máx. archivos</Label>
-                <Input type="number" min={1} value={aiMaxFiles} onChange={(e) => setAiMaxFiles(Number(e.target.value))} />
+                <Label>Corte</Label>
+                <Select
+                  value={form.cut_id ?? "__none"}
+                  onValueChange={(v) => setForm({ ...form, cut_id: v === "__none" ? null : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">{t("common.none")}</SelectItem>
+                    {cuts
+                      .filter((c) => c.course_id === form.course_id)
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Número de archivos</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={form.max_files ?? 3}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      max_files: e.target.value === "" ? 1 : Number(e.target.value),
+                    })
+                  }
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Cuántas cajas de texto se mostrarán al estudiante (una por archivo). La IA
+                  calificará cada caja por separado.
+                </p>
+              </div>
+              <div>
+                <Label>Puntaje máximo</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.max_score ?? 100}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      max_score: e.target.value === "" ? 0 : Number(e.target.value),
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>{t("common.startDate")}</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.start_date ? toLocal(form.start_date) : ""}
+                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>{t("common.endDate")}</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.due_date ? toLocal(form.due_date) : ""}
+                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Estado</Label>
+              <Select
+                value={form.status ?? "draft"}
+                onValueChange={(v) => setForm({ ...form, status: v as Project["status"] })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Borrador</SelectItem>
+                  <SelectItem value="published">Publicado</SelectItem>
+                  <SelectItem value="closed">Cerrado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAiOpen(false)}>Cancelar</Button>
-            <Button onClick={generateStatement} disabled={aiBusy}>
-              {aiBusy ? "Generando..." : "Generar"}
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {t("common.cancel")}
             </Button>
+            <Button onClick={save}>{t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Submissions dialog */}
-      <Dialog open={!!subsProject} onOpenChange={(o) => !o && setSubsProject(null)}>
-        <DialogContent className="max-w-3xl">
+      {/* Files (slots) editor */}
+      <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Entregas — {subsProject?.title}</DialogTitle>
+            <DialogTitle>Archivos esperados — {filesProject?.title}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-            {subs.length === 0 && (
-              <p className="text-sm text-muted-foreground">Aún no hay entregas.</p>
+          {filesProject && (
+            <TeacherProjectFilesEditor
+              projectId={filesProject.id}
+              courseLanguage={courseLanguage}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Assignment dialog */}
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Asignar — {assignProject?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-muted-foreground">
+              {assigned.size} de {students.length} asignados
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={assignAll}>
+                {t("common.selectAll")}
+              </Button>
+              <Button size="sm" variant="outline" onClick={unassignAll}>
+                {t("common.deselectAll")}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-1.5 max-h-80 overflow-y-auto">
+            {students.length === 0 && (
+              <p className="text-sm text-muted-foreground p-4 text-center">
+                <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Sin estudiantes
+                matriculados.
+              </p>
             )}
-            {subs.map((s) => (
-              <div key={s.id} className="rounded border p-3 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="space-y-1">
-                    <p className="font-medium">{profiles[s.user_id]?.full_name ?? s.user_id.slice(0, 8)}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Badge variant="outline">{s.status}</Badge>
-                      {s.ai_grade != null && <Badge variant="secondary">IA: {s.ai_grade}</Badge>}
-                      {s.final_grade != null && (
-                        <Badge>
-                          <CheckCircle2 className="mr-1 h-3 w-3" />Final: {s.final_grade}
-                        </Badge>
-                      )}
-                      {s.ai_detected && (
-                        <Badge variant="destructive">
-                          <Bot className="mr-1 h-3 w-3" />
-                          Posible IA ({Math.round((s.ai_detected_score ?? 0) * 100)}%)
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1">
-                    {s.zip_url && (
-                      <Button size="sm" variant="ghost" onClick={() => downloadZip(s)}>
-                        <Download className="mr-1 h-3 w-3" />ZIP
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      onClick={() => gradeWithAI(s)}
-                      disabled={!s.zip_url || gradingId === s.id}
-                    >
-                      <Sparkles className="mr-1 h-3 w-3" />
-                      {gradingId === s.id ? "Calificando..." : "Calificar con IA"}
-                    </Button>
-                  </div>
-                </div>
-                {s.ai_feedback && (
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{s.ai_feedback}</p>
-                )}
-                {s.ai_detected && s.ai_detected_reasons && (
-                  <div className="rounded bg-destructive/10 p-2 text-xs">
-                    <p className="font-medium flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />Razones de detección IA
-                    </p>
-                    <p>{s.ai_detected_reasons}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-[1fr_auto] gap-2">
-                  <Textarea
-                    placeholder="Retroalimentación final del docente"
-                    defaultValue={s.teacher_feedback ?? ""}
-                    onBlur={(e) => {
-                      const grade = s.final_grade ?? s.ai_grade ?? 0;
-                      void updateFinal(s, Number(grade), e.target.value);
-                    }}
-                  />
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs">Nota final</Label>
-                    <Input
-                      type="number"
-                      defaultValue={s.final_grade ?? s.ai_grade ?? ""}
-                      onBlur={(e) => updateFinal(s, Number(e.target.value), s.teacher_feedback ?? "")}
-                    />
-                  </div>
-                </div>
-              </div>
+            {students.map((s) => (
+              <label
+                key={s.id}
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm cursor-pointer"
+              >
+                <Checkbox
+                  checked={assigned.has(s.id)}
+                  onCheckedChange={() => toggleAssign(s.id)}
+                />
+                <span className="flex-1">{s.full_name}</span>
+                <span className="text-xs text-muted-foreground">{s.institutional_email}</span>
+              </label>
             ))}
           </div>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function toLocal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
