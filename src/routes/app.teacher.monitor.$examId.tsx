@@ -31,7 +31,6 @@ import {
   Pause,
   Play,
   Clock,
-  Plus,
   Users,
   AlertTriangle,
   CheckCircle2,
@@ -93,8 +92,6 @@ function ExamMonitor() {
   const [exam, setExam] = useState<any>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [extraMinutes, setExtraMinutes] = useState(5);
-  const [extraMinutesStudent, setExtraMinutesStudent] = useState(5);
   const [loading, setLoading] = useState<string | null>(null);
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingQid, setAiGradingQid] = useState<string | null>(null);
@@ -382,32 +379,6 @@ function ExamMonitor() {
               )}
               Reanudar todos
             </Button>
-            <div className="flex items-center gap-1.5">
-              <Input
-                type="number"
-                min={1}
-                max={120}
-                value={extraMinutes || ""}
-                onChange={(e) =>
-                  setExtraMinutes(e.target.value === "" ? 0 : Number(e.target.value))
-                }
-                className="w-20 h-8 text-sm"
-              />
-              <span className="text-xs text-muted-foreground">min</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => sendTimerControl("add_time", null, extraMinutes * 60)}
-                disabled={loading === "add_time-global"}
-              >
-                {loading === "add_time-global" ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-1" />
-                )}
-                Añadir tiempo a todos
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -521,35 +492,6 @@ function ExamMonitor() {
                             >
                               <Play className="h-3.5 w-3.5" />
                             </Button>
-                            <div className="flex items-center gap-1">
-                              <Input
-                                type="number"
-                                min={1}
-                                max={120}
-                                value={extraMinutesStudent || ""}
-                                onChange={(e) =>
-                                  setExtraMinutesStudent(
-                                    e.target.value === "" ? 0 : Number(e.target.value),
-                                  )
-                                }
-                                className="w-16 h-7 text-xs"
-                              />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  sendTimerControl(
-                                    "add_time",
-                                    sub.user_id,
-                                    extraMinutesStudent * 60,
-                                  )
-                                }
-                                disabled={loading === `add_time-${sub.user_id}`}
-                                title="Añadir tiempo"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
                           </>
                         )}
                         {finalState && (
