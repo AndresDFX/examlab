@@ -793,7 +793,59 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           </CardContent>
         </Card>
 
-        {/* Quick links */}
+        {/* Pending projects */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
+              {t("dashboard.pendingDeliveryProjects")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noPendingProjects")}
+              </p>
+            ) : (
+              pendingProjects.map((p: any) => {
+                const isOverdue = p.due_date && new Date(p.due_date) < new Date();
+                return (
+                  <Link key={p.id} to="/app/student/projects">
+                    <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
+                      <div className="mt-0.5">
+                        {isOverdue ? (
+                          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{p.title}</div>
+                        <div className="text-xs text-muted-foreground">{p.course?.name}</div>
+                        {p.due_date && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {t("dashboard.dueLabel")}: {new Date(p.due_date).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                      {isOverdue && (
+                        <Badge variant="destructive" className="text-[10px] shrink-0">
+                          {t("dashboard.overdue")}
+                        </Badge>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })
+            )}
+            <Link to="/app/student/projects">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickAccess")}</h2>
           <div className="space-y-2">
