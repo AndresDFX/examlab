@@ -16,6 +16,7 @@ import {
   ClipboardList,
   GraduationCap,
   Hammer,
+  FolderKanban,
   Calendar,
   Clock,
   Bell,
