@@ -874,9 +874,11 @@ export type Database = {
           answers: Json
           created_at: string
           exam_id: string
+          exam_session_id: string | null
           final_override_grade: number | null
           focus_warnings: number
           id: string
+          session_heartbeat_at: string | null
           started_at: string
           status: string
           submitted_at: string | null
@@ -891,9 +893,11 @@ export type Database = {
           answers?: Json
           created_at?: string
           exam_id: string
+          exam_session_id?: string | null
           final_override_grade?: number | null
           focus_warnings?: number
           id?: string
+          session_heartbeat_at?: string | null
           started_at?: string
           status?: string
           submitted_at?: string | null
@@ -908,9 +912,11 @@ export type Database = {
           answers?: Json
           created_at?: string
           exam_id?: string
+          exam_session_id?: string | null
           final_override_grade?: number | null
           focus_warnings?: number
           id?: string
+          session_heartbeat_at?: string | null
           started_at?: string
           status?: string
           submitted_at?: string | null

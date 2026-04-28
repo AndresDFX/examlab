@@ -51,6 +51,16 @@ type Exam = {
   course?: { language?: string | null } | null;
 };
 
+function getOrCreateLocalSession(examId: string): string {
+  const key = `examlab_exam_session_${examId}`;
+  let sid = localStorage.getItem(key);
+  if (!sid) {
+    sid = crypto.randomUUID();
+    localStorage.setItem(key, sid);
+  }
+  return sid;
+}
+
 /** Considera contestada la celda según tipo (incluye plantilla de código si no hubo edición). */
 function isQuestionAnswered(q: Question, answers: Record<string, unknown>): boolean {
   const v = answers[q.id];
@@ -114,8 +124,10 @@ function TakeExam() {
     unansweredIndices: number[];
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
+  const [blockedBySession, setBlockedBySession] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
+  const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
@@ -213,7 +225,34 @@ function TakeExam() {
         Number(e.max_attempts ?? e.course?.max_exam_attempts ?? 1) || 1,
       );
 
+      // Session lock: ensure only one device can present this exam at a time
+      const localSessionId = getOrCreateLocalSession(examId);
+      sessionIdRef.current = localSessionId;
+
       if (inProgress) {
+        const dbSessionId = inProgress.exam_session_id as string | null;
+        const heartbeatAt = inProgress.session_heartbeat_at as string | null;
+        const heartbeatAgeMs = heartbeatAt
+          ? Date.now() - new Date(heartbeatAt).getTime()
+          : Infinity;
+
+        if (dbSessionId && dbSessionId !== localSessionId && heartbeatAgeMs < 20_000) {
+          // Another device is actively presenting this exam
+          setExam(e);
+          setBlockedBySession(true);
+          return;
+        }
+
+        // Take over the session (same device reload or stale lock from crashed tab)
+        supabase
+          .from("submissions")
+          .update({
+            exam_session_id: localSessionId,
+            session_heartbeat_at: new Date().toISOString(),
+          })
+          .eq("id", inProgress.id)
+          .then(() => {});
+
         // Reanudar el intento en curso
         setSubmissionId(inProgress.id);
         submissionIdRef.current = inProgress.id;
@@ -263,6 +302,8 @@ function TakeExam() {
           user_id: user.id,
           answers: {},
           status: "en_progreso",
+          exam_session_id: sessionIdRef.current,
+          session_heartbeat_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -470,6 +511,33 @@ function TakeExam() {
     onTimeAdded: (secs) => toast.success(`+${Math.floor(secs / 60)} minuto(s) extra añadidos`),
   });
 
+  // Session heartbeat: keep the session lock alive every 8s while exam is active
+  useEffect(() => {
+    if (!started) return;
+    const interval = setInterval(() => {
+      if (submittedRef.current || !submissionIdRef.current) return;
+      supabase
+        .from("submissions")
+        .update({ session_heartbeat_at: new Date().toISOString() })
+        .eq("id", submissionIdRef.current)
+        .then(() => {});
+    }, 8_000);
+    return () => clearInterval(interval);
+  }, [started]);
+
+  // Release session lock when leaving the page (before submit)
+  useEffect(() => {
+    return () => {
+      if (submissionIdRef.current && !submittedRef.current) {
+        supabase
+          .from("submissions")
+          .update({ session_heartbeat_at: null })
+          .eq("id", submissionIdRef.current)
+          .then(() => {});
+      }
+    };
+  }, []);
+
   // Auto-save answers (debounced, also runs on warning increments)
   useEffect(() => {
     if (!started || !submissionIdRef.current) return;
@@ -601,6 +669,26 @@ function TakeExam() {
   };
 
   if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
+
+  if (blockedBySession) {
+    return (
+      <div className="max-w-2xl mx-auto py-10">
+        <Card>
+          <CardContent className="p-6 space-y-4 text-center">
+            <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+            <h2 className="text-xl font-semibold">Examen abierto en otro dispositivo</h2>
+            <p className="text-sm text-muted-foreground">
+              Este examen ya está siendo presentado desde otro dispositivo o pestaña.
+              Cierra esa sesión primero. Si ya la cerraste, espera unos segundos y vuelve a intentar.
+            </p>
+            <Button variant="outline" onClick={() => navigate({ to: "/app/student/exams" })}>
+              Volver a mis exámenes
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!started) {
     return (
