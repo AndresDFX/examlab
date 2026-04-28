@@ -1,0 +1,142 @@
+version: '3.9'
+
+services:
+  # PostgreSQL - Base de datos
+  postgres:
+    image: postgres:15-alpine
+    container_name: ${PROJECT_NAME}-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-examlab}
+      POSTGRES_INITDB_ARGS: >
+        --encoding=UTF8
+        --locale=C
+        --lc-collate=C
+        --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - examlab-network
+    restart: unless-stopped
+
+  # Supabase - Backend & Auth
+  supabase:
+    image: supabase/supabase:latest
+    container_name: ${PROJECT_NAME}-supabase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      JWT_SECRET: super-secret-jwt-token-change-this-in-production
+      JWT_EXPIRY: 3600
+      SUPABASE_URL: http://localhost:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4YW1sYWIiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMzk0OTgwMCwiZXhwIjoxNjM0NDgwODAwfQ.MOCK_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4YW1sYWIiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjAzOTQ5ODAwLCJleHAiOjE2MzQ0ODA4MDB9.MOCK_KEY}
+      ENABLE_EMAIL_SIGNUP: "true"
+      ENABLE_EMAIL_AUTOCONFIRM: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./supabase/migrations:/etc/supabase/migrations:ro
+      - ./supabase/config.toml:/etc/supabase/config.toml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - examlab-network
+    restart: unless-stopped
+
+  # Node.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME}-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      supabase:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      HOST: 0.0.0.0
+      PORT: ${APP_PORT:-3000}
+      SUPABASE_URL: http://supabase:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-secure_password}@postgres:5432/${POSTGRES_DB:-examlab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-examlab}
+      PROJECT_NAME: ${PROJECT_NAME:-examlab}
+    ports:
+      - "${APP_PORT:-3000}:${APP_PORT:-3000}"
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - node_modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT:-3000}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - examlab-network
+    restart: unless-stopped
+
+  # Nginx - Reverse Proxy (Opcional, para local)
+  nginx:
+    image: nginx:alpine
+    container_name: ${PROJECT_NAME}-nginx
+    depends_on:
+      - app
+      - supabase
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - examlab-network
+    restart: unless-stopped
+
+  # Redis - Cache (Opcional, para future use)
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME}-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - examlab-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  node_modules:
+    driver: local
+
+networks:
+  examlab-network:
+    driver: bridge

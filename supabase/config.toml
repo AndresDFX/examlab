@@ -1,1 +1,71 @@
-project_id = "xrgqhrqsorknplzegffr"
+# ═══════════════════════════════════════════════════════════════════════════════
+# Supabase Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[project]
+project_id = "examlab"
+name = "ExamLab"
+region = "us-east-1"
+
+[database]
+port = 5432
+major_version = 15
+
+[api]
+enabled = true
+port = 3000
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+jwt_expiry = 3600
+enable_signup = true
+enable_confirmations = false
+password_min_length = 6
+password_require_uppercase = false
+password_require_lowercase = false
+password_require_numbers = false
+password_require_special = false
+
+[realtime]
+enabled = true
+max_bytes_per_second = 100
+max_concurrent_users = 200
+max_event_channels = 100
+
+[storage]
+file_size_limit = 52428800
+s3_host = "storage.googleapis.com"
+s3_region = "auto"
+s3_access_key = "mock"
+s3_secret_key = "mock"
+s3_bucket = "stub"
+
+[edge_runtime]
+enabled = true
+policy_pins = []
+
+[functions."ai-generate"]
+enabled = true
+verify_jwt = true
+
+[functions."ai-grade"]
+enabled = true
+verify_jwt = true
+
+[functions."ai-feedback"]
+enabled = true
+verify_jwt = true
+
+[logging]
+vector_enabled = false
+postgres_enabled = false
+
+[analytics]
+enabled = false
+
+[vector]
+enabled = false
