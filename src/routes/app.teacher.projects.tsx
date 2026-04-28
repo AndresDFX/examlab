@@ -98,33 +98,70 @@ function TeacherProjects() {
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
 
   const load = async () => {
-    const [cs, ps, cs2, pcs] = await Promise.all([
-      db.from("courses").select("id, name, period, language").order("name"),
-      db
+    // Cada query se aísla en su propio try para que un fallo (p.ej. una
+    // migración faltante) no esconda los datos que SÍ podemos cargar. Antes
+    // un solo `Promise.all` rechazaba el load entero y la tabla quedaba
+    // vacía sin mensaje, lo que bloqueaba el diagnóstico.
+    try {
+      const cs = await db.from("courses").select("id, name, period, language").order("name");
+      if (cs.error) throw new Error(`courses: ${cs.error.message}`);
+      setCourses((cs.data ?? []) as Course[]);
+    } catch (e) {
+      console.error("[projects] courses load failed", e);
+      toast.error(e instanceof Error ? e.message : "Error cargando cursos");
+    }
+
+    try {
+      const cs2 = await db.from("grade_cuts").select("id, course_id, name").order("position");
+      if (cs2.error) throw new Error(`grade_cuts: ${cs2.error.message}`);
+      setCuts((cs2.data ?? []) as Cut[]);
+    } catch (e) {
+      console.error("[projects] grade_cuts load failed", e);
+      // No mostramos toast aquí: cuts es opcional para listar.
+    }
+
+    let pcsRows: { project_id: string; course_id: string }[] = [];
+    try {
+      const pcs = await db.from("project_courses").select("project_id, course_id");
+      if (pcs.error) throw new Error(`project_courses: ${pcs.error.message}`);
+      pcsRows = (pcs.data ?? []) as { project_id: string; course_id: string }[];
+    } catch (e) {
+      console.error("[projects] project_courses load failed", e);
+      toast.error(e instanceof Error ? e.message : "Error cargando vínculos de cursos");
+    }
+
+    try {
+      // El JOIN `course:courses(...)` puede fallar si la columna `language`
+      // no existe en la BD. Si falla, reintentamos sin el JOIN para mostrar
+      // al menos los proyectos en bruto.
+      let ps = await db
         .from("projects")
         .select("*, course:courses(name, period, language)")
-        .order("created_at", { ascending: false }),
-      db.from("grade_cuts").select("id, course_id, name").order("position"),
-      db.from("project_courses").select("project_id, course_id"),
-    ]);
-    setCourses((cs.data ?? []) as Course[]);
-    setCuts((cs2.data ?? []) as Cut[]);
+        .order("created_at", { ascending: false });
+      if (ps.error) {
+        console.warn("[projects] projects+join failed, retrying without join", ps.error);
+        ps = await db.from("projects").select("*").order("created_at", { ascending: false });
+      }
+      if (ps.error) throw new Error(`projects: ${ps.error.message}`);
 
-    // Mapear vínculos múltiples por proyecto
-    const linkMap = new Map<string, string[]>();
-    for (const row of (pcs.data ?? []) as { project_id: string; course_id: string }[]) {
-      const arr = linkMap.get(row.project_id) ?? [];
-      arr.push(row.course_id);
-      linkMap.set(row.project_id, arr);
+      const linkMap = new Map<string, string[]>();
+      for (const row of pcsRows) {
+        const arr = linkMap.get(row.project_id) ?? [];
+        arr.push(row.course_id);
+        linkMap.set(row.project_id, arr);
+      }
+      const enriched = ((ps.data ?? []) as Project[]).map((p) => {
+        const linked = linkMap.get(p.id) ?? [];
+        const set = new Set<string>(linked);
+        if (p.course_id) set.add(p.course_id);
+        return { ...p, linked_course_ids: Array.from(set) };
+      });
+      setProjects(enriched);
+      console.info(`[projects] loaded ${enriched.length} project(s)`);
+    } catch (e) {
+      console.error("[projects] projects load failed", e);
+      toast.error(e instanceof Error ? e.message : "Error cargando proyectos");
     }
-    const enriched = ((ps.data ?? []) as Project[]).map((p) => {
-      const linked = linkMap.get(p.id) ?? [];
-      // Garantizar que el course_id primario esté incluido
-      const set = new Set<string>(linked);
-      if (p.course_id) set.add(p.course_id);
-      return { ...p, linked_course_ids: Array.from(set) };
-    });
-    setProjects(enriched);
   };
 
   useEffect(() => {

@@ -68,64 +68,104 @@ function StudentProjects() {
   const [active, setActive] = useState<ProjectRow | null>(null);
 
   const reload = async (uid: string) => {
-    // 1) Cursos en los que el estudiante está matriculado
-    const { data: enrollments } = await db
-      .from("course_enrollments")
-      .select("course_id")
-      .eq("user_id", uid);
-    const enrolledCourseIds = ((enrollments ?? []) as { course_id: string }[]).map(
-      (e) => e.course_id,
-    );
+    // Cada paso loguea su error a consola para que el diagnóstico sea
+    // posible cuando "no aparece nada". No usamos Promise.all porque la
+    // fase 2/3 dependen de la 1.
+    let enrolledCourseIds: string[] = [];
+    try {
+      const { data, error } = await db
+        .from("course_enrollments")
+        .select("course_id")
+        .eq("user_id", uid);
+      if (error) throw new Error(`course_enrollments: ${error.message}`);
+      enrolledCourseIds = ((data ?? []) as { course_id: string }[]).map((e) => e.course_id);
+    } catch (e) {
+      console.error("[student-projects] enrollments load failed", e);
+    }
 
-    // 2) Proyectos vinculados a esos cursos vía project_courses
-    const { data: linked } = enrolledCourseIds.length
-      ? await db
+    let linkedProjectIds: string[] = [];
+    if (enrolledCourseIds.length) {
+      try {
+        const { data, error } = await db
           .from("project_courses")
           .select("project_id")
-          .in("course_id", enrolledCourseIds)
-      : { data: [] as { project_id: string }[] };
-    const linkedProjectIds = ((linked ?? []) as { project_id: string }[]).map(
-      (r) => r.project_id,
-    );
+          .in("course_id", enrolledCourseIds);
+        if (error) throw new Error(`project_courses: ${error.message}`);
+        linkedProjectIds = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
+      } catch (e) {
+        console.error("[student-projects] project_courses load failed", e);
+      }
+    }
 
-    // 3) Proyectos asignados explícitamente al estudiante
-    const { data: asg } = await db
-      .from("project_assignments")
-      .select("project_id")
-      .eq("user_id", uid);
-    const assignedProjectIds = ((asg ?? []) as { project_id: string }[]).map(
-      (r) => r.project_id,
-    );
+    let assignedProjectIds: string[] = [];
+    try {
+      const { data, error } = await db
+        .from("project_assignments")
+        .select("project_id")
+        .eq("user_id", uid);
+      if (error) throw new Error(`project_assignments: ${error.message}`);
+      assignedProjectIds = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
+    } catch (e) {
+      console.error("[student-projects] project_assignments load failed", e);
+    }
 
     const allIds = Array.from(new Set([...linkedProjectIds, ...assignedProjectIds]));
-    const { data: projData } = allIds.length
-      ? await db
+    console.info(
+      `[student-projects] enrolled=${enrolledCourseIds.length} linked=${linkedProjectIds.length} assigned=${assignedProjectIds.length} → ${allIds.length} project(s)`,
+    );
+    if (!allIds.length) {
+      setRows([]);
+      return;
+    }
+
+    let projects: ProjectRow["project"][] = [];
+    try {
+      // Reintenta sin el JOIN si la columna `language` no existe en la BD.
+      let res = await db
+        .from("projects")
+        .select(
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language)",
+        )
+        .in("id", allIds)
+        .neq("status", "draft");
+      if (res.error) {
+        console.warn("[student-projects] projects+join failed, retrying without join", res.error);
+        res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language)",
+            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, course_id",
           )
           .in("id", allIds)
-          .neq("status", "draft")
-      : { data: [] as ProjectRow["project"][] };
+          .neq("status", "draft");
+      }
+      if (res.error) throw new Error(`projects: ${res.error.message}`);
+      projects = (res.data ?? []) as ProjectRow["project"][];
+    } catch (e) {
+      console.error("[student-projects] projects load failed", e);
+    }
 
-    const projects = (projData ?? []) as ProjectRow["project"][];
     const ids = projects.map((p) => p.id);
-    const { data: subs } = ids.length
-      ? await db
+    let subs: Array<ProjectRow["submission"] & { project_id: string }> = [];
+    if (ids.length) {
+      try {
+        const { data, error } = await db
           .from("project_submissions")
           .select(
             "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
           )
           .in("project_id", ids)
-          .eq("user_id", uid)
-      : { data: [] as Array<ProjectRow["submission"] & { project_id: string }> };
+          .eq("user_id", uid);
+        if (error) throw new Error(`project_submissions: ${error.message}`);
+        subs = (data ?? []) as typeof subs;
+      } catch (e) {
+        console.error("[student-projects] project_submissions load failed", e);
+      }
+    }
 
     setRows(
       projects.map((p) => ({
         project: p,
-        submission: (subs ?? []).find(
-          (s: { project_id: string }) => s.project_id === p.id,
-        ) as ProjectRow["submission"],
+        submission: subs.find((s) => s.project_id === p.id) as ProjectRow["submission"],
       })),
     );
   };
