@@ -231,35 +231,28 @@ function TakeExam() {
       sessionIdRef.current = localSessionId;
 
       if (inProgress) {
-        // Atomic session claim: the UPDATE only matches if there is no active session
-        // from another device (null session, same session, or heartbeat expired >20s).
-        // If it returns no row, another device holds the lock → block.
-        const staleTime = new Date(Date.now() - 20_000).toISOString();
-        const { data: claimed } = await supabase
-          .from("submissions")
-          .update({
-            exam_session_id: localSessionId,
-            session_heartbeat_at: new Date().toISOString(),
-          })
-          .eq("id", inProgress.id)
-          .or(
-            `exam_session_id.is.null,exam_session_id.eq.${localSessionId},session_heartbeat_at.lt.${staleTime}`,
-          )
-          .select("id")
-          .maybeSingle();
+        // Session lock via answers.__session_id + updated_at (no extra columns needed).
+        // The autosave keeps updated_at fresh every 1.5s while a device is active.
+        // If another device owns the session and updated_at is <10s old → block.
+        const existingAnswers = (inProgress.answers as Record<string, any>) ?? {};
+        const storedSession = existingAnswers.__session_id as string | undefined;
+        const updatedAt = new Date((inProgress as any).updated_at).getTime();
+        const ageMs = Date.now() - updatedAt;
 
-        if (!claimed) {
+        if (storedSession && storedSession !== localSessionId && ageMs < 10_000) {
           setExam(e);
           setBlockedBySession(true);
           return;
         }
 
-        // Session claimed — reanudar el intento en curso
+        // Claim the session: inject our session ID into answers (persisted by next autosave)
+        const claimedAnswers = { ...existingAnswers, __session_id: localSessionId };
+        answersRef.current = claimedAnswers;
+
+        // Reanudar el intento en curso
         setSubmissionId(inProgress.id);
         submissionIdRef.current = inProgress.id;
-        const existingAnswers = (inProgress.answers as Record<string, any>) ?? {};
-        setAnswers(existingAnswers);
-        answersRef.current = existingAnswers;
+        setAnswers(claimedAnswers);
         const persistedWarnings = inProgress.focus_warnings ?? 0;
         setWarnings(persistedWarnings);
         warningsRef.current = persistedWarnings;
@@ -298,51 +291,42 @@ function TakeExam() {
     let sid = submissionId;
     if (!sid) {
       // Guard against race condition: both devices on the start screen simultaneously.
-      // Re-query for any en_progreso submission created since the page loaded.
-      const staleTime = new Date(Date.now() - 20_000).toISOString();
       const { data: existing } = await supabase
         .from("submissions")
-        .select("id, started_at")
+        .select("id, answers, updated_at, started_at")
         .eq("exam_id", examId)
         .eq("user_id", user.id)
         .eq("status", "en_progreso")
         .maybeSingle();
 
       if (existing) {
-        // Another device just started — atomic claim
-        const { data: claimed } = await supabase
-          .from("submissions")
-          .update({
-            exam_session_id: sessionIdRef.current,
-            session_heartbeat_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id)
-          .or(
-            `exam_session_id.is.null,exam_session_id.eq.${sessionIdRef.current},session_heartbeat_at.lt.${staleTime}`,
-          )
-          .select("id")
-          .maybeSingle();
+        const existingAnswers = (existing.answers as Record<string, any>) ?? {};
+        const storedSession = existingAnswers.__session_id as string | undefined;
+        const ageMs = Date.now() - new Date((existing as any).updated_at).getTime();
 
-        if (!claimed) {
+        if (storedSession && storedSession !== sessionIdRef.current && ageMs < 10_000) {
           setBlockedBySession(true);
           return;
         }
+        // Take over
+        const claimedAnswers = { ...existingAnswers, __session_id: sessionIdRef.current };
         sid = existing.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setAnswers(claimedAnswers);
+        answersRef.current = claimedAnswers;
         setSubmissionStartedAt((existing as any).started_at as string);
       }
 
       if (!sid) {
+        const initialAnswers = { __session_id: sessionIdRef.current };
         const { data, error } = await supabase
           .from("submissions")
           .insert({
             exam_id: examId,
             user_id: user.id,
-            answers: {},
+            answers: initialAnswers,
             status: "en_progreso",
-            exam_session_id: sessionIdRef.current,
-            session_heartbeat_at: new Date().toISOString(),
           })
           .select()
           .single();
@@ -353,6 +337,8 @@ function TakeExam() {
         sid = data.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        answersRef.current = initialAnswers;
+        setAnswers(initialAnswers);
         setSubmissionStartedAt(data.started_at as string);
       }
     }
@@ -560,33 +546,6 @@ function TakeExam() {
     onResume: () => toast.info("▶ El temporizador ha sido reanudado"),
     onTimeAdded: (secs) => toast.success(`+${Math.floor(secs / 60)} minuto(s) extra añadidos`),
   });
-
-  // Session heartbeat: keep the session lock alive every 8s while exam is active
-  useEffect(() => {
-    if (!started) return;
-    const interval = setInterval(() => {
-      if (submittedRef.current || !submissionIdRef.current) return;
-      supabase
-        .from("submissions")
-        .update({ session_heartbeat_at: new Date().toISOString() })
-        .eq("id", submissionIdRef.current)
-        .then(() => {});
-    }, 8_000);
-    return () => clearInterval(interval);
-  }, [started]);
-
-  // Release session lock when leaving the page (before submit)
-  useEffect(() => {
-    return () => {
-      if (submissionIdRef.current && !submittedRef.current) {
-        supabase
-          .from("submissions")
-          .update({ session_heartbeat_at: null })
-          .eq("id", submissionIdRef.current)
-          .then(() => {});
-      }
-    };
-  }, []);
 
   // Auto-save answers (debounced, also runs on warning increments)
   useEffect(() => {
