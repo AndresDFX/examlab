@@ -98,17 +98,33 @@ function TeacherProjects() {
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
 
   const load = async () => {
-    const [cs, ps, cs2] = await Promise.all([
+    const [cs, ps, cs2, pcs] = await Promise.all([
       db.from("courses").select("id, name, period, language").order("name"),
       db
         .from("projects")
         .select("*, course:courses(name, period, language)")
         .order("created_at", { ascending: false }),
       db.from("grade_cuts").select("id, course_id, name").order("position"),
+      db.from("project_courses").select("project_id, course_id"),
     ]);
     setCourses((cs.data ?? []) as Course[]);
-    setProjects((ps.data ?? []) as Project[]);
     setCuts((cs2.data ?? []) as Cut[]);
+
+    // Mapear vínculos múltiples por proyecto
+    const linkMap = new Map<string, string[]>();
+    for (const row of (pcs.data ?? []) as { project_id: string; course_id: string }[]) {
+      const arr = linkMap.get(row.project_id) ?? [];
+      arr.push(row.course_id);
+      linkMap.set(row.project_id, arr);
+    }
+    const enriched = ((ps.data ?? []) as Project[]).map((p) => {
+      const linked = linkMap.get(p.id) ?? [];
+      // Garantizar que el course_id primario esté incluido
+      const set = new Set<string>(linked);
+      if (p.course_id) set.add(p.course_id);
+      return { ...p, linked_course_ids: Array.from(set) };
+    });
+    setProjects(enriched);
   };
 
   useEffect(() => {
