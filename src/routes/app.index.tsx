@@ -505,6 +505,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
               color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             />
             <QuickCard
+              to="/app/teacher/projects"
+              title={t("dashboard.cards.createProject")}
+              desc={t("dashboard.cards.createProjectDesc")}
+              icon={FolderKanban}
+              color="bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            />
+            <QuickCard
               to="/app/teacher/gradebook"
               title={t("dashboard.cards.grades")}
               desc={t("dashboard.cards.gradesDesc")}
