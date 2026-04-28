@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, useBlocker } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRealtimeTimer } from "@/hooks/use-realtime-timer";
@@ -146,12 +147,6 @@ function TakeExam() {
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
   );
-
-  // After strike is saved, exitingExam=true disables the blocker so this navigate goes through.
-  // Using useEffect guarantees the re-render (condition=false) commits BEFORE navigate() fires.
-  useEffect(() => {
-    if (exitingExam) navigate({ to: "/app/student/exams" });
-  }, [exitingExam, navigate]);
 
   // Sidebar nav links in AppLayout dispatch this event when the exam is in progress
   // (useBlocker only intercepts router-level navigation from within the route subtree).
@@ -1047,9 +1042,16 @@ function TakeExam() {
                     return;
                   }
                 }
+                // flushSync commits exitingExam=true synchronously so the
+                // useBlocker condition is false BEFORE navigate() is called.
+                // Without this, React batching keeps condition=true and the
+                // blocker re-intercepts the navigate().
                 resetLeave();
-                setManualLeaveOpen(false);
-                setExitingExam(true);
+                flushSync(() => {
+                  setManualLeaveOpen(false);
+                  setExitingExam(true);
+                });
+                navigate({ to: "/app/student/exams" });
               }}
             >
               Salir (registrar strike)
