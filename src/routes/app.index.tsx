@@ -384,7 +384,40 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-4 gap-4">
+        {/* Active projects */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
+              {t("dashboard.activeProjects")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {activeProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noActiveProjects")}
+              </p>
+            ) : (
+              activeProjects.map((p: any) => (
+                <EventRow
+                  key={p.id}
+                  title={p.title}
+                  subtitle={p.course?.name}
+                  date={
+                    p.due_date ? new Date(p.due_date).toLocaleDateString() : t("dashboard.noDate")
+                  }
+                />
+              ))
+            )}
+            <Link to="/app/teacher/projects">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* Upcoming exams */}
         <Card>
           <CardHeader className="pb-2">
