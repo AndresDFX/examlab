@@ -16,6 +16,7 @@ import {
   ClipboardList,
   GraduationCap,
   Hammer,
+  FolderKanban,
   Calendar,
   Clock,
   Bell,
@@ -295,16 +296,18 @@ function AdminDashboard() {
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   void userId;
-  const [counts, setCounts] = useState({ exams: 0, workshops: 0, pendingGrades: 0, courses: 0 });
+  const [counts, setCounts] = useState({ exams: 0, workshops: 0, projects: 0, pendingGrades: 0, courses: 0 });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
+  const [activeProjects, setActiveProjects] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
-      const [e, w, pg, c] = await Promise.all([
+      const [e, w, pr, pg, c] = await Promise.all([
         supabase.from("exams").select("id", { count: "exact", head: true }),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
+        (supabase as any).from("projects").select("id", { count: "exact", head: true }),
         supabase
           .from("submissions")
           .select("id", { count: "exact", head: true })
@@ -315,6 +318,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       setCounts({
         exams: e.count ?? 0,
         workshops: w.count ?? 0,
+        projects: pr.count ?? 0,
         pendingGrades: pg.count ?? 0,
         courses: c.count ?? 0,
       });
@@ -334,12 +338,20 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(4);
       setActiveWorkshops(ws ?? []);
+
+      const { data: pjs } = await (supabase as any)
+        .from("projects")
+        .select("id, title, due_date, status, course:courses(name)")
+        .eq("status", "published")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(4);
+      setActiveProjects(pjs ?? []);
     })();
   }, []);
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
           label={t("dashboard.stats.exams")}
@@ -353,10 +365,16 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-amber-500 dark:text-amber-400"
         />
         <Stat
+          icon={FolderKanban}
+          label={t("dashboard.stats.projects")}
+          value={counts.projects}
+          color="text-rose-500 dark:text-rose-400"
+        />
+        <Stat
           icon={Eye}
           label={t("dashboard.stats.pendingGrades")}
           value={counts.pendingGrades}
-          color="text-rose-500 dark:text-rose-400"
+          color="text-pink-500 dark:text-pink-400"
         />
         <Stat
           icon={BookOpen}
@@ -366,7 +384,40 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-4 gap-4">
+        {/* Active projects */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
+              {t("dashboard.activeProjects")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {activeProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noActiveProjects")}
+              </p>
+            ) : (
+              activeProjects.map((p: any) => (
+                <EventRow
+                  key={p.id}
+                  title={p.title}
+                  subtitle={p.course?.name}
+                  date={
+                    p.due_date ? new Date(p.due_date).toLocaleDateString() : t("dashboard.noDate")
+                  }
+                />
+              ))
+            )}
+            <Link to="/app/teacher/projects">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* Upcoming exams */}
         <Card>
           <CardHeader className="pb-2">
@@ -454,6 +505,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
               color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             />
             <QuickCard
+              to="/app/teacher/projects"
+              title={t("dashboard.cards.createProject")}
+              desc={t("dashboard.cards.createProjectDesc")}
+              icon={FolderKanban}
+              color="bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            />
+            <QuickCard
               to="/app/teacher/gradebook"
               title={t("dashboard.cards.grades")}
               desc={t("dashboard.cards.gradesDesc")}
@@ -474,6 +532,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
+  const [pendingProjects, setPendingProjects] = useState<any[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
   const [courseCount, setCourseCount] = useState(0);
 
@@ -524,6 +583,61 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .slice(0, 4);
       setPendingWorkshops(ws);
 
+      // Pending projects (vía cursos matriculados + asignaciones explícitas)
+      const dbAny = supabase as any;
+      const { data: enr } = await dbAny
+        .from("course_enrollments")
+        .select("course_id")
+        .eq("user_id", userId);
+      const enrolledCourseIds = ((enr ?? []) as { course_id: string }[]).map((r) => r.course_id);
+      const { data: linked } = enrolledCourseIds.length
+        ? await dbAny
+            .from("project_courses")
+            .select("project_id")
+            .in("course_id", enrolledCourseIds)
+        : { data: [] as { project_id: string }[] };
+      const { data: pasg } = await dbAny
+        .from("project_assignments")
+        .select("project_id")
+        .eq("user_id", userId);
+      const projectIds = Array.from(
+        new Set([
+          ...((linked ?? []) as { project_id: string }[]).map((r) => r.project_id),
+          ...((pasg ?? []) as { project_id: string }[]).map((r) => r.project_id),
+        ]),
+      );
+      const { data: pjData } = projectIds.length
+        ? await dbAny
+            .from("projects")
+            .select("id, title, due_date, status, start_date, course:courses(name)")
+            .in("id", projectIds)
+            .eq("status", "published")
+        : { data: [] as any[] };
+      const { data: pSubs } = projectIds.length
+        ? await dbAny
+            .from("project_submissions")
+            .select("project_id, status")
+            .eq("user_id", userId)
+            .in("project_id", projectIds)
+        : { data: [] as any[] };
+      const submittedIds = new Set(
+        ((pSubs ?? []) as { project_id: string; status: string }[])
+          .filter((s) => ["entregado", "calificado", "ai_revisado"].includes(s.status))
+          .map((s) => s.project_id),
+      );
+      const pjs = ((pjData ?? []) as any[])
+        .filter(
+          (p) =>
+            !submittedIds.has(p.id) &&
+            (!p.start_date || new Date(p.start_date) <= new Date()),
+        )
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
+        )
+        .slice(0, 4);
+      setPendingProjects(pjs);
+
       // Completed submissions
       const { count } = await supabase
         .from("submissions")
@@ -543,7 +657,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
           label={t("dashboard.stats.pendingExams")}
@@ -555,6 +669,12 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.pendingWorkshops")}
           value={pendingWorkshops.length}
           color="text-amber-500 dark:text-amber-400"
+        />
+        <Stat
+          icon={FolderKanban}
+          label={t("dashboard.stats.pendingProjects")}
+          value={pendingProjects.length}
+          color="text-rose-500 dark:text-rose-400"
         />
         <Stat
           icon={CheckCircle2}
@@ -570,7 +690,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-4 gap-4">
         {/* Upcoming exams */}
         <Card>
           <CardHeader className="pb-2">
@@ -673,7 +793,59 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           </CardContent>
         </Card>
 
-        {/* Quick links */}
+        {/* Pending projects */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
+              {t("dashboard.pendingDeliveryProjects")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noPendingProjects")}
+              </p>
+            ) : (
+              pendingProjects.map((p: any) => {
+                const isOverdue = p.due_date && new Date(p.due_date) < new Date();
+                return (
+                  <Link key={p.id} to="/app/student/projects">
+                    <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
+                      <div className="mt-0.5">
+                        {isOverdue ? (
+                          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{p.title}</div>
+                        <div className="text-xs text-muted-foreground">{p.course?.name}</div>
+                        {p.due_date && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {t("dashboard.dueLabel")}: {new Date(p.due_date).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                      {isOverdue && (
+                        <Badge variant="destructive" className="text-[10px] shrink-0">
+                          {t("dashboard.overdue")}
+                        </Badge>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })
+            )}
+            <Link to="/app/student/projects">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickAccess")}</h2>
           <div className="space-y-2">
@@ -690,6 +862,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
               desc={t("dashboard.cards.workshopsStudentDesc")}
               icon={Hammer}
               color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            />
+            <QuickCard
+              to="/app/student/projects"
+              title={t("dashboard.cards.projectsStudent")}
+              desc={t("dashboard.cards.projectsStudentDesc")}
+              icon={FolderKanban}
+              color="bg-rose-500/10 text-rose-600 dark:text-rose-400"
             />
             <QuickCard
               to="/app/student/courses"
