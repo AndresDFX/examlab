@@ -529,7 +529,8 @@ function TakeExam() {
   // Timer counts from when the student started (started_at + time_limit_minutes).
   // The exam window (end_time) is independent — students always get the full duration.
   const effectiveEndTime = (() => {
-    if (!exam || !submissionStartedAt) return null;
+    if (!exam) return null;
+    if (!submissionStartedAt) return exam.end_time;
     return new Date(
       new Date(submissionStartedAt).getTime() + exam.time_limit_minutes * 60_000,
     ).toISOString();
