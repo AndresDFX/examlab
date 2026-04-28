@@ -230,30 +230,30 @@ function TakeExam() {
       sessionIdRef.current = localSessionId;
 
       if (inProgress) {
-        const dbSessionId = inProgress.exam_session_id as string | null;
-        const heartbeatAt = inProgress.session_heartbeat_at as string | null;
-        const heartbeatAgeMs = heartbeatAt
-          ? Date.now() - new Date(heartbeatAt).getTime()
-          : Infinity;
-
-        if (dbSessionId && dbSessionId !== localSessionId && heartbeatAgeMs < 20_000) {
-          // Another device is actively presenting this exam
-          setExam(e);
-          setBlockedBySession(true);
-          return;
-        }
-
-        // Take over the session (same device reload or stale lock from crashed tab)
-        supabase
+        // Atomic session claim: the UPDATE only matches if there is no active session
+        // from another device (null session, same session, or heartbeat expired >20s).
+        // If it returns no row, another device holds the lock → block.
+        const staleTime = new Date(Date.now() - 20_000).toISOString();
+        const { data: claimed } = await supabase
           .from("submissions")
           .update({
             exam_session_id: localSessionId,
             session_heartbeat_at: new Date().toISOString(),
           })
           .eq("id", inProgress.id)
-          .then(() => {});
+          .or(
+            `exam_session_id.is.null,exam_session_id.eq.${localSessionId},session_heartbeat_at.lt.${staleTime}`,
+          )
+          .select("id")
+          .maybeSingle();
 
-        // Reanudar el intento en curso
+        if (!claimed) {
+          setExam(e);
+          setBlockedBySession(true);
+          return;
+        }
+
+        // Session claimed — reanudar el intento en curso
         setSubmissionId(inProgress.id);
         submissionIdRef.current = inProgress.id;
         const existingAnswers = (inProgress.answers as Record<string, any>) ?? {};
@@ -295,25 +295,62 @@ function TakeExam() {
     if (!user || !exam) return;
     let sid = submissionId;
     if (!sid) {
-      const { data, error } = await supabase
+      // Guard against race condition: both devices on the start screen simultaneously.
+      // Re-query for any en_progreso submission created since the page loaded.
+      const staleTime = new Date(Date.now() - 20_000).toISOString();
+      const { data: existing } = await supabase
         .from("submissions")
-        .insert({
-          exam_id: examId,
-          user_id: user.id,
-          answers: {},
-          status: "en_progreso",
-          exam_session_id: sessionIdRef.current,
-          session_heartbeat_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-      if (error) {
-        toast.error(error.message);
-        return;
+        .select("id")
+        .eq("exam_id", examId)
+        .eq("user_id", user.id)
+        .eq("status", "en_progreso")
+        .maybeSingle();
+
+      if (existing) {
+        // Another device just started — atomic claim
+        const { data: claimed } = await supabase
+          .from("submissions")
+          .update({
+            exam_session_id: sessionIdRef.current,
+            session_heartbeat_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+          .or(
+            `exam_session_id.is.null,exam_session_id.eq.${sessionIdRef.current},session_heartbeat_at.lt.${staleTime}`,
+          )
+          .select("id")
+          .maybeSingle();
+
+        if (!claimed) {
+          setBlockedBySession(true);
+          return;
+        }
+        sid = existing.id;
+        setSubmissionId(sid);
+        submissionIdRef.current = sid;
       }
-      sid = data.id;
-      setSubmissionId(sid);
-      submissionIdRef.current = sid;
+
+      if (!sid) {
+        const { data, error } = await supabase
+          .from("submissions")
+          .insert({
+            exam_id: examId,
+            user_id: user.id,
+            answers: {},
+            status: "en_progreso",
+            exam_session_id: sessionIdRef.current,
+            session_heartbeat_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        sid = data.id;
+        setSubmissionId(sid);
+        submissionIdRef.current = sid;
+      }
     }
     // TODO: Re-enable fullscreen when ready
     // try { await document.documentElement.requestFullscreen(); } catch { }
