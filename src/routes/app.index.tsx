@@ -657,7 +657,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
           label={t("dashboard.stats.pendingExams")}
@@ -669,6 +669,12 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.pendingWorkshops")}
           value={pendingWorkshops.length}
           color="text-amber-500 dark:text-amber-400"
+        />
+        <Stat
+          icon={FolderKanban}
+          label={t("dashboard.stats.pendingProjects")}
+          value={pendingProjects.length}
+          color="text-rose-500 dark:text-rose-400"
         />
         <Stat
           icon={CheckCircle2}
