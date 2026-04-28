@@ -351,7 +351,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
           label={t("dashboard.stats.exams")}
@@ -365,10 +365,16 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-amber-500 dark:text-amber-400"
         />
         <Stat
+          icon={FolderKanban}
+          label={t("dashboard.stats.projects")}
+          value={counts.projects}
+          color="text-rose-500 dark:text-rose-400"
+        />
+        <Stat
           icon={Eye}
           label={t("dashboard.stats.pendingGrades")}
           value={counts.pendingGrades}
-          color="text-rose-500 dark:text-rose-400"
+          color="text-pink-500 dark:text-pink-400"
         />
         <Stat
           icon={BookOpen}
