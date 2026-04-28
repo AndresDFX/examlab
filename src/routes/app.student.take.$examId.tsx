@@ -540,16 +540,14 @@ function TakeExam() {
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
-  // Effective deadline = started_at + duration, capped at exam window close.
-  // This ensures the timer counts the student's personal 60-min slot,
-  // not the entire exam window (which can be days long).
+  // Timer counts from when the student started (started_at + time_limit_minutes).
+  // The exam window (end_time) is independent — students always get the full duration.
   const effectiveEndTime = (() => {
     if (!exam) return null;
     if (!submissionStartedAt) return exam.end_time;
-    const personalMs =
-      new Date(submissionStartedAt).getTime() + exam.time_limit_minutes * 60_000;
-    const windowMs = new Date(exam.end_time).getTime();
-    return new Date(Math.min(personalMs, windowMs)).toISOString();
+    return new Date(
+      new Date(submissionStartedAt).getTime() + exam.time_limit_minutes * 60_000,
+    ).toISOString();
   })();
   const initialSeconds = computeSecondsLeft(effectiveEndTime);
 
