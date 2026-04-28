@@ -125,7 +125,6 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
-  const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
   const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
@@ -260,7 +259,6 @@ function TakeExam() {
           ? existingAnswers.__warning_events
           : [];
         warningEventsRef.current = persistedEvents;
-        setSubmissionStartedAt((inProgress as any).started_at as string);
         setExam(e);
         setStarted(true);
         return;
@@ -315,7 +313,6 @@ function TakeExam() {
         submissionIdRef.current = sid;
         setAnswers(claimedAnswers);
         answersRef.current = claimedAnswers;
-        setSubmissionStartedAt((existing as any).started_at as string);
       }
 
       if (!sid) {
@@ -339,7 +336,6 @@ function TakeExam() {
         submissionIdRef.current = sid;
         answersRef.current = initialAnswers;
         setAnswers(initialAnswers);
-        setSubmissionStartedAt(data.started_at as string);
       }
     }
     // TODO: Re-enable fullscreen when ready
@@ -526,16 +522,7 @@ function TakeExam() {
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
-  // Timer counts from when the student started (started_at + time_limit_minutes).
-  // The exam window (end_time) is independent — students always get the full duration.
-  const effectiveEndTime = (() => {
-    if (!exam) return null;
-    if (!submissionStartedAt) return exam.end_time;
-    return new Date(
-      new Date(submissionStartedAt).getTime() + exam.time_limit_minutes * 60_000,
-    ).toISOString();
-  })();
-  const initialSeconds = computeSecondsLeft(effectiveEndTime);
+  const initialSeconds = computeSecondsLeft(exam?.end_time);
 
   const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
     examId,
