@@ -864,6 +864,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
               color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             />
             <QuickCard
+              to="/app/student/projects"
+              title={t("dashboard.cards.projectsStudent")}
+              desc={t("dashboard.cards.projectsStudentDesc")}
+              icon={FolderKanban}
+              color="bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            />
+            <QuickCard
               to="/app/student/courses"
               title={t("dashboard.cards.coursesStudent")}
               desc={t("dashboard.cards.coursesStudentDesc")}
