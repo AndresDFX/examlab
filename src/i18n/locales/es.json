@@ -110,6 +110,8 @@
       "pendingGrades": "Por calificar",
       "pendingExams": "Exámenes pendientes",
       "pendingWorkshops": "Talleres pendientes",
+      "projects": "Proyectos",
+      "pendingProjects": "Proyectos pendientes",
       "completed": "Completados"
     },
     "recentUsers": "Usuarios recientes",
