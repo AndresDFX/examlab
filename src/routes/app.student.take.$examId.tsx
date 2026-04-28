@@ -140,6 +140,8 @@ function TakeExam() {
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
+  // Cache the Supabase access token so beforeunload can use it in a keepalive fetch
+  const authTokenRef = useRef<string | null>(null);
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
   );
@@ -149,6 +151,17 @@ function TakeExam() {
   useEffect(() => {
     if (exitingExam) navigate({ to: "/app/student/exams" });
   }, [exitingExam, navigate]);
+
+  // Cache Supabase access token for synchronous use in beforeunload keepalive fetch
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      authTokenRef.current = data.session?.access_token ?? null;
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      authTokenRef.current = session?.access_token ?? null;
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Keep refs in sync with state for synchronous reads in event handlers
   useEffect(() => {
@@ -609,10 +622,31 @@ function TakeExam() {
 
     // Show native "Leave site?" dialog on browser/tab close (full reload/close).
     // SPA navigation is handled by useBlocker above.
+    // blur fires before beforeunload, so warningsRef.current already has the blur strike
+    // when this runs. keepalive:true ensures the fetch completes even after page unload.
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (submittedRef.current) return;
       e.preventDefault();
       e.returnValue = "";
+      if (submissionIdRef.current && authTokenRef.current) {
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+              "Authorization": `Bearer ${authTokenRef.current}`,
+              "Prefer": "return=minimal",
+            },
+            body: JSON.stringify({
+              focus_warnings: warningsRef.current,
+              answers: answersRef.current,
+            }),
+            keepalive: true,
+          },
+        );
+      }
     };
 
     const onBlur = () => recordWarning("pestaña");
