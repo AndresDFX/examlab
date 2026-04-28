@@ -125,11 +125,13 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
+  const [leaveModal, setLeaveModal] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
+  const recordWarningRef = useRef<((type: string) => void) | null>(null);
   const answersRef = useRef<Record<string, any>>({});
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
@@ -589,6 +591,24 @@ function TakeExam() {
         toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: ${warningLabel(type)}`);
       }
     };
+    recordWarningRef.current = recordWarning;
+
+    // Intercept browser back button
+    history.pushState(null, "", location.href);
+    const onPopState = () => {
+      if (submittedRef.current) return;
+      // Push state again to neutralize the back navigation
+      history.pushState(null, "", location.href);
+      setLeaveModal(true);
+    };
+
+    // Show native "Leave site?" dialog on browser/tab close
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (submittedRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
     const onBlur = () => recordWarning("pestaña");
     const onContext = (e: Event) => e.preventDefault();
     const onCopy = (e: Event) => {
@@ -619,6 +639,8 @@ function TakeExam() {
     //     }, 300);
     //   }
     // };
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
     document.addEventListener("copy", onCopy);
@@ -629,6 +651,8 @@ function TakeExam() {
     // document.addEventListener("keydown", onKeyDown, true);
     // document.addEventListener("fullscreenchange", onFsChange);
     return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
       document.removeEventListener("copy", onCopy);
@@ -724,8 +748,7 @@ function TakeExam() {
     );
   }
 
-  const visible =
-    exam.navigation_type === "secuencial" ? [questions[currentIdx]].filter(Boolean) : questions;
+  const visible = [questions[currentIdx]].filter(Boolean);
 
   return (
     <div className="max-w-3xl mx-auto py-4 sm:py-6 select-none">
@@ -734,8 +757,7 @@ function TakeExam() {
         <div className="min-w-0 flex-1">
           <div className="font-semibold truncate text-sm sm:text-base">{exam.title}</div>
           <div className="text-[11px] sm:text-xs text-muted-foreground">
-            {t("exam.question")} {exam.navigation_type === "secuencial" ? currentIdx + 1 : "—"}{" "}
-            {t("exam.of")} {questions.length}
+            {t("exam.question")} {currentIdx + 1} {t("exam.of")} {questions.length}
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 flex-wrap justify-end">
@@ -878,43 +900,60 @@ function TakeExam() {
 
       {/* Navigation */}
       <div className="flex items-center justify-between gap-2 mt-6">
-        {exam.navigation_type === "secuencial" ? (
-          <>
-            <Button
-              variant="outline"
-              disabled={currentIdx === 0}
-              onClick={() => setCurrentIdx((i) => i - 1)}
-            >
-              {t("exam.previous")}
-            </Button>
-            {currentIdx < questions.length - 1 ? (
-              <Button onClick={() => setCurrentIdx((i) => i + 1)}>{t("exam.next")}</Button>
-            ) : (
-              <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-1" />
-                )}
-                {t("exam.finish")}
-              </Button>
-            )}
-          </>
+        <Button
+          variant="outline"
+          disabled={currentIdx === 0}
+          onClick={() => setCurrentIdx((i) => i - 1)}
+        >
+          {t("exam.previous")}
+        </Button>
+        {currentIdx < questions.length - 1 ? (
+          <Button onClick={() => setCurrentIdx((i) => i + 1)}>{t("exam.next")}</Button>
         ) : (
-          <Button
-            className="w-full"
-            onClick={() => void requestManualSubmit()}
-            disabled={submitting}
-          >
+          <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
             {submitting ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
               <Send className="h-4 w-4 mr-1" />
             )}
-            {t("exam.submit")}
+            {t("exam.finish")}
           </Button>
         )}
       </div>
+
+      <Dialog open={leaveModal} onOpenChange={(open) => !open && setLeaveModal(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+              ¿Salir del examen?
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="text-sm text-muted-foreground">
+                Retroceder cuenta como una salida no permitida y registra un{" "}
+                <strong>strike</strong>. Si acumulas {MAX_WARNINGS} strikes, el examen se marcará
+                como sospechoso. ¿Deseas salir de todas formas?
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setLeaveModal(false)}>
+              Seguir en el examen
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setLeaveModal(false);
+                recordWarningRef.current?.("retroceso");
+                navigate({ to: "/app/student/exams" });
+              }}
+            >
+              Salir (registrar strike)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={submitModal.open} onOpenChange={(open) => !open && cancelManualSubmitModal()}>
         <DialogContent className="sm:max-w-md">
