@@ -355,12 +355,23 @@ function TeacherProjects() {
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.title}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {p.course?.name}
-                    {p.course?.period && (
-                      <Badge variant="outline" className="ml-1.5 text-[9px]">
-                        {p.course.period}
-                      </Badge>
-                    )}
+                    <div className="flex flex-wrap gap-1 items-center">
+                      {(p.linked_course_ids ?? [p.course_id]).map((cid) => {
+                        const c = courses.find((cc) => cc.id === cid);
+                        if (!c) return null;
+                        const isPrimary = cid === p.course_id;
+                        return (
+                          <Badge
+                            key={cid}
+                            variant={isPrimary ? "default" : "outline"}
+                            className="text-[10px]"
+                          >
+                            {c.name}
+                            {c.period ? ` · ${c.period}` : ""}
+                          </Badge>
+                        );
+                      })}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
