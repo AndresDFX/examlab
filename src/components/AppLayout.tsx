@@ -133,6 +133,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isTakingExam = location.pathname.startsWith("/app/student/take/");
 
   // Auto-close the mobile drawer on navigation so the user isn't left
   // looking at an open menu after tapping a link.
@@ -266,29 +267,31 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {profile?.institutional_email}
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <NotificationBell userId={user.id} variant="sidebar" />
-            <ThemeToggle />
-            <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPwDialogOpen(true)}
-              className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              title={t("nav.changePassword")}
-            >
-              <KeyRound className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={signOut}
-              className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              title={t("nav.signOut")}
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          {!isTakingExam && (
+            <div className="flex items-center gap-1">
+              <NotificationBell userId={user.id} variant="sidebar" />
+              <ThemeToggle />
+              <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPwDialogOpen(true)}
+                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                title={t("nav.changePassword")}
+              >
+                <KeyRound className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                title={t("nav.signOut")}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -414,28 +417,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     {profile?.institutional_email}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <ThemeToggle />
-                  <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setPwDialogOpen(true)}
-                    className="text-sidebar-foreground/80 hover:bg-sidebar-accent"
-                    title={t("nav.changePassword")}
-                  >
-                    <KeyRound className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={signOut}
-                    className="text-sidebar-foreground/80 hover:bg-sidebar-accent ml-auto"
-                  >
-                    <LogOut className="h-4 w-4 mr-1" />
-                    {t("nav.signOut")}
-                  </Button>
-                </div>
+                {!isTakingExam && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <ThemeToggle />
+                    <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPwDialogOpen(true)}
+                      className="text-sidebar-foreground/80 hover:bg-sidebar-accent"
+                      title={t("nav.changePassword")}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={signOut}
+                      className="text-sidebar-foreground/80 hover:bg-sidebar-accent ml-auto"
+                    >
+                      <LogOut className="h-4 w-4 mr-1" />
+                      {t("nav.signOut")}
+                    </Button>
+                  </div>
+                )}
               </div>
             </SheetContent>
           </Sheet>
@@ -448,9 +453,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <div className="flex items-center">
-          <NotificationBell userId={user.id} />
-        </div>
+        {!isTakingExam && (
+          <div className="flex items-center">
+            <NotificationBell userId={user.id} />
+          </div>
+        )}
       </header>
 
       <main className="flex-1 min-w-0 pt-14 md:pt-0">
