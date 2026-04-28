@@ -635,6 +635,15 @@ function TakeExam() {
       // Otherwise increment here (browser close on platforms where blur doesn't precede beforeunload).
       const blurJustFired = Date.now() - lastBlurAt < 200;
       const warningsToSend = blurJustFired ? warningsRef.current : warningsRef.current + 1;
+      const body: Record<string, unknown> = {
+        focus_warnings: warningsToSend,
+        answers: answersRef.current,
+      };
+      if (shouldMarkSuspicious(warningsToSend, MAX_WARNINGS)) {
+        body.status = "sospechoso";
+        body.submitted_at = new Date().toISOString();
+        submittedRef.current = true;
+      }
       fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
         {
@@ -645,10 +654,7 @@ function TakeExam() {
             "Authorization": `Bearer ${authTokenRef.current}`,
             "Prefer": "return=minimal",
           },
-          body: JSON.stringify({
-            focus_warnings: warningsToSend,
-            answers: answersRef.current,
-          }),
+          body: JSON.stringify(body),
           keepalive: true,
         },
       );
