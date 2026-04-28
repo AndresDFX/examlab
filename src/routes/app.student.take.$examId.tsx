@@ -125,15 +125,16 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
+  const [exitingExam, setExitingExam] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
 
-  // Block ALL TanStack Router navigation (links, back button, navigate()) while exam is active.
-  // condition=false during submission so performSubmit's internal navigate() passes through.
+  // Block ALL TanStack Router navigation while the exam is active.
+  // Unblocked when: not started, submitting (performSubmit's navigate passes through),
+  // or exitingExam=true (set before manual navigate after strike is recorded).
   const {
     status: leaveBlockerStatus,
-    proceed: proceedLeave,
     reset: resetLeave,
-  } = useBlocker({ condition: started && !submitting });
+  } = useBlocker({ condition: started && !submitting && !exitingExam });
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
@@ -142,6 +143,12 @@ function TakeExam() {
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
   );
+
+  // After strike is saved, exitingExam=true disables the blocker so this navigate goes through.
+  // Using useEffect guarantees the re-render (condition=false) commits BEFORE navigate() fires.
+  useEffect(() => {
+    if (exitingExam) navigate({ to: "/app/student/exams" });
+  }, [exitingExam, navigate]);
 
   // Keep refs in sync with state for synchronous reads in event handlers
   useEffect(() => {
@@ -941,37 +948,40 @@ function TakeExam() {
               type="button"
               variant="destructive"
               onClick={async () => {
-                // Write strike and await DB write before proceeding — bypass blurLockUntil
-                // since this is an explicit user-confirmed action, not an accidental blur.
                 if (!submittedRef.current && submissionIdRef.current) {
                   const nw = warningsRef.current + 1;
                   warningsRef.current = nw;
-                  setWarnings(nw);
-                  const event = {
-                    type: "retroceso",
-                    at: new Date().toISOString(),
-                    questionIdx: currentIdx,
-                  };
-                  warningEventsRef.current = [...warningEventsRef.current, event];
+                  warningEventsRef.current = [
+                    ...warningEventsRef.current,
+                    { type: "retroceso", at: new Date().toISOString(), questionIdx: currentIdx },
+                  ];
                   const updatedAnswers = {
                     ...answersRef.current,
                     __warning_events: warningEventsRef.current,
                   };
                   answersRef.current = updatedAnswers;
+                  // Update state so the warnings counter reflects the new value
+                  setWarnings(nw);
                   setAnswers(updatedAnswers);
                   toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: Salida de examen`);
-                  await supabase
-                    .from("submissions")
-                    .update({ focus_warnings: nw, answers: updatedAnswers })
-                    .eq("id", submissionIdRef.current);
+                  // saveAnswersNow reads from warningsRef + answersRef (already updated above).
+                  // It saves to Supabase AND IndexedDB — same path as auto-save.
+                  try {
+                    await saveAnswersNow();
+                  } catch (e) {
+                    console.error("[ExamLab] leave strike save failed:", e);
+                  }
                   if (shouldMarkSuspicious(nw, MAX_WARNINGS)) {
                     toast.error("Has superado el límite de salidas. El examen se suspende.");
                     await performSubmit(true);
                     return;
                   }
                 }
-                // Continue with the originally blocked navigation
-                proceedLeave();
+                // resetLeave() cancels the blocked intent; setExitingExam(true) disables the
+                // blocker condition. The useEffect above then fires navigate() after the
+                // re-render commits (guaranteed condition=false → no re-block).
+                resetLeave();
+                setExitingExam(true);
               }}
             >
               Salir (registrar strike)
