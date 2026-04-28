@@ -1,6 +1,5 @@
-import { createFileRoute, useNavigate, useBlocker } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { flushSync } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRealtimeTimer } from "@/hooks/use-realtime-timer";
@@ -126,17 +125,8 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
-  const [exitingExam, setExitingExam] = useState(false);
   const [manualLeaveOpen, setManualLeaveOpen] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
-
-  // Block ALL TanStack Router navigation while the exam is active.
-  // Unblocked when: not started, submitting (performSubmit's navigate passes through),
-  // or exitingExam=true (set before manual navigate after strike is recorded).
-  const {
-    status: leaveBlockerStatus,
-    reset: resetLeave,
-  } = useBlocker({ condition: started && !submitting && !exitingExam });
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
@@ -582,6 +572,17 @@ function TakeExam() {
   // Proctoring: focus tracking, copy/paste blocking, fullscreen enforcement
   useEffect(() => {
     if (!started) return;
+
+    // Push an extra history entry so the browser back button stays on the exam.
+    // Each popstate re-pushes to neutralise the back, then shows the leave dialog.
+    history.pushState(null, "", window.location.href);
+    const onPopstate = () => {
+      if (submittedRef.current) return;
+      history.pushState(null, "", window.location.href);
+      setManualLeaveOpen(true);
+    };
+    window.addEventListener("popstate", onPopstate);
+
     let blurLockUntil = 0;
     let lastBlurAt = 0;
     const recordWarning = (type: string) => {
@@ -709,6 +710,7 @@ function TakeExam() {
     // document.addEventListener("keydown", onKeyDown, true);
     // document.addEventListener("fullscreenchange", onFsChange);
     return () => {
+      window.removeEventListener("popstate", onPopstate);
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
@@ -716,8 +718,6 @@ function TakeExam() {
       document.removeEventListener("cut", onCopy);
       document.removeEventListener("paste", onCopy);
       document.removeEventListener("selectstart", onSelect);
-      // document.removeEventListener("keydown", onKeyDown, true);
-      // document.removeEventListener("fullscreenchange", onFsChange);
     };
   }, [started, performSubmit]);
 
@@ -979,13 +979,8 @@ function TakeExam() {
       </div>
 
       <Dialog
-        open={leaveBlockerStatus === "blocked" || manualLeaveOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            resetLeave();
-            setManualLeaveOpen(false);
-          }
-        }}
+        open={manualLeaveOpen}
+        onOpenChange={(open) => !open && setManualLeaveOpen(false)}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1005,10 +1000,7 @@ function TakeExam() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                resetLeave();
-                setManualLeaveOpen(false);
-              }}
+              onClick={() => setManualLeaveOpen(false)}
             >
               Seguir en el examen
             </Button>
@@ -1042,15 +1034,7 @@ function TakeExam() {
                     return;
                   }
                 }
-                // flushSync commits exitingExam=true synchronously so the
-                // useBlocker condition is false BEFORE navigate() is called.
-                // Without this, React batching keeps condition=true and the
-                // blocker re-intercepts the navigate().
-                resetLeave();
-                flushSync(() => {
-                  setManualLeaveOpen(false);
-                  setExitingExam(true);
-                });
+                setManualLeaveOpen(false);
                 navigate({ to: "/app/student/exams" });
               }}
             >
