@@ -135,33 +135,69 @@ function TeacherProjects() {
 
   const openNew = () => {
     setEditing(null);
+    const first = courses[0]?.id;
     setForm({
       title: "",
       description: "",
       instructions: "",
-      course_id: courses[0]?.id,
+      course_id: first,
       cut_id: null,
       max_files: 3,
       max_score: 100,
       status: "draft",
+      linked_course_ids: first ? [first] : [],
     });
     setOpen(true);
   };
 
   const openEdit = (p: Project) => {
     setEditing(p);
-    setForm({ ...p });
+    setForm({
+      ...p,
+      linked_course_ids: p.linked_course_ids?.length
+        ? p.linked_course_ids
+        : p.course_id
+          ? [p.course_id]
+          : [],
+    });
     setOpen(true);
   };
 
+  const toggleFormCourse = (courseId: string) => {
+    const current = new Set(form.linked_course_ids ?? []);
+    if (current.has(courseId)) {
+      current.delete(courseId);
+    } else {
+      current.add(courseId);
+    }
+    const next = Array.from(current);
+    // El curso primario es el primero seleccionado
+    const primary = next.includes(form.course_id ?? "")
+      ? form.course_id
+      : next[0];
+    setForm({
+      ...form,
+      linked_course_ids: next,
+      course_id: primary,
+      // Si el corte ya no pertenece al curso primario, resetear
+      cut_id: primary && cuts.find((c) => c.id === form.cut_id)?.course_id === primary
+        ? form.cut_id
+        : null,
+    });
+  };
+
   const save = async () => {
-    if (!form.title || !form.course_id || !user) {
-      toast.error("Título y curso son obligatorios");
+    const linked = form.linked_course_ids ?? [];
+    if (!form.title || linked.length === 0 || !user) {
+      toast.error("Título y al menos un curso son obligatorios");
       return;
     }
+    const primaryCourse = form.course_id && linked.includes(form.course_id)
+      ? form.course_id
+      : linked[0];
     const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
     const payload = {
-      course_id: form.course_id,
+      course_id: primaryCourse,
       cut_id: form.cut_id || null,
       title: form.title,
       description: form.description ?? null,
@@ -173,15 +209,30 @@ function TeacherProjects() {
       status: form.status ?? "draft",
     };
 
+    let projectId: string | null = null;
     if (editing) {
       const { error } = await db.from("projects").update(payload).eq("id", editing.id);
       if (error) return toast.error(error.message);
+      projectId = editing.id;
       toast.success("Proyecto actualizado");
     } else {
-      const { error } = await db.from("projects").insert({ ...payload, created_by: user.id });
-      if (error) return toast.error(error.message);
+      const { data: created, error } = await db
+        .from("projects")
+        .insert({ ...payload, created_by: user.id })
+        .select("id")
+        .single();
+      if (error || !created) return toast.error(error?.message ?? "Error al crear");
+      projectId = created.id;
       toast.success("Proyecto creado");
     }
+
+    if (projectId) {
+      // Sincronizar vínculos a cursos
+      await db.from("project_courses").delete().eq("project_id", projectId);
+      const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
+      if (rows.length) await db.from("project_courses").insert(rows);
+    }
+
     setOpen(false);
     await load();
   };
