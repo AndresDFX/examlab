@@ -523,6 +523,7 @@ export type Database = {
           exam_id: string | null
           id: string
           item_type: string
+          project_id: string | null
           project_title: string | null
           weight: number
           workshop_id: string | null
@@ -533,6 +534,7 @@ export type Database = {
           exam_id?: string | null
           id?: string
           item_type: string
+          project_id?: string | null
           project_title?: string | null
           weight?: number
           workshop_id?: string | null
@@ -543,6 +545,7 @@ export type Database = {
           exam_id?: string | null
           id?: string
           item_type?: string
+          project_id?: string | null
           project_title?: string | null
           weight?: number
           workshop_id?: string | null
@@ -560,6 +563,13 @@ export type Database = {
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grade_cut_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -700,6 +710,169 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      project_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_courses: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_courses_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_courses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_files: {
+        Row: {
+          created_at: string
+          description: string | null
+          expected_rubric: string | null
+          id: string
+          language: string | null
+          points: number
+          position: number
+          project_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          expected_rubric?: string | null
+          id?: string
+          language?: string | null
+          points?: number
+          position?: number
+          project_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          expected_rubric?: string | null
+          id?: string
+          language?: string | null
+          points?: number
+          position?: number
+          project_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_submission_files: {
+        Row: {
+          ai_feedback: string | null
+          ai_grade: number | null
+          ai_likelihood: number | null
+          ai_reasons: string | null
+          content: string | null
+          created_at: string
+          file_id: string
+          id: string
+          submission_id: string
+          updated_at: string
+        }
+        Insert: {
+          ai_feedback?: string | null
+          ai_grade?: number | null
+          ai_likelihood?: number | null
+          ai_reasons?: string | null
+          content?: string | null
+          created_at?: string
+          file_id: string
+          id?: string
+          submission_id: string
+          updated_at?: string
+        }
+        Update: {
+          ai_feedback?: string | null
+          ai_grade?: number | null
+          ai_likelihood?: number | null
+          ai_reasons?: string | null
+          content?: string | null
+          created_at?: string
+          file_id?: string
+          id?: string
+          submission_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_submission_files_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "project_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_submission_files_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "project_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_submissions: {
         Row: {
@@ -874,11 +1047,9 @@ export type Database = {
           answers: Json
           created_at: string
           exam_id: string
-          exam_session_id: string | null
           final_override_grade: number | null
           focus_warnings: number
           id: string
-          session_heartbeat_at: string | null
           started_at: string
           status: string
           submitted_at: string | null
@@ -893,11 +1064,9 @@ export type Database = {
           answers?: Json
           created_at?: string
           exam_id: string
-          exam_session_id?: string | null
           final_override_grade?: number | null
           focus_warnings?: number
           id?: string
-          session_heartbeat_at?: string | null
           started_at?: string
           status?: string
           submitted_at?: string | null
@@ -912,11 +1081,9 @@ export type Database = {
           answers?: Json
           created_at?: string
           exam_id?: string
-          exam_session_id?: string | null
           final_override_grade?: number | null
           focus_warnings?: number
           id?: string
-          session_heartbeat_at?: string | null
           started_at?: string
           status?: string
           submitted_at?: string | null

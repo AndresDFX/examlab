@@ -72,6 +72,8 @@ type Project = {
   max_score: number;
   status: "draft" | "published" | "closed";
   course?: { name: string; period: string | null; language?: string | null };
+  // Lista de IDs de cursos vinculados (incluye course_id primario)
+  linked_course_ids?: string[];
 };
 
 function TeacherProjects() {
@@ -96,17 +98,33 @@ function TeacherProjects() {
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
 
   const load = async () => {
-    const [cs, ps, cs2] = await Promise.all([
+    const [cs, ps, cs2, pcs] = await Promise.all([
       db.from("courses").select("id, name, period, language").order("name"),
       db
         .from("projects")
         .select("*, course:courses(name, period, language)")
         .order("created_at", { ascending: false }),
       db.from("grade_cuts").select("id, course_id, name").order("position"),
+      db.from("project_courses").select("project_id, course_id"),
     ]);
     setCourses((cs.data ?? []) as Course[]);
-    setProjects((ps.data ?? []) as Project[]);
     setCuts((cs2.data ?? []) as Cut[]);
+
+    // Mapear vínculos múltiples por proyecto
+    const linkMap = new Map<string, string[]>();
+    for (const row of (pcs.data ?? []) as { project_id: string; course_id: string }[]) {
+      const arr = linkMap.get(row.project_id) ?? [];
+      arr.push(row.course_id);
+      linkMap.set(row.project_id, arr);
+    }
+    const enriched = ((ps.data ?? []) as Project[]).map((p) => {
+      const linked = linkMap.get(p.id) ?? [];
+      // Garantizar que el course_id primario esté incluido
+      const set = new Set<string>(linked);
+      if (p.course_id) set.add(p.course_id);
+      return { ...p, linked_course_ids: Array.from(set) };
+    });
+    setProjects(enriched);
   };
 
   useEffect(() => {
@@ -117,33 +135,69 @@ function TeacherProjects() {
 
   const openNew = () => {
     setEditing(null);
+    const first = courses[0]?.id;
     setForm({
       title: "",
       description: "",
       instructions: "",
-      course_id: courses[0]?.id,
+      course_id: first,
       cut_id: null,
       max_files: 3,
       max_score: 100,
       status: "draft",
+      linked_course_ids: first ? [first] : [],
     });
     setOpen(true);
   };
 
   const openEdit = (p: Project) => {
     setEditing(p);
-    setForm({ ...p });
+    setForm({
+      ...p,
+      linked_course_ids: p.linked_course_ids?.length
+        ? p.linked_course_ids
+        : p.course_id
+          ? [p.course_id]
+          : [],
+    });
     setOpen(true);
   };
 
+  const toggleFormCourse = (courseId: string) => {
+    const current = new Set(form.linked_course_ids ?? []);
+    if (current.has(courseId)) {
+      current.delete(courseId);
+    } else {
+      current.add(courseId);
+    }
+    const next = Array.from(current);
+    // El curso primario es el primero seleccionado
+    const primary = next.includes(form.course_id ?? "")
+      ? form.course_id
+      : next[0];
+    setForm({
+      ...form,
+      linked_course_ids: next,
+      course_id: primary,
+      // Si el corte ya no pertenece al curso primario, resetear
+      cut_id: primary && cuts.find((c) => c.id === form.cut_id)?.course_id === primary
+        ? form.cut_id
+        : null,
+    });
+  };
+
   const save = async () => {
-    if (!form.title || !form.course_id || !user) {
-      toast.error("Título y curso son obligatorios");
+    const linked = form.linked_course_ids ?? [];
+    if (!form.title || linked.length === 0 || !user) {
+      toast.error("Título y al menos un curso son obligatorios");
       return;
     }
+    const primaryCourse = form.course_id && linked.includes(form.course_id)
+      ? form.course_id
+      : linked[0];
     const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
     const payload = {
-      course_id: form.course_id,
+      course_id: primaryCourse,
       cut_id: form.cut_id || null,
       title: form.title,
       description: form.description ?? null,
@@ -155,15 +209,30 @@ function TeacherProjects() {
       status: form.status ?? "draft",
     };
 
+    let projectId: string | null = null;
     if (editing) {
       const { error } = await db.from("projects").update(payload).eq("id", editing.id);
       if (error) return toast.error(error.message);
+      projectId = editing.id;
       toast.success("Proyecto actualizado");
     } else {
-      const { error } = await db.from("projects").insert({ ...payload, created_by: user.id });
-      if (error) return toast.error(error.message);
+      const { data: created, error } = await db
+        .from("projects")
+        .insert({ ...payload, created_by: user.id })
+        .select("id")
+        .single();
+      if (error || !created) return toast.error(error?.message ?? "Error al crear");
+      projectId = created.id;
       toast.success("Proyecto creado");
     }
+
+    if (projectId) {
+      // Sincronizar vínculos a cursos
+      await db.from("project_courses").delete().eq("project_id", projectId);
+      const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
+      if (rows.length) await db.from("project_courses").insert(rows);
+    }
+
     setOpen(false);
     await load();
   };
@@ -189,13 +258,20 @@ function TeacherProjects() {
 
   const openAssignDialog = async (p: Project) => {
     setAssignProject(p);
+    const courseIds = p.linked_course_ids?.length ? p.linked_course_ids : [p.course_id];
     const { data: enr } = await db
       .from("course_enrollments")
       .select("user_id, profile:profiles(id, full_name, institutional_email)")
-      .eq("course_id", p.course_id);
-    const list: Student[] = (enr ?? [])
-      .map((e: { profile: Student | null }) => e.profile)
-      .filter(Boolean) as Student[];
+      .in("course_id", courseIds);
+    // Deduplicar por user.id (un estudiante puede estar en más de un curso vinculado)
+    const seen = new Set<string>();
+    const list: Student[] = [];
+    for (const row of (enr ?? []) as { profile: Student | null }[]) {
+      if (row.profile && !seen.has(row.profile.id)) {
+        seen.add(row.profile.id);
+        list.push(row.profile);
+      }
+    }
     setStudents(list);
     const { data: asgn } = await db
       .from("project_assignments")
@@ -286,12 +362,23 @@ function TeacherProjects() {
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.title}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {p.course?.name}
-                    {p.course?.period && (
-                      <Badge variant="outline" className="ml-1.5 text-[9px]">
-                        {p.course.period}
-                      </Badge>
-                    )}
+                    <div className="flex flex-wrap gap-1 items-center">
+                      {(p.linked_course_ids ?? [p.course_id]).map((cid) => {
+                        const c = courses.find((cc) => cc.id === cid);
+                        if (!c) return null;
+                        const isPrimary = cid === p.course_id;
+                        return (
+                          <Badge
+                            key={cid}
+                            variant={isPrimary ? "default" : "outline"}
+                            className="text-[10px]"
+                          >
+                            {c.name}
+                            {c.period ? ` · ${c.period}` : ""}
+                          </Badge>
+                        );
+                      })}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
@@ -393,46 +480,74 @@ function TeacherProjects() {
                 onChange={(e) => setForm({ ...form, instructions: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>{t("nav.courses")}</Label>
-                <Select
-                  value={form.course_id ?? ""}
-                  onValueChange={(v) => setForm({ ...form, course_id: v, cut_id: null })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((c) => (
+            <div className="space-y-2">
+              <Label>{t("nav.courses")} (puedes seleccionar varios)</Label>
+              <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
+                {courses.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Sin cursos disponibles</p>
+                )}
+                {courses.map((c) => {
+                  const checked = (form.linked_course_ids ?? []).includes(c.id);
+                  const isPrimary = form.course_id === c.id;
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleFormCourse(c.id)}
+                      />
+                      <span className="flex-1">
+                        {c.name}
+                        {c.period ? ` · ${c.period}` : ""}
+                      </span>
+                      {isPrimary && checked && (
+                        <Badge variant="default" className="text-[9px]">
+                          Primario
+                        </Badge>
+                      )}
+                      {checked && !isPrimary && (
+                        <button
+                          type="button"
+                          className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setForm({ ...form, course_id: c.id, cut_id: null });
+                          }}
+                        >
+                          Hacer primario
+                        </button>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                El curso primario define el corte y el idioma usado por la IA. Los estudiantes
+                matriculados en cualquiera de los cursos seleccionados verán el proyecto.
+              </p>
+            </div>
+            <div>
+              <Label>Corte</Label>
+              <Select
+                value={form.cut_id ?? "__none"}
+                onValueChange={(v) => setForm({ ...form, cut_id: v === "__none" ? null : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">{t("common.none")}</SelectItem>
+                  {cuts
+                    .filter((c) => c.course_id === form.course_id)
+                    .map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Corte</Label>
-                <Select
-                  value={form.cut_id ?? "__none"}
-                  onValueChange={(v) => setForm({ ...form, cut_id: v === "__none" ? null : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">{t("common.none")}</SelectItem>
-                    {cuts
-                      .filter((c) => c.course_id === form.course_id)
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

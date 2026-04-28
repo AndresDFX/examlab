@@ -68,17 +68,47 @@ function StudentProjects() {
   const [active, setActive] = useState<ProjectRow | null>(null);
 
   const reload = async (uid: string) => {
+    // 1) Cursos en los que el estudiante está matriculado
+    const { data: enrollments } = await db
+      .from("course_enrollments")
+      .select("course_id")
+      .eq("user_id", uid);
+    const enrolledCourseIds = ((enrollments ?? []) as { course_id: string }[]).map(
+      (e) => e.course_id,
+    );
+
+    // 2) Proyectos vinculados a esos cursos vía project_courses
+    const { data: linked } = enrolledCourseIds.length
+      ? await db
+          .from("project_courses")
+          .select("project_id")
+          .in("course_id", enrolledCourseIds)
+      : { data: [] as { project_id: string }[] };
+    const linkedProjectIds = ((linked ?? []) as { project_id: string }[]).map(
+      (r) => r.project_id,
+    );
+
+    // 3) Proyectos asignados explícitamente al estudiante
     const { data: asg } = await db
       .from("project_assignments")
-      .select(
-        "project:projects(id, title, description, instructions, start_date, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language))",
-      )
+      .select("project_id")
       .eq("user_id", uid);
+    const assignedProjectIds = ((asg ?? []) as { project_id: string }[]).map(
+      (r) => r.project_id,
+    );
 
-    const projects = ((asg ?? []) as { project: ProjectRow["project"] | null }[])
-      .map((a) => a.project)
-      .filter(Boolean) as ProjectRow["project"][];
+    const allIds = Array.from(new Set([...linkedProjectIds, ...assignedProjectIds]));
+    const { data: projData } = allIds.length
+      ? await db
+          .from("projects")
+          .select(
+            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language)",
+          )
+          .in("id", allIds)
+          .neq("status", "draft")
+      : { data: [] as ProjectRow["project"][] };
 
+    const projects = (projData ?? []) as ProjectRow["project"][];
     const ids = projects.map((p) => p.id);
     const { data: subs } = ids.length
       ? await db
