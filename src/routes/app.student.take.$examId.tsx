@@ -573,15 +573,18 @@ function TakeExam() {
   useEffect(() => {
     if (!started) return;
 
-    // Push an extra history entry so the browser back button stays on the exam.
-    // Each popstate re-pushes to neutralise the back, then shows the leave dialog.
+    // Push an extra history entry so pressing back stays on the exam URL.
+    // Register in the CAPTURE phase and call stopImmediatePropagation() so
+    // TanStack Router's own popstate listener never fires — without this the
+    // router fights with our pushState and causes intermittent UI freezes.
     history.pushState(null, "", window.location.href);
-    const onPopstate = () => {
+    const onPopstate = (e: PopStateEvent) => {
       if (submittedRef.current) return;
+      e.stopImmediatePropagation();
       history.pushState(null, "", window.location.href);
       setManualLeaveOpen(true);
     };
-    window.addEventListener("popstate", onPopstate);
+    window.addEventListener("popstate", onPopstate, true);
 
     let blurLockUntil = 0;
     let lastBlurAt = 0;
@@ -710,7 +713,7 @@ function TakeExam() {
     // document.addEventListener("keydown", onKeyDown, true);
     // document.addEventListener("fullscreenchange", onFsChange);
     return () => {
-      window.removeEventListener("popstate", onPopstate);
+      window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
