@@ -242,16 +242,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               location.pathname === item.to ||
               (item.to !== "/app" && location.pathname.startsWith(item.to));
             const iconColor = NAV_ICON_COLOR[item.to] ?? "text-sky-300";
+            const navClassName = cn(
+              "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors group",
+              isActive
+                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+            );
+            if (isTakingExam) {
+              return (
+                <button
+                  key={item.to}
+                  type="button"
+                  className={cn(navClassName, "w-full text-left")}
+                  onClick={() => window.dispatchEvent(new CustomEvent("examlab:navAttempt"))}
+                >
+                  <Icon className={cn("h-4 w-4 transition-colors", iconColor)} />
+                  {t(item.labelKey)}
+                </button>
+              );
+            }
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors group",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                    : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                )}
+                className={navClassName}
               >
                 <Icon className={cn("h-4 w-4 transition-colors", iconColor)} />
                 {t(item.labelKey)}
@@ -387,16 +401,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     location.pathname === item.to ||
                     (item.to !== "/app" && location.pathname.startsWith(item.to));
                   const iconColor = NAV_ICON_COLOR[item.to] ?? "text-sky-300";
+                  const navClassName = cn(
+                    "flex items-center gap-3 px-3 py-3 rounded-md text-sm transition-colors touch-manipulation",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  );
+                  if (isTakingExam) {
+                    return (
+                      <button
+                        key={item.to}
+                        type="button"
+                        className={cn(navClassName, "w-full text-left")}
+                        onClick={() => window.dispatchEvent(new CustomEvent("examlab:navAttempt"))}
+                      >
+                        <Icon className={cn("h-5 w-5 transition-colors", iconColor)} />
+                        {t(item.labelKey)}
+                      </button>
+                    );
+                  }
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-3 rounded-md text-sm transition-colors touch-manipulation",
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                      )}
+                      className={navClassName}
                     >
                       <Icon className={cn("h-5 w-5 transition-colors", iconColor)} />
                       {t(item.labelKey)}

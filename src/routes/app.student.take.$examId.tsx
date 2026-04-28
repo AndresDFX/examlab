@@ -126,6 +126,7 @@ function TakeExam() {
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
   const [exitingExam, setExitingExam] = useState(false);
+  const [manualLeaveOpen, setManualLeaveOpen] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
 
   // Block ALL TanStack Router navigation while the exam is active.
@@ -151,6 +152,15 @@ function TakeExam() {
   useEffect(() => {
     if (exitingExam) navigate({ to: "/app/student/exams" });
   }, [exitingExam, navigate]);
+
+  // Sidebar nav links in AppLayout dispatch this event when the exam is in progress
+  // (useBlocker only intercepts router-level navigation from within the route subtree).
+  useEffect(() => {
+    if (!started) return;
+    const handler = () => setManualLeaveOpen(true);
+    window.addEventListener("examlab:navAttempt", handler);
+    return () => window.removeEventListener("examlab:navAttempt", handler);
+  }, [started]);
 
   // Cache Supabase access token for synchronous use in beforeunload keepalive fetch
   useEffect(() => {
@@ -973,7 +983,15 @@ function TakeExam() {
         )}
       </div>
 
-      <Dialog open={leaveBlockerStatus === "blocked"} onOpenChange={(open) => !open && resetLeave()}>
+      <Dialog
+        open={leaveBlockerStatus === "blocked" || manualLeaveOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetLeave();
+            setManualLeaveOpen(false);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -989,7 +1007,14 @@ function TakeExam() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={resetLeave}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetLeave();
+                setManualLeaveOpen(false);
+              }}
+            >
               Seguir en el examen
             </Button>
             <Button
@@ -1008,12 +1033,9 @@ function TakeExam() {
                     __warning_events: warningEventsRef.current,
                   };
                   answersRef.current = updatedAnswers;
-                  // Update state so the warnings counter reflects the new value
                   setWarnings(nw);
                   setAnswers(updatedAnswers);
                   toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: Salida de examen`);
-                  // saveAnswersNow reads from warningsRef + answersRef (already updated above).
-                  // It saves to Supabase AND IndexedDB — same path as auto-save.
                   try {
                     await saveAnswersNow();
                   } catch (e) {
@@ -1025,10 +1047,8 @@ function TakeExam() {
                     return;
                   }
                 }
-                // resetLeave() cancels the blocked intent; setExitingExam(true) disables the
-                // blocker condition. The useEffect above then fires navigate() after the
-                // re-render commits (guaranteed condition=false → no re-block).
                 resetLeave();
+                setManualLeaveOpen(false);
                 setExitingExam(true);
               }}
             >
