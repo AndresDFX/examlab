@@ -125,6 +125,7 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
+  const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
   const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
@@ -266,6 +267,7 @@ function TakeExam() {
           ? existingAnswers.__warning_events
           : [];
         warningEventsRef.current = persistedEvents;
+        setSubmissionStartedAt((inProgress as any).started_at as string);
         setExam(e);
         setStarted(true);
         return;
@@ -300,7 +302,7 @@ function TakeExam() {
       const staleTime = new Date(Date.now() - 20_000).toISOString();
       const { data: existing } = await supabase
         .from("submissions")
-        .select("id")
+        .select("id, started_at")
         .eq("exam_id", examId)
         .eq("user_id", user.id)
         .eq("status", "en_progreso")
@@ -328,6 +330,7 @@ function TakeExam() {
         sid = existing.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setSubmissionStartedAt((existing as any).started_at as string);
       }
 
       if (!sid) {
@@ -350,6 +353,7 @@ function TakeExam() {
         sid = data.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setSubmissionStartedAt(data.started_at as string);
       }
     }
     // TODO: Re-enable fullscreen when ready
@@ -536,7 +540,18 @@ function TakeExam() {
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
-  const initialSeconds = computeSecondsLeft(exam?.end_time);
+  // Effective deadline = started_at + duration, capped at exam window close.
+  // This ensures the timer counts the student's personal 60-min slot,
+  // not the entire exam window (which can be days long).
+  const effectiveEndTime = (() => {
+    if (!exam) return null;
+    if (!submissionStartedAt) return exam.end_time;
+    const personalMs =
+      new Date(submissionStartedAt).getTime() + exam.time_limit_minutes * 60_000;
+    const windowMs = new Date(exam.end_time).getTime();
+    return new Date(Math.min(personalMs, windowMs)).toISOString();
+  })();
+  const initialSeconds = computeSecondsLeft(effectiveEndTime);
 
   const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
     examId,
