@@ -6,8 +6,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText } from "lucide-react";
+import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert } from "lucide-react";
 import { StudentExamNotes } from "@/components/ExamNotesManager";
+import { MAX_WARNINGS } from "@/utils/proctoring";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
@@ -34,6 +35,7 @@ type ExamRow = {
     status: string;
     ai_grade: number | null;
     final_override_grade: number | null;
+    focus_warnings: number | null;
   };
   attemptsUsed: number;
   maxAttempts: number;
@@ -76,11 +78,12 @@ function StudentExams() {
         status: string;
         ai_grade: number | null;
         final_override_grade: number | null;
+        focus_warnings: number | null;
       };
       const { data: subs } = submissionExamIds.length
         ? await supabase
             .from("submissions")
-            .select("id, exam_id, status, ai_grade, final_override_grade")
+            .select("id, exam_id, status, ai_grade, final_override_grade, focus_warnings")
             .in("exam_id", submissionExamIds)
             .eq("user_id", user.id)
         : { data: [] as SubRow[] };
@@ -195,6 +198,15 @@ function StudentExams() {
                       </Badge>
                     )}
                   </div>
+                  {submission?.status === "en_progreso" &&
+                    (submission.focus_warnings ?? 0) > 0 && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <ShieldAlert className="h-3 w-3 text-destructive" />
+                        <span className="text-destructive font-medium">
+                          {submission.focus_warnings}/{MAX_WARNINGS} strikes registrados
+                        </span>
+                      </div>
+                    )}
                 </div>
                 {!completed && user && (now < end) && (
                   <StudentExamNotes examId={exam.id} userId={user.id} />
