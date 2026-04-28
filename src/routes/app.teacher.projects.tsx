@@ -473,46 +473,74 @@ function TeacherProjects() {
                 onChange={(e) => setForm({ ...form, instructions: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>{t("nav.courses")}</Label>
-                <Select
-                  value={form.course_id ?? ""}
-                  onValueChange={(v) => setForm({ ...form, course_id: v, cut_id: null })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((c) => (
+            <div className="space-y-2">
+              <Label>{t("nav.courses")} (puedes seleccionar varios)</Label>
+              <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
+                {courses.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Sin cursos disponibles</p>
+                )}
+                {courses.map((c) => {
+                  const checked = (form.linked_course_ids ?? []).includes(c.id);
+                  const isPrimary = form.course_id === c.id;
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleFormCourse(c.id)}
+                      />
+                      <span className="flex-1">
+                        {c.name}
+                        {c.period ? ` · ${c.period}` : ""}
+                      </span>
+                      {isPrimary && checked && (
+                        <Badge variant="default" className="text-[9px]">
+                          Primario
+                        </Badge>
+                      )}
+                      {checked && !isPrimary && (
+                        <button
+                          type="button"
+                          className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setForm({ ...form, course_id: c.id, cut_id: null });
+                          }}
+                        >
+                          Hacer primario
+                        </button>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                El curso primario define el corte y el idioma usado por la IA. Los estudiantes
+                matriculados en cualquiera de los cursos seleccionados verán el proyecto.
+              </p>
+            </div>
+            <div>
+              <Label>Corte</Label>
+              <Select
+                value={form.cut_id ?? "__none"}
+                onValueChange={(v) => setForm({ ...form, cut_id: v === "__none" ? null : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">{t("common.none")}</SelectItem>
+                  {cuts
+                    .filter((c) => c.course_id === form.course_id)
+                    .map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Corte</Label>
-                <Select
-                  value={form.cut_id ?? "__none"}
-                  onValueChange={(v) => setForm({ ...form, cut_id: v === "__none" ? null : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">{t("common.none")}</SelectItem>
-                    {cuts
-                      .filter((c) => c.course_id === form.course_id)
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
