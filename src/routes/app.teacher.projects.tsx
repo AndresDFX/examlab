@@ -258,13 +258,20 @@ function TeacherProjects() {
 
   const openAssignDialog = async (p: Project) => {
     setAssignProject(p);
+    const courseIds = p.linked_course_ids?.length ? p.linked_course_ids : [p.course_id];
     const { data: enr } = await db
       .from("course_enrollments")
       .select("user_id, profile:profiles(id, full_name, institutional_email)")
-      .eq("course_id", p.course_id);
-    const list: Student[] = (enr ?? [])
-      .map((e: { profile: Student | null }) => e.profile)
-      .filter(Boolean) as Student[];
+      .in("course_id", courseIds);
+    // Deduplicar por user.id (un estudiante puede estar en más de un curso vinculado)
+    const seen = new Set<string>();
+    const list: Student[] = [];
+    for (const row of (enr ?? []) as { profile: Student | null }[]) {
+      if (row.profile && !seen.has(row.profile.id)) {
+        seen.add(row.profile.id);
+        list.push(row.profile);
+      }
+    }
     setStudents(list);
     const { data: asgn } = await db
       .from("project_assignments")
