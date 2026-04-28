@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
-import { saveAnswersLocally, isOnline, setupOfflineSync } from "@/lib/offline-sync";
+import { saveAnswersLocally, isOnline, setupOfflineSync, clearLocalAnswers } from "@/lib/offline-sync";
 import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
@@ -316,6 +316,9 @@ function TakeExam() {
       }
 
       if (!sid) {
+        // Clear stale IndexedDB data from a previous (deleted) session so the
+        // offline sync doesn't show a misleading toast on this fresh start.
+        await clearLocalAnswers(examId);
         const initialAnswers = { __session_id: sessionIdRef.current };
         const { data, error } = await supabase
           .from("submissions")
