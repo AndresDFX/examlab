@@ -131,7 +131,6 @@ function TakeExam() {
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
   const warningsRef = useRef(0);
-  const recordWarningRef = useRef<((type: string) => void) | null>(null);
   const answersRef = useRef<Record<string, any>>({});
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
@@ -581,7 +580,9 @@ function TakeExam() {
           .from("submissions")
           .update({ focus_warnings: nw, answers: updatedAnswers })
           .eq("id", submissionIdRef.current)
-          .then(() => {});
+          .then(({ error }) => {
+            if (error) console.error("recordWarning DB save failed:", error);
+          });
       }
 
       if (shouldMarkSuspicious(nw, MAX_WARNINGS)) {
@@ -591,7 +592,6 @@ function TakeExam() {
         toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: ${warningLabel(type)}`);
       }
     };
-    recordWarningRef.current = recordWarning;
 
     // Intercept browser back button
     history.pushState(null, "", location.href);
@@ -943,9 +943,38 @@ function TakeExam() {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => {
+              onClick={async () => {
                 setLeaveModal(false);
-                recordWarningRef.current?.("retroceso");
+                // Write strike synchronously before unmounting — bypass blurLockUntil
+                // since this is an explicit user-confirmed action, not an accidental blur.
+                if (!submittedRef.current && submissionIdRef.current) {
+                  const nw = warningsRef.current + 1;
+                  warningsRef.current = nw;
+                  setWarnings(nw);
+                  const event = {
+                    type: "retroceso",
+                    at: new Date().toISOString(),
+                    questionIdx: currentIdx,
+                  };
+                  warningEventsRef.current = [...warningEventsRef.current, event];
+                  const updatedAnswers = {
+                    ...answersRef.current,
+                    __warning_events: warningEventsRef.current,
+                  };
+                  answersRef.current = updatedAnswers;
+                  setAnswers(updatedAnswers);
+                  toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: Salida de examen`);
+                  // Await the DB write so it completes before component unmounts
+                  await supabase
+                    .from("submissions")
+                    .update({ focus_warnings: nw, answers: updatedAnswers })
+                    .eq("id", submissionIdRef.current);
+                  if (shouldMarkSuspicious(nw, MAX_WARNINGS)) {
+                    toast.error("Has superado el límite de salidas. El examen se suspende.");
+                    await performSubmit(true);
+                    return;
+                  }
+                }
                 navigate({ to: "/app/student/exams" });
               }}
             >
