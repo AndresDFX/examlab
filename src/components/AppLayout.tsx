@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
@@ -133,7 +133,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isTakingExam = location.pathname.startsWith("/app/student/take/");
+  const matchRoute = useMatchRoute();
+  // useMatchRoute is the TanStack Router canonical way to detect an active route.
+  // pathname.startsWith is unreliable in some Lovable/Vite build configurations.
+  const isTakingExam = !!matchRoute({ to: "/app/student/take/$examId" });
 
   // Auto-close the mobile drawer on navigation so the user isn't left
   // looking at an open menu after tapping a link.
@@ -142,8 +145,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/auth" });
-  }, [loading, user, navigate]);
+    // Don't redirect mid-exam: TakeExam's submit/exit logic handles navigation.
+    if (!loading && !user && !isTakingExam) navigate({ to: "/auth" });
+  }, [loading, user, navigate, isTakingExam]);
 
   useEffect(() => {
     if (roles.length && !activeRole) {
@@ -298,7 +302,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={signOut}
+                onClick={() => {
+                  // Belt-and-suspenders: even if the button renders during exam, intercept it.
+                  if (isTakingExam) {
+                    window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
+                  } else {
+                    signOut();
+                  }
+                }}
                 className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 title={t("nav.signOut")}
               >
@@ -461,7 +472,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={signOut}
+                      onClick={() => {
+                        if (isTakingExam) {
+                          window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
+                        } else {
+                          signOut();
+                        }
+                      }}
                       className="text-sidebar-foreground/80 hover:bg-sidebar-accent ml-auto"
                     >
                       <LogOut className="h-4 w-4 mr-1" />
