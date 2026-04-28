@@ -578,6 +578,7 @@ function TakeExam() {
   useEffect(() => {
     if (!started) return;
     let blurLockUntil = 0;
+    let lastBlurAt = 0;
     const recordWarning = (type: string) => {
       if (submittedRef.current) return;
       const now = Date.now();
@@ -622,34 +623,41 @@ function TakeExam() {
 
     // Show native "Leave site?" dialog on browser/tab close (full reload/close).
     // SPA navigation is handled by useBlocker above.
-    // blur fires before beforeunload, so warningsRef.current already has the blur strike
-    // when this runs. keepalive:true ensures the fetch completes even after page unload.
+    // blur may or may not fire before beforeunload depending on the browser.
+    // We use lastBlurAt to know if blur already incremented the count.
+    // If not, we increment here before sending the keepalive fetch.
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (submittedRef.current) return;
       e.preventDefault();
       e.returnValue = "";
-      if (submissionIdRef.current && authTokenRef.current) {
-        fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-              "Authorization": `Bearer ${authTokenRef.current}`,
-              "Prefer": "return=minimal",
-            },
-            body: JSON.stringify({
-              focus_warnings: warningsRef.current,
-              answers: answersRef.current,
-            }),
-            keepalive: true,
+      if (!submissionIdRef.current || !authTokenRef.current) return;
+      // If blur fired within the last 200ms it already incremented warningsRef — just persist.
+      // Otherwise increment here (browser close on platforms where blur doesn't precede beforeunload).
+      const blurJustFired = Date.now() - lastBlurAt < 200;
+      const warningsToSend = blurJustFired ? warningsRef.current : warningsRef.current + 1;
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+            "Authorization": `Bearer ${authTokenRef.current}`,
+            "Prefer": "return=minimal",
           },
-        );
-      }
+          body: JSON.stringify({
+            focus_warnings: warningsToSend,
+            answers: answersRef.current,
+          }),
+          keepalive: true,
+        },
+      );
     };
 
-    const onBlur = () => recordWarning("pestaña");
+    const onBlur = () => {
+      lastBlurAt = Date.now();
+      recordWarning("pestaña");
+    };
     const onContext = (e: Event) => e.preventDefault();
     const onCopy = (e: Event) => {
       e.preventDefault();
