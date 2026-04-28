@@ -1,0 +1,65 @@
+# CloudFormation
+parameters.json
+*.samconfig.toml
+
+# AWS
+*.pem
+*.pub
+aws-credentials.json
+.aws/
+
+# Terraform (si lo usas)
+.terraform/
+*.tfstate*
+
+# Backups
+backups/
+*_backup.sql
+*_backup.tar.gz
+
+# Secrets
+*.key
+*.crt
+*.pfx
+secrets/
+.env.local
+.env.*.local
+terraform.tfvars
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Temporal
+tmp/
+temp/
+/temp/
+
+# Node
+node_modules/
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build
+dist/
+build/
+*.zip
+
+# CloudShell
+.cloudshell_history

@@ -1,0 +1,380 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: |
+  VPC Stack - Crea VPC, subnets, Internet Gateway, NAT Gateway, Route Tables
+  Parámetros genéricos para que sea reutilizable
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: examlab
+    Description: Nombre del proyecto
+    AllowedPattern: "^[a-z0-9-]+$"
+    ConstraintDescription: Minúsculas, números y guiones
+
+  Environment:
+    Type: String
+    Default: production
+    Description: Ambiente (production, staging, development)
+    AllowedValues:
+      - production
+      - staging
+      - development
+
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block de la VPC
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: CIDR de subnet pública AZ-1
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: CIDR de subnet pública AZ-2
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.0.10.0/24
+    Description: CIDR de subnet privada AZ-1
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.0.11.0/24
+    Description: CIDR de subnet privada AZ-2
+
+  DBSubnet1CIDR:
+    Type: String
+    Default: 10.0.20.0/24
+    Description: CIDR de subnet DB AZ-1
+
+  DBSubnet2CIDR:
+    Type: String
+    Default: 10.0.21.0/24
+    Description: CIDR de subnet DB AZ-2
+
+  EnableNATGateway:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Crear NAT Gateway para mayor seguridad (más costo)
+
+Resources:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # VPC
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpc-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Internet Gateway
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-igw-${Environment}'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Public Subnets
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-subnet-1-${Environment}'
+        - Key: Tier
+          Value: Public
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-subnet-2-${Environment}'
+        - Key: Tier
+          Value: Public
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Private Subnets
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-private-subnet-1-${Environment}'
+        - Key: Tier
+          Value: Private
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-private-subnet-2-${Environment}'
+        - Key: Tier
+          Value: Private
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Database Subnets
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  DBSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref DBSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-db-subnet-1-${Environment}'
+        - Key: Tier
+          Value: Database
+
+  DBSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref DBSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-db-subnet-2-${Environment}'
+        - Key: Tier
+          Value: Database
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Route Tables - Public
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-rt-${Environment}'
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Route Tables - Private
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-private-rt-${Environment}'
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Route Tables - Database
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  DBRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-db-rt-${Environment}'
+
+  DBSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DBSubnet1
+      RouteTableId: !Ref DBRouteTable
+
+  DBSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DBSubnet2
+      RouteTableId: !Ref DBRouteTable
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DB Subnet Group (para RDS)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub '${ProjectName}-db-subnet-group-${Environment}'
+      DBSubnetGroupDescription: DB Subnet Group
+      SubnetIds:
+        - !Ref DBSubnet1
+        - !Ref DBSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-db-subnet-group-${Environment}'
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NAT Gateway (Opcional)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Condition: CreateNATGateway
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-nat-eip-${Environment}'
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: CreateNATGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-nat-${Environment}'
+
+  # Ruta privada a NAT (si está habilitado)
+  PrivateRouteToNAT:
+    Type: AWS::EC2::Route
+    Condition: CreateNATGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+Conditions:
+  CreateNATGateway: !Equals [!Ref EnableNATGateway, 'true']
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${ProjectName}-VPC-${Environment}'
+
+  VPCCidr:
+    Description: VPC CIDR block
+    Value: !GetAtt VPC.CidrBlock
+    Export:
+      Name: !Sub '${ProjectName}-VPC-CIDR-${Environment}'
+
+  PublicSubnet1Id:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${ProjectName}-PublicSubnet1-${Environment}'
+
+  PublicSubnet2Id:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${ProjectName}-PublicSubnet2-${Environment}'
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${ProjectName}-PrivateSubnet1-${Environment}'
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${ProjectName}-PrivateSubnet2-${Environment}'
+
+  DBSubnet1Id:
+    Description: DB Subnet 1 ID
+    Value: !Ref DBSubnet1
+    Export:
+      Name: !Sub '${ProjectName}-DBSubnet1-${Environment}'
+
+  DBSubnet2Id:
+    Description: DB Subnet 2 ID
+    Value: !Ref DBSubnet2
+    Export:
+      Name: !Sub '${ProjectName}-DBSubnet2-${Environment}'
+
+  DBSubnetGroupName:
+    Description: DB Subnet Group Name
+    Value: !Ref DBSubnetGroup
+    Export:
+      Name: !Sub '${ProjectName}-DBSubnetGroup-${Environment}'
+
+  InternetGatewayId:
+    Description: Internet Gateway ID
+    Value: !Ref InternetGateway
+    Export:
+      Name: !Sub '${ProjectName}-IGW-${Environment}'

@@ -1,0 +1,293 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: RDS PostgreSQL Stack - Base de datos Supabase-compatible con backups automáticos
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: examlab
+    Description: Nombre del proyecto
+
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging, development]
+
+  DBInstanceType:
+    Type: String
+    Default: db.t3.micro
+    Description: Clase de instancia RDS
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+
+  DBStorageSize:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 65536
+    Description: Almacenamiento inicial en GB
+
+  DBMaxStorageSize:
+    Type: Number
+    Default: 100
+    Description: Almacenamiento máximo para auto-scaling en GB
+
+  DBEngineVersion:
+    Type: String
+    Default: '15.4'
+    Description: PostgreSQL version
+
+  DBName:
+    Type: String
+    Default: examlab
+    Description: Nombre de la base de datos
+
+  DBUsername:
+    Type: String
+    Default: postgres
+    Description: Usuario admin de BD
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]*$'
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Contraseña del admin (mín 8 caracteres)
+    MinLength: 8
+    AllowedPattern: '^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9!@#$%^&*()_+=\-\[\]{};:,.<>?]*$'
+    ConstraintDescription: Mínimo 8 caracteres, debe contener letras y números
+
+  BackupRetentionDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    Description: Días de retención de backups automáticos
+
+  MultiAZ:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Multi-AZ para alta disponibilidad (costo 2x)
+
+  EnableEnhancedMonitoring:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Habilitar Enhanced Monitoring en CloudWatch
+
+Resources:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IAM Role para Enhanced Monitoring
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  RDSEnhancedMonitoringRole:
+    Type: AWS::IAM::Role
+    Condition: EnableMonitoring
+    Properties:
+      RoleName: !Sub '${ProjectName}-rds-monitoring-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Security Group para RDS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-rds-sg-${Environment}'
+      GroupDescription: Security group para RDS PostgreSQL
+      VpcId:
+        Fn::ImportValue: !Sub '${ProjectName}-VPC-${Environment}'
+      SecurityGroupIngress:
+        # PostgreSQL desde EC2
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp:
+            Fn::ImportValue: !Sub '${ProjectName}-VPC-CIDR-${Environment}'
+          Description: PostgreSQL from VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-rds-sg-${Environment}'
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RDS Instance
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '${ProjectName}-db-${Environment}'
+      DBInstanceClass: !Ref DBInstanceType
+      Engine: postgres
+      EngineVersion: !Ref DBEngineVersion
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      AllocatedStorage: !Ref DBStorageSize
+      MaxAllocatedStorage: !If [EnableAutoScaling, !Ref DBMaxStorageSize, !Ref 'AWS::NoValue']
+      StorageType: gp3
+      Iops: 3000
+      StorageThroughput: 125
+
+      # Networking
+      DBSubnetGroupName:
+        Fn::ImportValue: !Sub '${ProjectName}-DBSubnetGroup-${Environment}'
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      PubliclyAccessible: false
+
+      # Database
+      DBName: !Ref DBName
+      EnableIAMDatabaseAuthentication: true
+
+      # Backups
+      BackupRetentionPeriod: !Ref BackupRetentionDays
+      BackupWindow: '03:00-04:00'
+      CopyTagsToSnapshot: true
+      DeleteAutomatedBackups: false
+
+      # Maintenance
+      MaintenanceWindow: 'mon:04:00-mon:05:00'
+      AutoMinorVersionUpgrade: false
+      PreferredMaintenanceWindow: 'mon:04:00-mon:05:00'
+
+      # Performance & Monitoring
+      EnableCloudwatchLogsExports:
+        - postgresql
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      MonitoringInterval: !If [EnableMonitoring, 60, 0]
+      MonitoringRoleArn: !If [EnableMonitoring, !GetAtt RDSEnhancedMonitoringRole.Arn, !Ref 'AWS::NoValue']
+
+      # High Availability
+      MultiAZ: !Ref MultiAZ
+
+      # Storage Encryption
+      StorageEncrypted: true
+      KmsKeyId: !GetAtt RDSKey.Arn
+
+      # Deletion Protection
+      DeletionProtection: !If [IsProduction, true, false]
+
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-db-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # KMS Key para encripción
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  RDSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'KMS key for ${ProjectName} RDS encryption'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM policies
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow RDS to use the key
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:GenerateDataKey'
+              - 'kms:CreateGrant'
+            Resource: '*'
+
+  RDSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-rds-${Environment}'
+      TargetKeyId: !Ref RDSKey
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Parameter Group
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  RDSParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Sub 'Parameter group for ${ProjectName}'
+      Family: !Sub 'postgres${DBEngineVersion}'
+      Parameters:
+        max_connections: 100
+        shared_buffers: '{DBInstanceClassMemory/32768}'
+        effective_cache_size: '{DBInstanceClassMemory/2048}'
+        maintenance_work_mem: '{DBInstanceClassMemory/63}'
+        random_page_cost: '1.1'
+        log_min_duration_statement: '1000'
+        log_statement: 'all'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-postgres-pg-${Environment}'
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CloudWatch Log Group
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  RDSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/rds/instance/${ProjectName}-db-${Environment}/postgresql'
+      RetentionInDays: 7
+
+Conditions:
+  EnableMonitoring: !Equals [!Ref EnableEnhancedMonitoring, 'true']
+  EnableAutoScaling: !Not [!Equals [!Ref DBMaxStorageSize, 0]]
+  IsProduction: !Equals [!Ref Environment, 'production']
+
+Outputs:
+  RDSEndpoint:
+    Description: RDS Endpoint (hostname:port)
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${ProjectName}-RDS-Endpoint-${Environment}'
+
+  RDSPort:
+    Description: RDS Port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${ProjectName}-RDS-Port-${Environment}'
+
+  RDSDatabase:
+    Description: Database Name
+    Value: !Ref DBName
+    Export:
+      Name: !Sub '${ProjectName}-RDS-Database-${Environment}'
+
+  RDSUsername:
+    Description: Database Username
+    Value: !Ref DBUsername
+    Export:
+      Name: !Sub '${ProjectName}-RDS-Username-${Environment}'
+
+  RDSSecurityGroupId:
+    Description: RDS Security Group ID
+    Value: !GetAtt RDSSecurityGroup.GroupId
+    Export:
+      Name: !Sub '${ProjectName}-RDS-SG-${Environment}'
+
+  ConnectionString:
+    Description: PostgreSQL Connection String
+    Value: !Sub 'postgresql://${DBUsername}:****@${RDSInstance.Endpoint.Address}:${RDSInstance.Endpoint.Port}/${DBName}'
