@@ -690,7 +690,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-4 gap-4">
         {/* Upcoming exams */}
         <Card>
           <CardHeader className="pb-2">
