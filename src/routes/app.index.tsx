@@ -532,6 +532,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
+  const [pendingProjects, setPendingProjects] = useState<any[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
   const [courseCount, setCourseCount] = useState(0);
 
@@ -581,6 +582,61 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         )
         .slice(0, 4);
       setPendingWorkshops(ws);
+
+      // Pending projects (vía cursos matriculados + asignaciones explícitas)
+      const dbAny = supabase as any;
+      const { data: enr } = await dbAny
+        .from("course_enrollments")
+        .select("course_id")
+        .eq("user_id", userId);
+      const enrolledCourseIds = ((enr ?? []) as { course_id: string }[]).map((r) => r.course_id);
+      const { data: linked } = enrolledCourseIds.length
+        ? await dbAny
+            .from("project_courses")
+            .select("project_id")
+            .in("course_id", enrolledCourseIds)
+        : { data: [] as { project_id: string }[] };
+      const { data: pasg } = await dbAny
+        .from("project_assignments")
+        .select("project_id")
+        .eq("user_id", userId);
+      const projectIds = Array.from(
+        new Set([
+          ...((linked ?? []) as { project_id: string }[]).map((r) => r.project_id),
+          ...((pasg ?? []) as { project_id: string }[]).map((r) => r.project_id),
+        ]),
+      );
+      const { data: pjData } = projectIds.length
+        ? await dbAny
+            .from("projects")
+            .select("id, title, due_date, status, start_date, course:courses(name)")
+            .in("id", projectIds)
+            .eq("status", "published")
+        : { data: [] as any[] };
+      const { data: pSubs } = projectIds.length
+        ? await dbAny
+            .from("project_submissions")
+            .select("project_id, status")
+            .eq("user_id", userId)
+            .in("project_id", projectIds)
+        : { data: [] as any[] };
+      const submittedIds = new Set(
+        ((pSubs ?? []) as { project_id: string; status: string }[])
+          .filter((s) => ["entregado", "calificado", "ai_revisado"].includes(s.status))
+          .map((s) => s.project_id),
+      );
+      const pjs = ((pjData ?? []) as any[])
+        .filter(
+          (p) =>
+            !submittedIds.has(p.id) &&
+            (!p.start_date || new Date(p.start_date) <= new Date()),
+        )
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
+        )
+        .slice(0, 4);
+      setPendingProjects(pjs);
 
       // Completed submissions
       const { count } = await supabase
