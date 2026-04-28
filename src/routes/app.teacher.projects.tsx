@@ -72,6 +72,8 @@ type Project = {
   max_score: number;
   status: "draft" | "published" | "closed";
   course?: { name: string; period: string | null; language?: string | null };
+  // Lista de IDs de cursos vinculados (incluye course_id primario)
+  linked_course_ids?: string[];
 };
 
 function TeacherProjects() {
