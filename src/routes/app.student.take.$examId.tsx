@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useBlocker } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -125,8 +125,15 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
-  const [leaveModal, setLeaveModal] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
+
+  // Block ALL TanStack Router navigation (links, back button, navigate()) while exam is active.
+  // condition=false during submission so performSubmit's internal navigate() passes through.
+  const {
+    status: leaveBlockerStatus,
+    proceed: proceedLeave,
+    reset: resetLeave,
+  } = useBlocker({ condition: started && !submitting });
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
@@ -593,16 +600,8 @@ function TakeExam() {
       }
     };
 
-    // Intercept browser back button
-    history.pushState(null, "", location.href);
-    const onPopState = () => {
-      if (submittedRef.current) return;
-      // Push state again to neutralize the back navigation
-      history.pushState(null, "", location.href);
-      setLeaveModal(true);
-    };
-
-    // Show native "Leave site?" dialog on browser/tab close
+    // Show native "Leave site?" dialog on browser/tab close (full reload/close).
+    // SPA navigation is handled by useBlocker above.
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (submittedRef.current) return;
       e.preventDefault();
@@ -639,7 +638,6 @@ function TakeExam() {
     //     }, 300);
     //   }
     // };
-    window.addEventListener("popstate", onPopState);
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
@@ -651,7 +649,6 @@ function TakeExam() {
     // document.addEventListener("keydown", onKeyDown, true);
     // document.addEventListener("fullscreenchange", onFsChange);
     return () => {
-      window.removeEventListener("popstate", onPopState);
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
@@ -921,7 +918,7 @@ function TakeExam() {
         )}
       </div>
 
-      <Dialog open={leaveModal} onOpenChange={(open) => !open && setLeaveModal(false)}>
+      <Dialog open={leaveBlockerStatus === "blocked"} onOpenChange={(open) => !open && resetLeave()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -937,15 +934,14 @@ function TakeExam() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => setLeaveModal(false)}>
+            <Button type="button" variant="outline" onClick={resetLeave}>
               Seguir en el examen
             </Button>
             <Button
               type="button"
               variant="destructive"
               onClick={async () => {
-                setLeaveModal(false);
-                // Write strike synchronously before unmounting — bypass blurLockUntil
+                // Write strike and await DB write before proceeding — bypass blurLockUntil
                 // since this is an explicit user-confirmed action, not an accidental blur.
                 if (!submittedRef.current && submissionIdRef.current) {
                   const nw = warningsRef.current + 1;
@@ -964,7 +960,6 @@ function TakeExam() {
                   answersRef.current = updatedAnswers;
                   setAnswers(updatedAnswers);
                   toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: Salida de examen`);
-                  // Await the DB write so it completes before component unmounts
                   await supabase
                     .from("submissions")
                     .update({ focus_warnings: nw, answers: updatedAnswers })
@@ -975,7 +970,8 @@ function TakeExam() {
                     return;
                   }
                 }
-                navigate({ to: "/app/student/exams" });
+                // Continue with the originally blocked navigation
+                proceedLeave();
               }}
             >
               Salir (registrar strike)
