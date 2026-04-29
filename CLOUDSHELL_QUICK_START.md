@@ -24,7 +24,13 @@ cd examlab
 ### Paso 2: Ejecutar deploy desde CloudShell
 
 ```bash
+cd lovable-aws-deployment
 bash deploy-cloudshell-only.sh
+```
+
+O desde la raíz:
+```bash
+bash lovable-aws-deployment/deploy-cloudshell-only.sh
 ```
 
 **Qué hace:**
