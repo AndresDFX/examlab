@@ -1,0 +1,524 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ExamLab - All-in-One: VPC + EC2 + Docker + CloudWatch'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: examlab
+
+  KeyName:
+    Type: String
+    Description: EC2 Key Pair name
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Database password
+
+  AMIId:
+    Type: String
+    Description: AMI ID (Ubuntu 22.04 LTS)
+
+  S3Bucket:
+    Type: String
+    Description: S3 bucket containing the application code
+
+  S3Key:
+    Type: String
+    Description: S3 key for the application tar.gz (e.g. examlab-code.tar.gz)
+
+Resources:
+  # ─────────────────────────────────────────────────────────────────────────
+  # VPC
+  # ─────────────────────────────────────────────────────────────────────────
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpc'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-igw'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-subnet-public'
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-rt-public'
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Security Group
+  # ─────────────────────────────────────────────────────────────────────────
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-sg'
+      GroupDescription: ExamLab security group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+          Description: ExamLab App
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
+          Description: Supabase Kong API
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-sg'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CloudWatch Logs
+  # ─────────────────────────────────────────────────────────────────────────
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/ec2/${ProjectName}'
+      RetentionInDays: 7
+
+  LogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref LogGroup
+      LogStreamName: deployment
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # IAM Role
+  # ─────────────────────────────────────────────────────────────────────────
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/ec2/*'
+        - PolicyName: S3CodeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::${S3Bucket}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${S3Bucket}'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Elastic IP
+  # ─────────────────────────────────────────────────────────────────────────
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      InstanceId: !Ref EC2Instance
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-eip'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # EC2 Instance
+  # ─────────────────────────────────────────────────────────────────────────
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AMIId
+      InstanceType: t3.medium
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 30
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          # Setup logging
+          exec > >(tee /var/log/user-data.log)
+          exec 2>&1
+
+          echo "=== ExamLab Deployment Started ==="
+          echo "Time: $(date)"
+
+          # ─── [1/9] System dependencies ────────────────────────────────────
+          echo "=== [1/9] Installing system dependencies ==="
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -y
+          apt-get install -y curl wget unzip build-essential ca-certificates gnupg lsb-release jq openssl git
+
+          # AWS CLI v2
+          if ! command -v aws &> /dev/null; then
+            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+            unzip -q /tmp/awscliv2.zip -d /tmp
+            /tmp/aws/install
+          fi
+
+          # ─── [2/9] Node.js 20 ─────────────────────────────────────────────
+          echo "=== [2/9] Installing Node.js 20 ==="
+          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          apt-get install -y nodejs
+          echo "Node: $(node --version) | npm: $(npm --version)"
+
+          # ─── [3/9] Docker + Docker Compose v2 ─────────────────────────────
+          echo "=== [3/9] Installing Docker ==="
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          chmod a+r /etc/apt/keyrings/docker.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+          apt-get update -y
+          apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          systemctl enable --now docker
+          usermod -aG docker ubuntu
+          echo "Docker: $(docker --version) | Compose: $(docker compose version)"
+
+          # ─── [4/9] Wait for Elastic IP ────────────────────────────────────
+          echo "=== [4/9] Waiting for Elastic IP association ==="
+          INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+          PUBLIC_IP=""
+          for i in $(seq 1 60); do
+            PUBLIC_IP=$(aws ec2 describe-addresses \
+              --filters "Name=instance-id,Values=$INSTANCE_ID" \
+              --region ${AWS::Region} \
+              --query 'Addresses[0].PublicIp' \
+              --output text 2>/dev/null || echo "None")
+            if [ "$PUBLIC_IP" != "None" ] && [ -n "$PUBLIC_IP" ]; then
+              echo "✓ Elastic IP associated: $PUBLIC_IP"
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$PUBLIC_IP" = "None" ] || [ -z "$PUBLIC_IP" ]; then
+            echo "WARN: EIP not detected, using metadata IP"
+            PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+          fi
+          echo "Public IP: $PUBLIC_IP"
+
+          # ─── [5/9] Download app code from S3 ──────────────────────────────
+          echo "=== [5/9] Downloading app code from S3 ==="
+          rm -rf /opt/examlab
+          mkdir -p /opt/examlab
+          aws s3 cp s3://${S3Bucket}/${S3Key} /tmp/examlab-code.tar.gz --region ${AWS::Region}
+          tar -xzf /tmp/examlab-code.tar.gz -C /opt/examlab
+          rm /tmp/examlab-code.tar.gz
+          [ -f /opt/examlab/package.json ] || { echo "ERROR: package.json missing"; exit 1; }
+          echo "✓ App code extracted"
+
+          # ─── [6/9] Setup Supabase self-hosted ─────────────────────────────
+          echo "=== [6/9] Setting up Supabase ==="
+          rm -rf /opt/supabase /tmp/supabase-repo
+          git clone --depth 1 https://github.com/supabase/supabase.git /tmp/supabase-repo
+          mkdir -p /opt/supabase
+          cp -r /tmp/supabase-repo/docker/. /opt/supabase/
+          cp /tmp/supabase-repo/docker/.env.example /opt/supabase/.env
+          rm -rf /tmp/supabase-repo
+
+          # Generate JWT secret + keys (10-year validity)
+          JWT_SECRET=$(openssl rand -hex 32)
+
+          gen_jwt() {
+            node -e "
+              const c=require('crypto');
+              const b=x=>Buffer.from(x).toString('base64').replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+              const bs=x=>x.toString('base64').replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+              const h=b(JSON.stringify({alg:'HS256',typ:'JWT'}));
+              const now=Math.floor(Date.now()/1000);
+              const p=b(JSON.stringify({role:'$1',iss:'supabase',iat:now,exp:now+315360000}));
+              const s=bs(c.createHmac('sha256','$JWT_SECRET').update(h+'.'+p).digest());
+              console.log(h+'.'+p+'.'+s);
+            "
+          }
+          ANON_KEY=$(gen_jwt anon)
+          SERVICE_ROLE_KEY=$(gen_jwt service_role)
+          DB_PASS=$(openssl rand -hex 16)
+          DASHBOARD_PASS=$(openssl rand -hex 12)
+          SECRET_KEY_BASE=$(openssl rand -hex 32)
+          VAULT_ENC_KEY=$(openssl rand -hex 16)
+          LOGFLARE_API_KEY=$(openssl rand -hex 16)
+          LOGFLARE_PUBLIC_TOKEN=$(openssl rand -hex 16)
+          LOGFLARE_PRIVATE_TOKEN=$(openssl rand -hex 16)
+
+          # Override Supabase .env with generated values + public IP
+          ENV_FILE=/opt/supabase/.env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$DB_PASS|" $ENV_FILE
+          sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" $ENV_FILE
+          sed -i "s|^ANON_KEY=.*|ANON_KEY=$ANON_KEY|" $ENV_FILE
+          sed -i "s|^SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY|" $ENV_FILE
+          sed -i "s|^DASHBOARD_USERNAME=.*|DASHBOARD_USERNAME=supabase|" $ENV_FILE
+          sed -i "s|^DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$DASHBOARD_PASS|" $ENV_FILE
+          sed -i "s|^SECRET_KEY_BASE=.*|SECRET_KEY_BASE=$SECRET_KEY_BASE|" $ENV_FILE
+          sed -i "s|^VAULT_ENC_KEY=.*|VAULT_ENC_KEY=$VAULT_ENC_KEY|" $ENV_FILE
+          sed -i "s|^LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=$LOGFLARE_API_KEY|" $ENV_FILE
+          sed -i "s|^LOGFLARE_PUBLIC_ACCESS_TOKEN=.*|LOGFLARE_PUBLIC_ACCESS_TOKEN=$LOGFLARE_PUBLIC_TOKEN|" $ENV_FILE
+          sed -i "s|^LOGFLARE_PRIVATE_ACCESS_TOKEN=.*|LOGFLARE_PRIVATE_ACCESS_TOKEN=$LOGFLARE_PRIVATE_TOKEN|" $ENV_FILE
+          sed -i "s|^SITE_URL=.*|SITE_URL=http://$PUBLIC_IP:3000|" $ENV_FILE
+          sed -i "s|^API_EXTERNAL_URL=.*|API_EXTERNAL_URL=http://$PUBLIC_IP:8000|" $ENV_FILE
+          sed -i "s|^SUPABASE_PUBLIC_URL=.*|SUPABASE_PUBLIC_URL=http://$PUBLIC_IP:8000|" $ENV_FILE
+
+          # Copy migrations from app to Supabase volumes (auto-applied on first start)
+          if [ -d /opt/examlab/supabase/migrations ]; then
+            mkdir -p /opt/supabase/volumes/db/init
+            cp /opt/examlab/supabase/migrations/*.sql /opt/supabase/volumes/db/init/ 2>/dev/null || true
+          fi
+
+          # Start Supabase
+          cd /opt/supabase
+          docker compose pull
+          docker compose up -d
+
+          # Wait for Kong (API gateway) to respond
+          echo "Waiting for Supabase to be ready..."
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 | grep -qE "200|401|404"; then
+              echo "✓ Supabase Kong is responding"
+              break
+            fi
+            sleep 5
+          done
+
+          # ─── [7/9] Apply migrations to Supabase database ──────────────────
+          echo "=== [7/9] Applying migrations ==="
+          if [ -d /opt/examlab/supabase/migrations ]; then
+            sleep 10  # Ensure DB is fully ready
+            for f in /opt/examlab/supabase/migrations/*.sql; do
+              [ -f "$f" ] || continue
+              echo "Applying: $(basename $f)"
+              docker exec -i supabase-db psql -U postgres -d postgres < "$f" || echo "WARN: migration $(basename $f) had issues"
+            done
+            echo "✓ Migrations applied"
+          else
+            echo "No migrations to apply"
+          fi
+
+          # ─── [8/9] Configure ExamLab app ──────────────────────────────────
+          echo "=== [8/9] Configuring ExamLab app ==="
+          cat > /opt/examlab/.env << ENVEOF
+          VITE_SUPABASE_URL=http://$PUBLIC_IP:8000
+          VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY
+          VITE_SUPABASE_PROJECT_ID=examlab
+          NODE_ENV=production
+          PORT=3000
+          HOST=0.0.0.0
+          ENVEOF
+
+          chown -R ubuntu:ubuntu /opt/examlab
+
+          # Install npm dependencies
+          echo "Installing npm dependencies (3-5 min)..."
+          sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps"
+          echo "✓ npm install completed"
+
+          # ─── [9/9] Start ExamLab as systemd service ───────────────────────
+          echo "=== [9/9] Creating systemd service ==="
+          cat > /etc/systemd/system/examlab.service << 'SERVICEEOF'
+          [Unit]
+          Description=ExamLab Vite Dev Server
+          After=network.target docker.service
+
+          [Service]
+          Type=simple
+          User=ubuntu
+          WorkingDirectory=/opt/examlab
+          EnvironmentFile=/opt/examlab/.env
+          ExecStart=/usr/bin/npm run dev -- --host 0.0.0.0 --port 3000
+          Restart=always
+          RestartSec=10
+          StandardOutput=append:/var/log/examlab.log
+          StandardError=append:/var/log/examlab.log
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICEEOF
+
+          systemctl daemon-reload
+          systemctl enable examlab.service
+          systemctl start examlab.service
+
+          # Save credentials for later reference
+          cat > /root/examlab-credentials.txt << CREDEOF
+          ===== ExamLab Credentials =====
+          Generated: $(date)
+
+          Public IP: $PUBLIC_IP
+
+          App URL: http://$PUBLIC_IP:3000
+          Supabase API: http://$PUBLIC_IP:8000
+          Supabase Studio: http://$PUBLIC_IP:8000 (use credentials below)
+
+          Supabase Dashboard:
+            Username: supabase
+            Password: $DASHBOARD_PASS
+
+          Database:
+            Host: localhost (port 5432, internal)
+            Database: postgres
+            Username: postgres
+            Password: $DB_PASS
+
+          Keys:
+            ANON_KEY: $ANON_KEY
+            SERVICE_ROLE_KEY: $SERVICE_ROLE_KEY
+            JWT_SECRET: $JWT_SECRET
+          CREDEOF
+          chmod 600 /root/examlab-credentials.txt
+
+          # Wait for app to be ready
+          echo "Waiting for app to start..."
+          for i in $(seq 1 12); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -qE "200|304"; then
+              echo "✓ ExamLab is responding on port 3000"
+              break
+            fi
+            sleep 10
+          done
+
+          echo ""
+          echo "════════════════════════════════════════════════════════"
+          echo "  ✅ Deployment Completed"
+          echo "════════════════════════════════════════════════════════"
+          echo "  App:             http://$PUBLIC_IP:3000"
+          echo "  Supabase API:    http://$PUBLIC_IP:8000"
+          echo "  Credentials:     /root/examlab-credentials.txt"
+          echo "════════════════════════════════════════════════════════"
+
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-instance'
+
+Outputs:
+  InstanceId:
+    Value: !Ref EC2Instance
+    Description: EC2 Instance ID
+
+  ElasticIP:
+    Value: !Ref ElasticIP
+    Description: Elastic IP address (fixed)
+
+  PublicIP:
+    Value: !GetAtt EC2Instance.PublicIp
+    Description: Public IP address
+
+  PublicDNS:
+    Value: !GetAtt EC2Instance.PublicDnsName
+    Description: Public DNS name
+
+  AppURL:
+    Value: !Sub 'http://${ElasticIP}:3000'
+    Description: Application URL (using Elastic IP)
+
+  AppURLPublicIP:
+    Value: !Sub 'http://${EC2Instance.PublicIp}:3000'
+    Description: Application URL (using Public IP)
+
+  SSHCommand:
+    Value: !Sub 'ssh -i /path/to/key.pem ubuntu@${ElasticIP}'
+    Description: SSH command (using Elastic IP)
+
+  SessionManagerCommand:
+    Value: !Sub 'aws ssm start-session --target ${EC2Instance} --region ${AWS::Region}'
+    Description: Connect via Session Manager (no SSH key needed)
+
+  LogGroup:
+    Value: !Ref LogGroup
+    Description: CloudWatch Log Group
+
+  CloudWatchLogs:
+    Value: !Sub 'https://console.aws.amazon.com/logs/home?region=${AWS::Region}#logStream:group=/aws/ec2/${ProjectName}'
+    Description: CloudWatch Logs URL

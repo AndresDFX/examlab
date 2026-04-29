@@ -1,377 +1,182 @@
-# Lovable → AWS CloudFormation Deployment
+# ExamLab → AWS Deployment
 
-Despliegue **completamente automatizado** de Lovable/ExamLab en AWS desde **CloudShell** en 10 minutos.
+Despliegue **completamente automatizado** de ExamLab en AWS desde CloudShell.
 
-**Sin Terraform, sin complicaciones, variables genéricas fáciles de cambiar.**
+Un solo CloudFormation stack levanta:
+- **EC2 Ubuntu 22.04** con Node.js 20, Docker y la app
+- **Supabase self-hosted** (PostgreSQL + Auth + Studio + Realtime + Storage)
+- **Elastic IP** fija
+- **CloudWatch Logs**, **Session Manager**, **VPC** dedicada
 
-## 🚀 Inicio rápido (3 pasos)
+---
 
-### 1️⃣ Abrir AWS CloudShell
+## 🚀 Inicio rápido
 
-```
+### 1. Abrir AWS CloudShell
+
 https://console.aws.amazon.com/cloudshell/
-```
 
-### 2️⃣ Clonar y ejecutar
+### 2. Clonar el repo y ejecutar
 
 ```bash
-git clone https://github.com/tu-usuario/examlab.git
+git clone https://github.com/vivetori/examlab.git
 cd examlab/lovable-aws-deployment
-bash cloudshell-setup.sh
+bash deploy.sh
 ```
 
-### 3️⃣ Editar variables (si lo deseas)
-
-```bash
-nano cloudshell-vars.env
-# Cambiar PROJECT_NAME, ENVIRONMENT, DB_PASSWORD, etc.
-```
-
-## ✨ Lo que hace `cloudshell-setup.sh`
+### 3. Responder las preguntas
 
 ```
-✓ Valida variables genéricas
-✓ Genera SSH keys en CloudShell
-✓ Agrega clave pública a GitHub automáticamente
-✓ Clona repositorio
-✓ Importa SSH key a AWS EC2
-✓ Crea parámetros para CloudFormation
-✓ Prepara stacks para despliegue
+Nombre del proyecto [examlab]: ↵
+Contraseña DB (Enter para generar): ↵
+Región AWS [us-east-1]: ↵
+¿Continuar? (s/n): s
 ```
+
+### 4. Esperar 12-15 minutos
+
+Al terminar verás las URLs de la app y de Supabase.
+
+---
+
+## 🧠 Cómo funciona
+
+```
+CloudShell ejecuta deploy.sh
+   ├─ Crea SSH key (por si la necesitas)
+   ├─ Empaqueta el código local en tar.gz
+   ├─ Sube el código a S3 bucket
+   └─ Despliega CloudFormation stack
+
+CloudFormation crea
+   ├─ VPC + Subnet pública + Internet Gateway
+   ├─ Security Group (puertos 80, 443, 3000, 8000)
+   ├─ IAM Role (CloudWatch + S3 + SSM)
+   ├─ Elastic IP fija
+   └─ EC2 t3.medium (4GB RAM, 30GB disco)
+
+EC2 user-data automático
+   ├─ [1/9] Instala dependencias del sistema (curl, openssl, git…)
+   ├─ [2/9] Instala Node.js 20 (NodeSource)
+   ├─ [3/9] Instala Docker + Docker Compose v2
+   ├─ [4/9] Espera a que la Elastic IP se asocie
+   ├─ [5/9] Descarga el código desde S3
+   ├─ [6/9] Setup Supabase: clona repo oficial, genera JWT keys + claves,
+   │        sustituye variables del .env, levanta docker compose
+   ├─ [7/9] Aplica migraciones de supabase/migrations/*.sql
+   ├─ [8/9] Crea .env de la app (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY),
+   │        ejecuta npm install --legacy-peer-deps
+   └─ [9/9] Crea systemd service examlab.service y arranca la app
+```
+
+---
 
 ## 📁 Estructura
 
 ```
 lovable-aws-deployment/
-├── cloudshell-vars.env              ← EDITAR AQUÍ (variables genéricas)
-├── cloudshell-setup.sh              ← Ejecutar primero
-├── README.md
-│
+├── deploy.sh                          ← Script principal (CloudShell)
 ├── cloudformation/
-│   ├── vpc-stack.yaml               ← VPC, subnets, IGW
-│   ├── rds-stack.yaml               ← PostgreSQL (Supabase-compatible)
-│   ├── ec2-stack.yaml               ← EC2, ALB, Auto Scaling
-│   └── parameters.json              ← Auto-generado por setup.sh
-│
+│   └── all-in-one-stack.yaml          ← Stack único
 ├── scripts/
-│   ├── backup-lovable.sh            ← Backup RDS / Supabase / CSV
-│   ├── health-check.sh              ← Verificar infraestructura
-│   └── deploy-cf.sh                 ← Auto-generado
-│
-└── configs/
-    └── user_data.sh                 ← Script init EC2
+│   ├── create-github-iam-user.sh      ← Setup GitHub Actions
+│   └── init-db.sql                    ← Schema inicial (referencia)
+├── supabase/
+│   ├── config.toml                    ← Config local de Supabase
+│   └── migrations/                    ← Migraciones SQL
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── GITHUB_ACTIONS_SETUP.md
+│   └── TROUBLESHOOTING.md
+├── README.md                          ← Este archivo
+└── DEPLOYMENT_GUIDE.md                ← Guía completa
 ```
-
-## 🎯 Variables genéricas (cloudshell-vars.env)
-
-Estos son los **ÚNICOS** valores que necesitas cambiar:
-
-```bash
-# Identificadores
-PROJECT_NAME="examlab"              # Nombre del proyecto
-ENVIRONMENT="production"            # production|staging|development
-AWS_REGION="us-east-1"             # Región AWS
-OWNER_NAME="YourName"              # Nombre del dueño
-
-# GitHub (opcional)
-GITHUB_OWNER="tu-usuario"          # Tu usuario GitHub
-GITHUB_REPO="examlab"              # Nombre del repo
-GITHUB_BRANCH="main"               # Branch a deployar
-
-# Infraestructura
-EC2_INSTANCE_TYPE="t3.small"       # t3.micro|t3.small|t3.medium
-DB_INSTANCE_TYPE="db.t3.micro"    # db.t3.micro|db.t3.small
-
-# IMPORTANTE: Cambiar contraseña
-DB_PASSWORD="ExamLab2024ChangeMe!" # !!!CAMBIAR!!!
-
-# Supabase (opcional)
-SUPABASE_URL=""                    # Si usas Supabase
-SUPABASE_ANON_KEY=""
-```
-
-**Todo lo demás se genera automáticamente.**
-
-## 📊 CloudFormation Stacks
-
-```mermaid
-graph TD
-    VPC["VPC Stack<br/>10.0.0.0/16<br/>6 Subnets + IGW + NAT"]
-    
-    RDS["RDS Stack<br/>PostgreSQL 15.4<br/>db.t3.micro<br/>20-100 GB"]
-    
-    EC2["EC2 Stack<br/>ALB + ASG<br/>t3.small (1-2)<br/>Node.js + Nginx"]
-    
-    ALB["Application Load Balancer<br/>Health Check /health<br/>HTTP 80/443"]
-    
-    ASG["Auto Scaling Group<br/>Min: 1 | Max: 2<br/>CPU-based scaling"]
-    
-    LT["Launch Template<br/>Amazon Linux 2<br/>Node.js v20 LTS"]
-    
-    VPC --> RDS
-    VPC --> ALB
-    VPC --> ASG
-    
-    ALB --> ASG
-    ASG --> LT
-    
-    style VPC fill:#FF9900,stroke:#333,color:#000
-    style RDS fill:#146EB4,stroke:#333,color:#fff
-    style EC2 fill:#FF9900,stroke:#333,color:#000
-    style ASG fill:#FFA500,stroke:#333,color:#000
-```
-
-### VPC Stack
-- VPC + 6 subnets (2x public, 2x private, 2x database)
-- Internet Gateway + NAT Gateway (opcional)
-- Route tables
-- DB Subnet Group (para RDS)
-
-### RDS Stack
-- PostgreSQL 15.4 (Supabase-compatible)
-- Backups automáticos (7 días)
-- Enhanced Monitoring
-- KMS encryption
-- Multi-AZ (opcional)
-
-### EC2 Stack
-- Application Load Balancer
-- Auto Scaling Group (1-2 instancias)
-- Launch Template (Node.js, Nginx)
-- Security Groups
-- IAM roles (CloudWatch, S3, etc)
-
-## 🔐 SSH Key Management
-
-El script genera SSH keys automáticamente en CloudShell:
-
-```bash
-# Generar
-cloudshell-setup.sh
-# Genera: ~/.ssh/examlab-production.pem
-
-# Conectar a EC2
-ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
-
-# Agregar a GitHub (automático si tienes token)
-# O manual: https://github.com/settings/keys
-```
-
-## 📦 Despliegue CloudFormation
-
-Después de correr `cloudshell-setup.sh`:
-
-```bash
-# Desplegar todos los stacks
-bash scripts/deploy-cf.sh
-
-# El script imprimirá automáticamente:
-# ✅ Información de acceso
-# ✅ URLs de ALB
-# ✅ Endpoints RDS
-# ✅ Instrucciones SSH
-```
-
-**Acceso a tu aplicación:**
-```
-HTTP:  http://<ALB-DNS>
-SSH:   ssh -i ~/.ssh/examlab-production.pem ec2-user@<ALB-DNS>
-```
-
-La IP pública se mostrará al final del despliegue.
-
-## 💰 Costos estimados (monthly)
-
-| Recurso | Config mínima | Config recomendada |
-|---------|---------------|-------------------|
-| EC2 | t3.micro ($7.59) | t3.small ($16) |
-| RDS | db.t3.micro ($13.14) | db.t3.micro ($13.14) |
-| ALB | $16 | $16 |
-| Data | varies | ~$100/TB |
-| **TOTAL** | **~$30** | **~$130** |
-
-## 🔄 Backup
-
-### Método 1: RDS completo
-
-```bash
-bash scripts/backup-lovable.sh rds
-
-# Genera: ~/examlab-backups/examlab_rds_YYYYMMDD.sql.gz
-# Sube a S3 si lo deseas
-```
-
-### Método 2: Supabase
-
-```bash
-bash scripts/backup-lovable.sh supabase
-
-# Requiere:
-# 1. Supabase connection string
-# 2. O usar SQL Editor en https://app.supabase.com
-```
-
-### Método 3: CSV export
-
-```bash
-bash scripts/backup-lovable.sh csv
-
-# Exporta cada tabla a CSV
-# Genera: ~/examlab-backups/csv_YYYYMMDD/*.csv
-```
-
-### Restaurar
-
-```bash
-bash scripts/backup-lovable.sh restore
-
-# Selecciona archivo y restaura
-```
-
-## 🏥 Health Check
-
-```bash
-bash scripts/health-check.sh
-
-# Verifica:
-# ✓ ALB respondiendo
-# ✓ EC2 instancias running
-# ✓ RDS disponible
-# ✓ Aplicación lista
-```
-
-## 🆘 Troubleshooting
-
-### "CloudShell not found"
-```bash
-# Abre: https://console.aws.amazon.com/cloudshell/
-```
-
-### "Git command not found"
-```bash
-# Git está pre-instalado en CloudShell
-# Si no: yum install -y git
-```
-
-### "Can't connect to RDS"
-```bash
-# Verificar Security Group permite tráfico desde EC2
-# Desde EC2:
-ssh -i ~/.ssh/examlab-prod.pem ec2-user@<alb-dns>
-telnet <rds-endpoint> 5432
-```
-
-### "ALB responde 502"
-```bash
-# Esperar 3-5 minutos a que EC2 inicie
-# Luego:
-ssh -i ~/.ssh/examlab-prod.pem ec2-user@<alb-dns>
-sudo systemctl status nginx
-sudo tail -f /var/log/examlab/*.log
-```
-
-### "Can't clone repo"
-```bash
-# Agregar SSH key a GitHub:
-cat ~/.ssh/examlab-production.pub
-
-# Copiar output y pegar en:
-# https://github.com/settings/keys
-```
-
-## 📚 Archivos importantes
-
-| Archivo | Propósito |
-|---------|-----------|
-| `cloudshell-vars.env` | Variables genéricas (editar) |
-| `cloudshell-setup.sh` | Setup inicial (SSH, GitHub, CF prep) |
-| `cloudformation/*.yaml` | Templates CloudFormation |
-| `scripts/backup-lovable.sh` | Backup RDS/Supabase/CSV |
-| `scripts/health-check.sh` | Verificar infraestructura |
-| `scripts/deploy-cf.sh` | Desplegar stacks (auto-generado) |
-
-## 🔄 Flujo típico
-
-```bash
-# 1. Abre CloudShell
-# 2. Clona repo
-git clone ...
-
-# 3. Edita variables (si necesario)
-nano cloudshell-vars.env
-
-# 4. Ejecuta setup
-bash cloudshell-setup.sh
-
-# 5. Deploya (cuando esté listo)
-bash scripts/deploy-cf.sh
-
-# 6. Espera ~5 minutos a que se cree infraestructura
-# 7. Verifica
-bash scripts/health-check.sh
-
-# 8. Accede a la aplicación
-curl http://<alb-dns>
-
-# 9. Conecta vía SSH
-ssh -i ~/.ssh/examlab-prod.pem ec2-user@<alb-dns>
-
-# 10. Haz backup
-bash scripts/backup-lovable.sh rds
-```
-
-## 🎯 Variables reutilizables
-
-Cada variable en `cloudshell-vars.env` es genérica:
-
-```bash
-# Cambiar ambiente
-ENVIRONMENT="staging"  # staging en lugar de production
-# Todos los nombres de stacks, security groups, etc., se actualizan automáticamente
-
-# Cambiar región
-AWS_REGION="eu-west-1"  # Desplegar en Irlanda
-# CloudFormation usa la región especificada
-
-# Cambiar repo
-GITHUB_OWNER="another-org"
-GITHUB_REPO="different-project"
-# El mismo setup.sh funciona para cualquier proyecto
-```
-
-## 🚀 Próximos pasos
-
-1. **Programar backups automáticos**
-   ```bash
-   # Agregar a crontab en EC2:
-   # 0 2 * * * bash /opt/examlab/scripts/backup-lovable.sh rds
-   ```
-
-2. **Monitoreo**
-   ```bash
-   # Ver CloudWatch Logs en AWS Console
-   # O localmente:
-   ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
-   sudo tail -f /var/log/examlab/app.log
-   ```
-
-3. **Dominio personalizado** (opcional, después)
-   ```bash
-   # Ver: docs/FREETIER_DOMAINS.md
-   # Para configurar dominio con Cloudflare
-   ```
-
-## 📝 Licencia
-
-MIT - Usa libremente para tus proyectos
 
 ---
 
-**¿Preguntas?** Ver troubleshooting arriba o abrir un issue.
+## 🔌 Acceso después del deploy
 
-**¿Problema con CloudFormation?** Chequea los logs:
-```bash
-aws cloudformation describe-stack-events \
-  --stack-name examlab-ec2-production \
-  --region us-east-1 | jq '.StackEvents[] | select(.ResourceStatus=="CREATE_FAILED")'
+Tras el deploy verás algo como:
+
 ```
+🌐 ACCESO A LA APLICACIÓN:
+   URL: http://<ELASTIC_IP>:3000
+
+🗄️  SUPABASE:
+   API:    http://<ELASTIC_IP>:8000
+   Studio: http://<ELASTIC_IP>:8000
+
+🔑 CONECTAR A LA INSTANCIA (sin SSH key):
+   aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+```
+
+### Ver credenciales generadas
+
+```bash
+aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+sudo cat /root/examlab-credentials.txt
+```
+
+Allí están: `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, password de DB y password del Studio.
+
+---
+
+## 🔍 Verificar el despliegue
+
+Conéctate por Session Manager y revisa:
+
+```bash
+# Estado de la app
+sudo systemctl status examlab.service
+
+# Logs de la app
+sudo tail -f /var/log/examlab.log
+
+# Logs del setup
+sudo tail -f /var/log/user-data.log
+
+# Servicios de Supabase
+cd /opt/supabase && sudo docker compose ps
+
+# Probar la app local
+curl http://localhost:3000
+
+# Probar Supabase API local
+curl http://localhost:8000
+```
+
+---
+
+## 🧹 Limpieza
+
+```bash
+aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+```
+
+> El bucket S3 (`examlab-deploy-<account>-<region>`) **no** se elimina automáticamente. Si quieres borrarlo:
+>
+> ```bash
+> aws s3 rm s3://examlab-deploy-<account>-<region> --recursive
+> aws s3api delete-bucket --bucket examlab-deploy-<account>-<region> --region us-east-1
+> ```
+
+---
+
+## ⚠️ Notas
+
+- **t3.medium** es el mínimo (Supabase necesita ~3 GB RAM en uso). Para producción real, usa `t3.large`.
+- Los puertos 3000 y 8000 están abiertos al mundo (`0.0.0.0/0`). Para producción real, restringe por CIDR.
+- El `npm run dev` arranca **Vite en modo dev**. Para producción real, sustituir por `npm run build` + servidor estático (nginx).
+- La instancia es **única** (no hay alta disponibilidad). Para producción, usar Auto Scaling + ALB + RDS.
+
+Esta plantilla está pensada para **prototipos, demos y entornos de desarrollo en AWS**, no para producción a escala.
+
+---
+
+## 📚 Más documentación
+
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) — Guía completa paso a paso
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Detalles de arquitectura
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Solución de problemas
+- [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — CI/CD automático

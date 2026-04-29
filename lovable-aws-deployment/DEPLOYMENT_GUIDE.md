@@ -1,338 +1,285 @@
-# 🚀 ExamLab AWS Deployment Guide
+# 🚀 ExamLab — Guía completa de despliegue en AWS
 
-**Guía completa para desplegar ExamLab en AWS desde CloudShell**
-
-Esta carpeta (`lovable-aws-deployment/`) contiene todos los scripts, templates y documentación necesaria para desplegar ExamLab en AWS.
+Esta guía explica paso a paso cómo desplegar ExamLab en AWS desde **CloudShell**, qué hace cada componente y cómo solucionar problemas.
 
 ---
 
-## 📁 Estructura
+## 📋 Requisitos
 
-```
-lovable-aws-deployment/
-├─ deploy-cloudshell-only.sh      ← Script principal para CloudShell
-├─ deploy-to-aws.sh               ← Deploy desde máquina local con Docker
-├─ cloudshell-setup.sh            ← Setup antiguo (legacy)
-│
-├─ cloudformation/
-│  ├─ vpc-stack.yaml              ← Red privada
-│  ├─ rds-stack.yaml              ← Base de datos PostgreSQL
-│  ├─ ec2-stack.yaml              ← EC2 antiguo (legacy)
-│  └─ ec2-docker-stack.yaml       ← EC2 con Docker automático (NUEVO)
-│
-├─ scripts/
-│  ├─ create-github-iam-user.sh    ← Crear usuario IAM para GitHub Actions
-│  ├─ print-access-info.sh        ← Mostrar información de acceso
-│  ├─ backup-lovable.sh           ← Backup de datos
-│  └─ init-db.sql                 ← Schema inicial de BD
-│
-├─ supabase/
-│  ├─ config.toml                 ← Configuración Supabase
-│  └─ migrations/                 ← SQL migrations
-│
-├─ docs/
-│  ├─ ARCHITECTURE.md             ← Arquitectura del sistema
-│  ├─ TROUBLESHOOTING.md          ← Solucionar problemas
-│  ├─ GITHUB_ACTIONS_SETUP.md     ← Deploy automático
-│  ├─ LOCAL_TO_AWS_WORKFLOW.md    ← Flujo local → AWS
-│  └─ ... (más docs)
-│
-└─ DEPLOYMENT_GUIDE.md            ← Este archivo
-```
+- ✅ Cuenta AWS con permisos para CloudFormation, EC2, S3, IAM, VPC
+- ✅ Acceso a [AWS CloudShell](https://console.aws.amazon.com/cloudshell/)
+- ✅ Repo `vivetori/examlab` accesible (clonable desde CloudShell)
+- ❌ **No** necesitas Docker, Node.js o AWS CLI en tu máquina local
 
 ---
 
-## 🎯 ¿Cómo desplegar?
+## 🚀 Despliegue rápido
 
-### **Opción A: CloudShell (recomendado para usuarios finales)**
+### Paso 1 — Abrir CloudShell
 
-Sin Docker local requerido:
+```
+https://console.aws.amazon.com/cloudshell/
+```
+
+CloudShell ya tiene preinstalados: AWS CLI, git, bash, openssl. Las credenciales AWS están configuradas automáticamente.
+
+### Paso 2 — Clonar y ejecutar
 
 ```bash
-# 1. En CloudShell de AWS
 git clone https://github.com/vivetori/examlab.git
 cd examlab/lovable-aws-deployment
-
-# 2. Ejecutar deploy
-bash deploy-cloudshell-only.sh
-
-# 3. Responder 4 preguntas
-# 4. Esperar 20-30 minutos
-# 5. ¡Listo en AWS!
+bash deploy.sh
 ```
 
-**Ventajas:**
-- ✅ No necesitas Docker local
-- ✅ Todo en AWS (reproducible, escalable)
-- ✅ EC2 instala Docker automáticamente
-- ✅ Ideal para usuarios sin experiencia técnica
+### Paso 3 — Responder
 
-### **Opción B: Local + AWS (para desarrolladores)**
-
-```bash
-# 1. En tu máquina con Docker
-cd examlab
-bash setup.sh          # Setup interactivo
-docker-compose up -d   # Levanta local
-
-# 2. Cuando listo para producción
-bash lovable-aws-deployment/deploy-to-aws.sh
-
-# 3. ¡Desplegado en AWS!
+```
+Nombre del proyecto [examlab]: ↵
+Contraseña DB (Enter para generar): ↵      # genera una segura automáticamente
+Región AWS [us-east-1]: ↵
+¿Continuar? (s/n): s
 ```
 
-**Ventajas:**
-- ✅ Desarrollo local con hot-reload
-- ✅ Backup automático antes de desplegar
-- ✅ Pruebas antes de ir a producción
+### Paso 4 — Esperar (~12-15 minutos)
 
-### **Opción C: GitHub Actions (CI/CD automático)**
+El script hace:
+
+1. Valida AWS y obtiene cuenta
+2. Busca la última AMI Ubuntu 22.04 LTS de la región
+3. Crea SSH key par (se guarda en `/tmp/`)
+4. Crea S3 bucket único (`<proyecto>-deploy-<cuenta>-<región>`)
+5. Empaqueta el código local en `tar.gz` (excluyendo `node_modules`, `.git`, `.env`)
+6. Sube el código a S3
+7. Despliega CloudFormation
+
+CloudFormation tarda ~12 minutos:
+- Stack: ~3 min en crear EC2 + EIP
+- User-data: ~9 min (instalación + Supabase + npm install)
+
+---
+
+## 🧠 Qué se despliega
+
+### Recursos de AWS
+
+| Recurso | Tipo | Descripción |
+|---------|------|-------------|
+| VPC | `10.0.0.0/16` | Red privada |
+| Subnet | `10.0.1.0/24` | Pública, con IGW |
+| Internet Gateway | — | Salida a internet |
+| Security Group | — | Puertos 80, 443, 3000, 8000 |
+| EC2 | t3.medium (4 GB RAM, 30 GB gp3) | Ubuntu 22.04 LTS |
+| Elastic IP | — | IP fija |
+| IAM Role | — | CloudWatch + S3 GetObject + SSM |
+| S3 Bucket | — | `<proyecto>-deploy-<cuenta>-<región>` |
+| CloudWatch Log Group | `/aws/ec2/<proyecto>` | Retención 7 días |
+
+### Software dentro de la EC2
+
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| ExamLab (Vite dev) | 3000 | Frontend React |
+| Supabase Kong API | 8000 | Gateway HTTP/REST/Auth |
+| Supabase Studio | 8000 (`/`) | UI de admin |
+| Supabase PostgreSQL | 5432 (interno) | Base de datos |
+| Supabase Auth, Realtime, Storage, etc. | varios | Stack completo de Supabase |
+
+---
+
+## 🔐 Credenciales generadas
+
+El user-data genera automáticamente:
+
+- `JWT_SECRET` (32 bytes hex)
+- `ANON_KEY` (JWT firmado con role `anon`, válido 10 años)
+- `SERVICE_ROLE_KEY` (JWT firmado con role `service_role`, válido 10 años)
+- `POSTGRES_PASSWORD` (16 bytes hex)
+- `DASHBOARD_PASSWORD` (12 bytes hex, para el Studio de Supabase)
+- `SECRET_KEY_BASE`, `VAULT_ENC_KEY`, `LOGFLARE_API_KEY` (otras claves internas)
+
+Todas se guardan en la EC2 en `/root/examlab-credentials.txt` (modo 600, solo root).
+
+Para obtenerlas:
 
 ```bash
-# 1. Setup una sola vez
-bash lovable-aws-deployment/scripts/create-github-iam-user.sh
-
-# 2. Agregar secrets en GitHub
-
-# 3. Luego: git push origin main = deploy automático
+aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+sudo cat /root/examlab-credentials.txt
 ```
 
 ---
 
-## 📝 Scripts disponibles
+## 🔌 Variables de entorno de la app
 
-| Script | Ubicación | Propósito | Uso |
-|--------|-----------|-----------|-----|
-| **deploy-cloudshell-only.sh** | `.` | Deploy desde CloudShell | `bash deploy-cloudshell-only.sh` |
-| **deploy-to-aws.sh** | `.` | Deploy desde máquina local | `bash deploy-to-aws.sh` |
-| **create-github-iam-user.sh** | `scripts/` | Crear usuario IAM para GitHub | `bash scripts/create-github-iam-user.sh` |
-| **print-access-info.sh** | `scripts/` | Mostrar información de acceso | `bash scripts/print-access-info.sh` |
-| **backup-lovable.sh** | `scripts/` | Backup manual de datos | `bash scripts/backup-lovable.sh` |
-| **init-db.sql** | `scripts/` | Schema inicial BD | Ejecutado automáticamente |
-
----
-
-## 🔧 CloudFormation Templates
-
-Todos los templates están en `cloudformation/`:
-
-| Template | Propósito | Crea |
-|----------|-----------|------|
-| **vpc-stack.yaml** | Networking | VPC, Subnets, Internet Gateway, NAT, Route Tables |
-| **rds-stack.yaml** | Base de datos | RDS PostgreSQL 15.4, KMS encryption, Backups |
-| **ec2-docker-stack.yaml** | Compute | EC2 Auto Scaling, ALB, Security Groups, CloudWatch |
-| **ec2-stack.yaml** | (Legacy) | Versión anterior de EC2 stack |
-
-### Características del ec2-docker-stack.yaml (NUEVO)
-
-```
-✅ User-data script que automáticamente:
-   1. Instala Docker
-   2. Instala Docker Compose
-   3. Clona repositorio ExamLab
-   4. Levanta docker-compose.yml
-   5. Configura todo sin intervención manual
-```
-
----
-
-## 🌍 Variables de entorno
-
-El archivo `.env` en la raíz del proyecto contiene:
+El user-data crea automáticamente `/opt/examlab/.env`:
 
 ```bash
-PROJECT_NAME=examlab
-ENVIRONMENT=production
-AWS_REGION=us-east-1
-AWS_ACCOUNT_ID=123456789012
-POSTGRES_PASSWORD=MySecurePassword123!
-POSTGRES_DB=examlab
+VITE_SUPABASE_URL=http://<ELASTIC_IP>:8000
+VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY>
+VITE_SUPABASE_PROJECT_ID=examlab
 NODE_ENV=production
-...
+PORT=3000
+HOST=0.0.0.0
 ```
 
-Generado automáticamente por:
-- `setup.sh` (en raíz del proyecto)
-- `deploy-cloudshell-only.sh` (interactivo)
+El frontend Vite las lee en build/dev time vía `import.meta.env.VITE_*`.
 
 ---
 
-## 🔑 IAM User para GitHub Actions
+## 🔄 Re-despliegue / actualización del código
 
-Para setup de CI/CD:
+Si modificas el código y quieres redesplegar:
 
 ```bash
+# En CloudShell
+cd ~/examlab
+git pull   # o pega tus cambios localmente
+
 cd lovable-aws-deployment
-bash scripts/create-github-iam-user.sh
+bash deploy.sh
 ```
 
-Esto crea:
-- Usuario IAM: `github-actions`
-- Access Key para autenticación
-- Política con permisos CloudFormation
-- Archivo `github-actions-credentials.txt` con instrucciones
+`deploy.sh` re-empaqueta y re-sube el código a S3, y CloudFormation hace `update-stack`. Si sólo cambia el código (no los parámetros), no recrea la EC2 — pero tampoco re-ejecuta el user-data automáticamente. Para forzar re-ejecución:
 
----
-
-## 📚 Documentación
-
-Todos los docs están en `docs/`:
-
-- **ARCHITECTURE.md** — Cómo funciona todo internamente
-- **TROUBLESHOOTING.md** — Solucionar problemas comunes
-- **GITHUB_ACTIONS_SETUP.md** — Setup de CI/CD
-- **LOCAL_TO_AWS_WORKFLOW.md** — Flujo local → AWS
-- **FREETIER_DOMAINS.md** — Opciones de dominio (opcional)
-
----
-
-## 🚀 Flujo de despliegue simplificado
-
-```
-┌─ CloudShell
-│  ├─ bash deploy-cloudshell-only.sh
-│  └─ Responde 4 preguntas
-│
-├─ CloudFormation despliega:
-│  ├─ VPC Stack (3-5 min)
-│  ├─ RDS Stack (5-10 min)
-│  └─ EC2 Stack con Docker (5-10 min)
-│
-├─ EC2 user-data automáticamente:
-│  ├─ Instala Docker
-│  ├─ Clona repositorio
-│  └─ Levanta docker-compose
-│
-└─ ✅ App lista en http://<ALB-DNS>
+```bash
+# Eliminar y volver a crear
+aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+bash deploy.sh
 ```
 
-**Tiempo total:** 20-30 minutos
+O solo actualizar la app sin reiniciar Supabase, conectándote a la EC2:
+
+```bash
+aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+cd /opt/examlab
+sudo aws s3 cp s3://<bucket>/<key> /tmp/code.tar.gz
+sudo tar -xzf /tmp/code.tar.gz -C /opt/examlab
+sudo systemctl restart examlab.service
+```
 
 ---
 
-## ✅ Checklist de despliegue
+## ✅ Verificación post-deploy
 
-- [ ] Acceso a AWS CloudShell
-- [ ] Repo clonado: `git clone https://github.com/vivetori/examlab.git`
-- [ ] En carpeta: `cd examlab/lovable-aws-deployment`
-- [ ] Ejecutar: `bash deploy-cloudshell-only.sh`
-- [ ] Responder 4 preguntas
-- [ ] Esperar 20-30 minutos
-- [ ] CloudFormation completa (ver en AWS Console)
-- [ ] EC2 instancia levantada con Docker
-- [ ] Acceder a: `http://<ALB-DNS>`
+### 1. La app responde
 
----
+```bash
+curl -I http://<ELASTIC_IP>:3000
+# HTTP/1.1 200 OK
+```
 
-## 🔐 Seguridad
+### 2. Supabase Kong responde
 
-### En CloudShell
-- ✅ SSH keys generadas en `/tmp/` (temporal)
-- ✅ `.env` con credenciales AWS
-- ✅ Credenciales no mostradas en logs
+```bash
+curl http://<ELASTIC_IP>:8000
+# {"message":"no Route matched..."} ← esperado, significa Kong vivo
+```
 
-### En AWS
-- ✅ RDS encriptada (KMS)
-- ✅ EC2 solo accesible vía ALB
-- ✅ Security Groups restrictivos
-- ✅ CloudWatch logs habilitados
-- ✅ Backups automáticos (RDS)
+### 3. Login en Studio
+
+Abre `http://<ELASTIC_IP>:8000` en el navegador. Login con `supabase` / `<DASHBOARD_PASSWORD>`.
+
+### 4. Verifica migraciones aplicadas
+
+En el Studio → SQL Editor, ejecuta:
+
+```sql
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
+```
+
+Deberías ver las tablas del proyecto.
 
 ---
 
 ## 🆘 Troubleshooting
 
-### "CloudFormation template no encontrado"
-```bash
-# Asegúrate de estar en la carpeta correcta
-cd examlab/lovable-aws-deployment
+### La app muestra "Missing Supabase environment variables"
 
-# O ejecuta desde raíz
-bash lovable-aws-deployment/deploy-cloudshell-only.sh
+El user-data falló al crear `/opt/examlab/.env`. Verifica:
+
+```bash
+aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+sudo cat /opt/examlab/.env
+sudo grep -A3 "Configuring ExamLab" /var/log/user-data.log
+sudo systemctl restart examlab.service
 ```
 
-### "EC2 tarda mucho en iniciar"
-Normal. EC2 está:
-1. Instalando Docker (2-3 min)
-2. Descargando imágenes Docker (2-3 min)
-3. Levantando servicios (2-3 min)
+### Supabase no levanta
 
-Total: ~10 minutos
-
-Ver logs:
 ```bash
-ssh -i /tmp/examlab-production.pem ec2-user@<ALB-DNS>
-cat /var/log/user-data.log
+cd /opt/supabase
+sudo docker compose ps
+sudo docker compose logs --tail 50 kong
+sudo docker compose logs --tail 50 db
 ```
 
-### Más problemas
-Ver: `docs/TROUBLESHOOTING.md`
+Causas comunes:
+- **Falta de RAM**: t3.small (2 GB) no funciona, usa al menos t3.medium (4 GB).
+- **Falta de disco**: revisa con `df -h`. Si el `/` está al 90%+, aumenta el `BlockDeviceMappings`.
 
----
-
-## 📞 Comandos útiles
+### El user-data falló a mitad
 
 ```bash
-# Ver stacks CloudFormation
-aws cloudformation list-stacks --region us-east-1
+sudo tail -100 /var/log/user-data.log
+```
 
-# Ver evento de un stack
+Identifica el paso que falló (`[1/9]` … `[9/9]`) y revisa la causa.
+
+### El stack falla en CREATE
+
+```bash
 aws cloudformation describe-stack-events \
-  --stack-name examlab-ec2-production \
-  --region us-east-1
-
-# Ver logs de EC2
-aws logs tail /aws/ec2/examlab-production --follow
-
-# Conectar a EC2
-ssh -i /tmp/examlab-production.pem ec2-user@<ALB-DNS>
-
-# Ver status de Docker en EC2
-docker-compose ps
+  --stack-name examlab-stack \
+  --region us-east-1 \
+  --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`]'
 ```
 
----
-
-## 🎯 Próximos pasos
-
-### Después de desplegar
-
-1. ✅ Prueba la app: `http://<ALB-DNS>`
-2. ✅ Conéctate por SSH: `ssh -i /tmp/examlab-production.pem ec2-user@<ALB-DNS>`
-3. ✅ Ver logs: `docker-compose logs -f app`
-4. ✅ Monitorea en CloudWatch
-
-### Configuración adicional
-
-- Deploy automático con GitHub Actions → `scripts/create-github-iam-user.sh`
-- Dominio personalizado → `docs/FREETIER_DOMAINS.md`
-- Monitoreo avanzado → `docs/ARCHITECTURE.md`
+Errores típicos:
+- **`AMIId not found`**: la AMI dynamic search falló. Re-ejecuta `deploy.sh`.
+- **`KeyName not found`**: borra y recrea: `aws ec2 delete-key-pair --key-name <name>`.
+- **`Bucket already exists`**: alguien usó ese nombre globalmente. Cambia el `PROJECT_NAME`.
 
 ---
 
-## 📖 Documentación de raíz
-
-Para desarrollo local:
-- **GETTING_STARTED.md** — Inicio rápido
-- **SETUP_SIMPLE.md** — Setup paso a paso
-- **DOCKER_DEPLOYMENT.md** — Docker reference
-- **README_DOCKER.md** — Resumen ejecutivo
-
----
-
-## 💾 Versión de archivos
-
-- **deploy-cloudshell-only.sh** — ✅ Versión 2.0 (Docker-based)
-- **deploy-to-aws.sh** — ✅ Versión 2.0 (Docker-based)
-- **ec2-docker-stack.yaml** — ✅ Versión 2.0 (Docker automático)
-- **cloudshell-setup.sh** — ⏚ Legacy (use deploy-cloudshell-only.sh)
-
----
-
-**Última actualización:** 2026-04-28
-
-¿Listo para desplegar? Ejecuta:
+## 🧹 Eliminar todo
 
 ```bash
-bash deploy-cloudshell-only.sh
+# Eliminar stack
+aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+
+# Eliminar bucket S3 (opcional, cobra ~$0.05/mes)
+BUCKET=$(aws s3 ls | grep examlab-deploy | awk '{print $3}')
+aws s3 rm "s3://$BUCKET" --recursive
+aws s3api delete-bucket --bucket "$BUCKET" --region us-east-1
+
+# Eliminar SSH key (opcional)
+aws ec2 delete-key-pair --key-name examlab-key --region us-east-1
 ```
+
+---
+
+## 💰 Costos estimados (us-east-1)
+
+| Recurso | Costo aproximado |
+|---------|------------------|
+| EC2 t3.medium (24/7) | ~$30/mes |
+| EBS 30GB gp3 | ~$2.4/mes |
+| Elastic IP (asociada) | $0 |
+| Elastic IP (sin asociar) | ~$3.6/mes |
+| S3 bucket (~50MB) | ~$0.01/mes |
+| CloudWatch Logs (7 días) | ~$0.50/mes |
+| **Total estimado** | **~$33/mes** |
+
+> Si paras la EC2 sin eliminar el stack, sigues pagando la EIP (~$3.6/mes). Mejor `delete-stack` cuando no se use.
+
+---
+
+## 📚 Más
+
+- [README.md](README.md) — Inicio rápido
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Detalles de arquitectura
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Más casos
+- [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Deploy automático con CI/CD

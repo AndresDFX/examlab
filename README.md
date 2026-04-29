@@ -1,261 +1,172 @@
 # ExamLab — Plataforma de Exámenes Interactivos
 
-**Desarrolla localmente con Docker. Despliega a AWS con un comando.**
+**Desarrolla en Lovable. Despliega en AWS con un comando.**
 
 ![Status](https://img.shields.io/badge/status-ready-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Docker](https://img.shields.io/badge/docker-required-blue)
+![AWS](https://img.shields.io/badge/AWS-CloudFormation-orange)
 
 ---
 
-## 🚀 Inicio rápido
+## 🚀 Despliegue en AWS (un solo comando)
 
-### Local (desarrollo)
+Desde [AWS CloudShell](https://console.aws.amazon.com/cloudshell/):
+
 ```bash
-bash setup.sh
-docker-compose up -d
-# → http://localhost:3000
+git clone https://github.com/vivetori/examlab.git
+cd examlab/lovable-aws-deployment
+bash deploy.sh
 ```
 
-### AWS (producción)
-```bash
-bash lovable-aws-deployment/deploy-cloudshell-only.sh
-# → Responde 4 preguntas
-# → En 20-30 minutos en AWS
-```
+Responde 4 preguntas y espera ~12-15 minutos. Al terminar tienes:
+
+- 🌐 **App en `http://<EIP>:3000`**
+- 🗄️ **Supabase self-hosted en `http://<EIP>:8000`**
+- 🔐 Credenciales generadas en la EC2 (en `/root/examlab-credentials.txt`)
+
+[→ Ver guía completa](lovable-aws-deployment/DEPLOYMENT_GUIDE.md)
 
 ---
 
-## 📁 Estructura del proyecto
+## 🧠 Stack
+
+### Frontend
+- React 19 + TypeScript
+- TanStack Router v1 + TanStack Start
+- Vite 7
+- shadcn/ui + Tailwind v4
+- react-i18next + idb-keyval
+
+### Backend (en AWS)
+- Supabase self-hosted (PostgreSQL + Auth + Realtime + Storage)
+- EC2 Ubuntu 22.04 con Docker Compose
+- CloudFormation para infraestructura
+
+### Plataforma de desarrollo
+- Lovable.dev (gestiona Supabase automáticamente)
+- Las migraciones van en `supabase/migrations/*.sql`
+
+---
+
+## 📁 Estructura
 
 ```
 examlab/
-├── Desarrollo local (Docker)
-│   ├── setup.sh                      ← Setup interactivo
-│   ├── Dockerfile                    ← Imagen Docker
-│   ├── docker-compose.yml            ← 5 servicios
-│   ├── .env.example                  ← Variables
-│   ├── nginx.conf                    ← Reverse proxy
-│   ├── GETTING_STARTED.md            ← Guía rápida
-│   ├── SETUP_SIMPLE.md               ← Paso a paso
-│   └── DOCKER_DEPLOYMENT.md          ← Docker referencia
+├── src/                              ← Código de la app (React + TS)
+│   ├── routes/                       ← TanStack Router
+│   ├── integrations/supabase/        ← Cliente Supabase
+│   ├── hooks/, lib/, utils/, ...
 │
-└── AWS Deployment (CloudFormation)
-    └── lovable-aws-deployment/       ← TODO aquí
-        ├── deploy-cloudshell-only.sh ← Deploy desde CloudShell
-        ├── deploy-to-aws.sh          ← Deploy local
-        ├── cloudformation/           ← VPC, RDS, EC2
-        ├── scripts/                  ← IAM, backups, etc
-        ├── supabase/                 ← Config BD
-        ├── docs/                     ← Documentación
-        └── DEPLOYMENT_GUIDE.md       ← Guía completa
+├── supabase/
+│   └── migrations/                   ← SQL migrations (Lovable + AWS)
+│
+├── lovable-aws-deployment/           ← Despliegue AWS
+│   ├── deploy.sh                     ← Script principal
+│   ├── cloudformation/
+│   │   └── all-in-one-stack.yaml     ← Stack único
+│   ├── scripts/
+│   ├── supabase/
+│   ├── docs/
+│   ├── README.md
+│   └── DEPLOYMENT_GUIDE.md
+│
+├── package.json                      ← Vite, React 19
+├── CLAUDE.md                         ← Notas de desarrollo
+└── README.md                         ← Este archivo
 ```
 
 ---
 
-## 📖 Documentación
+## 🛠️ Desarrollo local (Lovable)
 
-### Para empezar
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** — ¡Empieza aquí! (5 min)
-- **[SETUP_SIMPLE.md](SETUP_SIMPLE.md)** — Paso a paso (10 min)
+El proyecto está hospedado en **Lovable**. El flujo es:
 
-### Para desplegar
-- **[lovable-aws-deployment/DEPLOYMENT_GUIDE.md](lovable-aws-deployment/DEPLOYMENT_GUIDE.md)** — Guía completa
-- **[CLOUDSHELL_QUICK_START.md](CLOUDSHELL_QUICK_START.md)** — CloudShell específicamente
+1. Edita en Lovable o en tu IDE local
+2. `git push origin main`
+3. Click en **Publish** en Lovable
 
-### Para desarrollo
-- **[DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)** — Docker profundo
-- **[README_DOCKER.md](README_DOCKER.md)** — Resumen ejecutivo
-
-### Para AWS
-- **[lovable-aws-deployment/docs/ARCHITECTURE.md](lovable-aws-deployment/docs/ARCHITECTURE.md)** — Arquitectura
-- **[lovable-aws-deployment/docs/GITHUB_ACTIONS_SETUP.md](lovable-aws-deployment/docs/GITHUB_ACTIONS_SETUP.md)** — CI/CD
-- **[lovable-aws-deployment/docs/TROUBLESHOOTING.md](lovable-aws-deployment/docs/TROUBLESHOOTING.md)** — Solucionar problemas
+Lovable gestiona Supabase automáticamente y aplica las migraciones de `supabase/migrations/`.
 
 ---
 
-## 🎯 Opciones de despliegue
+## ☁️ Despliegue en AWS
 
-### Opción 1: Local con Docker (desarrollo)
-```bash
-bash setup.sh                    # Configurar
-docker-compose up -d             # Levantar
-# Editar código → cambios instantáneos
+Para correr la app en tu propia infraestructura AWS, usa el script en `lovable-aws-deployment/`:
+
+| Quiero... | Lee |
+|-----------|-----|
+| Desplegar rápido | [lovable-aws-deployment/README.md](lovable-aws-deployment/README.md) |
+| Entender qué se despliega | [lovable-aws-deployment/DEPLOYMENT_GUIDE.md](lovable-aws-deployment/DEPLOYMENT_GUIDE.md) |
+| Ver la arquitectura | [lovable-aws-deployment/docs/ARCHITECTURE.md](lovable-aws-deployment/docs/ARCHITECTURE.md) |
+| Solucionar un problema | [lovable-aws-deployment/docs/TROUBLESHOOTING.md](lovable-aws-deployment/docs/TROUBLESHOOTING.md) |
+| Configurar CI/CD | [lovable-aws-deployment/docs/GITHUB_ACTIONS_SETUP.md](lovable-aws-deployment/docs/GITHUB_ACTIONS_SETUP.md) |
+
+---
+
+## ✨ Qué hace el deploy automatizado
+
 ```
-✅ Perfecto para desarrolladores
-✅ Hot-reload automático
-⏱️ 5 minutos
-
-### Opción 2: CloudShell (producción)
-```bash
-bash lovable-aws-deployment/deploy-cloudshell-only.sh
-# Responder 4 preguntas
-# Esperar 20-30 minutos
-```
-✅ Para usuarios finales
-✅ Sin Docker local
-✅ Todo en AWS automático
-
-### Opción 3: GitHub Actions (CI/CD)
-```bash
-bash lovable-aws-deployment/scripts/create-github-iam-user.sh
-# Configurar secretos
-# git push = deploy automático
-```
-✅ Deploy automático
-✅ Historial de cambios
-✅ Múltiples ambientes
-
----
-
-## 🐳 Stack tecnológico
-
-### Local
-- Docker Compose (orquestación)
-- PostgreSQL 15 (base de datos)
-- Supabase (auth + API)
-- Node.js 20 (aplicación)
-- Nginx (reverse proxy)
-- Redis (cache)
-
-### AWS
-- CloudFormation (infraestructura)
-- VPC (networking)
-- RDS PostgreSQL (base de datos)
-- EC2 Auto Scaling (compute)
-- ALB (load balancer)
-- CloudWatch (monitoreo)
-
----
-
-## ✨ Características
-
-- ✅ **Desarrollo sin fricción** — Setup en 5 minutos
-- ✅ **Reproducible** — Idéntico local y AWS
-- ✅ **Automático** — Deploy CloudShell sin Docker
-- ✅ **Escalable** — Auto Scaling en AWS
-- ✅ **Seguro** — Encryption, RLS, Security Groups
-- ✅ **Monitoreable** — CloudWatch + logs
-- ✅ **Documentado** — Guías completas
-
----
-
-## 🚀 Próximos pasos
-
-### Si estás aquí...
-
-**Por primera vez**
-→ Lee: [GETTING_STARTED.md](GETTING_STARTED.md)
-
-**Quiero desarrollar localmente**
-→ Lee: [SETUP_SIMPLE.md](SETUP_SIMPLE.md)
-
-**Quiero desplegar a AWS**
-→ Lee: [lovable-aws-deployment/DEPLOYMENT_GUIDE.md](lovable-aws-deployment/DEPLOYMENT_GUIDE.md)
-
-**Quiero CI/CD automático**
-→ Lee: [lovable-aws-deployment/docs/GITHUB_ACTIONS_SETUP.md](lovable-aws-deployment/docs/GITHUB_ACTIONS_SETUP.md)
-
-**Tengo problemas**
-→ Lee: [lovable-aws-deployment/docs/TROUBLESHOOTING.md](lovable-aws-deployment/docs/TROUBLESHOOTING.md)
-
----
-
-## 📊 Estadísticas
-
-| Métrica | Valor |
-|---------|-------|
-| Setup local | 5 minutos |
-| Deploy a AWS | 20-30 minutos |
-| Documentación | 10+ guías |
-| Archivos | 50+ |
-| Líneas de código | 5,000+ |
-| CloudFormation templates | 3 |
-| Servicios Docker | 5 |
-
----
-
-## 🔗 Enlaces útiles
-
-- **Lovable** — https://lovable.dev
-- **Supabase** — https://supabase.io
-- **AWS CloudFormation** — https://aws.amazon.com/cloudformation
-- **Docker** — https://docker.com
-
----
-
-## 📝 Notas importantes
-
-### Para desarrolladores
-- Los cambios en `src/` se reflejan al instante (hot-reload)
-- El archivo `.env` no se commitea (en `.gitignore`)
-- Usa `docker-compose` para levantar/detener
-
-### Para despliegues
-- Todos los scripts están en `lovable-aws-deployment/`
-- Los templates CloudFormation clonan el repo y levantan Docker
-- SSH keys se generan automáticamente
-
-### Para seguridad
-- Las credenciales van en `.env` (no se commitea)
-- RDS está encriptada (KMS)
-- EC2 solo accessible vía ALB
-- Backups automáticos habilitados
-
----
-
-## 💡 Tips
-
-### Local development
-```bash
-# Ver logs en tiempo real
-docker-compose logs -f app
-
-# Acceder a la BD
-docker-compose exec postgres psql -U postgres -d examlab
-
-# Hacer backup
-docker-compose exec postgres pg_dump -U postgres examlab > backup.sql
-```
-
-### AWS
-```bash
-# Ver información de acceso
-bash lovable-aws-deployment/scripts/print-access-info.sh
-
-# Monitorear
-aws logs tail /aws/ec2/examlab-production --follow
-
-# SSH a instancia
-ssh -i ~/.ssh/examlab-production.pem ec2-user@<ALB-DNS>
+CloudShell ejecuta deploy.sh
+    ↓
+Empaqueta el código local en tar.gz y sube a S3
+    ↓
+CloudFormation crea: VPC + EC2 + EIP + IAM + Security Group
+    ↓
+EC2 user-data automático (~10 min):
+    1. Sistema + dependencias (curl, openssl, git, ...)
+    2. Node.js 20 (NodeSource)
+    3. Docker + Docker Compose v2
+    4. Espera asociación de Elastic IP
+    5. Descarga código desde S3
+    6. Setup Supabase self-hosted (genera JWT keys, levanta docker compose)
+    7. Aplica migraciones desde supabase/migrations/
+    8. Crea .env de la app con las claves de Supabase
+    9. systemd service que arranca npm run dev
+    ↓
+✓ App en http://<EIP>:3000
+✓ Supabase en http://<EIP>:8000
 ```
 
 ---
 
-## 🤝 Contribuir
+## 📊 Recursos consumidos
 
-1. Fork el repo
-2. Crea una rama: `git checkout -b feature/tu-feature`
-3. Commit: `git commit -m "feat: descripción"`
-4. Push: `git push origin feature/tu-feature`
-5. Pull Request
+| Recurso | Detalle | Costo aprox. |
+|---------|---------|--------------|
+| EC2 t3.medium | 2 vCPU, 4GB RAM, 30GB gp3 | ~$32/mes |
+| Elastic IP | Asociada | $0 |
+| S3 bucket | ~50 MB | ~$0.01/mes |
+| CloudWatch Logs | 7 días retención | ~$0.50/mes |
+| **Total** | | **~$33/mes** |
+
+---
+
+## ⚠️ Limitaciones de la versión de despliegue
+
+Esta plantilla está pensada para **prototipos, demos y entornos de desarrollo en AWS**:
+
+- ❌ Sin alta disponibilidad (instancia única)
+- ❌ Sin HTTPS por defecto (puerto 80/443 abiertos pero sin certificado)
+- ❌ Vite dev server (no producción optimizada)
+- ❌ Puertos 3000 y 8000 abiertos al mundo
+
+Para producción real, considera:
+- ✅ Auto Scaling Group + ALB con HTTPS (ACM)
+- ✅ RDS PostgreSQL (en lugar de Supabase docker)
+- ✅ `npm run build` + servir con nginx
+- ✅ Restringir security groups por CIDR
+- ✅ Backups automáticos + multi-AZ
+
+---
+
+## 🤝 Soporte
+
+- **Documentación AWS:** [lovable-aws-deployment/](lovable-aws-deployment/)
+- **Troubleshooting:** [lovable-aws-deployment/docs/TROUBLESHOOTING.md](lovable-aws-deployment/docs/TROUBLESHOOTING.md)
+- **Issues:** [GitHub Issues](https://github.com/vivetori/examlab/issues)
 
 ---
 
 ## 📄 Licencia
 
-MIT License - Ver [LICENSE](LICENSE)
-
----
-
-## 📞 Soporte
-
-- **Documentación** → [lovable-aws-deployment/docs/](lovable-aws-deployment/docs/)
-- **Troubleshooting** → [lovable-aws-deployment/docs/TROUBLESHOOTING.md](lovable-aws-deployment/docs/TROUBLESHOOTING.md)
-- **Issues** → [GitHub Issues](https://github.com/vivetori/examlab/issues)
-
----
-
-**Última actualización:** 2026-04-28
-
-🚀 **¿Listo para empezar?** Lee [GETTING_STARTED.md](GETTING_STARTED.md)
+MIT — Ver [LICENSE](LICENSE)
