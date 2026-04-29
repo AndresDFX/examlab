@@ -12,11 +12,21 @@ Un solo CloudFormation stack levanta:
 
 ## 🚀 Inicio rápido
 
-### 1. Abrir AWS CloudShell
+### 1. (Si tu proyecto usa IA) Obtén una Gemini API key
+
+Antes del deploy, si tu proyecto tiene funciones de IA:
+
+1. Ve a https://aistudio.google.com/apikey
+2. Login con Google y click **"Create API key"**
+3. Copia la key (formato `AIzaSy...`) — la pegarás más adelante
+
+> Si tu proyecto **NO** usa IA, salta este paso.
+
+### 2. Abrir AWS CloudShell
 
 https://console.aws.amazon.com/cloudshell/
 
-### 2. Clonar el repo y ejecutar
+### 3. Clonar el repo y ejecutar
 
 ```bash
 git clone https://github.com/vivetori/examlab.git
@@ -24,16 +34,17 @@ cd examlab/lovable-aws-deployment
 bash deploy.sh
 ```
 
-### 3. Responder las preguntas
+### 4. Responder las preguntas
 
 ```
 Nombre del proyecto [examlab]: ↵
 Contraseña DB (Enter para generar): ↵
 Región AWS [us-east-1]: ↵
+Google Gemini API key (opcional): <pega tu key o Enter para saltar>
 ¿Continuar? (s/n): s
 ```
 
-### 4. Esperar 12-15 minutos
+### 5. Esperar 12-15 minutos
 
 Al terminar verás las URLs de la app y de Supabase.
 

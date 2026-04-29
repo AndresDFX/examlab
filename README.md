@@ -10,6 +10,24 @@
 
 ## 🚀 Despliegue en AWS (un solo comando)
 
+### Antes de desplegar (solo si tu proyecto usa IA)
+
+Si tu proyecto Lovable usa funciones de IA (generar preguntas, calificar, etc.),
+**obtén una API key de Google Gemini antes de ejecutar el deploy**:
+
+1. Ve a https://aistudio.google.com/apikey
+2. Inicia sesión con tu cuenta Google
+3. Click **"Create API key"**
+4. Selecciona o crea un Google Cloud project
+5. Copia la key (formato `AIzaSy...`) y guárdala — la pegarás durante el deploy
+
+> **Tier gratuito de Gemini:** 15 requests/min, 1.500 requests/día. Suficiente para
+> uso de prueba y demos.
+>
+> Si tu proyecto **NO** usa IA, salta este paso (presiona Enter cuando deploy.sh pida la key).
+
+### Desplegar
+
 Desde [AWS CloudShell](https://console.aws.amazon.com/cloudshell/):
 
 ```bash
@@ -18,7 +36,8 @@ cd examlab/lovable-aws-deployment
 bash deploy.sh
 ```
 
-Responde 4 preguntas y espera ~12-15 minutos. Al terminar tienes:
+Responde las preguntas (proyecto, contraseña DB, región, API key de Gemini si aplica)
+y espera ~12-15 minutos. Al terminar tienes:
 
 - 🌐 **App en `http://<EIP>:3000`**
 - 🗄️ **Supabase self-hosted en `http://<EIP>:8000`**

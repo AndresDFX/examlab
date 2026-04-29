@@ -9,7 +9,51 @@ Esta guía explica paso a paso cómo desplegar ExamLab en AWS desde **CloudShell
 - ✅ Cuenta AWS con permisos para CloudFormation, EC2, S3, IAM, VPC
 - ✅ Acceso a [AWS CloudShell](https://console.aws.amazon.com/cloudshell/)
 - ✅ Repo `vivetori/examlab` accesible (clonable desde CloudShell)
+- ⚠️ **Si tu proyecto usa IA**: API key de Google Gemini (ver paso siguiente)
 - ❌ **No** necesitas Docker, Node.js o AWS CLI en tu máquina local
+
+---
+
+## 🤖 Pre-requisito: Google Gemini API Key (solo si usas IA)
+
+Si tu proyecto Lovable tiene funciones de IA (generación de preguntas con IA,
+calificación automática de exámenes/talleres, etc.), debes obtener una **Google
+Gemini API key** ANTES de ejecutar el deploy.
+
+### Cómo obtener la API key
+
+1. Ve a 👉 https://aistudio.google.com/apikey
+2. Inicia sesión con tu cuenta Google
+3. Click **"Create API key"** (botón azul)
+4. Selecciona un Google Cloud project existente o crea uno nuevo
+5. Copia la API key generada (formato: `AIzaSy...`)
+6. **Guárdala temporalmente** — la pegarás cuando `deploy.sh` la pida
+
+### Costos
+
+Google Gemini tiene un **tier gratuito generoso**:
+
+| Modelo | RPM | RPD | TPM |
+|--------|-----|-----|-----|
+| gemini-2.5-pro (free) | 5 | 100 | 250.000 |
+| gemini-2.5-flash (free) | 15 | 1.500 | 1.000.000 |
+
+> Para uso de prueba/demo, el tier gratuito es suficiente. Si esperas más volumen,
+> habilita facturación en Google Cloud (los precios actuales están en
+> [ai.google.dev/pricing](https://ai.google.dev/pricing)).
+
+### ¿Mi proyecto usa IA?
+
+Si tu app tiene alguna de estas funciones, **necesitas la key**:
+
+- 🤖 Generar preguntas de exámenes/talleres con IA
+- ✏️ Calificar respuestas/proyectos automáticamente
+- 📝 Generar enunciados de proyectos
+- 🔍 Cualquier botón con icono de sparkles/IA
+
+Si tu app **no** tiene ninguna de estas funciones (solo gestiona usuarios, cursos
+y exámenes manualmente), puedes saltar este paso presionando Enter cuando
+`deploy.sh` pida la key.
 
 ---
 

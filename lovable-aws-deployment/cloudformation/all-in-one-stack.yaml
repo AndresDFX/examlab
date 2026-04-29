@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ExamLab - All-in-One: VPC + EC2 + Docker + CloudWatch'
+Description: 'ExamLab - All-in-One: VPC + EC2 + Supabase + Storage'
 
 Parameters:
   ProjectName:
@@ -25,13 +25,25 @@ Parameters:
 
   S3Key:
     Type: String
-    Description: S3 key for the application tar.gz (e.g. examlab-code.tar.gz)
+    Description: S3 key for the application tar.gz
+
+  S3BootstrapKey:
+    Type: String
+    Default: bootstrap.sh
+    Description: S3 key for the bootstrap script
+
+  LovableApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: AI Gateway API key (OpenRouter or Lovable). Optional, leave empty to disable AI.
+
+  StorageBucketName:
+    Type: String
+    Default: ''
+    Description: S3 bucket for Supabase Storage (file uploads). Created by deploy.sh.
 
 Resources:
-  # ─────────────────────────────────────────────────────────────────────────
-  # VPC
-  # ─────────────────────────────────────────────────────────────────────────
-
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -88,10 +100,6 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Security Group
-  # ─────────────────────────────────────────────────────────────────────────
-
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -132,10 +140,6 @@ Resources:
         - Key: Name
           Value: !Sub '${ProjectName}-sg'
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CloudWatch Logs
-  # ─────────────────────────────────────────────────────────────────────────
-
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -147,10 +151,6 @@ Resources:
     Properties:
       LogGroupName: !Ref LogGroup
       LogStreamName: deployment
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # IAM Role
-  # ─────────────────────────────────────────────────────────────────────────
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -189,16 +189,29 @@ Resources:
                 Action:
                   - s3:ListBucket
                 Resource: !Sub 'arn:aws:s3:::${S3Bucket}'
+        - PolicyName: S3StorageBackend
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:GetObjectAcl
+                  - s3:PutObjectAcl
+                Resource: !Sub 'arn:aws:s3:::${StorageBucketName}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub 'arn:aws:s3:::${StorageBucketName}'
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
         - !Ref EC2Role
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Elastic IP
-  # ─────────────────────────────────────────────────────────────────────────
 
   ElasticIP:
     Type: AWS::EC2::EIP
@@ -210,10 +223,6 @@ Resources:
         - Key: Name
           Value: !Sub '${ProjectName}-eip'
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # EC2 Instance
-  # ─────────────────────────────────────────────────────────────────────────
-
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
@@ -224,6 +233,12 @@ Resources:
       SecurityGroupIds:
         - !Ref SecurityGroup
       IamInstanceProfile: !Ref EC2InstanceProfile
+      # Hop limit 2 lets Docker containers (Supabase Storage) reach IMDSv2
+      # to fetch IAM role credentials for S3 access
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 2
       BlockDeviceMappings:
         - DeviceName: /dev/sda1
           Ebs:
@@ -234,327 +249,24 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -e
-
-          # Setup logging
-          exec > >(tee /var/log/user-data.log)
-          exec 2>&1
-
-          echo "=== ExamLab Deployment Started ==="
-          echo "Time: $(date)"
-
-          # ─── [1/9] System dependencies + swap ─────────────────────────────
-          echo "=== [1/9] Installing system dependencies ==="
+          exec > >(tee /var/log/user-data.log) 2>&1
+          echo "=== Bootstrap downloader: $(date) ==="
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -y
-          apt-get install -y curl wget unzip build-essential ca-certificates gnupg lsb-release jq openssl git ec2-instance-connect
-
-          # Create 2GB swap to mitigate OOM on t3.medium (4GB RAM)
-          if [ ! -f /swapfile ]; then
-            fallocate -l 2G /swapfile
-            chmod 600 /swapfile
-            mkswap /swapfile
-            swapon /swapfile
-            echo "/swapfile none swap sw 0 0" >> /etc/fstab
-            echo "✓ 2GB swap enabled"
-          fi
-
-          # AWS CLI v2
-          if ! command -v aws &> /dev/null; then
-            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
-            unzip -q /tmp/awscliv2.zip -d /tmp
+          apt-get install -y curl unzip
+          if ! command -v aws &>/dev/null; then
+            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscli.zip
+            unzip -q /tmp/awscli.zip -d /tmp
             /tmp/aws/install
           fi
-
-          # ─── [2/9] Node.js 20 ─────────────────────────────────────────────
-          echo "=== [2/9] Installing Node.js 20 ==="
-          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-          apt-get install -y nodejs
-          echo "Node: $(node --version) | npm: $(npm --version)"
-
-          # ─── [3/9] Docker + Docker Compose v2 ─────────────────────────────
-          echo "=== [3/9] Installing Docker ==="
-          install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          chmod a+r /etc/apt/keyrings/docker.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-          apt-get update -y
-          apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-          systemctl enable --now docker
-          usermod -aG docker ubuntu
-          echo "Docker: $(docker --version) | Compose: $(docker compose version)"
-
-          # ─── [4/9] Wait for Elastic IP ────────────────────────────────────
-          echo "=== [4/9] Waiting for Elastic IP association ==="
-          INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-          PUBLIC_IP=""
-          for i in $(seq 1 60); do
-            PUBLIC_IP=$(aws ec2 describe-addresses \
-              --filters "Name=instance-id,Values=$INSTANCE_ID" \
-              --region ${AWS::Region} \
-              --query 'Addresses[0].PublicIp' \
-              --output text 2>/dev/null || echo "None")
-            if [ "$PUBLIC_IP" != "None" ] && [ -n "$PUBLIC_IP" ]; then
-              echo "✓ Elastic IP associated: $PUBLIC_IP"
-              break
-            fi
-            sleep 5
-          done
-
-          if [ "$PUBLIC_IP" = "None" ] || [ -z "$PUBLIC_IP" ]; then
-            echo "WARN: EIP not detected, using metadata IP"
-            PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-          fi
-          echo "Public IP: $PUBLIC_IP"
-
-          # ─── [5/9] Download app code from S3 ──────────────────────────────
-          echo "=== [5/9] Downloading app code from S3 ==="
-          rm -rf /opt/examlab
-          mkdir -p /opt/examlab
-          aws s3 cp s3://${S3Bucket}/${S3Key} /tmp/examlab-code.tar.gz --region ${AWS::Region}
-          tar -xzf /tmp/examlab-code.tar.gz -C /opt/examlab
-          rm /tmp/examlab-code.tar.gz
-          [ -f /opt/examlab/package.json ] || { echo "ERROR: package.json missing"; exit 1; }
-          echo "✓ App code extracted"
-
-          # ─── [6/9] Setup Supabase self-hosted ─────────────────────────────
-          echo "=== [6/9] Setting up Supabase ==="
-          rm -rf /opt/supabase /tmp/supabase-repo
-          git clone --depth 1 https://github.com/supabase/supabase.git /tmp/supabase-repo
-          mkdir -p /opt/supabase
-          cp -r /tmp/supabase-repo/docker/. /opt/supabase/
-          cp /tmp/supabase-repo/docker/.env.example /opt/supabase/.env
-          rm -rf /tmp/supabase-repo
-
-          # Generate JWT secret + keys (10-year validity)
-          JWT_SECRET=$(openssl rand -hex 32)
-
-          gen_jwt() {
-            node -e "
-              const c=require('crypto');
-              const b=x=>Buffer.from(x).toString('base64').replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
-              const bs=x=>x.toString('base64').replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
-              const h=b(JSON.stringify({alg:'HS256',typ:'JWT'}));
-              const now=Math.floor(Date.now()/1000);
-              const p=b(JSON.stringify({role:'$1',iss:'supabase',iat:now,exp:now+315360000}));
-              const s=bs(c.createHmac('sha256','$JWT_SECRET').update(h+'.'+p).digest());
-              console.log(h+'.'+p+'.'+s);
-            "
-          }
-          ANON_KEY=$(gen_jwt anon)
-          SERVICE_ROLE_KEY=$(gen_jwt service_role)
-          DB_PASS=$(openssl rand -hex 16)
-          DASHBOARD_PASS=$(openssl rand -hex 12)
-          SECRET_KEY_BASE=$(openssl rand -hex 32)
-          VAULT_ENC_KEY=$(openssl rand -hex 16)
-          LOGFLARE_API_KEY=$(openssl rand -hex 16)
-          LOGFLARE_PUBLIC_TOKEN=$(openssl rand -hex 16)
-          LOGFLARE_PRIVATE_TOKEN=$(openssl rand -hex 16)
-
-          # Override Supabase .env with generated values + public IP
-          ENV_FILE=/opt/supabase/.env
-          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$DB_PASS|" $ENV_FILE
-          sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" $ENV_FILE
-          sed -i "s|^ANON_KEY=.*|ANON_KEY=$ANON_KEY|" $ENV_FILE
-          sed -i "s|^SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY|" $ENV_FILE
-          sed -i "s|^DASHBOARD_USERNAME=.*|DASHBOARD_USERNAME=supabase|" $ENV_FILE
-          sed -i "s|^DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$DASHBOARD_PASS|" $ENV_FILE
-          sed -i "s|^SECRET_KEY_BASE=.*|SECRET_KEY_BASE=$SECRET_KEY_BASE|" $ENV_FILE
-          sed -i "s|^VAULT_ENC_KEY=.*|VAULT_ENC_KEY=$VAULT_ENC_KEY|" $ENV_FILE
-          sed -i "s|^LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=$LOGFLARE_API_KEY|" $ENV_FILE
-          sed -i "s|^LOGFLARE_PUBLIC_ACCESS_TOKEN=.*|LOGFLARE_PUBLIC_ACCESS_TOKEN=$LOGFLARE_PUBLIC_TOKEN|" $ENV_FILE
-          sed -i "s|^LOGFLARE_PRIVATE_ACCESS_TOKEN=.*|LOGFLARE_PRIVATE_ACCESS_TOKEN=$LOGFLARE_PRIVATE_TOKEN|" $ENV_FILE
-          sed -i "s|^SITE_URL=.*|SITE_URL=http://$PUBLIC_IP:3000|" $ENV_FILE
-          sed -i "s|^API_EXTERNAL_URL=.*|API_EXTERNAL_URL=http://$PUBLIC_IP:8000|" $ENV_FILE
-          sed -i "s|^SUPABASE_PUBLIC_URL=.*|SUPABASE_PUBLIC_URL=http://$PUBLIC_IP:8000|" $ENV_FILE
-
-          # Copy migrations from app to Supabase volumes (auto-applied on first start)
-          if [ -d /opt/examlab/supabase/migrations ]; then
-            mkdir -p /opt/supabase/volumes/db/init
-            cp /opt/examlab/supabase/migrations/*.sql /opt/supabase/volumes/db/init/ 2>/dev/null || true
-          fi
-
-          # Copy edge functions from app to Supabase volumes
-          # Preserves the default 'main/' router; copies each project function
-          if [ -d /opt/examlab/supabase/functions ]; then
-            echo "Copying Edge Functions..."
-            mkdir -p /opt/supabase/volumes/functions
-            for fn_dir in /opt/examlab/supabase/functions/*/; do
-              [ -d "$fn_dir" ] || continue
-              fn_name=$(basename "$fn_dir")
-              cp -r "$fn_dir" "/opt/supabase/volumes/functions/$fn_name"
-              echo "  ✓ $fn_name"
-            done
-          fi
-
-          # Start Supabase
-          cd /opt/supabase
-          docker compose pull
-          docker compose up -d
-
-          # Wait for Kong (API gateway) to respond
-          echo "Waiting for Supabase to be ready..."
-          for i in $(seq 1 60); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 | grep -qE "200|401|404"; then
-              echo "✓ Supabase Kong is responding"
-              break
-            fi
-            sleep 5
-          done
-
-          # ─── [7/9] Apply migrations to Supabase database ──────────────────
-          echo "=== [7/9] Applying migrations ==="
-          if [ -d /opt/examlab/supabase/migrations ]; then
-            sleep 10  # Ensure DB is fully ready
-            for f in /opt/examlab/supabase/migrations/*.sql; do
-              [ -f "$f" ] || continue
-              echo "Applying: $(basename $f)"
-              docker exec -i supabase-db psql -U postgres -d postgres < "$f" || echo "WARN: migration $(basename $f) had issues"
-            done
-            echo "✓ Migrations applied"
-          else
-            echo "No migrations to apply"
-          fi
-
-          # ─── [8/9] Configure ExamLab app ──────────────────────────────────
-          echo "=== [8/9] Configuring ExamLab app ==="
-          cat > /opt/examlab/.env << ENVEOF
-          VITE_SUPABASE_URL=http://$PUBLIC_IP:8000
-          VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY
-          VITE_SUPABASE_PROJECT_ID=examlab
-          NODE_ENV=production
-          PORT=3000
-          HOST=0.0.0.0
-          ENVEOF
-
-          # Validate .env was written correctly (mask the key for log safety)
-          echo "--- /opt/examlab/.env contents (key masked) ---"
-          sed 's|\(VITE_SUPABASE_PUBLISHABLE_KEY=\).*|\1<MASKED>|' /opt/examlab/.env
-          echo "-----------------------------------------------"
-
-          if ! grep -q "^VITE_SUPABASE_URL=http" /opt/examlab/.env; then
-            echo "ERROR: VITE_SUPABASE_URL missing or malformed in .env"
-            exit 1
-          fi
-          if ! grep -q "^VITE_SUPABASE_PUBLISHABLE_KEY=eyJ" /opt/examlab/.env; then
-            echo "ERROR: VITE_SUPABASE_PUBLISHABLE_KEY missing or malformed in .env"
-            exit 1
-          fi
-          echo "✓ .env validated"
-
-          chown -R ubuntu:ubuntu /opt/examlab
-
-          # Install npm dependencies (with reduced memory footprint)
-          echo "Installing npm dependencies (3-5 min)..."
-          sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps --no-audit --no-fund --prefer-offline" || {
-            echo "ERROR: npm install failed"
-            free -h
-            df -h
-            exit 1
-          }
-          echo "✓ npm install completed"
-
-          # ─── [9/9] Start ExamLab as systemd service ───────────────────────
-          echo "=== [9/9] Creating systemd service ==="
-          cat > /etc/systemd/system/examlab.service << 'SERVICEEOF'
-          [Unit]
-          Description=ExamLab Vite Dev Server
-          After=network.target docker.service
-
-          [Service]
-          Type=simple
-          User=ubuntu
-          WorkingDirectory=/opt/examlab
-          EnvironmentFile=/opt/examlab/.env
-          ExecStart=/usr/bin/npm run dev -- --host 0.0.0.0 --port 3000
-          Restart=always
-          RestartSec=10
-          StandardOutput=append:/var/log/examlab.log
-          StandardError=append:/var/log/examlab.log
-
-          [Install]
-          WantedBy=multi-user.target
-          SERVICEEOF
-
-          systemctl daemon-reload
-          systemctl enable examlab.service
-          systemctl start examlab.service
-
-          # Save credentials for later reference
-          cat > /root/examlab-credentials.txt << CREDEOF
-          ===== ExamLab Credentials =====
-          Generated: $(date)
-
-          Public IP: $PUBLIC_IP
-
-          App URL: http://$PUBLIC_IP:3000
-          Supabase API: http://$PUBLIC_IP:8000
-          Supabase Studio: http://$PUBLIC_IP:8000 (use credentials below)
-
-          Supabase Dashboard:
-            Username: supabase
-            Password: $DASHBOARD_PASS
-
-          Database:
-            Host: localhost (port 5432, internal)
-            Database: postgres
-            Username: postgres
-            Password: $DB_PASS
-
-          Keys:
-            ANON_KEY: $ANON_KEY
-            SERVICE_ROLE_KEY: $SERVICE_ROLE_KEY
-            JWT_SECRET: $JWT_SECRET
-          CREDEOF
-          chmod 600 /root/examlab-credentials.txt
-
-          # Wait for app to be ready (up to 5 min for first build)
-          echo "Waiting for app to start (up to 5 min)..."
-          APP_READY=0
-          for i in $(seq 1 30); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -qE "200|304"; then
-              echo "✓ ExamLab is responding on port 3000"
-              APP_READY=1
-              break
-            fi
-            sleep 10
-          done
-
-          # Final diagnostics
-          echo ""
-          echo "════════════════════════════════════════════════════════"
-          echo "  Final Status Report"
-          echo "════════════════════════════════════════════════════════"
-          echo ""
-          echo "─── systemd: examlab.service ───"
-          systemctl is-active examlab.service && echo "Status: active" || echo "Status: inactive"
-          systemctl is-enabled examlab.service && echo "Enabled: yes" || echo "Enabled: no"
-          echo ""
-          echo "─── Last 20 lines of app log ───"
-          tail -20 /var/log/examlab.log 2>/dev/null || echo "(no log yet)"
-          echo ""
-          echo "─── Listening ports ───"
-          ss -tlnp 2>/dev/null | grep -E ":3000|:8000" || echo "(no listening on 3000/8000)"
-          echo ""
-          echo "─── Supabase containers ───"
-          cd /opt/supabase && docker compose ps --format "table {{.Service}}\t{{.Status}}" 2>/dev/null || echo "(supabase not running)"
-          echo ""
-          echo "─── Resource usage ───"
-          free -h | head -2
-          df -h / | tail -1
-          echo ""
-          echo "════════════════════════════════════════════════════════"
-          if [ "$APP_READY" = "1" ]; then
-            echo "  ✅ Deployment Completed Successfully"
-          else
-            echo "  ⚠️  Deployment Completed but App not responding yet"
-            echo "     Check: sudo journalctl -u examlab.service -n 50"
-          fi
-          echo "════════════════════════════════════════════════════════"
-          echo "  App:             http://$PUBLIC_IP:3000"
-          echo "  Supabase API:    http://$PUBLIC_IP:8000"
-          echo "  Credentials:     sudo cat /root/examlab-credentials.txt"
-          echo "════════════════════════════════════════════════════════"
-
+          aws s3 cp "s3://${S3Bucket}/${S3BootstrapKey}" /tmp/bootstrap.sh --region ${AWS::Region}
+          chmod +x /tmp/bootstrap.sh
+          export S3_BUCKET="${S3Bucket}"
+          export S3_KEY="${S3Key}"
+          export AWS_REGION="${AWS::Region}"
+          export LOVABLE_API_KEY="${LovableApiKey}"
+          export STORAGE_BUCKET="${StorageBucketName}"
+          /tmp/bootstrap.sh
       Tags:
         - Key: Name
           Value: !Sub '${ProjectName}-instance'
