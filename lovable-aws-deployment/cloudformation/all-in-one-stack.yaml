@@ -100,6 +100,11 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH (also used by EC2 Instance Connect)
+        - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
@@ -237,11 +242,21 @@ Resources:
           echo "=== ExamLab Deployment Started ==="
           echo "Time: $(date)"
 
-          # ─── [1/9] System dependencies ────────────────────────────────────
+          # ─── [1/9] System dependencies + swap ─────────────────────────────
           echo "=== [1/9] Installing system dependencies ==="
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -y
-          apt-get install -y curl wget unzip build-essential ca-certificates gnupg lsb-release jq openssl git
+          apt-get install -y curl wget unzip build-essential ca-certificates gnupg lsb-release jq openssl git ec2-instance-connect
+
+          # Create 2GB swap to mitigate OOM on t3.medium (4GB RAM)
+          if [ ! -f /swapfile ]; then
+            fallocate -l 2G /swapfile
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            echo "/swapfile none swap sw 0 0" >> /etc/fstab
+            echo "✓ 2GB swap enabled"
+          fi
 
           # AWS CLI v2
           if ! command -v aws &> /dev/null; then
@@ -358,6 +373,19 @@ Resources:
             cp /opt/examlab/supabase/migrations/*.sql /opt/supabase/volumes/db/init/ 2>/dev/null || true
           fi
 
+          # Copy edge functions from app to Supabase volumes
+          # Preserves the default 'main/' router; copies each project function
+          if [ -d /opt/examlab/supabase/functions ]; then
+            echo "Copying Edge Functions..."
+            mkdir -p /opt/supabase/volumes/functions
+            for fn_dir in /opt/examlab/supabase/functions/*/; do
+              [ -d "$fn_dir" ] || continue
+              fn_name=$(basename "$fn_dir")
+              cp -r "$fn_dir" "/opt/supabase/volumes/functions/$fn_name"
+              echo "  ✓ $fn_name"
+            done
+          fi
+
           # Start Supabase
           cd /opt/supabase
           docker compose pull
@@ -398,11 +426,31 @@ Resources:
           HOST=0.0.0.0
           ENVEOF
 
+          # Validate .env was written correctly (mask the key for log safety)
+          echo "--- /opt/examlab/.env contents (key masked) ---"
+          sed 's|\(VITE_SUPABASE_PUBLISHABLE_KEY=\).*|\1<MASKED>|' /opt/examlab/.env
+          echo "-----------------------------------------------"
+
+          if ! grep -q "^VITE_SUPABASE_URL=http" /opt/examlab/.env; then
+            echo "ERROR: VITE_SUPABASE_URL missing or malformed in .env"
+            exit 1
+          fi
+          if ! grep -q "^VITE_SUPABASE_PUBLISHABLE_KEY=eyJ" /opt/examlab/.env; then
+            echo "ERROR: VITE_SUPABASE_PUBLISHABLE_KEY missing or malformed in .env"
+            exit 1
+          fi
+          echo "✓ .env validated"
+
           chown -R ubuntu:ubuntu /opt/examlab
 
-          # Install npm dependencies
+          # Install npm dependencies (with reduced memory footprint)
           echo "Installing npm dependencies (3-5 min)..."
-          sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps"
+          sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps --no-audit --no-fund --prefer-offline" || {
+            echo "ERROR: npm install failed"
+            free -h
+            df -h
+            exit 1
+          }
           echo "✓ npm install completed"
 
           # ─── [9/9] Start ExamLab as systemd service ───────────────────────
@@ -459,23 +507,52 @@ Resources:
           CREDEOF
           chmod 600 /root/examlab-credentials.txt
 
-          # Wait for app to be ready
-          echo "Waiting for app to start..."
-          for i in $(seq 1 12); do
+          # Wait for app to be ready (up to 5 min for first build)
+          echo "Waiting for app to start (up to 5 min)..."
+          APP_READY=0
+          for i in $(seq 1 30); do
             if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -qE "200|304"; then
               echo "✓ ExamLab is responding on port 3000"
+              APP_READY=1
               break
             fi
             sleep 10
           done
 
+          # Final diagnostics
           echo ""
           echo "════════════════════════════════════════════════════════"
-          echo "  ✅ Deployment Completed"
+          echo "  Final Status Report"
+          echo "════════════════════════════════════════════════════════"
+          echo ""
+          echo "─── systemd: examlab.service ───"
+          systemctl is-active examlab.service && echo "Status: active" || echo "Status: inactive"
+          systemctl is-enabled examlab.service && echo "Enabled: yes" || echo "Enabled: no"
+          echo ""
+          echo "─── Last 20 lines of app log ───"
+          tail -20 /var/log/examlab.log 2>/dev/null || echo "(no log yet)"
+          echo ""
+          echo "─── Listening ports ───"
+          ss -tlnp 2>/dev/null | grep -E ":3000|:8000" || echo "(no listening on 3000/8000)"
+          echo ""
+          echo "─── Supabase containers ───"
+          cd /opt/supabase && docker compose ps --format "table {{.Service}}\t{{.Status}}" 2>/dev/null || echo "(supabase not running)"
+          echo ""
+          echo "─── Resource usage ───"
+          free -h | head -2
+          df -h / | tail -1
+          echo ""
+          echo "════════════════════════════════════════════════════════"
+          if [ "$APP_READY" = "1" ]; then
+            echo "  ✅ Deployment Completed Successfully"
+          else
+            echo "  ⚠️  Deployment Completed but App not responding yet"
+            echo "     Check: sudo journalctl -u examlab.service -n 50"
+          fi
           echo "════════════════════════════════════════════════════════"
           echo "  App:             http://$PUBLIC_IP:3000"
           echo "  Supabase API:    http://$PUBLIC_IP:8000"
-          echo "  Credentials:     /root/examlab-credentials.txt"
+          echo "  Credentials:     sudo cat /root/examlab-credentials.txt"
           echo "════════════════════════════════════════════════════════"
 
       Tags:

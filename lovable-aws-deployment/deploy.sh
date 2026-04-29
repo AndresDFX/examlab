@@ -181,7 +181,11 @@ tar -czf "$TAR_FILE" \
     --exclude='.env.*.local' \
     --exclude='*.log' \
     --exclude='.DS_Store' \
-    --exclude='lovable-aws-deployment/cloudformation/*.bak' \
+    --exclude='lovable-aws-deployment/cloudformation' \
+    --exclude='lovable-aws-deployment/scripts' \
+    --exclude='lovable-aws-deployment/docs' \
+    --exclude='lovable-aws-deployment/*.sh' \
+    --exclude='lovable-aws-deployment/*.md' \
     .
 
 TAR_SIZE=$(du -h "$TAR_FILE" | cut -f1)
