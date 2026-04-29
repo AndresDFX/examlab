@@ -1,83 +1,56 @@
+## Activar Sentry en ExamLab
 
-## Contexto
+Sí es posible integrar Sentry. No hay un conector nativo de Sentry en Lovable, así que se hace con el SDK oficial `@sentry/react` + el SDK para edge functions de Deno.
 
-Tras revisar `src/components/WorkshopQuestions.tsx`, `src/routes/app.student.workshops.tsx`, `src/routes/app.teacher.workshops.tsx` y el hook `src/hooks/use-auth.ts` detecté lo siguiente:
+### Qué se necesita de tu parte
 
-- El `StudentWorkshopTaker` renderiza un `<h3>{workshopTitle}</h3>` además del `DialogTitle` del modal → título duplicado.
-- El botón del listado usa la clave global `t("exam.start")` ("Iniciar examen") incluso para talleres.
-- El botón de envío dice **"Enviar y calificar inmediatamente"**.
-- La tarjeta de resultado muestra el texto pedido a cambiar.
-- El `useEffect([workshopId, user])` del Taker se vuelve a disparar cuando Supabase emite `TOKEN_REFRESHED`/`SIGNED_IN` al volver al navegador → recarga las preguntas y "reinicia" el modal.
-- El contenido de las preguntas (`q.content`) se pinta como texto plano: lo que la IA devuelve con `**Java**` se muestra literal en vez de en negrilla.
-- En `app.teacher.workshops.tsx` la calificación funciona a nivel de **submission completa** (un `final_grade` y un `teacher_feedback`). No expone las respuestas por pregunta ni las calificaciones IA por pregunta que se guardan en `workshop_submission_answers`.
+Necesitarás crear (gratis) una cuenta en [sentry.io](https://sentry.io) y obtener **2 DSN** (URLs de proyecto Sentry):
 
-## Cambios propuestos
+1. **DSN del frontend** (proyecto tipo "React")
+2. **DSN de las edge functions** (proyecto tipo "Deno") — opcional pero recomendado
 
-### 1) Estudiante – modal de entrega (`src/components/WorkshopQuestions.tsx` y `src/routes/app.student.workshops.tsx`)
+Te los pediré con el tool `add_secret` cuando aprobemos el plan.
 
-- **Quitar el título duplicado**: eliminar el `<h3>{workshopTitle}</h3>` interno de `StudentWorkshopTaker` (el `DialogTitle` ya lo muestra).
-- **Botón del listado**: en `app.student.workshops.tsx` reemplazar `t("exam.start")` por una nueva clave `t("workshop.startSubmission")` ("Iniciar entrega" / "Start submission") manteniendo `t("common.update")` para reentrega.
-- **Botón de envío**: cambiar `"Enviar y calificar inmediatamente"` por simplemente `"Entregar"` (clave `workshop.submit`).
-- **Mensaje del resultado**: cambiar el texto a:
-  > "La calificación fue generada automáticamente por IA al enviar el taller. Si necesita una revisión manual, contacte a su docente."
-  (clave `workshop.aiGradedNotice`).
-- **Renderizar negrillas Markdown del enunciado**: agregar la dependencia `react-markdown` y usarla SOLO para `q.content` dentro del Taker (con un set mínimo de elementos: `strong`, `em`, `code`, `p`, `ul`, `ol`, `li`). Así `**Java**` se ve en negrilla y se evita HTML inseguro. (Es la opción más limpia y evita reescribir la generación IA.)
-- **Evitar la "recarga" al volver al navegador**: añadir un `loadedRef` (o flag `loadedFor === workshopId`) en el Taker para que el `useEffect` solo cargue las preguntas la primera vez por `workshopId`, no en cada cambio de `user` (los eventos `TOKEN_REFRESHED` de Supabase mutan la referencia de `user` y disparan el efecto). Las respuestas en memoria (`answers`) ya no se sobreescriben mientras el alumno escribe.
+### Cobertura de la integración
 
-### 2) Estudiante – i18n
+**Frontend (React + TanStack Start)**
+- Captura automática de errores no controlados y promesas rechazadas.
+- Integración con el `DefaultErrorComponent` y `notFoundComponent` del router.
+- Captura del `window 'error'` y `unhandledrejection` que ya tienes en `__root.tsx` (chunk-load failures, etc.) — se enriquecen con contexto de Sentry.
+- Session Replay opcional (graba la última sesión cuando hay un error). Lo dejamos **desactivado por defecto** para no consumir cuota; se activa cambiando un flag.
+- Performance tracing al 10% de transacciones (configurable).
+- Tag automático del usuario logueado (id + email) cuando hay sesión Supabase.
+- Filtros para ignorar el ruido conocido: `NetworkMonitor: Timeout` del SW, `ChunkLoadError`, errores de extensiones, etc.
 
-Agregar a `es.json` y `en.json` bajo un nuevo namespace `workshop`:
+**Edge Functions (Deno)**
+- Wrapper `withSentry()` reutilizable para envolver los `Deno.serve()` de las 8 funciones (`ai-grade-submission`, `ai-generate-questions`, `bulk-import-users`, etc.).
+- Captura excepciones no manejadas con contexto del request (path, headers seguros, user_id si está autenticado).
 
-```json
-"workshop": {
-  "startSubmission": "Iniciar entrega",
-  "submit": "Entregar",
-  "submitting": "Entregando…",
-  "aiGradedNotice": "La calificación fue generada automáticamente por IA al enviar el taller. Si necesita una revisión manual, contacte a su docente."
-}
-```
-(equivalentes en inglés)
+**Server functions / SSR (TanStack Worker)**
+- No se incluye Sentry server-side por ahora: el Worker de Cloudflare requiere el SDK `@sentry/cloudflare` con configuración específica de wrangler que añade complejidad. Los errores SSR siguen viéndose en los logs del worker. Si lo quieres, lo añadimos en una segunda fase.
 
-### 3) Docente – calificar respuesta por respuesta (`src/routes/app.teacher.workshops.tsx`)
+### Archivos que se crean/modifican
 
-Reestructurar el modal de "Calificaciones" del taller:
+**Nuevos**
+- `src/lib/sentry.ts` — `initSentry()` con la config descrita arriba.
+- `supabase/functions/_shared/sentry.ts` — helper `withSentry()` para edge functions.
 
-- Al abrirlo, además de cargar `workshop_submissions`, traer también `workshop_questions` del taller y `workshop_submission_answers` por cada submission.
-- Para cada entrega, mostrar (debajo del header del estudiante) un acordeón por pregunta con:
-  - Enunciado de la pregunta (con `react-markdown`).
-  - Respuesta del estudiante en el formato adecuado (texto / opción seleccionada / código en monoespaciado / Mermaid como texto).
-  - Inputs editables para `ai_grade` (numérico, con `max = q.points`) y `ai_feedback` (textarea).
-  - Botón "Guardar pregunta" que hace `update` en `workshop_submission_answers` y, al confirmarse, **recalcula la nota global de la entrega** (suma `ai_grade` ponderada a `max_score`) y la persiste en `workshop_submissions.final_grade` + `teacher_feedback` agregado.
-  - Mantener "Recalificar con IA" por pregunta (reusa `ai-grade-submission` con `workshopQuestionGrading: true`).
-- Conservar los inputs globales actuales de **Nota final** y **Retroalimentación** (el docente puede sobrescribir el cálculo automático).
-- Añadir botón **"Recalcular nota global"** que toma la suma de `ai_grade` por pregunta y la escribe en `final_grade` para confirmar el cambio.
-- Mantener el flujo de "Calificar todo con IA" / aprobar / rechazar a nivel global ya existentes.
+**Modificados**
+- `package.json` — añade `@sentry/react`.
+- `src/router.tsx` — llama `initSentry()` antes de crear el router; envuelve `DefaultErrorComponent` con `Sentry.captureException`.
+- `src/routes/__root.tsx` — registra el usuario actual en Sentry cuando cambia la sesión (`supabase.auth.onAuthStateChange`).
+- Las 8 edge functions en `supabase/functions/*/index.ts` — envolver el `Deno.serve` con `withSentry()`.
+- `.env` queda intacto (los DSN del frontend se inyectan vía `import.meta.env.VITE_SENTRY_DSN`, que se configura como secreto del proyecto).
 
-Helper nuevo en el archivo (no hace falta archivo nuevo):
-```ts
-function recomputeFinalGrade(answers, questions, maxScore) {
-  const totalPoints = questions.reduce((s, q) => s + Number(q.points || 0), 0);
-  const earned = answers.reduce((s, a) => s + Number(a.ai_grade || 0), 0);
-  return totalPoints > 0
-    ? Number(((earned / totalPoints) * Number(maxScore)).toFixed(2))
-    : 0;
-}
-```
+### Pasos cuando apruebes
 
-### 4) Dependencia nueva
+1. `add_secret` para `VITE_SENTRY_DSN` (frontend) y `SENTRY_DSN_EDGE` (edge functions).
+2. `bun add @sentry/react`.
+3. Crear `src/lib/sentry.ts` y `supabase/functions/_shared/sentry.ts`.
+4. Integrar en `router.tsx` y `__root.tsx`.
+5. Envolver las 8 edge functions y desplegarlas.
+6. Te confirmo y te doy un test manual de 1 línea para ver el primer evento en tu dashboard Sentry.
 
-`bun add react-markdown` (uso aislado, solo para enunciados y para la respuesta de tipo "abierta" en la vista docente). No se añade `remark-gfm` para mantenerlo ligero — `**bold**`, `*italic*`, `` `code` `` y listas funcionan con el parser por defecto.
+### Nota sobre costos
 
-## Archivos a tocar
-
-- `src/components/WorkshopQuestions.tsx` — quitar título duplicado, cambiar botón a "Entregar", evitar reload al refocus, usar `react-markdown` en enunciados, actualizar texto de la tarjeta de resultado.
-- `src/routes/app.student.workshops.tsx` — usar `t("workshop.startSubmission")`.
-- `src/routes/app.teacher.workshops.tsx` — modal de calificación con respuestas por pregunta editables y recálculo automático.
-- `src/i18n/locales/es.json` y `src/i18n/locales/en.json` — nuevas claves bajo `workshop`.
-- `package.json` — `react-markdown`.
-
-## Fuera de alcance
-
-- No se toca el flujo de exámenes ni `t("exam.start")` (sigue significando "Iniciar examen").
-- No se modifican esquemas de DB ni RLS (la tabla `workshop_submission_answers` ya tiene políticas de UPDATE para Docentes/Admins).
-- No se altera la edge function `ai-grade-submission`.
+Sentry tiene plan gratuito: 5K errores + 10K replays + 10K spans / mes. Para un curso académico es más que suficiente. Si lo superas, te avisa antes de cobrarte — no hay sorpresas.
