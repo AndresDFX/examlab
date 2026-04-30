@@ -194,11 +194,27 @@ function Gradebook() {
       .eq("course_id", courseId)
       .order("position");
 
-    // Proyectos
-    const { data: projectsData } = await db
-      .from("projects")
-      .select("id, title, course_id, max_score, cut_id")
+    // Proyectos: a project may belong to several courses via `project_courses`
+    // (many-to-many link table). Filter projects.course_id directly would miss
+    // any project whose primary course is different but is also linked to the
+    // current course. Same pattern used in `app.student.projects.tsx`.
+    const { data: pcLinks } = await db
+      .from("project_courses")
+      .select("project_id")
       .eq("course_id", courseId);
+    const linkedProjectIds = ((pcLinks ?? []) as { project_id: string }[]).map(
+      (r) => r.project_id,
+    );
+
+    let projectsData: Project[] = [];
+    if (linkedProjectIds.length) {
+      const { data: pData } = await db
+        .from("projects")
+        .select("id, title, course_id, max_score, cut_id")
+        .in("id", linkedProjectIds)
+        .neq("status", "draft");
+      projectsData = (pData ?? []) as Project[];
+    }
 
     // Sesiones de asistencia
     const { data: sessions } = await db
@@ -209,7 +225,7 @@ function Gradebook() {
     setAllExams((exams ?? []) as Exam[]);
     setAllWorkshops((workshops ?? []) as Workshop[]);
     setCuts((cutsData ?? []) as Cut[]);
-    setProjects((projectsData ?? []) as Project[]);
+    setProjects(projectsData);
     setAttSessions((sessions ?? []) as AttSession[]);
 
     // Build columns: original exams (no parent) + workshops + projects.
@@ -225,7 +241,7 @@ function Gradebook() {
       maxScore: w.max_score,
     }));
 
-    const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
+    const prjCols: GradeColumn[] = projectsData.map((p) => ({
       id: p.id,
       title: p.title,
       kind: "project" as const,
@@ -277,7 +293,7 @@ function Gradebook() {
     }
 
     // Project submissions (todos los estudiantes)
-    const prjIds = ((projectsData ?? []) as Project[]).map((p) => p.id);
+    const prjIds = projectsData.map((p) => p.id);
     if (prjIds.length && userIds.length) {
       const { data: ps } = await db
         .from("project_submissions")
