@@ -299,9 +299,19 @@ function StudentGrades() {
             if (!withGrade.length) return null;
             return withGrade.reduce((a, b) => a + (b.grade as number), 0) / withGrade.length;
           };
+          // Promedio ponderado por peso relativo (para exámenes)
+          const weightedAvg = (items: ItemRow[]): number | null => {
+            const withGrade = items.filter((i) => i.grade != null);
+            if (!withGrade.length) return null;
+            const totalW = withGrade.reduce((a, b) => a + (b.weight ?? 1), 0);
+            if (totalW <= 0) return avg(items);
+            return (
+              withGrade.reduce((a, b) => a + (b.grade as number) * (b.weight ?? 1), 0) / totalW
+            );
+          };
 
           const workshopAvg = avg(cutItems.filter((i) => i.kind === "workshop"));
-          const examAvg = avg(cutItems.filter((i) => i.kind === "exam"));
+          const examAvg = weightedAvg(cutItems.filter((i) => i.kind === "exam"));
           const projectAvg = avg(cutItems.filter((i) => i.kind === "project"));
 
           // Asistencia del corte: filtra sesiones por fecha, calcula % presente y escala.
