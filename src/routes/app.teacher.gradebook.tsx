@@ -173,7 +173,7 @@ function Gradebook() {
     // Exams (incluye cut_id para el consolidado de cortes)
     const { data: exams } = await supabase
       .from("exams")
-      .select("id, title, parent_exam_id, course_id, cut_id")
+      .select("id, title, parent_exam_id, course_id, cut_id, weight")
       .eq("course_id", courseId)
       .order("start_time");
 
