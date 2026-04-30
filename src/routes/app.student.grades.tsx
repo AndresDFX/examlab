@@ -242,6 +242,7 @@ function StudentGrades() {
             rawMax: 10,
             grade: raw != null ? toScale(raw, 10) : null,
             status: sub?.status ?? "sin_entrega",
+            weight: Number(e.weight ?? 1),
             reviewExamId:
               sub && (sub.status === "completado" || sub.status === "sospechoso")
                 ? sub.exam_id
