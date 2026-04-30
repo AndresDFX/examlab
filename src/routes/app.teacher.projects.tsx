@@ -725,10 +725,17 @@ function TeacherProjects() {
             </div>
           </div>
           <div className="space-y-1.5 max-h-80 overflow-y-auto">
-            {students.length === 0 && (
+            {assignLoading && (
               <p className="text-sm text-muted-foreground p-4 text-center">
-                <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Sin estudiantes
-                matriculados.
+                <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando estudiantes…
+              </p>
+            )}
+            {!assignLoading && assignError && (
+              <p className="text-sm text-destructive p-4 text-center">{assignError}</p>
+            )}
+            {!assignLoading && !assignError && students.length === 0 && (
+              <p className="text-sm text-muted-foreground p-4 text-center">
+                Sin estudiantes matriculados.
               </p>
             )}
             {students.map((s) => (
