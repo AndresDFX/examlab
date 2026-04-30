@@ -174,6 +174,13 @@ export type Database = {
             referencedRelation: "courses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "course_enrollments_user_profile_fk"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       course_grading_config: {
