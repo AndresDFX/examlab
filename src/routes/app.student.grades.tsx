@@ -158,7 +158,7 @@ function StudentGrades() {
             .order("position"),
           supabase
             .from("exams")
-            .select("id, title, parent_exam_id, cut_id")
+            .select("id, title, parent_exam_id, cut_id, weight")
             .eq("course_id", courseId),
           supabase
             .from("workshops")
