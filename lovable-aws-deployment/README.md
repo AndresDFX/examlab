@@ -1,193 +1,346 @@
-# ExamLab → AWS Deployment
+# Despliegue de ExamLab en AWS
 
-Despliegue **completamente automatizado** de ExamLab en AWS desde CloudShell.
+**Despliega tu proyecto Lovable en tu propia cuenta AWS con un solo comando, en ~15 minutos.**
 
-Un solo CloudFormation stack levanta:
-- **EC2 Ubuntu 22.04** con Node.js 20, Docker y la app
-- **Supabase self-hosted** (PostgreSQL + Auth + Studio + Realtime + Storage)
-- **Elastic IP** fija
-- **CloudWatch Logs**, **Session Manager**, **VPC** dedicada
+> Esta guía es para usuarios sin experiencia técnica. Cada paso es literal —
+> copia, pega, espera.
 
 ---
 
-## 🚀 Inicio rápido
+## ✅ Lo que vas a tener al final
 
-### 1. (Si tu proyecto usa IA) Obtén una Gemini API key
+- 🌐 La aplicación corriendo en una IP fija de AWS
+- 🗄️ Supabase completo en tu cuenta (PostgreSQL, Auth, Storage, Edge Functions)
+- 🤖 Funciones de IA (si tu proyecto las usa)
+- 🔐 Tu propia infraestructura, sin vendor lock-in
 
-Antes del deploy, si tu proyecto tiene funciones de IA:
+**Costo aproximado:** ~$33 USD/mes (EC2 t3.medium + IP fija + S3 + CloudWatch).
 
-1. Ve a https://aistudio.google.com/apikey
-2. Login con Google y click **"Create API key"**
-3. Copia la key (formato `AIzaSy...`) — la pegarás más adelante
+---
 
-> Si tu proyecto **NO** usa IA, salta este paso.
+## 📋 Prerrequisitos
 
-### 2. Abrir AWS CloudShell
+Antes de empezar necesitas:
 
-https://console.aws.amazon.com/cloudshell/
+| Requisito | Cómo conseguirlo |
+|-----------|------------------|
+| Cuenta AWS | [aws.amazon.com](https://aws.amazon.com) — incluye 12 meses gratis |
+| Tarjeta de crédito | Para verificar la cuenta AWS (no se cobra el setup) |
+| API key de Google Gemini *(solo si tu proyecto usa IA)* | Ver **Paso 1** abajo |
 
-### 3. Clonar el repo y ejecutar
+❌ **NO necesitas:** Docker, Node.js, AWS CLI ni nada instalado en tu máquina.
+
+---
+
+## 🤖 Paso 1: Obtener API key de Google Gemini *(opcional)*
+
+> **Si tu proyecto NO usa IA, salta este paso.**
+>
+> ¿Cómo sé si mi proyecto usa IA? Revisa si tiene botones tipo "Generar con IA",
+> "Calificar automáticamente", "Sugerir preguntas". Si no, no usa IA.
+
+### 1.1 Ir a Google AI Studio
+
+Abre en tu navegador: **https://aistudio.google.com/apikey**
+
+### 1.2 Iniciar sesión con Google
+
+Usa cualquier cuenta de Google (personal o de trabajo).
+
+### 1.3 Crear la API key
+
+1. Click en el botón **"Create API key"** (azul, esquina superior derecha)
+2. Selecciona un proyecto de Google Cloud existente, o click **"Create API key in new project"**
+3. Espera unos segundos y aparecerá tu key
+
+### 1.4 Copiar la key
+
+La key tiene este formato:
+
+```
+AIzaSyAwgl5hwI8s-ElO55WjP8IPjzcpL210gZM
+```
+
+> ⚠️ **Cópiala y guárdala temporalmente** (en un bloc de notas). La pegarás en el Paso 5.
+>
+> Si la pierdes, no es problema — vuelves a este paso y creas otra.
+
+### 1.5 Costos
+
+Google Gemini tiene un **tier gratuito generoso**:
+- 15 requests/min
+- 1.500 requests/día
+
+Suficiente para uso de prueba y demos. Si necesitas más, agrega facturación en
+Google Cloud (los precios están en [ai.google.dev/pricing](https://ai.google.dev/pricing)).
+
+---
+
+## ☁️ Paso 2: Abrir AWS CloudShell
+
+CloudShell es una terminal Linux gratuita dentro de la consola de AWS. Ya tiene
+todo lo necesario: AWS CLI, git, bash, openssl.
+
+### 2.1 Iniciar sesión en AWS
+
+Abre: **https://console.aws.amazon.com/**
+
+### 2.2 Abrir CloudShell
+
+Click en el icono de **terminal** (`>_`) en la barra superior, al lado de la
+campanita y tu nombre de usuario:
+
+![CloudShell icon](https://docs.aws.amazon.com/images/cloudshell/latest/userguide/images/cloudshell-region-icon.png)
+
+O ve directamente a: **https://console.aws.amazon.com/cloudshell/**
+
+### 2.3 Esperar a que CloudShell cargue
+
+Tarda ~30 segundos la primera vez. Cuando veas el prompt `[cloudshell-user@... ~]$`
+está listo.
+
+---
+
+## 📦 Paso 3: Clonar el repositorio
+
+En CloudShell, ejecuta este comando (copia todo, pega con Ctrl+Shift+V):
 
 ```bash
 git clone https://github.com/vivetori/examlab.git
+```
+
+Espera a que termine (~5 segundos). Verás algo como:
+
+```
+Cloning into 'examlab'...
+remote: Enumerating objects...
+Receiving objects: 100% (1234/1234), done.
+```
+
+---
+
+## 🚀 Paso 4: Ir a la carpeta de despliegue
+
+```bash
 cd examlab/lovable-aws-deployment
-bash deploy.sh
 ```
 
-### 4. Responder las preguntas
+Y dale permisos de ejecución al script:
 
-```
-Nombre del proyecto [examlab]: ↵
-Contraseña DB (Enter para generar): ↵
-Región AWS [us-east-1]: ↵
-Google Gemini API key (opcional): <pega tu key o Enter para saltar>
-¿Continuar? (s/n): s
-```
-
-### 5. Esperar 12-15 minutos
-
-Al terminar verás las URLs de la app y de Supabase.
-
----
-
-## 🧠 Cómo funciona
-
-```
-CloudShell ejecuta deploy.sh
-   ├─ Crea SSH key (por si la necesitas)
-   ├─ Empaqueta el código local en tar.gz
-   ├─ Sube el código a S3 bucket
-   └─ Despliega CloudFormation stack
-
-CloudFormation crea
-   ├─ VPC + Subnet pública + Internet Gateway
-   ├─ Security Group (puertos 80, 443, 3000, 8000)
-   ├─ IAM Role (CloudWatch + S3 + SSM)
-   ├─ Elastic IP fija
-   └─ EC2 t3.medium (4GB RAM, 30GB disco)
-
-EC2 user-data automático
-   ├─ [1/9] Instala dependencias del sistema (curl, openssl, git…)
-   ├─ [2/9] Instala Node.js 20 (NodeSource)
-   ├─ [3/9] Instala Docker + Docker Compose v2
-   ├─ [4/9] Espera a que la Elastic IP se asocie
-   ├─ [5/9] Descarga el código desde S3
-   ├─ [6/9] Setup Supabase: clona repo oficial, genera JWT keys + claves,
-   │        sustituye variables del .env, levanta docker compose
-   ├─ [7/9] Aplica migraciones de supabase/migrations/*.sql
-   ├─ [8/9] Crea .env de la app (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY),
-   │        ejecuta npm install --legacy-peer-deps
-   └─ [9/9] Crea systemd service examlab.service y arranca la app
+```bash
+chmod +x deploy.sh
 ```
 
 ---
 
-## 📁 Estructura
+## ▶️ Paso 5: Ejecutar el despliegue
+
+```bash
+./deploy.sh
+```
+
+El script te hará 4 preguntas. Pega cada cosa donde corresponde:
+
+### Pregunta 1 — Nombre del proyecto
 
 ```
-lovable-aws-deployment/
-├── deploy.sh                          ← Script principal (CloudShell)
-├── cloudformation/
-│   └── all-in-one-stack.yaml          ← Stack único
-├── scripts/
-│   ├── create-github-iam-user.sh      ← Setup GitHub Actions
-│   └── init-db.sql                    ← Schema inicial (referencia)
-├── supabase/
-│   ├── config.toml                    ← Config local de Supabase
-│   └── migrations/                    ← Migraciones SQL
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── GITHUB_ACTIONS_SETUP.md
-│   └── TROUBLESHOOTING.md
-├── README.md                          ← Este archivo
-└── DEPLOYMENT_GUIDE.md                ← Guía completa
+Nombre del proyecto [examlab]:
+```
+
+→ **Presiona Enter** (deja `examlab`).
+
+### Pregunta 2 — Contraseña de la base de datos
+
+```
+Contraseña DB (Enter para generar):
+```
+
+→ **Presiona Enter** (genera una contraseña segura automáticamente).
+
+### Pregunta 3 — Región AWS
+
+```
+Región AWS [us-east-1]:
+```
+
+→ **Presiona Enter** (deja `us-east-1`, que es la más barata y completa).
+
+### Pregunta 4 — API key de Gemini
+
+```
+═══════════════════════════════════════════════════════════════
+    PASO 4 de 4: Google Gemini API Key [OPCIONAL]
+═══════════════════════════════════════════════════════════════
+   ...
+
+  >>> Pega la API key de Gemini aquí (o Enter para saltar):
+```
+
+→ **Pega la key del Paso 1** (`AIzaSy...`). La pegada no se mostrará por seguridad,
+  eso es normal. Luego presiona **Enter**.
+
+→ Si tu proyecto NO usa IA, simplemente **presiona Enter** sin pegar nada.
+
+### Confirmación
+
+```
+Resumen:
+  Proyecto: examlab
+  Región:   us-east-1
+  Cuenta:   123456789012
+  IA:       habilitada (Google Gemini)
+
+¿Continuar? (s/n):
+```
+
+→ Escribe **`s`** y presiona Enter.
+
+---
+
+## ⏳ Paso 6: Esperar (~15 minutos)
+
+El script va a:
+
+1. ✅ Crear buckets de S3
+2. ✅ Empaquetar el código y subirlo
+3. ✅ Crear el stack de CloudFormation (VPC, EC2, IAM, etc.)
+4. ✅ La EC2 instala Node, Docker, Supabase y la app
+
+**No cierres CloudShell** durante el proceso. Verás logs avanzando paso a paso.
+
+Al final verás algo como:
+
+```
+✓ Stack desplegado
+✓ Información guardada: /home/cloudshell-user/examlab-deployment-info.txt
+═════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## 🔌 Acceso después del deploy
+## 🔍 Paso 7: Encontrar la URL de tu app
 
-Tras el deploy verás algo como:
+### Opción A — Desde CloudShell
+
+Después del paso 6, el script imprime la URL directamente. Búscala en el output:
 
 ```
 🌐 ACCESO A LA APLICACIÓN:
-   URL: http://<ELASTIC_IP>:3000
-
-🗄️  SUPABASE:
-   API:    http://<ELASTIC_IP>:8000
-   Studio: http://<ELASTIC_IP>:8000
-
-🔑 CONECTAR A LA INSTANCIA (sin SSH key):
-   aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+   URL: http://54.123.45.67:3000
 ```
 
-### Ver credenciales generadas
+Si cerraste CloudShell, recupérala con:
 
 ```bash
-aws ssm start-session --target <INSTANCE_ID> --region us-east-1
-sudo cat /root/examlab-credentials.txt
+cat ~/examlab-deployment-info.txt
 ```
 
-Allí están: `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, password de DB y password del Studio.
+### Opción B — Desde la consola de AWS
+
+1. Ve a **CloudFormation**: https://console.aws.amazon.com/cloudformation/
+2. Click en el stack **`examlab-stack`**
+3. Click en la pestaña **"Outputs"**
+
+Verás una tabla así:
+
+| Key | Value | Description |
+|-----|-------|-------------|
+| `AppURL` | `http://54.123.45.67:3000` | Application URL (using Elastic IP) |
+| `ElasticIP` | `54.123.45.67` | Elastic IP address (fixed) |
+| `InstanceId` | `i-0abc123...` | EC2 Instance ID |
+| `SupabaseAPI` | `http://54.123.45.67:8000` | Supabase API endpoint |
+
+→ Click en `AppURL` para abrir tu app en el navegador.
 
 ---
 
-## 🔍 Verificar el despliegue
+## 🎉 Paso 8: Usar la app
 
-Conéctate por Session Manager y revisa:
-
-```bash
-# Estado de la app
-sudo systemctl status examlab.service
-
-# Logs de la app
-sudo tail -f /var/log/examlab.log
-
-# Logs del setup
-sudo tail -f /var/log/user-data.log
-
-# Servicios de Supabase
-cd /opt/supabase && sudo docker compose ps
-
-# Probar la app local
-curl http://localhost:3000
-
-# Probar Supabase API local
-curl http://localhost:8000
-```
+1. Abre la URL en tu navegador (ej. `http://54.123.45.67:3000`)
+2. **Espera ~2 minutos más** la primera vez que abres (Vite compila los bundles)
+3. Crea una cuenta de docente o haz login
+4. *(Opcional)* Click en **"Iniciar datos demo"** para cargar cursos, usuarios y exámenes de prueba
+5. ¡Listo!
 
 ---
 
-## 🧹 Limpieza
+## ❓ Problemas comunes
+
+### "La página no carga" / "ERR_CONNECTION_REFUSED"
+
+**Causa:** la EC2 todavía está instalando software.
+
+**Solución:** espera 5 minutos más. Mientras, puedes monitorear:
+1. Ve a la consola de AWS → CloudFormation → tu stack → tab **"Events"**
+2. Cuando veas `CREATE_COMPLETE`, espera 5 min adicionales
+
+### "Funciones de IA no responden" después de configurar la key
+
+**Causa:** quota de Gemini excedida (15 req/min).
+
+**Solución:** espera 1 minuto y reintenta. El sistema reintenta automáticamente con
+modelos más básicos si el principal está saturado.
+
+### "No tengo permisos en AWS"
+
+**Causa:** tu usuario IAM no tiene los permisos necesarios.
+
+**Solución:** pídele al admin que te dé estas políticas:
+- `AmazonEC2FullAccess`
+- `AmazonS3FullAccess`
+- `IAMFullAccess`
+- `AWSCloudFormationFullAccess`
+- `AmazonSSMFullAccess`
+
+O usa una cuenta con `AdministratorAccess` (no recomendado para producción).
+
+### Otros problemas
+
+Ver [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+---
+
+## 🔄 Actualizar después del primer deploy
+
+Si haces cambios en el código (en Lovable o local) y quieres re-desplegar:
 
 ```bash
+cd ~/examlab
+git pull
+cd lovable-aws-deployment
+./deploy.sh
+```
+
+El script detecta que el stack existe y solo aplica los cambios (sin recrear EC2).
+Toma ~3 minutos en lugar de 15.
+
+---
+
+## 🧹 Eliminar todo
+
+Para borrar la EC2, los buckets, etc. y dejar de cobrar:
+
+```bash
+# 1. Eliminar el stack (toma ~5 min)
 aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
 aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+
+# 2. Eliminar los buckets S3 (opcional, cobra ~$0.05/mes si quedan)
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+aws s3 rm "s3://examlab-deploy-${ACCOUNT}-us-east-1" --recursive
+aws s3 rb "s3://examlab-deploy-${ACCOUNT}-us-east-1"
+aws s3 rm "s3://examlab-storage-${ACCOUNT}-us-east-1" --recursive
+aws s3 rb "s3://examlab-storage-${ACCOUNT}-us-east-1"
+
+# 3. Eliminar SSH key (opcional)
+aws ec2 delete-key-pair --key-name examlab-key --region us-east-1
 ```
-
-> El bucket S3 (`examlab-deploy-<account>-<region>`) **no** se elimina automáticamente. Si quieres borrarlo:
->
-> ```bash
-> aws s3 rm s3://examlab-deploy-<account>-<region> --recursive
-> aws s3api delete-bucket --bucket examlab-deploy-<account>-<region> --region us-east-1
-> ```
-
----
-
-## ⚠️ Notas
-
-- **t3.medium** es el mínimo (Supabase necesita ~3 GB RAM en uso). Para producción real, usa `t3.large`.
-- Los puertos 3000 y 8000 están abiertos al mundo (`0.0.0.0/0`). Para producción real, restringe por CIDR.
-- El `npm run dev` arranca **Vite en modo dev**. Para producción real, sustituir por `npm run build` + servidor estático (nginx).
-- La instancia es **única** (no hay alta disponibilidad). Para producción, usar Auto Scaling + ALB + RDS.
-
-Esta plantilla está pensada para **prototipos, demos y entornos de desarrollo en AWS**, no para producción a escala.
 
 ---
 
 ## 📚 Más documentación
 
-- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) — Guía completa paso a paso
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Detalles de arquitectura
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Solución de problemas
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) — Detalle técnico de qué se despliega
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Diagrama y decisiones de diseño
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Soluciones a problemas
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — CI/CD automático
