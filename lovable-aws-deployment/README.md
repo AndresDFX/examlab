@@ -377,8 +377,6 @@ Ver [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## 🔄 Actualizar después del primer deploy
 
-### Opción 1 — Manual (en CloudShell)
-
 Si haces cambios en el código (en Lovable o local) y quieres re-desplegar:
 
 ```bash
@@ -390,30 +388,6 @@ cd lovable-aws-deployment
 
 El script detecta que el stack existe y solo aplica los cambios (sin recrear EC2).
 Toma ~3 minutos en lugar de 15.
-
-### Opción 2 — Automático con GitHub Actions ⭐
-
-Cada `git push origin main` puede desplegar automáticamente sin abrir CloudShell.
-
-**Setup (una sola vez, ~10 min):**
-
-1. Crear IAM user para el workflow:
-   ```bash
-   bash scripts/create-github-iam-user.sh
-   ```
-2. En GitHub: **Settings → Secrets and variables → Actions** → agregar:
-   - Secret `AWS_ACCESS_KEY_ID`
-   - Secret `AWS_SECRET_ACCESS_KEY`
-   - Secret `DB_PASSWORD`
-   - Secret `LOVABLE_API_KEY` (opcional)
-   - Variable `AWS_REGION` (ej. `us-east-1`)
-   - Variable `PROJECT_NAME` (ej. `lovable-app`)
-3. Hacer push y ver el deploy en **Actions** tab del repo.
-
-El workflow está en `.github/workflows/deploy-aws.yml` y se ejecuta solo cuando
-cambias archivos relevantes (no en cada commit de docs, por ejemplo).
-
-📖 Guía completa: [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)
 
 ---
 
@@ -464,4 +438,3 @@ alt text en su lugar.
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) — Detalle técnico de qué se despliega
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Diagrama y decisiones de diseño
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Soluciones a problemas
-- [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — CI/CD automático

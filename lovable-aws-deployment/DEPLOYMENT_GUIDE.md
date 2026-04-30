@@ -235,13 +235,10 @@ lovable-aws-deployment/
 ├── cloudformation/
 │   ├── all-in-one-stack.yaml       # Recursos AWS + user-data minimal
 │   └── bootstrap.sh                # Script principal que corre en la EC2
-├── scripts/
-│   └── create-github-iam-user.sh   # Setup IAM user para GitHub Actions
 ├── screenshots/                    # Imágenes referenciadas desde el README
 └── docs/
     ├── ARCHITECTURE.md             # Diagrama Mermaid + decisiones
-    ├── TROUBLESHOOTING.md          # Soluciones a errores comunes
-    └── GITHUB_ACTIONS_SETUP.md     # CI/CD con GitHub Actions
+    └── TROUBLESHOOTING.md          # Soluciones a errores comunes
 ```
 
 ---

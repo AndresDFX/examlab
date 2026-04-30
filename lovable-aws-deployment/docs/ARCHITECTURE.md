@@ -250,7 +250,7 @@ Para producción real, considera Supabase Cloud (managed) — más barato y mant
 |---------|-----------|
 | [`deploy.sh`](../deploy.sh) | Orquestador en CloudShell |
 | [`cloudformation/all-in-one-stack.yaml`](../cloudformation/all-in-one-stack.yaml) | Recursos AWS + user-data |
-| [`scripts/create-github-iam-user.sh`](../scripts/create-github-iam-user.sh) | IAM user para CI/CD |
+| [`cloudformation/bootstrap.sh`](../cloudformation/bootstrap.sh) | Boot script que corre en la EC2 |
 
 ---
 
