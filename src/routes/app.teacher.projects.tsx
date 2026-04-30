@@ -96,6 +96,8 @@ function TeacherProjects() {
   const [assignProject, setAssignProject] = useState<Project | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const load = async () => {
     // Cada query se aísla en su propio try para que un fallo (p.ej. una
@@ -295,27 +297,50 @@ function TeacherProjects() {
 
   const openAssignDialog = async (p: Project) => {
     setAssignProject(p);
-    const courseIds = p.linked_course_ids?.length ? p.linked_course_ids : [p.course_id];
-    const { data: enr } = await db
-      .from("course_enrollments")
-      .select("user_id, profile:profiles(id, full_name, institutional_email)")
-      .in("course_id", courseIds);
-    // Deduplicar por user.id (un estudiante puede estar en más de un curso vinculado)
-    const seen = new Set<string>();
-    const list: Student[] = [];
-    for (const row of (enr ?? []) as { profile: Student | null }[]) {
-      if (row.profile && !seen.has(row.profile.id)) {
-        seen.add(row.profile.id);
-        list.push(row.profile);
-      }
-    }
-    setStudents(list);
-    const { data: asgn } = await db
-      .from("project_assignments")
-      .select("user_id")
-      .eq("project_id", p.id);
-    setAssigned(new Set((asgn ?? []).map((a: { user_id: string }) => a.user_id)));
+    setStudents([]);
+    setAssigned(new Set());
+    setAssignError(null);
+    setAssignLoading(true);
     setAssignOpen(true);
+    const courseIds = p.linked_course_ids?.length ? p.linked_course_ids : [p.course_id];
+    try {
+      const { data: enr, error: enrError } = await db
+        .from("course_enrollments")
+        .select("user_id")
+        .in("course_id", courseIds);
+      if (enrError) throw enrError;
+
+      // `course_enrollments.user_id` referencia usuarios de auth, no profiles;
+      // por eso se cargan los perfiles en una segunda consulta.
+      const userIds = Array.from(
+        new Set(((enr ?? []) as { user_id: string }[]).map((row) => row.user_id)),
+      );
+      let list: Student[] = [];
+      if (userIds.length) {
+        const { data: profs, error: profError } = await db
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", userIds)
+          .order("full_name");
+        if (profError) throw profError;
+        list = (profs ?? []) as Student[];
+      }
+      setStudents(list);
+
+      const { data: asgn, error: asgnError } = await db
+        .from("project_assignments")
+        .select("user_id")
+        .eq("project_id", p.id);
+      if (asgnError) throw asgnError;
+      setAssigned(new Set((asgn ?? []).map((a: { user_id: string }) => a.user_id)));
+    } catch (e) {
+      console.error("[projects] assignment load failed", e);
+      const message = e instanceof Error ? e.message : "No se pudieron cargar estudiantes";
+      setAssignError(message);
+      toast.error(message);
+    } finally {
+      setAssignLoading(false);
+    }
   };
 
   const toggleAssign = async (uid: string) => {
