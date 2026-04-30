@@ -34,9 +34,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, GitBranch, Monitor, Copy } from "lucide-react";
+import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2 } from "lucide-react";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
 Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
@@ -72,6 +73,25 @@ function TeacherExams() {
   const [form, setForm] = useState<Partial<Exam>>({});
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  const confirm = useConfirm();
+
+  const remove = async (exam: Exam) => {
+    const ok = await confirm({
+      title: t("exam.deleteTitle", { defaultValue: "Eliminar examen" }),
+      description: t("exam.deleteDesc", {
+        defaultValue:
+          "Se eliminarán las preguntas, asignaciones y entregas asociadas al examen \"{{title}}\". Esta acción no se puede deshacer.",
+        title: exam.title,
+      }),
+      confirmLabel: t("common.delete", { defaultValue: "Eliminar" }),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await supabase.from("exams").delete().eq("id", exam.id);
+    if (error) return toast.error(error.message);
+    toast.success(t("exam.deleted", { defaultValue: "Examen eliminado" }));
+    load();
+  };
 
   const load = async () => {
     const [{ data: cs }, { data: es }, { data: cs2 }] = await Promise.all([
@@ -300,6 +320,14 @@ function TeacherExams() {
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(e)}
+                        title={t("common.delete", { defaultValue: "Eliminar" })}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
