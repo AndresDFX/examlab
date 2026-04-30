@@ -26,6 +26,7 @@ import {
   GitBranch,
   FileText,
   Hammer,
+  FolderKanban,
   Save,
   Loader2,
   Scale,
@@ -91,6 +92,7 @@ type Cut = {
 type AttSession = { id: string; session_date: string };
 type AttRecord = { session_id: string; user_id: string; status: string };
 type ProjectSub = {
+  id: string;
   project_id: string;
   user_id: string;
   ai_grade: number | null;
@@ -120,11 +122,11 @@ type WsSub = {
   status: string;
 };
 
-/** A column in the grid — either an exam or a workshop */
+/** A column in the grid — exam, workshop or project. */
 type GradeColumn = {
   id: string;
   title: string;
-  kind: "exam" | "workshop";
+  kind: "exam" | "workshop" | "project";
   parentExamId?: string | null;
   maxScore?: number;
 };
@@ -210,7 +212,8 @@ function Gradebook() {
     setProjects((projectsData ?? []) as Project[]);
     setAttSessions((sessions ?? []) as AttSession[]);
 
-    // Build columns: original exams (no parent) + workshops
+    // Build columns: original exams (no parent) + workshops + projects.
+    // Order is intentional so the matrix groups evaluation types visually.
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
       .filter((e) => !e.parent_exam_id)
       .map((e) => ({ id: e.id, title: e.title, kind: "exam" as const, parentExamId: null }));
@@ -222,7 +225,14 @@ function Gradebook() {
       maxScore: w.max_score,
     }));
 
-    setColumns([...examCols, ...wsCols]);
+    const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
+      id: p.id,
+      title: p.title,
+      kind: "project" as const,
+      maxScore: p.max_score,
+    }));
+
+    setColumns([...examCols, ...wsCols, ...prjCols]);
 
     // Students
     const { data: enr } = await supabase
@@ -271,7 +281,7 @@ function Gradebook() {
     if (prjIds.length && userIds.length) {
       const { data: ps } = await db
         .from("project_submissions")
-        .select("project_id, user_id, ai_grade, final_grade, status")
+        .select("id, project_id, user_id, ai_grade, final_grade, status")
         .in("project_id", prjIds);
       setProjectSubs((ps ?? []) as ProjectSub[]);
     } else {
@@ -330,8 +340,19 @@ function Gradebook() {
           };
       }
       return { grade: null, isMakeup: false };
-    } else {
+    } else if (col.kind === "workshop") {
       const sub = wsSubs.find((s) => s.user_id === studentId && s.workshop_id === col.id);
+      if (sub)
+        return {
+          grade: sub.final_grade ?? sub.ai_grade,
+          isMakeup: false,
+          status: sub.status,
+          subId: sub.id,
+        };
+      return { grade: null, isMakeup: false };
+    } else {
+      // project
+      const sub = projectSubs.find((s) => s.user_id === studentId && s.project_id === col.id);
       if (sub)
         return {
           grade: sub.final_grade ?? sub.ai_grade,
@@ -385,11 +406,24 @@ function Gradebook() {
         } else {
           errors++; // No submission to update
         }
-      } else {
+      } else if (col.kind === "workshop") {
         const g = getGrade(studentId, col);
         if (g.subId) {
           const { error } = await supabase
             .from("workshop_submissions")
+            .update({ final_grade: numValue, status: "calificado" })
+            .eq("id", g.subId);
+          if (error) errors++;
+          else saved++;
+        } else {
+          errors++; // No submission to update
+        }
+      } else {
+        // project
+        const g = getGrade(studentId, col);
+        if (g.subId) {
+          const { error } = await db
+            .from("project_submissions")
             .update({ final_grade: numValue, status: "calificado" })
             .eq("id", g.subId);
           if (error) errors++;
@@ -407,6 +441,16 @@ function Gradebook() {
     loadCourse();
   };
 
+  // Standard prefix for column labels in the CSV. Decoupled into a helper so
+  // template, export and import all agree on the same naming.
+  // - "[T] " for workshops
+  // - "[P] " for projects
+  // - no prefix for exams
+  const colLabel = (col: GradeColumn) => {
+    const prefix = col.kind === "workshop" ? "[T] " : col.kind === "project" ? "[P] " : "";
+    return `${prefix}${col.title}`;
+  };
+
   // Build the export payload as a CSV string. Returns "" if there's nothing to
   // export — the standard ImportExportMenu detects this and shows an info toast.
   const buildGradebookCsv = (): string => {
@@ -419,8 +463,7 @@ function Gradebook() {
       };
       columns.forEach((col) => {
         const g = getGrade(s.id, col);
-        const prefix = col.kind === "workshop" ? "[T] " : "";
-        const label = `${prefix}${col.title}`;
+        const label = colLabel(col);
         if (g.grade != null) {
           row[label] = `${g.grade}${g.isMakeup ? " (S)" : ""}`;
         } else {
@@ -432,17 +475,36 @@ function Gradebook() {
     return toCSV(csvRows);
   };
 
-  // Template uses the same headers a teacher would see when exporting, so the
-  // file can be edited and re-imported as overrides. Uses sample columns that
-  // illustrate the [T] prefix for workshops.
-  const GRADEBOOK_TEMPLATE = toCSV([
-    {
-      email_institucional: "estudiante@institucion.edu",
-      "Examen 1": "4.5",
-      "Examen 2": "",
-      "[T] Taller 1": "5.0",
-    },
-  ]);
+  // Plantilla DINÁMICA: refleja el curso seleccionado en el momento de
+  // descargar. Incluye los headers reales (exámenes + talleres + proyectos
+  // del curso) y una fila pre-rellenada por estudiante matriculado, con las
+  // celdas de notas vacías para que el docente solo escriba los valores.
+  //
+  // Si no hay curso/datos, devuelve un ejemplo genérico que ilustra la
+  // estructura esperada.
+  const gradebookTemplate = useMemo(() => {
+    if (!students.length || !columns.length) {
+      return toCSV([
+        {
+          email_institucional: "estudiante@institucion.edu",
+          "Ejemplo Examen": "",
+          "[T] Ejemplo Taller": "",
+          "[P] Ejemplo Proyecto": "",
+        },
+      ]);
+    }
+    const rows = students.map((s) => {
+      const row: Record<string, string> = {
+        nombre: s.full_name,
+        email_institucional: s.institutional_email,
+      };
+      columns.forEach((col) => {
+        row[colLabel(col)] = "";
+      });
+      return row;
+    });
+    return toCSV(rows);
+  }, [students, columns]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply teacher overrides from a CSV (one row per student). Only writes the
   // cells that differ from the current value, to avoid touching unrelated
@@ -462,8 +524,7 @@ function Gradebook() {
         continue;
       }
       for (const col of columns) {
-        const prefix = col.kind === "workshop" ? "[T] " : "";
-        const label = `${prefix}${col.title}`;
+        const label = colLabel(col);
         const raw = row[label];
         if (raw === undefined) continue;
         const next = raw.trim();
@@ -629,7 +690,7 @@ function Gradebook() {
           <ImportExportMenu
             label="CSV"
             resourceName="calificaciones"
-            templateCsv={GRADEBOOK_TEMPLATE}
+            templateCsv={gradebookTemplate}
             onImport={importGradebook}
             onExport={buildGradebookCsv}
             disabled={!courseId}
@@ -748,15 +809,21 @@ function Gradebook() {
                       <div className="flex items-center gap-1">
                         {col.kind === "exam" ? (
                           <FileText className="h-3 w-3 text-primary shrink-0" />
-                        ) : (
+                        ) : col.kind === "workshop" ? (
                           <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                        ) : (
+                          <FolderKanban className="h-3 w-3 text-violet-500 dark:text-violet-400 shrink-0" />
                         )}
                         <span className="truncate max-w-24" title={col.title}>
                           {col.title}
                         </span>
                       </div>
                       <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                        {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
+                        {col.kind === "exam"
+                          ? "Examen"
+                          : col.kind === "workshop"
+                            ? `Taller (/${col.maxScore ?? 100})`
+                            : `Proyecto (/${col.maxScore ?? 100})`}
                       </Badge>
                     </div>
                   </TableHead>
@@ -799,7 +866,7 @@ function Gradebook() {
                               step="0.1"
                               min={selectedCourse?.grade_scale_min ?? 0}
                               max={
-                                col.kind === "workshop"
+                                col.kind === "workshop" || col.kind === "project"
                                   ? (col.maxScore ?? 100)
                                   : (selectedCourse?.grade_scale_max ?? 100)
                               }
