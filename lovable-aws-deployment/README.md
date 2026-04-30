@@ -1,440 +1,377 @@
-# Despliegue de proyectos Lovable en AWS
+# Lovable → AWS CloudFormation Deployment
 
-**Despliega cualquier proyecto Lovable en tu propia cuenta AWS con un solo comando, en ~15 minutos.**
+Despliegue **completamente automatizado** de Lovable/ExamLab en AWS desde **CloudShell** en 10 minutos.
 
-> Esta guía es para usuarios sin experiencia técnica. Cada paso es literal —
-> copia, pega, espera.
+**Sin Terraform, sin complicaciones, variables genéricas fáciles de cambiar.**
 
-> **Esta carpeta es agnóstica al proyecto.** Puedes copiarla a cualquier proyecto
-> Lovable y desplegarlo sin modificar nada. Más detalles abajo en *"Asunciones
-> sobre el proyecto"*.
+## 🚀 Inicio rápido (3 pasos)
 
----
-
-## ✅ Lo que vas a tener al final
-
-- 🌐 La aplicación corriendo en una IP fija de AWS
-- 🗄️ Supabase completo en tu cuenta (PostgreSQL, Auth, Storage, Edge Functions)
-- 🤖 Funciones de IA (si tu proyecto las usa)
-- 🔐 Tu propia infraestructura, sin vendor lock-in
-
-**Costo aproximado:** ~$33 USD/mes (EC2 t3.medium + IP fija + S3 + CloudWatch).
-
----
-
-## 🧩 Asunciones sobre el proyecto Lovable
-
-Esta carpeta funciona con cualquier proyecto Lovable que cumpla la **estructura
-estándar de Lovable**:
-
-| Lo que asume | Por qué |
-|--------------|---------|
-| `package.json` en la raíz con scripts `dev` (Vite) | Para arrancar el front con `npm run dev` |
-| Cliente Supabase usa `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` | Inyectadas vía `.env` durante el deploy |
-| Migraciones SQL en `supabase/migrations/*.sql` | Aplicadas automáticamente al PostgreSQL |
-| Edge functions en `supabase/functions/<nombre>/index.ts` | Copiadas a Supabase self-hosted |
-| Edge functions con IA usan `LOVABLE_API_KEY` y `https://ai.gateway.lovable.dev/v1/chat/completions` | El deploy las redirige a Google Gemini transparentemente |
-
-**No tienes que tocar nada del código** — el deploy hace transformaciones en
-runtime sobre las edge functions copiadas a la EC2 (sustituye URL del Lovable
-Gateway por el endpoint OpenAI-compatible de Gemini, e inyecta un wrapper que
-hace fallback automático a modelos más estables si el principal está saturado).
-
-### Lo que NO asume
-
-- ❌ No asume nombre del proyecto — pasas el nombre al ejecutar (default `lovable-app`,
-  pero puede ser cualquier cosa: `mi-app`, `tienda-online`, etc.). Todos los
-  recursos AWS, paths internos y servicios usan ese nombre.
-- ❌ No asume schema de base de datos — usa el que esté en `supabase/migrations/`
-  de tu proyecto.
-- ❌ No asume datos — la BD arranca vacía. Si tu proyecto tiene una edge function
-  `seed-data`, llámala desde el front después del deploy.
-
----
-
-## 📋 Prerrequisitos
-
-Antes de empezar necesitas:
-
-| Requisito | Cómo conseguirlo |
-|-----------|------------------|
-| Cuenta AWS | [aws.amazon.com](https://aws.amazon.com) — incluye 12 meses gratis |
-| Tarjeta de crédito | Para verificar la cuenta AWS (no se cobra el setup) |
-| API key de Google Gemini *(solo si tu proyecto usa IA)* | Ver **Paso 1** abajo |
-
-❌ **NO necesitas:** Docker, Node.js, AWS CLI ni nada instalado en tu máquina.
-
----
-
-## 🤖 Paso 1: Obtener API key de Google Gemini *(opcional)*
-
-> **Si tu proyecto NO usa IA, salta este paso.**
->
-> ¿Cómo sé si mi proyecto usa IA? Revisa si tiene botones tipo "Generar con IA",
-> "Calificar automáticamente", "Sugerir preguntas". Si no, no usa IA.
-
-### 1.1 Ir a Google AI Studio
-
-Abre en tu navegador: **https://aistudio.google.com/apikey**
-
-### 1.2 Iniciar sesión con Google
-
-Usa cualquier cuenta de Google (personal o de trabajo).
-
-> 📸 _Screenshot: AI Studio login_
-> ![AI Studio login](screenshots/01-aistudio-login.png)
-> *(reemplazar con captura real del paso 1.2)*
-
-### 1.3 Crear la API key
-
-1. Click en el botón **"Create API key"** (azul, esquina superior derecha)
-2. Selecciona un proyecto de Google Cloud existente, o click **"Create API key in new project"**
-3. Espera unos segundos y aparecerá tu key
-
-> 📸 _Screenshot: pantalla de "Create API key"_
-> ![Create API key](screenshots/02-create-api-key.png)
-> *(reemplazar con captura del modal de creación)*
-
-### 1.4 Copiar la key
-
-La key tiene este formato:
+### 1️⃣ Abrir AWS CloudShell
 
 ```
-AIzaSyAwgl5hwI8s-ElO55WjP8IPjzcpL210gZM
+https://console.aws.amazon.com/cloudshell/
 ```
 
-> ⚠️ **Cópiala y guárdala temporalmente** (en un bloc de notas). La pegarás en el Paso 5.
->
-> Si la pierdes, no es problema — vuelves a este paso y creas otra.
-
-### 1.5 Costos
-
-Google Gemini tiene un **tier gratuito generoso**:
-- 15 requests/min
-- 1.500 requests/día
-
-Suficiente para uso de prueba y demos. Si necesitas más, agrega facturación en
-Google Cloud (los precios están en [ai.google.dev/pricing](https://ai.google.dev/pricing)).
-
----
-
-## ☁️ Paso 2: Abrir AWS CloudShell
-
-CloudShell es una terminal Linux gratuita dentro de la consola de AWS. Ya tiene
-todo lo necesario: AWS CLI, git, bash, openssl.
-
-### 2.1 Iniciar sesión en AWS
-
-Abre: **https://console.aws.amazon.com/**
-
-### 2.2 Abrir CloudShell
-
-Click en el icono de **terminal** (`>_`) en la barra superior, al lado de la
-campanita y tu nombre de usuario, o ve directamente a:
-**https://console.aws.amazon.com/cloudshell/**
-
-> 📸 _Screenshot: barra superior de AWS Console resaltando el icono de CloudShell_
-> ![CloudShell icon](screenshots/03-cloudshell-icon.png)
-> *(reemplazar con captura de la consola AWS mostrando dónde hacer click)*
-
-### 2.3 Esperar a que CloudShell cargue
-
-Tarda ~30 segundos la primera vez. Cuando veas el prompt `[cloudshell-user@... ~]$`
-está listo.
-
-> 📸 _Screenshot: terminal de CloudShell lista_
-> ![CloudShell ready](screenshots/04-cloudshell-ready.png)
-> *(reemplazar con captura de la terminal cargada)*
-
----
-
-## 📦 Paso 3: Clonar el repositorio
-
-En CloudShell, ejecuta este comando (copia todo, pega con Ctrl+Shift+V):
+### 2️⃣ Clonar y ejecutar
 
 ```bash
-git clone https://github.com/vivetori/examlab.git
-```
-
-Espera a que termine (~5 segundos). Verás algo como:
-
-```
-Cloning into 'examlab'...
-remote: Enumerating objects...
-Receiving objects: 100% (1234/1234), done.
-```
-
-> 📸 _Screenshot: output del git clone exitoso_
-> ![Git clone OK](screenshots/05-git-clone.png)
-> *(reemplazar con captura del clone completado)*
-
----
-
-## 🚀 Paso 4: Ir a la carpeta de despliegue
-
-```bash
+git clone https://github.com/tu-usuario/examlab.git
 cd examlab/lovable-aws-deployment
+bash cloudshell-setup.sh
 ```
 
-Y dale permisos de ejecución al script:
+### 3️⃣ Editar variables (si lo deseas)
 
 ```bash
-chmod +x deploy.sh
+nano cloudshell-vars.env
+# Cambiar PROJECT_NAME, ENVIRONMENT, DB_PASSWORD, etc.
 ```
 
----
+## ✨ Lo que hace `cloudshell-setup.sh`
 
-## ▶️ Paso 5: Ejecutar el despliegue
+```
+✓ Valida variables genéricas
+✓ Genera SSH keys en CloudShell
+✓ Agrega clave pública a GitHub automáticamente
+✓ Clona repositorio
+✓ Importa SSH key a AWS EC2
+✓ Crea parámetros para CloudFormation
+✓ Prepara stacks para despliegue
+```
+
+## 📁 Estructura
+
+```
+lovable-aws-deployment/
+├── cloudshell-vars.env              ← EDITAR AQUÍ (variables genéricas)
+├── cloudshell-setup.sh              ← Ejecutar primero
+├── README.md
+│
+├── cloudformation/
+│   ├── vpc-stack.yaml               ← VPC, subnets, IGW
+│   ├── rds-stack.yaml               ← PostgreSQL (Supabase-compatible)
+│   ├── ec2-stack.yaml               ← EC2, ALB, Auto Scaling
+│   └── parameters.json              ← Auto-generado por setup.sh
+│
+├── scripts/
+│   ├── backup-lovable.sh            ← Backup RDS / Supabase / CSV
+│   ├── health-check.sh              ← Verificar infraestructura
+│   └── deploy-cf.sh                 ← Auto-generado
+│
+└── configs/
+    └── user_data.sh                 ← Script init EC2
+```
+
+## 🎯 Variables genéricas (cloudshell-vars.env)
+
+Estos son los **ÚNICOS** valores que necesitas cambiar:
 
 ```bash
-./deploy.sh
+# Identificadores
+PROJECT_NAME="examlab"              # Nombre del proyecto
+ENVIRONMENT="production"            # production|staging|development
+AWS_REGION="us-east-1"             # Región AWS
+OWNER_NAME="YourName"              # Nombre del dueño
+
+# GitHub (opcional)
+GITHUB_OWNER="tu-usuario"          # Tu usuario GitHub
+GITHUB_REPO="examlab"              # Nombre del repo
+GITHUB_BRANCH="main"               # Branch a deployar
+
+# Infraestructura
+EC2_INSTANCE_TYPE="t3.small"       # t3.micro|t3.small|t3.medium
+DB_INSTANCE_TYPE="db.t3.micro"    # db.t3.micro|db.t3.small
+
+# IMPORTANTE: Cambiar contraseña
+DB_PASSWORD="ExamLab2024ChangeMe!" # !!!CAMBIAR!!!
+
+# Supabase (opcional)
+SUPABASE_URL=""                    # Si usas Supabase
+SUPABASE_ANON_KEY=""
 ```
 
-El script te hará 4 preguntas. Pega cada cosa donde corresponde:
+**Todo lo demás se genera automáticamente.**
 
-### Pregunta 1 — Nombre del proyecto
+## 📊 CloudFormation Stacks
 
-```
-Nombre del proyecto [lovable-app]:
-```
-
-→ **Presiona Enter** (deja `lovable-app`).
-
-### Pregunta 2 — Contraseña de la base de datos
-
-```
-Contraseña DB (Enter para generar):
-```
-
-→ **Presiona Enter** (genera una contraseña segura automáticamente).
-
-### Pregunta 3 — Región AWS
-
-```
-Región AWS [us-east-1]:
-```
-
-→ **Presiona Enter** (deja `us-east-1`, que es la más barata y completa).
-
-### Pregunta 4 — API key de Gemini
-
-```
-═══════════════════════════════════════════════════════════════
-    PASO 4 de 4: Google Gemini API Key [OPCIONAL]
-═══════════════════════════════════════════════════════════════
-   ...
-
-  >>> Pega la API key de Gemini aquí (o Enter para saltar):
+```mermaid
+graph TD
+    VPC["VPC Stack<br/>10.0.0.0/16<br/>6 Subnets + IGW + NAT"]
+    
+    RDS["RDS Stack<br/>PostgreSQL 15.4<br/>db.t3.micro<br/>20-100 GB"]
+    
+    EC2["EC2 Stack<br/>ALB + ASG<br/>t3.small (1-2)<br/>Node.js + Nginx"]
+    
+    ALB["Application Load Balancer<br/>Health Check /health<br/>HTTP 80/443"]
+    
+    ASG["Auto Scaling Group<br/>Min: 1 | Max: 2<br/>CPU-based scaling"]
+    
+    LT["Launch Template<br/>Amazon Linux 2<br/>Node.js v20 LTS"]
+    
+    VPC --> RDS
+    VPC --> ALB
+    VPC --> ASG
+    
+    ALB --> ASG
+    ASG --> LT
+    
+    style VPC fill:#FF9900,stroke:#333,color:#000
+    style RDS fill:#146EB4,stroke:#333,color:#fff
+    style EC2 fill:#FF9900,stroke:#333,color:#000
+    style ASG fill:#FFA500,stroke:#333,color:#000
 ```
 
-→ **Pega la key del Paso 1** (`AIzaSy...`). La pegada no se mostrará por seguridad,
-  eso es normal. Luego presiona **Enter**.
+### VPC Stack
+- VPC + 6 subnets (2x public, 2x private, 2x database)
+- Internet Gateway + NAT Gateway (opcional)
+- Route tables
+- DB Subnet Group (para RDS)
 
-→ Si tu proyecto NO usa IA, simplemente **presiona Enter** sin pegar nada.
+### RDS Stack
+- PostgreSQL 15.4 (Supabase-compatible)
+- Backups automáticos (7 días)
+- Enhanced Monitoring
+- KMS encryption
+- Multi-AZ (opcional)
 
-### Confirmación
+### EC2 Stack
+- Application Load Balancer
+- Auto Scaling Group (1-2 instancias)
+- Launch Template (Node.js, Nginx)
+- Security Groups
+- IAM roles (CloudWatch, S3, etc)
 
-```
-Resumen:
-  Proyecto: lovable-app
-  Región:   us-east-1
-  Cuenta:   123456789012
-  IA:       habilitada (Google Gemini)
+## 🔐 SSH Key Management
 
-¿Continuar? (s/n):
-```
-
-→ Escribe **`s`** y presiona Enter.
-
-> 📸 _Screenshot: resumen antes de confirmar_
-> ![Deploy confirmation](screenshots/06-deploy-confirm.png)
-> *(reemplazar con captura del resumen y prompt "¿Continuar?")*
-
----
-
-## ⏳ Paso 6: Esperar (~15 minutos)
-
-El script va a:
-
-1. ✅ Crear buckets de S3
-2. ✅ Empaquetar el código y subirlo
-3. ✅ Crear el stack de CloudFormation (VPC, EC2, IAM, etc.)
-4. ✅ La EC2 instala Node, Docker, Supabase y la app
-
-**No cierres CloudShell** durante el proceso. Verás logs avanzando paso a paso.
-
-Al final verás algo como:
-
-```
-✓ Stack desplegado
-✓ Información guardada: /home/cloudshell-user/lovable-app-deployment-info.txt
-═════════════════════════════════════════════════════════════
-```
-
-> 📸 _Screenshot: deploy completado en CloudShell_
-> ![Deploy complete](screenshots/07-deploy-complete.png)
-> *(reemplazar con captura del output final con la URL)*
-
----
-
-## 🔍 Paso 7: Encontrar la URL de tu app
-
-### Opción A — Desde CloudShell
-
-Después del paso 6, el script imprime la URL directamente. Búscala en el output:
-
-```
-🌐 ACCESO A LA APLICACIÓN:
-   URL: http://54.123.45.67:3000
-```
-
-Si cerraste CloudShell, recupérala con:
+El script genera SSH keys automáticamente en CloudShell:
 
 ```bash
-cat ~/lovable-app-deployment-info.txt
+# Generar
+cloudshell-setup.sh
+# Genera: ~/.ssh/examlab-production.pem
+
+# Conectar a EC2
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+
+# Agregar a GitHub (automático si tienes token)
+# O manual: https://github.com/settings/keys
 ```
 
-### Opción B — Desde la consola de AWS
+## 📦 Despliegue CloudFormation
 
-1. Ve a **CloudFormation**: https://console.aws.amazon.com/cloudformation/
-2. Click en el stack **`lovable-app-stack`**
-3. Click en la pestaña **"Outputs"**
-
-> 📸 _Screenshot: lista de stacks de CloudFormation_
-> ![CloudFormation stacks list](screenshots/08-cloudformation-list.png)
-> *(reemplazar con captura mostrando lovable-app-stack en la lista)*
-
-Verás una tabla así:
-
-| Key | Value | Description |
-|-----|-------|-------------|
-| `AppURL` | `http://54.123.45.67:3000` | Application URL (using Elastic IP) |
-| `ElasticIP` | `54.123.45.67` | Elastic IP address (fixed) |
-| `InstanceId` | `i-0abc123...` | EC2 Instance ID |
-| `SupabaseAPI` | `http://54.123.45.67:8000` | Supabase API endpoint |
-
-→ Click en `AppURL` para abrir tu app en el navegador.
-
-> 📸 _Screenshot: pestaña Outputs del stack con la URL_
-> ![CloudFormation outputs](screenshots/09-cloudformation-outputs.png)
-> *(reemplazar con captura de la pestaña Outputs mostrando AppURL)*
-
----
-
-## 🎉 Paso 8: Usar la app
-
-1. Abre la URL en tu navegador (ej. `http://54.123.45.67:3000`)
-2. **Espera ~2 minutos más** la primera vez que abres (Vite compila los bundles)
-3. Crea una cuenta de docente o haz login
-4. *(Opcional)* Click en **"Iniciar datos demo"** para cargar cursos, usuarios y exámenes de prueba
-5. ¡Listo!
-
-> 📸 _Screenshot: pantalla de login de la app_
-> ![App login](screenshots/10-app-login.png)
-> *(reemplazar con captura de la app cargada)*
-
-> 📸 _Screenshot: dashboard con datos demo cargados_
-> ![App dashboard](screenshots/11-app-dashboard.png)
-> *(reemplazar con captura del dashboard funcionando)*
-
----
-
-## ❓ Problemas comunes
-
-### "La página no carga" / "ERR_CONNECTION_REFUSED"
-
-**Causa:** la EC2 todavía está instalando software.
-
-**Solución:** espera 5 minutos más. Mientras, puedes monitorear:
-1. Ve a la consola de AWS → CloudFormation → tu stack → tab **"Events"**
-2. Cuando veas `CREATE_COMPLETE`, espera 5 min adicionales
-
-### "Funciones de IA no responden" después de configurar la key
-
-**Causa:** quota de Gemini excedida (15 req/min).
-
-**Solución:** espera 1 minuto y reintenta. El sistema reintenta automáticamente con
-modelos más básicos si el principal está saturado.
-
-### "No tengo permisos en AWS"
-
-**Causa:** tu usuario IAM no tiene los permisos necesarios.
-
-**Solución:** pídele al admin que te dé estas políticas:
-- `AmazonEC2FullAccess`
-- `AmazonS3FullAccess`
-- `IAMFullAccess`
-- `AWSCloudFormationFullAccess`
-- `AmazonSSMFullAccess`
-
-O usa una cuenta con `AdministratorAccess` (no recomendado para producción).
-
-### Otros problemas
-
-Ver [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
-
----
-
-## 🔄 Actualizar después del primer deploy
-
-Si haces cambios en el código (en Lovable o local) y quieres re-desplegar:
+Después de correr `cloudshell-setup.sh`:
 
 ```bash
-cd ~/examlab
-git pull
-cd lovable-aws-deployment
-./deploy.sh
+# Desplegar todos los stacks
+bash scripts/deploy-cf.sh
+
+# El script imprimirá automáticamente:
+# ✅ Información de acceso
+# ✅ URLs de ALB
+# ✅ Endpoints RDS
+# ✅ Instrucciones SSH
 ```
 
-El script detecta que el stack existe y solo aplica los cambios (sin recrear EC2).
-Toma ~3 minutos en lugar de 15.
+**Acceso a tu aplicación:**
+```
+HTTP:  http://<ALB-DNS>
+SSH:   ssh -i ~/.ssh/examlab-production.pem ec2-user@<ALB-DNS>
+```
 
----
+La IP pública se mostrará al final del despliegue.
 
-## 🧹 Eliminar todo
+## 💰 Costos estimados (monthly)
 
-Para borrar la EC2, los buckets, etc. y dejar de cobrar:
+| Recurso | Config mínima | Config recomendada |
+|---------|---------------|-------------------|
+| EC2 | t3.micro ($7.59) | t3.small ($16) |
+| RDS | db.t3.micro ($13.14) | db.t3.micro ($13.14) |
+| ALB | $16 | $16 |
+| Data | varies | ~$100/TB |
+| **TOTAL** | **~$30** | **~$130** |
+
+## 🔄 Backup
+
+### Método 1: RDS completo
 
 ```bash
-# 1. Eliminar el stack (toma ~5 min)
-aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
+bash scripts/backup-lovable.sh rds
 
-# 2. Eliminar los buckets S3 (opcional, cobra ~$0.05/mes si quedan)
-ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-aws s3 rm "s3://lovable-app-deploy-${ACCOUNT}-us-east-1" --recursive
-aws s3 rb "s3://lovable-app-deploy-${ACCOUNT}-us-east-1"
-aws s3 rm "s3://lovable-app-storage-${ACCOUNT}-us-east-1" --recursive
-aws s3 rb "s3://lovable-app-storage-${ACCOUNT}-us-east-1"
-
-# 3. Eliminar SSH key (opcional)
-aws ec2 delete-key-pair --key-name lovable-app-key --region us-east-1
+# Genera: ~/examlab-backups/examlab_rds_YYYYMMDD.sql.gz
+# Sube a S3 si lo deseas
 ```
 
+### Método 2: Supabase
+
+```bash
+bash scripts/backup-lovable.sh supabase
+
+# Requiere:
+# 1. Supabase connection string
+# 2. O usar SQL Editor en https://app.supabase.com
+```
+
+### Método 3: CSV export
+
+```bash
+bash scripts/backup-lovable.sh csv
+
+# Exporta cada tabla a CSV
+# Genera: ~/examlab-backups/csv_YYYYMMDD/*.csv
+```
+
+### Restaurar
+
+```bash
+bash scripts/backup-lovable.sh restore
+
+# Selecciona archivo y restaura
+```
+
+## 🏥 Health Check
+
+```bash
+bash scripts/health-check.sh
+
+# Verifica:
+# ✓ ALB respondiendo
+# ✓ EC2 instancias running
+# ✓ RDS disponible
+# ✓ Aplicación lista
+```
+
+## 🆘 Troubleshooting
+
+### "CloudShell not found"
+```bash
+# Abre: https://console.aws.amazon.com/cloudshell/
+```
+
+### "Git command not found"
+```bash
+# Git está pre-instalado en CloudShell
+# Si no: yum install -y git
+```
+
+### "Can't connect to RDS"
+```bash
+# Verificar Security Group permite tráfico desde EC2
+# Desde EC2:
+ssh -i ~/.ssh/examlab-prod.pem ec2-user@<alb-dns>
+telnet <rds-endpoint> 5432
+```
+
+### "ALB responde 502"
+```bash
+# Esperar 3-5 minutos a que EC2 inicie
+# Luego:
+ssh -i ~/.ssh/examlab-prod.pem ec2-user@<alb-dns>
+sudo systemctl status nginx
+sudo tail -f /var/log/examlab/*.log
+```
+
+### "Can't clone repo"
+```bash
+# Agregar SSH key a GitHub:
+cat ~/.ssh/examlab-production.pub
+
+# Copiar output y pegar en:
+# https://github.com/settings/keys
+```
+
+## 📚 Archivos importantes
+
+| Archivo | Propósito |
+|---------|-----------|
+| `cloudshell-vars.env` | Variables genéricas (editar) |
+| `cloudshell-setup.sh` | Setup inicial (SSH, GitHub, CF prep) |
+| `cloudformation/*.yaml` | Templates CloudFormation |
+| `scripts/backup-lovable.sh` | Backup RDS/Supabase/CSV |
+| `scripts/health-check.sh` | Verificar infraestructura |
+| `scripts/deploy-cf.sh` | Desplegar stacks (auto-generado) |
+
+## 🔄 Flujo típico
+
+```bash
+# 1. Abre CloudShell
+# 2. Clona repo
+git clone ...
+
+# 3. Edita variables (si necesario)
+nano cloudshell-vars.env
+
+# 4. Ejecuta setup
+bash cloudshell-setup.sh
+
+# 5. Deploya (cuando esté listo)
+bash scripts/deploy-cf.sh
+
+# 6. Espera ~5 minutos a que se cree infraestructura
+# 7. Verifica
+bash scripts/health-check.sh
+
+# 8. Accede a la aplicación
+curl http://<alb-dns>
+
+# 9. Conecta vía SSH
+ssh -i ~/.ssh/examlab-prod.pem ec2-user@<alb-dns>
+
+# 10. Haz backup
+bash scripts/backup-lovable.sh rds
+```
+
+## 🎯 Variables reutilizables
+
+Cada variable en `cloudshell-vars.env` es genérica:
+
+```bash
+# Cambiar ambiente
+ENVIRONMENT="staging"  # staging en lugar de production
+# Todos los nombres de stacks, security groups, etc., se actualizan automáticamente
+
+# Cambiar región
+AWS_REGION="eu-west-1"  # Desplegar en Irlanda
+# CloudFormation usa la región especificada
+
+# Cambiar repo
+GITHUB_OWNER="another-org"
+GITHUB_REPO="different-project"
+# El mismo setup.sh funciona para cualquier proyecto
+```
+
+## 🚀 Próximos pasos
+
+1. **Programar backups automáticos**
+   ```bash
+   # Agregar a crontab en EC2:
+   # 0 2 * * * bash /opt/examlab/scripts/backup-lovable.sh rds
+   ```
+
+2. **Monitoreo**
+   ```bash
+   # Ver CloudWatch Logs en AWS Console
+   # O localmente:
+   ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+   sudo tail -f /var/log/examlab/app.log
+   ```
+
+3. **Dominio personalizado** (opcional, después)
+   ```bash
+   # Ver: docs/FREETIER_DOMAINS.md
+   # Para configurar dominio con Cloudflare
+   ```
+
+## 📝 Licencia
+
+MIT - Usa libremente para tus proyectos
+
 ---
 
-## 📸 Agregar screenshots al manual
+**¿Preguntas?** Ver troubleshooting arriba o abrir un issue.
 
-Esta guía incluye placeholders de imágenes (los `> 📸 _Screenshot: ..._` que ves
-en cada paso). Para reemplazarlos con capturas reales:
-
-1. Toma la captura durante un deploy real
-2. Guárdala en `screenshots/` con el **nombre exacto** que aparece en el placeholder
-   (ej. `01-aistudio-login.png`, `09-cloudformation-outputs.png`, etc.)
-3. Commit y push — GitHub renderiza la imagen automáticamente
-
-**Recomendaciones:**
-- Formato PNG, ancho ≤ 1600px
-- Oculta datos sensibles: API keys, account IDs, emails, IPs reales
-- Usa flechas/círculos para señalar dónde hacer click ([ShareX](https://getsharex.com/), Skitch)
-
-Mientras no existan los archivos, el README sigue siendo legible — GitHub muestra el
-alt text en su lugar.
-
----
-
-## 📚 Más documentación
-
-- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) — Detalle técnico de qué se despliega
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Diagrama y decisiones de diseño
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Soluciones a problemas
+**¿Problema con CloudFormation?** Chequea los logs:
+```bash
+aws cloudformation describe-stack-events \
+  --stack-name examlab-ec2-production \
+  --region us-east-1 | jq '.StackEvents[] | select(.ResourceStatus=="CREATE_FAILED")'
+```

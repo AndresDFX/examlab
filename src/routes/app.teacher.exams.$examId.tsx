@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { DateTimePicker } from "@/components/DatePicker";
 import {
   Select,
   SelectContent,
@@ -305,9 +304,11 @@ function ExamEditor() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Inicio</Label>
-                  <DateTimePicker
+                  <Input
+                    type="datetime-local"
                     value={toLocal(exam.start_time)}
-                    onChange={(start) => {
+                    onChange={(e) => {
+                      const start = e.target.value;
                       const startMs = new Date(start).getTime();
                       const currentEnd = exam.end_time ? new Date(exam.end_time).getTime() : 0;
                       const autoEnd =
@@ -329,9 +330,11 @@ function ExamEditor() {
                 </div>
                 <div>
                   <Label>Fin</Label>
-                  <DateTimePicker
+                  <Input
+                    type="datetime-local"
                     value={toLocal(exam.end_time)}
-                    onChange={(end) => {
+                    onChange={(e) => {
+                      const end = e.target.value;
                       const diffMin = exam.start_time
                         ? Math.max(
                             1,

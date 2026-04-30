@@ -820,6 +820,47 @@ export type Database = {
           },
         ]
       }
+      project_submission_attachments: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          mime_type: string | null
+          position: number
+          project_submission_file_id: string
+          size_bytes: number | null
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          position?: number
+          project_submission_file_id: string
+          size_bytes?: number | null
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          position?: number
+          project_submission_file_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_submission_attachments_project_submission_file_id_fkey"
+            columns: ["project_submission_file_id"]
+            isOneToOne: false
+            referencedRelation: "project_submission_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_submission_files: {
         Row: {
           ai_feedback: string | null

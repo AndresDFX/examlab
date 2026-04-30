@@ -18,7 +18,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot } from "lucide-react";
-import { SlotDeliverableView } from "@/components/SlotDeliverableView";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -29,6 +28,7 @@ export const Route = createFileRoute("/app/student/project/$projectId")({
 
 type ProjectLoaded = {
   id: string;
+  course_id: string;
   title: string;
   description: string | null;
   instructions: string | null;
@@ -55,27 +55,16 @@ type ProjectFile = {
   title: string;
   description: string | null;
   expected_rubric: string | null;
-  language: string | null;
   points: number;
 };
 
 type AnswerRow = {
-  id: string;
   file_id: string;
   content: string | null;
   ai_grade: number | null;
   ai_feedback: string | null;
   ai_likelihood: number | null;
   ai_reasons: string | null;
-};
-
-type AttachmentRow = {
-  id: string;
-  project_submission_file_id: string;
-  file_name: string;
-  storage_path: string;
-  mime_type: string | null;
-  size_bytes: number;
 };
 
 function StudentProjectDetail() {
@@ -88,9 +77,6 @@ function StudentProjectDetail() {
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [answersByFid, setAnswersByFid] = useState<Record<string, AnswerRow>>({});
-  // Attachments grouped by file slot id (not by psf id) for easy lookup at
-  // render time. Empty array means the slot was not submitted with files.
-  const [attachmentsByFid, setAttachmentsByFid] = useState<Record<string, AttachmentRow[]>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -99,44 +85,11 @@ function StudentProjectDetail() {
       setLoading(true);
       setError(null);
       try {
-        // Access check: a student can see a project if either
-        //   (a) it was assigned directly via `project_assignments`, or
-        //   (b) the project is linked to a course where the student is enrolled
-        //       (via `project_courses` ⨝ `course_enrollments`).
-        // Without (b) the listing page would show the project but this detail
-        // view would 403 — that mismatch was the bug being fixed.
-        const [{ data: asg }, { data: links }, { data: enrolls }] = await Promise.all([
-          db
-            .from("project_assignments")
-            .select("id")
-            .eq("project_id", projectId)
-            .eq("user_id", user.id)
-            .maybeSingle(),
-          db.from("project_courses").select("course_id").eq("project_id", projectId),
-          db.from("course_enrollments").select("course_id").eq("user_id", user.id),
-        ]);
-
-        if (cancelled) return;
-        const enrolledCourseIds = new Set(
-          ((enrolls ?? []) as { course_id: string }[]).map((e) => e.course_id),
-        );
-        const projectCourseIds = ((links ?? []) as { course_id: string }[]).map(
-          (l) => l.course_id,
-        );
-        const enrolledViaCourse = projectCourseIds.some((cid) => enrolledCourseIds.has(cid));
-
-        if (!asg && !enrolledViaCourse) {
-          setError("no_assignment");
-          setProject(null);
-          setSubmission(null);
-          return;
-        }
-
         const [{ data: pr, error: prErr }, { data: sub }, { data: fs }] = await Promise.all([
           db
             .from("projects")
             .select(
-              "id, title, description, instructions, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
+              "id, course_id, title, description, instructions, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
             )
             .eq("id", projectId)
             .single(),
@@ -150,7 +103,7 @@ function StudentProjectDetail() {
             .maybeSingle(),
           db
             .from("project_files")
-            .select("id, position, title, description, expected_rubric, language, points")
+            .select("id, position, title, description, expected_rubric, points")
             .eq("project_id", projectId)
             .order("position"),
         ]);
@@ -161,6 +114,32 @@ function StudentProjectDetail() {
           return;
         }
 
+        const [{ data: asg }, { data: linked }, { data: ownEnrollments }] = await Promise.all([
+          db
+            .from("project_assignments")
+            .select("id")
+            .eq("project_id", projectId)
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          db.from("project_courses").select("course_id").eq("project_id", projectId),
+          db.from("course_enrollments").select("course_id").eq("user_id", user.id),
+        ]);
+
+        const projectCourseIds = new Set<string>([
+          (pr as ProjectLoaded).course_id,
+          ...((linked ?? []) as { course_id: string }[]).map((row) => row.course_id),
+        ]);
+        const hasCourseAccess = ((ownEnrollments ?? []) as { course_id: string }[]).some((row) =>
+          projectCourseIds.has(row.course_id),
+        );
+
+        if (!asg && !hasCourseAccess) {
+          setError("no_assignment");
+          setProject(null);
+          setSubmission(null);
+          return;
+        }
+
         setProject(pr as ProjectLoaded);
         setSubmission(sub as SubmissionRow | null);
         setFiles((fs ?? []) as ProjectFile[]);
@@ -168,31 +147,11 @@ function StudentProjectDetail() {
         if (sub?.id) {
           const { data: ans } = await db
             .from("project_submission_files")
-            .select("id, file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons")
+            .select("file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons")
             .eq("submission_id", sub.id);
-          const answers = (ans ?? []) as AnswerRow[];
           const map: Record<string, AnswerRow> = {};
-          for (const a of answers) map[a.file_id] = a;
+          for (const a of (ans ?? []) as AnswerRow[]) map[a.file_id] = a;
           if (!cancelled) setAnswersByFid(map);
-
-          // Load attachments referenced by these submission_file rows.
-          if (answers.length) {
-            const psfIds = answers.map((a) => a.id);
-            const { data: atts } = await db
-              .from("project_submission_attachments")
-              .select(
-                "id, project_submission_file_id, file_name, storage_path, mime_type, size_bytes",
-              )
-              .in("project_submission_file_id", psfIds);
-            const psfToSlot = Object.fromEntries(answers.map((a) => [a.id, a.file_id]));
-            const grouped: Record<string, AttachmentRow[]> = {};
-            for (const a of (atts ?? []) as AttachmentRow[]) {
-              const slot = psfToSlot[a.project_submission_file_id];
-              if (!slot) continue;
-              (grouped[slot] ||= []).push(a);
-            }
-            if (!cancelled) setAttachmentsByFid(grouped);
-          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -204,7 +163,7 @@ function StudentProjectDetail() {
   }, [user, projectId]);
 
   if (!user) {
-    return <p className="text-muted-foreground p-6">{t("project.review.mustSignIn")}</p>;
+    return <p className="text-muted-foreground p-6">{t("exam.review.mustSignIn")}</p>;
   }
 
   if (loading) {
@@ -225,7 +184,7 @@ function StudentProjectDetail() {
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("project.review.noAccess")}
+            {t("exam.review.noAccess")}
           </CardContent>
         </Card>
       </div>
@@ -242,7 +201,7 @@ function StudentProjectDetail() {
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("project.review.notFound")}
+            {t("exam.review.notFound")}
           </CardContent>
         </Card>
       </div>
@@ -268,7 +227,7 @@ function StudentProjectDetail() {
       {!submission && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("project.review.noSubmission")}
+            {t("exam.review.noSubmission")}
           </CardContent>
         </Card>
       )}
@@ -300,13 +259,13 @@ function StudentProjectDetail() {
               <div className="flex items-center gap-2">
                 <MessageSquareText className="h-5 w-5 text-primary shrink-0" />
                 <div>
-                  <div className="font-medium">{t("project.review.globalResult")}</div>
+                  <div className="font-medium">{t("exam.review.globalResult")}</div>
                   <div className="text-xs text-muted-foreground">
                     {submission.submitted_at
-                      ? t("project.review.submittedAt", {
+                      ? t("exam.review.submittedAt", {
                           when: new Date(submission.submitted_at).toLocaleString(),
                         })
-                      : t("project.review.submittedNoDate")}
+                      : t("exam.review.submittedNoDate")}
                   </div>
                 </div>
               </div>
@@ -324,7 +283,7 @@ function StudentProjectDetail() {
           {(submission.teacher_feedback || submission.ai_feedback) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">{t("project.review.feedback")}</CardTitle>
+                <CardTitle className="text-base">{t("exam.review.feedback")}</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {[
@@ -373,19 +332,16 @@ function StudentProjectDetail() {
                         {f.description}
                       </div>
                     )}
-                    <SlotDeliverableView slot={f} attachments={attachmentsByFid[f.id] ?? []} />
-                    {!attachmentsByFid[f.id]?.length && ans?.content && ans.content.trim() && (
-                      // Legacy text-only submission (pre-attachments). Kept so old
-                      // submissions remain readable after the file-upload migration.
-                      <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
-                        {ans.content}
-                      </div>
-                    )}
+                    <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
+                      {ans?.content && ans.content.trim()
+                        ? ans.content
+                        : t("exam.review.noAnswer")}
+                    </div>
                     {ans?.ai_feedback && (
                       <div className="border-t pt-3">
                         <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
                           <span className="font-medium text-foreground block mb-1">
-                            {t("project.review.feedback")}
+                            {t("exam.review.feedback")}
                           </span>
                           <span className="text-muted-foreground whitespace-pre-wrap">
                             {ans.ai_feedback}

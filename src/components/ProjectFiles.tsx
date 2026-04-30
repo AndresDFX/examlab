@@ -210,9 +210,8 @@ export function TeacherProjectFilesEditor({
 
         <TabsContent value="manual" className="space-y-3">
           <div>
-            <Label required>Título del archivo</Label>
+            <Label>Título del archivo</Label>
             <Input
-              required
               value={fTitle}
               onChange={(e) => setFTitle(e.target.value)}
               placeholder="Ej.: Documento de diseño"
@@ -252,9 +251,8 @@ export function TeacherProjectFilesEditor({
 
         <TabsContent value="ai" className="space-y-3">
           <div>
-            <Label required>Tema del proyecto</Label>
+            <Label>Tema del proyecto</Label>
             <Textarea
-              required
               value={aiTopic}
               onChange={(e) => setAiTopic(e.target.value)}
               rows={3}
@@ -290,65 +288,6 @@ export function TeacherProjectFilesEditor({
 }
 
 /* =========================================================================
-   File-type helpers — accepted MIME/extension by slot `language`.
-   ========================================================================= */
-const STORAGE_BUCKET = "project-files";
-
-/**
- * Returns the comma-separated `accept` attribute for the file input based
- * on the slot's `language` field. Diagrams take Markdown only; coding slots
- * take the source extension; everything else falls back to text/Markdown
- * plus PDF (the most common deliverable formats).
- */
-function acceptedFor(language: string | null | undefined): string {
-  switch ((language ?? "").toLowerCase()) {
-    case "mermaid":
-    case "diagrama":
-    case "diagram":
-      return ".md,.markdown,text/markdown";
-    case "java":
-      return ".java,text/x-java-source";
-    case "python":
-    case "py":
-      return ".py,text/x-python";
-    case "javascript":
-    case "js":
-      return ".js,.mjs,text/javascript";
-    case "typescript":
-    case "ts":
-      return ".ts,.tsx";
-    case "csharp":
-    case "cs":
-      return ".cs";
-    case "cpp":
-    case "c++":
-      return ".cpp,.h,.hpp";
-    case "go":
-      return ".go";
-    case "ruby":
-      return ".rb";
-    case "php":
-      return ".php";
-    case "html":
-      return ".html,.htm,text/html";
-    case "css":
-      return ".css,text/css";
-    case "sql":
-      return ".sql";
-    default:
-      return ".md,.markdown,.txt,text/plain,text/markdown";
-  }
-}
-
-type Attachment = {
-  id?: string; // Set when persisted; absent for in-memory only
-  fileName: string;
-  storagePath: string;
-  mimeType: string | null;
-  sizeBytes: number;
-};
-
-/* =========================================================================
    STUDENT: Entrega del proyecto archivo por archivo + calificación IA
    ========================================================================= */
 export function StudentProjectTaker({
@@ -366,15 +305,9 @@ export function StudentProjectTaker({
 }) {
   const { user } = useAuth();
   const [files, setFiles] = useState<ProjectFile[]>([]);
-  // Attachments (uploaded files) per slot, keyed by slot id.
-  const [attachments, setAttachments] = useState<Record<string, Attachment[]>>({});
-  // Persisted submission_file ids per slot — needed to attach the
-  // attachments rows to the right submission_file via FK.
-  const [submissionFileIdBySlot, setSubmissionFileIdBySlot] = useState<Record<string, string>>({});
-  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [contents, setContents] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [graded, setGraded] = useState<{ grade: number } | null>(null);
 
   useEffect(() => {
@@ -386,8 +319,7 @@ export function StudentProjectTaker({
         .select("*")
         .eq("project_id", projectId)
         .order("position");
-      const slots = (fs ?? []) as ProjectFile[];
-      setFiles(slots);
+      setFiles((fs ?? []) as ProjectFile[]);
 
       const { data: sub } = await db
         .from("project_submissions")
@@ -397,51 +329,15 @@ export function StudentProjectTaker({
         .maybeSingle();
 
       if (sub?.id) {
-        setSubmissionId(sub.id);
-        const { data: psf } = await db
+        const { data: ans } = await db
           .from("project_submission_files")
-          .select("id, file_id")
+          .select("file_id, content")
           .eq("submission_id", sub.id);
-        const idMap: Record<string, string> = {};
-        for (const r of (psf ?? []) as { id: string; file_id: string }[]) {
-          idMap[r.file_id] = r.id;
+        const map: Record<string, string> = {};
+        for (const a of (ans ?? []) as { file_id: string; content: string | null }[]) {
+          map[a.file_id] = a.content ?? "";
         }
-        setSubmissionFileIdBySlot(idMap);
-
-        if (Object.keys(idMap).length) {
-          const { data: atts } = await db
-            .from("project_submission_attachments")
-            .select(
-              "id, project_submission_file_id, file_name, storage_path, mime_type, size_bytes, position",
-            )
-            .in("project_submission_file_id", Object.values(idMap))
-            .order("position");
-
-          const psfIdToSlot = Object.fromEntries(
-            Object.entries(idMap).map(([slot, psfId]) => [psfId, slot]),
-          );
-          const grouped: Record<string, Attachment[]> = {};
-          for (const a of (atts ?? []) as Array<{
-            id: string;
-            project_submission_file_id: string;
-            file_name: string;
-            storage_path: string;
-            mime_type: string | null;
-            size_bytes: number;
-          }>) {
-            const slot = psfIdToSlot[a.project_submission_file_id];
-            if (!slot) continue;
-            (grouped[slot] ||= []).push({
-              id: a.id,
-              fileName: a.file_name,
-              storagePath: a.storage_path,
-              mimeType: a.mime_type,
-              sizeBytes: a.size_bytes,
-            });
-          }
-          setAttachments(grouped);
-        }
-
+        setContents(map);
         if (sub.status === "calificado" && sub.final_grade != null) {
           setGraded({ grade: Number(sub.final_grade) });
         }
@@ -451,118 +347,8 @@ export function StudentProjectTaker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, user]);
 
-  /** Lazily ensures that there's a submission + a `project_submission_files`
-   *  row for this slot, so attachments can FK to a real id. */
-  const ensureSlotPsf = async (slotId: string): Promise<string> => {
-    if (!user) throw new Error("not_authenticated");
-    let subId = submissionId;
-    if (!subId) {
-      const { data: existing } = await db
-        .from("project_submissions")
-        .select("id")
-        .eq("project_id", projectId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (existing?.id) {
-        subId = existing.id;
-      } else {
-        const { data: created, error } = await db
-          .from("project_submissions")
-          .insert({ project_id: projectId, user_id: user.id, status: "borrador" })
-          .select("id")
-          .single();
-        if (error || !created) throw new Error(error?.message ?? "submission_failed");
-        subId = created.id;
-      }
-      setSubmissionId(subId);
-    }
-    const existingPsfId = submissionFileIdBySlot[slotId];
-    if (existingPsfId) return existingPsfId;
-    const { data: psf, error } = await db
-      .from("project_submission_files")
-      .upsert(
-        { submission_id: subId, file_id: slotId, content: null },
-        { onConflict: "submission_id,file_id" },
-      )
-      .select("id")
-      .single();
-    if (error || !psf) throw new Error(error?.message ?? "psf_failed");
-    setSubmissionFileIdBySlot((prev) => ({ ...prev, [slotId]: psf.id }));
-    return psf.id;
-  };
-
-  const onPickFiles = async (slot: ProjectFile, fileList: FileList | null) => {
-    if (!fileList || !fileList.length || !user) return;
-    setUploading((p) => ({ ...p, [slot.id]: true }));
-    try {
-      const psfId = await ensureSlotPsf(slot.id);
-      const newOnes: Attachment[] = [];
-      for (const f of Array.from(fileList)) {
-        if (f.size > 10 * 1024 * 1024) {
-          toast.error(`"${f.name}" excede 10 MB`);
-          continue;
-        }
-        const path = `${user.id}/${projectId}/${slot.id}/${Date.now()}-${f.name}`;
-        const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, f, {
-          contentType: f.type || undefined,
-          upsert: false,
-        });
-        if (upErr) {
-          toast.error(`Error subiendo ${f.name}: ${upErr.message}`);
-          continue;
-        }
-        const { data: row, error: rowErr } = await db
-          .from("project_submission_attachments")
-          .insert({
-            project_submission_file_id: psfId,
-            file_name: f.name,
-            storage_path: path,
-            mime_type: f.type || null,
-            size_bytes: f.size,
-            position: (attachments[slot.id]?.length ?? 0) + newOnes.length,
-          })
-          .select("id")
-          .single();
-        if (rowErr) {
-          toast.error(`Error registrando adjunto: ${rowErr.message}`);
-          continue;
-        }
-        newOnes.push({
-          id: row?.id,
-          fileName: f.name,
-          storagePath: path,
-          mimeType: f.type || null,
-          sizeBytes: f.size,
-        });
-      }
-      setAttachments((prev) => ({ ...prev, [slot.id]: [...(prev[slot.id] ?? []), ...newOnes] }));
-      if (newOnes.length) toast.success(`${newOnes.length} archivo(s) subido(s)`);
-    } finally {
-      setUploading((p) => ({ ...p, [slot.id]: false }));
-    }
-  };
-
-  const removeAttachment = async (slotId: string, att: Attachment) => {
-    if (att.id) {
-      await db.from("project_submission_attachments").delete().eq("id", att.id);
-    }
-    await supabase.storage.from(STORAGE_BUCKET).remove([att.storagePath]);
-    setAttachments((prev) => ({
-      ...prev,
-      [slotId]: (prev[slotId] ?? []).filter((a) => a.storagePath !== att.storagePath),
-    }));
-  };
-
-  /** Downloads the file content from storage to attach as plain text in the
-   *  AI grading payload. Binary files (e.g. images) get a placeholder note. */
-  const readAttachmentText = async (att: Attachment): Promise<string> => {
-    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(att.storagePath);
-    if (error || !data) return `[error leyendo ${att.fileName}]`;
-    try {
-      return await data.text();
-    } catch {
-      return `[archivo binario ${att.fileName} (${att.sizeBytes} bytes)]`;
-    }
+  const updateContent = (fileId: string, value: string) => {
+    setContents((prev) => ({ ...prev, [fileId]: value }));
   };
 
   const submit = async () => {
@@ -571,16 +357,28 @@ export function StudentProjectTaker({
       toast.error("Este proyecto no tiene archivos definidos");
       return;
     }
-    const empty = files.find((f) => !(attachments[f.id]?.length ?? 0));
+    const empty = files.find((f) => !(contents[f.id] ?? "").trim());
     if (empty) {
-      toast.error(`Falta subir al menos un archivo en: ${empty.title}`);
+      toast.error(`Falta contenido en: ${empty.title}`);
       return;
     }
     setSubmitting(true);
     try {
-      // Ensure submission exists and update status.
-      let subId = submissionId;
-      if (!subId) {
+      // Upsert project submission
+      let submissionId: string;
+      const { data: existing } = await db
+        .from("project_submissions")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (existing?.id) {
+        submissionId = existing.id;
+        await db
+          .from("project_submissions")
+          .update({ status: "entregado", submitted_at: new Date().toISOString() })
+          .eq("id", submissionId);
+      } else {
         const { data: created, error } = await db
           .from("project_submissions")
           .insert({
@@ -596,43 +394,24 @@ export function StudentProjectTaker({
           setSubmitting(false);
           return;
         }
-        subId = created.id;
-        setSubmissionId(subId);
-      } else {
-        await db
-          .from("project_submissions")
-          .update({ status: "entregado", submitted_at: new Date().toISOString() })
-          .eq("id", subId);
+        submissionId = created.id;
       }
 
-      // Grade each file slot.
+      // Grade each file slot one-by-one
       let totalEarned = 0;
       let totalPoints = 0;
 
       for (const f of files) {
+        const content = contents[f.id] ?? "";
         totalPoints += Number(f.points) || 0;
-        const slotAtts = attachments[f.id] ?? [];
-        // Concatenate all attachments in this slot with separators so the
-        // existing edge function (which expects a single `studentContent`
-        // string) sees all uploaded files at once.
-        const parts: string[] = [];
-        for (const a of slotAtts) {
-          const text = await readAttachmentText(a);
-          parts.push(`// === Archivo: ${a.fileName} ===\n${text}`);
-        }
-        const studentContent = parts.join("\n\n");
 
-        const psfId = await ensureSlotPsf(f.id);
         const payload: any = {
-          id: psfId,
-          submission_id: subId,
+          submission_id: submissionId,
           file_id: f.id,
-          // Persist the concatenated text snapshot so reviewers see what
-          // was sent to the AI without re-downloading every file.
-          content: studentContent.slice(0, 100_000),
+          content,
         };
 
-        if (!studentContent.trim()) {
+        if (!content.trim()) {
           payload.ai_grade = 0;
           payload.ai_feedback = "Sin contenido";
         } else {
@@ -645,7 +424,7 @@ export function StudentProjectTaker({
                 fileDescription: f.description,
                 expectedRubric: f.expected_rubric,
                 maxPoints: f.points,
-                studentContent,
+                studentContent: content,
                 courseLanguage,
               },
             },
@@ -680,7 +459,7 @@ export function StudentProjectTaker({
           ai_feedback: `Calificación automática inmediata sobre ${maxScore} pts.`,
           status: "calificado",
         })
-        .eq("id", subId);
+        .eq("id", submissionId);
 
       setGraded({ grade: finalGrade });
       onGraded?.(finalGrade);
@@ -724,90 +503,35 @@ export function StudentProjectTaker({
     <div className="space-y-4">
       <h3 className="font-semibold">{projectTitle}</h3>
       <p className="text-xs text-muted-foreground">
-        Sube los archivos correspondientes a cada entregable. Para diagramas,
-        sube un archivo <code>.md</code> con el bloque Mermaid; para código, el
-        archivo en su lenguaje (<code>.java</code>, <code>.py</code>, etc.).
-        Puedes subir varios archivos por entregable. Cuando envíes, la IA
-        calificará cada entregable según la rúbrica.
+        Pega el contenido de cada archivo en la caja correspondiente. Cuando envíes, la IA
+        calificará cada archivo según la rúbrica.
       </p>
-      {files.map((f, idx) => {
-        const isDiagramSlot =
-          f.language === "mermaid" || f.language === "diagrama" || f.language === "diagram";
-        const accept = acceptedFor(f.language);
-        const slotAtts = attachments[f.id] ?? [];
-        const isUploading = !!uploading[f.id];
-        return (
-          <Card key={f.id}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="text-[10px]">
-                  {idx + 1}
-                </Badge>
-                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>{f.title}</span>
-                {f.language && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {f.language}
-                  </Badge>
-                )}
-                <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {f.description && (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
-              )}
-
-              <div className="rounded-md border border-dashed p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    multiple
-                    accept={accept}
-                    onChange={(e) => {
-                      void onPickFiles(f, e.target.files);
-                      e.target.value = "";
-                    }}
-                    disabled={isUploading}
-                    className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground hover:file:opacity-90 file:cursor-pointer"
-                  />
-                  {isUploading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Aceptados: <code>{accept}</code> · Máx 10 MB por archivo
-                  {isDiagramSlot && (
-                    <> · Pega el código Mermaid dentro de un <code>.md</code></>
-                  )}
-                </p>
-              </div>
-
-              {slotAtts.length > 0 && (
-                <ul className="divide-y rounded-md border">
-                  {slotAtts.map((a) => (
-                    <li key={a.storagePath} className="flex items-center gap-2 p-2 text-xs">
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="font-medium truncate flex-1" title={a.fileName}>
-                        {a.fileName}
-                      </span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {(a.sizeBytes / 1024).toFixed(1)} KB
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => void removeAttachment(f.id, a)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+      {files.map((f, idx) => (
+        <Card key={f.id}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-[10px]">
+                {idx + 1}
+              </Badge>
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{f.title}</span>
+              <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {f.description && (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
+            )}
+            <Textarea
+              rows={10}
+              value={contents[f.id] ?? ""}
+              onChange={(e) => updateContent(f.id, e.target.value)}
+              placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
+              className="font-mono text-xs"
+            />
+          </CardContent>
+        </Card>
+      ))}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         <Button onClick={submit} disabled={submitting} className="w-full">
           {submitting ? (

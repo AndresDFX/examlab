@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DateTimePicker } from "@/components/DatePicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -317,9 +316,8 @@ function TeacherExams() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label required>{t("common.title")}</Label>
+              <Label>{t("common.title")}</Label>
               <Input
-                required
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
@@ -363,11 +361,12 @@ function TeacherExams() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label required>{t("common.start")}</Label>
-                <DateTimePicker
-                  required
+                <Label>{t("common.start")}</Label>
+                <Input
+                  type="datetime-local"
                   value={form.start_time as any}
-                  onChange={(start) => {
+                  onChange={(e) => {
+                    const start = e.target.value;
                     const startMs = new Date(start).getTime();
                     // Auto-set end to start + 1h if end is empty or not after start
                     const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
@@ -389,11 +388,12 @@ function TeacherExams() {
                 />
               </div>
               <div>
-                <Label required>{t("common.end")}</Label>
-                <DateTimePicker
-                  required
+                <Label>{t("common.end")}</Label>
+                <Input
+                  type="datetime-local"
                   value={form.end_time as any}
-                  onChange={(end) => {
+                  onChange={(e) => {
+                    const end = e.target.value;
                     const diffMin = form.start_time
                       ? Math.max(
                           1,

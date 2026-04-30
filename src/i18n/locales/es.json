@@ -310,27 +310,5 @@
     "submit": "Entregar",
     "submitting": "Entregando…",
     "aiGradedNotice": "La calificación fue generada automáticamente por IA al enviar el taller. Si necesita una revisión manual, contacte a su docente."
-  },
-  "project": {
-    "start": "Iniciar proyecto",
-    "submit": "Enviar proyecto",
-    "submitting": "Enviando…",
-    "submitted": "Entregado",
-    "available": "Disponible",
-    "upcoming": "Próximo",
-    "closed": "Cerrado",
-    "windowClosedHelp": "El periodo de entrega del proyecto ya finalizó. Si necesitas ayuda, contacta a tu docente.",
-    "viewDetail": "Ver detalle y retroalimentación",
-    "review": {
-      "mustSignIn": "Debes iniciar sesión para ver el proyecto.",
-      "noAccess": "No tienes acceso a este proyecto o no está asignado a tu cuenta.",
-      "notFound": "Proyecto no encontrado.",
-      "noSubmission": "Aún no has enviado este proyecto.",
-      "globalResult": "Resultado del proyecto",
-      "submittedAt": "Entregado el {{when}}",
-      "submittedNoDate": "Entregado",
-      "feedback": "Retroalimentación",
-      "noAnswer": "Sin contenido entregado."
-    }
   }
 }

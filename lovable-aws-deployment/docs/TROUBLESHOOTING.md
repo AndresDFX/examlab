@@ -1,266 +1,621 @@
-# 🔧 Troubleshooting
+# 🔧 Troubleshooting - Solución de problemas
 
-Guía para resolver problemas durante el despliegue de proyectos Lovable en AWS.
+Guía para resolver problemas comunes durante despliegue y operación.
+
+## 🎯 Árbol de decisión de problemas
+
+```mermaid
+graph TD
+    A["¿Cuál es el problema?"]
+    
+    B1["CloudShell<br/>o setup"]
+    B2["Despliegue<br/>CloudFormation"]
+    B3["EC2<br/>aplicación"]
+    B4["Database<br/>RDS"]
+    B5["Networking<br/>conectividad"]
+    B6["Seguridad<br/>permisos"]
+    
+    A --> B1
+    A --> B2
+    A --> B3
+    A --> B4
+    A --> B5
+    A --> B6
+    
+    B1 --> C1["→ Sección: Setup Issues"]
+    B2 --> C2["→ Sección: CloudFormation Issues"]
+    B3 --> C3["→ Sección: EC2 Issues"]
+    B4 --> C4["→ Sección: Database Issues"]
+    B5 --> C5["→ Sección: Network Issues"]
+    B6 --> C6["→ Sección: Security Issues"]
+    
+    style A fill:#FF9900,stroke:#333,color:#000
+    style C1 fill:#4A90E2,stroke:#333,color:#fff
+    style C2 fill:#4A90E2,stroke:#333,color:#fff
+    style C3 fill:#4A90E2,stroke:#333,color:#fff
+    style C4 fill:#4A90E2,stroke:#333,color:#fff
+    style C5 fill:#4A90E2,stroke:#333,color:#fff
+    style C6 fill:#4A90E2,stroke:#333,color:#fff
+```
 
 ---
 
-## 🚦 Diagnóstico rápido
+## 🔨 CloudShell Setup Issues
 
-### 1. Conectarse a la EC2 (sin SSH key)
+### ❌ "git: command not found"
 
 ```bash
-aws ssm start-session --target <INSTANCE_ID> --region us-east-1
+# Git debería estar pre-instalado en CloudShell
+# Si no está:
+yum install -y git
+
+# Verificar
+git --version
+# Debe mostrar: git version 2.x.x
 ```
 
-> El `<INSTANCE_ID>` aparece en los outputs del CloudFormation o en el archivo `~/<proyecto>-deployment-info.txt` generado por `deploy.sh`.
-
-### 2. Comandos de diagnóstico esenciales
+### ❌ "cloudshell-setup.sh: permission denied"
 
 ```bash
-# Estado del setup completo
-sudo tail -100 /var/log/user-data.log
+# Hacer executable
+chmod +x cloudshell-setup.sh
 
-# Estado del servicio de la app
-sudo systemctl status lovable-app.service --no-pager
-sudo tail -50 /var/log/lovable-app.log
+# Ejecutar
+bash cloudshell-setup.sh
+```
 
-# Estado de Supabase
-cd /opt/supabase
-sudo docker compose ps
-sudo docker compose logs --tail 50 kong
+### ❌ "Cannot add key to GitHub"
 
-# Conectividad local
-curl http://localhost:3000   # App
-curl http://localhost:8000   # Supabase Kong
+**Sin token (modo manual):**
+```bash
+# 1. Ver la clave pública
+cat ~/.ssh/examlab-production.pub
 
-# Recursos del sistema
-df -h     # disco
-free -h   # RAM
-top -bn1  # CPU
+# 2. Copiar output completo
+
+# 3. Ir a: https://github.com/settings/keys
+
+# 4. Click "New SSH key"
+
+# 5. Pegar y guardar
+```
+
+**Con token (modo automático):**
+```bash
+# Necesitas un GitHub Personal Access Token
+# Crear en: https://github.com/settings/tokens
+
+# Cuando pida token durante setup, pegarlo
+# O configurar como variable:
+export GITHUB_TOKEN="ghp_..."
+bash cloudshell-setup.sh
+```
+
+### ❌ "DB_PASSWORD validation failed"
+
+```bash
+# cloudshell-vars.env requiere:
+# - Mínimo 8 caracteres
+# - Letras y números
+
+# ✅ Válidos:
+DB_PASSWORD="ExamLab2024"
+DB_PASSWORD="Test123456"
+
+# ❌ Inválidos:
+DB_PASSWORD="abc"              # Muy corto
+DB_PASSWORD="OnlyLetters"      # Sin números
+DB_PASSWORD="123456789"        # Solo números
+```
+
+### ❌ "SSH key already exists"
+
+```bash
+# Si el archivo ya existe:
+rm ~/.ssh/examlab-production.pem
+rm ~/.ssh/examlab-production.pub
+
+# Luego ejecuta setup de nuevo
+bash cloudshell-setup.sh
 ```
 
 ---
 
-## ⚠️ Problemas comunes
+## 🏗️ CloudFormation Issues
 
-### A. La app muestra "Missing Supabase environment variables"
+### ❌ "Stack creation failed"
 
-**Causa:** el archivo `/opt/lovable-app/.env` no se generó correctamente, o el systemd service no lo lee.
+**Diagnóstico:**
+```bash
+# Ver eventos de error
+aws cloudformation describe-stack-events \
+  --stack-name examlab-vpc-production \
+  --region us-east-1 \
+  | jq '.StackEvents[] | select(.ResourceStatus=="CREATE_FAILED")'
 
-**Solución:**
+# Ver por sección
+aws cloudformation describe-stacks \
+  --stack-name examlab-vpc-production \
+  --region us-east-1 \
+  --query 'Stacks[0].StackStatus'
+```
+
+**Causas comunes:**
+
+```mermaid
+graph TD
+    A["Stack creation failed"]
+    
+    B1["VPC CIDR conflict"]
+    B2["Insufficient permissions"]
+    B3["Resource limit reached"]
+    B4["Invalid parameter"]
+    
+    A --> B1
+    A --> B2
+    A --> B3
+    A --> B4
+    
+    B1 --> C1["Cambiar CIDR<br/>en vpc-stack.yaml"]
+    B2 --> C2["Check IAM permissions<br/>aws iam get-user"]
+    B3 --> C3["Request limit increase<br/>AWS support"]
+    B4 --> C4["Validar parámetros<br/>en parameters.json"]
+    
+    style A fill:#FF4444,stroke:#333,color:#fff
+    style B1 fill:#FF6666,stroke:#333,color:#fff
+    style B2 fill:#FF6666,stroke:#333,color:#fff
+    style B3 fill:#FF6666,stroke:#333,color:#fff
+    style B4 fill:#FF6666,stroke:#333,color:#fff
+```
+
+### ❌ "VPC CIDR 10.0.0.0/16 already exists"
 
 ```bash
-# 1. Verificar que .env existe y tiene las variables
-sudo cat /opt/lovable-app/.env
-# Debe mostrar VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY
+# Cambiar en cloudshell-vars.env
+# O en vpc-stack.yaml, buscar:
+CidrBlock: 10.0.0.0/16
+
+# Cambiar a:
+CidrBlock: 10.1.0.0/16
+
+# Redeploy
+bash scripts/deploy-cf.sh
+```
+
+### ❌ "Timeout waiting for stack"
+
+```bash
+# CloudFormation puede tardar hasta 15 min
+# Esperar es normal para EC2 + RDS
+
+# Ver progreso
+aws cloudformation list-stacks \
+  --stack-status-filter CREATE_IN_PROGRESS \
+  --region us-east-1
+
+# Cancelar si es necesario (último recurso)
+aws cloudformation cancel-update-stack \
+  --stack-name examlab-ec2-production \
+  --region us-east-1
+```
+
+### ❌ "Stack rollback complete"
+
+```bash
+# Stack falló y hizo rollback
+# Acciones:
+
+# 1. Revisar qué falló
+aws cloudformation describe-stack-events \
+  --stack-name examlab-ec2-production \
+  | jq '.StackEvents[] | select(.ResourceStatus | contains("FAILED"))'
+
+# 2. Eliminar stack fallido
+aws cloudformation delete-stack \
+  --stack-name examlab-ec2-production \
+  --region us-east-1
+
+# 3. Esperar a que se elimine
+aws cloudformation wait stack-delete-complete \
+  --stack-name examlab-ec2-production
+
+# 4. Fijar el problema y redeploy
+nano cloudshell-vars.env        # Revisar variables
+bash scripts/deploy-cf.sh       # Redeploy
+```
+
+---
+
+## 🖥️ EC2 Issues
+
+### ❌ "ALB responde 502 Bad Gateway"
+
+**Normal durante primeros 3-5 minutos.** EC2 está iniciando.
+
+```bash
+# 1. Esperar 5 minutos
+sleep 300
+
+# 2. Verificar estado de EC2
+aws ec2 describe-instances \
+  --filters "Name=tag:aws:cloudformation:stack-name,Values=examlab-ec2-production" \
+  --region us-east-1 \
+  --query 'Reservations[0].Instances[0].State.Name'
+# Debe mostrar: "running"
+
+# 3. Conectar a EC2 y revisar logs
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+
+# En EC2:
+sudo tail -f /var/log/examlab/app.log
+# O
+sudo systemctl status examlab
+```
+
+### ❌ "502 Bad Gateway persiste después de 5 min"
+
+```bash
+# Conectar a EC2
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+
+# Ver estado de servicios
+sudo systemctl status nginx
+sudo systemctl status examlab
+
+# Ver logs
+sudo tail -100 /var/log/examlab/app.log
+sudo tail -100 /var/log/nginx/error.log
+
+# Reiniciar si es necesario
+sudo systemctl restart examlab
+sudo systemctl restart nginx
+
+# Ver si responde localmente
+curl http://localhost:3000/health
+# Debe responder: {"status":"ok"}
+```
+
+### ❌ "Cannot SSH to EC2"
+
+```bash
+# 1. Obtener DNS del ALB
+ALB_DNS=$(aws cloudformation describe-stacks \
+  --stack-name examlab-ec2-production \
+  --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`ALBDNSName`].OutputValue' \
+  --output text)
+
+echo $ALB_DNS
+
+# 2. Probar SSH
+ssh -i ~/.ssh/examlab-production.pem ec2-user@$ALB_DNS
+
+# 3. Si falla: verificar Security Group
+aws ec2 describe-security-groups \
+  --filters "Name=tag:aws:cloudformation:stack-name,Values=examlab-ec2-production" \
+  --region us-east-1 \
+  --query 'SecurityGroups[0].IpPermissions'
+# Debe haber puerto 22 abierto desde 0.0.0.0/0
+```
+
+### ❌ "Application logs are empty"
+
+```bash
+# En EC2:
+ls -la /var/log/examlab/
+
+# Si el directorio no existe, crear
+sudo mkdir -p /var/log/examlab
+sudo chown -R ec2-user:ec2-user /var/log/examlab
+sudo chmod 755 /var/log/examlab
+
+# Reiniciar aplicación
+sudo systemctl restart examlab
+
+# Ver logs
+sudo tail -f /var/log/examlab/app.log
+```
+
+### ❌ "Too many open files"
+
+```bash
+# En EC2, aumentar file descriptors
+sudo sysctl -w fs.file-max=2097152
+sudo sysctl -w net.ipv4.tcp_max_syn_backlog=4096
+
+# Persistente (agregar a /etc/sysctl.conf):
+fs.file-max=2097152
+net.ipv4.tcp_max_syn_backlog=4096
+
+# Aplicar
+sudo sysctl -p
+
+# Reiniciar aplicación
+sudo systemctl restart examlab
+```
+
+---
+
+## 💾 Database Issues
+
+### ❌ "Cannot connect to RDS"
+
+```bash
+# 1. Obtener endpoint RDS
+RDS_ENDPOINT=$(aws cloudformation describe-stacks \
+  --stack-name examlab-rds-production \
+  --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`RDSEndpoint`].OutputValue' \
+  --output text)
+
+echo $RDS_ENDPOINT
+
+# 2. Desde CloudShell (directamente)
+nc -zv $RDS_ENDPOINT 5432
+# Debe mostrar: succeeded
+
+# 3. Desde EC2 (via SSH)
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+nc -zv $RDS_ENDPOINT 5432
+```
+
+### ❌ "Connection refused"
+
+```bash
+# Problema: Security Group no permite tráfico
+
+# 1. Verificar que EC2 está en el SG correcto
+aws ec2 describe-instances \
+  --filters "Name=tag:aws:cloudformation:stack-name,Values=examlab-ec2-production" \
+  --region us-east-1 \
+  --query 'Reservations[0].Instances[0].SecurityGroups'
+
+# 2. Obtener SG de RDS
+aws ec2 describe-security-groups \
+  --filters "Name=tag:aws:cloudformation:stack-name,Values=examlab-rds-production" \
+  --region us-east-1
+
+# 3. Editar RDS SG para permitir desde EC2 SG
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-xxxxx \
+  --protocol tcp \
+  --port 5432 \
+  --source-group sg-yyyyy
+```
+
+### ❌ "Database locked / deadlock"
+
+```bash
+# En RDS, ver conexiones activas
+psql -h $RDS_ENDPOINT -U postgres -d examlab
+
+# En la DB:
+SELECT * FROM pg_stat_activity WHERE state != 'idle';
+
+# Matar sesión problem
+SELECT pg_terminate_backend(pid) 
+FROM pg_stat_activity 
+WHERE pid <> pg_backend_pid();
+```
+
+### ❌ "Disk space full"
+
+```bash
+# En RDS, ver tamaño
+SELECT pg_size_pretty(pg_database_size(current_database()));
+
+# RDS tiene auto-scaling, pero si llega al máximo:
+# 1. Ir a AWS RDS Console
+# 2. Modifier DB instance
+# 3. Aumentar "Allocated storage"
+
+# O reducir datos:
+DELETE FROM table_name WHERE condition;
+VACUUM FULL;
+```
+
+---
+
+## 🌐 Network Issues
+
+### ❌ "Cannot reach application from internet"
+
+**Árbol de diagnóstico:**
+
+```mermaid
+graph TD
+    A["No puedo acceder<br/>a la app"]
+    
+    B1["¿ALB responde?"]
+    B2["¿EC2 instances<br/>healthy?"]
+    B3["¿Nginx corriendo?"]
+    B4["¿Node.js app<br/>corriendo?"]
+    
+    A --> B1
+    B1 -->|Sí| B2
+    B1 -->|No| C1["→ Revisar Security Group ALB"]
+    
+    B2 -->|Sí| B3
+    B2 -->|No| C2["→ EC2 iniciando o error"]
+    
+    B3 -->|Sí| B4
+    B3 -->|No| C3["→ Reiniciar Nginx<br/>sudo systemctl restart nginx"]
+    
+    B4 -->|Sí| C4["✅ Debe funcionar<br/>Espera o revisa DNS"]
+    B4 -->|No| C5["→ Revisar logs app<br/>sudo tail -f /var/log/examlab/app.log"]
+    
+    style A fill:#FF4444,stroke:#333,color:#fff
+    style C4 fill:#00CC00,stroke:#333,color:#000
+```
+
+**Verificación paso a paso:**
+
+```bash
+# 1. ¿ALB responde?
+curl http://<alb-dns>/
+# Si 502: EC2 no está ready
+# Si timeout: Security Group no permite 80
+
+# 2. ¿EC2 instances healthy?
+aws elbv2 describe-target-health \
+  --target-group-arn arn:aws:elasticloadbalancing:... \
+  --region us-east-1
+
+# 3. SSH y revisar
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+curl http://localhost:3000/health
+
+# 4. Ver logs
+sudo tail -f /var/log/examlab/app.log
+sudo tail -f /var/log/nginx/error.log
+```
+
+### ❌ "High latency / slow responses"
+
+```bash
+# 1. Ver CPU/Memory EC2
+aws cloudwatch get-metric-statistics \
+  --metric-name CPUUtilization \
+  --namespace AWS/EC2 \
+  --start-time 2024-04-28T00:00:00Z \
+  --end-time 2024-04-28T23:59:59Z \
+  --period 300 \
+  --statistics Average \
+  --dimensions Name=InstanceId,Value=i-xxxxx
+
+# 2. Ver conexiones DB
+# En EC2:
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+psql -h $RDS_ENDPOINT -U postgres
+SELECT count(*) FROM pg_stat_activity;
+
+# 3. Slow queries
+SELECT query, mean_time 
+FROM pg_stat_statements 
+ORDER BY mean_time DESC LIMIT 10;
+```
+
+---
+
+## 🔐 Security Issues
+
+### ❌ "Permission denied for AWS CLI commands"
+
+```bash
+# Problema: No tienes permisos IAM
+
+# En CloudShell, verificar identidad
+aws sts get-caller-identity
+
+# Debe mostrar:
+{
+  "UserId": "AIDAI...",
+  "Account": "123456789",
+  "Arn": "arn:aws:iam::123456789:user/..."
+}
+
+# Si no tienes acceso:
+# Pedir a admin que agregue permisos
+```
+
+### ❌ "SSH key rejected"
+
+```bash
+# 1. Verificar que tienes la clave privada
+ls -la ~/.ssh/examlab-production.pem
+# Debe existir y tener permisos 600
 
 # 2. Si no existe, regenerar
-sudo cat /root/lovable-app-credentials.txt   # Obtener ANON_KEY
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-sudo bash -c "cat > /opt/lovable-app/.env << EOF
-VITE_SUPABASE_URL=http://$PUBLIC_IP:8000
-VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY del archivo de credenciales>
-NODE_ENV=production
-PORT=3000
-HOST=0.0.0.0
-EOF"
+chmod 600 ~/.ssh/examlab-production.pem
 
-# 3. Reiniciar
-sudo systemctl restart lovable-app.service
+# 3. Verificar que key está en EC2
+# En CloudShell:
+aws ec2 describe-key-pairs \
+  --key-names examlab-production \
+  --region us-east-1
+
+# 4. Si falta, reimportar
+aws ec2 import-key-pair \
+  --key-name examlab-production \
+  --public-key-material fileb://~/.ssh/examlab-production.pub \
+  --region us-east-1
+```
+
+### ❌ "Secrets Manager access denied"
+
+```bash
+# Si usas Secrets Manager para API keys
+
+# 1. Verificar que secret existe
+aws secretsmanager get-secret-value \
+  --secret-id examlab/anthropic-key \
+  --region us-east-1
+
+# 2. Si no existe, crear
+aws secretsmanager create-secret \
+  --name examlab/anthropic-key \
+  --secret-string '{"api_key":"sk-ant-..."}' \
+  --region us-east-1
+
+# 3. Verificar que EC2 puede acceder
+# En EC2, ejecutar:
+aws secretsmanager get-secret-value \
+  --secret-id examlab/anthropic-key \
+  --region us-east-1
 ```
 
 ---
 
-### B. Supabase no levanta
+## ✅ Health Check Workflow
 
-**Verificar:**
-
-```bash
-cd /opt/supabase
-sudo docker compose ps
-```
-
-Si algunos contenedores están en `Exited` o `Restarting`:
+**Uso recomendado:**
 
 ```bash
-sudo docker compose logs <nombre-servicio>
-# ej: sudo docker compose logs db
-```
+# Después de despliegue
+bash scripts/health-check.sh
 
-**Causas frecuentes:**
+# Guardarlo en archivo
+bash scripts/health-check.sh > health-check-$(date +%Y%m%d_%H%M%S).log
 
-| Síntoma | Causa | Solución |
-|---------|-------|----------|
-| `OOM killed` | Falta de RAM | Cambiar instance type a `t3.large` |
-| `no space left on device` | Disco lleno | Aumentar `VolumeSize` en CloudFormation o `sudo docker system prune -a` |
-| `password authentication failed` | Variables `.env` mal generadas | Revisar `/opt/supabase/.env` |
-| `port already in use` | Otro proceso en 5432/8000 | `sudo ss -tlnp \| grep <puerto>` |
-
-**Reiniciar Supabase:**
-
-```bash
-cd /opt/supabase
-sudo docker compose down
-sudo docker compose up -d
+# Monitoreo periódico
+watch -n 60 'bash scripts/health-check.sh'
 ```
 
 ---
 
-### C. El user-data se quedó a mitad
+## 🆘 Escalar el problema
+
+Si nada funciona:
 
 ```bash
-sudo tail -200 /var/log/user-data.log
-```
+# 1. Recopilar información
+bash scripts/health-check.sh > diagnosis.log 2>&1
+aws cloudformation describe-stacks --region us-east-1 >> diagnosis.log 2>&1
+aws ec2 describe-instances --region us-east-1 >> diagnosis.log 2>&1
 
-Identifica en qué paso se detuvo:
+# 2. Guardar logs EC2
+ssh -i ~/.ssh/examlab-production.pem ec2-user@<alb-dns>
+sudo journalctl -n 100 >> ~/ec2-logs.txt 2>&1
+sudo tail -100 /var/log/examlab/app.log >> ~/ec2-logs.txt 2>&1
 
-| Paso | Componente | Si falla aquí... |
-|------|-----------|------------------|
-| `[1/9]` | apt-get update / dependencias | Problema de red o repos |
-| `[2/9]` | Node.js 20 | Repo NodeSource caído |
-| `[3/9]` | Docker | Repo de Docker caído |
-| `[4/9]` | Esperar EIP | EIP no se asoció (60 reintentos × 5s = 5 min) |
-| `[5/9]` | Descargar de S3 | IAM role sin permisos, o key mal pasada |
-| `[6/9]` | Setup Supabase | Falla `git clone` o `docker compose up` |
-| `[7/9]` | Migraciones | Errores SQL — revisar logs específicos |
-| `[8/9]` | npm install | Network issue, o problema en `package.json` |
-| `[9/9]` | systemd service | Problema con definición del unit file |
-
-**Re-ejecutar manualmente:**
-
-Si el script falló a mitad, normalmente es más rápido recrear el stack:
-
-```bash
-aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
-bash deploy.sh
+# 3. Contactar con soporte con:
+# - diagnosis.log
+# - ec2-logs.txt
+# - cloudshell-vars.env (sin passwords)
+# - Descripción del problema y pasos para reproducir
 ```
 
 ---
 
-### D. El stack falla en CREATE
+## 📋 Quick reference
 
-```bash
-aws cloudformation describe-stack-events \
-  --stack-name lovable-app-stack \
-  --region us-east-1 \
-  --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`].[LogicalResourceId,ResourceStatusReason]' \
-  --output table
-```
+| Problema | Comando | Resultado esperado |
+|----------|---------|-------------------|
+| ¿ALB responde? | `curl http://<alb-dns>/` | HTTP 200 o 502 (normal primeros 5min) |
+| ¿EC2 running? | `aws ec2 describe-instances` | State: "running" |
+| ¿RDS conectado? | `nc -zv <rds> 5432` | succeeded |
+| ¿App corriendo? | `ssh ... curl localhost:3000/health` | {"status":"ok"} |
+| ¿Logs disponibles? | `sudo tail -f /var/log/examlab/app.log` | Output actual |
+| ¿Permisos OK? | `aws sts get-caller-identity` | Arn válido |
+| ¿Stack status? | `aws cloudformation list-stacks` | CREATE_COMPLETE |
 
-**Errores típicos:**
-
-#### `Image not found` / `InvalidAMIID.NotFound`
-La AMI Ubuntu cambió. Re-ejecuta `deploy.sh` (busca dinámicamente la AMI más reciente).
-
-#### `KeyPair X already exists`
-```bash
-aws ec2 delete-key-pair --key-name lovable-app-key --region us-east-1
-bash deploy.sh
-```
-
-#### `BucketAlreadyOwnedByYou`
-El bucket existe del deploy anterior. No es un error real, CloudFormation lo ignora.
-
-#### `BucketAlreadyExists`
-Otro usuario en AWS tomó el nombre del bucket globalmente. Cambia `PROJECT_NAME`.
-
-#### `LimitExceeded: Address limit exceeded`
-La cuenta llegó al límite de Elastic IPs (5 por defecto). Libera unas o pide aumento.
-
----
-
-### E. La app responde 404 / no carga
-
-**Verificar la cadena completa:**
-
-```bash
-# 1. ¿El servicio está corriendo?
-sudo systemctl status lovable-app.service
-
-# 2. ¿Está escuchando en :3000?
-sudo ss -tlnp | grep 3000
-# Debería mostrar: LISTEN ... :3000 ... node
-
-# 3. ¿Responde local?
-curl http://localhost:3000
-
-# 4. ¿El security group permite puerto 3000?
-aws ec2 describe-security-groups \
-  --filters "Name=group-name,Values=lovable-app-sg" \
-  --region us-east-1 \
-  --query 'SecurityGroups[0].IpPermissions[?FromPort==`3000`]'
-```
-
-Si todo lo anterior está OK pero no llegas desde tu navegador:
-- Revisa que estés usando el **puerto 3000** en la URL: `http://<IP>:3000`
-- Revisa firewalls corporativos (puerto 3000 a veces está bloqueado)
-
----
-
-### F. CORS errors en el navegador
-
-La app llama al Supabase API con la `VITE_SUPABASE_URL` configurada. Si la URL apunta a una IP distinta de la que ves en el navegador, habrá CORS.
-
-**Solución:**
-
-```bash
-# Verificar que VITE_SUPABASE_URL == la IP que estás usando en el browser
-sudo cat /opt/lovable-app/.env
-
-# Si no coincide, regenera y reinicia
-```
-
----
-
-### G. Errores de migraciones SQL
-
-```bash
-# Ver migraciones aplicadas
-sudo grep -A2 "Applying:" /var/log/user-data.log
-
-# Aplicar manualmente una migración
-docker exec -i supabase-db psql -U postgres -d postgres < /opt/$PROJECT_NAME/supabase/migrations/0001_init.sql
-```
-
-Si una migración falla por dependencias entre archivos, revisa el orden alfabético — las migraciones de Supabase se aplican en orden alfabético del nombre del archivo.
-
----
-
-## 🔍 Logs en CloudWatch
-
-Si necesitas ver los logs sin conectarte a la EC2:
-
-```bash
-aws logs tail /aws/ec2/lovable-app --follow --region us-east-1
-```
-
-> El user-data actual no envía automáticamente a CloudWatch. Si lo necesitas, instala el CloudWatch Agent (no incluido en este template para mantenerlo simple).
-
----
-
-## 🚨 Restart total
-
-Si todo está roto y quieres empezar limpio:
-
-```bash
-# 1. Eliminar stack completo (toma ~5 min)
-aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
-
-# 2. (Opcional) Limpiar bucket S3
-BUCKET=$(aws s3 ls | grep lovable-app-deploy | awk '{print $3}')
-aws s3 rm "s3://$BUCKET" --recursive
-
-# 3. Re-desplegar
-cd ~/examlab/lovable-aws-deployment
-bash deploy.sh
-```
-
----
-
-## 📚 Más
-
-- [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) — Guía completa
-- [README.md](../README.md) — Inicio rápido
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Arquitectura detallada

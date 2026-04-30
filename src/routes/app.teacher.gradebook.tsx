@@ -23,17 +23,16 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
+  Download,
   GitBranch,
   FileText,
   Hammer,
-  FolderKanban,
   Save,
   Loader2,
   Scale,
   AlertTriangle,
 } from "lucide-react";
-import { toCSV } from "@/lib/csv";
-import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { downloadCSV, toCSV } from "@/lib/csv";
 import {
   computeCutGrade,
   computeCourseFinalGrade,
@@ -92,7 +91,6 @@ type Cut = {
 type AttSession = { id: string; session_date: string };
 type AttRecord = { session_id: string; user_id: string; status: string };
 type ProjectSub = {
-  id: string;
   project_id: string;
   user_id: string;
   ai_grade: number | null;
@@ -122,11 +120,11 @@ type WsSub = {
   status: string;
 };
 
-/** A column in the grid — exam, workshop or project. */
+/** A column in the grid — either an exam or a workshop */
 type GradeColumn = {
   id: string;
   title: string;
-  kind: "exam" | "workshop" | "project";
+  kind: "exam" | "workshop";
   parentExamId?: string | null;
   maxScore?: number;
 };
@@ -194,27 +192,11 @@ function Gradebook() {
       .eq("course_id", courseId)
       .order("position");
 
-    // Proyectos: a project may belong to several courses via `project_courses`
-    // (many-to-many link table). Filter projects.course_id directly would miss
-    // any project whose primary course is different but is also linked to the
-    // current course. Same pattern used in `app.student.projects.tsx`.
-    const { data: pcLinks } = await db
-      .from("project_courses")
-      .select("project_id")
+    // Proyectos
+    const { data: projectsData } = await db
+      .from("projects")
+      .select("id, title, course_id, max_score, cut_id")
       .eq("course_id", courseId);
-    const linkedProjectIds = ((pcLinks ?? []) as { project_id: string }[]).map(
-      (r) => r.project_id,
-    );
-
-    let projectsData: Project[] = [];
-    if (linkedProjectIds.length) {
-      const { data: pData } = await db
-        .from("projects")
-        .select("id, title, course_id, max_score, cut_id")
-        .in("id", linkedProjectIds)
-        .neq("status", "draft");
-      projectsData = (pData ?? []) as Project[];
-    }
 
     // Sesiones de asistencia
     const { data: sessions } = await db
@@ -225,11 +207,10 @@ function Gradebook() {
     setAllExams((exams ?? []) as Exam[]);
     setAllWorkshops((workshops ?? []) as Workshop[]);
     setCuts((cutsData ?? []) as Cut[]);
-    setProjects(projectsData);
+    setProjects((projectsData ?? []) as Project[]);
     setAttSessions((sessions ?? []) as AttSession[]);
 
-    // Build columns: original exams (no parent) + workshops + projects.
-    // Order is intentional so the matrix groups evaluation types visually.
+    // Build columns: original exams (no parent) + workshops
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
       .filter((e) => !e.parent_exam_id)
       .map((e) => ({ id: e.id, title: e.title, kind: "exam" as const, parentExamId: null }));
@@ -241,14 +222,7 @@ function Gradebook() {
       maxScore: w.max_score,
     }));
 
-    const prjCols: GradeColumn[] = projectsData.map((p) => ({
-      id: p.id,
-      title: p.title,
-      kind: "project" as const,
-      maxScore: p.max_score,
-    }));
-
-    setColumns([...examCols, ...wsCols, ...prjCols]);
+    setColumns([...examCols, ...wsCols]);
 
     // Students
     const { data: enr } = await supabase
@@ -293,11 +267,11 @@ function Gradebook() {
     }
 
     // Project submissions (todos los estudiantes)
-    const prjIds = projectsData.map((p) => p.id);
+    const prjIds = ((projectsData ?? []) as Project[]).map((p) => p.id);
     if (prjIds.length && userIds.length) {
       const { data: ps } = await db
         .from("project_submissions")
-        .select("id, project_id, user_id, ai_grade, final_grade, status")
+        .select("project_id, user_id, ai_grade, final_grade, status")
         .in("project_id", prjIds);
       setProjectSubs((ps ?? []) as ProjectSub[]);
     } else {
@@ -356,19 +330,8 @@ function Gradebook() {
           };
       }
       return { grade: null, isMakeup: false };
-    } else if (col.kind === "workshop") {
-      const sub = wsSubs.find((s) => s.user_id === studentId && s.workshop_id === col.id);
-      if (sub)
-        return {
-          grade: sub.final_grade ?? sub.ai_grade,
-          isMakeup: false,
-          status: sub.status,
-          subId: sub.id,
-        };
-      return { grade: null, isMakeup: false };
     } else {
-      // project
-      const sub = projectSubs.find((s) => s.user_id === studentId && s.project_id === col.id);
+      const sub = wsSubs.find((s) => s.user_id === studentId && s.workshop_id === col.id);
       if (sub)
         return {
           grade: sub.final_grade ?? sub.ai_grade,
@@ -422,24 +385,11 @@ function Gradebook() {
         } else {
           errors++; // No submission to update
         }
-      } else if (col.kind === "workshop") {
+      } else {
         const g = getGrade(studentId, col);
         if (g.subId) {
           const { error } = await supabase
             .from("workshop_submissions")
-            .update({ final_grade: numValue, status: "calificado" })
-            .eq("id", g.subId);
-          if (error) errors++;
-          else saved++;
-        } else {
-          errors++; // No submission to update
-        }
-      } else {
-        // project
-        const g = getGrade(studentId, col);
-        if (g.subId) {
-          const { error } = await db
-            .from("project_submissions")
             .update({ final_grade: numValue, status: "calificado" })
             .eq("id", g.subId);
           if (error) errors++;
@@ -457,20 +407,13 @@ function Gradebook() {
     loadCourse();
   };
 
-  // Standard prefix for column labels in the CSV. Decoupled into a helper so
-  // template, export and import all agree on the same naming.
-  // - "[T] " for workshops
-  // - "[P] " for projects
-  // - no prefix for exams
-  const colLabel = (col: GradeColumn) => {
-    const prefix = col.kind === "workshop" ? "[T] " : col.kind === "project" ? "[P] " : "";
-    return `${prefix}${col.title}`;
-  };
+  // Export CSV
+  const exportCourse = () => {
+    if (!students.length || !columns.length) {
+      toast.info("No hay datos para exportar");
+      return;
+    }
 
-  // Build the export payload as a CSV string. Returns "" if there's nothing to
-  // export — the standard ImportExportMenu detects this and shows an info toast.
-  const buildGradebookCsv = (): string => {
-    if (!students.length || !columns.length) return "";
     const csvRows = students.map((s) => {
       const row: Record<string, string> = {
         nombre: s.full_name,
@@ -479,7 +422,8 @@ function Gradebook() {
       };
       columns.forEach((col) => {
         const g = getGrade(s.id, col);
-        const label = colLabel(col);
+        const prefix = col.kind === "workshop" ? "[T] " : "";
+        const label = `${prefix}${col.title}`;
         if (g.grade != null) {
           row[label] = `${g.grade}${g.isMakeup ? " (S)" : ""}`;
         } else {
@@ -488,73 +432,13 @@ function Gradebook() {
       });
       return row;
     });
-    return toCSV(csvRows);
-  };
 
-  // Plantilla DINÁMICA: refleja el curso seleccionado en el momento de
-  // descargar. Incluye los headers reales (exámenes + talleres + proyectos
-  // del curso) y una fila pre-rellenada por estudiante matriculado, con las
-  // celdas de notas vacías para que el docente solo escriba los valores.
-  //
-  // Si no hay curso/datos, devuelve un ejemplo genérico que ilustra la
-  // estructura esperada.
-  const gradebookTemplate = useMemo(() => {
-    if (!students.length || !columns.length) {
-      return toCSV([
-        {
-          email_institucional: "estudiante@institucion.edu",
-          "Ejemplo Examen": "",
-          "[T] Ejemplo Taller": "",
-          "[P] Ejemplo Proyecto": "",
-        },
-      ]);
-    }
-    const rows = students.map((s) => {
-      const row: Record<string, string> = {
-        nombre: s.full_name,
-        email_institucional: s.institutional_email,
-      };
-      columns.forEach((col) => {
-        row[colLabel(col)] = "";
-      });
-      return row;
-    });
-    return toCSV(rows);
-  }, [students, columns]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Apply teacher overrides from a CSV (one row per student). Only writes the
-  // cells that differ from the current value, to avoid touching unrelated
-  // submissions. Matches students by `email_institucional`.
-  const importGradebook = async (rows: Record<string, string>[]) => {
-    if (!students.length || !columns.length) {
-      throw new Error("Selecciona un curso primero");
-    }
-    const byEmail = new Map(students.map((s) => [s.institutional_email.toLowerCase(), s]));
-    let updated = 0;
-    let skipped = 0;
-    for (const row of rows) {
-      const email = (row.email_institucional ?? "").trim().toLowerCase();
-      const student = email ? byEmail.get(email) : undefined;
-      if (!student) {
-        skipped++;
-        continue;
-      }
-      for (const col of columns) {
-        const label = colLabel(col);
-        const raw = row[label];
-        if (raw === undefined) continue;
-        const next = raw.trim();
-        const current = getGrade(student.id, col).grade;
-        const parsed = next === "" ? null : Number(next);
-        if (next !== "" && Number.isNaN(parsed)) continue;
-        if (parsed === current) continue;
-        const editKey = `${student.id}:${col.kind}:${col.id}`;
-        // Reuse existing edit machinery (the calling form will save in batch).
-        setEdits((prev) => ({ ...prev, [editKey]: next }));
-        updated++;
-      }
-    }
-    return `${updated} celda(s) lista(s) para guardar${skipped ? ` · ${skipped} fila(s) omitida(s)` : ""}`;
+    const courseName = courses.find((c) => c.id === courseId)?.name ?? "curso";
+    downloadCSV(
+      `calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`,
+      toCSV(csvRows),
+    );
+    toast.success("Archivo exportado correctamente");
   };
 
   const hasEdits = Object.values(edits).some((v) => v !== "");
@@ -703,14 +587,10 @@ function Gradebook() {
               Guardar cambios
             </Button>
           )}
-          <ImportExportMenu
-            label="CSV"
-            resourceName="calificaciones"
-            templateCsv={gradebookTemplate}
-            onImport={importGradebook}
-            onExport={buildGradebookCsv}
-            disabled={!courseId}
-          />
+          <Button size="sm" variant="outline" onClick={exportCourse}>
+            <Download className="h-4 w-4 mr-1" />
+            CSV
+          </Button>
         </div>
       </div>
 
@@ -825,21 +705,15 @@ function Gradebook() {
                       <div className="flex items-center gap-1">
                         {col.kind === "exam" ? (
                           <FileText className="h-3 w-3 text-primary shrink-0" />
-                        ) : col.kind === "workshop" ? (
-                          <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
                         ) : (
-                          <FolderKanban className="h-3 w-3 text-violet-500 dark:text-violet-400 shrink-0" />
+                          <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
                         )}
                         <span className="truncate max-w-24" title={col.title}>
                           {col.title}
                         </span>
                       </div>
                       <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                        {col.kind === "exam"
-                          ? "Examen"
-                          : col.kind === "workshop"
-                            ? `Taller (/${col.maxScore ?? 100})`
-                            : `Proyecto (/${col.maxScore ?? 100})`}
+                        {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
                       </Badge>
                     </div>
                   </TableHead>
@@ -882,7 +756,7 @@ function Gradebook() {
                               step="0.1"
                               min={selectedCourse?.grade_scale_min ?? 0}
                               max={
-                                col.kind === "workshop" || col.kind === "project"
+                                col.kind === "workshop"
                                   ? (col.maxScore ?? 100)
                                   : (selectedCourse?.grade_scale_max ?? 100)
                               }
