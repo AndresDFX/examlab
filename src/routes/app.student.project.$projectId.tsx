@@ -28,6 +28,7 @@ export const Route = createFileRoute("/app/student/project/$projectId")({
 
 type ProjectLoaded = {
   id: string;
+  course_id: string;
   title: string;
   description: string | null;
   instructions: string | null;
@@ -84,26 +85,11 @@ function StudentProjectDetail() {
       setLoading(true);
       setError(null);
       try {
-        const { data: asg } = await db
-          .from("project_assignments")
-          .select("id")
-          .eq("project_id", projectId)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (cancelled) return;
-        if (!asg) {
-          setError("no_assignment");
-          setProject(null);
-          setSubmission(null);
-          return;
-        }
-
         const [{ data: pr, error: prErr }, { data: sub }, { data: fs }] = await Promise.all([
           db
             .from("projects")
             .select(
-              "id, title, description, instructions, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
+              "id, course_id, title, description, instructions, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
             )
             .eq("id", projectId)
             .single(),
@@ -125,6 +111,32 @@ function StudentProjectDetail() {
         if (cancelled) return;
         if (prErr || !pr) {
           setError("not_found");
+          return;
+        }
+
+        const [{ data: asg }, { data: linked }, { data: ownEnrollments }] = await Promise.all([
+          db
+            .from("project_assignments")
+            .select("id")
+            .eq("project_id", projectId)
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          db.from("project_courses").select("course_id").eq("project_id", projectId),
+          db.from("course_enrollments").select("course_id").eq("user_id", user.id),
+        ]);
+
+        const projectCourseIds = new Set<string>([
+          (pr as ProjectLoaded).course_id,
+          ...((linked ?? []) as { course_id: string }[]).map((row) => row.course_id),
+        ]);
+        const hasCourseAccess = ((ownEnrollments ?? []) as { course_id: string }[]).some((row) =>
+          projectCourseIds.has(row.course_id),
+        );
+
+        if (!asg && !hasCourseAccess) {
+          setError("no_assignment");
+          setProject(null);
+          setSubmission(null);
           return;
         }
 
