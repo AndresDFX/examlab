@@ -310,5 +310,27 @@
     "submit": "Submit",
     "submitting": "Submitting…",
     "aiGradedNotice": "The grade was generated automatically by AI when you submitted the workshop. If you need a manual review, please contact your teacher."
+  },
+  "project": {
+    "start": "Start project",
+    "submit": "Submit project",
+    "submitting": "Submitting…",
+    "submitted": "Submitted",
+    "available": "Available",
+    "upcoming": "Upcoming",
+    "closed": "Closed",
+    "windowClosedHelp": "The project submission window has closed. If you need help, contact your teacher.",
+    "viewDetail": "View detail and feedback",
+    "review": {
+      "mustSignIn": "You must sign in to view the project.",
+      "noAccess": "You don't have access to this project or it is not assigned to your account.",
+      "notFound": "Project not found.",
+      "noSubmission": "You haven't submitted this project yet.",
+      "globalResult": "Project result",
+      "submittedAt": "Submitted on {{when}}",
+      "submittedNoDate": "Submitted",
+      "feedback": "Feedback",
+      "noAnswer": "No content submitted."
+    }
   }
 }

@@ -28,28 +28,69 @@ automatizado.
 
 ---
 
-## 🆕 1. Proyectos: caja de texto por archivo + preview Mermaid
+## 🆕 1. Proyectos: subida de archivos por slot + preview Mermaid
 
-> Funcionalidad nueva. Reemplaza el flujo anterior de "subir ZIP" por
-> N cajas de texto (una por archivo esperado), con calificación inmediata
-> archivo-por-archivo y vista previa Mermaid para diagramas.
+> Funcionalidad nueva. Cada entregable del proyecto recibe **archivos reales**
+> subidos a Supabase Storage (no cajas de texto). El tipo de archivo aceptado
+> depende del `language` configurado por el docente: `.md` para diagramas,
+> `.java`/`.py`/etc. para código, `.md`/`.txt` por defecto. Se permite subir
+> **N archivos por slot**. La IA califica concatenando todos los archivos del
+> slot con separadores `// === Archivo: <name> ===`. La vista de revisión
+> muestra cada archivo descargable y, para `.md`, renderiza Mermaid en vivo.
 
-| ID         | Módulo                        | Rol        | Prioridad | Caso                                                                                                                                                                                                                          | Estado    |
-| ---------- | ----------------------------- | ---------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| PROJ-T-01  | Docente · Proyectos           | Docente    | P0        | Crear proyecto, ir a "Archivos esperados" → tab **Manual**: crear 2 archivos (Título + Rúbrica + Puntos). Aparecen en la lista numerados.                                                                                     | Pendiente |
-| PROJ-T-02  | Docente · Proyectos           | Docente    | P0        | Tab **Generar con IA**: indicar tema "Sistema de inventario" + 3 archivos. La IA crea 3 slots con título y rúbrica coherentes. No se duplican si se repite el botón.                                                          | Pendiente |
-| PROJ-T-03  | Docente · Proyectos           | Docente    | P1        | Eliminar archivo desde la lista pide confirmación. Tras confirmar, desaparece de la lista y deja de mostrarse al estudiante en su próximo intento.                                                                            | Pendiente |
-| PROJ-T-04  | Docente · Proyectos           | Docente    | P1        | Crear proyecto con `language: "mermaid"` en algún archivo (vía Generar IA con tema "Diagrama de flujo del proceso de matrícula"). El slot debe aparecer marcado como diagrama en la vista del estudiante.                     | Pendiente |
-| PROJ-S-01  | Estudiante · Proyectos        | Estudiante | P0        | Abrir proyecto asignado y disponible: el modal muestra una caja por cada archivo definido por el docente (con título y descripción). Cada caja es obligatoria (asterisco rojo).                                               | Pendiente |
-| PROJ-S-02  | Estudiante · Proyectos        | Estudiante | P0        | Pegar contenido en cada caja y enviar: la calificación se hace **inmediatamente archivo por archivo**. Aparece nota global `final_grade / max_score` y feedback IA.                                                           | Pendiente |
-| PROJ-S-03  | Estudiante · Proyectos        | Estudiante | P0        | Intentar enviar dejando una caja vacía: muestra error `Falta contenido en: <título>`. No envía la entrega.                                                                                                                    | Pendiente |
-| PROJ-S-04  | Estudiante · Proyectos · Mermaid | Estudiante | P0        | En un slot de tipo diagrama (o cualquier slot donde el contenido empiece con `flowchart`, `graph`, `sequenceDiagram`, etc.), pegar código Mermaid válido: aparece **preview renderizado** debajo del textarea.                | Pendiente |
-| PROJ-S-05  | Estudiante · Proyectos · Mermaid | Estudiante | P1        | Pegar Mermaid con sintaxis inválida (ej. `flowchart\n A -->`): aparece bloque rojo "Error en el diagrama: …". El textarea no se bloquea — el estudiante puede corregir.                                                       | Pendiente |
-| PROJ-S-06  | Estudiante · Proyectos · Mermaid | Estudiante | P2        | El badge `Mermaid` aparece en el header del slot en cuanto el contenido es válido o cuando `language` indica diagrama, aunque el contenido aún no esté completo.                                                              | Pendiente |
-| PROJ-R-01  | Estudiante · Revisión proyecto | Estudiante | P0        | Tras calificación, abrir detalle del proyecto: cada archivo muestra el contenido entregado en bloque monospace + nota `earned/points` + feedback IA. Si era diagrama, también muestra preview Mermaid.                       | Pendiente |
-| PROJ-R-02  | Estudiante · Revisión proyecto | Estudiante | P1        | Si IA detectó alta probabilidad de generación por IA (`ai_likelihood >= 0.6`), aparece badge rojo "Posible IA" en el header del archivo.                                                                                      | Pendiente |
-| PROJ-G-01  | IA · Calificación archivo     | -          | P0        | Cuota Gemini agotada en `gemini-2.5-flash`: el wrapper inyectado **automáticamente reintenta** con `gemini-2.0-flash`, `2.0-flash-lite`, `1.5-flash`, `1.5-flash-8b`. El log de la edge function muestra `[AI fallback] succeeded with X`. | Pendiente |
-| PROJ-G-02  | IA · Calificación archivo     | -          | P1        | Si todos los modelos del fallback fallan, la entrega se guarda con `ai_grade=0` y `ai_feedback="Error IA: …"`. El estudiante ve la calificación pero con mensaje de error.                                                    | Pendiente |
+### 1.A — Docente: definir slots
+
+| ID         | Módulo                        | Rol        | Prioridad | Caso                                                                                                                                                                                                  | Estado    |
+| ---------- | ----------------------------- | ---------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| PROJ-T-01  | Docente · Proyectos           | Docente    | P0        | Crear proyecto, ir a "Archivos esperados" → tab **Manual**: crear 2 archivos (Título + Rúbrica + Puntos). Aparecen en la lista numerados.                                                             | Pendiente |
+| PROJ-T-02  | Docente · Proyectos           | Docente    | P0        | Tab **Generar con IA**: indicar tema y 3 archivos. La IA crea 3 slots con título, rúbrica y `language` coherente (ej. "java" para slots de código). No se duplican si se repite el botón.             | Pendiente |
+| PROJ-T-03  | Docente · Proyectos           | Docente    | P1        | Eliminar slot desde la lista pide confirmación. Tras confirmar, desaparece de la lista y deja de mostrarse al estudiante en su próximo intento.                                                       | Pendiente |
+| PROJ-T-04  | Docente · Proyectos           | Docente    | P1        | El docente puede asignar `language: "mermaid"` o `"diagrama"` a un slot manualmente para forzar el tipo de archivo aceptado en la vista del estudiante.                                               | Pendiente |
+
+### 1.B — Estudiante: subir archivos
+
+| ID         | Caso                                                                                                                                                                                                                                   | Estado    |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| PROJ-S-01  | Abrir proyecto asignado y disponible: el modal muestra un uploader (input file con `multiple`) por cada slot. El badge muestra el `language` (mermaid, java, python, …).                                                                | Pendiente |
+| PROJ-S-02  | El input de archivo respeta el filtro `accept` correcto por tipo: `.md` para mermaid/diagrama; `.java` para java; `.py` para python; etc. El navegador filtra automáticamente al abrir el selector.                                    | Pendiente |
+| PROJ-S-03  | Subir 1 archivo `.md` válido: aparece en la lista bajo el uploader con nombre y tamaño. Se puede subir un segundo, un tercero, etc. (N archivos por slot).                                                                              | Pendiente |
+| PROJ-S-04  | Eliminar un archivo (botón papelera): desaparece de la lista, se borra de Storage y de `project_submission_attachments`.                                                                                                                | Pendiente |
+| PROJ-S-05  | Intentar subir archivo > 10 MB: toast error "excede 10 MB" y no se sube.                                                                                                                                                                | Pendiente |
+| PROJ-S-06  | Intentar enviar el proyecto dejando un slot sin archivos: error "Falta subir al menos un archivo en: <título>". No se envía la entrega.                                                                                                | Pendiente |
+| PROJ-S-07  | Cerrar el modal sin enviar: los archivos ya subidos persisten (estaban en Storage). Al volver a abrir, el estudiante los ve. Puede agregar más antes de enviar.                                                                         | Pendiente |
+| PROJ-S-08  | Enviar con todos los slots completos: la app concatena los archivos de cada slot con `// === Archivo: <name> ===`, los envía a la IA, la IA califica, aparece la nota global `final_grade / max_score` y feedback por slot.            | Pendiente |
+| PROJ-S-09  | El archivo concatenado se guarda en `project_submission_files.content` (truncado a 100k chars) para que el docente vea exactamente qué se envió a la IA.                                                                                | Pendiente |
+
+### 1.C — Estudiante: revisión post-calificación
+
+| ID         | Caso                                                                                                                                                                                              | Estado    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| PROJ-R-01  | Abrir `/app/student/project/<id>` después de enviar: cada slot lista los archivos entregados (nombre, tamaño, botón Descargar). Botón Descargar abre signed URL en nueva pestaña.                | Pendiente |
+| PROJ-R-02  | Para archivos `.md` con bloques `\`\`\`mermaid`: el contenido se descarga automáticamente y los bloques Mermaid se renderizan como diagramas en vivo. Hay un `<details>` con la fuente Markdown. | Pendiente |
+| PROJ-R-03  | Para slots `language=mermaid` con `.md` que NO tiene fences (solo contenido directo `flowchart …`): el contenido completo se renderiza como Mermaid.                                              | Pendiente |
+| PROJ-R-04  | Para archivos de código (`.java`, `.py`, etc.): se descargan y se muestran en bloque monospace con scroll horizontal/vertical.                                                                    | Pendiente |
+| PROJ-R-05  | Archivos > 1 MB no se previsualizan (mensaje "demasiado grande"). El botón Descargar sigue funcionando.                                                                                          | Pendiente |
+| PROJ-R-06  | Archivos binarios (PDF, imágenes, ZIP) no muestran preview. Solo el botón Descargar.                                                                                                              | Pendiente |
+| PROJ-R-07  | Si `ai_likelihood >= 0.6`, aparece badge rojo "Posible IA" en el header del slot.                                                                                                                 | Pendiente |
+| PROJ-R-08  | Submisiones legacy (anteriores a la migración de attachments) que solo tienen `content` y no archivos: la vista muestra el bloque de texto monospace fallback.                                    | Pendiente |
+| PROJ-R-09  | URL `/app/student/project/<id>` con un proyecto vinculado al curso del estudiante via `project_courses` (sin `project_assignments`): la vista carga normalmente (no más error "no acceso").       | Pendiente |
+| PROJ-R-10  | URL con proyecto NO vinculado y sin asignación directa: muestra el mensaje "No tienes acceso a este **proyecto** o no está asignado a tu cuenta" (no más "examen").                              | Pendiente |
+
+### 1.D — Storage y Mermaid
+
+| ID         | Caso                                                                                                                                                                                | Estado    |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| PROJ-ST-01 | Estructura de paths en bucket `project-files`: `<userId>/<projectId>/<slotId>/<timestamp>-<filename>`.                                                                              | Pendiente |
+| PROJ-ST-02 | RLS: el estudiante solo puede leer/subir/borrar archivos en su propia carpeta `<userId>/...`. Verificar con un segundo usuario.                                                     | Pendiente |
+| PROJ-ST-03 | RLS: docentes y admins pueden leer todos los archivos del bucket (permiso explícito en la migración).                                                                              | Pendiente |
+| PROJ-ST-04 | Eliminar un slot del proyecto (lado docente) NO borra los archivos subidos por estudiantes en otros proyectos del mismo bucket — solo se borra al borrar el `project_submission_files` correspondiente (CASCADE). | Pendiente |
+
+### 1.E — IA: fallback de modelos
+
+| ID         | Caso                                                                                                                                                                                                          | Estado    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| PROJ-G-01  | Cuota Gemini agotada en `gemini-2.5-flash` (self-hosted): el wrapper inyectado reintenta con `gemini-2.0-flash`, `2.0-flash-lite`, `1.5-flash`, `1.5-flash-8b`. Log: `[AI fallback] succeeded with X`. | Pendiente |
+| PROJ-G-02  | Si todos los modelos del fallback fallan, el slot se guarda con `ai_grade=0` y `ai_feedback="Error IA: …"`. El estudiante ve la calificación pero con mensaje de error.                                       | Pendiente |
 
 ---
 
