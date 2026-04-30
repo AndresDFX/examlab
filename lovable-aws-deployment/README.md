@@ -47,11 +47,19 @@ Abre en tu navegador: **https://aistudio.google.com/apikey**
 
 Usa cualquier cuenta de Google (personal o de trabajo).
 
+> 📸 _Screenshot: AI Studio login_
+> ![AI Studio login](screenshots/01-aistudio-login.png)
+> *(reemplazar con captura real del paso 1.2)*
+
 ### 1.3 Crear la API key
 
 1. Click en el botón **"Create API key"** (azul, esquina superior derecha)
 2. Selecciona un proyecto de Google Cloud existente, o click **"Create API key in new project"**
 3. Espera unos segundos y aparecerá tu key
+
+> 📸 _Screenshot: pantalla de "Create API key"_
+> ![Create API key](screenshots/02-create-api-key.png)
+> *(reemplazar con captura del modal de creación)*
 
 ### 1.4 Copiar la key
 
@@ -88,16 +96,21 @@ Abre: **https://console.aws.amazon.com/**
 ### 2.2 Abrir CloudShell
 
 Click en el icono de **terminal** (`>_`) en la barra superior, al lado de la
-campanita y tu nombre de usuario:
+campanita y tu nombre de usuario, o ve directamente a:
+**https://console.aws.amazon.com/cloudshell/**
 
-![CloudShell icon](https://docs.aws.amazon.com/images/cloudshell/latest/userguide/images/cloudshell-region-icon.png)
-
-O ve directamente a: **https://console.aws.amazon.com/cloudshell/**
+> 📸 _Screenshot: barra superior de AWS Console resaltando el icono de CloudShell_
+> ![CloudShell icon](screenshots/03-cloudshell-icon.png)
+> *(reemplazar con captura de la consola AWS mostrando dónde hacer click)*
 
 ### 2.3 Esperar a que CloudShell cargue
 
 Tarda ~30 segundos la primera vez. Cuando veas el prompt `[cloudshell-user@... ~]$`
 está listo.
+
+> 📸 _Screenshot: terminal de CloudShell lista_
+> ![CloudShell ready](screenshots/04-cloudshell-ready.png)
+> *(reemplazar con captura de la terminal cargada)*
 
 ---
 
@@ -116,6 +129,10 @@ Cloning into 'examlab'...
 remote: Enumerating objects...
 Receiving objects: 100% (1234/1234), done.
 ```
+
+> 📸 _Screenshot: output del git clone exitoso_
+> ![Git clone OK](screenshots/05-git-clone.png)
+> *(reemplazar con captura del clone completado)*
 
 ---
 
@@ -195,6 +212,10 @@ Resumen:
 
 → Escribe **`s`** y presiona Enter.
 
+> 📸 _Screenshot: resumen antes de confirmar_
+> ![Deploy confirmation](screenshots/06-deploy-confirm.png)
+> *(reemplazar con captura del resumen y prompt "¿Continuar?")*
+
 ---
 
 ## ⏳ Paso 6: Esperar (~15 minutos)
@@ -215,6 +236,10 @@ Al final verás algo como:
 ✓ Información guardada: /home/cloudshell-user/examlab-deployment-info.txt
 ═════════════════════════════════════════════════════════════
 ```
+
+> 📸 _Screenshot: deploy completado en CloudShell_
+> ![Deploy complete](screenshots/07-deploy-complete.png)
+> *(reemplazar con captura del output final con la URL)*
 
 ---
 
@@ -241,6 +266,10 @@ cat ~/examlab-deployment-info.txt
 2. Click en el stack **`examlab-stack`**
 3. Click en la pestaña **"Outputs"**
 
+> 📸 _Screenshot: lista de stacks de CloudFormation_
+> ![CloudFormation stacks list](screenshots/08-cloudformation-list.png)
+> *(reemplazar con captura mostrando examlab-stack en la lista)*
+
 Verás una tabla así:
 
 | Key | Value | Description |
@@ -252,6 +281,10 @@ Verás una tabla así:
 
 → Click en `AppURL` para abrir tu app en el navegador.
 
+> 📸 _Screenshot: pestaña Outputs del stack con la URL_
+> ![CloudFormation outputs](screenshots/09-cloudformation-outputs.png)
+> *(reemplazar con captura de la pestaña Outputs mostrando AppURL)*
+
 ---
 
 ## 🎉 Paso 8: Usar la app
@@ -261,6 +294,14 @@ Verás una tabla así:
 3. Crea una cuenta de docente o haz login
 4. *(Opcional)* Click en **"Iniciar datos demo"** para cargar cursos, usuarios y exámenes de prueba
 5. ¡Listo!
+
+> 📸 _Screenshot: pantalla de login de ExamLab_
+> ![ExamLab login](screenshots/10-app-login.png)
+> *(reemplazar con captura de la app cargada)*
+
+> 📸 _Screenshot: dashboard del docente con datos demo cargados_
+> ![ExamLab dashboard](screenshots/11-app-dashboard.png)
+> *(reemplazar con captura del dashboard funcionando)*
 
 ---
 
@@ -302,6 +343,8 @@ Ver [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## 🔄 Actualizar después del primer deploy
 
+### Opción 1 — Manual (en CloudShell)
+
 Si haces cambios en el código (en Lovable o local) y quieres re-desplegar:
 
 ```bash
@@ -313,6 +356,30 @@ cd lovable-aws-deployment
 
 El script detecta que el stack existe y solo aplica los cambios (sin recrear EC2).
 Toma ~3 minutos en lugar de 15.
+
+### Opción 2 — Automático con GitHub Actions ⭐
+
+Cada `git push origin main` puede desplegar automáticamente sin abrir CloudShell.
+
+**Setup (una sola vez, ~10 min):**
+
+1. Crear IAM user para el workflow:
+   ```bash
+   bash scripts/create-github-iam-user.sh
+   ```
+2. En GitHub: **Settings → Secrets and variables → Actions** → agregar:
+   - Secret `AWS_ACCESS_KEY_ID`
+   - Secret `AWS_SECRET_ACCESS_KEY`
+   - Secret `DB_PASSWORD`
+   - Secret `LOVABLE_API_KEY` (opcional)
+   - Variable `AWS_REGION` (ej. `us-east-1`)
+   - Variable `PROJECT_NAME` (ej. `examlab`)
+3. Hacer push y ver el deploy en **Actions** tab del repo.
+
+El workflow está en `.github/workflows/deploy-aws.yml` y se ejecuta solo cuando
+cambias archivos relevantes (no en cada commit de docs, por ejemplo).
+
+📖 Guía completa: [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)
 
 ---
 
@@ -335,6 +402,26 @@ aws s3 rb "s3://examlab-storage-${ACCOUNT}-us-east-1"
 # 3. Eliminar SSH key (opcional)
 aws ec2 delete-key-pair --key-name examlab-key --region us-east-1
 ```
+
+---
+
+## 📸 Agregar screenshots al manual
+
+Esta guía incluye placeholders de imágenes (los `> 📸 _Screenshot: ..._` que ves
+en cada paso). Para reemplazarlos con capturas reales:
+
+1. Toma la captura durante un deploy real
+2. Guárdala en `screenshots/` con el **nombre exacto** que aparece en el placeholder
+   (ej. `01-aistudio-login.png`, `09-cloudformation-outputs.png`, etc.)
+3. Commit y push — GitHub renderiza la imagen automáticamente
+
+**Recomendaciones:**
+- Formato PNG, ancho ≤ 1600px
+- Oculta datos sensibles: API keys, account IDs, emails, IPs reales
+- Usa flechas/círculos para señalar dónde hacer click ([ShareX](https://getsharex.com/), Skitch)
+
+Mientras no existan los archivos, el README sigue siendo legible — GitHub muestra el
+alt text en su lugar.
 
 ---
 
