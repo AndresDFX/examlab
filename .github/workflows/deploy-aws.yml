@@ -12,7 +12,7 @@ name: Deploy ExamLab to AWS
 #        - LOVABLE_API_KEY           (opcional, key de Google Gemini AIzaSy...)
 #   3. Crea estos variables (no secrets):
 #        - AWS_REGION                (ej. us-east-1)
-#        - PROJECT_NAME              (ej. examlab)
+#        - PROJECT_NAME              (ej. lovable-app)
 #
 # Para crear el IAM user con permisos correctos, ejecuta una vez en CloudShell:
 #   bash lovable-aws-deployment/scripts/create-github-iam-user.sh
@@ -40,7 +40,7 @@ jobs:
 
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-      PROJECT_NAME: ${{ vars.PROJECT_NAME || 'examlab' }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME || 'lovable-app' }}
 
     steps:
       - name: Checkout
@@ -115,7 +115,7 @@ jobs:
       - name: Package and upload application code to S3
         id: package
         run: |
-          S3_KEY="examlab-code-${{ github.sha }}.tar.gz"
+          S3_KEY="${PROJECT_NAME}-code-${{ github.sha }}.tar.gz"
           tar -czf "/tmp/$S3_KEY" \
             --exclude='node_modules' \
             --exclude='.git' \
@@ -199,18 +199,20 @@ jobs:
           cat > /tmp/live-update.sh <<LIVEEOF
           #!/bin/bash
           set -e
+          APP_NAME="${PROJECT_NAME}"
+          APP_DIR="/opt/\$APP_NAME"
           echo "=== Live update started: \$(date) ==="
 
           aws s3 cp "s3://${{ steps.aws_ids.outputs.deploy_bucket }}/${{ steps.package.outputs.s3_key }}" /tmp/code.tar.gz --region "${{ env.AWS_REGION }}"
-          rm -rf /opt/examlab.bak
-          cp -a /opt/examlab /opt/examlab.bak
-          tar -xzf /tmp/code.tar.gz -C /opt/examlab --overwrite
+          rm -rf "\$APP_DIR.bak"
+          cp -a "\$APP_DIR" "\$APP_DIR.bak"
+          tar -xzf /tmp/code.tar.gz -C "\$APP_DIR" --overwrite
           rm /tmp/code.tar.gz
-          chown -R ubuntu:ubuntu /opt/examlab
+          chown -R ubuntu:ubuntu "\$APP_DIR"
 
           # Refresh edge functions + URL substitution + AI fallback wrapper
-          if [ -d /opt/examlab/supabase/functions ]; then
-            for fn_dir in /opt/examlab/supabase/functions/*/; do
+          if [ -d "\$APP_DIR/supabase/functions" ]; then
+            for fn_dir in "\$APP_DIR"/supabase/functions/*/; do
               [ -d "\$fn_dir" ] || continue
               fn_name=\$(basename "\$fn_dir")
               rm -rf "/opt/supabase/volumes/functions/\$fn_name"
@@ -274,10 +276,10 @@ jobs:
           docker compose up -d --force-recreate functions
 
           # Reinstall npm deps if package.json changed
-          if ! cmp -s /opt/examlab/package.json /opt/examlab.bak/package.json 2>/dev/null; then
-            sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps --no-audit --no-fund"
+          if ! cmp -s "\$APP_DIR/package.json" "\$APP_DIR.bak/package.json" 2>/dev/null; then
+            sudo -u ubuntu bash -c "cd \$APP_DIR && npm install --legacy-peer-deps --no-audit --no-fund"
           fi
-          systemctl restart examlab.service
+          systemctl restart "\$APP_NAME.service"
 
           echo "=== Live update completed: \$(date) ==="
           LIVEEOF

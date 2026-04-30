@@ -1,10 +1,23 @@
 #!/bin/bash
-# ExamLab bootstrap — runs on EC2 first boot, downloaded from S3 by user-data.
-# Required env: S3_BUCKET, S3_KEY, AWS_REGION, OPENROUTER_API_KEY (optional)
+# Generic Lovable→AWS bootstrap — runs on EC2 first boot, downloaded from S3 by user-data.
+# Required env (passed by CloudFormation user-data):
+#   PROJECT_NAME    — name of the Lovable project (used for paths, service names, etc.)
+#   S3_BUCKET       — S3 bucket holding the app code
+#   S3_KEY          — S3 key for the code tarball
+#   AWS_REGION      — AWS region
+#   LOVABLE_API_KEY — (optional) Gemini/OpenRouter key for AI features
+#   STORAGE_BUCKET  — (optional) S3 bucket for Supabase Storage
 set -e
 exec > >(tee -a /var/log/user-data.log) 2>&1
 
-echo "=== ExamLab Bootstrap Started: $(date) ==="
+# Default project name if not provided (allows generic deploys to any Lovable project)
+APP_NAME="${PROJECT_NAME:-lovable-app}"
+APP_DIR="/opt/$APP_NAME"
+APP_LOG="/var/log/$APP_NAME.log"
+APP_SERVICE="$APP_NAME.service"
+CRED_FILE="/root/$APP_NAME-credentials.txt"
+
+echo "=== Bootstrap started for project: $APP_NAME at $(date) ==="
 
 # [1/9] System dependencies + 2GB swap
 echo "=== [1/9] System dependencies ==="
@@ -60,11 +73,11 @@ echo "Public IP: $PUBLIC_IP"
 
 # [5/9] Download app code
 echo "=== [5/9] Download app code ==="
-rm -rf /opt/examlab && mkdir -p /opt/examlab
+rm -rf $APP_DIR && mkdir -p $APP_DIR
 aws s3 cp "s3://$S3_BUCKET/$S3_KEY" /tmp/code.tar.gz --region "$AWS_REGION"
-tar -xzf /tmp/code.tar.gz -C /opt/examlab
+tar -xzf /tmp/code.tar.gz -C $APP_DIR
 rm /tmp/code.tar.gz
-[ -f /opt/examlab/package.json ] || { echo "ERROR: package.json missing"; exit 1; }
+[ -f $APP_DIR/package.json ] || { echo "ERROR: package.json missing"; exit 1; }
 
 # [6/9] Setup Supabase self-hosted
 echo "=== [6/9] Supabase setup ==="
@@ -122,13 +135,13 @@ if grep -qE "^(SITE_URL|API_EXTERNAL_URL|SUPABASE_PUBLIC_URL)=http://:" $E; then
 fi
 
 # Copy migrations + edge functions from app
-if [ -d /opt/examlab/supabase/migrations ]; then
+if [ -d $APP_DIR/supabase/migrations ]; then
   mkdir -p /opt/supabase/volumes/db/init
-  cp /opt/examlab/supabase/migrations/*.sql /opt/supabase/volumes/db/init/ 2>/dev/null || true
+  cp $APP_DIR/supabase/migrations/*.sql /opt/supabase/volumes/db/init/ 2>/dev/null || true
 fi
-if [ -d /opt/examlab/supabase/functions ]; then
+if [ -d $APP_DIR/supabase/functions ]; then
   mkdir -p /opt/supabase/volumes/functions
-  for fn in /opt/examlab/supabase/functions/*/; do
+  for fn in $APP_DIR/supabase/functions/*/; do
     [ -d "$fn" ] || continue
     name=$(basename "$fn")
     rm -rf "/opt/supabase/volumes/functions/$name"
@@ -251,64 +264,64 @@ done
 
 # [7/9] Apply migrations
 echo "=== [7/9] Apply migrations ==="
-if [ -d /opt/examlab/supabase/migrations ]; then
+if [ -d $APP_DIR/supabase/migrations ]; then
   sleep 10
-  for f in /opt/examlab/supabase/migrations/*.sql; do
+  for f in $APP_DIR/supabase/migrations/*.sql; do
     [ -f "$f" ] || continue
     echo "Applying: $(basename $f)"
     docker exec -i supabase-db psql -U postgres -d postgres < "$f" || echo "WARN: $(basename $f) failed"
   done
 fi
 
-# [8/9] Configure ExamLab .env + npm install
+# [8/9] Configure app .env + npm install
 echo "=== [8/9] Configure app ==="
-cat > /opt/examlab/.env <<APPENV
+cat > $APP_DIR/.env <<APPENV
 VITE_SUPABASE_URL=http://$PUBLIC_IP:8000
 VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY
-VITE_SUPABASE_PROJECT_ID=examlab
+VITE_SUPABASE_PROJECT_ID=$APP_NAME
 NODE_ENV=production
 PORT=3000
 HOST=0.0.0.0
 APPENV
 
-grep -q "^VITE_SUPABASE_URL=http" /opt/examlab/.env || { echo "ERROR: .env URL missing"; exit 1; }
-grep -q "^VITE_SUPABASE_PUBLISHABLE_KEY=eyJ" /opt/examlab/.env || { echo "ERROR: .env key missing"; exit 1; }
+grep -q "^VITE_SUPABASE_URL=http" $APP_DIR/.env || { echo "ERROR: .env URL missing"; exit 1; }
+grep -q "^VITE_SUPABASE_PUBLISHABLE_KEY=eyJ" $APP_DIR/.env || { echo "ERROR: .env key missing"; exit 1; }
 
-chown -R ubuntu:ubuntu /opt/examlab
+chown -R ubuntu:ubuntu $APP_DIR
 echo "Installing npm deps (3-5 min)..."
-sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps --no-audit --no-fund --prefer-offline" || {
+sudo -u ubuntu bash -c "cd $APP_DIR && npm install --legacy-peer-deps --no-audit --no-fund --prefer-offline" || {
   echo "ERROR: npm install failed"; free -h; df -h; exit 1
 }
 
 # [9/9] systemd service
 echo "=== [9/9] systemd service ==="
-cat > /etc/systemd/system/examlab.service <<SVC
+cat > /etc/systemd/system/$APP_SERVICE <<SVC
 [Unit]
-Description=ExamLab Vite Dev Server
+Description=$APP_NAME Vite Dev Server
 After=network.target docker.service
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/examlab
-EnvironmentFile=/opt/examlab/.env
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
 ExecStart=/usr/bin/npm run dev -- --host 0.0.0.0 --port 3000
 Restart=always
 RestartSec=10
-StandardOutput=append:/var/log/examlab.log
-StandardError=append:/var/log/examlab.log
+StandardOutput=append:$APP_LOG
+StandardError=append:$APP_LOG
 
 [Install]
 WantedBy=multi-user.target
 SVC
 
 systemctl daemon-reload
-systemctl enable examlab.service
-systemctl start examlab.service
+systemctl enable $APP_SERVICE
+systemctl start $APP_SERVICE
 
 # Save credentials
-cat > /root/examlab-credentials.txt <<CRED
-===== ExamLab Credentials =====
+cat > $CRED_FILE <<CRED
+===== $APP_NAME Credentials =====
 Generated: $(date)
 Public IP: $PUBLIC_IP
 App URL: http://$PUBLIC_IP:3000
@@ -324,7 +337,7 @@ Keys:
   SERVICE_ROLE_KEY: $SERVICE_ROLE_KEY
   JWT_SECRET: $JWT_SECRET
 CRED
-chmod 600 /root/examlab-credentials.txt
+chmod 600 $CRED_FILE
 
 # Wait for app to respond
 echo "Waiting for app..."
@@ -339,15 +352,15 @@ echo ""
 echo "════════════════════════════════════════════════════════"
 echo "  Status Report"
 echo "════════════════════════════════════════════════════════"
-echo "examlab.service: $(systemctl is-active examlab.service 2>/dev/null)"
+echo "$APP_SERVICE: $(systemctl is-active $APP_SERVICE 2>/dev/null)"
 echo "Listening: $(ss -tlnp 2>/dev/null | grep -cE ':3000|:8000') of 2 ports"
 cd /opt/supabase && docker compose ps --format 'table {{.Service}}\t{{.Status}}' 2>/dev/null | head -10
 free -h | head -2
 df -h / | tail -1
 echo "════════════════════════════════════════════════════════"
-[ "$APP_READY" = "1" ] && echo "  ✅ Deployment OK" || echo "  ⚠️  App not responding yet — check journalctl -u examlab.service"
+[ "$APP_READY" = "1" ] && echo "  ✅ Deployment OK" || echo "  ⚠️  App not responding yet — check journalctl -u $APP_SERVICE"
 echo "════════════════════════════════════════════════════════"
 echo "  App:          http://$PUBLIC_IP:3000"
 echo "  Supabase API: http://$PUBLIC_IP:8000"
-echo "  Credentials:  sudo cat /root/examlab-credentials.txt"
+echo "  Credentials:  sudo cat $CRED_FILE"
 echo "════════════════════════════════════════════════════════"

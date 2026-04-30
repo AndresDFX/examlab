@@ -51,9 +51,9 @@ Cuando la EC2 arranca, ejecuta este flujo automáticamente:
        - Inyecta wrapper de fetch con fallback automático de modelos
        - docker compose up -d
   ↓ [7/9] Aplica migraciones SQL contra postgres
-  ↓ [8/9] Crea /opt/examlab/.env con VITE_SUPABASE_URL + ANON_KEY
+  ↓ [8/9] Crea /opt/lovable-app/.env con VITE_SUPABASE_URL + ANON_KEY
   ↓        Hace npm install --legacy-peer-deps --no-audit --no-fund
-  ↓ [9/9] Crea systemd service examlab.service y lo arranca
+  ↓ [9/9] Crea systemd service lovable-app.service y lo arranca
 ```
 
 Tiempo total: **8-15 minutos** dependiendo de la región y la velocidad de descarga.
@@ -105,7 +105,7 @@ Supabase Storage por defecto guarda los archivos en disco local del container.
 En este deploy se usa **disco local del EC2** dentro del container, en
 `/var/lib/storage` (montado a `/opt/supabase/volumes/storage` del host).
 
-> **Nota:** existe un bucket `examlab-storage-*` en S3 reservado para usar como
+> **Nota:** existe un bucket `lovable-app-storage-*` en S3 reservado para usar como
 > backend de Storage en el futuro, pero actualmente no está conectado por
 > compatibilidad. Los archivos se persisten en el EBS de la EC2.
 
@@ -124,7 +124,7 @@ Para producción real, considera:
 
 ## 🔐 Credenciales generadas
 
-El `bootstrap.sh` genera y guarda en `/root/examlab-credentials.txt` (modo `600`):
+El `bootstrap.sh` genera y guarda en `/root/lovable-app-credentials.txt` (modo `600`):
 
 ```
 JWT_SECRET                    32 bytes hex
@@ -143,19 +143,19 @@ Para verlas:
 
 ```bash
 aws ssm start-session --target <INSTANCE_ID> --region us-east-1
-sudo cat /root/examlab-credentials.txt
+sudo cat /root/lovable-app-credentials.txt
 ```
 
 ---
 
 ## 🌐 Variables de entorno de la app
 
-`/opt/examlab/.env` se genera automáticamente:
+`/opt/lovable-app/.env` se genera automáticamente:
 
 ```bash
 VITE_SUPABASE_URL=http://<ELASTIC_IP>:8000
 VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY>
-VITE_SUPABASE_PROJECT_ID=examlab
+VITE_SUPABASE_PROJECT_ID=lovable-app
 NODE_ENV=production
 PORT=3000
 HOST=0.0.0.0
@@ -183,7 +183,7 @@ Vite las inyecta en build/dev time vía `import.meta.env.VITE_*`.
   - Actualiza la `LOVABLE_API_KEY` en el `.env` de Supabase
   - Reinicia el container `functions`
   - Si cambió `package.json`, reinstala dependencias npm
-  - Reinicia `examlab.service`
+  - Reinicia `lovable-app.service`
 - Tiempo: ~3 minutos
 - **No recrea la EC2, no se pierden datos**
 
@@ -236,11 +236,8 @@ lovable-aws-deployment/
 │   ├── all-in-one-stack.yaml       # Recursos AWS + user-data minimal
 │   └── bootstrap.sh                # Script principal que corre en la EC2
 ├── scripts/
-│   ├── create-github-iam-user.sh   # Setup IAM user para GitHub Actions
-│   └── init-db.sql                 # Schema inicial (referencia)
-├── supabase/
-│   ├── config.toml                 # Config de Supabase local (Lovable)
-│   └── migrations/                 # Migraciones SQL
+│   └── create-github-iam-user.sh   # Setup IAM user para GitHub Actions
+├── screenshots/                    # Imágenes referenciadas desde el README
 └── docs/
     ├── ARCHITECTURE.md             # Diagrama Mermaid + decisiones
     ├── TROUBLESHOOTING.md          # Soluciones a errores comunes

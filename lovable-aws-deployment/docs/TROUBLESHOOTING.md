@@ -1,6 +1,6 @@
 # 🔧 Troubleshooting
 
-Guía para resolver problemas durante el despliegue de ExamLab en AWS.
+Guía para resolver problemas durante el despliegue de proyectos Lovable en AWS.
 
 ---
 
@@ -21,8 +21,8 @@ aws ssm start-session --target <INSTANCE_ID> --region us-east-1
 sudo tail -100 /var/log/user-data.log
 
 # Estado del servicio de la app
-sudo systemctl status examlab.service --no-pager
-sudo tail -50 /var/log/examlab.log
+sudo systemctl status lovable-app.service --no-pager
+sudo tail -50 /var/log/lovable-app.log
 
 # Estado de Supabase
 cd /opt/supabase
@@ -45,19 +45,19 @@ top -bn1  # CPU
 
 ### A. La app muestra "Missing Supabase environment variables"
 
-**Causa:** el archivo `/opt/examlab/.env` no se generó correctamente, o el systemd service no lo lee.
+**Causa:** el archivo `/opt/lovable-app/.env` no se generó correctamente, o el systemd service no lo lee.
 
 **Solución:**
 
 ```bash
 # 1. Verificar que .env existe y tiene las variables
-sudo cat /opt/examlab/.env
+sudo cat /opt/lovable-app/.env
 # Debe mostrar VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY
 
 # 2. Si no existe, regenerar
-sudo cat /root/examlab-credentials.txt   # Obtener ANON_KEY
+sudo cat /root/lovable-app-credentials.txt   # Obtener ANON_KEY
 PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-sudo bash -c "cat > /opt/examlab/.env << EOF
+sudo bash -c "cat > /opt/lovable-app/.env << EOF
 VITE_SUPABASE_URL=http://$PUBLIC_IP:8000
 VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY del archivo de credenciales>
 NODE_ENV=production
@@ -66,7 +66,7 @@ HOST=0.0.0.0
 EOF"
 
 # 3. Reiniciar
-sudo systemctl restart examlab.service
+sudo systemctl restart lovable-app.service
 ```
 
 ---
@@ -131,8 +131,8 @@ Identifica en qué paso se detuvo:
 Si el script falló a mitad, normalmente es más rápido recrear el stack:
 
 ```bash
-aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
 bash deploy.sh
 ```
 
@@ -142,7 +142,7 @@ bash deploy.sh
 
 ```bash
 aws cloudformation describe-stack-events \
-  --stack-name examlab-stack \
+  --stack-name lovable-app-stack \
   --region us-east-1 \
   --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`].[LogicalResourceId,ResourceStatusReason]' \
   --output table
@@ -155,7 +155,7 @@ La AMI Ubuntu cambió. Re-ejecuta `deploy.sh` (busca dinámicamente la AMI más 
 
 #### `KeyPair X already exists`
 ```bash
-aws ec2 delete-key-pair --key-name examlab-key --region us-east-1
+aws ec2 delete-key-pair --key-name lovable-app-key --region us-east-1
 bash deploy.sh
 ```
 
@@ -176,7 +176,7 @@ La cuenta llegó al límite de Elastic IPs (5 por defecto). Libera unas o pide a
 
 ```bash
 # 1. ¿El servicio está corriendo?
-sudo systemctl status examlab.service
+sudo systemctl status lovable-app.service
 
 # 2. ¿Está escuchando en :3000?
 sudo ss -tlnp | grep 3000
@@ -187,7 +187,7 @@ curl http://localhost:3000
 
 # 4. ¿El security group permite puerto 3000?
 aws ec2 describe-security-groups \
-  --filters "Name=group-name,Values=examlab-sg" \
+  --filters "Name=group-name,Values=lovable-app-sg" \
   --region us-east-1 \
   --query 'SecurityGroups[0].IpPermissions[?FromPort==`3000`]'
 ```
@@ -206,7 +206,7 @@ La app llama al Supabase API con la `VITE_SUPABASE_URL` configurada. Si la URL a
 
 ```bash
 # Verificar que VITE_SUPABASE_URL == la IP que estás usando en el browser
-sudo cat /opt/examlab/.env
+sudo cat /opt/lovable-app/.env
 
 # Si no coincide, regenera y reinicia
 ```
@@ -220,7 +220,7 @@ sudo cat /opt/examlab/.env
 sudo grep -A2 "Applying:" /var/log/user-data.log
 
 # Aplicar manualmente una migración
-docker exec -i supabase-db psql -U postgres -d postgres < /opt/examlab/supabase/migrations/0001_init.sql
+docker exec -i supabase-db psql -U postgres -d postgres < /opt/$PROJECT_NAME/supabase/migrations/0001_init.sql
 ```
 
 Si una migración falla por dependencias entre archivos, revisa el orden alfabético — las migraciones de Supabase se aplican en orden alfabético del nombre del archivo.
@@ -232,7 +232,7 @@ Si una migración falla por dependencias entre archivos, revisa el orden alfabé
 Si necesitas ver los logs sin conectarte a la EC2:
 
 ```bash
-aws logs tail /aws/ec2/examlab --follow --region us-east-1
+aws logs tail /aws/ec2/lovable-app --follow --region us-east-1
 ```
 
 > El user-data actual no envía automáticamente a CloudWatch. Si lo necesitas, instala el CloudWatch Agent (no incluido en este template para mantenerlo simple).
@@ -245,11 +245,11 @@ Si todo está roto y quieres empezar limpio:
 
 ```bash
 # 1. Eliminar stack completo (toma ~5 min)
-aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
 
 # 2. (Opcional) Limpiar bucket S3
-BUCKET=$(aws s3 ls | grep examlab-deploy | awk '{print $3}')
+BUCKET=$(aws s3 ls | grep lovable-app-deploy | awk '{print $3}')
 aws s3 rm "s3://$BUCKET" --recursive
 
 # 3. Re-desplegar

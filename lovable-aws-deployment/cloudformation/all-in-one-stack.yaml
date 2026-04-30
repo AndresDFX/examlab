@@ -4,7 +4,7 @@ Description: 'ExamLab - All-in-One: VPC + EC2 + Supabase + Storage'
 Parameters:
   ProjectName:
     Type: String
-    Default: examlab
+    Default: lovable-app
 
   KeyName:
     Type: String
@@ -261,6 +261,7 @@ Resources:
           fi
           aws s3 cp "s3://${S3Bucket}/${S3BootstrapKey}" /tmp/bootstrap.sh --region ${AWS::Region}
           chmod +x /tmp/bootstrap.sh
+          export PROJECT_NAME="${ProjectName}"
           export S3_BUCKET="${S3Bucket}"
           export S3_KEY="${S3Key}"
           export AWS_REGION="${AWS::Region}"

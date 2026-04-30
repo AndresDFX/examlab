@@ -1,9 +1,13 @@
-# Despliegue de ExamLab en AWS
+# Despliegue de proyectos Lovable en AWS
 
-**Despliega tu proyecto Lovable en tu propia cuenta AWS con un solo comando, en ~15 minutos.**
+**Despliega cualquier proyecto Lovable en tu propia cuenta AWS con un solo comando, en ~15 minutos.**
 
 > Esta guía es para usuarios sin experiencia técnica. Cada paso es literal —
 > copia, pega, espera.
+
+> **Esta carpeta es agnóstica al proyecto.** Puedes copiarla a cualquier proyecto
+> Lovable y desplegarlo sin modificar nada. Más detalles abajo en *"Asunciones
+> sobre el proyecto"*.
 
 ---
 
@@ -15,6 +19,36 @@
 - 🔐 Tu propia infraestructura, sin vendor lock-in
 
 **Costo aproximado:** ~$33 USD/mes (EC2 t3.medium + IP fija + S3 + CloudWatch).
+
+---
+
+## 🧩 Asunciones sobre el proyecto Lovable
+
+Esta carpeta funciona con cualquier proyecto Lovable que cumpla la **estructura
+estándar de Lovable**:
+
+| Lo que asume | Por qué |
+|--------------|---------|
+| `package.json` en la raíz con scripts `dev` (Vite) | Para arrancar el front con `npm run dev` |
+| Cliente Supabase usa `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` | Inyectadas vía `.env` durante el deploy |
+| Migraciones SQL en `supabase/migrations/*.sql` | Aplicadas automáticamente al PostgreSQL |
+| Edge functions en `supabase/functions/<nombre>/index.ts` | Copiadas a Supabase self-hosted |
+| Edge functions con IA usan `LOVABLE_API_KEY` y `https://ai.gateway.lovable.dev/v1/chat/completions` | El deploy las redirige a Google Gemini transparentemente |
+
+**No tienes que tocar nada del código** — el deploy hace transformaciones en
+runtime sobre las edge functions copiadas a la EC2 (sustituye URL del Lovable
+Gateway por el endpoint OpenAI-compatible de Gemini, e inyecta un wrapper que
+hace fallback automático a modelos más estables si el principal está saturado).
+
+### Lo que NO asume
+
+- ❌ No asume nombre del proyecto — pasas el nombre al ejecutar (default `lovable-app`,
+  pero puede ser cualquier cosa: `mi-app`, `tienda-online`, etc.). Todos los
+  recursos AWS, paths internos y servicios usan ese nombre.
+- ❌ No asume schema de base de datos — usa el que esté en `supabase/migrations/`
+  de tu proyecto.
+- ❌ No asume datos — la BD arranca vacía. Si tu proyecto tiene una edge function
+  `seed-data`, llámala desde el front después del deploy.
 
 ---
 
@@ -161,10 +195,10 @@ El script te hará 4 preguntas. Pega cada cosa donde corresponde:
 ### Pregunta 1 — Nombre del proyecto
 
 ```
-Nombre del proyecto [examlab]:
+Nombre del proyecto [lovable-app]:
 ```
 
-→ **Presiona Enter** (deja `examlab`).
+→ **Presiona Enter** (deja `lovable-app`).
 
 ### Pregunta 2 — Contraseña de la base de datos
 
@@ -202,7 +236,7 @@ Región AWS [us-east-1]:
 
 ```
 Resumen:
-  Proyecto: examlab
+  Proyecto: lovable-app
   Región:   us-east-1
   Cuenta:   123456789012
   IA:       habilitada (Google Gemini)
@@ -233,7 +267,7 @@ Al final verás algo como:
 
 ```
 ✓ Stack desplegado
-✓ Información guardada: /home/cloudshell-user/examlab-deployment-info.txt
+✓ Información guardada: /home/cloudshell-user/lovable-app-deployment-info.txt
 ═════════════════════════════════════════════════════════════
 ```
 
@@ -257,18 +291,18 @@ Después del paso 6, el script imprime la URL directamente. Búscala en el outpu
 Si cerraste CloudShell, recupérala con:
 
 ```bash
-cat ~/examlab-deployment-info.txt
+cat ~/lovable-app-deployment-info.txt
 ```
 
 ### Opción B — Desde la consola de AWS
 
 1. Ve a **CloudFormation**: https://console.aws.amazon.com/cloudformation/
-2. Click en el stack **`examlab-stack`**
+2. Click en el stack **`lovable-app-stack`**
 3. Click en la pestaña **"Outputs"**
 
 > 📸 _Screenshot: lista de stacks de CloudFormation_
 > ![CloudFormation stacks list](screenshots/08-cloudformation-list.png)
-> *(reemplazar con captura mostrando examlab-stack en la lista)*
+> *(reemplazar con captura mostrando lovable-app-stack en la lista)*
 
 Verás una tabla así:
 
@@ -295,12 +329,12 @@ Verás una tabla así:
 4. *(Opcional)* Click en **"Iniciar datos demo"** para cargar cursos, usuarios y exámenes de prueba
 5. ¡Listo!
 
-> 📸 _Screenshot: pantalla de login de ExamLab_
-> ![ExamLab login](screenshots/10-app-login.png)
+> 📸 _Screenshot: pantalla de login de la app_
+> ![App login](screenshots/10-app-login.png)
 > *(reemplazar con captura de la app cargada)*
 
-> 📸 _Screenshot: dashboard del docente con datos demo cargados_
-> ![ExamLab dashboard](screenshots/11-app-dashboard.png)
+> 📸 _Screenshot: dashboard con datos demo cargados_
+> ![App dashboard](screenshots/11-app-dashboard.png)
 > *(reemplazar con captura del dashboard funcionando)*
 
 ---
@@ -373,7 +407,7 @@ Cada `git push origin main` puede desplegar automáticamente sin abrir CloudShel
    - Secret `DB_PASSWORD`
    - Secret `LOVABLE_API_KEY` (opcional)
    - Variable `AWS_REGION` (ej. `us-east-1`)
-   - Variable `PROJECT_NAME` (ej. `examlab`)
+   - Variable `PROJECT_NAME` (ej. `lovable-app`)
 3. Hacer push y ver el deploy en **Actions** tab del repo.
 
 El workflow está en `.github/workflows/deploy-aws.yml` y se ejecuta solo cuando
@@ -389,18 +423,18 @@ Para borrar la EC2, los buckets, etc. y dejar de cobrar:
 
 ```bash
 # 1. Eliminar el stack (toma ~5 min)
-aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
 
 # 2. Eliminar los buckets S3 (opcional, cobra ~$0.05/mes si quedan)
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-aws s3 rm "s3://examlab-deploy-${ACCOUNT}-us-east-1" --recursive
-aws s3 rb "s3://examlab-deploy-${ACCOUNT}-us-east-1"
-aws s3 rm "s3://examlab-storage-${ACCOUNT}-us-east-1" --recursive
-aws s3 rb "s3://examlab-storage-${ACCOUNT}-us-east-1"
+aws s3 rm "s3://lovable-app-deploy-${ACCOUNT}-us-east-1" --recursive
+aws s3 rb "s3://lovable-app-deploy-${ACCOUNT}-us-east-1"
+aws s3 rm "s3://lovable-app-storage-${ACCOUNT}-us-east-1" --recursive
+aws s3 rb "s3://lovable-app-storage-${ACCOUNT}-us-east-1"
 
 # 3. Eliminar SSH key (opcional)
-aws ec2 delete-key-pair --key-name examlab-key --region us-east-1
+aws ec2 delete-key-pair --key-name lovable-app-key --region us-east-1
 ```
 
 ---

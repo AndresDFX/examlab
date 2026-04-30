@@ -30,7 +30,7 @@ bash scripts/create-github-iam-user.sh
 ```
 
 El script genera:
-- Un IAM user llamado `github-actions-examlab`
+- Un IAM user llamado `github-actions-lovable-app`
 - Una política con los permisos exactos que necesita el workflow
 - Una `Access Key ID` y `Secret Access Key`
 
@@ -63,7 +63,7 @@ En la misma pantalla, click **"Variables"** → **"New repository variable"**:
 | Variable name | Valor sugerido |
 |---------------|----------------|
 | `AWS_REGION` | `us-east-1` (o la región que prefieras) |
-| `PROJECT_NAME` | `examlab` |
+| `PROJECT_NAME` | `lovable-app` |
 
 ### 4. Hacer un push de prueba
 
@@ -141,7 +141,7 @@ El workflow corre automáticamente cuando:
 
 También puedes correrlo manualmente:
 
-1. Ve a **Actions** → **"Deploy ExamLab to AWS"**
+1. Ve a **Actions** → **"Deploy to AWS"**
 2. Click **"Run workflow"** → elige la rama → **"Run workflow"**
 
 ---
@@ -171,8 +171,8 @@ sudo systemctl restart amazon-ssm-agent
 Un deploy anterior falló y dejó el stack en estado de rollback.
 
 ```bash
-aws cloudformation delete-stack --stack-name examlab-stack --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name examlab-stack --region us-east-1
+aws cloudformation delete-stack --stack-name lovable-app-stack --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name lovable-app-stack --region us-east-1
 ```
 
 Luego re-corre el workflow.

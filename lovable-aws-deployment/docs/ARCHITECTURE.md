@@ -1,6 +1,6 @@
 # 🏗️ Arquitectura del despliegue AWS
 
-Detalle técnico de cómo está construido el despliegue de ExamLab en AWS.
+Detalle técnico de cómo está construido el despliegue de proyectos Lovable en AWS.
 
 ---
 
@@ -18,8 +18,8 @@ graph TB
             subgraph "Public Subnet 10.0.1.0/24"
                 EIP[📍 Elastic IP]
                 subgraph "EC2 t3.medium - Ubuntu 22.04"
-                    SVC[systemd: examlab.service]
-                    APP[ExamLab Vite :3000]
+                    SVC[systemd: lovable-app.service]
+                    APP[App Vite :3000]
                     SVC --> APP
                     subgraph "Supabase Stack via Docker Compose"
                         KONG[Kong API Gateway :8000]
@@ -88,7 +88,7 @@ El rol IAM de la EC2 tiene:
 `<projectname>-deploy-<account-id>-<region>`
 
 - Creado por `deploy.sh` antes del CloudFormation
-- Contiene `examlab-code-<timestamp>.tar.gz` (código de la app, ~2-5 MB)
+- Contiene `lovable-app-code-<timestamp>.tar.gz` (código de la app, ~2-5 MB)
 - La EC2 lo descarga durante `[5/9]` del user-data
 - **No se elimina automáticamente** al borrar el stack
 
@@ -132,25 +132,25 @@ Si una migración falla, el script continúa con un warning (no rompe el deploy 
 
 ```ini
 [Unit]
-Description=ExamLab Vite Dev Server
+Description=$APP_NAME Vite Dev Server
 After=network.target docker.service
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/examlab
-EnvironmentFile=/opt/examlab/.env
+WorkingDirectory=/opt/lovable-app
+EnvironmentFile=/opt/lovable-app/.env
 ExecStart=/usr/bin/npm run dev -- --host 0.0.0.0 --port 3000
 Restart=always
 RestartSec=10
-StandardOutput=append:/var/log/examlab.log
-StandardError=append:/var/log/examlab.log
+StandardOutput=append:/var/log/lovable-app.log
+StandardError=append:/var/log/lovable-app.log
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-- `EnvironmentFile=/opt/examlab/.env` carga `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, etc.
+- `EnvironmentFile=/opt/lovable-app/.env` carga `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, etc.
 - `--host 0.0.0.0` para que Vite escuche en todas las interfaces
 - `--port 3000` porque el security group permite ese puerto
 - `Restart=always` reinicia el servicio si crashea
@@ -187,7 +187,7 @@ sequenceDiagram
     SB-->>EC2: Containers ready
     EC2->>SB: [7/9] Aplicar migraciones SQL
     EC2->>EC2: [8/9] npm install
-    EC2->>EC2: [9/9] systemctl start examlab.service
+    EC2->>EC2: [9/9] systemctl start lovable-app.service
 
     CS->>CF: Esperar STACK_COMPLETE
     CF-->>CS: Outputs
@@ -204,7 +204,7 @@ sequenceDiagram
 - ✅ Sin credenciales GitHub en la EC2 (descarga desde S3 propio)
 - ✅ JWT secret aleatorio generado por instancia (no compartido)
 - ✅ Session Manager habilitado (no requiere SSH key)
-- ✅ Credenciales en `/root/examlab-credentials.txt` modo 600
+- ✅ Credenciales en `/root/lovable-app-credentials.txt` modo 600
 
 ### Limitaciones conocidas
 
@@ -250,7 +250,6 @@ Para producción real, considera Supabase Cloud (managed) — más barato y mant
 |---------|-----------|
 | [`deploy.sh`](../deploy.sh) | Orquestador en CloudShell |
 | [`cloudformation/all-in-one-stack.yaml`](../cloudformation/all-in-one-stack.yaml) | Recursos AWS + user-data |
-| [`scripts/init-db.sql`](../scripts/init-db.sql) | Schema inicial (referencia) |
 | [`scripts/create-github-iam-user.sh`](../scripts/create-github-iam-user.sh) | IAM user para CI/CD |
 
 ---

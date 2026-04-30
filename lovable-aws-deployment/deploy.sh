@@ -70,8 +70,8 @@ success "Cuenta: $ACCOUNT_ID"
 
 header "Configuración"
 
-read -p "Nombre del proyecto [examlab]: " PROJECT_NAME
-PROJECT_NAME=${PROJECT_NAME:-examlab}
+read -p "Nombre del proyecto [lovable-app]: " PROJECT_NAME
+PROJECT_NAME=${PROJECT_NAME:-lovable-app}
 
 echo ""
 read -sp "Contraseña DB (Enter para generar): " DB_PASSWORD
@@ -207,7 +207,7 @@ header "Empaquetando código"
 
 S3_BUCKET="${PROJECT_NAME}-deploy-${ACCOUNT_ID}-${AWS_REGION}"
 STORAGE_BUCKET="${PROJECT_NAME}-storage-${ACCOUNT_ID}-${AWS_REGION}"
-S3_KEY="examlab-code-$(date +%Y%m%d%H%M%S).tar.gz"
+S3_KEY="${PROJECT_NAME}-code-$(date +%Y%m%d%H%M%S).tar.gz"
 TAR_FILE="/tmp/${S3_KEY}"
 
 # Crear deploy bucket si no existe
@@ -330,23 +330,25 @@ if [ "$IS_UPDATE" = "true" ]; then
     step "Generando script de live-update..."
 
     # Write the live-update script to a temp file (avoids SSM JSON escaping issues)
-    LIVE_SCRIPT="/tmp/examlab-live-update-$$.sh"
+    LIVE_SCRIPT="/tmp/${PROJECT_NAME}-live-update-$$.sh"
     cat > "$LIVE_SCRIPT" <<LIVEEOF
 #!/bin/bash
 set -e
+APP_NAME="${PROJECT_NAME}"
+APP_DIR="/opt/\$APP_NAME"
 echo "=== Live update started: \$(date) ==="
 
 # 1. Refresh app code from S3
 aws s3 cp "s3://${S3_BUCKET}/${S3_KEY}" /tmp/code.tar.gz --region "${AWS_REGION}"
-rm -rf /opt/examlab.bak
-cp -a /opt/examlab /opt/examlab.bak
-tar -xzf /tmp/code.tar.gz -C /opt/examlab --overwrite
+rm -rf "\$APP_DIR.bak"
+cp -a "\$APP_DIR" "\$APP_DIR.bak"
+tar -xzf /tmp/code.tar.gz -C "\$APP_DIR" --overwrite
 rm /tmp/code.tar.gz
-chown -R ubuntu:ubuntu /opt/examlab
+chown -R ubuntu:ubuntu "\$APP_DIR"
 
 # 2. Refresh edge functions: substitute URL + inject AI fallback wrapper
-if [ -d /opt/examlab/supabase/functions ]; then
-  for fn_dir in /opt/examlab/supabase/functions/*/; do
+if [ -d "\$APP_DIR/supabase/functions" ]; then
+  for fn_dir in "\$APP_DIR"/supabase/functions/*/; do
     [ -d "\$fn_dir" ] || continue
     fn_name=\$(basename "\$fn_dir")
     rm -rf "/opt/supabase/volumes/functions/\$fn_name"
@@ -430,11 +432,11 @@ cd /opt/supabase
 docker compose up -d --force-recreate functions
 
 # 5. Re-install npm deps if package.json changed, then restart app
-if ! cmp -s /opt/examlab/package.json /opt/examlab.bak/package.json 2>/dev/null; then
+if ! cmp -s "\$APP_DIR/package.json" "\$APP_DIR.bak/package.json" 2>/dev/null; then
   echo "package.json changed - reinstalling deps..."
-  sudo -u ubuntu bash -c "cd /opt/examlab && npm install --legacy-peer-deps --no-audit --no-fund"
+  sudo -u ubuntu bash -c "cd \$APP_DIR && npm install --legacy-peer-deps --no-audit --no-fund"
 fi
-systemctl restart examlab.service
+systemctl restart "\$APP_NAME.service"
 
 echo "=== Live update completed: \$(date) ==="
 LIVEEOF
@@ -537,11 +539,11 @@ cat << FINAL
 
 📝 VERIFICAR DESPLIEGUE (dentro de la instancia):
 
-   sudo cat /root/examlab-credentials.txt    # Credenciales generadas
-   sudo systemctl status examlab.service     # Estado de la app
-   sudo tail -f /var/log/user-data.log       # Logs del setup
-   sudo tail -f /var/log/examlab.log         # Logs de la app
-   cd /opt/supabase && sudo docker compose ps  # Estado Supabase
+   sudo cat /root/${PROJECT_NAME}-credentials.txt    # Credenciales generadas
+   sudo systemctl status ${PROJECT_NAME}.service     # Estado de la app
+   sudo tail -f /var/log/user-data.log               # Logs del setup
+   sudo tail -f /var/log/${PROJECT_NAME}.log         # Logs de la app
+   cd /opt/supabase && sudo docker compose ps        # Estado Supabase
 
 ⚠️  IMPORTANTE:
    • La primera carga puede tardar (npm install + Supabase boot)
@@ -555,7 +557,7 @@ INFO_FILE="$HOME/${PROJECT_NAME}-deployment-info.txt"
 
 cat > "$INFO_FILE" << EOF
 ╔════════════════════════════════════════════════════════════╗
-║              ExamLab - Deployment Information              ║
+║              $PROJECT_NAME - Deployment Information
 ╚════════════════════════════════════════════════════════════╝
 
 PROJECT INFORMATION:
@@ -575,7 +577,7 @@ CONNECT TO INSTANCE (no SSH key required):
 
 GET GENERATED CREDENTIALS (Supabase keys, DB password):
   aws ssm start-session --target $INSTANCE_ID --region $AWS_REGION
-  sudo cat /root/examlab-credentials.txt
+  sudo cat /root/${PROJECT_NAME}-credentials.txt
 
 MONITORING:
 - CloudWatch Logs: /aws/ec2/$PROJECT_NAME
@@ -583,12 +585,12 @@ MONITORING:
 - Instance:        $INSTANCE_ID
 
 USEFUL COMMANDS (run inside the instance):
-  sudo systemctl status examlab.service        # App service status
-  sudo journalctl -u examlab.service -f        # App service logs
-  sudo tail -f /var/log/user-data.log          # Setup logs
-  sudo tail -f /var/log/examlab.log            # App stdout/stderr
-  cd /opt/supabase && sudo docker compose ps   # Supabase services
-  cd /opt/supabase && sudo docker compose logs -f kong  # Supabase API logs
+  sudo systemctl status ${PROJECT_NAME}.service        # App service status
+  sudo journalctl -u ${PROJECT_NAME}.service -f        # App service logs
+  sudo tail -f /var/log/user-data.log                  # Setup logs
+  sudo tail -f /var/log/${PROJECT_NAME}.log            # App stdout/stderr
+  cd /opt/supabase && sudo docker compose ps           # Supabase services
+  cd /opt/supabase && sudo docker compose logs -f kong # Supabase API logs
 
 CLEANUP (delete everything):
   aws cloudformation delete-stack --stack-name $STACK_NAME --region $AWS_REGION
