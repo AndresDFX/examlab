@@ -73,6 +73,25 @@ function TeacherExams() {
   const [form, setForm] = useState<Partial<Exam>>({});
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  const confirm = useConfirm();
+
+  const remove = async (exam: Exam) => {
+    const ok = await confirm({
+      title: t("exam.deleteTitle", { defaultValue: "Eliminar examen" }),
+      description: t("exam.deleteDesc", {
+        defaultValue:
+          "Se eliminarán las preguntas, asignaciones y entregas asociadas al examen \"{{title}}\". Esta acción no se puede deshacer.",
+        title: exam.title,
+      }),
+      confirmLabel: t("common.delete", { defaultValue: "Eliminar" }),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await supabase.from("exams").delete().eq("id", exam.id);
+    if (error) return toast.error(error.message);
+    toast.success(t("exam.deleted", { defaultValue: "Examen eliminado" }));
+    load();
+  };
 
   const load = async () => {
     const [{ data: cs }, { data: es }, { data: cs2 }] = await Promise.all([
