@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
-  Download,
   GitBranch,
   FileText,
   Hammer,
@@ -32,7 +31,8 @@ import {
   Scale,
   AlertTriangle,
 } from "lucide-react";
-import { downloadCSV, toCSV } from "@/lib/csv";
+import { toCSV } from "@/lib/csv";
+import { ImportExportMenu } from "@/components/ImportExportMenu";
 import {
   computeCutGrade,
   computeCourseFinalGrade,
@@ -407,13 +407,10 @@ function Gradebook() {
     loadCourse();
   };
 
-  // Export CSV
-  const exportCourse = () => {
-    if (!students.length || !columns.length) {
-      toast.info("No hay datos para exportar");
-      return;
-    }
-
+  // Build the export payload as a CSV string. Returns "" if there's nothing to
+  // export — the standard ImportExportMenu detects this and shows an info toast.
+  const buildGradebookCsv = (): string => {
+    if (!students.length || !columns.length) return "";
     const csvRows = students.map((s) => {
       const row: Record<string, string> = {
         nombre: s.full_name,
@@ -432,13 +429,55 @@ function Gradebook() {
       });
       return row;
     });
+    return toCSV(csvRows);
+  };
 
-    const courseName = courses.find((c) => c.id === courseId)?.name ?? "curso";
-    downloadCSV(
-      `calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`,
-      toCSV(csvRows),
-    );
-    toast.success("Archivo exportado correctamente");
+  // Template uses the same headers a teacher would see when exporting, so the
+  // file can be edited and re-imported as overrides. Uses sample columns that
+  // illustrate the [T] prefix for workshops.
+  const GRADEBOOK_TEMPLATE = toCSV([
+    {
+      email_institucional: "estudiante@institucion.edu",
+      "Examen 1": "4.5",
+      "Examen 2": "",
+      "[T] Taller 1": "5.0",
+    },
+  ]);
+
+  // Apply teacher overrides from a CSV (one row per student). Only writes the
+  // cells that differ from the current value, to avoid touching unrelated
+  // submissions. Matches students by `email_institucional`.
+  const importGradebook = async (rows: Record<string, string>[]) => {
+    if (!students.length || !columns.length) {
+      throw new Error("Selecciona un curso primero");
+    }
+    const byEmail = new Map(students.map((s) => [s.institutional_email.toLowerCase(), s]));
+    let updated = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      const email = (row.email_institucional ?? "").trim().toLowerCase();
+      const student = email ? byEmail.get(email) : undefined;
+      if (!student) {
+        skipped++;
+        continue;
+      }
+      for (const col of columns) {
+        const prefix = col.kind === "workshop" ? "[T] " : "";
+        const label = `${prefix}${col.title}`;
+        const raw = row[label];
+        if (raw === undefined) continue;
+        const next = raw.trim();
+        const current = getGrade(student.id, col).grade;
+        const parsed = next === "" ? null : Number(next);
+        if (next !== "" && Number.isNaN(parsed)) continue;
+        if (parsed === current) continue;
+        const editKey = `${student.id}:${col.kind}:${col.id}`;
+        // Reuse existing edit machinery (the calling form will save in batch).
+        setEdits((prev) => ({ ...prev, [editKey]: next }));
+        updated++;
+      }
+    }
+    return `${updated} celda(s) lista(s) para guardar${skipped ? ` · ${skipped} fila(s) omitida(s)` : ""}`;
   };
 
   const hasEdits = Object.values(edits).some((v) => v !== "");
@@ -587,10 +626,14 @@ function Gradebook() {
               Guardar cambios
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={exportCourse}>
-            <Download className="h-4 w-4 mr-1" />
-            CSV
-          </Button>
+          <ImportExportMenu
+            label="CSV"
+            resourceName="calificaciones"
+            templateCsv={GRADEBOOK_TEMPLATE}
+            onImport={importGradebook}
+            onExport={buildGradebookCsv}
+            disabled={!courseId}
+          />
         </div>
       </div>
 

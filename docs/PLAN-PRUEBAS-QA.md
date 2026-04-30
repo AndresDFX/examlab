@@ -96,7 +96,43 @@ automatizado.
 
 ---
 
-## 🆕 4. Despliegue AWS self-hosted (lovable-aws-deployment)
+## 🆕 4. Importar / Exportar / Plantilla CSV (estandarizado)
+
+> Todas las pantallas con datos masivos ahora usan el componente compartido
+> `<ImportExportMenu>` (ver [`src/components/ImportExportMenu.tsx`](../src/components/ImportExportMenu.tsx)).
+> El menú dropdown tiene tres ítems consistentes en cualquier pantalla:
+>
+> - **Descargar plantilla** — siempre disponible.
+> - **Importar desde CSV** — abre selector de archivo.
+> - **Exportar a CSV** — genera CSV con el contenido actual (info toast si no hay datos).
+>
+> El nombre del botón ("Datos", "Usuarios", "Asistencia", "Clases", "CSV"…)
+> se personaliza por pantalla pero la estructura interna es la misma.
+
+| ID         | Pantalla                            | Rol      | Prioridad | Caso                                                                                                                                                | Estado    |
+| ---------- | ----------------------------------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| IE-UI-01   | Cualquier pantalla con menú         | -        | P0        | El botón abre un dropdown con las 3 opciones. La estructura visual es idéntica en Usuarios, Asistencia, Clases, Exámenes, Talleres y Calificaciones. | Pendiente |
+| IE-UI-02   | Móvil                               | -        | P1        | El dropdown abre alineado a la derecha y no se sale del viewport. Cada opción es tappeable.                                                          | Pendiente |
+| IE-UI-03   | Plantilla siempre visible           | -        | P1        | "Descargar plantilla" aparece **incluso cuando no hay datos** y aunque la pantalla no soporte importar. Permite empezar desde cero.                  | Pendiente |
+| IE-USR-01  | Admin · Usuarios                    | Admin    | P0        | Descargar plantilla genera `template-usuarios.csv` con columnas `full_name, institutional_email, personal_email, password, roles, course_name`.       | Pendiente |
+| IE-USR-02  | Admin · Usuarios                    | Admin    | P0        | Importar CSV con 3 usuarios nuevos: muestra toast "Importados correctamente: 3" y aparecen en la lista tras refresh automático.                       | Pendiente |
+| IE-USR-03  | Admin · Usuarios                    | Admin    | P0        | Importar CSV con 1 nuevo + 1 duplicado + 1 error: toast warning con desglose `Importados: 1 · Duplicados: 1 · Errores: 1` con detalle del email.      | Pendiente |
+| IE-USR-04  | Admin · Usuarios                    | Admin    | P1        | Exportar: descarga `usuarios-<ts>.csv` con todos los usuarios actuales. Las columnas son las mismas de la plantilla.                                  | Pendiente |
+| IE-AST-01  | Docente · Asistencia · Clases       | Docente  | P0        | Plantilla `template-clases.csv`: descargable. Importar agrega sesiones al curso seleccionado. Sin curso → menú deshabilitado.                         | Pendiente |
+| IE-AST-02  | Docente · Asistencia · Asistencia   | Docente  | P0        | Plantilla `template-asistencia.csv`. Importar registros marca asistencia masiva. Exportar genera matriz estudiante × sesión.                          | Pendiente |
+| IE-EX-01   | Docente · Exámenes                  | Docente  | P1        | Plantilla, import y export funcionan (lista de exámenes con título, fechas, estado).                                                                  | Pendiente |
+| IE-WS-01   | Docente · Talleres                  | Docente  | P1        | Igual que exámenes, para talleres.                                                                                                                    | Pendiente |
+| IE-GRA-01  | Docente · Calificaciones (gradebook)| Docente  | P0        | Sin curso seleccionado → menú deshabilitado. Con curso: plantilla con columnas `email_institucional, Examen 1, Examen 2, [T] Taller 1`.              | Pendiente |
+| IE-GRA-02  | Docente · Calificaciones (gradebook)| Docente  | P0        | Exportar genera `calificaciones-<ts>.csv` con la matriz visible (incluyendo prefijo `[T]` para talleres y sufijo `(S)` para supletorios).             | Pendiente |
+| IE-GRA-03  | Docente · Calificaciones (gradebook)| Docente  | P0        | Importar CSV: solo escribe celdas que difieren del valor actual (no toca lo no incluido). Toast: `N celda(s) lista(s) para guardar`. Botón "Guardar cambios" persiste. | Pendiente |
+| IE-GRA-04  | Docente · Calificaciones (gradebook)| Docente  | P1        | Importar CSV con email que no existe en el curso: la fila se omite (toast incluye `M fila(s) omitida(s)`). No rompe el resto de la importación.       | Pendiente |
+| IE-ERR-01  | Cualquier pantalla                  | -        | P1        | Importar archivo no-CSV (ej. PDF): toast error "Error importando: …" sin crashear la app.                                                             | Pendiente |
+| IE-ERR-02  | Cualquier pantalla                  | -        | P1        | Importar CSV vacío (solo header): toast "El archivo no contiene datos".                                                                              | Pendiente |
+| IE-ERR-03  | Cualquier pantalla                  | -        | P2        | Exportar cuando no hay datos: toast info "No hay datos para exportar" (no descarga archivo vacío).                                                    | Pendiente |
+
+---
+
+## 🆕 5. Despliegue AWS self-hosted (lovable-aws-deployment)
 
 > Carpeta agnóstica al proyecto que despliega cualquier app Lovable en AWS
 > con un único `bash deploy.sh` desde CloudShell. Levanta EC2 + Supabase
@@ -119,7 +155,7 @@ automatizado.
 
 ---
 
-## 🔄 5. Regresión crítica (P0) tras cambios recientes
+## 🔄 6. Regresión crítica (P0) tras cambios recientes
 
 > Los siguientes casos ya pasaron en QA inicial (ver `QA-RESULTADOS.md`),
 > pero los cambios de esta iteración (DatePicker, required, modelo de
@@ -136,7 +172,7 @@ automatizado.
 
 ---
 
-## 📋 6. Casos pendientes / mejoras futuras
+## 📋 7. Casos pendientes / mejoras futuras
 
 > Reportadas en QA-RESULTADOS pero no críticas. Se mantienen aquí para
 > seguimiento.
@@ -152,9 +188,9 @@ automatizado.
 
 Una iteración queda aprobada cuando:
 
-1. Todos los casos de las secciones 1, 2, 3 están en estado **OK**.
-2. Todos los casos de la sección 4 (despliegue AWS) están **OK** o **N/A** justificado.
-3. La sección 5 de regresión P0 pasa sin defectos.
+1. Todos los casos de las secciones 1, 2, 3, 4 están en estado **OK**.
+2. Todos los casos de la sección 5 (despliegue AWS) están **OK** o **N/A** justificado.
+3. La sección 6 de regresión P0 pasa sin defectos.
 4. `npm run test:run` pasa al 100%.
 5. Los defectos encontrados están documentados como BUG-NN en
    `QA-RESULTADOS.md` con su severidad y commit de corrección (si aplica).
