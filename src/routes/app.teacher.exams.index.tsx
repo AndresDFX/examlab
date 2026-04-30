@@ -320,6 +320,14 @@ function TeacherExams() {
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(e)}
+                        title={t("common.delete", { defaultValue: "Eliminar" })}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
