@@ -128,6 +128,7 @@ function ExamEditor() {
         shuffle_enabled: !!exam.shuffle_enabled,
         max_attempts: normalizedAttempts,
         cut_id: (exam as any).cut_id || null,
+        weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
