@@ -61,6 +61,7 @@ type Exam = {
   parent_exam_id: string | null;
   course_id: string;
   cut_id?: string | null;
+  weight?: number | null;
 };
 type Workshop = {
   id: string;
@@ -172,7 +173,7 @@ function Gradebook() {
     // Exams (incluye cut_id para el consolidado de cortes)
     const { data: exams } = await supabase
       .from("exams")
-      .select("id, title, parent_exam_id, course_id, cut_id")
+      .select("id, title, parent_exam_id, course_id, cut_id, weight")
       .eq("course_id", courseId)
       .order("start_time");
 
@@ -467,7 +468,7 @@ function Gradebook() {
         const cutExams = allExams.filter(
           (e) => !e.parent_exam_id && (e.cut_id ?? null) === cut.id,
         );
-        const examScores: number[] = [];
+        const examScores: { score: number; weight: number }[] = [];
         for (const e of cutExams) {
           let sub = examSubs.find((s) => s.user_id === stu.id && s.exam_id === e.id);
           if (!sub) {
@@ -475,10 +476,14 @@ function Gradebook() {
             sub = examSubs.find((s) => s.user_id === stu.id && makeups.includes(s.exam_id));
           }
           const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
-          if (raw != null) examScores.push(toScale(Number(raw), 10));
+          if (raw != null) {
+            const w = Number(e.weight ?? 1);
+            examScores.push({ score: toScale(Number(raw), 10), weight: w > 0 ? w : 0 });
+          }
         }
-        const examAvg = examScores.length
-          ? examScores.reduce((a, b) => a + b, 0) / examScores.length
+        const examWeightSum = examScores.reduce((a, b) => a + b.weight, 0);
+        const examAvg = examWeightSum > 0
+          ? examScores.reduce((a, b) => a + b.score * b.weight, 0) / examWeightSum
           : null;
 
         // Talleres del corte

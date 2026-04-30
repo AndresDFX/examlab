@@ -128,6 +128,7 @@ function ExamEditor() {
         shuffle_enabled: !!exam.shuffle_enabled,
         max_attempts: normalizedAttempts,
         cut_id: (exam as any).cut_id || null,
+        weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
@@ -439,6 +440,27 @@ function ExamEditor() {
                     Este curso aún no tiene cortes definidos.
                   </p>
                 )}
+              </div>
+              <div>
+                <Label>Peso del examen dentro del corte</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  placeholder="1"
+                  className="w-32"
+                  value={(exam as any).weight ?? 1}
+                  onChange={(e) =>
+                    setExam({
+                      ...exam,
+                      weight: e.target.value === "" ? 1 : Number(e.target.value),
+                    } as any)
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Peso relativo respecto a otros exámenes del mismo corte. Ej: 1 = parcial normal,
+                  0.5 = examen corto/quiz, 2 = examen final que vale el doble.
+                </p>
               </div>
               <Button onClick={saveExam}>Guardar cambios</Button>
             </CardContent>

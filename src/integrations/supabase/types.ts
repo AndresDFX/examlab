@@ -464,6 +464,7 @@ export type Database = {
           time_limit_minutes: number
           title: string
           updated_at: string
+          weight: number
         }
         Insert: {
           course_id: string
@@ -481,6 +482,7 @@ export type Database = {
           time_limit_minutes?: number
           title: string
           updated_at?: string
+          weight?: number
         }
         Update: {
           course_id?: string
@@ -498,6 +500,7 @@ export type Database = {
           time_limit_minutes?: number
           title?: string
           updated_at?: string
+          weight?: number
         }
         Relationships: [
           {
