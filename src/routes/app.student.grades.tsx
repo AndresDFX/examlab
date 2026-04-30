@@ -87,6 +87,7 @@ type ItemRow = {
   rawGrade: number | null;
   rawMax: number;
   status: string;
+  weight?: number; // peso relativo (solo para exámenes por ahora)
   reviewExamId?: string | null;
   reviewWorkshopId?: string | null;
 };
