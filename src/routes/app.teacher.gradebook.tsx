@@ -61,6 +61,7 @@ type Exam = {
   parent_exam_id: string | null;
   course_id: string;
   cut_id?: string | null;
+  weight?: number | null;
 };
 type Workshop = {
   id: string;
