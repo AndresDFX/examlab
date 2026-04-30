@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot } from "lucide-react";
+import { MermaidPreview, looksLikeMermaid } from "@/components/MermaidPreview";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -54,6 +55,7 @@ type ProjectFile = {
   title: string;
   description: string | null;
   expected_rubric: string | null;
+  language: string | null;
   points: number;
 };
 
@@ -117,7 +119,7 @@ function StudentProjectDetail() {
             .maybeSingle(),
           db
             .from("project_files")
-            .select("id, position, title, description, expected_rubric, points")
+            .select("id, position, title, description, expected_rubric, language, points")
             .eq("project_id", projectId)
             .order("position"),
         ]);
@@ -320,11 +322,28 @@ function StudentProjectDetail() {
                         {f.description}
                       </div>
                     )}
-                    <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
-                      {ans?.content && ans.content.trim()
-                        ? ans.content
-                        : t("exam.review.noAnswer")}
-                    </div>
+                    {(() => {
+                      const text = ans?.content ?? "";
+                      const isDiagram =
+                        f.language === "mermaid" ||
+                        f.language === "diagrama" ||
+                        (text.trim().length > 0 && looksLikeMermaid(text));
+                      return (
+                        <>
+                          <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
+                            {text.trim() ? text : t("exam.review.noAnswer")}
+                          </div>
+                          {isDiagram && text.trim() && (
+                            <div className="mt-2">
+                              <p className="text-[11px] text-muted-foreground mb-1">
+                                Vista previa del diagrama:
+                              </p>
+                              <MermaidPreview code={text} />
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     {ans?.ai_feedback && (
                       <div className="border-t pt-3">
                         <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">

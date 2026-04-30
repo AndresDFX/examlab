@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/DatePicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -495,8 +496,9 @@ function TeacherProjects() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Título</Label>
+              <Label required>Título</Label>
               <Input
+                required
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
@@ -624,18 +626,17 @@ function TeacherProjects() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>{t("common.startDate")}</Label>
-                <Input
-                  type="datetime-local"
+                <DateTimePicker
                   value={form.start_date ? toLocal(form.start_date) : ""}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  onChange={(v) => setForm({ ...form, start_date: v })}
                 />
               </div>
               <div>
-                <Label>{t("common.endDate")}</Label>
-                <Input
-                  type="datetime-local"
+                <Label required>{t("common.endDate")}</Label>
+                <DateTimePicker
+                  required
                   value={form.due_date ? toLocal(form.due_date) : ""}
-                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                  onChange={(v) => setForm({ ...form, due_date: v })}
                 />
               </div>
             </div>

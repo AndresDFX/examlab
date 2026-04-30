@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/DatePicker";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -155,15 +156,15 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                   onChange={(e) => updateCut(cut.id, { name: e.target.value })}
                   placeholder="Nombre del corte"
                 />
-                <Input
-                  type="date"
+                <DatePicker
                   value={cut.start_date ?? ""}
-                  onChange={(e) => updateCut(cut.id, { start_date: e.target.value || null })}
+                  onChange={(v) => updateCut(cut.id, { start_date: v || null })}
+                  placeholder="Inicio"
                 />
-                <Input
-                  type="date"
+                <DatePicker
                   value={cut.end_date ?? ""}
-                  onChange={(e) => updateCut(cut.id, { end_date: e.target.value || null })}
+                  onChange={(v) => updateCut(cut.id, { end_date: v || null })}
+                  placeholder="Fin"
                 />
                 <Input
                   type="number"

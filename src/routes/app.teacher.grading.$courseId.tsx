@@ -17,6 +17,7 @@ import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, AlertTriangle, Info } from
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/DatePicker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -334,15 +335,15 @@ function GradingConfigPage() {
                     onChange={(e) => updateCut(cut.id, { name: e.target.value })}
                     placeholder={t("grading.cutName")}
                   />
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={cut.start_date ?? ""}
-                    onChange={(e) => updateCut(cut.id, { start_date: e.target.value || null })}
+                    onChange={(v) => updateCut(cut.id, { start_date: v || null })}
+                    placeholder="Inicio"
                   />
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={cut.end_date ?? ""}
-                    onChange={(e) => updateCut(cut.id, { end_date: e.target.value || null })}
+                    onChange={(v) => updateCut(cut.id, { end_date: v || null })}
+                    placeholder="Fin"
                   />
                   <Input
                     type="number"

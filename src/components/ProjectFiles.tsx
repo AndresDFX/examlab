@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Sparkles, Send, FileText } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { MermaidPreview, looksLikeMermaid } from "@/components/MermaidPreview";
 
 // `projects` y `project_*` aún no se reflejan en los types generados de
 // Supabase; cast lazo para no obligar a regenerar tipos en cada cambio.
@@ -210,8 +211,9 @@ export function TeacherProjectFilesEditor({
 
         <TabsContent value="manual" className="space-y-3">
           <div>
-            <Label>Título del archivo</Label>
+            <Label required>Título del archivo</Label>
             <Input
+              required
               value={fTitle}
               onChange={(e) => setFTitle(e.target.value)}
               placeholder="Ej.: Documento de diseño"
@@ -251,8 +253,9 @@ export function TeacherProjectFilesEditor({
 
         <TabsContent value="ai" className="space-y-3">
           <div>
-            <Label>Tema del proyecto</Label>
+            <Label required>Tema del proyecto</Label>
             <Textarea
+              required
               value={aiTopic}
               onChange={(e) => setAiTopic(e.target.value)}
               rows={3}
@@ -506,32 +509,57 @@ export function StudentProjectTaker({
         Pega el contenido de cada archivo en la caja correspondiente. Cuando envíes, la IA
         calificará cada archivo según la rúbrica.
       </p>
-      {files.map((f, idx) => (
-        <Card key={f.id}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
-                {idx + 1}
-              </Badge>
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>{f.title}</span>
-              <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {f.description && (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
-            )}
-            <Textarea
-              rows={10}
-              value={contents[f.id] ?? ""}
-              onChange={(e) => updateContent(f.id, e.target.value)}
-              placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
-              className="font-mono text-xs"
-            />
-          </CardContent>
-        </Card>
-      ))}
+      {files.map((f, idx) => {
+        const content = contents[f.id] ?? "";
+        const isDiagram =
+          f.language === "mermaid" ||
+          f.language === "diagrama" ||
+          (content.trim().length > 0 && looksLikeMermaid(content));
+        return (
+          <Card key={f.id}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="text-[10px]">
+                  {idx + 1}
+                </Badge>
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>{f.title}</span>
+                {isDiagram && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    Mermaid
+                  </Badge>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {f.description && (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
+              )}
+              <Textarea
+                required
+                rows={10}
+                value={content}
+                onChange={(e) => updateContent(f.id, e.target.value)}
+                placeholder={
+                  isDiagram
+                    ? `Pega aquí el código Mermaid del archivo: ${f.title}\n(ej. flowchart LR\\n  A --> B)`
+                    : `Pega aquí el contenido del archivo: ${f.title}`
+                }
+                className="font-mono text-xs"
+              />
+              {isDiagram && content.trim() && (
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1">
+                    Vista previa del diagrama:
+                  </p>
+                  <MermaidPreview code={content} />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         <Button onClick={submit} disabled={submitting} className="w-full">
           {submitting ? (

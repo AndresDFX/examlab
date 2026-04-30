@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { DatePicker } from "@/components/DatePicker";
 import {
   Select,
   SelectContent,
@@ -561,7 +562,7 @@ function TeacherAttendance() {
           <div className="space-y-3">
             <div>
               <Label>Fecha</Label>
-              <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+              <DatePicker value={newDate} onChange={setNewDate} />
             </div>
             <div>
               <Label>Título (opcional)</Label>
