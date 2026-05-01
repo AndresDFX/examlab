@@ -30,6 +30,27 @@ export function computeSecondsLeft(
   return Math.max(0, Math.floor((end - now) / 1000));
 }
 
+/**
+ * Para exámenes con programación "relativa": el estudiante tiene
+ * `timeLimitMinutes` minutos desde que arrancó el intento (`startedAt`),
+ * pero nunca puede pasar de `endTime` (cierre de la ventana de
+ * disponibilidad). Devuelve el mínimo de ambos en segundos.
+ */
+export function computeSecondsLeftRelative(
+  startedAt: string | Date | null | undefined,
+  timeLimitMinutes: number,
+  endTime: string | Date | null | undefined,
+  now: number = Date.now(),
+): number {
+  if (!startedAt) return 0;
+  const started = toMs(startedAt);
+  if (Number.isNaN(started)) return 0;
+  const personal = started + Math.max(0, timeLimitMinutes) * 60_000;
+  const windowEnd = endTime ? toMs(endTime) : personal;
+  const target = Math.min(personal, Number.isNaN(windowEnd) ? personal : windowEnd);
+  return Math.max(0, Math.floor((target - now) / 1000));
+}
+
 /** True when `now` falls inside [start_time, end_time] (inclusive). */
 export function isExamOpen(window: ExamWindow, now: number = Date.now()): boolean {
   const start = toMs(window.start_time);
