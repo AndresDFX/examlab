@@ -112,6 +112,7 @@ type ExamSub = {
   ai_grade: number | null;
   final_override_grade: number | null;
   status: string;
+  created_at: string;
 };
 type WsSub = {
   id: string;
