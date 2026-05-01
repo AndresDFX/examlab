@@ -49,6 +49,7 @@ import {
   type CutComponentScores,
   type CutWeights,
 } from "@/utils/grade";
+import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
