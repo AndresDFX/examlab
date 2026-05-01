@@ -232,15 +232,15 @@ function StudentGrades() {
             sub = (examSubs ?? []).find((s: any) => makeupIds.includes(s.exam_id));
           }
           const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
-          // Las notas de examen vienen en 0..10 (computeFinalGrade), las re-escalo.
+          // ai_grade ya está en la escala del curso (post-migración).
           rows.push({
             id: e.id,
             title: e.title,
             kind: "exam",
             cut_id: e.cut_id ?? null,
             rawGrade: raw,
-            rawMax: 10,
-            grade: raw != null ? toScale(raw, 10) : null,
+            rawMax: course.grade_scale_max,
+            grade: raw != null ? toScale(raw, course.grade_scale_max) : null,
             status: sub?.status ?? "sin_entrega",
             weight: Number(e.weight ?? 1),
             reviewExamId:
