@@ -332,8 +332,102 @@ function ExamMonitor() {
 
   if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
 
-  const inProgress = submissions.filter((s) => s.status === "en_progreso");
-  const completed = submissions.filter((s) => isFinalStatus(s.status));
+  const retryMode: RetryMode = ((exam as any).retry_mode as RetryMode) ?? "last";
+  const maxAttempts = Math.max(
+    1,
+    Number((exam as any).max_attempts ?? exam.course?.max_exam_attempts ?? 1) || 1,
+  );
+
+  // Agrupar submissions por estudiante (un estudiante = N intentos)
+  type StudentRow = {
+    userId: string;
+    profile?: { full_name: string; institutional_email: string };
+    attempts: Submission[]; // ordenadas asc por created_at
+    finishedAttempts: Submission[];
+    inProgress?: Submission;
+    latest: Submission;
+    effectiveGrade: number | null;
+    attemptsUsed: number;
+    currentNumber: number; // 1-based para mostrar "Intento N"
+  };
+  const studentMap = new Map<string, Submission[]>();
+  for (const s of submissions) {
+    const arr = studentMap.get(s.user_id) ?? [];
+    arr.push(s);
+    studentMap.set(s.user_id, arr);
+  }
+  const studentRows: StudentRow[] = Array.from(studentMap.entries()).map(([uid, arr]) => {
+    const sorted = [...arr].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+    const finished = sorted.filter((s) => isFinalStatus(s.status));
+    const inProg = sorted.find((s) => s.status === "en_progreso");
+    const latest = sorted[sorted.length - 1];
+    const eff = computeAttemptGrade(
+      finished.map((s) => ({
+        status: s.status,
+        ai_grade: s.ai_grade,
+        final_override_grade: s.final_override_grade,
+        created_at: s.created_at,
+      })),
+      retryMode,
+    );
+    return {
+      userId: uid,
+      profile: latest.profile,
+      attempts: sorted,
+      finishedAttempts: finished,
+      inProgress: inProg,
+      latest,
+      effectiveGrade: eff,
+      attemptsUsed: finished.length,
+      currentNumber: sorted.length,
+    };
+  });
+  studentRows.sort((a, b) =>
+    (a.profile?.full_name ?? "").localeCompare(b.profile?.full_name ?? ""),
+  );
+
+  const inProgressStudents = studentRows.filter((r) => r.inProgress);
+  const completedStudents = studentRows.filter((r) => !r.inProgress && r.finishedAttempts.length);
+
+  const deleteOneAttempt = async (sub: Submission) => {
+    const ok = await confirm({
+      title: `Eliminar intento del ${new Date(sub.created_at).toLocaleString()}`,
+      description:
+        "Se eliminará este intento de forma permanente. La nota efectiva del examen se recalculará según el modo de reintento.",
+      confirmLabel: "Eliminar intento",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
+    if (error) return toast.error(error.message);
+    toast.success("Intento eliminado");
+    void load();
+  };
+
+  const deleteAllAttempts = async (row: StudentRow) => {
+    const ok = await confirm({
+      title: `Eliminar todos los intentos de ${row.profile?.full_name ?? "este estudiante"}`,
+      description: `Se eliminarán ${row.attempts.length} intento(s) de forma permanente. El estudiante podrá iniciar un nuevo intento.`,
+      confirmLabel: "Eliminar todos",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await supabase
+      .from("submissions")
+      .delete()
+      .eq("exam_id", examId)
+      .eq("user_id", row.userId);
+    if (error) return toast.error(error.message);
+    toast.success("Intentos eliminados");
+    setAttemptsForUser(null);
+    void load();
+  };
+
+  const attemptsRow = attemptsForUser
+    ? studentRows.find((r) => r.userId === attemptsForUser) ?? null
+    : null;
 
   return (
     <div className="space-y-5">
@@ -348,7 +442,11 @@ function ExamMonitor() {
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
             {t("monitor.title")}: {exam.title}
           </h1>
-          <p className="text-sm text-muted-foreground">{exam.course?.name}</p>
+          <p className="text-sm text-muted-foreground">
+            {exam.course?.name} · Modo de reintento:{" "}
+            <span className="font-medium">{retryModeLabel(retryMode)}</span> · Máx. intentos:{" "}
+            {maxAttempts}
+          </p>
         </div>
       </div>
 
@@ -357,7 +455,7 @@ function ExamMonitor() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
-              En progreso ({inProgress.length}) · Completados ({completed.length})
+              En progreso ({inProgressStudents.length}) · Completados ({completedStudents.length})
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={load}>
               <Clock className="h-4 w-4 mr-1" /> Actualizar
@@ -369,114 +467,106 @@ function ExamMonitor() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("roles.Estudiante")}</TableHead>
+                <TableHead>Intentos</TableHead>
                 <TableHead>{t("common.status")}</TableHead>
-                <TableHead>{t("dashboard.cards.grades")}</TableHead>
+                <TableHead>Nota efectiva</TableHead>
                 <TableHead>{t("monitor.warnings")}</TableHead>
-                <TableHead>{t("monitor.viewAnswers")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {submissions.length === 0 && (
+              {studentRows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     Ningún estudiante ha iniciado el examen aún.
                   </TableCell>
                 </TableRow>
               )}
-              {submissions.map((sub) => {
-                const answeredCount = Object.keys(sub.answers ?? {}).filter(
-                  (k) => !k.startsWith("__"),
-                ).length;
-                const finalState = isFinalStatus(sub.status);
+              {studentRows.map((row) => {
+                const latest = row.latest;
+                const inProg = !!row.inProgress;
                 return (
-                  <TableRow key={sub.id}>
+                  <TableRow key={row.userId}>
                     <TableCell>
-                      <div className="font-medium">{sub.profile?.full_name ?? "—"}</div>
+                      <div className="font-medium">{row.profile?.full_name ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">
-                        {sub.profile?.institutional_email}
+                        {row.profile?.institutional_email}
                       </div>
                     </TableCell>
                     <TableCell>
-                      {sub.status === "en_progreso" ? (
+                      <button
+                        type="button"
+                        className="text-sm font-medium underline-offset-2 hover:underline"
+                        onClick={() => setAttemptsForUser(row.userId)}
+                        title="Ver y gestionar intentos"
+                      >
+                        {row.currentNumber} de {maxAttempts}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      {inProg ? (
                         <Badge className="bg-success text-success-foreground text-[10px]">
                           En progreso
                         </Badge>
-                      ) : sub.status === "sospechoso" ? (
+                      ) : latest.status === "sospechoso" ? (
                         <Badge variant="destructive" className="text-[10px]">
                           <AlertTriangle className="h-3 w-3 mr-0.5" /> Sospechoso
                         </Badge>
-                      ) : (
+                      ) : isFinalStatus(latest.status) ? (
                         <Badge variant="secondary" className="text-[10px]">
                           <CheckCircle2 className="h-3 w-3 mr-0.5" /> Completado
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">
+                          {latest.status}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-sm tabular-nums">
-                      {(() => {
-                        const grade = sub.final_override_grade ?? sub.ai_grade;
-                        if (grade == null) return <span className="text-muted-foreground">—</span>;
-                        return (
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">{grade}</span>
-                            {sub.final_override_grade != null &&
-                              sub.ai_grade != null &&
-                              sub.final_override_grade !== sub.ai_grade && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  IA: {sub.ai_grade}
-                                </span>
-                              )}
-                          </div>
-                        );
-                      })()}
+                      {row.effectiveGrade == null ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">{row.effectiveGrade}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {retryModeLabel(retryMode)}
+                          </span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={sub.focus_warnings > 0 ? "destructive" : "outline"}
+                        variant={latest.focus_warnings > 0 ? "destructive" : "outline"}
                         className="text-[10px]"
                       >
-                        {sub.focus_warnings}/3
+                        {latest.focus_warnings}/3
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">{answeredCount}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {sub.status === "en_progreso" && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => sendTimerControl("add_time", sub.user_id, 5 * 60)}
-                              disabled={loading === `add_time-${sub.user_id}`}
-                              title="Agregar 5 minutos a este estudiante"
-                            >
-                              {loading === `add_time-${sub.user_id}` ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <TimerReset className="h-3.5 w-3.5" />
-                              )}
-                              <span className="ml-1 text-[11px]">+5m</span>
-                            </Button>
-                          </>
-                        )}
-                        {finalState && (
+                        {inProg && (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => openView(sub)}
-                            title="Ver respuestas y calificar"
+                            onClick={() => sendTimerControl("add_time", row.userId, 5 * 60)}
+                            disabled={loading === `add_time-${row.userId}`}
+                            title="Agregar 5 minutos a este estudiante"
                           >
-                            <Eye className="h-3.5 w-3.5" />
+                            {loading === `add_time-${row.userId}` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <TimerReset className="h-3.5 w-3.5" />
+                            )}
+                            <span className="ml-1 text-[11px]">+5m</span>
                           </Button>
                         )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => deleteSubmission(sub)}
-                          title="Eliminar entrega"
+                          onClick={() => setAttemptsForUser(row.userId)}
+                          title="Ver intentos"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Eye className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -487,6 +577,114 @@ function ExamMonitor() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog: lista de intentos del estudiante */}
+      <Dialog
+        open={attemptsForUser != null}
+        onOpenChange={(o) => !o && setAttemptsForUser(null)}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Intentos de {attemptsRow?.profile?.full_name ?? "—"}
+            </DialogTitle>
+            <DialogDescription>
+              {attemptsRow?.profile?.institutional_email} ·{" "}
+              {attemptsRow?.attemptsUsed ?? 0} finalizado(s) ·{" "}
+              {attemptsRow?.currentNumber ?? 0} de {maxAttempts} usados ·{" "}
+              Modo: {retryModeLabel(retryMode)}
+            </DialogDescription>
+          </DialogHeader>
+          {attemptsRow && (
+            <div className="space-y-3">
+              <div className="rounded-md border p-3 flex items-center justify-between">
+                <div className="text-sm">
+                  Nota efectiva:{" "}
+                  <span className="font-semibold">
+                    {attemptsRow.effectiveGrade ?? "—"}
+                  </span>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => deleteAllAttempts(attemptsRow)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar todos
+                </Button>
+              </div>
+              <ScrollArea className="max-h-[55vh] pr-3">
+                <div className="space-y-2">
+                  {attemptsRow.attempts.map((a, idx) => {
+                    const grade = a.final_override_grade ?? a.ai_grade;
+                    const isFinal = isFinalStatus(a.status);
+                    return (
+                      <div
+                        key={a.id}
+                        className="rounded-md border p-3 flex items-center justify-between gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <span>Intento {idx + 1}</span>
+                            {a.status === "en_progreso" ? (
+                              <Badge className="bg-success text-success-foreground text-[10px]">
+                                En progreso
+                              </Badge>
+                            ) : a.status === "sospechoso" ? (
+                              <Badge variant="destructive" className="text-[10px]">
+                                Sospechoso
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {a.status}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Iniciado: {new Date(a.started_at ?? a.created_at).toLocaleString()}
+                            {a.submitted_at && (
+                              <> · Entregado: {new Date(a.submitted_at).toLocaleString()}</>
+                            )}
+                          </div>
+                          <div className="text-xs">
+                            Nota:{" "}
+                            <span className="font-medium tabular-nums">
+                              {grade != null ? grade : "—"}
+                            </span>{" "}
+                            · Advertencias: {a.focus_warnings}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {isFinal && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                openView(a);
+                              }}
+                              title="Ver respuestas y calificar"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteOneAttempt(a)}
+                            title="Eliminar este intento"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={viewingId != null} onOpenChange={(o) => !o && setViewingId(null)}>
         <DialogContent className="max-w-3xl">
