@@ -459,6 +459,7 @@ export type Database = {
           max_attempts: number | null
           navigation_type: string
           parent_exam_id: string | null
+          schedule_type: string
           shuffle_enabled: boolean
           start_time: string
           time_limit_minutes: number
@@ -477,6 +478,7 @@ export type Database = {
           max_attempts?: number | null
           navigation_type?: string
           parent_exam_id?: string | null
+          schedule_type?: string
           shuffle_enabled?: boolean
           start_time: string
           time_limit_minutes?: number
@@ -495,6 +497,7 @@ export type Database = {
           max_attempts?: number | null
           navigation_type?: string
           parent_exam_id?: string | null
+          schedule_type?: string
           shuffle_enabled?: boolean
           start_time?: string
           time_limit_minutes?: number
