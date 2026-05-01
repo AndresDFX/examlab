@@ -181,6 +181,21 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Tab" && !readOnly) {
+                e.preventDefault();
+                const ta = e.currentTarget;
+                const start = ta.selectionStart;
+                const end = ta.selectionEnd;
+                const indent = "    ";
+                const next = value.slice(0, start) + indent + value.slice(end);
+                onChange(next);
+                // Restore caret right after the inserted indent
+                requestAnimationFrame(() => {
+                  ta.selectionStart = ta.selectionEnd = start + indent.length;
+                });
+              }
+            }}
             readOnly={readOnly}
             rows={12}
             spellCheck={false}
