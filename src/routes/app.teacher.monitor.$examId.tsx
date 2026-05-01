@@ -61,6 +61,9 @@ type Submission = {
   answers: any;
   ai_grade: number | null;
   final_override_grade: number | null;
+  created_at: string;
+  started_at: string | null;
+  submitted_at: string | null;
   profile?: { full_name: string; institutional_email: string };
 };
 
