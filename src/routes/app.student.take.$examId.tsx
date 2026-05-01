@@ -112,6 +112,7 @@ function TakeExam() {
   useCourseLanguage(exam?.course?.language ?? null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [started, setStarted] = useState(false);
   const [warnings, setWarnings] = useState(0);
