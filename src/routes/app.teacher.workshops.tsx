@@ -955,6 +955,14 @@ function TeacherWorkshops() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => duplicateWorkshop(ws)}
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => remove(ws.id)}
                         title="Eliminar"
                       >
