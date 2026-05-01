@@ -176,7 +176,8 @@ function TeacherExams() {
       navigation_type: "libre",
       shuffle_enabled: false,
       parent_exam_id: null,
-    });
+      schedule_type: "normal",
+    } as any);
     setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
   };
