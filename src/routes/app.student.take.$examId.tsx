@@ -276,6 +276,7 @@ function TakeExam() {
         // Reanudar el intento en curso
         setSubmissionId(inProgress.id);
         submissionIdRef.current = inProgress.id;
+        setSubmissionStartedAt((inProgress as any).started_at ?? null);
         setAnswers(claimedAnswers);
         const persistedWarnings = inProgress.focus_warnings ?? 0;
         setWarnings(persistedWarnings);
