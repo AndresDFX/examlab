@@ -48,6 +48,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   HelpCircle,
+  Copy,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
@@ -293,16 +294,18 @@ function TeacherWorkshops() {
           toast.error(error.message);
           return;
         }
-        // Auto-assign all enrolled students when published
-        if (form.status === "published" && newWs) {
+        // Auto-asignar a todos los estudiantes matriculados al crear
+        if (newWs) {
           await autoAssignWorkshop(newWs.id, cid);
-          await supabase.rpc("notify_course_students", {
-            _course_id: cid,
-            _title: "Nuevo taller disponible",
-            _body: `Se ha publicado el taller "${form.title}"`,
-            _kind: "workshop",
-            _link: "/app/student/workshops",
-          });
+          if (form.status === "published") {
+            await supabase.rpc("notify_course_students", {
+              _course_id: cid,
+              _title: "Nuevo taller disponible",
+              _body: `Se ha publicado el taller "${form.title}"`,
+              _kind: "workshop",
+              _link: "/app/student/workshops",
+            });
+          }
         }
       }
       toast.success(
@@ -312,6 +315,36 @@ function TeacherWorkshops() {
       );
     }
     setOpen(false);
+    load();
+  };
+
+  const duplicateWorkshop = async (ws: Workshop) => {
+    if (!user) return;
+    const { course, id: _id, ...rest } = ws as any;
+    const { data: newWs, error } = await supabase
+      .from("workshops")
+      .insert({
+        ...rest,
+        title: `Copia de ${ws.title}`,
+        status: "draft",
+        created_by: user.id,
+      })
+      .select()
+      .single();
+    if (error) return toast.error(error.message);
+    const { data: qs } = await supabase
+      .from("workshop_questions")
+      .select("*")
+      .eq("workshop_id", ws.id)
+      .order("position");
+    if (qs?.length) {
+      const rows = (qs as any[]).map(({ id, workshop_id, created_at, ...q }) => ({
+        ...q,
+        workshop_id: newWs.id,
+      }));
+      await supabase.from("workshop_questions").insert(rows);
+    }
+    toast.success("Taller duplicado correctamente");
     load();
   };
 
@@ -918,6 +951,14 @@ function TeacherWorkshops() {
                         title="Editar"
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => duplicateWorkshop(ws)}
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"

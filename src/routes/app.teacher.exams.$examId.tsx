@@ -129,6 +129,7 @@ function ExamEditor() {
         max_attempts: normalizedAttempts,
         cut_id: (exam as any).cut_id || null,
         weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
+        schedule_type: ((exam as any).schedule_type ?? "normal") as string,
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
@@ -381,6 +382,27 @@ function ExamEditor() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div>
+                <Label>
+                  Tipo de programación{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (Normal: temporizador absoluto hasta la fecha de fin. Relativo: cada estudiante
+                    tiene la duración indicada desde que abre el examen, dentro de la ventana.)
+                  </span>
+                </Label>
+                <Select
+                  value={(exam as any).schedule_type ?? "normal"}
+                  onValueChange={(v) => setExam({ ...exam, schedule_type: v } as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal (sincrónico)</SelectItem>
+                    <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="rounded-md border p-3 space-y-2">
                 <div className="flex items-start justify-between gap-3">

@@ -21,7 +21,7 @@ import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { saveAnswersLocally, isOnline, setupOfflineSync, clearLocalAnswers } from "@/lib/offline-sync";
 import { useTranslation } from "react-i18next";
-import { computeSecondsLeft, isExamOpen } from "@/utils/exam-time";
+import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/components/ExamNotesManager";
@@ -47,6 +47,7 @@ type Exam = {
   start_time: string;
   end_time: string;
   course_id: string;
+  schedule_type?: string | null;
   /** Populated via join `course:courses(language)` when available. */
   course?: { language?: string | null } | null;
 };
@@ -111,6 +112,7 @@ function TakeExam() {
   useCourseLanguage(exam?.course?.language ?? null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [started, setStarted] = useState(false);
   const [warnings, setWarnings] = useState(0);
@@ -274,6 +276,7 @@ function TakeExam() {
         // Reanudar el intento en curso
         setSubmissionId(inProgress.id);
         submissionIdRef.current = inProgress.id;
+        setSubmissionStartedAt((inProgress as any).started_at ?? null);
         setAnswers(claimedAnswers);
         const persistedWarnings = inProgress.focus_warnings ?? 0;
         setWarnings(persistedWarnings);
@@ -334,6 +337,7 @@ function TakeExam() {
         sid = existing.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setSubmissionStartedAt((existing as any).started_at ?? null);
         setAnswers(claimedAnswers);
         answersRef.current = claimedAnswers;
       }
@@ -360,6 +364,7 @@ function TakeExam() {
         sid = data.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setSubmissionStartedAt((data as any).started_at ?? new Date().toISOString());
         answersRef.current = initialAnswers;
         setAnswers(initialAnswers);
       }
@@ -548,7 +553,14 @@ function TakeExam() {
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
-  const initialSeconds = computeSecondsLeft(exam?.end_time);
+  const initialSeconds =
+    exam?.schedule_type === "relativo"
+      ? computeSecondsLeftRelative(
+          submissionStartedAt,
+          exam?.time_limit_minutes ?? 0,
+          exam?.end_time,
+        )
+      : computeSecondsLeft(exam?.end_time);
 
   const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
     examId,
@@ -786,8 +798,10 @@ function TakeExam() {
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>
-                  Duración: <strong>{exam.time_limit_minutes} minutos</strong>. El tiempo no se
-                  pausa.
+                  Duración: <strong>{exam.time_limit_minutes} minutos</strong>.{" "}
+                  {exam.schedule_type === "relativo"
+                    ? "El cronómetro empieza cuando inicies el examen y solo se pausa al cerrar la ventana de disponibilidad."
+                    : "El tiempo no se pausa."}
                 </li>
                 {/* <li>El examen se ejecuta en <strong>pantalla completa</strong>.</li> */}
                 <li>No puedes copiar, pegar ni hacer clic derecho.</li>

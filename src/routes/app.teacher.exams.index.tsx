@@ -59,6 +59,7 @@ type Exam = {
   navigation_type: string;
   shuffle_enabled: boolean;
   parent_exam_id: string | null;
+  schedule_type?: string | null;
   course?: { name: string; period: string | null };
 };
 
@@ -93,6 +94,58 @@ function TeacherExams() {
     load();
   };
 
+  /** Asigna un examen a todos los estudiantes matriculados en el curso. */
+  const autoAssignExam = async (examId: string, courseId: string) => {
+    const { data: enr } = await supabase
+      .from("course_enrollments")
+      .select("user_id")
+      .eq("course_id", courseId);
+    if (!enr?.length) return;
+    const { data: existing } = await supabase
+      .from("exam_assignments")
+      .select("user_id")
+      .eq("exam_id", examId);
+    const existingSet = new Set((existing ?? []).map((e: any) => e.user_id));
+    const toAdd = (enr as any[]).filter((e) => !existingSet.has(e.user_id));
+    if (toAdd.length) {
+      await supabase
+        .from("exam_assignments")
+        .insert(toAdd.map((e: any) => ({ exam_id: examId, user_id: e.user_id })));
+    }
+  };
+
+  const duplicate = async (exam: Exam) => {
+    if (!user) return;
+    const { course, id: _id, ...rest } = exam as any;
+    const newTitle = `Copia de ${exam.title}`;
+    const { data: newExam, error } = await supabase
+      .from("exams")
+      .insert({
+        ...rest,
+        title: newTitle,
+        created_by: user.id,
+        parent_exam_id: null,
+      })
+      .select()
+      .single();
+    if (error) return toast.error(error.message);
+    // Copiar preguntas
+    const { data: qs } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("exam_id", exam.id)
+      .order("position");
+    if (qs?.length) {
+      const rows = (qs as any[]).map(({ id, exam_id, created_at, ...q }) => ({
+        ...q,
+        exam_id: newExam.id,
+      }));
+      await supabase.from("questions").insert(rows);
+    }
+    toast.success("Examen duplicado correctamente");
+    load();
+  };
+
   const load = async () => {
     const [{ data: cs }, { data: es }, { data: cs2 }] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
@@ -123,7 +176,8 @@ function TeacherExams() {
       navigation_type: "libre",
       shuffle_enabled: false,
       parent_exam_id: null,
-    });
+      schedule_type: "normal",
+    } as any);
     setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
   };
@@ -155,6 +209,7 @@ function TeacherExams() {
       navigation_type: form.navigation_type ?? "libre",
       shuffle_enabled: !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
+      schedule_type: ((form as any).schedule_type ?? "normal") as string,
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
     };
@@ -172,6 +227,8 @@ function TeacherExams() {
         return;
       }
       if (!firstId) firstId = data.id;
+      // Auto-asignar todos los estudiantes matriculados en el curso
+      await autoAssignExam(data.id, cid);
     }
 
     toast.success(
@@ -323,6 +380,14 @@ function TeacherExams() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => duplicate(e)}
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => remove(e)}
                         title={t("common.delete", { defaultValue: "Eliminar" })}
                       >
@@ -469,6 +534,28 @@ function TeacherExams() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <Label>
+                Tipo de programación{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (Normal: el cronómetro cuenta hasta la fecha de fin para todos. Relativo: cada
+                  estudiante tiene la duración indicada desde que abre el examen, dentro de la
+                  ventana.)
+                </span>
+              </Label>
+              <Select
+                value={(form as any).schedule_type ?? "normal"}
+                onValueChange={(v) => setForm({ ...form, schedule_type: v } as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal (sincrónico)</SelectItem>
+                  <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-center justify-between">
               <Label>{t("exam.shuffle")}</Label>
