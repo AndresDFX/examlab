@@ -369,10 +369,24 @@ function TakeExam() {
         setAnswers(initialAnswers);
       }
     }
-    // TODO: Re-enable fullscreen when ready
-    // try { await document.documentElement.requestFullscreen(); } catch { }
+    // Pantalla completa forzada
+    try {
+      await document.documentElement.requestFullscreen?.();
+    } catch (e) {
+      console.warn("requestFullscreen failed", e);
+    }
     setStarted(true);
   };
+
+  // Estado del overlay de re-entrada a pantalla completa
+  const [fsExited, setFsExited] = useState(false);
+  const reenterFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen?.();
+      setFsExited(false);
+    } catch (e) {
+      console.warn("re-enter fullscreen failed", e);
+    }
 
   // Persistir respuestas inmediatamente (autosave, entrega, tiempo agotado)
   const saveAnswersNow = useCallback(async () => {
