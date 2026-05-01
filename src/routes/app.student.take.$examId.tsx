@@ -387,6 +387,7 @@ function TakeExam() {
     } catch (e) {
       console.warn("re-enter fullscreen failed", e);
     }
+  };
 
   // Persistir respuestas inmediatamente (autosave, entrega, tiempo agotado)
   const saveAnswersNow = useCallback(async () => {
