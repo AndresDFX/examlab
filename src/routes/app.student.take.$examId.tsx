@@ -364,6 +364,7 @@ function TakeExam() {
         sid = data.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setSubmissionStartedAt((data as any).started_at ?? new Date().toISOString());
         answersRef.current = initialAnswers;
         setAnswers(initialAnswers);
       }
