@@ -553,7 +553,14 @@ function TakeExam() {
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
-  const initialSeconds = computeSecondsLeft(exam?.end_time);
+  const initialSeconds =
+    exam?.schedule_type === "relativo"
+      ? computeSecondsLeftRelative(
+          submissionStartedAt,
+          exam?.time_limit_minutes ?? 0,
+          exam?.end_time,
+        )
+      : computeSecondsLeft(exam?.end_time);
 
   const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
     examId,
