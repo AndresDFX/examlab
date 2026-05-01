@@ -736,6 +736,8 @@ function TakeExam() {
       document.removeEventListener("cut", onCopy);
       document.removeEventListener("paste", onCopy);
       document.removeEventListener("selectstart", onSelect);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("fullscreenchange", onFsChange);
     };
   }, [started, performSubmit]);
 
