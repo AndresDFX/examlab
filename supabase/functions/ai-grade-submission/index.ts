@@ -540,11 +540,12 @@ Idioma de salida: ${langName}.`,
     // Spanish for legacy exams without a configured language.
     const { data: examMeta } = await admin
       .from("exams")
-      .select("course:courses(language)")
+      .select("course:courses(language, grade_scale_max)")
       .eq("id", sub.exam_id)
       .maybeSingle();
     const examLang: "es" | "en" = (examMeta as any)?.course?.language === "en" ? "en" : "es";
     const examLangName = examLang === "en" ? "inglés (English)" : "español";
+    const gradeScaleMax = Number((examMeta as any)?.course?.grade_scale_max ?? 5) || 5;
 
     const answers: Record<string, any> = sub.answers || {};
     const prevBreakdown: any[] = Array.isArray(answers.__breakdown) ? answers.__breakdown : [];
@@ -646,7 +647,7 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ex
       }
     }
 
-    const grade = totalPoints > 0 ? Number(((earned / totalPoints) * 10).toFixed(2)) : 0;
+    const grade = totalPoints > 0 ? Number(((earned / totalPoints) * gradeScaleMax).toFixed(2)) : 0;
 
     await admin
       .from("submissions")

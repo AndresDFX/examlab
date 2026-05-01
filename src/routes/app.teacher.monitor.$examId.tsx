@@ -28,10 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Pause,
-  Play,
   Clock,
-  Users,
   AlertTriangle,
   CheckCircle2,
   Loader2,
@@ -39,6 +36,7 @@ import {
   Trash2,
   Eye,
   Save,
+  TimerReset,
 } from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import {
@@ -340,49 +338,6 @@ function ExamMonitor() {
         </div>
       </div>
 
-      {/* Global controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Controles globales
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Estos controles afectan a todos los estudiantes que están presentando el examen en
-            tiempo real.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendTimerControl("pause", null)}
-              disabled={loading === "pause-global"}
-            >
-              {loading === "pause-global" ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Pause className="h-4 w-4 mr-1" />
-              )}
-              Pausar todos
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendTimerControl("resume", null)}
-              disabled={loading === "resume-global"}
-            >
-              {loading === "resume-global" ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4 mr-1" />
-              )}
-              Reanudar todos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Live submissions */}
       <Card>
         <CardHeader>
@@ -477,20 +432,16 @@ function ExamMonitor() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => sendTimerControl("pause", sub.user_id)}
-                              disabled={loading === `pause-${sub.user_id}`}
-                              title="Pausar este estudiante"
+                              onClick={() => sendTimerControl("add_time", sub.user_id, 5 * 60)}
+                              disabled={loading === `add_time-${sub.user_id}`}
+                              title="Agregar 5 minutos a este estudiante"
                             >
-                              <Pause className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => sendTimerControl("resume", sub.user_id)}
-                              disabled={loading === `resume-${sub.user_id}`}
-                              title="Reanudar este estudiante"
-                            >
-                              <Play className="h-3.5 w-3.5" />
+                              {loading === `add_time-${sub.user_id}` ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <TimerReset className="h-3.5 w-3.5" />
+                              )}
+                              <span className="ml-1 text-[11px]">+5m</span>
                             </Button>
                           </>
                         )}
