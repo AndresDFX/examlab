@@ -107,7 +107,34 @@ function ExamEditor() {
         .select("id, name")
         .eq("course_id", e.course_id)
         .order("position");
-      setCuts((cs ?? []) as Array<{ id: string; name: string }>);
+      const cutsArr = (cs ?? []) as Array<{ id: string; name: string }>;
+      setCuts(cutsArr);
+      const cutIds = cutsArr.map((c) => c.id);
+      if (cutIds.length) {
+        const { data: items } = await (supabase as any)
+          .from("grade_cut_items")
+          .select("id, cut_id, item_type, weight, exam_id, workshop_id, project_id, project_title")
+          .in("cut_id", cutIds);
+        const itemsArr = (items ?? []) as typeof cutItems;
+        setCutItems(itemsArr);
+        const examIds = Array.from(new Set(itemsArr.filter((i) => i.exam_id).map((i) => i.exam_id!)));
+        const wsIds = Array.from(new Set(itemsArr.filter((i) => i.workshop_id).map((i) => i.workshop_id!)));
+        const prIds = Array.from(new Set(itemsArr.filter((i) => i.project_id).map((i) => i.project_id!)));
+        if (examIds.length) {
+          const { data: exs } = await supabase.from("exams").select("id, title").in("id", examIds);
+          setExamTitlesById(Object.fromEntries((exs ?? []).map((x: any) => [x.id, x.title])));
+        }
+        if (wsIds.length) {
+          const { data: wss } = await supabase.from("workshops").select("id, title").in("id", wsIds);
+          setWorkshopTitlesById(Object.fromEntries((wss ?? []).map((x: any) => [x.id, x.title])));
+        }
+        if (prIds.length) {
+          const { data: prs } = await (supabase as any).from("projects").select("id, title").in("id", prIds);
+          setProjectTitlesById(Object.fromEntries((prs ?? []).map((x: any) => [x.id, x.title])));
+        }
+      } else {
+        setCutItems([]);
+      }
     }
   };
   useEffect(() => {
