@@ -45,6 +45,10 @@ function ExamEditor() {
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
   const [cuts, setCuts] = useState<Array<{ id: string; name: string }>>([]);
+  const [cutItems, setCutItems] = useState<Array<{ id: string; cut_id: string; item_type: string; weight: number; exam_id: string | null; workshop_id: string | null; project_id: string | null; project_title: string | null }>>([]);
+  const [examTitlesById, setExamTitlesById] = useState<Record<string, string>>({});
+  const [workshopTitlesById, setWorkshopTitlesById] = useState<Record<string, string>>({});
+  const [projectTitlesById, setProjectTitlesById] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<Question[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
@@ -103,7 +107,34 @@ function ExamEditor() {
         .select("id, name")
         .eq("course_id", e.course_id)
         .order("position");
-      setCuts((cs ?? []) as Array<{ id: string; name: string }>);
+      const cutsArr = (cs ?? []) as Array<{ id: string; name: string }>;
+      setCuts(cutsArr);
+      const cutIds = cutsArr.map((c) => c.id);
+      if (cutIds.length) {
+        const { data: items } = await (supabase as any)
+          .from("grade_cut_items")
+          .select("id, cut_id, item_type, weight, exam_id, workshop_id, project_id, project_title")
+          .in("cut_id", cutIds);
+        const itemsArr = (items ?? []) as typeof cutItems;
+        setCutItems(itemsArr);
+        const examIds = Array.from(new Set(itemsArr.filter((i) => i.exam_id).map((i) => i.exam_id!)));
+        const wsIds = Array.from(new Set(itemsArr.filter((i) => i.workshop_id).map((i) => i.workshop_id!)));
+        const prIds = Array.from(new Set(itemsArr.filter((i) => i.project_id).map((i) => i.project_id!)));
+        if (examIds.length) {
+          const { data: exs } = await supabase.from("exams").select("id, title").in("id", examIds);
+          setExamTitlesById(Object.fromEntries((exs ?? []).map((x: any) => [x.id, x.title])));
+        }
+        if (wsIds.length) {
+          const { data: wss } = await supabase.from("workshops").select("id, title").in("id", wsIds);
+          setWorkshopTitlesById(Object.fromEntries((wss ?? []).map((x: any) => [x.id, x.title])));
+        }
+        if (prIds.length) {
+          const { data: prs } = await (supabase as any).from("projects").select("id, title").in("id", prIds);
+          setProjectTitlesById(Object.fromEntries((prs ?? []).map((x: any) => [x.id, x.title])));
+        }
+      } else {
+        setCutItems([]);
+      }
     }
   };
   useEffect(() => {
@@ -506,6 +537,72 @@ function ExamEditor() {
                   Peso relativo respecto a otros exámenes del mismo corte. Ej: 1 = parcial normal,
                   0.5 = examen corto/quiz, 2 = examen final que vale el doble.
                 </p>
+                {(() => {
+                  const cutId = (exam as any).cut_id as string | null | undefined;
+                  if (!cutId) return null;
+                  const cutName = cuts.find((c) => c.id === cutId)?.name ?? "";
+                  const itemsInCut = cutItems.filter((i) => i.cut_id === cutId);
+                  const otherItems = itemsInCut.filter((i) => i.exam_id !== examId);
+                  const currentExamItem = itemsInCut.find((i) => i.exam_id === examId);
+                  const currentWeight = Math.max(0, Number((exam as any).weight ?? 1) || 0);
+                  const sumOthers = otherItems.reduce((s, i) => s + (Number(i.weight) || 0), 0);
+                  const total = sumOthers + currentWeight;
+                  const remaining = 100 - total;
+                  const over = total > 100;
+                  return (
+                    <div className="mt-3 rounded-md border bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="text-sm font-medium">
+                          Pesos del corte "{cutName}"
+                        </div>
+                        <Badge variant={over ? "destructive" : remaining === 0 ? "default" : "secondary"}>
+                          {total.toFixed(1)} / 100
+                          {over
+                            ? ` (excede ${(total - 100).toFixed(1)})`
+                            : remaining > 0
+                            ? ` (faltan ${remaining.toFixed(1)})`
+                            : ""}
+                        </Badge>
+                      </div>
+                      {itemsInCut.length === 0 && !currentExamItem ? (
+                        <p className="text-xs text-muted-foreground">
+                          Este corte aún no tiene items. Al guardar, este examen se agregará con peso{" "}
+                          {currentWeight}.
+                        </p>
+                      ) : (
+                        <ul className="text-xs space-y-1">
+                          {otherItems.map((i) => {
+                            const label =
+                              i.item_type === "exam"
+                                ? `Examen: ${examTitlesById[i.exam_id ?? ""] ?? "(sin título)"}`
+                                : i.item_type === "workshop"
+                                ? `Taller: ${workshopTitlesById[i.workshop_id ?? ""] ?? "(sin título)"}`
+                                : i.item_type === "project"
+                                ? `Proyecto: ${
+                                    projectTitlesById[i.project_id ?? ""] ?? i.project_title ?? "(sin título)"
+                                  }`
+                                : i.item_type;
+                            return (
+                              <li key={i.id} className="flex justify-between">
+                                <span className="text-muted-foreground">{label}</span>
+                                <span className="font-mono">{Number(i.weight).toFixed(1)}</span>
+                              </li>
+                            );
+                          })}
+                          <li className="flex justify-between border-t pt-1">
+                            <span className="font-medium">Este examen ({exam.title || "sin título"})</span>
+                            <span className="font-mono font-medium">{currentWeight.toFixed(1)}</span>
+                          </li>
+                        </ul>
+                      )}
+                      {over && (
+                        <p className="text-xs text-destructive">
+                          La suma supera 100. Reduce este peso o ajusta otros items del corte.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <Button onClick={saveExam}>Guardar cambios</Button>
             </CardContent>
