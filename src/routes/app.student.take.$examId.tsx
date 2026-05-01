@@ -706,29 +706,18 @@ function TakeExam() {
       toast.warning("Copiar/pegar deshabilitado");
     };
     const onSelect = (e: Event) => e.preventDefault();
-    // TODO: Re-enable fullscreen enforcement when ready
-    // const onKeyDown = (e: KeyboardEvent) => {
-    //   if (e.key === "Escape") {
-    //     e.preventDefault();
-    //     e.stopPropagation();
-    //   }
-    //   if (e.key === "F11") {
-    //     e.preventDefault();
-    //   }
-    //   if (e.altKey && (e.key === "Tab" || e.key === "F4")) {
-    //     e.preventDefault();
-    //   }
-    // };
-    // const onFsChange = () => {
-    //   if (!document.fullscreenElement && started && !submittedRef.current) {
-    //     toast.warning("Debes permanecer en pantalla completa");
-    //     setTimeout(() => {
-    //       if (!document.fullscreenElement && !submittedRef.current) {
-    //         document.documentElement.requestFullscreen().catch(() => {});
-    //       }
-    //     }, 300);
-    //   }
-    // };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F11") e.preventDefault();
+      if (e.altKey && (e.key === "Tab" || e.key === "F4")) e.preventDefault();
+    };
+    const onFsChange = () => {
+      if (!document.fullscreenElement && started && !submittedRef.current) {
+        recordWarning("fullscreen_exit");
+        setFsExited(true);
+      } else if (document.fullscreenElement) {
+        setFsExited(false);
+      }
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
@@ -736,9 +725,8 @@ function TakeExam() {
     document.addEventListener("cut", onCopy);
     document.addEventListener("paste", onCopy);
     document.addEventListener("selectstart", onSelect);
-    // TODO: Re-enable fullscreen enforcement
-    // document.addEventListener("keydown", onKeyDown, true);
-    // document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("fullscreenchange", onFsChange);
     return () => {
       window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
