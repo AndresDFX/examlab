@@ -186,7 +186,7 @@ function StudentGrades() {
             examIds.length
               ? supabase
                   .from("submissions")
-                  .select("exam_id, ai_grade, final_override_grade, status")
+                  .select("exam_id, ai_grade, final_override_grade, status, created_at")
                   .in("exam_id", examIds)
                   .eq("user_id", user.id)
               : Promise.resolve({ data: [] as any[] }),
