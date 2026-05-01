@@ -160,8 +160,21 @@ function AdminUsers() {
               body: { userId: editing.id, newPassword: password },
             },
           );
+          // supabase.functions.invoke returns FunctionsHttpError on non-2xx; the
+          // server's JSON body is on error.context (a Response). Parse it so we
+          // surface the real validation message instead of a generic edge error.
           if (pwErr) {
-            toast.error(pwErr.message);
+            let serverMsg = pwErr.message;
+            const ctx = (pwErr as any).context;
+            if (ctx && typeof ctx.json === "function") {
+              try {
+                const body = await ctx.json();
+                if (body?.error) serverMsg = body.error;
+              } catch {
+                /* ignore */
+              }
+            }
+            toast.error(serverMsg);
             return;
           }
           if (pwRes?.error) {
