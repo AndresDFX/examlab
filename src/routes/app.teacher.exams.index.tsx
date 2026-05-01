@@ -59,6 +59,7 @@ type Exam = {
   navigation_type: string;
   shuffle_enabled: boolean;
   parent_exam_id: string | null;
+  schedule_type?: string | null;
   course?: { name: string; period: string | null };
 };
 
