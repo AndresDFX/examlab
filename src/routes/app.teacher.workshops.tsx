@@ -293,16 +293,18 @@ function TeacherWorkshops() {
           toast.error(error.message);
           return;
         }
-        // Auto-assign all enrolled students when published
-        if (form.status === "published" && newWs) {
+        // Auto-asignar a todos los estudiantes matriculados al crear
+        if (newWs) {
           await autoAssignWorkshop(newWs.id, cid);
-          await supabase.rpc("notify_course_students", {
-            _course_id: cid,
-            _title: "Nuevo taller disponible",
-            _body: `Se ha publicado el taller "${form.title}"`,
-            _kind: "workshop",
-            _link: "/app/student/workshops",
-          });
+          if (form.status === "published") {
+            await supabase.rpc("notify_course_students", {
+              _course_id: cid,
+              _title: "Nuevo taller disponible",
+              _body: `Se ha publicado el taller "${form.title}"`,
+              _kind: "workshop",
+              _link: "/app/student/workshops",
+            });
+          }
         }
       }
       toast.success(
