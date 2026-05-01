@@ -84,77 +84,94 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
     void load();
   };
 
-  if (loading) return <p className="text-xs text-muted-foreground">Cargando notas…</p>;
+  if (loading) return null;
 
   const isApproved = note?.status === "aprobada";
   const isRejected = note?.status === "rechazada";
   const isPending = note?.status === "pendiente";
+  const [open, setOpen] = useState(false);
+
+  const statusBadge = note ? (
+    <Badge
+      variant={isApproved ? "default" : isRejected ? "destructive" : "secondary"}
+      className="text-[10px]"
+    >
+      {isApproved ? (
+        <>
+          <CheckCircle2 className="h-3 w-3 mr-0.5" /> Aprobada
+        </>
+      ) : isRejected ? (
+        <>
+          <XCircle className="h-3 w-3 mr-0.5" /> Rechazada
+        </>
+      ) : (
+        <>
+          <Clock className="h-3 w-3 mr-0.5" /> En revisión
+        </>
+      )}
+    </Badge>
+  ) : null;
 
   return (
-    <Card className="border-dashed">
-      <CardContent className="p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium">
-            <FileText className="h-3.5 w-3.5 text-primary" />
-            Notas de apoyo
-          </div>
-          {note && (
-            <Badge
-              variant={isApproved ? "default" : isRejected ? "destructive" : "secondary"}
-              className="text-[10px]"
-            >
-              {isApproved ? (
-                <>
-                  <CheckCircle2 className="h-3 w-3 mr-0.5" />
-                  Aprobada
-                </>
-              ) : isRejected ? (
-                <>
-                  <XCircle className="h-3 w-3 mr-0.5" />
-                  Rechazada
-                </>
-              ) : (
-                <>
-                  <Clock className="h-3 w-3 mr-0.5" />
-                  En revisión
-                </>
-              )}
-            </Badge>
+    <>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          {note ? "Ver / editar mis notas de apoyo" : "Subir notas de apoyo"}
+        </button>
+        {statusBadge}
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Notas de apoyo</DialogTitle>
+            <DialogDescription>
+              Sube un texto plano (resumen / chuleta) que tu docente debe aprobar antes del examen.
+            </DialogDescription>
+          </DialogHeader>
+          {isRejected && note?.rejection_reason && (
+            <div className="text-[12px] rounded border border-destructive/40 bg-destructive/5 p-2 text-destructive">
+              <strong>Motivo del rechazo:</strong> {note.rejection_reason}
+            </div>
           )}
-        </div>
-        {isRejected && note?.rejection_reason && (
-          <div className="text-[11px] rounded border border-destructive/40 bg-destructive/5 p-2 text-destructive">
-            <strong>Motivo:</strong> {note.rejection_reason}
-          </div>
-        )}
-        {isApproved ? (
-          <pre className="whitespace-pre-wrap text-xs bg-muted/40 rounded p-2 max-h-40 overflow-y-auto">
-            {note?.content}
-          </pre>
-        ) : (
-          <>
+          {isApproved ? (
+            <pre className="whitespace-pre-wrap text-xs bg-muted/40 rounded p-3 max-h-72 overflow-y-auto">
+              {note?.content}
+            </pre>
+          ) : (
             <Textarea
-              rows={4}
+              rows={8}
               placeholder="Escribe el texto plano que quieres tener disponible durante el examen…"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="text-xs"
+              className="text-sm"
               disabled={isPending}
             />
-            {isPending ? (
-              <p className="text-[11px] text-muted-foreground">
-                Tu docente debe aprobarlas antes de presentar el examen.
-              </p>
-            ) : (
-              <Button size="sm" onClick={submit} disabled={busy} className="w-full">
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cerrar
+            </Button>
+            {!isApproved && !isPending && (
+              <Button onClick={submit} disabled={busy}>
                 <Upload className="h-3.5 w-3.5 mr-1" />
                 {note ? "Reenviar a revisión" : "Enviar a revisión"}
               </Button>
             )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+            {isPending && (
+              <span className="text-[11px] text-muted-foreground self-center">
+                Tu docente debe aprobarlas.
+              </span>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
