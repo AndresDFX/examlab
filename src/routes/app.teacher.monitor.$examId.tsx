@@ -102,6 +102,7 @@ function ExamMonitor() {
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingQid, setAiGradingQid] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [attemptsForUser, setAttemptsForUser] = useState<string | null>(null);
   const [overrideValue, setOverrideValue] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
   const [qOverrides, setQOverrides] = useState<Record<string, { score: string; feedback: string }>>(
