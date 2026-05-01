@@ -130,7 +130,8 @@ function ExamEditor() {
         cut_id: (exam as any).cut_id || null,
         weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
         schedule_type: ((exam as any).schedule_type ?? "normal") as string,
-      })
+        retry_mode: ((exam as any).retry_mode ?? "last") as string,
+      } as any)
       .eq("id", examId);
     if (error) return toast.error(error.message);
     toast.success("Examen actualizado correctamente");
@@ -436,6 +437,28 @@ function ExamEditor() {
                     }
                   />
                 </div>
+              </div>
+              <div>
+                <Label>
+                  Modo de calificación con reintentos{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la nota
+                    final del examen cuando el estudiante presenta varios intentos.)
+                  </span>
+                </Label>
+                <Select
+                  value={(exam as any).retry_mode ?? "last"}
+                  onValueChange={(v) => setExam({ ...exam, retry_mode: v } as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="last">Último intento (toma la nota más reciente)</SelectItem>
+                    <SelectItem value="average">Promedio de todos los intentos</SelectItem>
+                    <SelectItem value="highest">Más alto (mejor nota entre los intentos)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Corte de evaluación (opcional)</Label>

@@ -369,9 +369,24 @@ function TakeExam() {
         setAnswers(initialAnswers);
       }
     }
-    // TODO: Re-enable fullscreen when ready
-    // try { await document.documentElement.requestFullscreen(); } catch { }
+    // Pantalla completa forzada
+    try {
+      await document.documentElement.requestFullscreen?.();
+    } catch (e) {
+      console.warn("requestFullscreen failed", e);
+    }
     setStarted(true);
+  };
+
+  // Estado del overlay de re-entrada a pantalla completa
+  const [fsExited, setFsExited] = useState(false);
+  const reenterFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen?.();
+      setFsExited(false);
+    } catch (e) {
+      console.warn("re-enter fullscreen failed", e);
+    }
   };
 
   // Persistir respuestas inmediatamente (autosave, entrega, tiempo agotado)
@@ -691,29 +706,18 @@ function TakeExam() {
       toast.warning("Copiar/pegar deshabilitado");
     };
     const onSelect = (e: Event) => e.preventDefault();
-    // TODO: Re-enable fullscreen enforcement when ready
-    // const onKeyDown = (e: KeyboardEvent) => {
-    //   if (e.key === "Escape") {
-    //     e.preventDefault();
-    //     e.stopPropagation();
-    //   }
-    //   if (e.key === "F11") {
-    //     e.preventDefault();
-    //   }
-    //   if (e.altKey && (e.key === "Tab" || e.key === "F4")) {
-    //     e.preventDefault();
-    //   }
-    // };
-    // const onFsChange = () => {
-    //   if (!document.fullscreenElement && started && !submittedRef.current) {
-    //     toast.warning("Debes permanecer en pantalla completa");
-    //     setTimeout(() => {
-    //       if (!document.fullscreenElement && !submittedRef.current) {
-    //         document.documentElement.requestFullscreen().catch(() => {});
-    //       }
-    //     }, 300);
-    //   }
-    // };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F11") e.preventDefault();
+      if (e.altKey && (e.key === "Tab" || e.key === "F4")) e.preventDefault();
+    };
+    const onFsChange = () => {
+      if (!document.fullscreenElement && started && !submittedRef.current) {
+        recordWarning("fullscreen_exit");
+        setFsExited(true);
+      } else if (document.fullscreenElement) {
+        setFsExited(false);
+      }
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
@@ -721,9 +725,8 @@ function TakeExam() {
     document.addEventListener("cut", onCopy);
     document.addEventListener("paste", onCopy);
     document.addEventListener("selectstart", onSelect);
-    // TODO: Re-enable fullscreen enforcement
-    // document.addEventListener("keydown", onKeyDown, true);
-    // document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("fullscreenchange", onFsChange);
     return () => {
       window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
@@ -733,6 +736,8 @@ function TakeExam() {
       document.removeEventListener("cut", onCopy);
       document.removeEventListener("paste", onCopy);
       document.removeEventListener("selectstart", onSelect);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("fullscreenchange", onFsChange);
     };
   }, [started, performSubmit]);
 
@@ -826,6 +831,22 @@ function TakeExam() {
 
   return (
     <div className="max-w-3xl mx-auto py-4 sm:py-6 select-none">
+      {fsExited && started && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
+            <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+            <h2 className="text-lg font-semibold">Saliste de pantalla completa</h2>
+            <p className="text-sm text-muted-foreground">
+              Este examen requiere modo pantalla completa. Se registró una advertencia. Vuelve para
+              continuar; si superas {MAX_WARNINGS} advertencias el examen será marcado como
+              sospechoso.
+            </p>
+            <Button className="w-full" onClick={reenterFullscreen}>
+              Volver a pantalla completa
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Sticky header with timer — full-bleed on mobile via negative margins matching AppLayout's px-4 */}
       <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">

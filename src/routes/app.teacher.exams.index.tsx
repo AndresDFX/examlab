@@ -177,6 +177,7 @@ function TeacherExams() {
       shuffle_enabled: false,
       parent_exam_id: null,
       schedule_type: "normal",
+      retry_mode: "last",
     } as any);
     setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
@@ -210,9 +211,10 @@ function TeacherExams() {
       shuffle_enabled: !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
       schedule_type: ((form as any).schedule_type ?? "normal") as string,
+      retry_mode: ((form as any).retry_mode ?? "last") as string,
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
-    };
+    } as any;
 
     // Create one exam per selected course
     let firstId: string | null = null;
@@ -554,6 +556,27 @@ function TeacherExams() {
                 <SelectContent>
                   <SelectItem value="normal">Normal (sincrónico)</SelectItem>
                   <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>
+                Modo de calificación con reintentos{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (Aplica solo si se permite más de un intento.)
+                </span>
+              </Label>
+              <Select
+                value={(form as any).retry_mode ?? "last"}
+                onValueChange={(v) => setForm({ ...form, retry_mode: v } as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last">Último intento</SelectItem>
+                  <SelectItem value="average">Promedio</SelectItem>
+                  <SelectItem value="highest">Más alto</SelectItem>
                 </SelectContent>
               </Select>
             </div>

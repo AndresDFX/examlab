@@ -49,6 +49,7 @@ import {
   type CutComponentScores,
   type CutWeights,
 } from "@/utils/grade";
+import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,9 +157,9 @@ function StudentGrades() {
             )
             .eq("course_id", courseId)
             .order("position"),
-          supabase
+          (supabase as any)
             .from("exams")
-            .select("id, title, parent_exam_id, cut_id, weight")
+            .select("id, title, parent_exam_id, cut_id, weight, retry_mode")
             .eq("course_id", courseId),
           supabase
             .from("workshops")
@@ -185,7 +186,7 @@ function StudentGrades() {
             examIds.length
               ? supabase
                   .from("submissions")
-                  .select("exam_id, ai_grade, final_override_grade, status")
+                  .select("exam_id, ai_grade, final_override_grade, status, created_at")
                   .in("exam_id", examIds)
                   .eq("user_id", user.id)
               : Promise.resolve({ data: [] as any[] }),
@@ -224,15 +225,25 @@ function StudentGrades() {
         // Exámenes (solo originales, no makeups)
         const originalExams = (exams ?? []).filter((e: any) => !e.parent_exam_id);
         for (const e of originalExams as any[]) {
-          let sub = (examSubs ?? []).find((s: any) => s.exam_id === e.id);
-          if (!sub) {
+          const mode = (e.retry_mode as RetryMode) ?? "last";
+          let attempts = (examSubs ?? []).filter((s: any) => s.exam_id === e.id);
+          let usedFromMakeup = false;
+          if (!attempts.length) {
             const makeupIds = (exams ?? [])
               .filter((x: any) => x.parent_exam_id === e.id)
               .map((x: any) => x.id);
-            sub = (examSubs ?? []).find((s: any) => makeupIds.includes(s.exam_id));
+            attempts = (examSubs ?? []).filter((s: any) => makeupIds.includes(s.exam_id));
+            usedFromMakeup = attempts.length > 0;
           }
-          const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
-          // ai_grade ya está en la escala del curso (post-migración).
+          const raw = computeAttemptGrade(attempts as any, mode);
+          // Para "review" link: el intento más reciente finalizado
+          const sortedFinished = [...attempts]
+            .filter((s: any) => s.status === "completado" || s.status === "sospechoso")
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+            );
+          const latest = sortedFinished[0];
           rows.push({
             id: e.id,
             title: e.title,
@@ -241,12 +252,9 @@ function StudentGrades() {
             rawGrade: raw,
             rawMax: course.grade_scale_max,
             grade: raw != null ? toScale(raw, course.grade_scale_max) : null,
-            status: sub?.status ?? "sin_entrega",
+            status: latest?.status ?? (attempts.length ? "en_progreso" : "sin_entrega"),
             weight: Number(e.weight ?? 1),
-            reviewExamId:
-              sub && (sub.status === "completado" || sub.status === "sospechoso")
-                ? sub.exam_id
-                : null,
+            reviewExamId: latest ? (usedFromMakeup ? latest.exam_id : e.id) : null,
           });
         }
 

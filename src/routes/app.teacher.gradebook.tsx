@@ -39,6 +39,7 @@ import {
   type CutComponentScores,
   type CutWeights,
 } from "@/utils/grade";
+import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
 
 // grade_cuts/projects pueden no estar en types.ts auto-generados
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +63,7 @@ type Exam = {
   course_id: string;
   cut_id?: string | null;
   weight?: number | null;
+  retry_mode?: string | null;
 };
 type Workshop = {
   id: string;
@@ -111,6 +113,7 @@ type ExamSub = {
   ai_grade: number | null;
   final_override_grade: number | null;
   status: string;
+  created_at: string;
 };
 type WsSub = {
   id: string;
@@ -171,9 +174,9 @@ function Gradebook() {
     if (!courseId) return;
 
     // Exams (incluye cut_id para el consolidado de cortes)
-    const { data: exams } = await supabase
+    const { data: exams } = await (supabase as any)
       .from("exams")
-      .select("id, title, parent_exam_id, course_id, cut_id, weight")
+      .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode")
       .eq("course_id", courseId)
       .order("start_time");
 
@@ -248,7 +251,7 @@ function Gradebook() {
     if (examIds.length) {
       const { data: es } = await supabase
         .from("submissions")
-        .select("id, exam_id, user_id, ai_grade, final_override_grade, status")
+        .select("id, exam_id, user_id, ai_grade, final_override_grade, status, created_at")
         .in("exam_id", examIds);
       setExamSubs((es ?? []) as ExamSub[]);
     } else {
@@ -309,26 +312,31 @@ function Gradebook() {
     subId?: string;
   } => {
     if (col.kind === "exam") {
-      // Check direct submission
-      const own = examSubs.find((s) => s.user_id === studentId && s.exam_id === col.id);
-      if (own)
-        return {
-          grade: own.final_override_grade ?? own.ai_grade,
-          isMakeup: false,
-          status: own.status,
-          subId: own.id,
-        };
-      // Check makeup exams
+      const examMeta = allExams.find((e) => e.id === col.id);
+      const mode = (examMeta?.retry_mode as RetryMode) ?? "last";
+
+      // Todos los intentos directos del estudiante en este examen
+      const own = examSubs.filter((s) => s.user_id === studentId && s.exam_id === col.id);
+      if (own.length) {
+        const grade = computeAttemptGrade(own, mode);
+        // Para edición / referencia, usar el más reciente
+        const latest = [...own].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )[0];
+        return { grade, isMakeup: false, status: latest.status, subId: latest.id };
+      }
+      // Recuperaciones (parent_exam_id)
       const makeups = allExams.filter((e) => e.parent_exam_id === col.id);
       for (const m of makeups) {
-        const sub = examSubs.find((s) => s.user_id === studentId && s.exam_id === m.id);
-        if (sub)
-          return {
-            grade: sub.final_override_grade ?? sub.ai_grade,
-            isMakeup: true,
-            status: sub.status,
-            subId: sub.id,
-          };
+        const subs = examSubs.filter((s) => s.user_id === studentId && s.exam_id === m.id);
+        if (subs.length) {
+          const mMode = (m.retry_mode as RetryMode) ?? "last";
+          const grade = computeAttemptGrade(subs, mMode);
+          const latest = [...subs].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          )[0];
+          return { grade, isMakeup: true, status: latest.status, subId: latest.id };
+        }
       }
       return { grade: null, isMakeup: false };
     } else {
