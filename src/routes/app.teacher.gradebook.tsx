@@ -312,26 +312,31 @@ function Gradebook() {
     subId?: string;
   } => {
     if (col.kind === "exam") {
-      // Check direct submission
-      const own = examSubs.find((s) => s.user_id === studentId && s.exam_id === col.id);
-      if (own)
-        return {
-          grade: own.final_override_grade ?? own.ai_grade,
-          isMakeup: false,
-          status: own.status,
-          subId: own.id,
-        };
-      // Check makeup exams
+      const examMeta = allExams.find((e) => e.id === col.id);
+      const mode = (examMeta?.retry_mode as RetryMode) ?? "last";
+
+      // Todos los intentos directos del estudiante en este examen
+      const own = examSubs.filter((s) => s.user_id === studentId && s.exam_id === col.id);
+      if (own.length) {
+        const grade = computeAttemptGrade(own, mode);
+        // Para edición / referencia, usar el más reciente
+        const latest = [...own].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )[0];
+        return { grade, isMakeup: false, status: latest.status, subId: latest.id };
+      }
+      // Recuperaciones (parent_exam_id)
       const makeups = allExams.filter((e) => e.parent_exam_id === col.id);
       for (const m of makeups) {
-        const sub = examSubs.find((s) => s.user_id === studentId && s.exam_id === m.id);
-        if (sub)
-          return {
-            grade: sub.final_override_grade ?? sub.ai_grade,
-            isMakeup: true,
-            status: sub.status,
-            subId: sub.id,
-          };
+        const subs = examSubs.filter((s) => s.user_id === studentId && s.exam_id === m.id);
+        if (subs.length) {
+          const mMode = (m.retry_mode as RetryMode) ?? "last";
+          const grade = computeAttemptGrade(subs, mMode);
+          const latest = [...subs].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          )[0];
+          return { grade, isMakeup: true, status: latest.status, subId: latest.id };
+        }
       }
       return { grade: null, isMakeup: false };
     } else {
