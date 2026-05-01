@@ -211,9 +211,10 @@ function TeacherExams() {
       shuffle_enabled: !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
       schedule_type: ((form as any).schedule_type ?? "normal") as string,
+      retry_mode: ((form as any).retry_mode ?? "last") as string,
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
-    };
+    } as any;
 
     // Create one exam per selected course
     let firstId: string | null = null;
