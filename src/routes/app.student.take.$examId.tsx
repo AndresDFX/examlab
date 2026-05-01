@@ -831,6 +831,22 @@ function TakeExam() {
 
   return (
     <div className="max-w-3xl mx-auto py-4 sm:py-6 select-none">
+      {fsExited && started && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
+            <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+            <h2 className="text-lg font-semibold">Saliste de pantalla completa</h2>
+            <p className="text-sm text-muted-foreground">
+              Este examen requiere modo pantalla completa. Se registró una advertencia. Vuelve para
+              continuar; si superas {MAX_WARNINGS} advertencias el examen será marcado como
+              sospechoso.
+            </p>
+            <Button className="w-full" onClick={reenterFullscreen}>
+              Volver a pantalla completa
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Sticky header with timer — full-bleed on mobile via negative margins matching AppLayout's px-4 */}
       <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">
