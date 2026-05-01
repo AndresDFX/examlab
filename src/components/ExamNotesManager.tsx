@@ -90,7 +90,6 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
   const isApproved = note?.status === "aprobada";
   const isRejected = note?.status === "rechazada";
   const isPending = note?.status === "pendiente";
-  const [open, setOpen] = useState(false);
 
   const statusBadge = note ? (
     <Badge
