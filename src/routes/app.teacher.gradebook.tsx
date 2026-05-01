@@ -62,6 +62,7 @@ type Exam = {
   course_id: string;
   cut_id?: string | null;
   weight?: number | null;
+  retry_mode?: string | null;
 };
 type Workshop = {
   id: string;
