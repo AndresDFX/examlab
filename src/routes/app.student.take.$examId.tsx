@@ -47,6 +47,7 @@ type Exam = {
   start_time: string;
   end_time: string;
   course_id: string;
+  schedule_type?: string | null;
   /** Populated via join `course:courses(language)` when available. */
   course?: { language?: string | null } | null;
 };
