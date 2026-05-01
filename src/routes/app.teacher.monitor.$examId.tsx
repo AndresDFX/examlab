@@ -111,20 +111,25 @@ function ExamMonitor() {
   const [savingQid, setSavingQid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data: e } = await supabase
+    const { data: e } = await (supabase as any)
       .from("exams")
-      .select("*, course:courses(name, grade_scale_max)")
+      .select(
+        "*, course:courses(name, grade_scale_max, max_exam_attempts)",
+      )
       .eq("id", examId)
       .single();
     setExam(e);
 
     const { data: subs } = await supabase
       .from("submissions")
-      .select("id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade")
-      .eq("exam_id", examId);
+      .select(
+        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, created_at, started_at, submitted_at",
+      )
+      .eq("exam_id", examId)
+      .order("created_at", { ascending: true });
 
     if (subs?.length) {
-      const userIds = subs.map((s) => s.user_id);
+      const userIds = Array.from(new Set(subs.map((s) => s.user_id)));
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, institutional_email")
