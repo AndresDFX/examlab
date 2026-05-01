@@ -129,6 +129,7 @@ function ExamEditor() {
         max_attempts: normalizedAttempts,
         cut_id: (exam as any).cut_id || null,
         weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
+        schedule_type: ((exam as any).schedule_type ?? "normal") as string,
       })
       .eq("id", examId);
     if (error) return toast.error(error.message);
