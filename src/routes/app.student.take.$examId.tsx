@@ -337,6 +337,7 @@ function TakeExam() {
         sid = existing.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;
+        setSubmissionStartedAt((existing as any).started_at ?? null);
         setAnswers(claimedAnswers);
         answersRef.current = claimedAnswers;
       }
