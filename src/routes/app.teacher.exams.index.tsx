@@ -380,6 +380,14 @@ function TeacherExams() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => duplicate(e)}
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => remove(e)}
                         title={t("common.delete", { defaultValue: "Eliminar" })}
                       >
