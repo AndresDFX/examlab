@@ -338,49 +338,6 @@ function ExamMonitor() {
         </div>
       </div>
 
-      {/* Global controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Controles globales
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Estos controles afectan a todos los estudiantes que están presentando el examen en
-            tiempo real.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendTimerControl("pause", null)}
-              disabled={loading === "pause-global"}
-            >
-              {loading === "pause-global" ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Pause className="h-4 w-4 mr-1" />
-              )}
-              Pausar todos
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendTimerControl("resume", null)}
-              disabled={loading === "resume-global"}
-            >
-              {loading === "resume-global" ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4 mr-1" />
-              )}
-              Reanudar todos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Live submissions */}
       <Card>
         <CardHeader>
