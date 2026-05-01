@@ -44,6 +44,11 @@ import {
   type BreakdownItem as GradeBreakdown,
   type ManualOverride as GradeManual,
 } from "@/utils/grade";
+import {
+  computeAttemptGrade,
+  retryModeLabel,
+  type RetryMode,
+} from "@/utils/exam-attempts";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
