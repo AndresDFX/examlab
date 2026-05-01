@@ -559,6 +559,27 @@ function TeacherExams() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>
+                Modo de calificación con reintentos{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (Aplica solo si se permite más de un intento.)
+                </span>
+              </Label>
+              <Select
+                value={(form as any).retry_mode ?? "last"}
+                onValueChange={(v) => setForm({ ...form, retry_mode: v } as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last">Último intento</SelectItem>
+                  <SelectItem value="average">Promedio</SelectItem>
+                  <SelectItem value="highest">Más alto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center justify-between">
               <Label>{t("exam.shuffle")}</Label>
               <Switch
