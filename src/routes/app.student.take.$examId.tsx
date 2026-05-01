@@ -798,8 +798,10 @@ function TakeExam() {
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>
-                  Duración: <strong>{exam.time_limit_minutes} minutos</strong>. El tiempo no se
-                  pausa.
+                  Duración: <strong>{exam.time_limit_minutes} minutos</strong>.{" "}
+                  {exam.schedule_type === "relativo"
+                    ? "El cronómetro empieza cuando inicies el examen y solo se pausa al cerrar la ventana de disponibilidad."
+                    : "El tiempo no se pausa."}
                 </li>
                 {/* <li>El examen se ejecuta en <strong>pantalla completa</strong>.</li> */}
                 <li>No puedes copiar, pegar ni hacer clic derecho.</li>
