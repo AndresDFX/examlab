@@ -317,6 +317,36 @@ function TeacherWorkshops() {
     load();
   };
 
+  const duplicateWorkshop = async (ws: Workshop) => {
+    if (!user) return;
+    const { course, id: _id, ...rest } = ws as any;
+    const { data: newWs, error } = await supabase
+      .from("workshops")
+      .insert({
+        ...rest,
+        title: `Copia de ${ws.title}`,
+        status: "draft",
+        created_by: user.id,
+      })
+      .select()
+      .single();
+    if (error) return toast.error(error.message);
+    const { data: qs } = await supabase
+      .from("workshop_questions")
+      .select("*")
+      .eq("workshop_id", ws.id)
+      .order("position");
+    if (qs?.length) {
+      const rows = (qs as any[]).map(({ id, workshop_id, created_at, ...q }) => ({
+        ...q,
+        workshop_id: newWs.id,
+      }));
+      await supabase.from("workshop_questions").insert(rows);
+    }
+    toast.success("Taller duplicado correctamente");
+    load();
+  };
+
   const remove = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar taller",
