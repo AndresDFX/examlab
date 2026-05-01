@@ -250,7 +250,7 @@ function Gradebook() {
     if (examIds.length) {
       const { data: es } = await supabase
         .from("submissions")
-        .select("id, exam_id, user_id, ai_grade, final_override_grade, status")
+        .select("id, exam_id, user_id, ai_grade, final_override_grade, status, created_at")
         .in("exam_id", examIds);
       setExamSubs((es ?? []) as ExamSub[]);
     } else {
