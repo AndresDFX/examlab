@@ -37,6 +37,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
