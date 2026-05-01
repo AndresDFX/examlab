@@ -647,7 +647,7 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ex
       }
     }
 
-    const grade = totalPoints > 0 ? Number(((earned / totalPoints) * 10).toFixed(2)) : 0;
+    const grade = totalPoints > 0 ? Number(((earned / totalPoints) * gradeScaleMax).toFixed(2)) : 0;
 
     await admin
       .from("submissions")
