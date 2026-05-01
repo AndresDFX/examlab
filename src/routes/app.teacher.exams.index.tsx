@@ -209,6 +209,7 @@ function TeacherExams() {
       navigation_type: form.navigation_type ?? "libre",
       shuffle_enabled: !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
+      schedule_type: ((form as any).schedule_type ?? "normal") as string,
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
     };
@@ -226,6 +227,8 @@ function TeacherExams() {
         return;
       }
       if (!firstId) firstId = data.id;
+      // Auto-asignar todos los estudiantes matriculados en el curso
+      await autoAssignExam(data.id, cid);
     }
 
     toast.success(
