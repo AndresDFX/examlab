@@ -45,6 +45,10 @@ function ExamEditor() {
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
   const [cuts, setCuts] = useState<Array<{ id: string; name: string }>>([]);
+  const [cutItems, setCutItems] = useState<Array<{ id: string; cut_id: string; item_type: string; weight: number; exam_id: string | null; workshop_id: string | null; project_id: string | null; project_title: string | null }>>([]);
+  const [examTitlesById, setExamTitlesById] = useState<Record<string, string>>({});
+  const [workshopTitlesById, setWorkshopTitlesById] = useState<Record<string, string>>({});
+  const [projectTitlesById, setProjectTitlesById] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<Question[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
