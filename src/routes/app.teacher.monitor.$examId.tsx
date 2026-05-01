@@ -229,20 +229,8 @@ function ExamMonitor() {
     }
   };
 
-  const deleteSubmission = async (sub: Submission) => {
-    const name = sub.profile?.full_name ?? "este estudiante";
-    const ok = await confirm({
-      title: `Eliminar entrega de ${name}`,
-      description: "Se eliminará la entrega del estudiante de forma permanente.",
-      confirmLabel: "Eliminar entrega",
-      tone: "destructive",
-    });
-    if (!ok) return;
-    const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
-    if (error) return toast.error(error.message);
-    setSubmissions((prev) => prev.filter((s) => s.id !== sub.id));
-    toast.success("Entrega eliminada correctamente");
-  };
+  // (deleteSubmission ahora vive en deleteOneAttempt / deleteAllAttempts dentro del dialog)
+
 
   const openView = (sub: Submission) => {
     setViewingId(sub.id);
