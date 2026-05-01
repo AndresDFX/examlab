@@ -535,6 +535,28 @@ function TeacherExams() {
                 </Select>
               </div>
             </div>
+            <div>
+              <Label>
+                Tipo de programación{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (Normal: el cronómetro cuenta hasta la fecha de fin para todos. Relativo: cada
+                  estudiante tiene la duración indicada desde que abre el examen, dentro de la
+                  ventana.)
+                </span>
+              </Label>
+              <Select
+                value={(form as any).schedule_type ?? "normal"}
+                onValueChange={(v) => setForm({ ...form, schedule_type: v } as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal (sincrónico)</SelectItem>
+                  <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center justify-between">
               <Label>{t("exam.shuffle")}</Label>
               <Switch
