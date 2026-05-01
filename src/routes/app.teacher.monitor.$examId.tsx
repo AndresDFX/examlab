@@ -28,10 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Pause,
-  Play,
   Clock,
-  Users,
   AlertTriangle,
   CheckCircle2,
   Loader2,
@@ -39,6 +36,7 @@ import {
   Trash2,
   Eye,
   Save,
+  TimerReset,
 } from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import {
