@@ -48,6 +48,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   HelpCircle,
+  Copy,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
