@@ -439,6 +439,28 @@ function ExamEditor() {
                 </div>
               </div>
               <div>
+                <Label>
+                  Modo de calificación con reintentos{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la nota
+                    final del examen cuando el estudiante presenta varios intentos.)
+                  </span>
+                </Label>
+                <Select
+                  value={(exam as any).retry_mode ?? "last"}
+                  onValueChange={(v) => setExam({ ...exam, retry_mode: v } as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="last">Último intento (toma la nota más reciente)</SelectItem>
+                    <SelectItem value="average">Promedio de todos los intentos</SelectItem>
+                    <SelectItem value="highest">Más alto (mejor nota entre los intentos)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Corte de evaluación (opcional)</Label>
                 <Select
                   value={(exam as any).cut_id ?? "__none__"}
