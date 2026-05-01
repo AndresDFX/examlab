@@ -432,20 +432,16 @@ function ExamMonitor() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => sendTimerControl("pause", sub.user_id)}
-                              disabled={loading === `pause-${sub.user_id}`}
-                              title="Pausar este estudiante"
+                              onClick={() => sendTimerControl("add_time", sub.user_id, 5 * 60)}
+                              disabled={loading === `add_time-${sub.user_id}`}
+                              title="Agregar 5 minutos a este estudiante"
                             >
-                              <Pause className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => sendTimerControl("resume", sub.user_id)}
-                              disabled={loading === `resume-${sub.user_id}`}
-                              title="Reanudar este estudiante"
-                            >
-                              <Play className="h-3.5 w-3.5" />
+                              {loading === `add_time-${sub.user_id}` ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <TimerReset className="h-3.5 w-3.5" />
+                              )}
+                              <span className="ml-1 text-[11px]">+5m</span>
                             </Button>
                           </>
                         )}
