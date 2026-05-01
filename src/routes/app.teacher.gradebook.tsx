@@ -464,7 +464,9 @@ function Gradebook() {
 
     return students.map((stu) => {
       const cutGrades = cuts.map((cut) => {
-        // Exámenes del corte (originales, escalados a 0..course.max desde 0..10)
+        // Exámenes del corte. ai_grade y final_override_grade ya están en la
+        // escala del curso (post-migración), así que pasamos rawMax = max para
+        // que toScale los devuelva tal cual.
         const cutExams = allExams.filter(
           (e) => !e.parent_exam_id && (e.cut_id ?? null) === cut.id,
         );
@@ -478,7 +480,7 @@ function Gradebook() {
           const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
           if (raw != null) {
             const w = Number(e.weight ?? 1);
-            examScores.push({ score: toScale(Number(raw), 10), weight: w > 0 ? w : 0 });
+            examScores.push({ score: toScale(Number(raw), max), weight: w > 0 ? w : 0 });
           }
         }
         const examWeightSum = examScores.reduce((a, b) => a + b.weight, 0);
