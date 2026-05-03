@@ -2,7 +2,13 @@
  * JavaGuiRunner — editor Monaco + ejecución client-side de Java Swing/AWT
  * mediante CheerpJ 3 (cargado lazy desde su CDN, sin dependencias npm).
  *
- * Renderiza la ventana Swing/AWT dentro de un <div> en el navegador.
+ * Patrón basado en https://github.com/leaningtech/javafiddle:
+ *   1. cheerpjInit({status:'none'})
+ *   2. cheerpjCreateDisplay(-1,-1, container)  → ventana Swing
+ *   3. cheerpjAddStringFile('/str/Main.java', encoder.encode(code))
+ *   4. cheerpjRunMain('com.sun.tools.javac.Main','/app/tools.jar:/files/','/str/Main.java','-d','/files/')
+ *   5. cheerpjRunMain('Main','/app/tools.jar:/files/')
+ *
  * El código fuente se reporta vía onChange y se guarda como respuesta de
  * texto para ser calificada por la IA igual que las preguntas de "código".
  */
@@ -11,19 +17,18 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, Coffee, AlertTriangle } from "lucide-react";
+import { Loader2, Play, Coffee, AlertTriangle, Terminal } from "lucide-react";
 
 declare global {
   interface Window {
     cheerpjInit?: (opts?: any) => Promise<void>;
-    cheerpjRunJar?: (path: string, ...args: string[]) => Promise<number>;
     cheerpjCreateDisplay?: (
       width: number,
       height: number,
-      container: HTMLElement,
+      container?: HTMLElement,
     ) => void;
-    cheerpOSAddStringFile?: (path: string, contents: string) => void;
-    cjFileBlob?: (path: string) => Promise<Blob>;
+    cheerpjRunMain?: (cls: string, cp: string, ...args: string[]) => Promise<number>;
+    cheerpjAddStringFile?: (path: string, contents: Uint8Array) => void;
     __cheerpjLoading?: Promise<void>;
     __cheerpjReady?: boolean;
   }
@@ -63,10 +68,7 @@ function loadCheerpJ(): Promise<void> {
   if (window.__cheerpjLoading) return window.__cheerpjLoading;
 
   window.__cheerpjLoading = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${CHEERPJ_SRC}"]`,
-    );
-    const onReady = async () => {
+    const ready = async () => {
       try {
         if (typeof window.cheerpjInit !== "function") {
           throw new Error("CheerpJ no expuso cheerpjInit");
@@ -78,9 +80,12 @@ function loadCheerpJ(): Promise<void> {
         reject(e);
       }
     };
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${CHEERPJ_SRC}"]`,
+    );
     if (existing) {
-      if (window.cheerpjInit) void onReady();
-      else existing.addEventListener("load", onReady, { once: true });
+      if (window.cheerpjInit) void ready();
+      else existing.addEventListener("load", ready, { once: true });
       existing.addEventListener("error", () => reject(new Error("No se pudo cargar CheerpJ")), {
         once: true,
       });
@@ -89,11 +94,17 @@ function loadCheerpJ(): Promise<void> {
     const s = document.createElement("script");
     s.src = CHEERPJ_SRC;
     s.async = true;
-    s.onload = onReady;
+    s.onload = ready;
     s.onerror = () => reject(new Error("No se pudo cargar CheerpJ"));
     document.head.appendChild(s);
   });
   return window.__cheerpjLoading;
+}
+
+/** Extrae el nombre de la clase pública del fuente; por defecto Main. */
+function deriveMainClass(source: string): string {
+  const m = source.match(/public\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
+  return m ? m[1] : "Main";
 }
 
 interface Props {
@@ -101,7 +112,6 @@ interface Props {
   onChange: (value: string) => void;
   height?: string;
   readOnly?: boolean;
-  uniqueId?: string;
 }
 
 export function JavaGuiRunner({
@@ -109,11 +119,11 @@ export function JavaGuiRunner({
   onChange,
   height = "320px",
   readOnly = false,
-  uniqueId,
 }: Props) {
   const editorRef = useRef<any>(null);
   const displayRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(false);
+  const consoleRef = useRef<HTMLPreElement>(null);
+  const [loadingCJ, setLoadingCJ] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
@@ -134,58 +144,50 @@ export function JavaGuiRunner({
   const run = async () => {
     setError(null);
     setRunning(true);
-    setLoading(true);
+    setLoadingCJ(true);
     try {
       await loadCheerpJ();
-      setLoading(false);
-      if (!displayRef.current) throw new Error("Contenedor no disponible");
-      // Limpia render previo
+      setLoadingCJ(false);
+      if (!displayRef.current || !consoleRef.current) {
+        throw new Error("Contenedor de visualización no disponible");
+      }
+
+      // CheerpJ busca implícitamente #console para escribir stdout/stderr.
+      // Como puede haber varios runners en la misma página, mientras corre
+      // este lo asignamos al elemento global.
+      consoleRef.current.id = "console";
+      consoleRef.current.innerHTML = "";
+
+      // Crea el display Swing dentro de nuestro contenedor (limpia previo).
       displayRef.current.innerHTML = "";
-      window.cheerpjCreateDisplay?.(
-        Math.max(displayRef.current.clientWidth || 600, 320),
-        420,
-        displayRef.current,
-      );
+      window.cheerpjCreateDisplay?.(-1, -1, displayRef.current);
 
-      // Escribir el .java al filesystem virtual (/str/)
-      const id = (uniqueId ?? "anon").replace(/[^a-zA-Z0-9_-]/g, "_");
-      const sourcePath = `/str/Main_${id}.java`;
-      // CheerpJ requiere que el nombre del archivo coincida con la clase pública.
-      // Para simplificar, exigimos que la clase pública se llame Main.
-      window.cheerpOSAddStringFile?.("/str/Main.java", value || JAVA_GUI_STARTER);
+      const className = deriveMainClass(value || JAVA_GUI_STARTER);
+      const sourcePath = `/str/${className}.java`;
+      const enc = new TextEncoder();
+      window.cheerpjAddStringFile?.(sourcePath, enc.encode(value || JAVA_GUI_STARTER));
 
-      // Compilar usando el javac empaquetado por CheerpJ (jar incluido)
-      const cjCompile = window.cheerpjRunJar;
-      if (!cjCompile) throw new Error("CheerpJ no está listo");
-
-      const compileExit = await cjCompile(
-        "/app/tools.jar",
+      const classPath = "/app/tools.jar:/files/";
+      const compileExit = await window.cheerpjRunMain?.(
         "com.sun.tools.javac.Main",
-        "/str/Main.java",
+        classPath,
+        sourcePath,
         "-d",
         "/files/",
       );
       if (compileExit !== 0) {
-        throw new Error("Errores de compilación. Revisa la consola del navegador.");
+        throw new Error(
+          `Errores de compilación (revisa la consola). Asegúrate que la clase pública se llame ${className} y el código compile.`,
+        );
       }
-
-      // Ejecutar la clase compilada
-      // Usamos cheerpjRunMain via -cp /files/
-      const w = window as any;
-      const runMain = w.cheerpjRunMain as
-        | ((cls: string, cp: string, ...args: string[]) => Promise<number>)
-        | undefined;
-      if (!runMain) throw new Error("cheerpjRunMain no disponible");
-      await runMain("Main", "/files/");
+      await window.cheerpjRunMain?.(className, classPath);
       setHasRun(true);
-      // sourcePath unused but kept for future per-question isolation
-      void sourcePath;
     } catch (e: any) {
       console.error("[JavaGuiRunner]", e);
       setError(e?.message ?? "Error ejecutando Java");
     } finally {
       setRunning(false);
-      setLoading(false);
+      setLoadingCJ(false);
     }
   };
 
@@ -193,7 +195,7 @@ export function JavaGuiRunner({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <Badge variant="outline" className="text-xs flex items-center gap-1">
-          <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT)
+          <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT) — CheerpJ
         </Badge>
         <Button
           size="sm"
@@ -207,7 +209,7 @@ export function JavaGuiRunner({
           ) : (
             <Play className="h-3 w-3 mr-1" />
           )}
-          {loading ? "Cargando CheerpJ…" : running ? "Ejecutando…" : "Ejecutar"}
+          {loadingCJ ? "Cargando CheerpJ…" : running ? "Ejecutando…" : "Ejecutar"}
         </Button>
       </div>
 
@@ -233,31 +235,45 @@ export function JavaGuiRunner({
         />
       </div>
 
-      <Card className="bg-muted/40">
-        <CardHeader className="py-2 px-3">
-          <CardTitle className="text-xs flex items-center gap-1.5">
-            <Coffee className="h-3 w-3" /> Ventana Swing
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 pt-0">
-          {error && (
-            <div className="flex items-start gap-2 text-xs text-destructive mb-2">
-              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-          {!hasRun && !error && (
-            <p className="text-xs text-muted-foreground">
-              Pulsa <strong>Ejecutar</strong> para compilar y abrir la ventana Swing dentro del
-              navegador. La clase pública debe llamarse <code>Main</code>.
-            </p>
-          )}
-          <div
-            ref={displayRef}
-            className="w-full min-h-[200px] bg-background rounded border"
-          />
-        </CardContent>
-      </Card>
+      <div className="grid md:grid-cols-2 gap-2">
+        <Card className="bg-muted/40">
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="text-xs flex items-center gap-1.5">
+              <Terminal className="h-3 w-3" /> Consola
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+            <pre
+              ref={consoleRef}
+              className="text-[11px] font-mono whitespace-pre-wrap max-h-48 overflow-auto min-h-[60px]"
+            />
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/40">
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="text-xs flex items-center gap-1.5">
+              <Coffee className="h-3 w-3" /> Ventana Swing
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+            {error && (
+              <div className="flex items-start gap-2 text-xs text-destructive mb-2">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            {!hasRun && !error && (
+              <p className="text-[11px] text-muted-foreground">
+                Pulsa <strong>Ejecutar</strong> para compilar y abrir la ventana Swing.
+              </p>
+            )}
+            <div
+              ref={displayRef}
+              className="w-full min-h-[200px] bg-background rounded border"
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
