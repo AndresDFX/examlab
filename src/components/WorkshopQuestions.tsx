@@ -222,6 +222,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="cerrada">Cerrada (opción múltiple)</SelectItem>
                   <SelectItem value="codigo">Código</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
