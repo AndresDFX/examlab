@@ -535,8 +535,15 @@ export function StudentProjectTaker({
               <Badge variant="outline" className="text-[10px]">
                 {idx + 1}
               </Badge>
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              {f.language === "java_gui" ? (
+                <Coffee className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
               <span>{f.title}</span>
+              {f.language === "java_gui" && (
+                <Badge variant="secondary" className="text-[10px]">Java GUI</Badge>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
             </CardTitle>
           </CardHeader>
@@ -544,13 +551,21 @@ export function StudentProjectTaker({
             {f.description && (
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
             )}
-            <Textarea
-              rows={10}
-              value={contents[f.id] ?? ""}
-              onChange={(e) => updateContent(f.id, e.target.value)}
-              placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
-              className="font-mono text-xs"
-            />
+            {f.language === "java_gui" ? (
+              <JavaGuiRunner
+                value={contents[f.id] ?? JAVA_GUI_STARTER}
+                onChange={(v) => updateContent(f.id, v)}
+                height="280px"
+              />
+            ) : (
+              <Textarea
+                rows={10}
+                value={contents[f.id] ?? ""}
+                onChange={(e) => updateContent(f.id, e.target.value)}
+                placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
+                className="font-mono text-xs"
+              />
+            )}
           </CardContent>
         </Card>
       ))}
