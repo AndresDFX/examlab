@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, Loader2, MessageSquareText } from "lucide-react";
+import { FeedbackThread } from "@/components/FeedbackThread";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,
@@ -392,6 +393,13 @@ function StudentWorkshopDetail() {
                           </span>
                         </div>
                       </div>
+                    )}
+                    {submission && (
+                      <FeedbackThread
+                        parentKind="workshop"
+                        questionId={q.id}
+                        submissionId={submission.id}
+                      />
                     )}
                     {q.expected_rubric && (
                       <details className="text-xs text-muted-foreground">

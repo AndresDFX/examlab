@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot } from "lucide-react";
+import { FeedbackThread } from "@/components/FeedbackThread";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -384,6 +385,13 @@ function StudentProjectDetail() {
                           </span>
                         </div>
                       </div>
+                    )}
+                    {submission && (
+                      <FeedbackThread
+                        parentKind="project"
+                        questionId={f.id}
+                        submissionId={submission.id}
+                      />
                     )}
                   </CardContent>
                 </Card>

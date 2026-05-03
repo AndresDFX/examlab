@@ -55,6 +55,7 @@ import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
+import { FeedbackThread } from "@/components/FeedbackThread";
 import {
   Accordion,
   AccordionContent,
@@ -1644,6 +1645,12 @@ function TeacherWorkshops() {
                                     Recalificar IA
                                   </Button>
                                 </div>
+                                <FeedbackThread
+                                  parentKind="workshop"
+                                  questionId={q.id}
+                                  submissionId={sub.id}
+                                  isTeacher
+                                />
                               </div>
                             );
                           })}

@@ -60,6 +60,7 @@ import {
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
+import { FeedbackThread } from "@/components/FeedbackThread";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
@@ -1245,6 +1246,12 @@ function TeacherProjects() {
                                       Guardar
                                     </Button>
                                   </div>
+                                  <FeedbackThread
+                                    parentKind="project"
+                                    questionId={f.id}
+                                    submissionId={sub.id}
+                                    isTeacher
+                                  />
                                 </CardContent>
                               </Card>
                             );

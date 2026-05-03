@@ -50,6 +50,7 @@ import {
   type RetryMode,
 } from "@/utils/exam-attempts";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { FeedbackThread } from "@/components/FeedbackThread";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
 
@@ -885,6 +886,14 @@ function ExamMonitor() {
                               }
                               className="text-xs min-h-[50px]"
                             />
+                            {viewingSub && (
+                              <FeedbackThread
+                                parentKind="exam"
+                                questionId={q.id}
+                                submissionId={viewingSub.id}
+                                isTeacher
+                              />
+                            )}
                           </div>
                         </CardContent>
                       </Card>

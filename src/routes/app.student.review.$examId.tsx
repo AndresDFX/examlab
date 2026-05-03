@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
+import { FeedbackThread } from "@/components/FeedbackThread";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -54,6 +55,7 @@ function StudentExamReview() {
   const [exam, setExam] = useState<ExamLoaded | null>(null);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [submission, setSubmission] = useState<{
+    id: string;
     status: string;
     answers: Record<string, unknown> | null;
     ai_grade: number | null;
@@ -101,7 +103,7 @@ function StudentExamReview() {
             .single(),
           supabase
             .from("submissions")
-            .select("status, answers, ai_grade, final_override_grade, submitted_at")
+            .select("id, status, answers, ai_grade, final_override_grade, submitted_at")
             .eq("exam_id", examId)
             .eq("user_id", user.id)
             .maybeSingle(),
@@ -121,6 +123,7 @@ function StudentExamReview() {
         setExam(ex as ExamLoaded);
         setSubmission(
           sub as {
+            id: string;
             status: string;
             answers: Record<string, unknown> | null;
             ai_grade: number | null;
@@ -366,6 +369,14 @@ function StudentExamReview() {
                   <p className="text-xs text-muted-foreground italic">
                     {t("exam.review.noFeedback")}
                   </p>
+                )}
+
+                {submission && (
+                  <FeedbackThread
+                    parentKind="exam"
+                    questionId={q.id}
+                    submissionId={submission.id}
+                  />
                 )}
 
                 {q.expected_rubric && (
