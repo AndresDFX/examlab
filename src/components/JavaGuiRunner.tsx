@@ -17,7 +17,8 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, Coffee, AlertTriangle, Terminal } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, Play, Coffee, AlertTriangle, Terminal, Maximize2, RotateCcw } from "lucide-react";
 
 declare global {
   interface Window {
@@ -156,6 +157,13 @@ export function JavaGuiRunner({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Capturamos el último value en una ref para que `run` siempre lea la
+  // versión actualizada del editor sin depender de él como dependencia
+  // (eso provocaría re-runs en cada tecla mientras el modal está abierto).
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
@@ -172,6 +180,7 @@ export function JavaGuiRunner({
 
   const run = async () => {
     setError(null);
+    setHasRun(false);
     setRunning(true);
     setLoadingCJ(true);
     try {
@@ -181,29 +190,22 @@ export function JavaGuiRunner({
         throw new Error("Contenedor de visualización no disponible");
       }
 
-      // CheerpJ busca implícitamente #console para escribir stdout/stderr.
-      // Como puede haber varios runners en la misma página, mientras corre
-      // este lo asignamos al elemento global.
       consoleRef.current.id = "console";
       consoleRef.current.innerHTML = "";
 
-      // Crea el display Swing dentro de nuestro contenedor (limpia previo).
-      // Medimos el ancho real del contenedor para que la ventana Swing se
-      // ajuste a la interfaz web en vez de quedar fija a 800x600.
       displayRef.current.innerHTML = "";
       const rect = displayRef.current.getBoundingClientRect();
       const w = Math.max(360, Math.floor(rect.width) || 720);
       const h = Math.max(280, Math.floor(rect.height) || 480);
       window.cheerpjCreateDisplay?.(w, h, displayRef.current);
 
-      const className = deriveMainClass(value || JAVA_GUI_STARTER);
+      const source = valueRef.current || JAVA_GUI_STARTER;
+      const className = deriveMainClass(source);
       const sourcePath = `/str/${className}.java`;
       const enc = new TextEncoder();
       const addFile = window.cheerpOSAddStringFile ?? window.cheerpjAddStringFile;
-      addFile?.(sourcePath, enc.encode(value || JAVA_GUI_STARTER));
+      addFile?.(sourcePath, enc.encode(source));
 
-      // Lovable no soporta byte-range para /tools.jar. Bajamos el JAR completo
-      // y lo inyectamos en /str/ para que CheerpJ lo lea localmente.
       const toolsBytes = await loadToolsJar();
       addFile?.("/str/tools.jar", toolsBytes);
 
@@ -222,14 +224,20 @@ export function JavaGuiRunner({
       }
       await window.cheerpjRunMain?.(className, classPath);
       setHasRun(true);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[JavaGuiRunner]", e);
-      setError(e?.message ?? "Error ejecutando Java");
+      setError(e instanceof Error ? e.message : "Error ejecutando Java");
     } finally {
       setRunning(false);
       setLoadingCJ(false);
     }
   };
+
+  useEffect(() => {
+    if (dialogOpen) {
+      void run();
+    }
+  }, [dialogOpen]);
 
   return (
     <div className="space-y-2">
@@ -240,18 +248,25 @@ export function JavaGuiRunner({
         <Button
           size="sm"
           variant="outline"
-          onClick={run}
-          disabled={running || readOnly}
+          onClick={() => setDialogOpen(true)}
+          disabled={readOnly}
           className="h-8 text-xs"
+          type="button"
         >
-          {running ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          ) : (
-            <Play className="h-3 w-3 mr-1" />
-          )}
-          {loadingCJ ? "Cargando CheerpJ…" : running ? "Ejecutando…" : "Ejecutar"}
+          <Maximize2 className="h-3 w-3 mr-1" />
+          Ejecutar y abrir vista Swing
         </Button>
       </div>
+
+      {(error || hasRun) && !dialogOpen && (
+        <button
+          type="button"
+          onClick={() => setDialogOpen(true)}
+          className="text-xs text-primary underline-offset-2 hover:underline"
+        >
+          Volver a abrir la vista Swing
+        </button>
+      )}
 
       <div className="rounded-md border overflow-hidden">
         <Editor
@@ -275,45 +290,78 @@ export function JavaGuiRunner({
         />
       </div>
 
-      <div className="grid md:grid-cols-2 gap-2">
-        <Card className="bg-muted/40">
-          <CardHeader className="py-2 px-3">
-            <CardTitle className="text-xs flex items-center gap-1.5">
-              <Terminal className="h-3 w-3" /> Consola
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <pre
-              ref={consoleRef}
-              className="text-[11px] font-mono whitespace-pre-wrap max-h-48 overflow-auto min-h-[60px]"
-            />
-          </CardContent>
-        </Card>
-        <Card className="bg-muted/40">
-          <CardHeader className="py-2 px-3">
-            <CardTitle className="text-xs flex items-center gap-1.5">
-              <Coffee className="h-3 w-3" /> Ventana Swing
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            {error && (
-              <div className="flex items-start gap-2 text-xs text-destructive mb-2">
-                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-            {!hasRun && !error && (
-              <p className="text-[11px] text-muted-foreground">
-                Pulsa <strong>Ejecutar</strong> para compilar y abrir la ventana Swing.
-              </p>
-            )}
-            <div
-              ref={displayRef}
-              className="w-full min-h-[200px] bg-background rounded border"
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-[95vw] w-[95vw] sm:max-w-[95vw] h-[92vh] flex flex-col p-4 gap-3">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Coffee className="h-4 w-4" />
+              Java GUI — vista en vivo
+              {(loadingCJ || running) && (
+                <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {loadingCJ ? "Cargando CheerpJ…" : "Ejecutando…"}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {error && (
+            <div className="flex items-start gap-2 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3 flex-1 min-h-0">
+            <Card className="bg-muted/40 flex flex-col min-h-0">
+              <CardHeader className="py-2 px-3 shrink-0">
+                <CardTitle className="text-xs flex items-center gap-1.5">
+                  <Terminal className="h-3 w-3" /> Consola
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
+                <pre
+                  ref={consoleRef}
+                  className="text-[11px] font-mono whitespace-pre-wrap overflow-auto h-full"
+                />
+              </CardContent>
+            </Card>
+            <Card className="bg-muted/40 flex flex-col min-h-0">
+              <CardHeader className="py-2 px-3 shrink-0">
+                <CardTitle className="text-xs flex items-center gap-1.5">
+                  <Coffee className="h-3 w-3" /> Ventana Swing
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
+                <div
+                  ref={displayRef}
+                  className="w-full h-full bg-background rounded border overflow-auto"
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={() => void run()}
+              disabled={running || loadingCJ}
+            >
+              {running || loadingCJ ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3 mr-1" />
+              )}
+              Re-ejecutar
+            </Button>
+            <Button size="sm" variant="default" type="button" onClick={() => setDialogOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
