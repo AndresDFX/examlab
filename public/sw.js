@@ -15,7 +15,7 @@
  *  - Cache name v3 invalida las versiones anteriores en `activate`.
  */
 
-const CACHE_NAME = "examlab-v3";
+const CACHE_NAME = "examlab-v4";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -44,6 +44,9 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
   if (url.hostname.includes("supabase")) return;
+  // CheerpJ CDN sirve JARs gigantes con range requests; el SW rompe el caché de
+  // rango con ERR_CACHE_OPERATION_NOT_SUPPORTED. Dejar pasar a la red directo.
+  if (url.hostname.includes("leaningtech.com")) return;
 
   // Navegación: SIEMPRE red. Sin cache. Si la red falla mostramos un
   // fallback offline mínimo. NO reusamos HTML cacheado entre deploys porque
