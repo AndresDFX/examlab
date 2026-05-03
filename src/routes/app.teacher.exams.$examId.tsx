@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare, FileText } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
+import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
