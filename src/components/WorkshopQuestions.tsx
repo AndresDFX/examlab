@@ -669,6 +669,13 @@ export function StudentWorkshopTaker({
                 onChange={(v) => updateAnswer(q.id, v)}
               />
             )}
+            {q.type === "java_gui" && (
+              <JavaGuiRunner
+                value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
+                onChange={(v) => updateAnswer(q.id, v)}
+                height="280px"
+              />
+            )}
           </CardContent>
         </Card>
       ))}
