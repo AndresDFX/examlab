@@ -159,8 +159,13 @@ export function JavaGuiRunner({
       consoleRef.current.innerHTML = "";
 
       // Crea el display Swing dentro de nuestro contenedor (limpia previo).
+      // Medimos el ancho real del contenedor para que la ventana Swing se
+      // ajuste a la interfaz web en vez de quedar fija a 800x600.
       displayRef.current.innerHTML = "";
-      window.cheerpjCreateDisplay?.(800, 600, displayRef.current);
+      const rect = displayRef.current.getBoundingClientRect();
+      const w = Math.max(360, Math.floor(rect.width) || 720);
+      const h = Math.max(280, Math.floor(rect.height) || 480);
+      window.cheerpjCreateDisplay?.(w, h, displayRef.current);
 
       const className = deriveMainClass(value || JAVA_GUI_STARTER);
       const sourcePath = `/str/${className}.java`;
