@@ -99,7 +99,8 @@ export function TeacherWorkshopQuestionsEditor({
       options,
       points: qPoints,
       position: questions.length,
-      language: qType === "codigo" ? qLanguage : null,
+      language: qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null,
+      starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
     });
     if (error) {
       toast.error(error.message);
