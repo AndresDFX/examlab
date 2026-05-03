@@ -245,14 +245,26 @@ export function TeacherProjectFilesEditor({
               placeholder="Criterios objetivos para una buena entrega"
             />
           </div>
-          <div>
-            <Label>Puntos</Label>
-            <Input
-              type="number"
-              min={0}
-              value={fPoints || ""}
-              onChange={(e) => setFPoints(e.target.value === "" ? 0 : Number(e.target.value))}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Puntos</Label>
+              <Input
+                type="number"
+                min={0}
+                value={fPoints || ""}
+                onChange={(e) => setFPoints(e.target.value === "" ? 0 : Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <Label>Tipo de entrega</Label>
+              <Select value={fLanguage} onValueChange={setFLanguage}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="texto">Texto / archivo escrito</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button onClick={addManual}>
             <Plus className="h-4 w-4 mr-1" /> Agregar archivo
