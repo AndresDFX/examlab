@@ -27,7 +27,7 @@ import { MarkdownInline } from "@/components/MarkdownInline";
 export type WorkshopQuestion = {
   id: string;
   workshop_id: string;
-  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  type: "abierta" | "cerrada" | "codigo" | "diagrama" | "java_gui";
   content: string;
   options: any;
   position: number;
