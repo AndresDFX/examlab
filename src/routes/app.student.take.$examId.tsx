@@ -69,7 +69,7 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
   if (q.type === "cerrada") {
     return typeof v === "number" && v >= 0;
   }
-  if (q.type === "codigo") {
+  if (q.type === "codigo" || q.type === "java_gui") {
     const code = (typeof v === "string" ? v : "").trim() || (q.starter_code ?? "").trim();
     return code.length > 0;
   }
