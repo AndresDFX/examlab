@@ -31,7 +31,15 @@ import {
   Loader2,
   Scale,
   AlertTriangle,
+  Eye,
+  Inbox,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import {
   computeCutGrade,
@@ -153,6 +161,8 @@ function Gradebook() {
   const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
   const [edits, setEdits] = useState<EditMap>({});
   const [saving, setSaving] = useState(false);
+  // Cuál corte tiene abierto el modal de "Ver detalle"
+  const [detailCutId, setDetailCutId] = useState<string | null>(null);
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   // Load courses
@@ -453,6 +463,32 @@ function Gradebook() {
   const hasEdits = Object.values(edits).some((v) => v !== "");
   const selectedCourse = courses.find((c) => c.id === courseId);
 
+  // Agrupa columnas (exámenes + talleres) por corte para que la grilla
+  // editable se separe en "items dentro de un corte" (visibles solo en
+  // el modal de Ver detalle) vs "items sin corte" (visibles en su
+  // propia card debajo del consolidado).
+  const columnsByCut = useMemo(() => {
+    const map = new Map<string | null, GradeColumn[]>();
+    for (const col of columns) {
+      let cutId: string | null = null;
+      if (col.kind === "exam") {
+        const exam = allExams.find((e) => e.id === col.id);
+        cutId = exam?.cut_id ?? null;
+      } else {
+        const ws = allWorkshops.find((w) => w.id === col.id);
+        cutId = ws?.cut_id ?? null;
+      }
+      const arr = map.get(cutId) ?? [];
+      arr.push(col);
+      map.set(cutId, arr);
+    }
+    return map;
+  }, [columns, allExams, allWorkshops]);
+
+  const uncutColumns = columnsByCut.get(null) ?? [];
+  const detailCutColumns = detailCutId ? (columnsByCut.get(detailCutId) ?? []) : [];
+  const detailCut = detailCutId ? cuts.find((c) => c.id === detailCutId) : null;
+
   // ───────── Consolidado por cortes (Curso → Cortes → 4 componentes) ─────────
   // Reusa la misma lógica que la vista del estudiante para garantizar consistencia.
   const consolidated = useMemo(() => {
@@ -651,18 +687,36 @@ function Gradebook() {
                   <TableHead className="sticky left-0 z-10 bg-card min-w-48">
                     Estudiante
                   </TableHead>
-                  {cuts.map((c) => (
-                    <TableHead key={c.id} className="text-center min-w-24">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="truncate max-w-28" title={c.name}>
-                          {c.name}
-                        </span>
-                        <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                          {c.weight}%
-                        </Badge>
-                      </div>
-                    </TableHead>
-                  ))}
+                  {cuts.map((c) => {
+                    const itemCount = (columnsByCut.get(c.id) ?? []).length;
+                    return (
+                      <TableHead key={c.id} className="text-center min-w-32">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="truncate max-w-28" title={c.name}>
+                            {c.name}
+                          </span>
+                          <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                            {c.weight}%
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[10px] gap-1 mt-0.5"
+                            onClick={() => setDetailCutId(c.id)}
+                            disabled={itemCount === 0}
+                            title={
+                              itemCount === 0
+                                ? "Sin items asignados a este corte"
+                                : "Ver detalle del corte"
+                            }
+                          >
+                            <Eye className="h-3 w-3" />
+                            Ver detalle
+                          </Button>
+                        </div>
+                      </TableHead>
+                    );
+                  })}
                   <TableHead className="text-center min-w-24 bg-muted/40">Final</TableHead>
                 </TableRow>
               </TableHeader>
@@ -708,109 +762,199 @@ function Gradebook() {
         </Card>
       )}
 
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
-                {columns.map((col) => (
-                  <TableHead key={col.id} className="text-center min-w-28">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <div className="flex items-center gap-1">
-                        {col.kind === "exam" ? (
-                          <FileText className="h-3 w-3 text-primary shrink-0" />
-                        ) : (
-                          <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
-                        )}
-                        <span className="truncate max-w-24" title={col.title}>
-                          {col.title}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                        {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
-                      </Badge>
-                    </div>
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length + 1}
-                    className="text-center text-muted-foreground py-8"
-                  >
-                    No hay estudiantes matriculados en este curso.
-                  </TableCell>
-                </TableRow>
-              )}
-              {students.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="sticky left-0 z-10 bg-card">
-                    <div className="font-medium text-sm">{s.full_name}</div>
-                    <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
-                  </TableCell>
-                  {columns.map((col) => {
-                    const g = getGrade(s.id, col);
-                    const key = cellKey(s.id, col.id);
-                    const isEditing = key in edits;
-                    const displayGrade = isEditing
-                      ? edits[key]
-                      : g.grade != null
-                        ? String(g.grade)
-                        : "";
+      {/* Items sin corte asignado — antes formaban parte del grid grande,
+          ahora viven en su propia tarjeta. Items con corte se editan
+          desde el modal "Ver detalle" del consolidado. */}
+      {uncutColumns.length > 0 && (
+        <Card>
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <Inbox className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <h2 className="text-sm font-semibold">Sin corte asignado</h2>
+              <p className="text-xs text-muted-foreground">
+                Estos items no están vinculados a ningún corte. No suman al consolidado pero
+                se pueden calificar para llevar registro.
+              </p>
+            </div>
+          </div>
+          {renderEditableGrid({
+            columns: uncutColumns,
+            students,
+            getGrade,
+            edits,
+            handleEdit,
+            cellKey,
+            selectedCourse,
+          })}
+        </Card>
+      )}
 
-                    return (
-                      <TableCell key={col.id} className="text-center p-1">
-                        {g.subId ? (
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              step="0.1"
-                              min={selectedCourse?.grade_scale_min ?? 0}
-                              max={
-                                col.kind === "workshop"
-                                  ? (col.maxScore ?? 100)
-                                  : (selectedCourse?.grade_scale_max ?? 100)
-                              }
-                              value={displayGrade}
-                              onChange={(e) => handleEdit(s.id, col.id, e.target.value)}
-                              className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
-                              placeholder="—"
-                            />
-                            <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
-                              {g.isMakeup && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5"
-                                >
-                                  <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
-                                </Badge>
-                              )}
-                              {g.status === "sospechoso" && (
-                                <span
-                                  title="Intento marcado como sospechoso (alertas de integridad)"
-                                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
-                                >
-                                  <AlertTriangle className="h-3 w-3" strokeWidth={2} aria-hidden />
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Modal de detalle por corte — abre con "Ver detalle" en el header
+          del consolidado. Muestra exámenes y talleres pertenecientes al
+          corte y los hace editables; las ediciones comparten el state
+          `edits` y se guardan con el botón global "Guardar cambios". */}
+      <Dialog
+        open={detailCutId != null}
+        onOpenChange={(o) => {
+          if (!o) setDetailCutId(null);
+        }}
+      >
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detalle del corte: {detailCut?.name}
+              {detailCut && (
+                <Badge variant="outline" className="ml-2 text-[10px]">
+                  {detailCut.weight}%
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {detailCutColumns.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              Este corte no tiene exámenes ni talleres asignados todavía.
+            </p>
+          ) : (
+            renderEditableGrid({
+              columns: detailCutColumns,
+              students,
+              getGrade,
+              edits,
+              handleEdit,
+              cellKey,
+              selectedCourse,
+            })
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+// ───────────────────────── Editable grid (compartida) ─────────────────────────
+// Antes la grilla estaba inline en el JSX. La extraímos para reutilizar entre
+// "Sin corte asignado" y el modal de Ver detalle por corte.
+function renderEditableGrid({
+  columns,
+  students,
+  getGrade,
+  edits,
+  handleEdit,
+  cellKey,
+  selectedCourse,
+}: {
+  columns: GradeColumn[];
+  students: Student[];
+  getGrade: (
+    studentId: string,
+    col: GradeColumn,
+  ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
+  edits: EditMap;
+  handleEdit: (studentId: string, colId: string, value: string) => void;
+  cellKey: (studentId: string, colId: string) => string;
+  selectedCourse: Course | undefined;
+}) {
+  return (
+    <CardContent className="p-0 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+            {columns.map((col) => (
+              <TableHead key={col.id} className="text-center min-w-28">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="flex items-center gap-1">
+                    {col.kind === "exam" ? (
+                      <FileText className="h-3 w-3 text-primary shrink-0" />
+                    ) : (
+                      <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                    )}
+                    <span className="truncate max-w-24" title={col.title}>
+                      {col.title}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                    {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
+                  </Badge>
+                </div>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {students.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={columns.length + 1}
+                className="text-center text-muted-foreground py-8"
+              >
+                No hay estudiantes matriculados en este curso.
+              </TableCell>
+            </TableRow>
+          )}
+          {students.map((s) => (
+            <TableRow key={s.id}>
+              <TableCell className="sticky left-0 z-10 bg-card">
+                <div className="font-medium text-sm">{s.full_name}</div>
+                <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+              </TableCell>
+              {columns.map((col) => {
+                const g = getGrade(s.id, col);
+                const key = cellKey(s.id, col.id);
+                const isEditing = key in edits;
+                const displayGrade = isEditing
+                  ? edits[key]
+                  : g.grade != null
+                    ? String(g.grade)
+                    : "";
+
+                return (
+                  <TableCell key={col.id} className="text-center p-1">
+                    {g.subId ? (
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min={selectedCourse?.grade_scale_min ?? 0}
+                          max={
+                            col.kind === "workshop"
+                              ? (col.maxScore ?? 100)
+                              : (selectedCourse?.grade_scale_max ?? 100)
+                          }
+                          value={displayGrade}
+                          onChange={(e) => handleEdit(s.id, col.id, e.target.value)}
+                          className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
+                          placeholder="—"
+                        />
+                        <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
+                          {g.isMakeup && (
+                            <Badge
+                              variant="outline"
+                              className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5"
+                            >
+                              <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
+                            </Badge>
+                          )}
+                          {g.status === "sospechoso" && (
+                            <span
+                              title="Intento marcado como sospechoso (alertas de integridad)"
+                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
+                            >
+                              <AlertTriangle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </CardContent>
   );
 }
