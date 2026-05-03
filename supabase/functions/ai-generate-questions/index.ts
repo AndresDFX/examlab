@@ -238,13 +238,13 @@ Idioma obligatorio: ${pfLangName}.`,
     }
 
     const { topics, type, count = 5, examId, language, targetTable } = body;
-    // targetTable: "questions" (default, exam questions) | "workshop_questions"
+    // targetTable: "questions" (default) | "workshop_questions" | "project_files"
     const isWorkshop = targetTable === "workshop_questions";
-    // For workshop flow the client passes the workshopId in `examId` (legacy field reuse).
+    const isProject = targetTable === "project_files";
     const targetId = examId;
     if (!topics || !type || !targetId) {
       return new Response(
-        JSON.stringify({ error: "topics, type y (examId|workshopId) requeridos" }),
+        JSON.stringify({ error: "topics, type y (examId|workshopId|projectId) requeridos" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -260,8 +260,6 @@ Idioma obligatorio: ${pfLangName}.`,
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    // Determine course language: explicit body.courseLanguage wins; otherwise
-    // look it up from the exam's course. Defaults to Spanish for legacy calls.
     const admin0 = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -277,6 +275,14 @@ Idioma obligatorio: ${pfLangName}.`,
           .eq("id", targetId)
           .maybeSingle();
         const lng = (wRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      } else if (isProject) {
+        const { data: pRow } = await admin0
+          .from("projects")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (pRow as any)?.course?.language;
         if (lng === "en" || lng === "es") courseLanguage = lng;
       } else {
         const { data: examRow } = await admin0
