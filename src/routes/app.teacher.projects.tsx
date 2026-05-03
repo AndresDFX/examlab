@@ -1034,9 +1034,60 @@ function TeacherProjects() {
           <DialogHeader>
             <DialogTitle>Asignar — {assignProject?.title}</DialogTitle>
           </DialogHeader>
+
+          {/* Per-course filter chips + auto-assign-by-course */}
+          {assignProject && (assignProject.linked_course_ids ?? []).length > 0 && (
+            <div className="space-y-2 mb-2">
+              <p className="text-[11px] text-muted-foreground">
+                Filtra por curso o asigna a todos los matriculados de un curso.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(assignProject.linked_course_ids ?? []).map((cid) => {
+                  const c = courses.find((cc) => cc.id === cid);
+                  if (!c) return null;
+                  const enabled = assignFilterCourses.has(cid);
+                  const count = studentsByCourse.get(cid)?.size ?? 0;
+                  return (
+                    <div key={cid} className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssignFilterCourses((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(cid)) next.delete(cid);
+                            else next.add(cid);
+                            return next;
+                          });
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                          enabled
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {c.name} ({count})
+                      </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        title="Asignar a todos los matriculados de este curso"
+                        onClick={() => assignByCourse(cid)}
+                      >
+                        <UserPlus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-muted-foreground">
               {assigned.size} de {students.length} asignados
+              {assignFilterCourses.size > 0 &&
+                ` · ${visibleStudents.length} visibles`}
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={assignAll}>
@@ -1056,12 +1107,12 @@ function TeacherProjects() {
             {!assignLoading && assignError && (
               <p className="text-sm text-destructive p-4 text-center">{assignError}</p>
             )}
-            {!assignLoading && !assignError && students.length === 0 && (
+            {!assignLoading && !assignError && visibleStudents.length === 0 && (
               <p className="text-sm text-muted-foreground p-4 text-center">
                 Sin estudiantes matriculados.
               </p>
             )}
-            {students.map((s) => (
+            {visibleStudents.map((s) => (
               <label
                 key={s.id}
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm cursor-pointer"
@@ -1075,6 +1126,172 @@ function TeacherProjects() {
               </label>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grading / submissions dialog */}
+      <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Entregas — {gradingProject?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {gradingLoading && (
+            <p className="text-sm text-muted-foreground p-4 text-center">
+              <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando entregas…
+            </p>
+          )}
+          {!gradingLoading && gradingSubs.length === 0 && (
+            <p className="text-sm text-muted-foreground p-4 text-center">
+              Aún no hay entregas para este proyecto.
+            </p>
+          )}
+          {!gradingLoading && gradingSubs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score}
+              </p>
+              <Accordion type="multiple" className="w-full">
+                {gradingSubs.map((sub) => {
+                  const ans = gradingAnsBySub[sub.id] ?? [];
+                  const grade = sub.final_grade ?? sub.ai_grade;
+                  return (
+                    <AccordionItem key={sub.id} value={sub.id}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex flex-1 items-center gap-2 text-left">
+                          <span className="font-medium text-sm">
+                            {sub.profile?.full_name ?? "—"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {sub.profile?.institutional_email}
+                          </span>
+                          <Badge
+                            variant={sub.status === "calificado" ? "default" : "secondary"}
+                            className="text-[10px] ml-auto capitalize"
+                          >
+                            {sub.status}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] tabular-nums">
+                            {grade != null ? `${grade}/${gradingProject?.max_score}` : "—"}
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] text-muted-foreground">
+                              Enviado:{" "}
+                              {sub.submitted_at
+                                ? new Date(sub.submitted_at).toLocaleString()
+                                : "—"}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => deleteSubmission(sub)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar entrega
+                            </Button>
+                          </div>
+                          {gradingFiles.map((f) => {
+                            const a = ans.find((x) => x.file_id === f.id);
+                            return (
+                              <Card key={f.id}>
+                                <CardContent className="p-3 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span className="text-sm font-medium">{f.title}</span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {f.points} pts
+                                    </span>
+                                    {a?.ai_likelihood != null && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] ml-auto"
+                                      >
+                                        IA: {Math.round(Number(a.ai_likelihood) * 100)}%
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Textarea
+                                    value={a?.content ?? ""}
+                                    readOnly
+                                    rows={6}
+                                    className="font-mono text-xs"
+                                  />
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    <div>
+                                      <Label className="text-[10px]">Nota (max {f.points})</Label>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={f.points}
+                                        step={0.1}
+                                        value={a?.ai_grade ?? ""}
+                                        onChange={(e) =>
+                                          patchSubFile(sub.id, f.id, {
+                                            ai_grade:
+                                              e.target.value === ""
+                                                ? null
+                                                : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <Label className="text-[10px]">Retroalimentación</Label>
+                                      <Textarea
+                                        rows={2}
+                                        value={a?.ai_feedback ?? ""}
+                                        onChange={(e) =>
+                                          patchSubFile(sub.id, f.id, {
+                                            ai_feedback: e.target.value,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={aiRegradingId === a?.id}
+                                      onClick={() => aiRegradeSubFile(sub.id, f)}
+                                    >
+                                      {aiRegradingId === a?.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      ) : (
+                                        <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Recalificar IA
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      disabled={savingId === a?.id}
+                                      onClick={() => saveSubFileGrade(sub.id, f.id)}
+                                    >
+                                      {savingId === a?.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      ) : (
+                                        <Save className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Guardar
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
