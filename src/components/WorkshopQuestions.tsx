@@ -498,7 +498,7 @@ export function StudentWorkshopTaker({
           submission_id: submissionId,
           question_id: q.id,
         };
-        if (q.type === "codigo") payload.code_content = String(raw);
+        if (q.type === "codigo" || q.type === "java_gui") payload.code_content = String(raw);
         else if (q.type === "diagrama") payload.diagram_code = String(raw);
         else if (q.type === "cerrada") payload.selected_option = String(raw);
         else payload.answer_text = String(raw);
