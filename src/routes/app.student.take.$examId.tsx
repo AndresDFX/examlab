@@ -94,7 +94,7 @@ function mergeStarterCodeAnswers(
 ): Record<string, unknown> {
   const next = { ...answers };
   for (const q of questions) {
-    if (q.type !== "codigo") continue;
+    if (q.type !== "codigo" && q.type !== "java_gui") continue;
     const cur = next[q.id];
     const empty = cur === undefined || cur === null || String(cur).trim() === "";
     if (empty && (q.starter_code ?? "").trim()) next[q.id] = q.starter_code;
