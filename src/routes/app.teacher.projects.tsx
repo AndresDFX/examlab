@@ -339,6 +339,12 @@ function TeacherProjects() {
       await db.from("project_courses").delete().eq("project_id", projectId);
       const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
       if (rows.length) await db.from("project_courses").insert(rows);
+
+      // Auto-asignar a todos los matriculados de los cursos vinculados al publicar
+      if (payload.status === "published") {
+        const added = await autoAssignProject(projectId, linked);
+        if (added > 0) toast.success(`${added} estudiante(s) asignados automáticamente`);
+      }
     }
 
     setOpen(false);
