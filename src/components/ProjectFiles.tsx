@@ -69,6 +69,7 @@ export function TeacherProjectFilesEditor({
   const [fDescription, setFDescription] = useState("");
   const [fRubric, setFRubric] = useState("");
   const [fPoints, setFPoints] = useState(1);
+  const [fLanguage, setFLanguage] = useState<string>("texto"); // texto | java_gui
 
   // AI form
   const [aiTopic, setAiTopic] = useState("");
