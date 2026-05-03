@@ -104,6 +104,7 @@ export function TeacherProjectFilesEditor({
       expected_rubric: fRubric || null,
       points: fPoints,
       position: files.length,
+      language: fLanguage === "java_gui" ? "java_gui" : null,
     });
     if (error) {
       toast.error(error.message);
