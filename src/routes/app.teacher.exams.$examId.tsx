@@ -650,6 +650,7 @@ function ExamEditor() {
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
                       <SelectItem value="codigo">Código</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
+                      <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
