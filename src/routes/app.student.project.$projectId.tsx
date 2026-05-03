@@ -28,7 +28,7 @@ export const Route = createFileRoute("/app/student/project/$projectId")({
 
 type ProjectLoaded = {
   id: string;
-  course_id: string;
+  course_id: string | null;
   title: string;
   description: string | null;
   instructions: string | null;
@@ -36,7 +36,10 @@ type ProjectLoaded = {
   max_files: number;
   max_score: number;
   status: string;
-  course: { name: string; grade_scale_min: number; grade_scale_max: number };
+  // Cargado en una segunda fase vía project_courses (ya no hay FK directa
+  // de projects.course_id a courses, así que el join PostgREST falla con
+  // PGRST200; lo resolvemos como "el primer curso vinculado").
+  course?: { name: string; grade_scale_min: number; grade_scale_max: number } | null;
 };
 
 type SubmissionRow = {
@@ -100,7 +103,7 @@ function StudentProjectDetail() {
           db
             .from("projects")
             .select(
-              "id, course_id, title, description, instructions, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
+              "id, course_id, title, description, instructions, due_date, max_files, max_score, status",
             )
             .eq("id", projectId)
             .maybeSingle(),
@@ -159,7 +162,21 @@ function StudentProjectDetail() {
           return;
         }
 
-        setProject(pr as ProjectLoaded);
+        // Curso para mostrar el header. Usamos el primer course vinculado
+        // (project_courses) o el course_id legacy si está. Query separada
+        // porque ya no existe la FK directa projects.course_id→courses.
+        const courseIdToShow = linkedCourseIds[0] ?? (pr as ProjectLoaded).course_id ?? null;
+        let courseRow: ProjectLoaded["course"] = null;
+        if (courseIdToShow) {
+          const { data } = await db
+            .from("courses")
+            .select("name, grade_scale_min, grade_scale_max")
+            .eq("id", courseIdToShow)
+            .maybeSingle();
+          courseRow = data ?? null;
+        }
+
+        setProject({ ...(pr as ProjectLoaded), course: courseRow });
         setSubmission(sub as SubmissionRow | null);
         setFiles((fs ?? []) as ProjectFile[]);
 

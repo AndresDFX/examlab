@@ -30,6 +30,8 @@ import {
   Pencil,
   Save,
   X,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
@@ -249,6 +251,28 @@ function ExamEditor() {
       toast.success("Pregunta agregada correctamente");
     }
     resetQForm();
+    load();
+  };
+
+  const moveQuestion = async (id: string, direction: "up" | "down") => {
+    const sorted = [...questions].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex((q) => q.id === id);
+    const target = direction === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || target < 0 || target >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[target];
+    const { error: e1 } = await supabase.from("questions").update({ position: -1 }).eq("id", a.id);
+    if (e1) return toast.error(e1.message);
+    const { error: e2 } = await supabase
+      .from("questions")
+      .update({ position: a.position })
+      .eq("id", b.id);
+    if (e2) return toast.error(e2.message);
+    const { error: e3 } = await supabase
+      .from("questions")
+      .update({ position: b.position })
+      .eq("id", a.id);
+    if (e3) return toast.error(e3.message);
     load();
   };
 
@@ -884,6 +908,24 @@ function ExamEditor() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => moveQuestion(q.id, "up")}
+                      disabled={i === 0}
+                      title="Subir"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => moveQuestion(q.id, "down")}
+                      disabled={i === questions.length - 1}
+                      title="Bajar"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

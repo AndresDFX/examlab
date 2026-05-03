@@ -17,7 +17,18 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Send, Pencil, Save, X } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Loader2,
+  Sparkles,
+  Send,
+  Pencil,
+  Save,
+  X,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -162,6 +173,33 @@ export function TeacherWorkshopQuestionsEditor({
     load();
   };
 
+  // Swap de positions con vecino. Usamos -1 como temporal para no chocar
+  // con un eventual unique(workshop_id, position).
+  const moveQ = async (id: string, direction: "up" | "down") => {
+    const sorted = [...questions].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex((q) => q.id === id);
+    const target = direction === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || target < 0 || target >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[target];
+    const { error: e1 } = await supabase
+      .from("workshop_questions")
+      .update({ position: -1 })
+      .eq("id", a.id);
+    if (e1) return toast.error(e1.message);
+    const { error: e2 } = await supabase
+      .from("workshop_questions")
+      .update({ position: a.position })
+      .eq("id", b.id);
+    if (e2) return toast.error(e2.message);
+    const { error: e3 } = await supabase
+      .from("workshop_questions")
+      .update({ position: b.position })
+      .eq("id", a.id);
+    if (e3) return toast.error(e3.message);
+    load();
+  };
+
   const removeQ = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar pregunta",
@@ -249,6 +287,24 @@ export function TeacherWorkshopQuestionsEditor({
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => moveQ(q.id, "up")}
+                    disabled={idx === 0}
+                    title="Subir"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => moveQ(q.id, "down")}
+                    disabled={idx === questions.length - 1}
+                    title="Bajar"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
