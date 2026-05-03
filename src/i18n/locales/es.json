@@ -247,7 +247,27 @@
   },
   "project": {
     "start": "Iniciar entrega de proyecto",
-    "update": "Actualizar entrega"
+    "update": "Actualizar entrega",
+    "submitted": "Entregado",
+    "available": "Disponible",
+    "upcoming": "Próximo",
+    "closed": "Cerrado",
+    "viewDetail": "Ver detalle y retroalimentación",
+    "windowClosed": "Ventana del proyecto cerrada",
+    "windowClosedHelp": "El periodo del proyecto ya finalizó. Si necesitas ayuda, contacta a tu docente.",
+    "needsTeacherRole": "Necesitas rol Docente.",
+    "review": {
+      "globalResult": "Resultado global",
+      "submittedAt": "Entregado: {{when}}",
+      "submittedNoDate": "Entregado",
+      "feedback": "Retroalimentación",
+      "noAnswer": "Sin respuesta",
+      "noSubmission": "No hay una entrega registrada para este proyecto.",
+      "noAccess": "No tienes acceso a este proyecto o no está asignado a tu cuenta.",
+      "notFound": "No se encontró el proyecto.",
+      "loadError": "Cargando proyecto…",
+      "mustSignIn": "Inicia sesión para ver tus resultados."
+    }
   },
   "monitor": {
     "title": "Monitor",

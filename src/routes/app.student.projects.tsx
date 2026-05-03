@@ -209,11 +209,11 @@ function StudentProjects() {
                   {isGraded ? (
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {grade != null ? `${grade}/${project.max_score}` : t("exam.submitted")}
+                      {grade != null ? `${grade}/${project.max_score}` : t("project.submitted")}
                     </Badge>
                   ) : submission?.status === "entregado" ? (
                     <Badge variant="secondary" className="shrink-0">
-                      {t("exam.submitted")}
+                      {t("project.submitted")}
                     </Badge>
                   ) : isOverdue ? (
                     <Badge variant="destructive" className="shrink-0">
@@ -222,15 +222,15 @@ function StudentProjects() {
                     </Badge>
                   ) : isOpen ? (
                     <Badge className="bg-success text-success-foreground shrink-0">
-                      {t("exam.available")}
+                      {t("project.available")}
                     </Badge>
                   ) : isUpcoming ? (
                     <Badge variant="outline" className="shrink-0">
-                      {t("exam.upcoming")}
+                      {t("project.upcoming")}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="shrink-0">
-                      {t("exam.closed")}
+                      {t("project.closed")}
                     </Badge>
                   )}
                 </div>
@@ -258,7 +258,7 @@ function StudentProjects() {
                   <div className="bg-muted/50 p-2 rounded text-sm">
                     <div className="text-xs font-medium flex items-center gap-1 mb-1">
                       <MessageSquare className="h-3 w-3" />
-                      {t("exam.review.feedback")}
+                      {t("project.review.feedback")}
                     </div>
                     <div className="whitespace-pre-wrap">
                       {[
@@ -290,14 +290,14 @@ function StudentProjects() {
                   <Link to="/app/student/project/$projectId" params={{ projectId: project.id }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />
-                      {t("exam.viewDetail")}
+                      {t("project.viewDetail")}
                     </Button>
                   </Link>
                 )}
 
                 {project.status === "published" && isOverdue && !submission && (
                   <p className="text-xs text-destructive text-center">
-                    {t("exam.windowClosedHelp")}
+                    {t("project.windowClosedHelp")}
                   </p>
                 )}
               </CardContent>

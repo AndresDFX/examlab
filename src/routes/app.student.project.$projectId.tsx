@@ -85,14 +85,25 @@ function StudentProjectDetail() {
       setLoading(true);
       setError(null);
       try {
-        const [{ data: pr, error: prErr }, { data: sub }, { data: fs }] = await Promise.all([
+        // Lanzamos en paralelo: el query del proyecto y los 3 que validan
+        // acceso. Si el proyecto tiene RLS estricto y el usuario aún no
+        // resuelve "asignado", el primer query puede devolver pr=null;
+        // por eso el access check es autoritativo y no depende de pr.
+        const [
+          { data: pr, error: prErr },
+          { data: sub },
+          { data: fs },
+          { data: asg },
+          { data: linked },
+          { data: ownEnrollments },
+        ] = await Promise.all([
           db
             .from("projects")
             .select(
               "id, course_id, title, description, instructions, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
             )
             .eq("id", projectId)
-            .single(),
+            .maybeSingle(),
           db
             .from("project_submissions")
             .select(
@@ -106,15 +117,6 @@ function StudentProjectDetail() {
             .select("id, position, title, description, expected_rubric, points")
             .eq("project_id", projectId)
             .order("position"),
-        ]);
-
-        if (cancelled) return;
-        if (prErr || !pr) {
-          setError("not_found");
-          return;
-        }
-
-        const [{ data: asg }, { data: linked }, { data: ownEnrollments }] = await Promise.all([
           db
             .from("project_assignments")
             .select("id")
@@ -125,18 +127,35 @@ function StudentProjectDetail() {
           db.from("course_enrollments").select("course_id").eq("user_id", user.id),
         ]);
 
-        const projectCourseIds = new Set<string>([
-          (pr as ProjectLoaded).course_id,
-          ...((linked ?? []) as { course_id: string }[]).map((row) => row.course_id),
-        ]);
-        const hasCourseAccess = ((ownEnrollments ?? []) as { course_id: string }[]).some((row) =>
-          projectCourseIds.has(row.course_id),
-        );
+        if (cancelled) return;
 
-        if (!asg && !hasCourseAccess) {
+        const linkedCourseIds = ((linked ?? []) as { course_id: string }[]).map(
+          (row) => row.course_id,
+        );
+        const enrolledCourseIds = ((ownEnrollments ?? []) as { course_id: string }[]).map(
+          (row) => row.course_id,
+        );
+        const legacyCourseId = pr ? (pr as ProjectLoaded).course_id : null;
+        const hasCourseAccess =
+          linkedCourseIds.some((c) => enrolledCourseIds.includes(c)) ||
+          (!!legacyCourseId && enrolledCourseIds.includes(legacyCourseId));
+        const hasAccess = !!asg || hasCourseAccess;
+
+        if (!hasAccess) {
           setError("no_assignment");
           setProject(null);
           setSubmission(null);
+          return;
+        }
+
+        if (prErr || !pr) {
+          console.warn("[student-project] access ok pero project query null", {
+            projectId,
+            prErr,
+            hasAssignment: !!asg,
+            hasCourseAccess,
+          });
+          setError("not_found");
           return;
         }
 
@@ -163,7 +182,7 @@ function StudentProjectDetail() {
   }, [user, projectId]);
 
   if (!user) {
-    return <p className="text-muted-foreground p-6">{t("exam.review.mustSignIn")}</p>;
+    return <p className="text-muted-foreground p-6">{t("project.review.mustSignIn")}</p>;
   }
 
   if (loading) {
@@ -184,7 +203,7 @@ function StudentProjectDetail() {
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("exam.review.noAccess")}
+            {t("project.review.noAccess")}
           </CardContent>
         </Card>
       </div>
@@ -201,7 +220,7 @@ function StudentProjectDetail() {
         </Link>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("exam.review.notFound")}
+            {t("project.review.notFound")}
           </CardContent>
         </Card>
       </div>
@@ -227,7 +246,7 @@ function StudentProjectDetail() {
       {!submission && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("exam.review.noSubmission")}
+            {t("project.review.noSubmission")}
           </CardContent>
         </Card>
       )}
@@ -259,13 +278,13 @@ function StudentProjectDetail() {
               <div className="flex items-center gap-2">
                 <MessageSquareText className="h-5 w-5 text-primary shrink-0" />
                 <div>
-                  <div className="font-medium">{t("exam.review.globalResult")}</div>
+                  <div className="font-medium">{t("project.review.globalResult")}</div>
                   <div className="text-xs text-muted-foreground">
                     {submission.submitted_at
-                      ? t("exam.review.submittedAt", {
+                      ? t("project.review.submittedAt", {
                           when: new Date(submission.submitted_at).toLocaleString(),
                         })
-                      : t("exam.review.submittedNoDate")}
+                      : t("project.review.submittedNoDate")}
                   </div>
                 </div>
               </div>
@@ -283,7 +302,7 @@ function StudentProjectDetail() {
           {(submission.teacher_feedback || submission.ai_feedback) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">{t("exam.review.feedback")}</CardTitle>
+                <CardTitle className="text-base">{t("project.review.feedback")}</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {[
@@ -335,13 +354,13 @@ function StudentProjectDetail() {
                     <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
                       {ans?.content && ans.content.trim()
                         ? ans.content
-                        : t("exam.review.noAnswer")}
+                        : t("project.review.noAnswer")}
                     </div>
                     {ans?.ai_feedback && (
                       <div className="border-t pt-3">
                         <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
                           <span className="font-medium text-foreground block mb-1">
-                            {t("exam.review.feedback")}
+                            {t("project.review.feedback")}
                           </span>
                           <span className="text-muted-foreground whitespace-pre-wrap">
                             {ans.ai_feedback}

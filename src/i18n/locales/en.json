@@ -247,7 +247,27 @@
   },
   "project": {
     "start": "Start project submission",
-    "update": "Update submission"
+    "update": "Update submission",
+    "submitted": "Submitted",
+    "available": "Available",
+    "upcoming": "Upcoming",
+    "closed": "Closed",
+    "viewDetail": "View detail and feedback",
+    "windowClosed": "Project window closed",
+    "windowClosedHelp": "The project window has ended. Contact your teacher if you need help.",
+    "needsTeacherRole": "Teacher role required.",
+    "review": {
+      "globalResult": "Global result",
+      "submittedAt": "Submitted: {{when}}",
+      "submittedNoDate": "Submitted",
+      "feedback": "Feedback",
+      "noAnswer": "No answer",
+      "noSubmission": "No submission registered for this project.",
+      "noAccess": "You don't have access to this project or it isn't assigned to your account.",
+      "notFound": "Project not found.",
+      "loadError": "Loading project…",
+      "mustSignIn": "Sign in to see your results."
+    }
   },
   "monitor": {
     "title": "Monitor",

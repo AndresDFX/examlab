@@ -706,7 +706,7 @@ function TeacherProjects() {
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
-  if (!isTeacher) return <p className="text-muted-foreground">{t("exam.needsTeacherRole")}</p>;
+  if (!isTeacher) return <p className="text-muted-foreground">{t("project.needsTeacherRole")}</p>;
 
   return (
     <div className="space-y-5">
