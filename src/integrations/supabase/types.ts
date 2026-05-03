@@ -794,37 +794,49 @@ export type Database = {
       }
       project_files: {
         Row: {
+          content: string | null
           created_at: string
           description: string | null
           expected_rubric: string | null
           id: string
           language: string | null
+          options: Json | null
           points: number
           position: number
           project_id: string
+          starter_code: string | null
           title: string
+          type: string
         }
         Insert: {
+          content?: string | null
           created_at?: string
           description?: string | null
           expected_rubric?: string | null
           id?: string
           language?: string | null
+          options?: Json | null
           points?: number
           position?: number
           project_id: string
+          starter_code?: string | null
           title: string
+          type?: string
         }
         Update: {
+          content?: string | null
           created_at?: string
           description?: string | null
           expected_rubric?: string | null
           id?: string
           language?: string | null
+          options?: Json | null
           points?: number
           position?: number
           project_id?: string
+          starter_code?: string | null
           title?: string
+          type?: string
         }
         Relationships: [
           {
@@ -894,6 +906,7 @@ export type Database = {
           created_at: string
           file_id: string
           id: string
+          selected_option: string | null
           submission_id: string
           updated_at: string
         }
@@ -906,6 +919,7 @@ export type Database = {
           created_at?: string
           file_id: string
           id?: string
+          selected_option?: string | null
           submission_id: string
           updated_at?: string
         }
@@ -918,6 +932,7 @@ export type Database = {
           created_at?: string
           file_id?: string
           id?: string
+          selected_option?: string | null
           submission_id?: string
           updated_at?: string
         }
