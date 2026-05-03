@@ -524,12 +524,12 @@ export function StudentWorkshopTaker({
             {
               body: {
                 workshopQuestionGrading: true,
-                questionType: q.type,
+                questionType: q.type === "java_gui" ? "codigo" : q.type,
                 questionContent: q.content,
                 expectedRubric: q.expected_rubric,
                 maxPoints: q.points,
                 studentAnswer: String(raw),
-                language: q.language,
+                language: q.type === "java_gui" ? "java" : q.language,
                 courseLanguage,
               },
             },
