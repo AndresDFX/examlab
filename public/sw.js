@@ -44,6 +44,9 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
   if (url.hostname.includes("supabase")) return;
+  // CheerpJ CDN sirve JARs gigantes con range requests; el SW rompe el caché de
+  // rango con ERR_CACHE_OPERATION_NOT_SUPPORTED. Dejar pasar a la red directo.
+  if (url.hostname.includes("leaningtech.com")) return;
 
   // Navegación: SIEMPRE red. Sin cache. Si la red falla mostramos un
   // fallback offline mínimo. NO reusamos HTML cacheado entre deploys porque
