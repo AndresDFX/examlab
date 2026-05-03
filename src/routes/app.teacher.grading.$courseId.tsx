@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { DatePicker } from "@/components/ui/date-picker";
 
 // The grade_* tables are introduced in migration 20260423000000 and are not
 // yet reflected in src/integrations/supabase/types.ts. Cast through a loose
@@ -334,15 +335,13 @@ function GradingConfigPage() {
                     onChange={(e) => updateCut(cut.id, { name: e.target.value })}
                     placeholder={t("grading.cutName")}
                   />
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={cut.start_date ?? ""}
-                    onChange={(e) => updateCut(cut.id, { start_date: e.target.value || null })}
+                    onChange={(v) => updateCut(cut.id, { start_date: v || null })}
                   />
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={cut.end_date ?? ""}
-                    onChange={(e) => updateCut(cut.id, { end_date: e.target.value || null })}
+                    onChange={(v) => updateCut(cut.id, { end_date: v || null })}
                   />
                   <Input
                     type="number"

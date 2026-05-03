@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { AssignSelector } from "@/components/AssignSelector";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -425,11 +426,9 @@ function ExamEditor() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Inicio</Label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={toLocal(exam.start_time)}
-                    onChange={(e) => {
-                      const start = e.target.value;
+                    onChange={(start) => {
                       const startMs = new Date(start).getTime();
                       const currentEnd = exam.end_time ? new Date(exam.end_time).getTime() : 0;
                       const autoEnd =
@@ -451,11 +450,9 @@ function ExamEditor() {
                 </div>
                 <div>
                   <Label>Fin</Label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={toLocal(exam.end_time)}
-                    onChange={(e) => {
-                      const end = e.target.value;
+                    onChange={(end) => {
                       const diffMin = exam.start_time
                         ? Math.max(
                             1,

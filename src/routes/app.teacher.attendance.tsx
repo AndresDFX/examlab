@@ -34,6 +34,7 @@ import { Plus, CheckCircle2, X, Eraser } from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const SESSIONS_TEMPLATE = `session_date,title
 2025-08-01,Clase introductoria
@@ -561,7 +562,7 @@ function TeacherAttendance() {
           <div className="space-y-3">
             <div>
               <Label>Fecha</Label>
-              <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+              <DatePicker value={newDate} onChange={setNewDate} />
             </div>
             <div>
               <Label>Título (opcional)</Label>

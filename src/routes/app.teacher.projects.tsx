@@ -61,6 +61,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
@@ -970,18 +971,16 @@ function TeacherProjects() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>{t("common.startDate")}</Label>
-                <Input
-                  type="datetime-local"
+                <DateTimePicker
                   value={form.start_date ? toLocal(form.start_date) : ""}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  onChange={(v) => setForm({ ...form, start_date: v })}
                 />
               </div>
               <div>
                 <Label>{t("common.endDate")}</Label>
-                <Input
-                  type="datetime-local"
+                <DateTimePicker
                   value={form.due_date ? toLocal(form.due_date) : ""}
-                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                  onChange={(v) => setForm({ ...form, due_date: v })}
                 />
               </div>
             </div>

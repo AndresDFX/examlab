@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AssignSelector } from "@/components/AssignSelector";
+import { DatePicker } from "@/components/ui/date-picker";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -932,47 +933,16 @@ function AdminCourses() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label>Fecha inicio</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={toDateInput(editing.start_date) ?? ""}
-                    // En Safari/iOS el calendario nativo no abre con click si el
-                    // input está dentro de un Dialog Radix (focus trapping).
-                    // Forzamos la apertura del picker explícitamente.
-                    onClick={(e) => {
-                      const el = e.currentTarget as HTMLInputElement & {
-                        showPicker?: () => void;
-                      };
-                      try {
-                        el.showPicker?.();
-                      } catch {
-                        /* showPicker requires user gesture; OK to ignore */
-                      }
-                    }}
-                    onChange={(e) =>
-                      setEditing({ ...editing, start_date: e.target.value || null })
-                    }
-                    className="cursor-pointer"
+                    onChange={(v) => setEditing({ ...editing, start_date: v || null })}
                   />
                 </div>
                 <div>
                   <Label>Fecha fin</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={toDateInput(editing.end_date) ?? ""}
-                    onClick={(e) => {
-                      const el = e.currentTarget as HTMLInputElement & {
-                        showPicker?: () => void;
-                      };
-                      try {
-                        el.showPicker?.();
-                      } catch {
-                        /* noop */
-                      }
-                    }}
-                    onChange={(e) =>
-                      setEditing({ ...editing, end_date: e.target.value || null })
-                    }
-                    className="cursor-pointer"
+                    onChange={(v) => setEditing({ ...editing, end_date: v || null })}
                   />
                 </div>
               </div>
@@ -1187,23 +1157,17 @@ function AdminCourses() {
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 min-w-0">
                             <div className="min-w-0">
                               <Label className="text-[10px] text-muted-foreground">Inicio</Label>
-                              <Input
-                                type="date"
+                              <DatePicker
                                 value={cut.start_date ?? ""}
-                                onChange={(e) =>
-                                  updateDraftCut(idx, { start_date: e.target.value || null })
-                                }
+                                onChange={(v) => updateDraftCut(idx, { start_date: v || null })}
                                 className="min-w-0 w-full"
                               />
                             </div>
                             <div className="min-w-0">
                               <Label className="text-[10px] text-muted-foreground">Fin</Label>
-                              <Input
-                                type="date"
+                              <DatePicker
                                 value={cut.end_date ?? ""}
-                                onChange={(e) =>
-                                  updateDraftCut(idx, { end_date: e.target.value || null })
-                                }
+                                onChange={(v) => updateDraftCut(idx, { end_date: v || null })}
                                 className="min-w-0 w-full"
                               />
                             </div>

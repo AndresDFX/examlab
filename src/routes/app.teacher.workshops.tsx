@@ -56,6 +56,7 @@ import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import {
   Accordion,
   AccordionContent,
@@ -1123,19 +1124,17 @@ function TeacherWorkshops() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Visible desde</Label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={(form as any).start_date ?? ""}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value } as any)}
+                    onChange={(v) => setForm({ ...form, start_date: v } as any)}
                     className="mt-1"
                   />
                 </div>
                 <div>
                   <Label className="text-xs">Fecha límite</Label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={(form.due_date as any) ?? ""}
-                    onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                    onChange={(v) => setForm({ ...form, due_date: v })}
                     className="mt-1"
                   />
                 </div>

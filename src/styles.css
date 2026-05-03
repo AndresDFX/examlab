@@ -212,6 +212,25 @@
   min-width: 44px;
 }
 
+/* Date / time / datetime-local nativos no respetan el tema por defecto:
+   el glifo del picker queda casi negro en dark mode. Forzamos color-scheme
+   para que el browser pinte el indicator y el calendario nativo acorde al
+   tema activo. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+  color-scheme: light;
+}
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="week"] {
+  color-scheme: dark;
+}
+
 /* Utility: visual hint that a table/overflow region scrolls horizontally
    on small screens. Pairs with a wrapper that has `overflow-x-auto`. */
 .scroll-hint-x {
