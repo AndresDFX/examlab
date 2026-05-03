@@ -110,6 +110,63 @@ function TeacherProjects() {
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [assignFilterCourses, setAssignFilterCourses] = useState<Set<string>>(new Set());
+  const [studentsByCourse, setStudentsByCourse] = useState<Map<string, Set<string>>>(new Map());
+
+  // Grading dialog state
+  type Submission = {
+    id: string;
+    user_id: string;
+    status: string;
+    final_grade: number | null;
+    ai_grade: number | null;
+    submitted_at: string | null;
+    profile?: { full_name: string; institutional_email: string };
+  };
+  type SubFile = {
+    id: string;
+    submission_id: string;
+    file_id: string;
+    content: string | null;
+    ai_grade: number | null;
+    ai_feedback: string | null;
+    ai_likelihood: number | null;
+  };
+  const [gradingOpen, setGradingOpen] = useState(false);
+  const [gradingProject, setGradingProject] = useState<Project | null>(null);
+  const [gradingFiles, setGradingFiles] = useState<Array<{ id: string; title: string; points: number }>>([]);
+  const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
+  const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
+  const [gradingLoading, setGradingLoading] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [aiRegradingId, setAiRegradingId] = useState<string | null>(null);
+
+  /** Auto-assign a project to all students enrolled in any of the linked courses. */
+  const autoAssignProject = async (projectId: string, courseIds: string[]) => {
+    if (!courseIds.length) return 0;
+    const { data: enr } = await db
+      .from("course_enrollments")
+      .select("user_id")
+      .in("course_id", courseIds);
+    const enrolled = Array.from(
+      new Set(((enr ?? []) as { user_id: string }[]).map((r) => r.user_id)),
+    );
+    if (!enrolled.length) return 0;
+    const { data: existing } = await db
+      .from("project_assignments")
+      .select("user_id")
+      .eq("project_id", projectId);
+    const existSet = new Set(((existing ?? []) as { user_id: string }[]).map((r) => r.user_id));
+    const toAdd = enrolled.filter((uid) => !existSet.has(uid));
+    if (!toAdd.length) return 0;
+    const rows = toAdd.map((uid) => ({ project_id: projectId, user_id: uid }));
+    const { error } = await db.from("project_assignments").insert(rows);
+    if (error) {
+      toast.error(error.message);
+      return 0;
+    }
+    return toAdd.length;
+  };
 
   const load = async () => {
     // Cada query se aísla en su propio try para que un fallo (p.ej. una
