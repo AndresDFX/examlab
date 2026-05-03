@@ -42,6 +42,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { AssignSelector } from "@/components/AssignSelector";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -420,32 +421,32 @@ function AdminCourses() {
     }
   };
 
-  const enrollAll = async () => {
+  const enrollMany = async (visibleIds: string[]) => {
     if (!enrollCourse) return;
-    const toAdd = filteredProfiles.filter((p) => !enrolledIds.has(p.id));
+    const toAdd = visibleIds.filter((id) => !enrolledIds.has(id));
     if (!toAdd.length) return;
     const { error } = await supabase
       .from("course_enrollments")
-      .insert(toAdd.map((p) => ({ course_id: enrollCourse.id, user_id: p.id })));
+      .insert(toAdd.map((id) => ({ course_id: enrollCourse.id, user_id: id })));
     if (error) return toast.error(error.message);
-    setEnrolledIds((prev) => new Set([...prev, ...toAdd.map((p) => p.id)]));
+    setEnrolledIds((prev) => new Set([...prev, ...toAdd]));
     toast.success(`${toAdd.length} estudiante(s) matriculados correctamente`);
   };
 
-  const unenrollAll = async () => {
+  const unenrollMany = async (visibleIds: string[]) => {
     if (!enrollCourse) return;
-    const toRemove = filteredProfiles.filter((p) => enrolledIds.has(p.id));
+    const toRemove = visibleIds.filter((id) => enrolledIds.has(id));
     if (!toRemove.length) return;
-    for (const p of toRemove) {
+    for (const id of toRemove) {
       await supabase
         .from("course_enrollments")
         .delete()
         .eq("course_id", enrollCourse.id)
-        .eq("user_id", p.id);
+        .eq("user_id", id);
     }
     setEnrolledIds((prev) => {
       const s = new Set(prev);
-      toRemove.forEach((p) => s.delete(p.id));
+      toRemove.forEach((id) => s.delete(id));
       return s;
     });
     toast.success(`${toRemove.length} estudiante(s) desmatriculados correctamente`);
@@ -502,6 +503,37 @@ function AdminCourses() {
       });
       toast.success("Docente desasignado correctamente");
     }
+  };
+
+  const assignTeachersMany = async (visibleIds: string[]) => {
+    if (!teacherCourse) return;
+    const toAdd = visibleIds.filter((id) => !assignedTeacherIds.has(id));
+    if (!toAdd.length) return;
+    const { error } = await supabase
+      .from("course_teachers")
+      .insert(toAdd.map((id) => ({ course_id: teacherCourse.id, user_id: id })));
+    if (error) return toast.error(error.message);
+    setAssignedTeacherIds((prev) => new Set([...prev, ...toAdd]));
+    toast.success(`${toAdd.length} docente(s) asignados correctamente`);
+  };
+
+  const unassignTeachersMany = async (visibleIds: string[]) => {
+    if (!teacherCourse) return;
+    const toRemove = visibleIds.filter((id) => assignedTeacherIds.has(id));
+    if (!toRemove.length) return;
+    for (const id of toRemove) {
+      await supabase
+        .from("course_teachers")
+        .delete()
+        .eq("course_id", teacherCourse.id)
+        .eq("user_id", id);
+    }
+    setAssignedTeacherIds((prev) => {
+      const s = new Set(prev);
+      toRemove.forEach((id) => s.delete(id));
+      return s;
+    });
+    toast.success(`${toRemove.length} docente(s) desasignados correctamente`);
   };
 
   // ── Duplicate Course ─────────────────────────────────────
@@ -1325,112 +1357,33 @@ function AdminCourses() {
           <DialogHeader>
             <DialogTitle>Estudiantes — {enrollCourse?.name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nombre o email..."
-                value={enrollSearch}
-                onChange={(e) => setEnrollSearch(e.target.value)}
-                className="pl-9 h-9"
-              />
-            </div>
-            {/* Bulk actions */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                {enrolledIds.size} matriculados de {allProfiles.length}
-                {enrollSearch && ` · ${filteredProfiles.length} filtrados`}
-              </span>
-              <div className="flex gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1"
-                  onClick={enrollAll}
-                >
-                  <CheckSquare className="h-3 w-3" /> Seleccionar{" "}
-                  {enrollSearch ? "filtrados" : "todos"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1"
-                  onClick={unenrollAll}
-                >
-                  <XSquare className="h-3 w-3" /> Deseleccionar{" "}
-                  {enrollSearch ? "filtrados" : "todos"}
-                </Button>
-              </div>
-            </div>
-            {/* List */}
-            <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
-              {filteredProfiles.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">Sin resultados</p>
-              )}
-              {filteredProfiles.map((s) => (
-                <label
-                  key={s.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-                >
-                  <Checkbox
-                    checked={enrolledIds.has(s.id)}
-                    onCheckedChange={(v) => toggleEnroll(s.id, !!v)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{s.full_name}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {s.institutional_email}
-                    </div>
-                  </div>
-                  {enrolledIds.has(s.id) && (
-                    <Badge variant="secondary" className="text-[9px] shrink-0">
-                      Matriculado
-                    </Badge>
-                  )}
-                </label>
-              ))}
-            </div>
-          </div>
+          <AssignSelector
+            items={allProfiles}
+            selectedIds={enrolledIds}
+            onToggle={toggleEnroll}
+            onSelectAll={enrollMany}
+            onDeselectAll={unenrollMany}
+            selectedLabel="Matriculado"
+            countNoun="matriculados"
+          />
         </DialogContent>
       </Dialog>
 
       {/* ── Teacher Assignment Dialog ── */}
       <Dialog open={teacherOpen} onOpenChange={setTeacherOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Docentes — {teacherCourse?.name}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Asigna uno o más docentes a este curso.</p>
-          <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
-            {teachers.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No hay usuarios con rol Docente.
-              </p>
-            )}
-            {teachers.map((t) => (
-              <label
-                key={t.id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-              >
-                <Checkbox
-                  checked={assignedTeacherIds.has(t.id)}
-                  onCheckedChange={(v) => toggleTeacher(t.id, !!v)}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{t.full_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {t.institutional_email}
-                  </div>
-                </div>
-                {assignedTeacherIds.has(t.id) && (
-                  <Badge variant="secondary" className="text-[9px] shrink-0">
-                    Asignado
-                  </Badge>
-                )}
-              </label>
-            ))}
-          </div>
+          <AssignSelector
+            items={teachers}
+            selectedIds={assignedTeacherIds}
+            onToggle={toggleTeacher}
+            onSelectAll={assignTeachersMany}
+            onDeselectAll={unassignTeachersMany}
+            emptyText="No hay usuarios con rol Docente."
+            countNoun="asignados"
+          />
         </DialogContent>
       </Dialog>
 

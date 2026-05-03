@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
+import { AssignSelector } from "@/components/AssignSelector";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
@@ -482,37 +483,33 @@ function TeacherProjects() {
     }
   };
 
-  const assignAll = async () => {
+  const assignMany = async (visibleIds: string[]) => {
     if (!assignProject) return;
-    const toAdd = visibleStudents.filter((s) => !assigned.has(s.id));
+    const toAdd = visibleIds.filter((id) => !assigned.has(id));
     if (!toAdd.length) return;
-    const rows = toAdd.map((s) => ({ project_id: assignProject.id, user_id: s.id }));
+    const rows = toAdd.map((id) => ({ project_id: assignProject.id, user_id: id }));
     const { error } = await db.from("project_assignments").insert(rows);
     if (error) return toast.error(error.message);
-    setAssigned((prev) => {
-      const next = new Set(prev);
-      for (const s of toAdd) next.add(s.id);
-      return next;
-    });
+    setAssigned((prev) => new Set([...prev, ...toAdd]));
     toast.success(`${toAdd.length} estudiantes asignados`);
   };
 
-  const unassignAll = async () => {
+  const unassignMany = async (visibleIds: string[]) => {
     if (!assignProject) return;
-    const ids = visibleStudents.map((s) => s.id).filter((id) => assigned.has(id));
-    if (!ids.length) return;
+    const toRemove = visibleIds.filter((id) => assigned.has(id));
+    if (!toRemove.length) return;
     const { error } = await db
       .from("project_assignments")
       .delete()
       .eq("project_id", assignProject.id)
-      .in("user_id", ids);
+      .in("user_id", toRemove);
     if (error) return toast.error(error.message);
     setAssigned((prev) => {
       const next = new Set(prev);
-      for (const id of ids) next.delete(id);
+      toRemove.forEach((id) => next.delete(id));
       return next;
     });
-    toast.success(`${ids.length} asignación(es) removidas`);
+    toast.success(`${toRemove.length} asignación(es) removidas`);
   };
 
   // ===== Grading dialog =====
@@ -1035,97 +1032,65 @@ function TeacherProjects() {
             <DialogTitle>Asignar — {assignProject?.title}</DialogTitle>
           </DialogHeader>
 
-          {/* Per-course filter chips + auto-assign-by-course */}
-          {assignProject && (assignProject.linked_course_ids ?? []).length > 0 && (
-            <div className="space-y-2 mb-2">
-              <p className="text-[11px] text-muted-foreground">
-                Filtra por curso o asigna a todos los matriculados de un curso.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {(assignProject.linked_course_ids ?? []).map((cid) => {
-                  const c = courses.find((cc) => cc.id === cid);
-                  if (!c) return null;
-                  const enabled = assignFilterCourses.has(cid);
-                  const count = studentsByCourse.get(cid)?.size ?? 0;
-                  return (
-                    <div key={cid} className="flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAssignFilterCourses((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(cid)) next.delete(cid);
-                            else next.add(cid);
-                            return next;
-                          });
-                        }}
-                        className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                          enabled
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {c.name} ({count})
-                      </button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0"
-                        title="Asignar a todos los matriculados de este curso"
-                        onClick={() => assignByCourse(cid)}
-                      >
-                        <UserPlus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs text-muted-foreground">
-              {assigned.size} de {students.length} asignados
-              {assignFilterCourses.size > 0 &&
-                ` · ${visibleStudents.length} visibles`}
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={assignAll}>
-                {t("common.selectAll")}
-              </Button>
-              <Button size="sm" variant="outline" onClick={unassignAll}>
-                {t("common.deselectAll")}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-1.5 max-h-80 overflow-y-auto">
-            {assignLoading && (
-              <p className="text-sm text-muted-foreground p-4 text-center">
-                <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando estudiantes…
-              </p>
-            )}
-            {!assignLoading && assignError && (
-              <p className="text-sm text-destructive p-4 text-center">{assignError}</p>
-            )}
-            {!assignLoading && !assignError && visibleStudents.length === 0 && (
-              <p className="text-sm text-muted-foreground p-4 text-center">
-                Sin estudiantes matriculados.
-              </p>
-            )}
-            {visibleStudents.map((s) => (
-              <label
-                key={s.id}
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm cursor-pointer"
-              >
-                <Checkbox
-                  checked={assigned.has(s.id)}
-                  onCheckedChange={() => toggleAssign(s.id)}
-                />
-                <span className="flex-1">{s.full_name}</span>
-                <span className="text-xs text-muted-foreground">{s.institutional_email}</span>
-              </label>
-            ))}
-          </div>
+          <AssignSelector
+            items={visibleStudents}
+            selectedIds={assigned}
+            onToggle={(id) => toggleAssign(id)}
+            onSelectAll={assignMany}
+            onDeselectAll={unassignMany}
+            loading={assignLoading}
+            errorText={assignError}
+            emptyText="Sin estudiantes matriculados."
+            countNoun="asignados"
+            headerExtras={
+              assignProject && (assignProject.linked_course_ids ?? []).length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    Filtra por curso o asigna a todos los matriculados de un curso.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(assignProject.linked_course_ids ?? []).map((cid) => {
+                      const c = courses.find((cc) => cc.id === cid);
+                      if (!c) return null;
+                      const enabled = assignFilterCourses.has(cid);
+                      const count = studentsByCourse.get(cid)?.size ?? 0;
+                      return (
+                        <div key={cid} className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssignFilterCourses((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(cid)) next.delete(cid);
+                                else next.add(cid);
+                                return next;
+                              });
+                            }}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                              enabled
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {c.name} ({count})
+                          </button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            title="Asignar a todos los matriculados de este curso"
+                            onClick={() => assignByCourse(cid)}
+                          >
+                            <UserPlus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null
+            }
+          />
         </DialogContent>
       </Dialog>
 
