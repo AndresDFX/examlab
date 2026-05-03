@@ -21,10 +21,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Send, FileText } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Send, FileText, Coffee } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 
 // `projects` y `project_*` aún no se reflejan en los types generados de
 // Supabase; cast lazo para no obligar a regenerar tipos en cada cambio.
