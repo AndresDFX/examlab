@@ -979,6 +979,14 @@ function TakeExam() {
                       onChange={(code) => updateAnswer(q.id, code)}
                     />
                   </div>
+                ) : q.type === "java_gui" ? (
+                  <div onBlur={saveAnswersNow}>
+                    <JavaGuiRunner
+                      value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
+                      onChange={(v) => updateAnswer(q.id, v)}
+                      height="280px"
+                    />
+                  </div>
                 ) : (
                   <Textarea
                     rows={4}
