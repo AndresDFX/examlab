@@ -803,6 +803,11 @@ function TeacherProjects() {
                       >
                         <ClipboardList className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title={t("common.edit")}
+                        onClick={() => openEdit(p)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
