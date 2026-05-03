@@ -245,6 +245,10 @@
       "mustSignIn": "Sign in to see your results."
     }
   },
+  "project": {
+    "start": "Start project submission",
+    "update": "Update submission"
+  },
   "monitor": {
     "title": "Monitor",
     "inProgress": "In progress",

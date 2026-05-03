@@ -245,6 +245,10 @@
       "mustSignIn": "Inicia sesión para ver tus resultados."
     }
   },
+  "project": {
+    "start": "Iniciar entrega de proyecto",
+    "update": "Actualizar entrega"
+  },
   "monitor": {
     "title": "Monitor",
     "inProgress": "En progreso",

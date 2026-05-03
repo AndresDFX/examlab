@@ -282,7 +282,7 @@ function StudentProjects() {
                     }}
                   >
                     <ListChecks className="h-4 w-4 mr-1" />
-                    {submission ? t("common.update") : t("exam.start")}
+                    {submission ? t("project.update") : t("project.start")}
                   </Button>
                 )}
 
