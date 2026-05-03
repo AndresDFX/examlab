@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -73,6 +74,7 @@ function TeacherExams() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
+  const examDirty = useDirtyDialog(open, form);
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
   const confirm = useConfirm();
@@ -405,7 +407,7 @@ function TeacherExams() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={examDirty.guardOpenChange(setOpen)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("exam.newExam")}</DialogTitle>

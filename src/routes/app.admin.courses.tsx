@@ -44,6 +44,7 @@ import {
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AssignSelector } from "@/components/AssignSelector";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,6 +102,9 @@ function AdminCourses() {
   const [editingCuts, setEditingCuts] = useState<DraftCut[]>([]);
   // IDs que existían al abrir el diálogo. Lo que falte al guardar se elimina.
   const [originalCutIds, setOriginalCutIds] = useState<Set<string>>(new Set());
+
+  // Guard contra cerrar el modal sin guardar (click fuera, Escape o X).
+  const courseDirty = useDirtyDialog(open, { editing, editingCuts });
   // Cortes expandidos en la UI para ver/editar sub-pesos.
   const [expandedCuts, setExpandedCuts] = useState<Set<number>>(new Set());
 
@@ -907,7 +911,7 @@ function AdminCourses() {
       </Card>
 
       {/* ── Create/Edit Dialog ── */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={courseDirty.guardOpenChange(setOpen)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} curso</DialogTitle>

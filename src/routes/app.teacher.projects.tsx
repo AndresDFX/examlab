@@ -62,6 +62,7 @@ import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
@@ -103,6 +104,7 @@ function TeacherProjects() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState<Partial<Project>>({});
+  const projectDirty = useDirtyDialog(open, form);
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [filesProject, setFilesProject] = useState<Project | null>(null);
@@ -835,7 +837,7 @@ function TeacherProjects() {
       </Card>
 
       {/* New / edit project dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={projectDirty.guardOpenChange(setOpen)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? "Editar proyecto" : "Nuevo proyecto"}</DialogTitle>

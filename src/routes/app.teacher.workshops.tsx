@@ -57,6 +57,7 @@ import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
   Accordion,
   AccordionContent,
@@ -143,6 +144,7 @@ function TeacherWorkshops() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
+  const workshopDirty = useDirtyDialog(open, form);
 
   // Grading view
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
@@ -980,7 +982,7 @@ function TeacherWorkshops() {
       </Card>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={workshopDirty.guardOpenChange(setOpen)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar" : "Nuevo"} taller</DialogTitle>
