@@ -484,25 +484,225 @@ function TeacherProjects() {
 
   const assignAll = async () => {
     if (!assignProject) return;
-    const toAdd = students.filter((s) => !assigned.has(s.id));
+    const toAdd = visibleStudents.filter((s) => !assigned.has(s.id));
     if (!toAdd.length) return;
     const rows = toAdd.map((s) => ({ project_id: assignProject.id, user_id: s.id }));
     const { error } = await db.from("project_assignments").insert(rows);
     if (error) return toast.error(error.message);
-    setAssigned(new Set(students.map((s) => s.id)));
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      for (const s of toAdd) next.add(s.id);
+      return next;
+    });
     toast.success(`${toAdd.length} estudiantes asignados`);
   };
 
   const unassignAll = async () => {
     if (!assignProject) return;
+    const ids = visibleStudents.map((s) => s.id).filter((id) => assigned.has(id));
+    if (!ids.length) return;
     const { error } = await db
       .from("project_assignments")
       .delete()
-      .eq("project_id", assignProject.id);
+      .eq("project_id", assignProject.id)
+      .in("user_id", ids);
     if (error) return toast.error(error.message);
-    setAssigned(new Set());
-    toast.success("Asignaciones eliminadas");
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+    toast.success(`${ids.length} asignación(es) removidas`);
   };
+
+  // ===== Grading dialog =====
+  const openGradingDialog = async (p: Project) => {
+    setGradingProject(p);
+    setGradingFiles([]);
+    setGradingSubs([]);
+    setGradingAnsBySub({});
+    setGradingOpen(true);
+    setGradingLoading(true);
+    try {
+      const [{ data: files }, { data: subs }] = await Promise.all([
+        db
+          .from("project_files")
+          .select("id, title, points, position")
+          .eq("project_id", p.id)
+          .order("position"),
+        db
+          .from("project_submissions")
+          .select(
+            "id, user_id, status, final_grade, ai_grade, submitted_at",
+          )
+          .eq("project_id", p.id)
+          .order("submitted_at", { ascending: false }),
+      ]);
+      setGradingFiles((files ?? []) as Array<{ id: string; title: string; points: number }>);
+
+      const subsList = (subs ?? []) as Submission[];
+      if (subsList.length) {
+        const userIds = subsList.map((s) => s.user_id);
+        const subIds = subsList.map((s) => s.id);
+        const [{ data: profs }, { data: ans }] = await Promise.all([
+          db
+            .from("profiles")
+            .select("id, full_name, institutional_email")
+            .in("id", userIds),
+          db
+            .from("project_submission_files")
+            .select(
+              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood",
+            )
+            .in("submission_id", subIds),
+        ]);
+        const profMap = new Map(
+          ((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]),
+        );
+        const grouped: Record<string, SubFile[]> = {};
+        for (const a of (ans ?? []) as SubFile[]) {
+          (grouped[a.submission_id] ||= []).push(a);
+        }
+        setGradingAnsBySub(grouped);
+        setGradingSubs(
+          subsList.map((s) => ({ ...s, profile: profMap.get(s.user_id) as Submission["profile"] })),
+        );
+      }
+    } catch (e) {
+      console.error("[projects] grading load failed", e);
+      toast.error(e instanceof Error ? e.message : "Error cargando entregas");
+    } finally {
+      setGradingLoading(false);
+    }
+  };
+
+  const recomputeProjectGrade = (subId: string): number => {
+    if (!gradingProject) return 0;
+    const ans = gradingAnsBySub[subId] ?? [];
+    const totalPoints = gradingFiles.reduce((s, f) => s + Number(f.points || 0), 0);
+    if (totalPoints <= 0) return 0;
+    const earned = gradingFiles.reduce((s, f) => {
+      const a = ans.find((x) => x.file_id === f.id);
+      const g = Math.min(Number(a?.ai_grade ?? 0) || 0, Number(f.points) || 0);
+      return s + g;
+    }, 0);
+    return Number(((earned / totalPoints) * Number(gradingProject.max_score)).toFixed(2));
+  };
+
+  const patchSubFile = (subId: string, fileId: string, patch: Partial<SubFile>) => {
+    setGradingAnsBySub((prev) => {
+      const list = (prev[subId] ?? []).slice();
+      const idx = list.findIndex((a) => a.file_id === fileId);
+      if (idx >= 0) list[idx] = { ...list[idx], ...patch };
+      return { ...prev, [subId]: list };
+    });
+  };
+
+  const saveSubFileGrade = async (subId: string, fileId: string) => {
+    const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === fileId);
+    if (!ans?.id) {
+      toast.error("Esta entrega no tiene contenido para este archivo");
+      return;
+    }
+    setSavingId(ans.id);
+    try {
+      const { error } = await db
+        .from("project_submission_files")
+        .update({ ai_grade: ans.ai_grade, ai_feedback: ans.ai_feedback })
+        .eq("id", ans.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const newFinal = recomputeProjectGrade(subId);
+      const { error: subErr } = await db
+        .from("project_submissions")
+        .update({ final_grade: newFinal, status: "calificado" })
+        .eq("id", subId);
+      if (subErr) {
+        toast.error(`Guardado, pero falló recalcular: ${subErr.message}`);
+        return;
+      }
+      setGradingSubs((prev) =>
+        prev.map((s) =>
+          s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
+        ),
+      );
+      toast.success(
+        `Guardado · nota global: ${newFinal}/${gradingProject?.max_score ?? 100}`,
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const aiRegradeSubFile = async (subId: string, file: { id: string; title: string; points: number }) => {
+    const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === file.id);
+    if (!ans?.id) {
+      toast.error("Sin contenido para recalificar");
+      return;
+    }
+    setAiRegradingId(ans.id);
+    try {
+      const courseLang =
+        (gradingProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
+      // fetch expected_rubric + description for the file
+      const { data: meta } = await db
+        .from("project_files")
+        .select("description, expected_rubric")
+        .eq("id", file.id)
+        .maybeSingle();
+      const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+        "ai-grade-submission",
+        {
+          body: {
+            projectFileGrading: true,
+            fileTitle: file.title,
+            fileDescription: meta?.description ?? null,
+            expectedRubric: meta?.expected_rubric ?? null,
+            maxPoints: file.points,
+            studentContent: ans.content ?? "",
+            courseLanguage: courseLang,
+          },
+        },
+      );
+      if (aiErr || aiData?.error) {
+        toast.error(`Error IA: ${aiErr?.message ?? aiData?.error}`);
+        return;
+      }
+      const newGrade = Number(aiData?.grade ?? 0);
+      const newFeedback = String(aiData?.feedback ?? "");
+      patchSubFile(subId, file.id, { ai_grade: newGrade, ai_feedback: newFeedback });
+      await db
+        .from("project_submission_files")
+        .update({ ai_grade: newGrade, ai_feedback: newFeedback })
+        .eq("id", ans.id);
+      toast.success("Archivo recalificado con IA");
+    } finally {
+      setAiRegradingId(null);
+    }
+  };
+
+  const deleteSubmission = async (sub: Submission) => {
+    const name = sub.profile?.full_name ?? "estudiante";
+    const ok = await confirm({
+      title: `Eliminar entrega de ${name}`,
+      description: "Se eliminará la entrega y todos sus archivos de forma permanente.",
+      confirmLabel: "Eliminar entrega",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.from("project_submissions").delete().eq("id", sub.id);
+    if (error) return toast.error(error.message);
+    setGradingSubs((prev) => prev.filter((s) => s.id !== sub.id));
+    setGradingAnsBySub((prev) => {
+      const next = { ...prev };
+      delete next[sub.id];
+      return next;
+    });
+    toast.success("Entrega eliminada");
+  };
+
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
