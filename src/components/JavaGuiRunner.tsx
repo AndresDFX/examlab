@@ -28,13 +28,13 @@ declare global {
       container?: HTMLElement,
     ) => void;
     cheerpjRunMain?: (cls: string, cp: string, ...args: string[]) => Promise<number>;
-    cheerpjAddStringFile?: (path: string, contents: Uint8Array) => void;
+    cheerpjAddStringFile?: (path: string, contents: string) => void;
     __cheerpjLoading?: Promise<void>;
     __cheerpjReady?: boolean;
   }
 }
 
-const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/4.3/loader.js";
+const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/3.0/cj3loader.js";
 
 export const JAVA_GUI_STARTER = `import javax.swing.*;
 import java.awt.*;
@@ -160,12 +160,11 @@ export function JavaGuiRunner({
 
       // Crea el display Swing dentro de nuestro contenedor (limpia previo).
       displayRef.current.innerHTML = "";
-      window.cheerpjCreateDisplay?.(-1, -1, displayRef.current);
+      window.cheerpjCreateDisplay?.(800, 600, displayRef.current);
 
       const className = deriveMainClass(value || JAVA_GUI_STARTER);
       const sourcePath = `/str/${className}.java`;
-      const enc = new TextEncoder();
-      window.cheerpjAddStringFile?.(sourcePath, enc.encode(value || JAVA_GUI_STARTER));
+      window.cheerpjAddStringFile?.(sourcePath, value || JAVA_GUI_STARTER);
 
       const classPath = "/app/tools.jar:/files/";
       const compileExit = await window.cheerpjRunMain?.(
