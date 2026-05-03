@@ -21,10 +21,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Send, FileText } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Send, FileText, Coffee } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 
 // `projects` y `project_*` aún no se reflejan en los types generados de
 // Supabase; cast lazo para no obligar a regenerar tipos en cada cambio.
@@ -61,6 +69,7 @@ export function TeacherProjectFilesEditor({
   const [fDescription, setFDescription] = useState("");
   const [fRubric, setFRubric] = useState("");
   const [fPoints, setFPoints] = useState(1);
+  const [fLanguage, setFLanguage] = useState<string>("texto"); // texto | java_gui
 
   // AI form
   const [aiTopic, setAiTopic] = useState("");
@@ -95,6 +104,7 @@ export function TeacherProjectFilesEditor({
       expected_rubric: fRubric || null,
       points: fPoints,
       position: files.length,
+      language: fLanguage === "java_gui" ? "java_gui" : null,
     });
     if (error) {
       toast.error(error.message);
@@ -235,14 +245,26 @@ export function TeacherProjectFilesEditor({
               placeholder="Criterios objetivos para una buena entrega"
             />
           </div>
-          <div>
-            <Label>Puntos</Label>
-            <Input
-              type="number"
-              min={0}
-              value={fPoints || ""}
-              onChange={(e) => setFPoints(e.target.value === "" ? 0 : Number(e.target.value))}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Puntos</Label>
+              <Input
+                type="number"
+                min={0}
+                value={fPoints || ""}
+                onChange={(e) => setFPoints(e.target.value === "" ? 0 : Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <Label>Tipo de entrega</Label>
+              <Select value={fLanguage} onValueChange={setFLanguage}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="texto">Texto / archivo escrito</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button onClick={addManual}>
             <Plus className="h-4 w-4 mr-1" /> Agregar archivo
@@ -513,8 +535,15 @@ export function StudentProjectTaker({
               <Badge variant="outline" className="text-[10px]">
                 {idx + 1}
               </Badge>
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              {f.language === "java_gui" ? (
+                <Coffee className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
               <span>{f.title}</span>
+              {f.language === "java_gui" && (
+                <Badge variant="secondary" className="text-[10px]">Java GUI</Badge>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
             </CardTitle>
           </CardHeader>
@@ -522,13 +551,21 @@ export function StudentProjectTaker({
             {f.description && (
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
             )}
-            <Textarea
-              rows={10}
-              value={contents[f.id] ?? ""}
-              onChange={(e) => updateContent(f.id, e.target.value)}
-              placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
-              className="font-mono text-xs"
-            />
+            {f.language === "java_gui" ? (
+              <JavaGuiRunner
+                value={contents[f.id] ?? JAVA_GUI_STARTER}
+                onChange={(v) => updateContent(f.id, v)}
+                height="280px"
+              />
+            ) : (
+              <Textarea
+                rows={10}
+                value={contents[f.id] ?? ""}
+                onChange={(e) => updateContent(f.id, e.target.value)}
+                placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
+                className="font-mono text-xs"
+              />
+            )}
           </CardContent>
         </Card>
       ))}

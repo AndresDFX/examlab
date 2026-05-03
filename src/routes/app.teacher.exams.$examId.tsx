@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare, FileText } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
+import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -171,8 +172,8 @@ function ExamEditor() {
 
   const addQuestion = async () => {
     if (!qContent.trim()) return toast.error("Contenido requerido");
-    if ((qType === "abierta" || qType === "codigo" || qType === "diagrama") && !qRubric.trim())
-      return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama");
+    if ((qType === "abierta" || qType === "codigo" || qType === "diagrama" || qType === "java_gui") && !qRubric.trim())
+      return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI");
     const options = qType === "cerrada" ? { choices: qChoices, correct_index: qCorrect } : null;
     const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
     const { error } = await supabase.from("questions").insert({
@@ -183,7 +184,8 @@ function ExamEditor() {
       options,
       points: qPoints,
       position: pos,
-      language: qType === "codigo" ? qLanguage : null,
+      language: qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null,
+      starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
     });
     if (error) return toast.error(error.message);
     toast.success("Pregunta agregada correctamente");
@@ -648,6 +650,7 @@ function ExamEditor() {
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
                       <SelectItem value="codigo">Código</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
+                      <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -695,6 +698,7 @@ function ExamEditor() {
                       <SelectItem value="cerrada">Opción múltiple</SelectItem>
                       <SelectItem value="codigo">Código</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
+                      <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

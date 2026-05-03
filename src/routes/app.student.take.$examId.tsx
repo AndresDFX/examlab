@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
+import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { saveAnswersLocally, isOnline, setupOfflineSync, clearLocalAnswers } from "@/lib/offline-sync";
 import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/utils/exam-time";
@@ -68,7 +69,7 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
   if (q.type === "cerrada") {
     return typeof v === "number" && v >= 0;
   }
-  if (q.type === "codigo") {
+  if (q.type === "codigo" || q.type === "java_gui") {
     const code = (typeof v === "string" ? v : "").trim() || (q.starter_code ?? "").trim();
     return code.length > 0;
   }
@@ -93,7 +94,7 @@ function mergeStarterCodeAnswers(
 ): Record<string, unknown> {
   const next = { ...answers };
   for (const q of questions) {
-    if (q.type !== "codigo") continue;
+    if (q.type !== "codigo" && q.type !== "java_gui") continue;
     const cur = next[q.id];
     const empty = cur === undefined || cur === null || String(cur).trim() === "";
     if (empty && (q.starter_code ?? "").trim()) next[q.id] = q.starter_code;
@@ -976,6 +977,14 @@ function TakeExam() {
                     <DiagramEditor
                       value={answers[q.id] ?? ""}
                       onChange={(code) => updateAnswer(q.id, code)}
+                    />
+                  </div>
+                ) : q.type === "java_gui" ? (
+                  <div onBlur={saveAnswersNow}>
+                    <JavaGuiRunner
+                      value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
+                      onChange={(v) => updateAnswer(q.id, v)}
+                      height="280px"
                     />
                   </div>
                 ) : (

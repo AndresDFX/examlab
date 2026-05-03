@@ -20,13 +20,14 @@ import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Sparkles, Send } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
+import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { MarkdownInline } from "@/components/MarkdownInline";
 
 export type WorkshopQuestion = {
   id: string;
   workshop_id: string;
-  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  type: "abierta" | "cerrada" | "codigo" | "diagrama" | "java_gui";
   content: string;
   options: any;
   position: number;
@@ -98,7 +99,8 @@ export function TeacherWorkshopQuestionsEditor({
       options,
       points: qPoints,
       position: questions.length,
-      language: qType === "codigo" ? qLanguage : null,
+      language: qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null,
+      starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
     });
     if (error) {
       toast.error(error.message);
@@ -220,6 +222,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="cerrada">Cerrada (opción múltiple)</SelectItem>
                   <SelectItem value="codigo">Código</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -315,6 +318,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="cerrada">Cerrada</SelectItem>
                   <SelectItem value="codigo">Código</SelectItem>
                   <SelectItem value="diagrama">Diagrama</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -494,7 +498,7 @@ export function StudentWorkshopTaker({
           submission_id: submissionId,
           question_id: q.id,
         };
-        if (q.type === "codigo") payload.code_content = String(raw);
+        if (q.type === "codigo" || q.type === "java_gui") payload.code_content = String(raw);
         else if (q.type === "diagrama") payload.diagram_code = String(raw);
         else if (q.type === "cerrada") payload.selected_option = String(raw);
         else payload.answer_text = String(raw);
@@ -520,12 +524,12 @@ export function StudentWorkshopTaker({
             {
               body: {
                 workshopQuestionGrading: true,
-                questionType: q.type,
+                questionType: q.type === "java_gui" ? "codigo" : q.type,
                 questionContent: q.content,
                 expectedRubric: q.expected_rubric,
                 maxPoints: q.points,
                 studentAnswer: String(raw),
-                language: q.language,
+                language: q.type === "java_gui" ? "java" : q.language,
                 courseLanguage,
               },
             },
@@ -663,6 +667,13 @@ export function StudentWorkshopTaker({
               <DiagramEditor
                 value={answers[q.id] ?? ""}
                 onChange={(v) => updateAnswer(q.id, v)}
+              />
+            )}
+            {q.type === "java_gui" && (
+              <JavaGuiRunner
+                value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
+                onChange={(v) => updateAnswer(q.id, v)}
+                height="280px"
               />
             )}
           </CardContent>
