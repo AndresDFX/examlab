@@ -875,6 +875,13 @@ export type Database = {
             referencedRelation: "project_submission_files"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "project_submission_attachments_psf_fk"
+            columns: ["project_submission_file_id"]
+            isOneToOne: false
+            referencedRelation: "project_submission_files"
+            referencedColumns: ["id"]
+          },
         ]
       }
       project_submission_files: {
@@ -916,10 +923,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "project_submission_files_file_fk"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "project_files"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "project_submission_files_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
             referencedRelation: "project_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_submission_files_submission_fk"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "project_submissions"
             referencedColumns: ["id"]
           },
           {
