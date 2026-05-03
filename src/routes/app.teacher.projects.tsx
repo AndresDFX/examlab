@@ -45,9 +45,21 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Users, FileText, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Users,
+  FileText,
+  Loader2,
+  ClipboardList,
+  Sparkles,
+  Save,
+  UserPlus,
+} from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
