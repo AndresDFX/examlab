@@ -403,10 +403,13 @@ Idioma de salida obligatorio: ${langName}.`;
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const tableName = isWorkshop ? "workshop_questions" : "questions";
-    const fkColumn = isWorkshop ? "workshop_id" : "exam_id";
+    const tableName = isProject
+      ? "project_files"
+      : isWorkshop
+        ? "workshop_questions"
+        : "questions";
+    const fkColumn = isProject ? "project_id" : isWorkshop ? "workshop_id" : "exam_id";
 
-    // Find current max position
     const { data: existing } = await admin
       .from(tableName)
       .select("position")
@@ -415,16 +418,28 @@ Idioma de salida obligatorio: ${langName}.`;
       .limit(1);
     let pos = existing?.[0]?.position ?? -1;
 
-    const toInsert = questions.map((q: any) => ({
-      [fkColumn]: targetId,
-      type,
-      content: q.content,
-      expected_rubric: q.expected_rubric,
-      options: q.options ?? null,
-      position: ++pos,
-      points: 1,
-      language: codeLanguage,
-    }));
+    const javaGuiStarter = `import javax.swing.*;\nimport java.awt.*;\n\npublic class Main {\n  public static void main(String[] args) {\n    JFrame f = new JFrame(\"Hola\");\n    f.setSize(320, 200);\n    f.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);\n    f.add(new JLabel(\"Hola Mundo\", SwingConstants.CENTER));\n    f.setVisible(true);\n  }\n}\n`;
+
+    const toInsert = questions.map((q: any) => {
+      const base: any = {
+        [fkColumn]: targetId,
+        type,
+        expected_rubric: q.expected_rubric,
+        options: q.options ?? null,
+        position: ++pos,
+        points: 1,
+        language: type === "java_gui" ? "java" : codeLanguage,
+        starter_code: type === "java_gui" ? javaGuiStarter : null,
+      };
+      if (isProject) {
+        // project_files uses `title` as the prompt body
+        base.title = q.content;
+        base.description = null;
+      } else {
+        base.content = q.content;
+      }
+      return base;
+    });
     const { data: inserted, error: insErr } = await admin
       .from(tableName)
       .insert(toInsert)
