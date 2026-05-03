@@ -34,7 +34,7 @@ declare global {
   }
 }
 
-const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/3.0/cj3loader.js";
+const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/4.3/loader.js";
 
 export const JAVA_GUI_STARTER = `import javax.swing.*;
 import java.awt.*;
