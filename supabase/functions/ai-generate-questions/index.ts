@@ -238,13 +238,13 @@ Idioma obligatorio: ${pfLangName}.`,
     }
 
     const { topics, type, count = 5, examId, language, targetTable } = body;
-    // targetTable: "questions" (default, exam questions) | "workshop_questions"
+    // targetTable: "questions" (default) | "workshop_questions" | "project_files"
     const isWorkshop = targetTable === "workshop_questions";
-    // For workshop flow the client passes the workshopId in `examId` (legacy field reuse).
+    const isProject = targetTable === "project_files";
     const targetId = examId;
     if (!topics || !type || !targetId) {
       return new Response(
-        JSON.stringify({ error: "topics, type y (examId|workshopId) requeridos" }),
+        JSON.stringify({ error: "topics, type y (examId|workshopId|projectId) requeridos" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -260,8 +260,6 @@ Idioma obligatorio: ${pfLangName}.`,
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    // Determine course language: explicit body.courseLanguage wins; otherwise
-    // look it up from the exam's course. Defaults to Spanish for legacy calls.
     const admin0 = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -277,6 +275,14 @@ Idioma obligatorio: ${pfLangName}.`,
           .eq("id", targetId)
           .maybeSingle();
         const lng = (wRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      } else if (isProject) {
+        const { data: pRow } = await admin0
+          .from("projects")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (pRow as any)?.course?.language;
         if (lng === "en" || lng === "es") courseLanguage = lng;
       } else {
         const { data: examRow } = await admin0
@@ -397,10 +403,13 @@ Idioma de salida obligatorio: ${langName}.`;
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const tableName = isWorkshop ? "workshop_questions" : "questions";
-    const fkColumn = isWorkshop ? "workshop_id" : "exam_id";
+    const tableName = isProject
+      ? "project_files"
+      : isWorkshop
+        ? "workshop_questions"
+        : "questions";
+    const fkColumn = isProject ? "project_id" : isWorkshop ? "workshop_id" : "exam_id";
 
-    // Find current max position
     const { data: existing } = await admin
       .from(tableName)
       .select("position")
@@ -409,16 +418,28 @@ Idioma de salida obligatorio: ${langName}.`;
       .limit(1);
     let pos = existing?.[0]?.position ?? -1;
 
-    const toInsert = questions.map((q: any) => ({
-      [fkColumn]: targetId,
-      type,
-      content: q.content,
-      expected_rubric: q.expected_rubric,
-      options: q.options ?? null,
-      position: ++pos,
-      points: 1,
-      language: codeLanguage,
-    }));
+    const javaGuiStarter = `import javax.swing.*;\nimport java.awt.*;\n\npublic class Main {\n  public static void main(String[] args) {\n    JFrame f = new JFrame(\"Hola\");\n    f.setSize(320, 200);\n    f.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);\n    f.add(new JLabel(\"Hola Mundo\", SwingConstants.CENTER));\n    f.setVisible(true);\n  }\n}\n`;
+
+    const toInsert = questions.map((q: any) => {
+      const base: any = {
+        [fkColumn]: targetId,
+        type,
+        expected_rubric: q.expected_rubric,
+        options: q.options ?? null,
+        position: ++pos,
+        points: 1,
+        language: type === "java_gui" ? "java" : codeLanguage,
+        starter_code: type === "java_gui" ? javaGuiStarter : null,
+      };
+      if (isProject) {
+        // project_files uses `title` as the prompt body
+        base.title = q.content;
+        base.description = null;
+      } else {
+        base.content = q.content;
+      }
+      return base;
+    });
     const { data: inserted, error: insErr } = await admin
       .from(tableName)
       .insert(toInsert)

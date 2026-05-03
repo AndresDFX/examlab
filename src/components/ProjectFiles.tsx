@@ -1,18 +1,13 @@
 /**
- * Project module — espejo de Talleres pero con "archivos" en vez de preguntas.
+ * Project module — espejo EXACTO de Talleres pero persistido en
+ * `project_files` / `project_submission_files`.
  *
- * - El docente define un proyecto con N archivos esperados. Cada archivo tiene
- *   un título descriptivo (p. ej. "Documento de diseño", "Código fuente",
- *   "Evidencias de pruebas") y una rúbrica esperada que la IA usa para
- *   calificar.
- * - El estudiante NO sube archivos binarios: pega el contenido textual de
- *   cada archivo en una caja de texto. Al enviar, la IA califica cada caja
- *   por separado usando la rúbrica del archivo, devuelve puntaje + feedback
- *   + probabilidad de que la respuesta haya sido generada por IA.
- * - La nota final del proyecto se consolida sobre `max_score` con la suma
- *   ponderada de los puntos de cada archivo.
+ * Cada "archivo" del proyecto es realmente una pregunta (abierta, cerrada,
+ * código, diagrama o Java GUI), con la misma UX y rúbrica IA que el módulo
+ * de talleres. La nota final consolidada cae sobre el peso de PROYECTOS del
+ * curso (no sobre talleres).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -30,12 +25,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Send, FileText, Coffee } from "lucide-react";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { Plus, Trash2, Loader2, Sparkles, Send } from "lucide-react";
+import { CodeEditor } from "@/components/CodeEditor";
+import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { MarkdownInline } from "@/components/MarkdownInline";
 
-// `projects` y `project_*` aún no se reflejan en los types generados de
-// Supabase; cast lazo para no obligar a regenerar tipos en cada cambio.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
@@ -43,15 +39,19 @@ export type ProjectFile = {
   id: string;
   project_id: string;
   position: number;
-  title: string;
+  title: string; // enunciado
   description: string | null;
   expected_rubric: string | null;
   language: string | null;
+  starter_code: string | null;
   points: number;
+  type: "abierta" | "cerrada" | "codigo" | "diagrama" | "java_gui";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  options: any;
 };
 
 /* =========================================================================
-   TEACHER: Editor de archivos esperados del proyecto (manual + IA)
+   TEACHER: Editor de preguntas del proyecto (manual + IA)
    ========================================================================= */
 export function TeacherProjectFilesEditor({
   projectId,
@@ -61,19 +61,23 @@ export function TeacherProjectFilesEditor({
   courseLanguage?: "es" | "en";
 }) {
   const confirm = useConfirm();
-  const [files, setFiles] = useState<ProjectFile[]>([]);
+  const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
 
   // manual form
-  const [fTitle, setFTitle] = useState("");
-  const [fDescription, setFDescription] = useState("");
-  const [fRubric, setFRubric] = useState("");
-  const [fPoints, setFPoints] = useState(1);
-  const [fLanguage, setFLanguage] = useState<string>("texto"); // texto | java_gui
+  const [qType, setQType] = useState<ProjectFile["type"]>("abierta");
+  const [qContent, setQContent] = useState("");
+  const [qRubric, setQRubric] = useState("");
+  const [qChoices, setQChoices] = useState(["", "", "", ""]);
+  const [qCorrect, setQCorrect] = useState(0);
+  const [qPoints, setQPoints] = useState(1);
+  const [qLanguage, setQLanguage] = useState("java");
 
   // AI form
-  const [aiTopic, setAiTopic] = useState("");
+  const [aiTopics, setAiTopics] = useState("");
   const [aiCount, setAiCount] = useState(3);
+  const [aiType, setAiType] = useState<ProjectFile["type"]>("abierta");
+  const [aiLanguage, setAiLanguage] = useState("java");
   const [aiLoading, setAiLoading] = useState(false);
 
   const load = async () => {
@@ -83,7 +87,7 @@ export function TeacherProjectFilesEditor({
       .select("*")
       .eq("project_id", projectId)
       .order("position");
-    setFiles((data ?? []) as ProjectFile[]);
+    setQuestions((data ?? []) as ProjectFile[]);
     setLoading(false);
   };
 
@@ -93,35 +97,43 @@ export function TeacherProjectFilesEditor({
   }, [projectId]);
 
   const addManual = async () => {
-    if (!fTitle.trim()) {
-      toast.error("Escribe el título del archivo");
+    if (!qContent.trim()) {
+      toast.error("Escribe el enunciado");
       return;
     }
+    const options =
+      qType === "cerrada"
+        ? { choices: qChoices.filter((c) => c.trim()), correct_index: qCorrect }
+        : null;
     const { error } = await db.from("project_files").insert({
       project_id: projectId,
-      title: fTitle,
-      description: fDescription || null,
-      expected_rubric: fRubric || null,
-      points: fPoints,
-      position: files.length,
-      language: fLanguage === "java_gui" ? "java_gui" : null,
+      type: qType,
+      title: qContent.slice(0, 200),
+      description: null,
+      expected_rubric: qRubric || null,
+      options,
+      points: qPoints,
+      position: questions.length,
+      language: qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null,
+      starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
     });
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("Archivo añadido");
-    setFTitle("");
-    setFDescription("");
-    setFRubric("");
-    setFPoints(1);
+    toast.success("Pregunta agregada");
+    setQContent("");
+    setQRubric("");
+    setQChoices(["", "", "", ""]);
+    setQCorrect(0);
+    setQPoints(1);
     void load();
   };
 
-  const removeFile = async (id: string) => {
+  const removeQ = async (id: string) => {
     const ok = await confirm({
-      title: "Eliminar archivo",
-      description: "Se eliminará este slot del proyecto.",
+      title: "Eliminar pregunta",
+      description: "Se eliminará la pregunta del proyecto.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
@@ -131,36 +143,32 @@ export function TeacherProjectFilesEditor({
       toast.error(error.message);
       return;
     }
-    toast.success("Archivo eliminado");
+    toast.success("Pregunta eliminada");
     void load();
   };
 
   const generateWithAI = async () => {
-    if (!aiTopic.trim()) {
-      toast.error("Indica el tema del proyecto");
-      return;
-    }
-    if (aiCount < 1 || aiCount > 20) {
-      toast.error("El número de archivos debe estar entre 1 y 20");
+    if (!aiTopics.trim()) {
+      toast.error("Indica los temas");
       return;
     }
     setAiLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
         body: {
-          projectFilesGeneration: true,
-          projectId,
-          topic: aiTopic,
+          topics: aiTopics,
+          type: aiType,
           count: aiCount,
+          examId: projectId, // legacy field reused as targetId
+          language: aiLanguage,
           courseLanguage,
+          targetTable: "project_files",
         },
       });
-      if (error || data?.error) {
-        toast.error(error?.message ?? data?.error ?? "Error generando con IA");
-        return;
-      }
-      toast.success(`${data?.inserted?.length ?? aiCount} archivo(s) generados con IA`);
-      setAiTopic("");
+      if (error) toast.error(error.message ?? "Error generando con IA");
+      else if (data?.error) toast.error(data.error);
+      else if (data?.inserted) toast.success(`${data.inserted.length} pregunta(s) generadas con IA`);
+      setAiTopics("");
       void load();
     } catch (e: any) {
       toast.error(e.message ?? "Error IA");
@@ -173,7 +181,7 @@ export function TeacherProjectFilesEditor({
     <div className="space-y-4">
       <Tabs defaultValue="list" className="w-full">
         <TabsList>
-          <TabsTrigger value="list">Archivos ({files.length})</TabsTrigger>
+          <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>
           <TabsTrigger value="manual">Agregar manual</TabsTrigger>
           <TabsTrigger value="ai">Generar con IA</TabsTrigger>
         </TabsList>
@@ -184,33 +192,23 @@ export function TeacherProjectFilesEditor({
               <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando…
             </p>
           )}
-          {!loading && files.length === 0 && (
-            <p className="text-sm text-muted-foreground">Aún no hay archivos definidos.</p>
+          {!loading && questions.length === 0 && (
+            <p className="text-sm text-muted-foreground">Aún no hay preguntas.</p>
           )}
-          {files.map((f, idx) => (
-            <Card key={f.id}>
+          {questions.map((q, idx) => (
+            <Card key={q.id}>
               <CardContent className="p-3 flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px]">
-                      {idx + 1}
-                    </Badge>
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium text-sm">{f.title}</span>
-                    <span className="text-xs text-muted-foreground">{f.points} pts</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="text-[10px]">{idx + 1}</Badge>
+                    <Badge variant="secondary" className="text-[10px] capitalize">{q.type}</Badge>
+                    <span className="text-xs text-muted-foreground">{q.points} pts</span>
                   </div>
-                  {f.description && (
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                      {f.description}
-                    </p>
-                  )}
-                  {f.expected_rubric && (
-                    <p className="text-[11px] italic text-muted-foreground/80 whitespace-pre-wrap">
-                      Rúbrica: {f.expected_rubric}
-                    </p>
-                  )}
+                  <div className="text-sm">
+                    <MarkdownInline>{q.title}</MarkdownInline>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => removeFile(f.id)}>
+                <Button variant="ghost" size="icon" onClick={() => removeQ(q.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </CardContent>
@@ -219,81 +217,135 @@ export function TeacherProjectFilesEditor({
         </TabsContent>
 
         <TabsContent value="manual" className="space-y-3">
-          <div>
-            <Label>Título del archivo</Label>
-            <Input
-              value={fTitle}
-              onChange={(e) => setFTitle(e.target.value)}
-              placeholder="Ej.: Documento de diseño"
-            />
-          </div>
-          <div>
-            <Label>Descripción para el estudiante</Label>
-            <Textarea
-              value={fDescription}
-              onChange={(e) => setFDescription(e.target.value)}
-              rows={3}
-              placeholder="Qué debe contener este archivo…"
-            />
-          </div>
-          <div>
-            <Label>Rúbrica esperada (para IA)</Label>
-            <Textarea
-              value={fRubric}
-              onChange={(e) => setFRubric(e.target.value)}
-              rows={2}
-              placeholder="Criterios objetivos para una buena entrega"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Tipo</Label>
+              <Select value={qType} onValueChange={(v) => setQType(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="abierta">Abierta</SelectItem>
+                  <SelectItem value="cerrada">Cerrada (opción múltiple)</SelectItem>
+                  <SelectItem value="codigo">Código</SelectItem>
+                  <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>Puntos</Label>
               <Input
                 type="number"
                 min={0}
-                value={fPoints || ""}
-                onChange={(e) => setFPoints(e.target.value === "" ? 0 : Number(e.target.value))}
+                value={qPoints || ""}
+                onChange={(e) => setQPoints(e.target.value === "" ? 0 : Number(e.target.value))}
               />
             </div>
+          </div>
+          <div>
+            <Label>Enunciado</Label>
+            <Textarea
+              value={qContent}
+              onChange={(e) => setQContent(e.target.value)}
+              rows={3}
+              placeholder="Describe la pregunta…"
+            />
+          </div>
+          {qType === "cerrada" && (
+            <div className="space-y-2">
+              <Label>Opciones (marca la correcta)</Label>
+              {qChoices.map((c, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="correct"
+                    checked={qCorrect === i}
+                    onChange={() => setQCorrect(i)}
+                  />
+                  <Input
+                    value={c}
+                    onChange={(e) =>
+                      setQChoices(qChoices.map((cc, j) => (j === i ? e.target.value : cc)))
+                    }
+                    placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {qType === "codigo" && (
             <div>
-              <Label>Tipo de entrega</Label>
-              <Select value={fLanguage} onValueChange={setFLanguage}>
+              <Label>Lenguaje</Label>
+              <Select value={qLanguage} onValueChange={setQLanguage}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="texto">Texto / archivo escrito</SelectItem>
-                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                  <SelectItem value="java">Java</SelectItem>
+                  <SelectItem value="python">Python</SelectItem>
+                  <SelectItem value="javascript">JavaScript</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          )}
+          <div>
+            <Label>Rúbrica esperada (para IA)</Label>
+            <Textarea
+              value={qRubric}
+              onChange={(e) => setQRubric(e.target.value)}
+              rows={2}
+              placeholder="¿Qué debe contener una buena respuesta?"
+            />
           </div>
           <Button onClick={addManual}>
-            <Plus className="h-4 w-4 mr-1" /> Agregar archivo
+            <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
           </Button>
         </TabsContent>
 
         <TabsContent value="ai" className="space-y-3">
           <div>
-            <Label>Tema del proyecto</Label>
+            <Label>Temas</Label>
             <Textarea
-              value={aiTopic}
-              onChange={(e) => setAiTopic(e.target.value)}
+              value={aiTopics}
+              onChange={(e) => setAiTopics(e.target.value)}
               rows={3}
-              placeholder="Sistema de gestión bibliotecaria con autenticación…"
+              placeholder="Listas enlazadas, recursión, complejidad…"
             />
           </div>
-          <div>
-            <Label>Número de archivos</Label>
-            <Input
-              type="number"
-              min={1}
-              max={20}
-              value={aiCount}
-              onChange={(e) => setAiCount(Number(e.target.value) || 3)}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              La IA creará una caja de texto por cada archivo solicitado, con título y rúbrica.
-              El estudiante pegará el contenido de cada archivo en su caja.
-            </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label>Tipo</Label>
+              <Select value={aiType} onValueChange={(v) => setAiType(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="abierta">Abierta</SelectItem>
+                  <SelectItem value="cerrada">Cerrada</SelectItem>
+                  <SelectItem value="codigo">Código</SelectItem>
+                  <SelectItem value="diagrama">Diagrama</SelectItem>
+                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Cantidad</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={aiCount}
+                onChange={(e) => setAiCount(Number(e.target.value) || 3)}
+              />
+            </div>
+            {aiType === "codigo" && (
+              <div>
+                <Label>Lenguaje</Label>
+                <Select value={aiLanguage} onValueChange={setAiLanguage}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="java">Java</SelectItem>
+                    <SelectItem value="python">Python</SelectItem>
+                    <SelectItem value="javascript">JavaScript</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <Button onClick={generateWithAI} disabled={aiLoading}>
             {aiLoading ? (
@@ -301,7 +353,7 @@ export function TeacherProjectFilesEditor({
             ) : (
               <Sparkles className="h-4 w-4 mr-1" />
             )}
-            Generar archivos con IA
+            Generar con IA
           </Button>
         </TabsContent>
       </Tabs>
@@ -310,7 +362,7 @@ export function TeacherProjectFilesEditor({
 }
 
 /* =========================================================================
-   STUDENT: Entrega del proyecto archivo por archivo + calificación IA
+   STUDENT: Toma del proyecto pregunta a pregunta + calificación IA inmediata
    ========================================================================= */
 export function StudentProjectTaker({
   projectId,
@@ -326,22 +378,28 @@ export function StudentProjectTaker({
   onGraded?: (finalGrade: number) => void;
 }) {
   const { user } = useAuth();
-  const [files, setFiles] = useState<ProjectFile[]>([]);
-  const [contents, setContents] = useState<Record<string, string>>({});
+  const [questions, setQuestions] = useState<ProjectFile[]>([]);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [graded, setGraded] = useState<{ grade: number } | null>(null);
+  const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    const key = `${projectId}::${user.id}`;
+    if (loadedForRef.current === key) return;
+    loadedForRef.current = key;
+    let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data: fs } = await db
+      const { data: qs } = await db
         .from("project_files")
         .select("*")
         .eq("project_id", projectId)
         .order("position");
-      setFiles((fs ?? []) as ProjectFile[]);
+      if (cancelled) return;
+      setQuestions((qs ?? []) as ProjectFile[]);
 
       const { data: sub } = await db
         .from("project_submissions")
@@ -349,44 +407,41 @@ export function StudentProjectTaker({
         .eq("project_id", projectId)
         .eq("user_id", user.id)
         .maybeSingle();
-
       if (sub?.id) {
         const { data: ans } = await db
           .from("project_submission_files")
-          .select("file_id, content")
+          .select("file_id, content, selected_option")
           .eq("submission_id", sub.id);
-        const map: Record<string, string> = {};
-        for (const a of (ans ?? []) as { file_id: string; content: string | null }[]) {
-          map[a.file_id] = a.content ?? "";
+        const map: Record<string, any> = {};
+        for (const a of (ans ?? []) as any[]) {
+          map[a.file_id] = a.selected_option ?? a.content ?? "";
         }
-        setContents(map);
+        if (cancelled) return;
+        setAnswers(map);
         if (sub.status === "calificado" && sub.final_grade != null) {
           setGraded({ grade: Number(sub.final_grade) });
         }
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, user]);
+  }, [projectId, user?.id]);
 
-  const updateContent = (fileId: string, value: string) => {
-    setContents((prev) => ({ ...prev, [fileId]: value }));
+  const updateAnswer = (qid: string, value: any) => {
+    setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
 
   const submit = async () => {
     if (!user) return;
-    if (!files.length) {
-      toast.error("Este proyecto no tiene archivos definidos");
-      return;
-    }
-    const empty = files.find((f) => !(contents[f.id] ?? "").trim());
-    if (empty) {
-      toast.error(`Falta contenido en: ${empty.title}`);
+    if (!questions.length) {
+      toast.error("Este proyecto no tiene preguntas");
       return;
     }
     setSubmitting(true);
     try {
-      // Upsert project submission
       let submissionId: string;
       const { data: existing } = await db
         .from("project_submissions")
@@ -419,34 +474,51 @@ export function StudentProjectTaker({
         submissionId = created.id;
       }
 
-      // Grade each file slot one-by-one
       let totalEarned = 0;
       let totalPoints = 0;
 
-      for (const f of files) {
-        const content = contents[f.id] ?? "";
-        totalPoints += Number(f.points) || 0;
+      for (const q of questions) {
+        const raw = answers[q.id] ?? "";
+        totalPoints += Number(q.points) || 0;
 
         const payload: any = {
           submission_id: submissionId,
-          file_id: f.id,
-          content,
+          file_id: q.id,
+          content: null,
+          selected_option: null,
         };
 
-        if (!content.trim()) {
+        let earned = 0;
+        let feedback = "Sin retroalimentación";
+
+        if (q.type === "cerrada") {
+          const correctIdx = q.options?.correct_index;
+          const got = String(raw) === String(correctIdx) ? Number(q.points) : 0;
+          earned = got;
+          feedback = got > 0 ? "Respuesta correcta" : "Respuesta incorrecta";
+          payload.selected_option = String(raw);
+          // Guardar también el texto elegido en `content` para revisión
+          const choices = q.options?.choices ?? [];
+          payload.content = choices[Number(raw)] ?? String(raw);
+          payload.ai_grade = earned;
+          payload.ai_feedback = feedback;
+        } else if (!String(raw).trim()) {
+          payload.content = "";
           payload.ai_grade = 0;
-          payload.ai_feedback = "Sin contenido";
+          payload.ai_feedback = "Sin respuesta";
         } else {
+          payload.content = String(raw);
           const { data: aiData, error: aiErr } = await supabase.functions.invoke(
             "ai-grade-submission",
             {
               body: {
-                projectFileGrading: true,
-                fileTitle: f.title,
-                fileDescription: f.description,
-                expectedRubric: f.expected_rubric,
-                maxPoints: f.points,
-                studentContent: content,
+                workshopQuestionGrading: true,
+                questionType: q.type === "java_gui" ? "codigo" : q.type,
+                questionContent: q.title,
+                expectedRubric: q.expected_rubric,
+                maxPoints: q.points,
+                studentAnswer: String(raw),
+                language: q.type === "java_gui" ? "java" : q.language,
                 courseLanguage,
               },
             },
@@ -455,8 +527,10 @@ export function StudentProjectTaker({
             payload.ai_grade = 0;
             payload.ai_feedback = `Error IA: ${aiErr?.message ?? aiData?.error ?? "Desconocido"}`;
           } else {
-            payload.ai_grade = Number(aiData?.grade) || 0;
-            payload.ai_feedback = aiData?.feedback ?? null;
+            earned = Number(aiData?.grade) || 0;
+            feedback = aiData?.feedback ?? feedback;
+            payload.ai_grade = earned;
+            payload.ai_feedback = feedback;
             payload.ai_likelihood =
               typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
             payload.ai_reasons = aiData?.ai_reasons ?? null;
@@ -467,11 +541,13 @@ export function StudentProjectTaker({
           .from("project_submission_files")
           .upsert(payload, { onConflict: "submission_id,file_id" });
 
-        totalEarned += Number(payload.ai_grade) || 0;
+        totalEarned += earned;
       }
 
       const finalGrade =
-        totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
+        totalPoints > 0
+          ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2))
+          : 0;
 
       await db
         .from("project_submissions")
@@ -494,13 +570,13 @@ export function StudentProjectTaker({
   if (loading) {
     return (
       <p className="text-sm text-muted-foreground">
-        <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando archivos…
+        <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando preguntas…
       </p>
     );
   }
 
-  if (!files.length) {
-    return <p className="text-sm text-muted-foreground">Este proyecto aún no tiene archivos.</p>;
+  if (!questions.length) {
+    return <p className="text-sm text-muted-foreground">Este proyecto aún no tiene preguntas.</p>;
   }
 
   if (graded) {
@@ -524,46 +600,61 @@ export function StudentProjectTaker({
   return (
     <div className="space-y-4">
       <h3 className="font-semibold">{projectTitle}</h3>
-      <p className="text-xs text-muted-foreground">
-        Pega el contenido de cada archivo en la caja correspondiente. Cuando envíes, la IA
-        calificará cada archivo según la rúbrica.
-      </p>
-      {files.map((f, idx) => (
-        <Card key={f.id}>
+      {questions.map((q, idx) => (
+        <Card key={q.id}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
-                {idx + 1}
-              </Badge>
-              {f.language === "java_gui" ? (
-                <Coffee className="h-3.5 w-3.5 text-muted-foreground" />
-              ) : (
-                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span>{f.title}</span>
-              {f.language === "java_gui" && (
-                <Badge variant="secondary" className="text-[10px]">Java GUI</Badge>
-              )}
-              <span className="text-xs text-muted-foreground ml-auto">{f.points} pts</span>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Badge variant="outline" className="text-[10px]">{idx + 1}</Badge>
+              <Badge variant="secondary" className="text-[10px] capitalize">{q.type}</Badge>
+              <span className="text-xs text-muted-foreground">{q.points} pts</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {f.description && (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.description}</p>
+            <MarkdownInline>{q.title}</MarkdownInline>
+            {q.type === "abierta" && (
+              <Textarea
+                rows={4}
+                value={answers[q.id] ?? ""}
+                onChange={(e) => updateAnswer(q.id, e.target.value)}
+                placeholder="Escribe tu respuesta…"
+              />
             )}
-            {f.language === "java_gui" ? (
-              <JavaGuiRunner
-                value={contents[f.id] ?? JAVA_GUI_STARTER}
-                onChange={(v) => updateContent(f.id, v)}
+            {q.type === "cerrada" && q.options?.choices && (
+              <div className="space-y-1.5">
+                {q.options.choices.map((c: string, i: number) => (
+                  <label key={i} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name={`q-${q.id}`}
+                      checked={String(answers[q.id]) === String(i)}
+                      onChange={() => updateAnswer(q.id, i)}
+                    />
+                    {c}
+                  </label>
+                ))}
+              </div>
+            )}
+            {q.type === "codigo" && (
+              <CodeEditor
+                value={answers[q.id] ?? q.starter_code ?? ""}
+                onChange={(v) => updateAnswer(q.id, v ?? "")}
+                language={(q.language as any) ?? "java"}
+                showLanguageSelector={false}
+                showRunButton={false}
                 height="280px"
               />
-            ) : (
-              <Textarea
-                rows={10}
-                value={contents[f.id] ?? ""}
-                onChange={(e) => updateContent(f.id, e.target.value)}
-                placeholder={`Pega aquí el contenido del archivo: ${f.title}`}
-                className="font-mono text-xs"
+            )}
+            {q.type === "diagrama" && (
+              <DiagramEditor
+                value={answers[q.id] ?? ""}
+                onChange={(v) => updateAnswer(q.id, v)}
+              />
+            )}
+            {q.type === "java_gui" && (
+              <JavaGuiRunner
+                value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
+                onChange={(v) => updateAnswer(q.id, v)}
+                height="280px"
               />
             )}
           </CardContent>
