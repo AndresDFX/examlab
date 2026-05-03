@@ -18,7 +18,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Sparkles, Loader2, Trash2, CheckSquare, XSquare, FileText } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Sparkles,
+  Loader2,
+  Trash2,
+  CheckSquare,
+  XSquare,
+  FileText,
+  Pencil,
+  Save,
+  X,
+} from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -54,7 +66,8 @@ function ExamEditor() {
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
 
-  // New question manual
+  // New question manual (sirve para crear y editar — UPDATE cuando editingId)
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [qType, setQType] = useState("abierta");
   const [qContent, setQContent] = useState("");
   const [qRubric, setQRubric] = useState("");
@@ -62,6 +75,32 @@ function ExamEditor() {
   const [qCorrect, setQCorrect] = useState(0);
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
+
+  const resetQForm = () => {
+    setEditingId(null);
+    setQType("abierta");
+    setQContent("");
+    setQRubric("");
+    setQChoices(["", "", "", ""]);
+    setQCorrect(0);
+    setQPoints(1);
+    setQLanguage("java");
+  };
+
+  const loadQIntoForm = (q: Question) => {
+    setEditingId(q.id);
+    setQType(q.type);
+    setQContent(q.content);
+    setQRubric((q as any).expected_rubric ?? "");
+    const choices = ((q as any).options?.choices ?? []) as string[];
+    setQChoices([0, 1, 2, 3].map((i) => choices[i] ?? ""));
+    setQCorrect(Number((q as any).options?.correct_index ?? 0));
+    setQPoints(q.points ?? 1);
+    setQLanguage((q as any).language ?? "java");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   // AI
   const [aiTopics, setAiTopics] = useState("");
@@ -170,29 +209,46 @@ function ExamEditor() {
     navigate({ to: "/app/teacher/exams" });
   };
 
-  const addQuestion = async () => {
+  const submitQuestion = async () => {
     if (!qContent.trim()) return toast.error("Contenido requerido");
     if ((qType === "abierta" || qType === "codigo" || qType === "diagrama" || qType === "java_gui") && !qRubric.trim())
       return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI");
     const options = qType === "cerrada" ? { choices: qChoices, correct_index: qCorrect } : null;
-    const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
-    const { error } = await supabase.from("questions").insert({
-      exam_id: examId,
-      type: qType,
-      content: qContent,
-      expected_rubric: qRubric || null,
-      options,
-      points: qPoints,
-      position: pos,
-      language: qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null,
-      starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
-    });
-    if (error) return toast.error(error.message);
-    toast.success("Pregunta agregada correctamente");
-    setQContent("");
-    setQRubric("");
-    setQChoices(["", "", "", ""]);
-    setQCorrect(0);
+    const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
+
+    if (editingId) {
+      // UPDATE: no tocamos position ni starter_code para no clobberar lo que
+      // se haya personalizado.
+      const { error } = await supabase
+        .from("questions")
+        .update({
+          type: qType,
+          content: qContent,
+          expected_rubric: qRubric || null,
+          options,
+          points: qPoints,
+          language,
+        })
+        .eq("id", editingId);
+      if (error) return toast.error(error.message);
+      toast.success("Pregunta actualizada correctamente");
+    } else {
+      const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
+      const { error } = await supabase.from("questions").insert({
+        exam_id: examId,
+        type: qType,
+        content: qContent,
+        expected_rubric: qRubric || null,
+        options,
+        points: qPoints,
+        position: pos,
+        language,
+        starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
+      });
+      if (error) return toast.error(error.message);
+      toast.success("Pregunta agregada correctamente");
+    }
+    resetQForm();
     load();
   };
 
@@ -683,7 +739,9 @@ function ExamEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Agregar manualmente</CardTitle>
+              <CardTitle className="text-base">
+                {editingId ? "Editar pregunta" : "Agregar manualmente"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -763,10 +821,24 @@ function ExamEditor() {
                   ))}
                 </div>
               )}
-              <Button onClick={addQuestion}>
-                <Plus className="h-4 w-4 mr-1" />
-                Agregar pregunta
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={submitQuestion}>
+                  {editingId ? (
+                    <>
+                      <Save className="h-4 w-4 mr-1" /> Guardar cambios
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
+                    </>
+                  )}
+                </Button>
+                {editingId && (
+                  <Button variant="outline" onClick={resetQForm}>
+                    <X className="h-4 w-4 mr-1" /> Cancelar edición
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -811,9 +883,24 @@ function ExamEditor() {
                       </ul>
                     )}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => removeQuestion(q.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => loadQIntoForm(q)}
+                      title="Editar pregunta"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeQuestion(q.id)}
+                      title="Eliminar pregunta"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

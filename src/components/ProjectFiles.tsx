@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Send } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Send, Pencil, Save, X } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -64,7 +64,9 @@ export function TeacherProjectFilesEditor({
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // manual form
+  // manual form (sirve para crear y para editar — UPDATE cuando editingId)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("list");
   const [qType, setQType] = useState<ProjectFile["type"]>("abierta");
   const [qContent, setQContent] = useState("");
   const [qRubric, setQRubric] = useState("");
@@ -72,6 +74,30 @@ export function TeacherProjectFilesEditor({
   const [qCorrect, setQCorrect] = useState(0);
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
+
+  const resetForm = () => {
+    setEditingId(null);
+    setQType("abierta");
+    setQContent("");
+    setQRubric("");
+    setQChoices(["", "", "", ""]);
+    setQCorrect(0);
+    setQPoints(1);
+    setQLanguage("java");
+  };
+
+  const loadIntoForm = (q: ProjectFile) => {
+    setEditingId(q.id);
+    setQType(q.type);
+    setQContent(q.title);
+    setQRubric(q.expected_rubric ?? "");
+    const choices = (q.options?.choices ?? []) as string[];
+    setQChoices([0, 1, 2, 3].map((i) => choices[i] ?? ""));
+    setQCorrect(Number(q.options?.correct_index ?? 0));
+    setQPoints(q.points);
+    setQLanguage(q.language ?? "java");
+    setActiveTab("manual");
+  };
 
   // AI form
   const [aiTopics, setAiTopics] = useState("");
@@ -96,7 +122,7 @@ export function TeacherProjectFilesEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const addManual = async () => {
+  const submitManual = async () => {
     if (!qContent.trim()) {
       toast.error("Escribe el enunciado");
       return;
@@ -105,28 +131,48 @@ export function TeacherProjectFilesEditor({
       qType === "cerrada"
         ? { choices: qChoices.filter((c) => c.trim()), correct_index: qCorrect }
         : null;
-    const { error } = await db.from("project_files").insert({
-      project_id: projectId,
-      type: qType,
-      title: qContent.slice(0, 200),
-      description: null,
-      expected_rubric: qRubric || null,
-      options,
-      points: qPoints,
-      position: questions.length,
-      language: qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null,
-      starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
+    const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
+
+    if (editingId) {
+      // UPDATE: no tocamos position ni starter_code para no clobberar lo que
+      // alumnos o docentes hayan personalizado.
+      const { error } = await db
+        .from("project_files")
+        .update({
+          type: qType,
+          title: qContent.slice(0, 200),
+          expected_rubric: qRubric || null,
+          options,
+          points: qPoints,
+          language,
+        })
+        .eq("id", editingId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Pregunta actualizada");
+    } else {
+      const { error } = await db.from("project_files").insert({
+        project_id: projectId,
+        type: qType,
+        title: qContent.slice(0, 200),
+        description: null,
+        expected_rubric: qRubric || null,
+        options,
+        points: qPoints,
+        position: questions.length,
+        language,
+        starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Pregunta agregada");
     }
-    toast.success("Pregunta agregada");
-    setQContent("");
-    setQRubric("");
-    setQChoices(["", "", "", ""]);
-    setQCorrect(0);
-    setQPoints(1);
+    resetForm();
+    setActiveTab("list");
     void load();
   };
 
@@ -179,10 +225,10 @@ export function TeacherProjectFilesEditor({
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="list" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>
-          <TabsTrigger value="manual">Agregar manual</TabsTrigger>
+          <TabsTrigger value="manual">{editingId ? "Editar pregunta" : "Agregar manual"}</TabsTrigger>
           <TabsTrigger value="ai">Generar con IA</TabsTrigger>
         </TabsList>
 
@@ -208,9 +254,24 @@ export function TeacherProjectFilesEditor({
                     <MarkdownInline>{q.title}</MarkdownInline>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => removeQ(q.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => loadIntoForm(q)}
+                    title="Editar pregunta"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeQ(q.id)}
+                    title="Eliminar pregunta"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -294,9 +355,30 @@ export function TeacherProjectFilesEditor({
               placeholder="¿Qué debe contener una buena respuesta?"
             />
           </div>
-          <Button onClick={addManual}>
-            <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={submitManual}>
+              {editingId ? (
+                <>
+                  <Save className="h-4 w-4 mr-1" /> Guardar cambios
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
+                </>
+              )}
+            </Button>
+            {editingId && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetForm();
+                  setActiveTab("list");
+                }}
+              >
+                <X className="h-4 w-4 mr-1" /> Cancelar edición
+              </Button>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="ai" className="space-y-3">
