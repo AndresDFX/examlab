@@ -378,18 +378,23 @@ function TeacherProjects() {
     setAssignLoading(true);
     setAssignOpen(true);
     const courseIds = p.linked_course_ids?.length ? p.linked_course_ids : [p.course_id];
+    setAssignFilterCourses(new Set(courseIds as string[]));
     try {
       const { data: enr, error: enrError } = await db
         .from("course_enrollments")
-        .select("user_id")
+        .select("user_id, course_id")
         .in("course_id", courseIds);
       if (enrError) throw enrError;
 
-      // `course_enrollments.user_id` referencia usuarios de auth, no profiles;
-      // por eso se cargan los perfiles en una segunda consulta.
-      const userIds = Array.from(
-        new Set(((enr ?? []) as { user_id: string }[]).map((row) => row.user_id)),
-      );
+      const enrRows = (enr ?? []) as { user_id: string; course_id: string }[];
+      const byCourse = new Map<string, Set<string>>();
+      for (const r of enrRows) {
+        if (!byCourse.has(r.course_id)) byCourse.set(r.course_id, new Set());
+        byCourse.get(r.course_id)!.add(r.user_id);
+      }
+      setStudentsByCourse(byCourse);
+
+      const userIds = Array.from(new Set(enrRows.map((r) => r.user_id)));
       let list: Student[] = [];
       if (userIds.length) {
         const { data: profs, error: profError } = await db
@@ -417,6 +422,41 @@ function TeacherProjects() {
       setAssignLoading(false);
     }
   };
+
+  /** Estudiantes visibles según los cursos seleccionados como filtro. */
+  const visibleStudents = (() => {
+    if (!assignFilterCourses.size) return students;
+    const allowed = new Set<string>();
+    for (const cid of assignFilterCourses) {
+      const set = studentsByCourse.get(cid);
+      if (set) for (const uid of set) allowed.add(uid);
+    }
+    return students.filter((s) => allowed.has(s.id));
+  })();
+
+  const assignByCourse = async (courseId: string) => {
+    if (!assignProject) return;
+    const courseStudents = studentsByCourse.get(courseId);
+    if (!courseStudents || !courseStudents.size) {
+      toast.info("Ese curso no tiene estudiantes matriculados");
+      return;
+    }
+    const toAdd = Array.from(courseStudents).filter((uid) => !assigned.has(uid));
+    if (!toAdd.length) {
+      toast.info("Ya todos los del curso están asignados");
+      return;
+    }
+    const rows = toAdd.map((uid) => ({ project_id: assignProject.id, user_id: uid }));
+    const { error } = await db.from("project_assignments").insert(rows);
+    if (error) return toast.error(error.message);
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      for (const uid of toAdd) next.add(uid);
+      return next;
+    });
+    toast.success(`${toAdd.length} estudiante(s) asignados del curso`);
+  };
+
 
   const toggleAssign = async (uid: string) => {
     if (!assignProject) return;
