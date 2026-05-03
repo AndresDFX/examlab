@@ -32,7 +32,35 @@ declare global {
     cheerpjAddStringFile?: (path: string, contents: Uint8Array) => void;
     __cheerpjLoading?: Promise<void>;
     __cheerpjReady?: boolean;
+    __toolsJarLoading?: Promise<Uint8Array>;
+    __toolsJarBytes?: Uint8Array;
   }
+}
+
+const TOOLS_JAR_URL = "/tools.jar";
+
+/**
+ * Lovable/Cloudflare sirve /tools.jar con 200 pero SIN soporte de byte-range
+ * (no manda Accept-Ranges y devuelve 200 a peticiones con Range:). CheerpJ
+ * lee los JAR con range requests para acceder al ZIP central directory; sin
+ * eso falla con "Could not find or load main class".
+ *
+ * Workaround: bajamos tools.jar entero una vez y lo montamos en el filesystem
+ * virtual de CheerpJ vía cheerpOSAddStringFile. Después accedemos con la ruta
+ * /str/tools.jar en el classpath.
+ */
+function loadToolsJar(): Promise<Uint8Array> {
+  if (window.__toolsJarBytes) return Promise.resolve(window.__toolsJarBytes);
+  if (window.__toolsJarLoading) return window.__toolsJarLoading;
+  window.__toolsJarLoading = (async () => {
+    const r = await fetch(TOOLS_JAR_URL);
+    if (!r.ok) throw new Error(`No se pudo descargar tools.jar (${r.status})`);
+    const buf = await r.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    window.__toolsJarBytes = bytes;
+    return bytes;
+  })();
+  return window.__toolsJarLoading;
 }
 
 const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/4.3/loader.js";
@@ -174,7 +202,12 @@ export function JavaGuiRunner({
       const addFile = window.cheerpOSAddStringFile ?? window.cheerpjAddStringFile;
       addFile?.(sourcePath, enc.encode(value || JAVA_GUI_STARTER));
 
-      const classPath = "/app/tools.jar:/files/";
+      // Lovable no soporta byte-range para /tools.jar. Bajamos el JAR completo
+      // y lo inyectamos en /str/ para que CheerpJ lo lea localmente.
+      const toolsBytes = await loadToolsJar();
+      addFile?.("/str/tools.jar", toolsBytes);
+
+      const classPath = "/str/tools.jar:/files/";
       const compileExit = await window.cheerpjRunMain?.(
         "com.sun.tools.javac.Main",
         classPath,
