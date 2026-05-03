@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
+import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { saveAnswersLocally, isOnline, setupOfflineSync, clearLocalAnswers } from "@/lib/offline-sync";
 import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/utils/exam-time";
