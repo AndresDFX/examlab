@@ -798,8 +798,11 @@ function TeacherProjects() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        title={t("common.edit")}
-                        onClick={() => openEdit(p)}
+                        title="Entregas y calificación"
+                        onClick={() => openGradingDialog(p)}
+                      >
+                        <ClipboardList className="h-4 w-4" />
+                      </Button>
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
