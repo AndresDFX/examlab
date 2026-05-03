@@ -45,9 +45,21 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Users, FileText, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Users,
+  FileText,
+  Loader2,
+  ClipboardList,
+  Sparkles,
+  Save,
+  UserPlus,
+} from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,6 +110,63 @@ function TeacherProjects() {
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [assignFilterCourses, setAssignFilterCourses] = useState<Set<string>>(new Set());
+  const [studentsByCourse, setStudentsByCourse] = useState<Map<string, Set<string>>>(new Map());
+
+  // Grading dialog state
+  type Submission = {
+    id: string;
+    user_id: string;
+    status: string;
+    final_grade: number | null;
+    ai_grade: number | null;
+    submitted_at: string | null;
+    profile?: { full_name: string; institutional_email: string };
+  };
+  type SubFile = {
+    id: string;
+    submission_id: string;
+    file_id: string;
+    content: string | null;
+    ai_grade: number | null;
+    ai_feedback: string | null;
+    ai_likelihood: number | null;
+  };
+  const [gradingOpen, setGradingOpen] = useState(false);
+  const [gradingProject, setGradingProject] = useState<Project | null>(null);
+  const [gradingFiles, setGradingFiles] = useState<Array<{ id: string; title: string; points: number }>>([]);
+  const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
+  const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
+  const [gradingLoading, setGradingLoading] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [aiRegradingId, setAiRegradingId] = useState<string | null>(null);
+
+  /** Auto-assign a project to all students enrolled in any of the linked courses. */
+  const autoAssignProject = async (projectId: string, courseIds: string[]) => {
+    if (!courseIds.length) return 0;
+    const { data: enr } = await db
+      .from("course_enrollments")
+      .select("user_id")
+      .in("course_id", courseIds);
+    const enrolled = Array.from(
+      new Set(((enr ?? []) as { user_id: string }[]).map((r) => r.user_id)),
+    );
+    if (!enrolled.length) return 0;
+    const { data: existing } = await db
+      .from("project_assignments")
+      .select("user_id")
+      .eq("project_id", projectId);
+    const existSet = new Set(((existing ?? []) as { user_id: string }[]).map((r) => r.user_id));
+    const toAdd = enrolled.filter((uid) => !existSet.has(uid));
+    if (!toAdd.length) return 0;
+    const rows = toAdd.map((uid) => ({ project_id: projectId, user_id: uid }));
+    const { error } = await db.from("project_assignments").insert(rows);
+    if (error) {
+      toast.error(error.message);
+      return 0;
+    }
+    return toAdd.length;
+  };
 
   const load = async () => {
     // Cada query se aísla en su propio try para que un fallo (p.ej. una
@@ -270,6 +339,12 @@ function TeacherProjects() {
       await db.from("project_courses").delete().eq("project_id", projectId);
       const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
       if (rows.length) await db.from("project_courses").insert(rows);
+
+      // Auto-asignar a todos los matriculados de los cursos vinculados al publicar
+      if (payload.status === "published") {
+        const added = await autoAssignProject(projectId, linked);
+        if (added > 0) toast.success(`${added} estudiante(s) asignados automáticamente`);
+      }
     }
 
     setOpen(false);
@@ -303,18 +378,23 @@ function TeacherProjects() {
     setAssignLoading(true);
     setAssignOpen(true);
     const courseIds = p.linked_course_ids?.length ? p.linked_course_ids : [p.course_id];
+    setAssignFilterCourses(new Set(courseIds as string[]));
     try {
       const { data: enr, error: enrError } = await db
         .from("course_enrollments")
-        .select("user_id")
+        .select("user_id, course_id")
         .in("course_id", courseIds);
       if (enrError) throw enrError;
 
-      // `course_enrollments.user_id` referencia usuarios de auth, no profiles;
-      // por eso se cargan los perfiles en una segunda consulta.
-      const userIds = Array.from(
-        new Set(((enr ?? []) as { user_id: string }[]).map((row) => row.user_id)),
-      );
+      const enrRows = (enr ?? []) as { user_id: string; course_id: string }[];
+      const byCourse = new Map<string, Set<string>>();
+      for (const r of enrRows) {
+        if (!byCourse.has(r.course_id)) byCourse.set(r.course_id, new Set());
+        byCourse.get(r.course_id)!.add(r.user_id);
+      }
+      setStudentsByCourse(byCourse);
+
+      const userIds = Array.from(new Set(enrRows.map((r) => r.user_id)));
       let list: Student[] = [];
       if (userIds.length) {
         const { data: profs, error: profError } = await db
@@ -343,6 +423,41 @@ function TeacherProjects() {
     }
   };
 
+  /** Estudiantes visibles según los cursos seleccionados como filtro. */
+  const visibleStudents = (() => {
+    if (!assignFilterCourses.size) return students;
+    const allowed = new Set<string>();
+    for (const cid of assignFilterCourses) {
+      const set = studentsByCourse.get(cid);
+      if (set) for (const uid of set) allowed.add(uid);
+    }
+    return students.filter((s) => allowed.has(s.id));
+  })();
+
+  const assignByCourse = async (courseId: string) => {
+    if (!assignProject) return;
+    const courseStudents = studentsByCourse.get(courseId);
+    if (!courseStudents || !courseStudents.size) {
+      toast.info("Ese curso no tiene estudiantes matriculados");
+      return;
+    }
+    const toAdd = Array.from(courseStudents).filter((uid) => !assigned.has(uid));
+    if (!toAdd.length) {
+      toast.info("Ya todos los del curso están asignados");
+      return;
+    }
+    const rows = toAdd.map((uid) => ({ project_id: assignProject.id, user_id: uid }));
+    const { error } = await db.from("project_assignments").insert(rows);
+    if (error) return toast.error(error.message);
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      for (const uid of toAdd) next.add(uid);
+      return next;
+    });
+    toast.success(`${toAdd.length} estudiante(s) asignados del curso`);
+  };
+
+
   const toggleAssign = async (uid: string) => {
     if (!assignProject) return;
     const has = assigned.has(uid);
@@ -369,25 +484,225 @@ function TeacherProjects() {
 
   const assignAll = async () => {
     if (!assignProject) return;
-    const toAdd = students.filter((s) => !assigned.has(s.id));
+    const toAdd = visibleStudents.filter((s) => !assigned.has(s.id));
     if (!toAdd.length) return;
     const rows = toAdd.map((s) => ({ project_id: assignProject.id, user_id: s.id }));
     const { error } = await db.from("project_assignments").insert(rows);
     if (error) return toast.error(error.message);
-    setAssigned(new Set(students.map((s) => s.id)));
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      for (const s of toAdd) next.add(s.id);
+      return next;
+    });
     toast.success(`${toAdd.length} estudiantes asignados`);
   };
 
   const unassignAll = async () => {
     if (!assignProject) return;
+    const ids = visibleStudents.map((s) => s.id).filter((id) => assigned.has(id));
+    if (!ids.length) return;
     const { error } = await db
       .from("project_assignments")
       .delete()
-      .eq("project_id", assignProject.id);
+      .eq("project_id", assignProject.id)
+      .in("user_id", ids);
     if (error) return toast.error(error.message);
-    setAssigned(new Set());
-    toast.success("Asignaciones eliminadas");
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+    toast.success(`${ids.length} asignación(es) removidas`);
   };
+
+  // ===== Grading dialog =====
+  const openGradingDialog = async (p: Project) => {
+    setGradingProject(p);
+    setGradingFiles([]);
+    setGradingSubs([]);
+    setGradingAnsBySub({});
+    setGradingOpen(true);
+    setGradingLoading(true);
+    try {
+      const [{ data: files }, { data: subs }] = await Promise.all([
+        db
+          .from("project_files")
+          .select("id, title, points, position")
+          .eq("project_id", p.id)
+          .order("position"),
+        db
+          .from("project_submissions")
+          .select(
+            "id, user_id, status, final_grade, ai_grade, submitted_at",
+          )
+          .eq("project_id", p.id)
+          .order("submitted_at", { ascending: false }),
+      ]);
+      setGradingFiles((files ?? []) as Array<{ id: string; title: string; points: number }>);
+
+      const subsList = (subs ?? []) as Submission[];
+      if (subsList.length) {
+        const userIds = subsList.map((s) => s.user_id);
+        const subIds = subsList.map((s) => s.id);
+        const [{ data: profs }, { data: ans }] = await Promise.all([
+          db
+            .from("profiles")
+            .select("id, full_name, institutional_email")
+            .in("id", userIds),
+          db
+            .from("project_submission_files")
+            .select(
+              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood",
+            )
+            .in("submission_id", subIds),
+        ]);
+        const profMap = new Map(
+          ((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]),
+        );
+        const grouped: Record<string, SubFile[]> = {};
+        for (const a of (ans ?? []) as SubFile[]) {
+          (grouped[a.submission_id] ||= []).push(a);
+        }
+        setGradingAnsBySub(grouped);
+        setGradingSubs(
+          subsList.map((s) => ({ ...s, profile: profMap.get(s.user_id) as Submission["profile"] })),
+        );
+      }
+    } catch (e) {
+      console.error("[projects] grading load failed", e);
+      toast.error(e instanceof Error ? e.message : "Error cargando entregas");
+    } finally {
+      setGradingLoading(false);
+    }
+  };
+
+  const recomputeProjectGrade = (subId: string): number => {
+    if (!gradingProject) return 0;
+    const ans = gradingAnsBySub[subId] ?? [];
+    const totalPoints = gradingFiles.reduce((s, f) => s + Number(f.points || 0), 0);
+    if (totalPoints <= 0) return 0;
+    const earned = gradingFiles.reduce((s, f) => {
+      const a = ans.find((x) => x.file_id === f.id);
+      const g = Math.min(Number(a?.ai_grade ?? 0) || 0, Number(f.points) || 0);
+      return s + g;
+    }, 0);
+    return Number(((earned / totalPoints) * Number(gradingProject.max_score)).toFixed(2));
+  };
+
+  const patchSubFile = (subId: string, fileId: string, patch: Partial<SubFile>) => {
+    setGradingAnsBySub((prev) => {
+      const list = (prev[subId] ?? []).slice();
+      const idx = list.findIndex((a) => a.file_id === fileId);
+      if (idx >= 0) list[idx] = { ...list[idx], ...patch };
+      return { ...prev, [subId]: list };
+    });
+  };
+
+  const saveSubFileGrade = async (subId: string, fileId: string) => {
+    const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === fileId);
+    if (!ans?.id) {
+      toast.error("Esta entrega no tiene contenido para este archivo");
+      return;
+    }
+    setSavingId(ans.id);
+    try {
+      const { error } = await db
+        .from("project_submission_files")
+        .update({ ai_grade: ans.ai_grade, ai_feedback: ans.ai_feedback })
+        .eq("id", ans.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const newFinal = recomputeProjectGrade(subId);
+      const { error: subErr } = await db
+        .from("project_submissions")
+        .update({ final_grade: newFinal, status: "calificado" })
+        .eq("id", subId);
+      if (subErr) {
+        toast.error(`Guardado, pero falló recalcular: ${subErr.message}`);
+        return;
+      }
+      setGradingSubs((prev) =>
+        prev.map((s) =>
+          s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
+        ),
+      );
+      toast.success(
+        `Guardado · nota global: ${newFinal}/${gradingProject?.max_score ?? 100}`,
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const aiRegradeSubFile = async (subId: string, file: { id: string; title: string; points: number }) => {
+    const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === file.id);
+    if (!ans?.id) {
+      toast.error("Sin contenido para recalificar");
+      return;
+    }
+    setAiRegradingId(ans.id);
+    try {
+      const courseLang =
+        (gradingProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
+      // fetch expected_rubric + description for the file
+      const { data: meta } = await db
+        .from("project_files")
+        .select("description, expected_rubric")
+        .eq("id", file.id)
+        .maybeSingle();
+      const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+        "ai-grade-submission",
+        {
+          body: {
+            projectFileGrading: true,
+            fileTitle: file.title,
+            fileDescription: meta?.description ?? null,
+            expectedRubric: meta?.expected_rubric ?? null,
+            maxPoints: file.points,
+            studentContent: ans.content ?? "",
+            courseLanguage: courseLang,
+          },
+        },
+      );
+      if (aiErr || aiData?.error) {
+        toast.error(`Error IA: ${aiErr?.message ?? aiData?.error}`);
+        return;
+      }
+      const newGrade = Number(aiData?.grade ?? 0);
+      const newFeedback = String(aiData?.feedback ?? "");
+      patchSubFile(subId, file.id, { ai_grade: newGrade, ai_feedback: newFeedback });
+      await db
+        .from("project_submission_files")
+        .update({ ai_grade: newGrade, ai_feedback: newFeedback })
+        .eq("id", ans.id);
+      toast.success("Archivo recalificado con IA");
+    } finally {
+      setAiRegradingId(null);
+    }
+  };
+
+  const deleteSubmission = async (sub: Submission) => {
+    const name = sub.profile?.full_name ?? "estudiante";
+    const ok = await confirm({
+      title: `Eliminar entrega de ${name}`,
+      description: "Se eliminará la entrega y todos sus archivos de forma permanente.",
+      confirmLabel: "Eliminar entrega",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.from("project_submissions").delete().eq("id", sub.id);
+    if (error) return toast.error(error.message);
+    setGradingSubs((prev) => prev.filter((s) => s.id !== sub.id));
+    setGradingAnsBySub((prev) => {
+      const next = { ...prev };
+      delete next[sub.id];
+      return next;
+    });
+    toast.success("Entrega eliminada");
+  };
+
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
@@ -479,6 +794,14 @@ function TeacherProjects() {
                         onClick={() => openAssignDialog(p)}
                       >
                         <Users className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Entregas y calificación"
+                        onClick={() => openGradingDialog(p)}
+                      >
+                        <ClipboardList className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -711,9 +1034,60 @@ function TeacherProjects() {
           <DialogHeader>
             <DialogTitle>Asignar — {assignProject?.title}</DialogTitle>
           </DialogHeader>
+
+          {/* Per-course filter chips + auto-assign-by-course */}
+          {assignProject && (assignProject.linked_course_ids ?? []).length > 0 && (
+            <div className="space-y-2 mb-2">
+              <p className="text-[11px] text-muted-foreground">
+                Filtra por curso o asigna a todos los matriculados de un curso.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(assignProject.linked_course_ids ?? []).map((cid) => {
+                  const c = courses.find((cc) => cc.id === cid);
+                  if (!c) return null;
+                  const enabled = assignFilterCourses.has(cid);
+                  const count = studentsByCourse.get(cid)?.size ?? 0;
+                  return (
+                    <div key={cid} className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssignFilterCourses((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(cid)) next.delete(cid);
+                            else next.add(cid);
+                            return next;
+                          });
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                          enabled
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {c.name} ({count})
+                      </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        title="Asignar a todos los matriculados de este curso"
+                        onClick={() => assignByCourse(cid)}
+                      >
+                        <UserPlus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-muted-foreground">
               {assigned.size} de {students.length} asignados
+              {assignFilterCourses.size > 0 &&
+                ` · ${visibleStudents.length} visibles`}
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={assignAll}>
@@ -733,12 +1107,12 @@ function TeacherProjects() {
             {!assignLoading && assignError && (
               <p className="text-sm text-destructive p-4 text-center">{assignError}</p>
             )}
-            {!assignLoading && !assignError && students.length === 0 && (
+            {!assignLoading && !assignError && visibleStudents.length === 0 && (
               <p className="text-sm text-muted-foreground p-4 text-center">
                 Sin estudiantes matriculados.
               </p>
             )}
-            {students.map((s) => (
+            {visibleStudents.map((s) => (
               <label
                 key={s.id}
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm cursor-pointer"
@@ -752,6 +1126,172 @@ function TeacherProjects() {
               </label>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grading / submissions dialog */}
+      <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Entregas — {gradingProject?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {gradingLoading && (
+            <p className="text-sm text-muted-foreground p-4 text-center">
+              <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando entregas…
+            </p>
+          )}
+          {!gradingLoading && gradingSubs.length === 0 && (
+            <p className="text-sm text-muted-foreground p-4 text-center">
+              Aún no hay entregas para este proyecto.
+            </p>
+          )}
+          {!gradingLoading && gradingSubs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score}
+              </p>
+              <Accordion type="multiple" className="w-full">
+                {gradingSubs.map((sub) => {
+                  const ans = gradingAnsBySub[sub.id] ?? [];
+                  const grade = sub.final_grade ?? sub.ai_grade;
+                  return (
+                    <AccordionItem key={sub.id} value={sub.id}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex flex-1 items-center gap-2 text-left">
+                          <span className="font-medium text-sm">
+                            {sub.profile?.full_name ?? "—"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {sub.profile?.institutional_email}
+                          </span>
+                          <Badge
+                            variant={sub.status === "calificado" ? "default" : "secondary"}
+                            className="text-[10px] ml-auto capitalize"
+                          >
+                            {sub.status}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] tabular-nums">
+                            {grade != null ? `${grade}/${gradingProject?.max_score}` : "—"}
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] text-muted-foreground">
+                              Enviado:{" "}
+                              {sub.submitted_at
+                                ? new Date(sub.submitted_at).toLocaleString()
+                                : "—"}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => deleteSubmission(sub)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar entrega
+                            </Button>
+                          </div>
+                          {gradingFiles.map((f) => {
+                            const a = ans.find((x) => x.file_id === f.id);
+                            return (
+                              <Card key={f.id}>
+                                <CardContent className="p-3 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span className="text-sm font-medium">{f.title}</span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {f.points} pts
+                                    </span>
+                                    {a?.ai_likelihood != null && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] ml-auto"
+                                      >
+                                        IA: {Math.round(Number(a.ai_likelihood) * 100)}%
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Textarea
+                                    value={a?.content ?? ""}
+                                    readOnly
+                                    rows={6}
+                                    className="font-mono text-xs"
+                                  />
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    <div>
+                                      <Label className="text-[10px]">Nota (max {f.points})</Label>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={f.points}
+                                        step={0.1}
+                                        value={a?.ai_grade ?? ""}
+                                        onChange={(e) =>
+                                          patchSubFile(sub.id, f.id, {
+                                            ai_grade:
+                                              e.target.value === ""
+                                                ? null
+                                                : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <Label className="text-[10px]">Retroalimentación</Label>
+                                      <Textarea
+                                        rows={2}
+                                        value={a?.ai_feedback ?? ""}
+                                        onChange={(e) =>
+                                          patchSubFile(sub.id, f.id, {
+                                            ai_feedback: e.target.value,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={aiRegradingId === a?.id}
+                                      onClick={() => aiRegradeSubFile(sub.id, f)}
+                                    >
+                                      {aiRegradingId === a?.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      ) : (
+                                        <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Recalificar IA
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      disabled={savingId === a?.id}
+                                      onClick={() => saveSubFileGrade(sub.id, f.id)}
+                                    >
+                                      {savingId === a?.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      ) : (
+                                        <Save className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Guardar
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
