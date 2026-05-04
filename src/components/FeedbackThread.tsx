@@ -72,25 +72,68 @@ export function FeedbackThread({
 
   const load = async () => {
     setLoading(true);
-    const { data: t } = await db
-      .from("feedback_threads")
-      .select("*")
-      .eq("parent_kind", parentKind)
-      .eq("question_id", questionId)
-      .eq("submission_id", submissionId)
-      .maybeSingle();
-    setThread((t as Thread | null) ?? null);
-    if (t) {
-      const { data: cs } = await db
+    try {
+      const { data: t, error: tErr } = await db
+        .from("feedback_threads")
+        .select("*")
+        .eq("parent_kind", parentKind)
+        .eq("question_id", questionId)
+        .eq("submission_id", submissionId)
+        .maybeSingle();
+      if (tErr) {
+        console.error("[FeedbackThread] load thread", tErr);
+        setThread(null);
+        setComments([]);
+        return;
+      }
+      setThread((t as Thread | null) ?? null);
+      if (!t) {
+        setComments([]);
+        return;
+      }
+      // No usamos un join `profile:profiles(...)` porque
+      // feedback_comments.user_id apunta a auth.users(id), no a
+      // profiles(id), y PostgREST no infiere FKs transitivas.
+      // Devolvía PGRST200 silencioso y la lista quedaba vacía.
+      // En su lugar: traer comentarios y perfiles por separado.
+      const { data: rawComments, error: cErr } = await db
         .from("feedback_comments")
-        .select("*, profile:profiles(full_name, institutional_email)")
+        .select("id, thread_id, user_id, body, created_at")
         .eq("thread_id", (t as Thread).id)
         .order("created_at", { ascending: true });
-      setComments((cs ?? []) as Comment[]);
-    } else {
-      setComments([]);
+      if (cErr) {
+        console.error("[FeedbackThread] load comments", cErr);
+        setComments([]);
+        return;
+      }
+      const list = (rawComments ?? []) as Comment[];
+      const userIds = Array.from(new Set(list.map((c) => c.user_id)));
+      let profilesById = new Map<
+        string,
+        { full_name: string | null; institutional_email: string | null }
+      >();
+      if (userIds.length > 0) {
+        const { data: profs } = await db
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", userIds);
+        profilesById = new Map(
+          ((profs ?? []) as Array<{
+            id: string;
+            full_name: string | null;
+            institutional_email: string | null;
+          }>).map((p) => [p.id, { full_name: p.full_name, institutional_email: p.institutional_email }]),
+        );
+      }
+      setComments(
+        list.map((c) => ({
+          ...c,
+          profile: profilesById.get(c.user_id) ?? null,
+        })),
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -100,6 +143,7 @@ export function FeedbackThread({
 
   const send = async () => {
     if (!body.trim() || !user) return;
+    const text = body.trim();
     setSending(true);
     try {
       let t = thread;
@@ -114,21 +158,42 @@ export function FeedbackThread({
           .select("*")
           .single();
         if (error || !data) {
+          console.error("[FeedbackThread] insert thread", error);
           toast.error(error?.message ?? "No se pudo abrir la conversación");
           return;
         }
         t = data as Thread;
         setThread(t);
       }
-      const { error } = await db
+      // Insertamos pidiendo la fila de vuelta para que la UI optimista
+      // tenga el id real y created_at del servidor — evita pintar un
+      // comentario "fantasma" si load() después se queda corto.
+      const { data: inserted, error } = await db
         .from("feedback_comments")
-        .insert({ thread_id: t.id, user_id: user.id, body: body.trim() });
-      if (error) {
-        toast.error(error.message);
+        .insert({ thread_id: t.id, user_id: user.id, body: text })
+        .select("id, thread_id, user_id, body, created_at")
+        .single();
+      if (error || !inserted) {
+        console.error("[FeedbackThread] insert comment", error);
+        toast.error(error?.message ?? "No se pudo enviar el comentario");
         return;
       }
+      // Optimistic append: aunque load() falle por algún motivo, el
+      // estudiante ve su comentario inmediatamente.
+      setComments((prev) => [
+        ...prev,
+        {
+          ...(inserted as Comment),
+          profile: {
+            full_name: user.user_metadata?.full_name ?? null,
+            institutional_email: user.email ?? null,
+          },
+        },
+      ]);
       setBody("");
-      await load();
+      // Refresca en background para tomar nombres reales desde profiles
+      // (si user_metadata.full_name está vacío) y comentarios concurrentes.
+      void load();
     } finally {
       setSending(false);
     }
