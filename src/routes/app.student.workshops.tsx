@@ -7,7 +7,7 @@
  *  - "Responder y enviar" abre el `StudentWorkshopTaker`, que muestra las
  *    preguntas (abierta / cerrada / código / diagrama) y, al enviar, llama al
  *    edge function `ai-grade-submission` por cada pregunta y consolida la
- *    nota final automáticamente.
+ *    calificación final automáticamente.
  *  - El idioma del curso se pasa al Taker para que la IA responda en el
  *    idioma configurado (default español).
  */
