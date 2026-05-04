@@ -20,6 +20,7 @@ import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileTex
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
+import { runJavaInBrowser } from "@/lib/run-java";
 import { saveAnswersLocally, isOnline, setupOfflineSync, clearLocalAnswers } from "@/lib/offline-sync";
 import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/utils/exam-time";
@@ -742,28 +743,41 @@ function TakeExam() {
     };
   }, [started, performSubmit]);
 
-  // Run code for a question
+  // Run code for a question. Java se ejecuta en el browser con CheerpJ
+  // (sin cuota, sin API externa). Python/JavaScript siguen pasando por
+  // la edge function execute-code (que usa JDoodle).
   const runCode = async (questionId: string, language: CodeLanguage) => {
-    const code = answers[questionId];
-    if (!code?.trim()) {
+    const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
+    if (!code.trim()) {
       toast.error("Escribe código antes de ejecutar");
       return;
     }
     setRunningCode((prev) => ({ ...prev, [questionId]: true }));
     try {
-      const { data, error } = await supabase.functions.invoke("execute-code", {
-        body: {
-          sourceCode: code,
-          language,
-          questionId,
-          submissionId: submissionIdRef.current,
-        },
-      });
-      if (error) throw error;
-      const output = data.stderr ? `${data.stdout}\n--- ERRORES ---\n${data.stderr}` : data.stdout;
-      setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
-    } catch (e: any) {
-      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${e.message}` }));
+      let stdout = "";
+      let stderr = "";
+      if (language === "java") {
+        const result = await runJavaInBrowser(code);
+        stdout = result.stdout;
+        stderr = result.stderr;
+      } else {
+        const { data, error } = await supabase.functions.invoke("execute-code", {
+          body: {
+            sourceCode: code,
+            language,
+            questionId,
+            submissionId: submissionIdRef.current,
+          },
+        });
+        if (error) throw error;
+        stdout = data?.stdout ?? "";
+        stderr = data?.stderr ?? "";
+      }
+      const output = stderr ? `${stdout}\n--- ERRORES ---\n${stderr}` : stdout;
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: output || "(sin salida)" }));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error ejecutando";
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
     } finally {
       setRunningCode((prev) => ({ ...prev, [questionId]: false }));
     }
