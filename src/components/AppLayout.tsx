@@ -25,6 +25,7 @@ import {
   KeyRound,
   Menu,
   FolderKanban,
+  CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -85,6 +86,12 @@ const NAV: NavItem[] = [
     to: "/app/student/grades",
     labelKey: "nav.studentGrades",
     icon: ClipboardList,
+    roles: ["Estudiante"],
+  },
+  {
+    to: "/app/student/attendance",
+    labelKey: "nav.studentAttendance",
+    icon: CalendarCheck,
     roles: ["Estudiante"],
   },
 ];
