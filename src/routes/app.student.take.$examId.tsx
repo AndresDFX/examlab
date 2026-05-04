@@ -712,9 +712,12 @@ function TakeExam() {
       recordWarning("pestaña");
     };
     const onContext = (e: Event) => e.preventDefault();
+    // Bloqueo silencioso. Las cajas de código (Monaco) además
+    // interceptan los atajos al nivel del editor — ver CodeEditor /
+    // JavaGuiRunner con blockClipboard. No emitimos toast ni
+    // advertencia: copiar/pegar/cortar simplemente no hacen nada.
     const onCopy = (e: Event) => {
       e.preventDefault();
-      toast.warning("Copiar/pegar deshabilitado");
     };
     const onSelect = (e: Event) => e.preventDefault();
     const onKeyDown = (e: KeyboardEvent) => {
@@ -841,9 +844,11 @@ function TakeExam() {
                     <li>Cambiar a otra pestaña o ventana.</li>
                     <li>Ocultar la pestaña (minimizar el navegador).</li>
                     <li>Salir del modo pantalla completa.</li>
-                    <li>Copiar, pegar o cortar contenido.</li>
-                    <li>Abrir el menú contextual (clic derecho).</li>
                   </ul>
+                </li>
+                <li>
+                  <strong>Copiar, pegar, cortar y el clic derecho</strong> están deshabilitados.
+                  No generan advertencia: simplemente no funcionan.
                 </li>
                 <li>Las respuestas se guardan automáticamente (incluso sin conexión).</li>
               </ul>
@@ -999,6 +1004,7 @@ function TakeExam() {
                       isRunning={runningCode[q.id] ?? false}
                       showLanguageSelector={false}
                       showRunButton={true}
+                      blockClipboard
                       height="250px"
                     />
                   </div>
@@ -1015,6 +1021,7 @@ function TakeExam() {
                       value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
                       onChange={(v) => updateAnswer(q.id, v)}
                       height="280px"
+                      blockClipboard
                     />
                   </div>
                 ) : (

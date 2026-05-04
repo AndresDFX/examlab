@@ -142,6 +142,8 @@ interface Props {
   onChange: (value: string) => void;
   height?: string;
   readOnly?: boolean;
+  /** Bloquea silenciosamente copiar/pegar/cortar dentro del editor. */
+  blockClipboard?: boolean;
 }
 
 export function JavaGuiRunner({
@@ -149,6 +151,7 @@ export function JavaGuiRunner({
   onChange,
   height = "320px",
   readOnly = false,
+  blockClipboard = false,
 }: Props) {
   const editorRef = useRef<any>(null);
   const displayRef = useRef<HTMLDivElement>(null);
@@ -174,9 +177,24 @@ export function JavaGuiRunner({
     return () => obs.disconnect();
   }, []);
 
-  const handleMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor;
-  }, []);
+  const handleMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      if (blockClipboard) {
+        const noop = () => {};
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, noop);
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC, noop);
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, noop);
+        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Insert, noop);
+        // Red de seguridad: clic derecho → Pegar / drag-drop / menú Edit
+        // del browser. Si algo se cuela, undo inmediato.
+        editor.onDidPaste(() => {
+          editor.trigger("anti-paste", "undo", null);
+        });
+      }
+    },
+    [blockClipboard],
+  );
 
   const run = async () => {
     setError(null);

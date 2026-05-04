@@ -26,6 +26,13 @@ interface CodeEditorProps {
   height?: string;
   showLanguageSelector?: boolean;
   showRunButton?: boolean;
+  /**
+   * Bloquea silenciosamente copiar/pegar/cortar dentro del editor.
+   * Usado en el flujo de examen — Monaco intercepta los atajos antes
+   * que el listener de documento, así que hay que deshabilitarlos
+   * a nivel del editor o se cuela el paste.
+   */
+  blockClipboard?: boolean;
 }
 
 const LANGUAGE_CONFIG: Record<
@@ -61,12 +68,31 @@ export function CodeEditor({
   height = "300px",
   showLanguageSelector = true,
   showRunButton = true,
+  blockClipboard = false,
 }: CodeEditorProps) {
   const editorRef = useRef<any>(null);
 
-  const handleMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor;
-  }, []);
+  const handleMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      if (blockClipboard) {
+        // 1) Atajos de teclado: anula la acción a nivel de Monaco.
+        const noop = () => {};
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, noop);
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC, noop);
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, noop);
+        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Insert, noop);
+        // 2) Red de seguridad: si algo se cuela (clic derecho → Pegar,
+        //    drag-drop, menú Edit del browser), undo inmediato. La
+        //    inserción ocurre y se revierte en el mismo tick — el
+        //    estudiante no logra dejarlo en el editor.
+        editor.onDidPaste(() => {
+          editor.trigger("anti-paste", "undo", null);
+        });
+      }
+    },
+    [blockClipboard],
+  );
 
   const config = LANGUAGE_CONFIG[language];
 
