@@ -185,9 +185,13 @@ function TakeExam() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    const cleanup = setupOfflineSync((count) => {
-      toast.success(`${count} respuesta(s) sincronizada(s) automáticamente`);
-    });
+    // Lanza la limpieza de IndexedDB en background. NO mostramos toast:
+    // setupOfflineSync corre tanto en un evento `online` real como al
+    // cargar la página, y en el segundo caso típicamente solo limpia
+    // estado zombie de sesiones previas — el "X respuesta(s)
+    // sincronizada(s)" confundía al estudiante porque sugería que se
+    // habían recuperado datos cuando solo se borró basura local.
+    const cleanup = setupOfflineSync();
 
     return () => {
       window.removeEventListener("online", handleOnline);
