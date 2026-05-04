@@ -207,7 +207,7 @@ function RootComponent() {
   return (
     <ConfirmProvider>
       <Outlet />
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-right" expand visibleToasts={6} />
     </ConfirmProvider>
   );
 }

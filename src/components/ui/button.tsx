@@ -40,11 +40,39 @@ export interface ButtonProps
   asChild?: boolean;
 }
 
+/**
+ * Si `onClick` devuelve una Promise, deshabilitamos el botón mientras
+ * esa Promise está pendiente para prevenir double-clicks que disparen
+ * el mismo request dos veces. Para handlers síncronos no hay cambio.
+ *
+ * Salimos del wrapping en modo `asChild` porque ahí el handler se le
+ * pasa al hijo (un Link, etc.) y el contrato no es "ejecutar este
+ * onClick" sino "delegarlo".
+ */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, onClick, disabled, ...props }, ref) => {
+    const [pending, setPending] = React.useState(false);
+    const wrappedClick = React.useCallback(
+      (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (!onClick) return;
+        const result = onClick(e) as unknown;
+        const isThenable =
+          !!result && typeof (result as { then?: unknown }).then === "function";
+        if (!isThenable) return;
+        setPending(true);
+        Promise.resolve(result as Promise<unknown>).finally(() => setPending(false));
+      },
+      [onClick],
+    );
     const Comp = asChild ? Slot : "button";
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={disabled || (!asChild && pending)}
+        onClick={asChild ? onClick : wrappedClick}
+        {...props}
+      />
     );
   },
 );
