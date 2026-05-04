@@ -82,6 +82,7 @@ type Project = {
   title: string;
   description: string | null;
   instructions: string | null;
+  external_link: string | null;
   max_files: number;
   start_date: string | null;
   due_date: string | null;
@@ -253,6 +254,7 @@ function TeacherProjects() {
       title: "",
       description: "",
       instructions: "",
+      external_link: "",
       course_id: first,
       cut_id: null,
       max_files: 3,
@@ -315,6 +317,7 @@ function TeacherProjects() {
       title: form.title,
       description: form.description ?? null,
       instructions: form.instructions ?? null,
+      external_link: form.external_link || null,
       max_files: maxFiles,
       start_date: form.start_date ? new Date(form.start_date).toISOString() : null,
       due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
@@ -864,6 +867,14 @@ function TeacherProjects() {
                 rows={4}
                 value={form.instructions ?? ""}
                 onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Link externo (opcional)</Label>
+              <Input
+                placeholder="https://..."
+                value={form.external_link ?? ""}
+                onChange={(e) => setForm({ ...form, external_link: e.target.value })}
               />
             </div>
             <div className="space-y-2">

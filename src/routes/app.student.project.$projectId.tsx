@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot, ExternalLink } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,6 +33,7 @@ type ProjectLoaded = {
   title: string;
   description: string | null;
   instructions: string | null;
+  external_link: string | null;
   due_date: string | null;
   max_files: number;
   max_score: number;
@@ -104,7 +105,7 @@ function StudentProjectDetail() {
           db
             .from("projects")
             .select(
-              "id, course_id, title, description, instructions, due_date, max_files, max_score, status",
+              "id, course_id, title, description, instructions, external_link, due_date, max_files, max_score, status",
             )
             .eq("id", projectId)
             .maybeSingle(),
@@ -278,6 +279,17 @@ function StudentProjectDetail() {
             {project.description}
           </CardContent>
         </Card>
+      )}
+
+      {project.external_link && (
+        <a
+          href={project.external_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          <ExternalLink className="h-4 w-4" /> Abrir recurso del proyecto
+        </a>
       )}
 
       {project.instructions && (
