@@ -3,7 +3,7 @@
  *
  * Refactor del flujo ZIP previo: ahora cada proyecto muestra N cajas de
  * texto (una por `project_files` row); el estudiante pega el contenido de
- * cada archivo y al enviar la IA califica caja por caja. La nota final se
+ * cada archivo y al enviar la IA califica caja por caja. La calificación final se
  * calcula sobre `max_score` del proyecto.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";

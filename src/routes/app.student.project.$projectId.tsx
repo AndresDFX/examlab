@@ -4,7 +4,7 @@
  * Espejo de la página de detalle de talleres pero con archivos en vez de
  * preguntas. Muestra:
  *  - Datos del proyecto (descripción, instrucciones).
- *  - Si la submission está `calificado`: nota global + cada archivo con
+ *  - Si la submission está `calificado`: calificación global + cada archivo con
  *    el contenido entregado, puntaje obtenido y feedback IA.
  *  - Si la submission existe pero está `entregado` (sin calificación
  *    todavía): estado pendiente.

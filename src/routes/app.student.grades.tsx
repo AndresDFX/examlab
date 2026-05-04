@@ -213,7 +213,7 @@ function StudentGrades() {
               : Promise.resolve({ data: [] as any[] }),
           ]);
 
-        // Helper: escala una nota raw (0..max) a la escala del curso.
+        // Helper: escala una calificación raw (0..max) a la escala del curso.
         const toScale = (raw: number, max: number) => {
           const pct = max > 0 ? raw / max : 0;
           return course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
@@ -301,7 +301,7 @@ function StudentGrades() {
         const breakdown: CutBreakdown[] = cuts.map((cut) => {
           const cutItems = rows.filter((r) => r.cut_id === cut.id);
 
-          // Promedios por componente (de los items con nota)
+          // Promedios por componente (de los items con calificación)
           const avg = (items: ItemRow[]): number | null => {
             const withGrade = items.filter((i) => i.grade != null);
             if (!withGrade.length) return null;
@@ -402,7 +402,7 @@ function StudentGrades() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
           <p className="text-sm text-muted-foreground">
-            Consolidado por cortes y nota final del curso
+            Consolidado por cortes y calificación final del curso
           </p>
         </div>
         {courses.length > 0 && (
@@ -464,7 +464,7 @@ function StudentGrades() {
               <CardContent className="p-4 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                    Nota final
+                    Calificación final
                   </span>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </div>
@@ -519,7 +519,7 @@ function StudentGrades() {
                   <div>
                     <CardTitle className="text-base">{cb.cut.name}</CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Peso: {cb.cut.weight}% del total · Nota:{" "}
+                      Peso: {cb.cut.weight}% del total · Calificación:{" "}
                       <span className="font-medium tabular-nums">{fmt(cb.grade)}</span>
                     </p>
                   </div>
@@ -617,7 +617,7 @@ function StudentGrades() {
               <CardHeader>
                 <CardTitle className="text-base">Sin corte asignado</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Estas actividades aún no están asociadas a un corte y no afectan tu nota final.
+                  Estas actividades aún no están asociadas a un corte y no afectan tu calificación final.
                 </p>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
@@ -652,7 +652,7 @@ function StudentGrades() {
           )}
 
           <p className="text-xs text-muted-foreground">
-            La nota del curso se calcula sumando el promedio ponderado de cada corte. Cada corte
+            La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada corte
             promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el
             docente. Componentes sin datos no penalizan: sus pesos se reparten entre los demás.
           </p>

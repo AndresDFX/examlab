@@ -962,7 +962,7 @@ function AdminCourses() {
                 <p className="text-sm font-medium">Escala de calificación</p>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-xs">Nota mínima</Label>
+                    <Label className="text-xs">Calificación mínima</Label>
                     <Input
                       type="number"
                       step="0.1"
@@ -973,7 +973,7 @@ function AdminCourses() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Nota máxima</Label>
+                    <Label className="text-xs">Calificación máxima</Label>
                     <Input
                       type="number"
                       step="0.1"

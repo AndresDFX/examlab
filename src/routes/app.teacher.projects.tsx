@@ -633,7 +633,7 @@ function TeacherProjects() {
         ),
       );
       toast.success(
-        `Guardado · nota global: ${newFinal}/${gradingProject?.max_score ?? 100}`,
+        `Guardado · calificación global: ${newFinal}/${gradingProject?.max_score ?? 100}`,
       );
     } finally {
       setSavingId(null);
@@ -1201,7 +1201,7 @@ function TeacherProjects() {
                                   />
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div>
-                                      <Label className="text-[10px]">Nota (max {f.points})</Label>
+                                      <Label className="text-[10px]">Calificación (max {f.points})</Label>
                                       <Input
                                         type="number"
                                         min={0}

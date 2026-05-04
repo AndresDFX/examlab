@@ -4,7 +4,7 @@
  * Refactor de talleres: la entrega ya no es archivo + link, sino respuestas
  * por pregunta calificadas con IA al enviar. Esta página muestra:
  *  - Datos del taller (descripción, instrucciones).
- *  - Si hay submission `calificado`: nota global + cada pregunta con la
+ *  - Si hay submission `calificado`: calificación global + cada pregunta con la
  *    respuesta del estudiante, puntaje obtenido y feedback IA.
  *  - Si la submission existe pero está `entregado` (no calificada todavía,
  *    p.ej. caso edge si el estudiante recargó antes del grading), muestra

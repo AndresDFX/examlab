@@ -659,7 +659,7 @@ function Gradebook() {
             <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
           </div>
           <div className="text-sm text-muted-foreground">
-            La nota final del curso se calcula desde los <strong>cortes evaluativos</strong>{" "}
+            La calificación final del curso se calcula desde los <strong>cortes evaluativos</strong>{" "}
             configurados (Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]). Los
             estudiantes ven el consolidado en su vista de Calificaciones.
           </div>

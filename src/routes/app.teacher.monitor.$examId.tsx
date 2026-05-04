@@ -249,7 +249,7 @@ function ExamMonitor() {
     const trimmed = overrideValue.trim();
     const numValue = trimmed === "" ? null : Number(trimmed);
     if (numValue != null && (Number.isNaN(numValue) || numValue < 0 || numValue > 5)) {
-      toast.error("La nota debe ser un número entre 0 y 5");
+      toast.error("La calificación debe ser un número entre 0 y 5");
       return;
     }
     setSavingOverride(true);
@@ -259,7 +259,7 @@ function ExamMonitor() {
       .eq("id", sub.id);
     setSavingOverride(false);
     if (error) return toast.error(error.message);
-    toast.success(numValue == null ? "Nota manual eliminada" : "Nota guardada correctamente");
+    toast.success(numValue == null ? "Calificación manual eliminada" : "Calificación guardada correctamente");
     setSubmissions((prev) =>
       prev.map((s) => (s.id === sub.id ? { ...s, final_override_grade: numValue } : s)),
     );
@@ -272,7 +272,7 @@ function ExamMonitor() {
     if (trimmed !== "") {
       numScore = Number(trimmed);
       if (Number.isNaN(numScore) || numScore < 0 || numScore > q.points) {
-        toast.error(`La nota debe estar entre 0 y ${q.points}`);
+        toast.error(`La calificación debe estar entre 0 y ${q.points}`);
         return;
       }
     }
@@ -304,7 +304,7 @@ function ExamMonitor() {
       .eq("id", sub.id);
     setSavingQid(null);
     if (error) return toast.error(error.message);
-    toast.success(numScore == null ? "Nota por pregunta eliminada" : "Nota por pregunta guardada");
+    toast.success(numScore == null ? "Calificación por pregunta eliminada" : "Calificación por pregunta guardada");
 
     setSubmissions((prev) =>
       prev.map((s) =>
@@ -384,7 +384,7 @@ function ExamMonitor() {
     const ok = await confirm({
       title: `Eliminar intento del ${new Date(sub.created_at).toLocaleString()}`,
       description:
-        "Se eliminará este intento de forma permanente. La nota efectiva del examen se recalculará según el modo de reintento.",
+        "Se eliminará este intento de forma permanente. La calificación efectiva del examen se recalculará según el modo de reintento.",
       confirmLabel: "Eliminar intento",
       tone: "destructive",
     });
@@ -458,7 +458,7 @@ function ExamMonitor() {
                 <TableHead>{t("roles.Estudiante")}</TableHead>
                 <TableHead>Intentos</TableHead>
                 <TableHead>{t("common.status")}</TableHead>
-                <TableHead>Nota efectiva</TableHead>
+                <TableHead>Calificación efectiva</TableHead>
                 <TableHead>{t("monitor.warnings")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
@@ -603,7 +603,7 @@ function ExamMonitor() {
             <div className="space-y-3">
               <div className="rounded-md border p-3 flex items-center justify-between">
                 <div className="text-sm">
-                  Nota efectiva:{" "}
+                  Calificación efectiva:{" "}
                   <span className="font-semibold">
                     {attemptsRow.effectiveGrade ?? "—"}
                   </span>
@@ -650,7 +650,7 @@ function ExamMonitor() {
                             )}
                           </div>
                           <div className="text-xs">
-                            Nota:{" "}
+                            Calificación:{" "}
                             <span className="font-medium tabular-nums">
                               {grade != null ? grade : "—"}
                             </span>{" "}
@@ -844,7 +844,7 @@ function ExamMonitor() {
                                 min={0}
                                 max={q.points}
                                 step={0.1}
-                                placeholder={`Nota manual 0-${q.points}`}
+                                placeholder={`Calificación manual 0-${q.points}`}
                                 value={qEntry.score}
                                 onChange={(e) =>
                                   setQOverrides((prev) => ({
@@ -956,7 +956,7 @@ function ExamMonitor() {
                     min={0}
                     max={5}
                     step={0.1}
-                    placeholder="Nota 0-5"
+                    placeholder="Calificación 0-5"
                     value={overrideValue}
                     onChange={(e) => setOverrideValue(e.target.value)}
                     className="w-24 h-8 text-sm"
@@ -971,7 +971,7 @@ function ExamMonitor() {
                     ) : (
                       <Save className="h-3.5 w-3.5 mr-1" />
                     )}
-                    Guardar nota
+                    Guardar calificación
                   </Button>
                 </div>
               </>

@@ -314,7 +314,7 @@ function TakeExam() {
       // Quedan intentos disponibles → mostrar pantalla de inicio
       if (finishedCount > 0) {
         toast.info(
-          `Intento ${finishedCount + 1} de ${maxAttempts}. Tu nota anterior se reemplazará por la de este intento.`,
+          `Intento ${finishedCount + 1} de ${maxAttempts}. Tu calificación anterior se reemplazará por la de este intento.`,
         );
       }
       setExam(e);

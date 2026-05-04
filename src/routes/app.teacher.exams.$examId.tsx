@@ -579,7 +579,7 @@ function ExamEditor() {
                 <Label>
                   Modo de calificación con reintentos{" "}
                   <span className="text-xs text-muted-foreground font-normal">
-                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la nota
+                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la calificación
                     final del examen cuando el estudiante presenta varios intentos.)
                   </span>
                 </Label>
@@ -591,9 +591,9 @@ function ExamEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="last">Último intento (toma la nota más reciente)</SelectItem>
+                    <SelectItem value="last">Último intento (toma la calificación más reciente)</SelectItem>
                     <SelectItem value="average">Promedio de todos los intentos</SelectItem>
-                    <SelectItem value="highest">Más alto (mejor nota entre los intentos)</SelectItem>
+                    <SelectItem value="highest">Más alto (mejor calificación entre los intentos)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

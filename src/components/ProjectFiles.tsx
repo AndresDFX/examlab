@@ -4,7 +4,7 @@
  *
  * Cada "archivo" del proyecto es realmente una pregunta (abierta, cerrada,
  * código, diagrama o Java GUI), con la misma UX y rúbrica IA que el módulo
- * de talleres. La nota final consolidada cae sobre el peso de PROYECTOS del
+ * de talleres. La calificación final consolidada cae sobre el peso de PROYECTOS del
  * curso (no sobre talleres).
  */
 import { useEffect, useRef, useState } from "react";

@@ -545,14 +545,14 @@ function TeacherWorkshops() {
         .update({ final_grade: newFinal, status: "calificado" })
         .eq("id", subId);
       if (subErr) {
-        toast.error(`Calificación guardada, pero falló recalcular nota global: ${subErr.message}`);
+        toast.error(`Calificación guardada, pero falló recalcular calificación global: ${subErr.message}`);
       } else {
         setWsSubs((prev) =>
           prev.map((s) =>
             s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
           ),
         );
-        toast.success(`Pregunta guardada · nota global: ${newFinal}/${gradingWs?.max_score ?? 100}`);
+        toast.success(`Pregunta guardada · calificación global: ${newFinal}/${gradingWs?.max_score ?? 100}`);
       }
     } finally {
       setSavingAnswerId(null);
@@ -1590,7 +1590,7 @@ function TeacherWorkshops() {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
                                   <div>
-                                    <Label className="text-[11px]">Nota IA</Label>
+                                    <Label className="text-[11px]">Calificación IA</Label>
                                     <Input
                                       type="number"
                                       min={0}
@@ -1667,11 +1667,11 @@ function TeacherWorkshops() {
                                   ),
                                 );
                                 toast.info(
-                                  `Nota global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar nota" para persistir.`,
+                                  `Calificación global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar calificación" para persistir.`,
                                 );
                               }}
                             >
-                              Recalcular nota global
+                              Recalcular calificación global
                             </Button>
                           </div>
                         </AccordionContent>
@@ -1682,7 +1682,7 @@ function TeacherWorkshops() {
                   {/* Manual grading / override */}
                   <div className="space-y-2">
                     <div>
-                      <Label className="text-xs">Nota final</Label>
+                      <Label className="text-xs">Calificación final</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1728,7 +1728,7 @@ function TeacherWorkshops() {
                           saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")
                         }
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar nota
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
                       </Button>
                       <Button
                         size="sm"
