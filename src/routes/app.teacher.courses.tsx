@@ -26,6 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { BookOpen, Users, UserPlus, Trash2, Loader2, Settings2 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/courses")({ component: TeacherCourses });
 
@@ -43,6 +44,7 @@ type Student = { id: string; full_name: string; institutional_email: string };
 
 function TeacherCourses() {
   const { user, roles } = useAuth();
+  const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Course | null>(null);
@@ -165,6 +167,14 @@ function TeacherCourses() {
 
   const removeOne = async (uid: string) => {
     if (!selected) return;
+    const student = enrolled.find((s) => s.id === uid);
+    const ok = await confirm({
+      title: `Retirar a ${student?.full_name ?? "este estudiante"}`,
+      description: "Se eliminará la matrícula del curso. Las entregas y calificaciones existentes no se borran.",
+      confirmLabel: "Retirar",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await supabase
       .from("course_enrollments")
       .delete()

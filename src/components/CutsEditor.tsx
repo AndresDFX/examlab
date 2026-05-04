@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 // grade_cuts has new sub-weight columns introduced via a migration that may
 // not be reflected in src/integrations/supabase/types.ts yet — use a loose cast.
@@ -37,6 +38,7 @@ type Cut = {
 };
 
 export function CutsEditor({ courseId }: { courseId: string }) {
+  const confirm = useConfirm();
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,13 @@ export function CutsEditor({ courseId }: { courseId: string }) {
   };
 
   const removeCut = async (id: string) => {
-    if (!window.confirm("¿Eliminar este corte? Se borrarán también sus items.")) return;
+    const ok = await confirm({
+      title: "Eliminar corte",
+      description: "Se eliminará el corte y todos sus items. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await db.from("grade_cuts").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setCuts((prev) => prev.filter((c) => c.id !== id));

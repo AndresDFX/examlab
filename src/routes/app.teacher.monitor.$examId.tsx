@@ -557,6 +557,21 @@ function ExamMonitor() {
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
+                        {row.attempts.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteAllAttempts(row)}
+                            title={
+                              row.attempts.length === 1
+                                ? "Eliminar el intento del estudiante"
+                                : `Eliminar los ${row.attempts.length} intentos del estudiante`
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

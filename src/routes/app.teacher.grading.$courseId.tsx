@@ -212,6 +212,13 @@ function GradingConfigPage() {
   };
 
   const removeItem = async (item: CutItem) => {
+    const ok = await confirm({
+      title: "Eliminar item del corte",
+      description: "Se eliminará este item del corte. La acción no se puede deshacer.",
+      confirmLabel: t("common.delete"),
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await db.from("grade_cut_items").delete().eq("id", item.id);
     if (error) return toast.error(error.message);
     setItemsByCut((prev) => ({
