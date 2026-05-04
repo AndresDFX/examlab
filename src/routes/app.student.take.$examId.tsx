@@ -50,6 +50,8 @@ type Exam = {
   end_time: string;
   course_id: string;
   schedule_type?: string | null;
+  /** Cantidad de strikes antes de marcar el intento como sospechoso. */
+  max_warnings?: number | null;
   /** Populated via join `course:courses(language)` when available. */
   course?: { language?: string | null } | null;
 };
@@ -112,6 +114,9 @@ function TakeExam() {
   // Force i18n language to the course's configured language while the student
   // is taking the exam; restored when the hook unmounts.
   useCourseLanguage(exam?.course?.language ?? null);
+  // Configuración del examen para advertencias. Si el docente no
+  // personalizó max_warnings cae al default de proctoring (3).
+  const maxWarnings = exam?.max_warnings ?? MAX_WARNINGS;
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
@@ -493,7 +498,7 @@ function TakeExam() {
             .single();
           const studentName = profile?.full_name ?? "Un estudiante";
 
-          const events = warningEventsRef.current.slice(-MAX_WARNINGS);
+          const events = warningEventsRef.current.slice(-maxWarnings);
           const eventLines = events
             .map((ev, i) => {
               const when = new Date(ev.at).toLocaleTimeString("es-CO", {
@@ -505,7 +510,7 @@ function TakeExam() {
               return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
             })
             .join("\n");
-          const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${MAX_WARNINGS} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
+          const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${maxWarnings} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
 
           const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
             _exam_id: examId,
@@ -532,7 +537,7 @@ function TakeExam() {
       toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
       navigate({ to: "/app/student/exams" });
     },
-    [navigate, examId, exam, user, questions],
+    [navigate, examId, exam, user, questions, maxWarnings],
   );
 
   const requestManualSubmit = useCallback(async () => {
@@ -655,11 +660,11 @@ function TakeExam() {
           });
       }
 
-      if (shouldMarkSuspicious(nw, MAX_WARNINGS)) {
+      if (shouldMarkSuspicious(nw, maxWarnings)) {
         toast.error("Has superado el límite de salidas. El examen se suspende.");
         performSubmit(true);
       } else {
-        toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: ${warningLabel(type)}`);
+        toast.warning(`Advertencia ${nw}/${maxWarnings}: ${warningLabel(type)}`);
       }
     };
 
@@ -681,7 +686,7 @@ function TakeExam() {
         focus_warnings: warningsToSend,
         answers: answersRef.current,
       };
-      if (shouldMarkSuspicious(warningsToSend, MAX_WARNINGS)) {
+      if (shouldMarkSuspicious(warningsToSend, maxWarnings)) {
         body.status = "sospechoso";
         body.submitted_at = new Date().toISOString();
         submittedRef.current = true;
@@ -745,7 +750,8 @@ function TakeExam() {
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("fullscreenchange", onFsChange);
     };
-  }, [started, performSubmit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started, performSubmit, maxWarnings]);
 
   // Run code for a question. Java se ejecuta en el browser con CheerpJ
   // (sin cuota, sin API externa). Python/JavaScript siguen pasando por
@@ -827,11 +833,17 @@ function TakeExam() {
                     ? "El cronómetro empieza cuando inicies el examen y solo se pausa al cerrar la ventana de disponibilidad."
                     : "El tiempo no se pausa."}
                 </li>
-                {/* <li>El examen se ejecuta en <strong>pantalla completa</strong>.</li> */}
-                <li>No puedes copiar, pegar ni hacer clic derecho.</li>
                 <li>
-                  Si sales de la pestaña <strong>{MAX_WARNINGS} veces</strong>, el examen se
-                  suspende.
+                  Cada una de estas acciones cuenta como una advertencia, y al llegar a{" "}
+                  <strong>{maxWarnings}</strong> el intento se marca como{" "}
+                  <strong>sospechoso</strong> y se entrega automáticamente:
+                  <ul className="list-disc list-inside ml-5 mt-1 space-y-0.5">
+                    <li>Cambiar a otra pestaña o ventana.</li>
+                    <li>Ocultar la pestaña (minimizar el navegador).</li>
+                    <li>Salir del modo pantalla completa.</li>
+                    <li>Copiar, pegar o cortar contenido.</li>
+                    <li>Abrir el menú contextual (clic derecho).</li>
+                  </ul>
                 </li>
                 <li>Las respuestas se guardan automáticamente (incluso sin conexión).</li>
               </ul>
@@ -857,7 +869,7 @@ function TakeExam() {
             <h2 className="text-lg font-semibold">Saliste de pantalla completa</h2>
             <p className="text-sm text-muted-foreground">
               Este examen requiere modo pantalla completa. Se registró una advertencia. Vuelve para
-              continuar; si superas {MAX_WARNINGS} advertencias el examen será marcado como
+              continuar; si superas {maxWarnings} advertencias el examen será marcado como
               sospechoso.
             </p>
             <Button className="w-full" onClick={reenterFullscreen}>
@@ -895,7 +907,7 @@ function TakeExam() {
           )}
           <Badge variant={warnings > 0 ? "destructive" : "outline"} className="text-[10px] sm:text-xs">
             <AlertTriangle className="h-3 w-3 mr-0.5 sm:mr-1" />
-            {warnings}/{MAX_WARNINGS}
+            {warnings}/{maxWarnings}
           </Badge>
           <Badge
             className={`text-[10px] sm:text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
@@ -1056,7 +1068,7 @@ function TakeExam() {
             <DialogDescription asChild>
               <div className="text-sm text-muted-foreground">
                 Retroceder cuenta como una salida no permitida y registra un{" "}
-                <strong>strike</strong>. Si acumulas {MAX_WARNINGS} strikes, el examen se marcará
+                <strong>strike</strong>. Si acumulas {maxWarnings} strikes, el examen se marcará
                 como sospechoso. ¿Deseas salir de todas formas?
               </div>
             </DialogDescription>
@@ -1087,13 +1099,13 @@ function TakeExam() {
                   answersRef.current = updatedAnswers;
                   setWarnings(nw);
                   setAnswers(updatedAnswers);
-                  toast.warning(`Advertencia ${nw}/${MAX_WARNINGS}: Salida de examen`);
+                  toast.warning(`Advertencia ${nw}/${maxWarnings}: Salida de examen`);
                   try {
                     await saveAnswersNow();
                   } catch (e) {
                     console.error("[ExamLab] leave strike save failed:", e);
                   }
-                  if (shouldMarkSuspicious(nw, MAX_WARNINGS)) {
+                  if (shouldMarkSuspicious(nw, maxWarnings)) {
                     toast.error("Has superado el límite de salidas. El examen se suspende.");
                     await performSubmit(true);
                     return;

@@ -23,6 +23,11 @@ const TOOLS_JAR_URL = "/tools.jar";
 // Solo nos referimos a window con un cast donde haga falta.
 type CheerpJWindow = Window & {
   cheerpjInit?: (opts?: { status?: string }) => Promise<void>;
+  cheerpjCreateDisplay?: (
+    width: number,
+    height: number,
+    container?: HTMLElement,
+  ) => void;
   cheerpjRunMain?: (cls: string, cp: string, ...args: string[]) => Promise<number>;
   cheerpOSAddStringFile?: (path: string, contents: Uint8Array) => void;
   cheerpjAddStringFile?: (path: string, contents: Uint8Array) => void;
@@ -30,6 +35,7 @@ type CheerpJWindow = Window & {
   __cheerpjReady?: boolean;
   __toolsJarLoading?: Promise<Uint8Array>;
   __toolsJarBytes?: Uint8Array;
+  __cheerpjConsoleDisplay?: HTMLElement;
 };
 const w = window as CheerpJWindow;
 
@@ -140,9 +146,36 @@ function ensureHiddenConsole(): HTMLPreElement {
   return el;
 }
 
+/**
+ * Aunque el código del usuario sea console-only, ciertos paths del JDK
+ * tocan AWT Toolkit (initialización estática, java.awt.Toolkit$2.run en
+ * el stack). Sin un display registrado CheerpJDisplay/CheerpJToolkit
+ * lanzan NullPointerException al instanciarse. Mantenemos un display
+ * mínimo oculto que se crea una vez por sesión.
+ */
+function ensureHiddenDisplay(): void {
+  if (w.__cheerpjConsoleDisplay) return;
+  const container = document.createElement("div");
+  Object.assign(container.style, {
+    position: "fixed",
+    left: "-9999px",
+    top: "-9999px",
+    width: "1px",
+    height: "1px",
+    overflow: "hidden",
+    pointerEvents: "none",
+  });
+  document.body.appendChild(container);
+  // 100x100 mínimo: con 1x1 algunas implementaciones de Swing/AWT
+  // tampoco arrancan. 100x100 es seguro y sigue oculto.
+  w.cheerpjCreateDisplay?.(100, 100, container);
+  w.__cheerpjConsoleDisplay = container;
+}
+
 export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutionResult> {
   const start = Date.now();
   await loadCheerpJ();
+  ensureHiddenDisplay();
 
   const consoleEl = ensureHiddenConsole();
   consoleEl.textContent = "";

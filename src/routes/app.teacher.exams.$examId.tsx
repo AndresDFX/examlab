@@ -202,6 +202,7 @@ function ExamEditor() {
         navigation_type: exam.navigation_type,
         shuffle_enabled: !!exam.shuffle_enabled,
         max_attempts: normalizedAttempts,
+        max_warnings: Math.max(1, Math.min(50, Number((exam as any).max_warnings ?? 3) || 3)),
         cut_id: (exam as any).cut_id || null,
         weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
         schedule_type: ((exam as any).schedule_type ?? "normal") as string,
@@ -497,6 +498,27 @@ function ExamEditor() {
                       <SelectItem value="secuencial">Secuencial</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label>
+                    Advertencias máximas{" "}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
+                    </span>
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={(exam as any).max_warnings ?? 3}
+                    onChange={(e) =>
+                      setExam({
+                        ...exam,
+                        max_warnings:
+                          e.target.value === "" ? 3 : Math.max(1, Math.min(50, Number(e.target.value))),
+                      } as any)
+                    }
+                  />
                 </div>
               </div>
               <div>

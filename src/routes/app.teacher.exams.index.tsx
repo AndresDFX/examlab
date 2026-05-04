@@ -181,6 +181,7 @@ function TeacherExams() {
       parent_exam_id: null,
       schedule_type: "normal",
       retry_mode: "last",
+      max_warnings: 3,
     } as any);
     setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
@@ -215,6 +216,7 @@ function TeacherExams() {
       parent_exam_id: form.parent_exam_id || null,
       schedule_type: ((form as any).schedule_type ?? "normal") as string,
       retry_mode: ((form as any).retry_mode ?? "last") as string,
+      max_warnings: Math.max(1, Math.min(50, Number((form as any).max_warnings ?? 3) || 3)),
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
     } as any;
@@ -584,6 +586,27 @@ function TeacherExams() {
               <Switch
                 checked={!!form.shuffle_enabled}
                 onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
+              />
+            </div>
+            <div>
+              <Label>
+                Advertencias máximas{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
+                </span>
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                value={(form as any).max_warnings ?? 3}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    max_warnings:
+                      e.target.value === "" ? 3 : Math.max(1, Math.min(50, Number(e.target.value))),
+                  } as any)
+                }
               />
             </div>
             <div>
