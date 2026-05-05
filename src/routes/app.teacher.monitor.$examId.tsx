@@ -52,6 +52,7 @@ import {
 } from "@/utils/exam-attempts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { FraudPanel } from "@/components/FraudPanel";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
 
@@ -601,6 +602,14 @@ function ExamMonitor() {
           </Table>
         </CardContent>
       </Card>
+
+      <FraudPanel
+        kind="exam"
+        refId={exam.id}
+        userNames={Object.fromEntries(
+          studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
+        )}
+      />
 
       {/* Dialog: lista de intentos del estudiante */}
       <Dialog

@@ -553,6 +553,13 @@ Idioma de salida: ${langName}.`,
     let totalPoints = 0;
     let earned = 0;
     const breakdown: any[] = [];
+    // Agregamos señales de IA por pregunta y consolidamos a nivel de
+    // submission. ai_detected_score = MAX de las likelihoods (peor caso),
+    // y ai_detected_reasons concatena las razones de las preguntas más
+    // sospechosas (top 3). Si solo se recalifica una pregunta puntual
+    // arrancamos del valor previo guardado para no degradar la señal.
+    let maxAiLikelihood = Number(sub.ai_detected_score) || 0;
+    const aiReasonBuckets: { qid: string; likelihood: number; reason: string }[] = [];
 
     for (const q of questions || []) {
       // If only one question is requested, skip the rest but preserve prior scores
@@ -562,6 +569,14 @@ Idioma de salida: ${langName}.`,
         if (prev) {
           earned += Number(prev.earned) || 0;
           breakdown.push(prev);
+          if (typeof prev.ai_likelihood === "number") {
+            aiReasonBuckets.push({
+              qid: q.id,
+              likelihood: prev.ai_likelihood,
+              reason: prev.ai_reasons ?? "",
+            });
+            if (prev.ai_likelihood > maxAiLikelihood) maxAiLikelihood = prev.ai_likelihood;
+          }
         } else {
           breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0 });
         }
@@ -594,7 +609,7 @@ Idioma de salida: ${langName}.`,
             messages: [
               {
                 role: "system",
-                content: `Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves un puntaje entre 0 y el máximo, y una breve justificación.
+                content: `Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves: (1) puntaje entre 0 y el máximo, (2) justificación breve, (3) probabilidad 0..1 de que la respuesta haya sido generada por IA, y (4) razones de esa estimación.
 REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${examLangName}. La retroalimentación debe estar en ${examLangName}.`,
               },
               {
@@ -607,14 +622,23 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ex
                 type: "function",
                 function: {
                   name: "score_answer",
-                  description: "Calificar respuesta",
+                  description: "Calificar respuesta y estimar si fue generada por IA",
                   parameters: {
                     type: "object",
                     properties: {
                       score: { type: "number" },
                       feedback: { type: "string" },
+                      ai_likelihood: {
+                        type: "number",
+                        description:
+                          "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
+                      },
+                      ai_reasons: {
+                        type: "string",
+                        description: "Razonamiento breve sobre la detección de IA",
+                      },
                     },
-                    required: ["score", "feedback"],
+                    required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
                   },
                 },
               },
@@ -634,8 +658,11 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ex
         }
         const aiJson = await aiRes.json();
         const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
-        const args = tc ? JSON.parse(tc.function.arguments) : { score: 0, feedback: "" };
+        const args = tc
+          ? JSON.parse(tc.function.arguments)
+          : { score: 0, feedback: "", ai_likelihood: 0, ai_reasons: "" };
         const score = Math.max(0, Math.min(Number(q.points), Number(args.score) || 0));
+        const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
         earned += score;
         breakdown.push({
           qid: q.id,
@@ -643,25 +670,60 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ex
           points: q.points,
           earned: score,
           feedback: args.feedback,
+          ai_likelihood: aiLikelihood,
+          ai_reasons: args.ai_reasons ?? "",
         });
+        aiReasonBuckets.push({
+          qid: q.id,
+          likelihood: aiLikelihood,
+          reason: args.ai_reasons ?? "",
+        });
+        if (aiLikelihood > maxAiLikelihood) maxAiLikelihood = aiLikelihood;
       }
     }
 
     const grade = totalPoints > 0 ? Number(((earned / totalPoints) * gradeScaleMax).toFixed(2)) : 0;
 
+    // Top 3 razones por likelihood. Si todas las preguntas son cerradas,
+    // el bucket queda vacío y los campos ai_* quedan en sus valores por
+    // defecto (false / null) — esa también es info útil para el docente.
+    const topReasons = aiReasonBuckets
+      .filter((b) => b.reason && b.likelihood > 0)
+      .sort((a, b) => b.likelihood - a.likelihood)
+      .slice(0, 3)
+      .map((b) => `[${b.likelihood.toFixed(2)}] ${b.reason}`)
+      .join("\n");
+    const aiDetected = maxAiLikelihood >= 0.6;
+    // Si el docente ya forzó "sospechoso" (proctoring), respetamos ese
+    // estado. Si la IA detecta fraude, también marcamos sospechoso para
+    // que entre en la cola de revisión manual.
+    const newStatus =
+      sub.status === "sospechoso" || aiDetected ? "sospechoso" : "completado";
+
     await admin
       .from("submissions")
       .update({
         ai_grade: grade,
-        status: sub.status === "sospechoso" ? "sospechoso" : "completado",
+        ai_detected: aiDetected,
+        ai_detected_score: maxAiLikelihood,
+        ai_detected_reasons: topReasons || null,
+        status: newStatus,
         submitted_at: sub.submitted_at ?? new Date().toISOString(),
         answers: { ...answers, __breakdown: breakdown },
       })
       .eq("id", submissionId);
 
-    return new Response(JSON.stringify({ ok: true, grade, breakdown }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        grade,
+        breakdown,
+        ai_detected: aiDetected,
+        ai_likelihood: maxAiLikelihood,
+        ai_reasons: topReasons,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {

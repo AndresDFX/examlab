@@ -61,6 +61,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { FraudPanel } from "@/components/FraudPanel";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -1140,6 +1141,15 @@ function TeacherProjects() {
             <p className="text-sm text-muted-foreground p-4 text-center">
               Aún no hay entregas para este proyecto.
             </p>
+          )}
+          {!gradingLoading && gradingProject && gradingSubs.length > 0 && (
+            <FraudPanel
+              kind="project"
+              refId={gradingProject.id}
+              userNames={Object.fromEntries(
+                gradingSubs.map((s) => [s.user_id, (s as any).profile?.full_name ?? "—"]),
+              )}
+            />
           )}
           {!gradingLoading && gradingSubs.length > 0 && (
             <div className="space-y-2">

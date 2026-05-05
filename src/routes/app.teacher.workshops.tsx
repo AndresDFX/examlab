@@ -56,6 +56,7 @@ import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { FraudPanel } from "@/components/FraudPanel";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
@@ -1386,6 +1387,15 @@ function TeacherWorkshops() {
               </div>
             ) : null;
           })()}
+          {gradingWs && (
+            <FraudPanel
+              kind="workshop"
+              refId={gradingWs.id}
+              userNames={Object.fromEntries(
+                wsSubs.map((s) => [s.user_id, (s as any).profile?.full_name ?? "—"]),
+              )}
+            />
+          )}
           {/* Bulk AI action */}
           {wsSubs.length > 0 && (
             <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
