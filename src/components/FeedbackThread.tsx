@@ -19,8 +19,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Lock, Unlock, Send, Loader2 } from "lucide-react";
+import { MessageSquare, Lock, Unlock, Send, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -66,11 +67,73 @@ export function FeedbackThread({
   className,
 }: Props) {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [thread, setThread] = useState<Thread | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const startEdit = (c: Comment) => {
+    setEditingId(c.id);
+    setEditingText(c.body);
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const trimmed = editingText.trim();
+    if (!trimmed) {
+      toast.error("El comentario no puede estar vacío");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const { error } = await db
+        .from("feedback_comments")
+        .update({ body: trimmed })
+        .eq("id", editingId);
+      if (error) {
+        console.error("[FeedbackThread] update comment", error);
+        toast.error(error.message ?? "No se pudo editar el comentario");
+        return;
+      }
+      setComments((prev) =>
+        prev.map((c) => (c.id === editingId ? { ...c, body: trimmed } : c)),
+      );
+      cancelEdit();
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const removeComment = async (c: Comment) => {
+    const ok = await confirm({
+      title: "Eliminar comentario",
+      description: "Se eliminará tu comentario de forma permanente.",
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    setDeletingId(c.id);
+    try {
+      const { error } = await db.from("feedback_comments").delete().eq("id", c.id);
+      if (error) {
+        console.error("[FeedbackThread] delete comment", error);
+        toast.error(error.message ?? "No se pudo eliminar el comentario");
+        return;
+      }
+      setComments((prev) => prev.filter((x) => x.id !== c.id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -341,6 +404,8 @@ export function FeedbackThread({
           {comments.map((c) => {
             const mine = c.user_id === user?.id;
             const isTeacherComment = c.author_role === "teacher";
+            const isEditing = editingId === c.id;
+            const isDeletingThis = deletingId === c.id;
             return (
               <div
                 key={c.id}
@@ -371,11 +436,87 @@ export function FeedbackThread({
                       <span className="text-muted-foreground font-normal text-[10px]">· tú</span>
                     )}
                   </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {new Date(c.created_at).toLocaleString()}
+                  <span className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(c.created_at).toLocaleString()}
+                    </span>
+                    {mine && !isEditing && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => startEdit(c)}
+                          title="Editar"
+                          disabled={isDeletingThis}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-destructive hover:text-destructive"
+                          onClick={() => removeComment(c)}
+                          title="Eliminar"
+                          disabled={isDeletingThis}
+                        >
+                          {isDeletingThis ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </>
+                    )}
                   </span>
                 </div>
-                <p className="whitespace-pre-wrap">{c.body}</p>
+                {isEditing ? (
+                  <div className="space-y-1.5">
+                    <Textarea
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      rows={2}
+                      className="text-xs min-h-[2.5rem]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          void saveEdit();
+                        }
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelEdit();
+                        }
+                      }}
+                    />
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[11px]"
+                        onClick={cancelEdit}
+                        disabled={savingEdit}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-6 text-[11px]"
+                        onClick={() => void saveEdit()}
+                        disabled={savingEdit || !editingText.trim()}
+                      >
+                        {savingEdit ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Check className="h-3 w-3 mr-1" />
+                        )}
+                        Guardar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{c.body}</p>
+                )}
               </div>
             );
           })}
