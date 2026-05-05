@@ -14,7 +14,6 @@
  *    que devolvía <input type="datetime-local">, así el resto del código
  *    no necesita cambiar parsers)
  */
-import * as React from "react";
 import { format, parse, isValid } from "date-fns";
 import { es, enUS, type Locale } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
@@ -79,8 +78,10 @@ export function DatePicker({
             className,
           )}
         >
-          <CalendarIcon className="h-4 w-4 mr-2 opacity-70" />
-          {date ? format(date, "PPP", { locale }) : placeholder}
+          <CalendarIcon className="h-4 w-4 mr-2 opacity-70 shrink-0" />
+          <span className="truncate">
+            {date ? format(date, "PP", { locale }) : placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -138,8 +139,10 @@ export function DateTimePicker({
             className,
           )}
         >
-          <CalendarIcon className="h-4 w-4 mr-2 opacity-70" />
-          {date ? `${format(date, "PPP", { locale })} · ${time}` : placeholder}
+          <CalendarIcon className="h-4 w-4 mr-2 opacity-70 shrink-0" />
+          <span className="truncate">
+            {date ? `${format(date, "PP", { locale })} · ${time}` : placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
