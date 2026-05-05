@@ -16,6 +16,8 @@
  */
 import * as React from "react";
 import { format, parse, isValid } from "date-fns";
+import { es, enUS, type Locale } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+/**
+ * Localiza date-fns y react-day-picker al idioma activo de i18n. Sin
+ * esto el botón mostraba "May 3rd, 2026" aunque la app estuviera en
+ * español. Default español si i18n no responde.
+ */
+function useDateLocale(): Locale {
+  const { i18n } = useTranslation();
+  return i18n.language?.toLowerCase().startsWith("en") ? enUS : es;
+}
 
 function parseDateOnly(s?: string | null): Date | undefined {
   if (!s) return undefined;
@@ -52,6 +64,7 @@ export function DatePicker({
   id,
 }: DatePickerProps) {
   const date = parseDateOnly(value);
+  const locale = useDateLocale();
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -67,7 +80,7 @@ export function DatePicker({
           )}
         >
           <CalendarIcon className="h-4 w-4 mr-2 opacity-70" />
-          {date ? format(date, "PPP") : placeholder}
+          {date ? format(date, "PPP", { locale }) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -76,6 +89,7 @@ export function DatePicker({
           selected={date}
           onSelect={(d) => onChange?.(formatDateOnly(d))}
           autoFocus
+          locale={locale}
         />
       </PopoverContent>
     </Popover>
@@ -99,6 +113,7 @@ export function DateTimePicker({
   const [datePart, timePart] = (value ?? "").split("T");
   const date = parseDateOnly(datePart);
   const time = (timePart ?? "").slice(0, 5) || defaultTime;
+  const locale = useDateLocale();
 
   const emit = (newDate: Date | undefined, newTime: string) => {
     if (!newDate) {
@@ -124,7 +139,7 @@ export function DateTimePicker({
           )}
         >
           <CalendarIcon className="h-4 w-4 mr-2 opacity-70" />
-          {date ? `${format(date, "PPP")} · ${time}` : placeholder}
+          {date ? `${format(date, "PPP", { locale })} · ${time}` : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -133,6 +148,7 @@ export function DateTimePicker({
           selected={date}
           onSelect={(d) => emit(d, time)}
           autoFocus
+          locale={locale}
         />
         <div className="border-t p-3 space-y-1.5">
           <Label className="text-xs">Hora</Label>

@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/lib/rbac";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -163,6 +164,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const confirm = useConfirm();
+
+  const handleSignOut = async () => {
+    const ok = await confirm({
+      title: t("nav.signOut"),
+      description: "¿Estás seguro de que quieres cerrar sesión?",
+      confirmLabel: t("nav.signOut"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    signOut();
+  };
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -249,7 +262,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           fullscreen del examen. */}
       <aside
         className={cn(
-          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen sticky top-0",
+          // self-start evita que el flex parent estire el aside a su
+          // propia altura (más alta que el viewport cuando el dashboard
+          // tiene scroll). Sin esto el footer del sidebar quedaba abajo
+          // de la página, no del viewport, y había que hacer scroll
+          // para ver "Cerrar sesión".
+          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen sticky top-0 self-start",
           sidebarCollapsed ? "hidden" : "hidden md:flex w-64",
         )}
       >
@@ -386,7 +404,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   if (isTakingExam) {
                     window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
                   } else {
-                    signOut();
+                    void handleSignOut();
                   }
                 }}
                 className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -555,7 +573,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         if (isTakingExam) {
                           window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
                         } else {
-                          signOut();
+                          void handleSignOut();
                         }
                       }}
                       className="text-sidebar-foreground/80 hover:bg-sidebar-accent ml-auto"
