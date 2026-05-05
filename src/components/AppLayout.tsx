@@ -38,6 +38,10 @@ interface NavItem {
   roles: AppRole[];
 }
 
+// Orden uniforme entre roles: Dashboard → Cursos → Exámenes → Talleres
+// → Proyectos → Calificaciones → Asistencia. Cada rol ve solo sus
+// items pero el ORDEN visible es el mismo. "Usuarios" (admin-only)
+// queda al final por ser de gestión de plataforma, no académico.
 const NAV: NavItem[] = [
   {
     to: "/app",
@@ -45,33 +49,37 @@ const NAV: NavItem[] = [
     icon: LayoutDashboard,
     roles: ["Admin", "Docente", "Estudiante"],
   },
-  { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
-  // Mismo componente (AdminCourses) montado en dos rutas distintas: el
-  // Admin entra por /app/admin/courses y el Docente por
-  // /app/teacher/courses para que la URL refleje el rol activo.
+  // Cursos
   { to: "/app/admin/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Admin"] },
   { to: "/app/teacher/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Docente"] },
-  { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
-  { to: "/app/teacher/gradebook", labelKey: "nav.grades", icon: ClipboardList, roles: ["Docente"] },
-  { to: "/app/teacher/workshops", labelKey: "nav.workshops", icon: Hammer, roles: ["Docente"] },
   {
-    to: "/app/teacher/projects",
-    labelKey: "nav.projects",
-    icon: FolderKanban,
-    roles: ["Docente"],
+    to: "/app/student/courses",
+    labelKey: "nav.studentCourses",
+    icon: BookOpen,
+    roles: ["Estudiante"],
   },
-  { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: Users, roles: ["Docente"] },
+  // Exámenes
+  { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
   {
     to: "/app/student/exams",
     labelKey: "nav.studentExams",
     icon: BookOpenCheck,
     roles: ["Estudiante"],
   },
+  // Talleres
+  { to: "/app/teacher/workshops", labelKey: "nav.workshops", icon: Hammer, roles: ["Docente"] },
   {
     to: "/app/student/workshops",
     labelKey: "nav.studentWorkshops",
     icon: Hammer,
     roles: ["Estudiante"],
+  },
+  // Proyectos
+  {
+    to: "/app/teacher/projects",
+    labelKey: "nav.projects",
+    icon: FolderKanban,
+    roles: ["Docente"],
   },
   {
     to: "/app/student/projects",
@@ -79,24 +87,24 @@ const NAV: NavItem[] = [
     icon: FolderKanban,
     roles: ["Estudiante"],
   },
-  {
-    to: "/app/student/courses",
-    labelKey: "nav.studentCourses",
-    icon: BookOpen,
-    roles: ["Estudiante"],
-  },
+  // Calificaciones
+  { to: "/app/teacher/gradebook", labelKey: "nav.grades", icon: ClipboardList, roles: ["Docente"] },
   {
     to: "/app/student/grades",
     labelKey: "nav.studentGrades",
     icon: ClipboardList,
     roles: ["Estudiante"],
   },
+  // Asistencia
+  { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: Users, roles: ["Docente"] },
   {
     to: "/app/student/attendance",
     labelKey: "nav.studentAttendance",
     icon: CalendarCheck,
     roles: ["Estudiante"],
   },
+  // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
+  { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
 ];
 
 const ROLE_CONFIG: Record<
@@ -158,10 +166,39 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Sidebar de desktop: colapsable con el botón hamburguesa o
+  // automáticamente cuando el examen entra en pantalla completa,
+  // para liberar el ancho de la pantalla durante la prueba.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const matchRoute = useMatchRoute();
   // useMatchRoute is the TanStack Router canonical way to detect an active route.
   // pathname.startsWith is unreliable in some Lovable/Vite build configurations.
   const isTakingExam = !!matchRoute({ to: "/app/student/take/$examId" });
+
+  // Auto-colapso al entrar en pantalla completa (típicamente al
+  // iniciar el examen). Si el alumno sale de fullscreen volvemos a
+  // expandir solo si NO está en flujo de examen — TakeExam vive en
+  // modo "concentrado" y queremos mantener el sidebar oculto incluso
+  // si el browser cae de fullscreen por algún motivo.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onFsChange = () => {
+      if (document.fullscreenElement) {
+        setSidebarCollapsed(true);
+      } else if (!isTakingExam) {
+        setSidebarCollapsed(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, [isTakingExam]);
+
+  // Auto-colapso cuando el alumno entra al flujo de examen, incluso
+  // si fullscreen aún no se activó (el inicio del examen lo solicita
+  // pero puede tardar unos ms).
+  useEffect(() => {
+    if (isTakingExam) setSidebarCollapsed(true);
+  }, [isTakingExam]);
 
   // Auto-close the mobile drawer on navigation so the user isn't left
   // looking at an open menu after tapping a link.
@@ -207,19 +244,36 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
-      {/* Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      {/* Sidebar (desktop). En mobile siempre va por <Sheet> abajo.
+          Colapsable manual via hamburguesa o auto al entrar en
+          fullscreen del examen. */}
+      <aside
+        className={cn(
+          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
+          sidebarCollapsed ? "hidden" : "hidden md:flex w-64",
+        )}
+      >
         <div className="px-5 py-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm">
               <GraduationCap className="h-5 w-5 text-sidebar-primary-foreground" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="font-semibold tracking-tight text-base">ExamLab</div>
               <div className="text-[10px] text-sidebar-foreground/50 tracking-wide">
                 Plataforma de exámenes
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground h-8 w-8"
+              onClick={() => setSidebarCollapsed(true)}
+              title="Ocultar menú"
+              aria-label="Ocultar menú"
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -529,6 +583,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
+
+      {/* Botón flotante para volver a mostrar el sidebar cuando está
+          colapsado (desktop). En examen lo escondemos para no romper
+          la concentración del modo prueba. */}
+      {sidebarCollapsed && !isTakingExam && (
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setSidebarCollapsed(false)}
+          className="hidden md:flex fixed top-3 left-3 z-40 h-9 w-9 bg-card shadow-sm"
+          title="Mostrar menú"
+          aria-label="Mostrar menú"
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
+      )}
 
       <main className="flex-1 min-w-0 pt-14 md:pt-0">
         {/* Page container — constrained on desktop, full-bleed with 16px
