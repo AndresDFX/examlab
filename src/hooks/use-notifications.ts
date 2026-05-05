@@ -17,16 +17,28 @@ export function useNotifications(userId: string | undefined) {
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Load notifications
+  // Load notifications. Comparamos contra el último id que ya
+  // teníamos para detectar cuando el poll trae algo nuevo y dejar
+  // un trail en consola — útil para depurar realtime caído.
+  const lastSeenIdRef = useRef<string | null>(null);
   const load = useCallback(async () => {
     if (!userId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
+    if (error) {
+      console.warn("[notifications] load error", error);
+      return;
+    }
     const items = (data ?? []) as Notification[];
+    if (items.length > 0 && items[0].id !== lastSeenIdRef.current) {
+      const fresh = lastSeenIdRef.current ? "new top notification" : "initial load";
+      console.debug(`[notifications] ${fresh}: ${items[0].title}`);
+      lastSeenIdRef.current = items[0].id;
+    }
     setNotifications(items);
     setUnreadCount(items.filter((n) => !n.read).length);
   }, [userId]);
@@ -62,13 +74,17 @@ export function useNotifications(userId: string | undefined) {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          const n = payload.new as Notification;
-          // Dedup defensivo: si el poll lo trajo antes que realtime, no
-          // duplicamos.
-          setNotifications((prev) => (prev.some((x) => x.id === n.id) ? prev : [n, ...prev]));
-          setUnreadCount((prev) => prev + (n.read ? 0 : 1));
+          console.debug("[notifications] realtime INSERT", payload?.new);
+          // Refetch completo en lugar de merge optimista. payload.new
+          // a veces no incluye todas las columnas (depende del
+          // REPLICA IDENTITY) y queremos que la lista quede idéntica
+          // a lo que devuelve la query.
+          void load();
 
+          // SW push si el tab está oculto.
+          const n = payload.new as Notification | undefined;
           if (
+            n &&
             typeof document !== "undefined" &&
             document.visibilityState === "hidden" &&
             typeof navigator !== "undefined" &&
@@ -78,14 +94,15 @@ export function useNotifications(userId: string | undefined) {
           ) {
             navigator.serviceWorker.controller.postMessage({
               type: "examlab:notify",
-              title: n.title,
-              body: n.body,
+              title: n.title ?? "Notificación",
+              body: n.body ?? "",
               link: n.link ?? "/app",
             });
           }
         },
       )
       .subscribe((status, err) => {
+        console.debug("[notifications] realtime status", status, err ?? "");
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || err) {
           console.warn("[notifications] realtime subscribe", status, err);
         }
@@ -112,15 +129,17 @@ export function useNotifications(userId: string | undefined) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [userId, load]);
 
-  // Polling cada 30 s mientras el tab está visible. Garantiza que las
-  // notificaciones aparezcan aunque realtime esté caído.
+  // Polling cada 15 s mientras el tab está visible. Garantiza que las
+  // notificaciones aparezcan aunque realtime esté caído. Bajamos de
+  // 30 s a 15 s porque en pruebas con un solo usuario es notorio
+  // el delay; el costo de un GET cada 15 s es trivial.
   useEffect(() => {
     if (!userId) return;
     const id = setInterval(() => {
       if (typeof document === "undefined" || document.visibilityState === "visible") {
         void load();
       }
-    }, 30_000);
+    }, 15_000);
     return () => clearInterval(id);
   }, [userId, load]);
 
