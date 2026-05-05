@@ -68,22 +68,24 @@ begin
     return 0;
   end if;
 
+  -- Nota: NO filtramos auth.uid() <> destinatario. En producción real
+  -- estudiante y docente son usuarios distintos y no auto-recibirían
+  -- nada, pero se está usando esta app también en pruebas con un solo
+  -- usuario que tiene los dos roles, y filtrar dejaría las pruebas sin
+  -- ninguna notificación. El costo en prod es nulo.
   if _event = 'comment' then
     if _actor_role = 'student' then
-      -- Estudiante comentó → notificar a los docentes del curso.
       _title := 'Nuevo comentario del estudiante';
       _body := 'Un estudiante respondió a la retroalimentación de una pregunta.';
       insert into public.notifications (user_id, title, body, kind, link)
       select ct.user_id, _title, _body, 'feedback', _teacher_link
       from public.course_teachers ct
-      where ct.course_id = _course_id
-        and ct.user_id <> auth.uid();
+      where ct.course_id = _course_id;
       get diagnostics _count = row_count;
     else
-      -- Docente comentó → notificar al estudiante (dueño del submission).
       _title := 'Nuevo comentario del docente';
       _body := 'El docente respondió a tu retroalimentación.';
-      if _student_id is not null and _student_id <> auth.uid() then
+      if _student_id is not null then
         insert into public.notifications (user_id, title, body, kind, link)
         values (_student_id, _title, _body, 'feedback', _student_link);
         _count := 1;
@@ -92,7 +94,7 @@ begin
   elsif _event = 'closed' then
     _title := 'Conversación cerrada';
     _body := 'El docente cerró la conversación de retroalimentación.';
-    if _student_id is not null and _student_id <> auth.uid() then
+    if _student_id is not null then
       insert into public.notifications (user_id, title, body, kind, link)
       values (_student_id, _title, _body, 'feedback', _student_link);
       _count := 1;
@@ -100,7 +102,7 @@ begin
   elsif _event = 'reopened' then
     _title := 'Conversación reabierta';
     _body := 'El docente reabrió la conversación de retroalimentación.';
-    if _student_id is not null and _student_id <> auth.uid() then
+    if _student_id is not null then
       insert into public.notifications (user_id, title, body, kind, link)
       values (_student_id, _title, _body, 'feedback', _student_link);
       _count := 1;

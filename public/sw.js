@@ -15,7 +15,7 @@
  *  - Cache name v3 invalida las versiones anteriores en `activate`.
  */
 
-const CACHE_NAME = "examlab-v4";
+const CACHE_NAME = "examlab-v5";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -34,6 +34,30 @@ self.addEventListener("activate", (event) => {
       .then((names) =>
         Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))),
       )
+      .then(async () => {
+        // Limpieza defensiva: cualquier entrada de leaningtech que
+        // haya quedado de una versión anterior del SW (cuando aún se
+        // cacheaban los JARs gigantes) reproduce ERR_CACHE_OPERATION_NOT_SUPPORTED
+        // al hacer range requests. Si quedó algo, lo borramos del
+        // caché vigente.
+        try {
+          const cache = await caches.open(CACHE_NAME);
+          const reqs = await cache.keys();
+          await Promise.all(
+            reqs
+              .filter((r) => {
+                try {
+                  return new URL(r.url).hostname.includes("leaningtech.com");
+                } catch {
+                  return false;
+                }
+              })
+              .map((r) => cache.delete(r)),
+          );
+        } catch (_) {
+          /* silent */
+        }
+      })
       .then(() => self.clients.claim()),
   );
 });
