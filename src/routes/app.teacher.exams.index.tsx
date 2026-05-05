@@ -511,15 +511,15 @@ function TeacherExams() {
                 </Label>
                 <Input
                   type="number"
+                  min={1}
                   value={form.time_limit_minutes || ""}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value),
+                      time_limit_minutes:
+                        e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
                     })
                   }
-                  disabled
-                  className="bg-muted/50"
                 />
               </div>
               <div>

@@ -470,18 +470,23 @@ function ExamEditor() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Duración (min)</Label>
+                  <Label>
+                    Duración (min){" "}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (se calcula automáticamente, pero puedes editarla)
+                    </span>
+                  </Label>
                   <Input
                     type="number"
+                    min={1}
                     value={exam.time_limit_minutes || ""}
                     onChange={(e) =>
                       setExam({
                         ...exam,
-                        time_limit_minutes: e.target.value === "" ? 0 : Number(e.target.value),
+                        time_limit_minutes:
+                          e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
                       })
                     }
-                    disabled
-                    className="bg-muted/50"
                   />
                 </div>
                 <div>
