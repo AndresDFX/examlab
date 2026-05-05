@@ -53,7 +53,7 @@ const TOOLS_JAR_URL = "/tools.jar";
 function loadToolsJar(): Promise<Uint8Array> {
   if (window.__toolsJarBytes) return Promise.resolve(window.__toolsJarBytes);
   if (window.__toolsJarLoading) return window.__toolsJarLoading;
-  window.__toolsJarLoading = (async () => {
+  const p = (async () => {
     const r = await fetch(TOOLS_JAR_URL);
     if (!r.ok) throw new Error(`No se pudo descargar tools.jar (${r.status})`);
     const buf = await r.arrayBuffer();
@@ -61,7 +61,12 @@ function loadToolsJar(): Promise<Uint8Array> {
     window.__toolsJarBytes = bytes;
     return bytes;
   })();
-  return window.__toolsJarLoading;
+  // Si falla, no envenenar el cache: el próximo click reintenta.
+  p.catch(() => {
+    if (window.__toolsJarLoading === p) window.__toolsJarLoading = undefined;
+  });
+  window.__toolsJarLoading = p;
+  return p;
 }
 
 const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/4.3/loader.js";
@@ -97,7 +102,7 @@ function loadCheerpJ(): Promise<void> {
   if (window.__cheerpjReady) return Promise.resolve();
   if (window.__cheerpjLoading) return window.__cheerpjLoading;
 
-  window.__cheerpjLoading = new Promise<void>((resolve, reject) => {
+  const p = new Promise<void>((resolve, reject) => {
     const ready = async () => {
       try {
         if (typeof window.cheerpjInit !== "function") {
@@ -128,7 +133,13 @@ function loadCheerpJ(): Promise<void> {
     s.onerror = () => reject(new Error("No se pudo cargar CheerpJ"));
     document.head.appendChild(s);
   });
-  return window.__cheerpjLoading;
+  // No envenenar el cache si la primera carga falla: el siguiente
+  // click reintenta sin necesidad de recargar la página.
+  p.catch(() => {
+    if (window.__cheerpjLoading === p) window.__cheerpjLoading = undefined;
+  });
+  window.__cheerpjLoading = p;
+  return p;
 }
 
 /** Extrae el nombre de la clase pública del fuente; por defecto Main. */
@@ -156,6 +167,13 @@ export function JavaGuiRunner({
   const editorRef = useRef<any>(null);
   const displayRef = useRef<HTMLDivElement>(null);
   const consoleRef = useRef<HTMLPreElement>(null);
+  // Tracking de "ya cree el display CheerpJ para este contenedor". Antes
+  // recreábamos el display en cada run lo que iba dejando estado interno
+  // acumulado en CheerpJ y agregando ~500ms-1s a cada re-ejecución (el
+  // 4to run era visiblemente más lento que el 1ro). El display vive
+  // mientras el modal exista — si el usuario cierra y reabre, re-crear
+  // está bien porque el contenedor se recicla.
+  const displayCreatedRef = useRef(false);
   const [loadingCJ, setLoadingCJ] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,24 +229,40 @@ export function JavaGuiRunner({
       consoleRef.current.id = "console";
       consoleRef.current.innerHTML = "";
 
-      displayRef.current.innerHTML = "";
-      const rect = displayRef.current.getBoundingClientRect();
-      const w = Math.max(360, Math.floor(rect.width) || 720);
-      const h = Math.max(280, Math.floor(rect.height) || 480);
-      window.cheerpjCreateDisplay?.(w, h, displayRef.current);
+      // Solo creamos el display la primera vez en este mount. Recrear
+      // en cada click duplicaba canvases internos de CheerpJ y volvía
+      // cada re-ejecución más lenta. Si ya existe, los frames Swing
+      // viejos se limpian solos cuando el nuevo Main hace setVisible.
+      if (!displayCreatedRef.current) {
+        const rect = displayRef.current.getBoundingClientRect();
+        const w = Math.max(360, Math.floor(rect.width) || 720);
+        const h = Math.max(280, Math.floor(rect.height) || 480);
+        window.cheerpjCreateDisplay?.(w, h, displayRef.current);
+        displayCreatedRef.current = true;
+      }
 
       const source = valueRef.current || JAVA_GUI_STARTER;
       const className = deriveMainClass(source);
       const sourcePath = `/str/${className}.java`;
       const enc = new TextEncoder();
+      // Si CheerpJ no expone ninguna de estas APIs, antes seguíamos
+      // adelante en silencio y la compilación fallaba con un error
+      // críptico tipo "class not found" — el alumno no entendía por
+      // qué nada funcionaba. Mejor un mensaje claro arriba.
       const addFile = window.cheerpOSAddStringFile ?? window.cheerpjAddStringFile;
-      addFile?.(sourcePath, enc.encode(source));
+      if (typeof addFile !== "function") {
+        throw new Error("CheerpJ no expone AddStringFile (carga incompleta)");
+      }
+      if (typeof window.cheerpjRunMain !== "function") {
+        throw new Error("CheerpJ no expone runMain (carga incompleta)");
+      }
+      addFile(sourcePath, enc.encode(source));
 
       const toolsBytes = await loadToolsJar();
-      addFile?.("/str/tools.jar", toolsBytes);
+      addFile("/str/tools.jar", toolsBytes);
 
       const classPath = "/str/tools.jar:/files/";
-      const compileExit = await window.cheerpjRunMain?.(
+      const compileExit = await window.cheerpjRunMain(
         "com.sun.tools.javac.Main",
         classPath,
         sourcePath,
@@ -240,7 +274,20 @@ export function JavaGuiRunner({
           `Errores de compilación (revisa la consola). Asegúrate que la clase pública se llame ${className} y el código compile.`,
         );
       }
-      await window.cheerpjRunMain?.(className, classPath);
+      // Antes ignorábamos el exit code del run: si la JVM lanzaba una
+      // excepción no capturada en main (NullPointerException, etc.),
+      // el modal se mostraba sin Swing visible y sin mensaje de error,
+      // dejando al alumno pensando que "no ejecuta". Capturamos y
+      // surface en pantalla.
+      const runExit = await window.cheerpjRunMain(className, classPath);
+      if (runExit !== 0) {
+        const runtimeLog = consoleRef.current?.textContent ?? "";
+        throw new Error(
+          runtimeLog.trim()
+            ? `Excepción en ejecución (exit ${runExit}). Revisa la consola.`
+            : `La JVM terminó con exit ${runExit} sin mensaje. ¿Tu main se ejecuta hasta el final?`,
+        );
+      }
       setHasRun(true);
     } catch (e: unknown) {
       console.error("[JavaGuiRunner]", e);
@@ -254,6 +301,12 @@ export function JavaGuiRunner({
   useEffect(() => {
     if (dialogOpen) {
       void run();
+    } else {
+      // Al cerrar el modal, shadcn desmonta el DialogContent, por lo
+      // que el displayRef.current actual deja de existir. La próxima
+      // apertura tendrá un contenedor nuevo y necesita un createDisplay
+      // fresco — sin este reset, intentaríamos reusar un canvas huérfano.
+      displayCreatedRef.current = false;
     }
   }, [dialogOpen]);
 

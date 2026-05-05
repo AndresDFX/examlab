@@ -44,7 +44,7 @@ function loadCheerpJ(): Promise<void> {
   if (w.__cheerpjReady) return Promise.resolve();
   if (w.__cheerpjLoading) return w.__cheerpjLoading;
 
-  w.__cheerpjLoading = new Promise<void>((resolve, reject) => {
+  const p = new Promise<void>((resolve, reject) => {
     const ready = async () => {
       try {
         if (typeof w.cheerpjInit !== "function") {
@@ -77,13 +77,21 @@ function loadCheerpJ(): Promise<void> {
     s.onerror = () => reject(new Error("No se pudo cargar CheerpJ"));
     document.head.appendChild(s);
   });
-  return w.__cheerpjLoading;
+  // Si la carga falla (CDN caído, AdBlock bloqueando, red intermitente),
+  // limpiamos el cache para que el siguiente intento reintente desde
+  // cero. Sin esto, una falla transitoria deja al alumno sin poder
+  // ejecutar nada hasta que recargue la página completa.
+  p.catch(() => {
+    if (w.__cheerpjLoading === p) w.__cheerpjLoading = undefined;
+  });
+  w.__cheerpjLoading = p;
+  return p;
 }
 
 function loadToolsJar(): Promise<Uint8Array> {
   if (w.__toolsJarBytes) return Promise.resolve(w.__toolsJarBytes);
   if (w.__toolsJarLoading) return w.__toolsJarLoading;
-  w.__toolsJarLoading = (async () => {
+  const p = (async () => {
     const r = await fetch(TOOLS_JAR_URL);
     if (!r.ok) throw new Error(`No se pudo descargar tools.jar (${r.status})`);
     const buf = await r.arrayBuffer();
@@ -91,7 +99,13 @@ function loadToolsJar(): Promise<Uint8Array> {
     w.__toolsJarBytes = bytes;
     return bytes;
   })();
-  return w.__toolsJarLoading;
+  // Misma idea que loadCheerpJ: una falla transitoria no debe envenenar
+  // el cache para el resto de la sesión.
+  p.catch(() => {
+    if (w.__toolsJarLoading === p) w.__toolsJarLoading = undefined;
+  });
+  w.__toolsJarLoading = p;
+  return p;
 }
 
 function deriveMainClass(source: string): string {
@@ -105,6 +119,47 @@ export interface JavaExecutionResult {
   exitCode: number;
   executionTimeMs: number;
 }
+
+/**
+ * Espera a que el DOM aplique los writes pendientes a textContent.
+ * CheerpJ escribe a `<pre id="console">` durante la ejecución mediante
+ * múltiples eventos del runtime; aunque `cheerpjRunMain` ya resolvió,
+ * los últimos chunks pueden quedar en cola del scheduler. Sin esto, a
+ * veces leemos textContent vacío y el alumno ve "(sin salida)" cuando
+ * sí imprimió algo.
+ */
+function flushDom(): Promise<void> {
+  return new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+}
+
+/**
+ * Carrera entre el promise de ejecución y un timeout. Para bucles
+ * infinitos en código de alumno: sin esto el botón "Ejecutar" queda
+ * deshabilitado para siempre y el único recurso es recargar.
+ *
+ * Limitación: NO matamos la JVM. CheerpJ no expone una API para
+ * cancelar; el thread sigue ejecutándose en el web worker hasta que
+ * salga del bucle o el navegador lo mate por unresponsive. Pero al
+ * menos liberamos el UI y el alumno puede editar y reintentar.
+ */
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Tiempo de ejecución excedido (${ms / 1000}s). ¿Bucle infinito?`)),
+      ms,
+    );
+  });
+  try {
+    return (await Promise.race([p, timeoutPromise])) as T;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+const DEFAULT_RUN_TIMEOUT_MS = 30_000;
 
 /**
  * Toma el control del id="console" temporalmente. Devuelve una función
@@ -186,7 +241,12 @@ export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutio
     const sourcePath = `/str/${className}.java`;
     const enc = new TextEncoder();
     const addFile = w.cheerpOSAddStringFile ?? w.cheerpjAddStringFile;
-    if (!addFile) throw new Error("CheerpJ AddStringFile no disponible");
+    if (typeof addFile !== "function") {
+      throw new Error("CheerpJ no expone AddStringFile (carga incompleta)");
+    }
+    if (typeof w.cheerpjRunMain !== "function") {
+      throw new Error("CheerpJ no expone runMain (carga incompleta)");
+    }
     addFile(sourcePath, enc.encode(sourceCode));
 
     const toolsBytes = await loadToolsJar();
@@ -194,14 +254,20 @@ export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutio
 
     const classPath = "/str/tools.jar:/files/";
 
-    // Compilar
-    const compileExit = await w.cheerpjRunMain?.(
-      "com.sun.tools.javac.Main",
-      classPath,
-      sourcePath,
-      "-d",
-      "/files/",
+    // Compilar — con timeout. javac suele tardar <2s pero la primera
+    // vez (warm-up de la JVM + class loading) puede ir a 5-10s. 30s
+    // es holgado y aún detecta cuelgues reales.
+    const compileExit = await withTimeout(
+      w.cheerpjRunMain(
+        "com.sun.tools.javac.Main",
+        classPath,
+        sourcePath,
+        "-d",
+        "/files/",
+      ),
+      DEFAULT_RUN_TIMEOUT_MS,
     );
+    await flushDom();
     if (compileExit !== 0) {
       const compileLog = consoleEl.textContent ?? "";
       return {
@@ -215,7 +281,11 @@ export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutio
     // Reset buffer entre compilación y ejecución para que stderr sea solo runtime
     consoleEl.textContent = "";
 
-    const runExit = await w.cheerpjRunMain?.(className, classPath);
+    const runExit = await withTimeout(
+      w.cheerpjRunMain(className, classPath),
+      DEFAULT_RUN_TIMEOUT_MS,
+    );
+    await flushDom();
     const runtimeLog = consoleEl.textContent ?? "";
 
     if (runExit === 0) {
