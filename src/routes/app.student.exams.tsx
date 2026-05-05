@@ -58,10 +58,14 @@ function StudentExams() {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, is_external, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
-      const exams = (asg ?? []).map((a: any) => a.exam).filter(Boolean);
+      // Filtramos los externos: el estudiante no debería verlos en
+      // su lista de exámenes — la nota llega por gradebook directamente.
+      const exams = (asg ?? [])
+        .map((a: any) => a.exam)
+        .filter((e: any) => Boolean(e) && !e.is_external);
       const assignedIds = exams.map((e: any) => e.id);
       let makeupRows: { id: string; parent_exam_id: string | null }[] = [];
       if (assignedIds.length) {

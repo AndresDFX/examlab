@@ -77,11 +77,15 @@ function StudentWorkshops() {
     const { data: asg } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, course:courses(name, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid);
 
-    const workshops = (asg ?? []).map((a: any) => a.workshop).filter(Boolean);
+    // Externos no se listan: solo se registran notas, el estudiante
+    // ve la calificación directo en gradebook.
+    const workshops = (asg ?? [])
+      .map((a: any) => a.workshop)
+      .filter((w: any) => Boolean(w) && !w.is_external);
     const ids = workshops.map((w: any) => w.id);
 
     const { data: subs } = ids.length

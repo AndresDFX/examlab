@@ -38,6 +38,7 @@ import {
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
+import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -116,7 +117,7 @@ function ExamEditor() {
   const load = async () => {
     const { data: e } = await supabase
       .from("exams")
-      .select("*, course:courses(max_exam_attempts)")
+      .select("*, course:courses(max_exam_attempts, grade_scale_max)")
       .eq("id", examId)
       .single();
     setExam(e);
@@ -394,18 +395,36 @@ function ExamEditor() {
         <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{exam.title}</h1>
       </div>
 
-      <Tabs defaultValue="config">
+      <Tabs defaultValue={(exam as any).is_external ? "external-grades" : "config"}>
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="config">Configuración</TabsTrigger>
-          <TabsTrigger value="questions">Preguntas ({questions.length})</TabsTrigger>
+          {!(exam as any).is_external && (
+            <TabsTrigger value="questions">Preguntas ({questions.length})</TabsTrigger>
+          )}
           <TabsTrigger value="assignments">
             Asignaciones ({assigned.size}/{students.length})
           </TabsTrigger>
-          <TabsTrigger value="notes" className="gap-1">
-            <FileText className="h-3.5 w-3.5" />
-            Notas de apoyo
-          </TabsTrigger>
+          {(exam as any).is_external && (
+            <TabsTrigger value="external-grades">Notas externas</TabsTrigger>
+          )}
+          {!(exam as any).is_external && (
+            <TabsTrigger value="notes" className="gap-1">
+              <FileText className="h-3.5 w-3.5" />
+              Notas de apoyo
+            </TabsTrigger>
+          )}
         </TabsList>
+
+        {(exam as any).is_external && (
+          <TabsContent value="external-grades">
+            <ExternalGradesEditor
+              kind="exam"
+              refId={exam.id}
+              courseId={exam.course_id}
+              maxScore={Number((exam as any).course?.grade_scale_max ?? 5) || 5}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="config">
           <Card>

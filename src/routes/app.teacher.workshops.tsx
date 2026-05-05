@@ -31,6 +31,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { toast } from "sonner";
 import {
   Plus,
@@ -269,6 +271,7 @@ function TeacherWorkshops() {
       return;
     }
 
+    const isExternal = !!(form as any).is_external;
     const basePayload = {
       title: form.title,
       description: form.description ?? null,
@@ -279,10 +282,11 @@ function TeacherWorkshops() {
         : null,
       due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
       max_score: Number(form.max_score) || 100,
-      status: form.status ?? "draft",
+      status: isExternal ? "closed" : (form.status ?? "draft"),
       rubric: form.rubric ?? null,
       created_by: user.id,
       cut_id: form.cut_id || null,
+      is_external: isExternal,
     };
 
     if (form.id) {
@@ -1004,6 +1008,24 @@ function TeacherWorkshops() {
             <DialogTitle>{form.id ? "Editar" : "Nuevo"} taller</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+              <div className="space-y-0.5">
+                <Label htmlFor="ws-is-external" className="text-sm">
+                  Actividad externa (presencial)
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Un taller que ya ocurrió fuera de la plataforma. Solo registras
+                  notas para el cálculo del corte.
+                </p>
+              </div>
+              <Switch
+                id="ws-is-external"
+                checked={!!(form as any).is_external}
+                onCheckedChange={(v) =>
+                  setForm({ ...form, is_external: v } as any)
+                }
+              />
+            </div>
             <div>
               <Label required>Título</Label>
               <Input
@@ -1387,7 +1409,15 @@ function TeacherWorkshops() {
               </div>
             ) : null;
           })()}
-          {gradingWs && (
+          {gradingWs && (gradingWs as any).is_external && (
+            <ExternalGradesEditor
+              kind="workshop"
+              refId={gradingWs.id}
+              courseId={gradingWs.course_id}
+              maxScore={Number(gradingWs.max_score) || 100}
+            />
+          )}
+          {gradingWs && !(gradingWs as any).is_external && (
             <FraudPanel
               kind="workshop"
               refId={gradingWs.id}
@@ -1397,7 +1427,7 @@ function TeacherWorkshops() {
             />
           )}
           {/* Bulk AI action */}
-          {wsSubs.length > 0 && (
+          {!(gradingWs as any)?.is_external && wsSubs.length > 0 && (
             <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
               <div>
                 <p className="text-sm font-medium">Calificar con IA</p>
@@ -1417,10 +1447,11 @@ function TeacherWorkshops() {
             </div>
           )}
           <div className="space-y-3">
-            {wsSubs.length === 0 && (
+            {!(gradingWs as any)?.is_external && wsSubs.length === 0 && (
               <p className="text-sm text-muted-foreground">No hay entregas aún.</p>
             )}
-            {wsSubs.map((sub) => (
+            {!(gradingWs as any)?.is_external &&
+              wsSubs.map((sub) => (
               <Card
                 key={sub.id}
                 className={

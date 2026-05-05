@@ -204,21 +204,43 @@ function TeacherExams() {
       toast.error(t("exam.completeFields"));
       return;
     }
+    const isExternal = !!(form as any).is_external;
+    if (isExternal && !form.start_time) {
+      toast.error("Indica la fecha de la actividad");
+      return;
+    }
     const courseIds = [...selectedCourseIds];
+    // Para externos: las columnas NOT NULL de start/end/duration igual
+    // hay que llenarlas; usamos la fecha del parcial para todo y duration=1.
+    // Así el examen no se puede tomar (ventana de 0 segundos) pero sigue
+    // siendo un row válido al que el docente le carga notas manualmente.
+    const startIso = isExternal
+      ? new Date(form.start_time!).toISOString()
+      : new Date(form.start_time!).toISOString();
+    const endIso = isExternal
+      ? new Date(form.start_time!).toISOString()
+      : new Date(form.end_time!).toISOString();
     const basePayload = {
       title: form.title,
       description: form.description ?? null,
-      start_time: new Date(form.start_time!).toISOString(),
-      end_time: new Date(form.end_time!).toISOString(),
-      time_limit_minutes: Number(form.time_limit_minutes) || 60,
-      navigation_type: form.navigation_type ?? "libre",
-      shuffle_enabled: !!form.shuffle_enabled,
+      start_time: startIso,
+      end_time: endIso,
+      time_limit_minutes: isExternal ? 1 : Number(form.time_limit_minutes) || 60,
+      navigation_type: isExternal ? "libre" : form.navigation_type ?? "libre",
+      shuffle_enabled: !isExternal && !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
-      schedule_type: ((form as any).schedule_type ?? "normal") as string,
-      retry_mode: ((form as any).retry_mode ?? "last") as string,
-      max_warnings: Math.max(1, Math.min(50, Number((form as any).max_warnings ?? 3) || 3)),
+      schedule_type: isExternal
+        ? "normal"
+        : (((form as any).schedule_type ?? "normal") as string),
+      retry_mode: isExternal
+        ? "last"
+        : (((form as any).retry_mode ?? "last") as string),
+      max_warnings: isExternal
+        ? 1
+        : Math.max(1, Math.min(50, Number((form as any).max_warnings ?? 3) || 3)),
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
+      is_external: isExternal,
     } as any;
 
     // Create one exam per selected course
@@ -415,6 +437,31 @@ function TeacherExams() {
             <DialogTitle>{t("exam.newExam")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {/*
+             * Toggle de actividad externa: cuando se activa, el examen
+             * no es para tomarlo en línea — es solo registro de notas
+             * de un parcial presencial. Escondemos los campos que no
+             * aplican (duración, navegación, proctoring, padre) y la
+             * fecha de fin (la actividad ya pasó, fecha = un instante).
+             */}
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+              <div className="space-y-0.5">
+                <Label htmlFor="is-external" className="text-sm">
+                  Actividad externa (presencial)
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Un parcial que ya ocurrió fuera de la plataforma. Solo registras
+                  notas para el cálculo del corte.
+                </p>
+              </div>
+              <Switch
+                id="is-external"
+                checked={!!(form as any).is_external}
+                onCheckedChange={(v) =>
+                  setForm({ ...form, is_external: v } as any)
+                }
+              />
+            </div>
             <div>
               <Label required>{t("common.title")}</Label>
               <Input
@@ -461,7 +508,9 @@ function TeacherExams() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label required>{t("common.start")}</Label>
+                <Label required>
+                  {(form as any).is_external ? "Fecha del parcial" : t("common.start")}
+                </Label>
                 <DateTimePicker
                   value={form.start_time as string}
                   onChange={(start) => {
@@ -485,25 +534,28 @@ function TeacherExams() {
                   }}
                 />
               </div>
-              <div>
-                <Label required>{t("common.end")}</Label>
-                <DateTimePicker
-                  value={form.end_time as string}
-                  onChange={(end) => {
-                    const diffMin = form.start_time
-                      ? Math.max(
-                          1,
-                          Math.round(
-                            (new Date(end).getTime() - new Date(form.start_time!).getTime()) /
-                              60000,
-                          ),
-                        )
-                      : form.time_limit_minutes;
-                    setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
-                  }}
-                />
-              </div>
+              {!(form as any).is_external && (
+                <div>
+                  <Label required>{t("common.end")}</Label>
+                  <DateTimePicker
+                    value={form.end_time as string}
+                    onChange={(end) => {
+                      const diffMin = form.start_time
+                        ? Math.max(
+                            1,
+                            Math.round(
+                              (new Date(end).getTime() - new Date(form.start_time!).getTime()) /
+                                60000,
+                            ),
+                          )
+                        : form.time_limit_minutes;
+                      setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
+                    }}
+                  />
+                </div>
+              )}
             </div>
+            {!(form as any).is_external && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label required>
@@ -538,6 +590,8 @@ function TeacherExams() {
                 </Select>
               </div>
             </div>
+            )}
+            {!(form as any).is_external && (
             <div>
               <Label>
                 Tipo de programación{" "}
@@ -560,6 +614,8 @@ function TeacherExams() {
                 </SelectContent>
               </Select>
             </div>
+            )}
+            {!(form as any).is_external && (
             <div>
               <Label>
                 Modo de calificación con reintentos{" "}
@@ -581,6 +637,8 @@ function TeacherExams() {
                 </SelectContent>
               </Select>
             </div>
+            )}
+            {!(form as any).is_external && (
             <div className="flex items-center justify-between">
               <Label>{t("exam.shuffle")}</Label>
               <Switch
@@ -588,6 +646,8 @@ function TeacherExams() {
                 onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
               />
             </div>
+            )}
+            {!(form as any).is_external && (
             <div>
               <Label>
                 Advertencias máximas{" "}
@@ -609,6 +669,7 @@ function TeacherExams() {
                 }
               />
             </div>
+            )}
             <div>
               <Label>
                 Corte de evaluación{" "}
@@ -648,27 +709,31 @@ function TeacherExams() {
                 </p>
               )}
             </div>
-            <div>
-              <Label>{t("exam.parentExam")}</Label>
-              <Select
-                value={form.parent_exam_id ?? "none"}
-                onValueChange={(v) => setForm({ ...form, parent_exam_id: v === "none" ? null : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("exam.originalExam")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("common.none")}</SelectItem>
-                  {exams
-                    .filter((e) => !e.parent_exam_id && e.course_id === form.course_id)
-                    .map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.title}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!(form as any).is_external && (
+              <div>
+                <Label>{t("exam.parentExam")}</Label>
+                <Select
+                  value={form.parent_exam_id ?? "none"}
+                  onValueChange={(v) =>
+                    setForm({ ...form, parent_exam_id: v === "none" ? null : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("exam.originalExam")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("common.none")}</SelectItem>
+                    {exams
+                      .filter((e) => !e.parent_exam_id && e.course_id === form.course_id)
+                      .map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
