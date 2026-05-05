@@ -456,6 +456,7 @@ export type Database = {
           description: string | null
           end_time: string
           id: string
+          is_external: boolean
           max_attempts: number | null
           navigation_type: string
           parent_exam_id: string | null
@@ -476,6 +477,7 @@ export type Database = {
           description?: string | null
           end_time: string
           id?: string
+          is_external?: boolean
           max_attempts?: number | null
           navigation_type?: string
           parent_exam_id?: string | null
@@ -496,6 +498,7 @@ export type Database = {
           description?: string | null
           end_time?: string
           id?: string
+          is_external?: boolean
           max_attempts?: number | null
           navigation_type?: string
           parent_exam_id?: string | null
@@ -531,6 +534,74 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feedback_comments: {
+        Row: {
+          author_role: string
+          body: string
+          created_at: string
+          id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          author_role?: string
+          body: string
+          created_at?: string
+          id?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          author_role?: string
+          body?: string
+          created_at?: string
+          id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_comments_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_threads: {
+        Row: {
+          closed: boolean
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          id: string
+          parent_kind: string
+          question_id: string
+          submission_id: string
+        }
+        Insert: {
+          closed?: boolean
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          parent_kind: string
+          question_id: string
+          submission_id: string
+        }
+        Update: {
+          closed?: boolean
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          parent_kind?: string
+          question_id?: string
+          submission_id?: string
+        }
+        Relationships: []
       }
       grade_cut_items: {
         Row: {
@@ -1030,6 +1101,7 @@ export type Database = {
           cut_id: string | null
           description: string | null
           due_date: string | null
+          external_link: string | null
           id: string
           instructions: string | null
           max_files: number
@@ -1048,6 +1120,7 @@ export type Database = {
           cut_id?: string | null
           description?: string | null
           due_date?: string | null
+          external_link?: string | null
           id?: string
           instructions?: string | null
           max_files?: number
@@ -1066,6 +1139,7 @@ export type Database = {
           cut_id?: string | null
           description?: string | null
           due_date?: string | null
+          external_link?: string | null
           id?: string
           instructions?: string | null
           max_files?: number
@@ -1076,7 +1150,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       questions: {
         Row: {
@@ -1130,6 +1212,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      similarity_pairs: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          method: string
+          question_id: string | null
+          reasons: string | null
+          ref_id: string
+          score: number
+          submission_a: string
+          submission_b: string
+          user_a: string
+          user_b: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          method?: string
+          question_id?: string | null
+          reasons?: string | null
+          ref_id: string
+          score: number
+          submission_a: string
+          submission_b: string
+          user_a: string
+          user_b: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          method?: string
+          question_id?: string | null
+          reasons?: string | null
+          ref_id?: string
+          score?: number
+          submission_a?: string
+          submission_b?: string
+          user_a?: string
+          user_b?: string
+        }
+        Relationships: []
       }
       submissions: {
         Row: {
@@ -1419,6 +1546,7 @@ export type Database = {
           external_link: string | null
           id: string
           instructions: string | null
+          is_external: boolean
           max_score: number
           rubric: Json | null
           start_date: string | null
@@ -1437,6 +1565,7 @@ export type Database = {
           external_link?: string | null
           id?: string
           instructions?: string | null
+          is_external?: boolean
           max_score?: number
           rubric?: Json | null
           start_date?: string | null
@@ -1455,6 +1584,7 @@ export type Database = {
           external_link?: string | null
           id?: string
           instructions?: string | null
+          is_external?: boolean
           max_score?: number
           rubric?: Json | null
           start_date?: string | null
@@ -1491,6 +1621,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_question_course_teacher: {
+        Args: { p_kind: string; p_question_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_submission_owner: {
+        Args: { p_kind: string; p_submission_id: string; p_user_id: string }
+        Returns: boolean
+      }
       notify_course_students: {
         Args: {
           _body: string
@@ -1508,6 +1646,10 @@ export type Database = {
           _link?: string
           _title: string
         }
+        Returns: number
+      }
+      notify_feedback_event: {
+        Args: { _actor_role: string; _event: string; _thread_id: string }
         Returns: number
       }
       notify_students_course_closing: {
