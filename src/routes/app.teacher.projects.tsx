@@ -248,6 +248,21 @@ function TeacherProjects() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher]);
 
+  // Deep-link desde notificación: ?id=PROJECT_ID&student=USER_ID
+  // → abrir el grading dialog del proyecto. Solo una vez al cargar.
+  const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
+  useEffect(() => {
+    if (autoOpenedFromUrl || projects.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (idParam) {
+      const p = projects.find((pr) => pr.id === idParam);
+      if (p) void openGradingDialog(p);
+    }
+    setAutoOpenedFromUrl(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, autoOpenedFromUrl]);
+
   const openNew = () => {
     setEditing(null);
     const first = courses[0]?.id;

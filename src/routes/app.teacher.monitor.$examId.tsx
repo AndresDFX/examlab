@@ -105,6 +105,11 @@ function ExamMonitor() {
   const [aiGradingQid, setAiGradingQid] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [attemptsForUser, setAttemptsForUser] = useState<string | null>(null);
+  // Una sola vez al cargar: si la URL trae ?student=USER_ID (link de
+  // notificación de feedback), abrimos el modal de intentos de ese
+  // estudiante en cuanto haya datos. Sin esto el docente caía en el
+  // grid genérico y tenía que buscar al estudiante a mano.
+  const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
   const [overrideValue, setOverrideValue] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
   const [qOverrides, setQOverrides] = useState<Record<string, { score: string; feedback: string }>>(
@@ -154,6 +159,20 @@ function ExamMonitor() {
       .order("position", { ascending: true });
     setQuestions((data ?? []) as Question[]);
   }, [examId]);
+
+  // Deep-link desde notificación: ?student=USER_ID → abrir el modal
+  // de intentos de ese estudiante. Solo se intenta una vez; espera
+  // a tener al menos un submission cargado para no saltar a un
+  // estudiante sin datos.
+  useEffect(() => {
+    if (autoOpenedFromUrl || submissions.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const studentParam = params.get("student");
+    if (studentParam) {
+      setAttemptsForUser(studentParam);
+    }
+    setAutoOpenedFromUrl(true);
+  }, [submissions, autoOpenedFromUrl]);
 
   useEffect(() => {
     load();

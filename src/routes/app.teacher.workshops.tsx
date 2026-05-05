@@ -212,6 +212,21 @@ function TeacherWorkshops() {
     load();
   }, []);
 
+  // Deep-link desde notificación: ?id=WORKSHOP_ID&student=USER_ID
+  // → abrir el grading dialog del taller. Solo una vez al cargar.
+  const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
+  useEffect(() => {
+    if (autoOpenedFromUrl || workshops.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (idParam) {
+      const ws = workshops.find((w) => w.id === idParam);
+      if (ws) void openGrading(ws as Workshop);
+    }
+    setAutoOpenedFromUrl(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workshops, autoOpenedFromUrl]);
+
   const openNew = () => {
     const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     setForm({
