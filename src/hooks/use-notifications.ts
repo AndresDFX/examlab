@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface Notification {
   id: string;
@@ -81,10 +82,31 @@ export function useNotifications(userId: string | undefined) {
           // a lo que devuelve la query.
           void load();
 
-          // SW push si el tab está oculto.
           const n = payload.new as Notification | undefined;
+          if (!n) return;
+
+          // Toast in-app cuando el tab está visible: el usuario ve
+          // de inmediato que llegó algo nuevo, sin tener que mirar
+          // la campana. Click → navega al link de la notificación.
+          if (typeof document !== "undefined" && document.visibilityState === "visible") {
+            toast(n.title ?? "Notificación nueva", {
+              description: n.body ?? undefined,
+              action: n.link
+                ? {
+                    label: "Ver",
+                    onClick: () => {
+                      if (typeof window !== "undefined" && n.link) {
+                        window.location.href = n.link;
+                      }
+                    },
+                  }
+                : undefined,
+              duration: 6000,
+            });
+          }
+
+          // Push del SW si el tab está oculto.
           if (
-            n &&
             typeof document !== "undefined" &&
             document.visibilityState === "hidden" &&
             typeof navigator !== "undefined" &&

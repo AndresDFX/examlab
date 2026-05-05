@@ -63,7 +63,7 @@ const NAV: NavItem[] = [
   {
     to: "/app/student/exams",
     labelKey: "nav.studentExams",
-    icon: BookOpenCheck,
+    icon: FileText,
     roles: ["Estudiante"],
   },
   // Talleres
@@ -96,7 +96,7 @@ const NAV: NavItem[] = [
     roles: ["Estudiante"],
   },
   // Asistencia
-  { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: Users, roles: ["Docente"] },
+  { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: CalendarCheck, roles: ["Docente"] },
   {
     to: "/app/student/attendance",
     labelKey: "nav.studentAttendance",
@@ -249,25 +249,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           fullscreen del examen. */}
       <aside
         className={cn(
-          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
+          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen sticky top-0",
           sidebarCollapsed ? "hidden" : "hidden md:flex w-64",
         )}
       >
-        <div className="px-5 py-5 border-b border-sidebar-border">
+        <div className="px-4 py-3 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm">
-              <GraduationCap className="h-5 w-5 text-sidebar-primary-foreground" />
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm shrink-0">
+              <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold tracking-tight text-base">ExamLab</div>
-              <div className="text-[10px] text-sidebar-foreground/50 tracking-wide">
+              <div className="font-semibold tracking-tight text-sm">ExamLab</div>
+              <div className="text-[10px] text-sidebar-foreground/50 tracking-wide truncate">
                 Plataforma de exámenes
               </div>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground h-8 w-8"
+              className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground h-7 w-7 shrink-0"
               onClick={() => setSidebarCollapsed(true)}
               title="Ocultar menú"
               aria-label="Ocultar menú"
@@ -318,7 +318,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           )
         )}
 
-        <nav className="flex-1 px-3 py-3 space-y-0.5">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5">
           {visibleNav.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -357,10 +357,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-3 border-t border-sidebar-border">
-          <div className="px-2 py-2 mb-1.5">
-            <div className="text-sm font-medium truncate">{profile?.full_name ?? user.email}</div>
-            <div className="text-xs text-sidebar-foreground/60 truncate">
+        <div className="p-2.5 border-t border-sidebar-border">
+          <div className="px-2 pt-1 pb-1.5">
+            <div className="text-xs font-medium truncate">{profile?.full_name ?? user.email}</div>
+            <div className="text-[10px] text-sidebar-foreground/60 truncate">
               {profile?.institutional_email}
             </div>
           </div>
