@@ -44,6 +44,8 @@ type Comment = {
   user_id: string;
   body: string;
   created_at: string;
+  /** 'student' | 'teacher' — rol con el que se escribió el comentario. */
+  author_role?: string | null;
   profile?: { full_name: string | null; institutional_email: string | null } | null;
 };
 
@@ -98,7 +100,7 @@ export function FeedbackThread({
       // En su lugar: traer comentarios y perfiles por separado.
       const { data: rawComments, error: cErr } = await db
         .from("feedback_comments")
-        .select("id, thread_id, user_id, body, created_at")
+        .select("id, thread_id, user_id, body, created_at, author_role")
         .eq("thread_id", (t as Thread).id)
         .order("created_at", { ascending: true });
       if (cErr) {
@@ -170,8 +172,13 @@ export function FeedbackThread({
       // comentario "fantasma" si load() después se queda corto.
       const { data: inserted, error } = await db
         .from("feedback_comments")
-        .insert({ thread_id: t.id, user_id: user.id, body: text })
-        .select("id, thread_id, user_id, body, created_at")
+        .insert({
+          thread_id: t.id,
+          user_id: user.id,
+          body: text,
+          author_role: isTeacher ? "teacher" : "student",
+        })
+        .select("id, thread_id, user_id, body, created_at, author_role")
         .single();
       if (error || !inserted) {
         console.error("[FeedbackThread] insert comment", error);
@@ -184,6 +191,7 @@ export function FeedbackThread({
         ...prev,
         {
           ...(inserted as Comment),
+          author_role: isTeacher ? "teacher" : "student",
           profile: {
             full_name: user.user_metadata?.full_name ?? null,
             institutional_email: user.email ?? null,
@@ -259,19 +267,35 @@ export function FeedbackThread({
         <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
           {comments.map((c) => {
             const mine = c.user_id === user?.id;
+            const isTeacherComment = c.author_role === "teacher";
             return (
               <div
                 key={c.id}
                 className={
                   "text-xs rounded-md border p-2 " +
-                  (mine ? "bg-primary/5 border-primary/20" : "bg-background")
+                  (isTeacherComment
+                    ? "bg-amber-500/5 border-amber-500/30"
+                    : mine
+                      ? "bg-primary/5 border-primary/20"
+                      : "bg-background")
                 }
               >
                 <div className="flex items-center justify-between mb-1 gap-2">
-                  <span className="font-medium truncate">
+                  <span className="font-medium truncate flex items-center gap-1.5">
                     {c.profile?.full_name ?? "Usuario"}
+                    <Badge
+                      variant="outline"
+                      className={
+                        "text-[9px] px-1 py-0 h-auto " +
+                        (isTeacherComment
+                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                          : "bg-primary/10 text-primary border-primary/30")
+                      }
+                    >
+                      {isTeacherComment ? "Docente" : "Estudiante"}
+                    </Badge>
                     {mine && (
-                      <span className="text-muted-foreground font-normal"> · tú</span>
+                      <span className="text-muted-foreground font-normal text-[10px]">· tú</span>
                     )}
                   </span>
                   <span className="text-[10px] text-muted-foreground shrink-0">
