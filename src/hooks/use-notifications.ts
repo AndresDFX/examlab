@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -34,6 +35,7 @@ export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const navigate = useNavigate();
 
   // Tracking del último id visto. Cuando load() detecta un id nuevo
   // arriba, dispara el toast — eso permite que el toast se vea tanto
@@ -77,8 +79,20 @@ export function useNotifications(userId: string | undefined) {
           action: n.link
             ? {
                 label: "Ver",
+                // navigate({ to: "/path?q=v" }) no parsea la query string —
+                // TanStack Router trata el `to` como path literal, así que
+                // ?student=X se pierde y el modal no se abre. Hay que
+                // separar pathname y search explícitamente.
                 onClick: () => {
-                  if (typeof window !== "undefined" && n.link) {
+                  if (!n.link) return;
+                  try {
+                    const url = new URL(n.link, window.location.origin);
+                    const search: Record<string, string> = {};
+                    url.searchParams.forEach((v, k) => {
+                      search[k] = v;
+                    });
+                    navigate({ to: url.pathname, search });
+                  } catch {
                     window.location.href = n.link;
                   }
                 },
@@ -89,7 +103,7 @@ export function useNotifications(userId: string | undefined) {
     }
     setNotifications(items);
     setUnreadCount(items.filter((n) => !n.read).length);
-  }, [userId]);
+  }, [userId, navigate]);
 
   useEffect(() => {
     load();
