@@ -81,7 +81,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Nueva contraseña</Label>
+            <Label required>Nueva contraseña</Label>
             <div className="relative mt-1">
               <Input
                 type={showNew ? "text" : "password"}
@@ -100,7 +100,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             </div>
           </div>
           <div>
-            <Label>Confirmar contraseña</Label>
+            <Label required>Confirmar contraseña</Label>
             <Input
               type="password"
               value={confirmPassword}

@@ -411,7 +411,7 @@ function ExamEditor() {
           <Card>
             <CardContent className="p-5 space-y-3">
               <div>
-                <Label>Título</Label>
+                <Label required>Título</Label>
                 <Input
                   value={exam.title}
                   onChange={(e) => setExam({ ...exam, title: e.target.value })}
@@ -426,7 +426,7 @@ function ExamEditor() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Inicio</Label>
+                  <Label required>Inicio</Label>
                   <DateTimePicker
                     value={toLocal(exam.start_time)}
                     onChange={(start) => {
@@ -450,7 +450,7 @@ function ExamEditor() {
                   />
                 </div>
                 <div>
-                  <Label>Fin</Label>
+                  <Label required>Fin</Label>
                   <DateTimePicker
                     value={toLocal(exam.end_time)}
                     onChange={(end) => {
@@ -730,7 +730,7 @@ function ExamEditor() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <Label>Temas</Label>
+                <Label required>Temas</Label>
                 <Textarea
                   placeholder="Ej: arrays, recursividad, complejidad..."
                   value={aiTopics}
@@ -739,7 +739,7 @@ function ExamEditor() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Cantidad</Label>
+                  <Label required>Cantidad</Label>
                   <Input
                     type="number"
                     min={1}
@@ -749,7 +749,7 @@ function ExamEditor() {
                   />
                 </div>
                 <div>
-                  <Label>Tipo</Label>
+                  <Label required>Tipo</Label>
                   <Select value={aiType} onValueChange={setAiType}>
                     <SelectTrigger>
                       <SelectValue />
@@ -766,7 +766,7 @@ function ExamEditor() {
               </div>
               {aiType === "codigo" && (
                 <div>
-                  <Label>Lenguaje</Label>
+                  <Label required>Lenguaje</Label>
                   <Select value={aiLanguage} onValueChange={setAiLanguage}>
                     <SelectTrigger>
                       <SelectValue />
@@ -799,7 +799,7 @@ function ExamEditor() {
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Tipo</Label>
+                  <Label required>Tipo</Label>
                   <Select value={qType} onValueChange={setQType}>
                     <SelectTrigger>
                       <SelectValue />
@@ -814,7 +814,7 @@ function ExamEditor() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Puntos</Label>
+                  <Label required>Puntos</Label>
                   <Input
                     type="number"
                     value={qPoints || ""}
@@ -823,12 +823,12 @@ function ExamEditor() {
                 </div>
               </div>
               <div>
-                <Label>Enunciado</Label>
+                <Label required>Enunciado</Label>
                 <Textarea value={qContent} onChange={(e) => setQContent(e.target.value)} />
               </div>
               {qType === "codigo" && (
                 <div>
-                  <Label>Lenguaje</Label>
+                  <Label required>Lenguaje</Label>
                   <Select value={qLanguage} onValueChange={setQLanguage}>
                     <SelectTrigger>
                       <SelectValue />
@@ -843,7 +843,7 @@ function ExamEditor() {
               )}
               {qType !== "cerrada" && (
                 <div>
-                  <Label>Rúbrica esperada *</Label>
+                  <Label required>Rúbrica esperada</Label>
                   <Textarea
                     placeholder="Criterios para una respuesta correcta…"
                     value={qRubric}
@@ -853,7 +853,7 @@ function ExamEditor() {
               )}
               {qType === "cerrada" && (
                 <div className="space-y-2">
-                  <Label>Opciones (marca la correcta)</Label>
+                  <Label required>Opciones (marca la correcta)</Label>
                   {qChoices.map((c, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <input

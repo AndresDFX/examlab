@@ -330,7 +330,7 @@ export function TeacherWorkshopQuestionsEditor({
         <TabsContent value="manual" className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label>Tipo</Label>
+              <Label required>Tipo</Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -345,7 +345,7 @@ export function TeacherWorkshopQuestionsEditor({
               </Select>
             </div>
             <div>
-              <Label>Puntos</Label>
+              <Label required>Puntos</Label>
               <Input
                 type="number"
                 min={0}
@@ -355,7 +355,7 @@ export function TeacherWorkshopQuestionsEditor({
             </div>
           </div>
           <div>
-            <Label>Enunciado</Label>
+            <Label required>Enunciado</Label>
             <Textarea
               value={qContent}
               onChange={(e) => setQContent(e.target.value)}
@@ -365,7 +365,7 @@ export function TeacherWorkshopQuestionsEditor({
           </div>
           {qType === "cerrada" && (
             <div className="space-y-2">
-              <Label>Opciones (marca la correcta)</Label>
+              <Label required>Opciones (marca la correcta)</Label>
               {qChoices.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input
@@ -387,7 +387,7 @@ export function TeacherWorkshopQuestionsEditor({
           )}
           {qType === "codigo" && (
             <div>
-              <Label>Lenguaje</Label>
+              <Label required>Lenguaje</Label>
               <Select value={qLanguage} onValueChange={setQLanguage}>
                 <SelectTrigger>
                   <SelectValue />
@@ -401,7 +401,7 @@ export function TeacherWorkshopQuestionsEditor({
             </div>
           )}
           <div>
-            <Label>Rúbrica esperada (para IA)</Label>
+            <Label required>Rúbrica esperada (para IA)</Label>
             <Textarea
               value={qRubric}
               onChange={(e) => setQRubric(e.target.value)}
@@ -437,7 +437,7 @@ export function TeacherWorkshopQuestionsEditor({
 
         <TabsContent value="ai" className="space-y-3">
           <div>
-            <Label>Temas</Label>
+            <Label required>Temas</Label>
             <Textarea
               value={aiTopics}
               onChange={(e) => setAiTopics(e.target.value)}
@@ -447,7 +447,7 @@ export function TeacherWorkshopQuestionsEditor({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <Label>Tipo</Label>
+              <Label required>Tipo</Label>
               <Select value={aiType} onValueChange={(v) => setAiType(v as any)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -462,7 +462,7 @@ export function TeacherWorkshopQuestionsEditor({
               </Select>
             </div>
             <div>
-              <Label>Cantidad</Label>
+              <Label required>Cantidad</Label>
               <Input
                 type="number"
                 min={1}
@@ -473,7 +473,7 @@ export function TeacherWorkshopQuestionsEditor({
             </div>
             {aiType === "codigo" && (
               <div>
-                <Label>Lenguaje</Label>
+                <Label required>Lenguaje</Label>
                 <Select value={aiLanguage} onValueChange={setAiLanguage}>
                   <SelectTrigger>
                     <SelectValue />

@@ -927,7 +927,7 @@ export function AdminCourses() {
           {editing && (
             <div className="space-y-3">
               <div>
-                <Label>Nombre</Label>
+                <Label required>Nombre</Label>
                 <Input
                   value={editing.name ?? ""}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
@@ -935,7 +935,7 @@ export function AdminCourses() {
                 />
               </div>
               <div>
-                <Label>Periodo</Label>
+                <Label required>Periodo</Label>
                 <Input
                   value={editing.period ?? ""}
                   onChange={(e) => setEditing({ ...editing, period: e.target.value })}
@@ -944,14 +944,14 @@ export function AdminCourses() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Fecha inicio</Label>
+                  <Label required>Fecha inicio</Label>
                   <DatePicker
                     value={toDateInput(editing.start_date) ?? ""}
                     onChange={(v) => setEditing({ ...editing, start_date: v || null })}
                   />
                 </div>
                 <div>
-                  <Label>Fecha fin</Label>
+                  <Label required>Fecha fin</Label>
                   <DatePicker
                     value={toDateInput(editing.end_date) ?? ""}
                     onChange={(v) => setEditing({ ...editing, end_date: v || null })}
@@ -1389,11 +1389,11 @@ export function AdminCourses() {
                 seleccionada.
               </p>
               <div>
-                <Label>Nombre del nuevo curso</Label>
+                <Label required>Nombre del nuevo curso</Label>
                 <Input value={dupName} onChange={(e) => setDupName(e.target.value)} />
               </div>
               <div>
-                <Label>Periodo</Label>
+                <Label required>Periodo</Label>
                 <Input
                   value={dupPeriod}
                   onChange={(e) => setDupPeriod(e.target.value)}

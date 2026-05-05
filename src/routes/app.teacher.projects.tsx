@@ -864,7 +864,7 @@ function TeacherProjects() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Título</Label>
+              <Label required>Título</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -895,7 +895,7 @@ function TeacherProjects() {
               />
             </div>
             <div className="space-y-2">
-              <Label>{t("nav.courses")} (puedes seleccionar varios)</Label>
+              <Label required>{t("nav.courses")} (puedes seleccionar varios)</Label>
               <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
                 {courses.length === 0 && (
                   <p className="text-xs text-muted-foreground">Sin cursos disponibles</p>
@@ -965,7 +965,7 @@ function TeacherProjects() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Número de archivos</Label>
+                <Label required>Número de archivos</Label>
                 <Input
                   type="number"
                   min={1}
@@ -984,7 +984,7 @@ function TeacherProjects() {
                 </p>
               </div>
               <div>
-                <Label>Puntaje máximo</Label>
+                <Label required>Puntaje máximo</Label>
                 <Input
                   type="number"
                   min={1}
@@ -1000,14 +1000,14 @@ function TeacherProjects() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>{t("common.startDate")}</Label>
+                <Label required>{t("common.startDate")}</Label>
                 <DateTimePicker
                   value={form.start_date ? toLocal(form.start_date) : ""}
                   onChange={(v) => setForm({ ...form, start_date: v })}
                 />
               </div>
               <div>
-                <Label>{t("common.endDate")}</Label>
+                <Label required>{t("common.endDate")}</Label>
                 <DateTimePicker
                   value={form.due_date ? toLocal(form.due_date) : ""}
                   onChange={(v) => setForm({ ...form, due_date: v })}

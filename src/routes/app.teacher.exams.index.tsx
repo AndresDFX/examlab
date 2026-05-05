@@ -416,7 +416,7 @@ function TeacherExams() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>{t("common.title")}</Label>
+              <Label required>{t("common.title")}</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -430,7 +430,7 @@ function TeacherExams() {
               />
             </div>
             <div>
-              <Label>
+              <Label required>
                 {t("nav.courses")}{" "}
                 <span className="text-xs text-muted-foreground font-normal">
                   {t("exam.selectCourses")}
@@ -461,7 +461,7 @@ function TeacherExams() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label>{t("common.start")}</Label>
+                <Label required>{t("common.start")}</Label>
                 <DateTimePicker
                   value={form.start_time as string}
                   onChange={(start) => {
@@ -486,7 +486,7 @@ function TeacherExams() {
                 />
               </div>
               <div>
-                <Label>{t("common.end")}</Label>
+                <Label required>{t("common.end")}</Label>
                 <DateTimePicker
                   value={form.end_time as string}
                   onChange={(end) => {
@@ -506,7 +506,7 @@ function TeacherExams() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label>
+                <Label required>
                   {t("common.duration")} ({t("common.min")})
                 </Label>
                 <Input

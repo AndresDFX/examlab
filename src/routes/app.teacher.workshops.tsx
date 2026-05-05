@@ -1005,14 +1005,14 @@ function TeacherWorkshops() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Título</Label>
+              <Label required>Título</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
             <div>
-              <Label>
+              <Label required>
                 Cursos{" "}
                 <span className="text-xs text-muted-foreground font-normal">
                   {form.id ? "" : "(selecciona uno o más)"}
@@ -1160,7 +1160,7 @@ function TeacherWorkshops() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label>Puntaje máximo</Label>
+                <Label required>Puntaje máximo</Label>
                 <Input
                   type="number"
                   value={form.max_score || ""}

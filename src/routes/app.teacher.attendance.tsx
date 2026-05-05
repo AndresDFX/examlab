@@ -561,7 +561,7 @@ function TeacherAttendance() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Fecha</Label>
+              <Label required>Fecha</Label>
               <DatePicker value={newDate} onChange={setNewDate} />
             </div>
             <div>

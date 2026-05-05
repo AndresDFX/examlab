@@ -471,14 +471,14 @@ function AdminUsers() {
           {editing && (
             <div className="space-y-3">
               <div>
-                <Label>Nombre completo</Label>
+                <Label required>Nombre completo</Label>
                 <Input
                   value={editing.full_name}
                   onChange={(e) => setEditing({ ...editing, full_name: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Email institucional</Label>
+                <Label required>Email institucional</Label>
                 <Input
                   type="email"
                   value={editing.institutional_email}
@@ -495,7 +495,7 @@ function AdminUsers() {
               </div>
               {!editing.id && (
                 <div>
-                  <Label>Contraseña inicial</Label>
+                  <Label required>Contraseña inicial</Label>
                   <Input
                     type="text"
                     value={password}
@@ -524,7 +524,9 @@ function AdminUsers() {
                 </div>
               )}
               <div>
-                <Label className="mb-2 block">Roles</Label>
+                <Label className="mb-2 block" required>
+                  Roles
+                </Label>
                 <div className="space-y-1.5">
                   {ALL_ROLES.map((role) => (
                     <label key={role} className="flex items-center gap-2 text-sm">

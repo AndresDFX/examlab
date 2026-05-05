@@ -109,7 +109,9 @@ function AuthPage() {
           <CardContent>
             <form onSubmit={onLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="li-email">{t("auth.institutionalEmail")}</Label>
+                <Label htmlFor="li-email" required>
+                  {t("auth.institutionalEmail")}
+                </Label>
                 <Input
                   id="li-email"
                   type="email"
@@ -121,7 +123,9 @@ function AuthPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="li-pass">{t("auth.password")}</Label>
+                <Label htmlFor="li-pass" required>
+                  {t("auth.password")}
+                </Label>
                 <Input
                   id="li-pass"
                   type="password"
