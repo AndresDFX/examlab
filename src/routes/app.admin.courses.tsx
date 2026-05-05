@@ -91,7 +91,7 @@ function toDateInput(value: string | null | undefined): string {
 }
 type Profile = { id: string; full_name: string; institutional_email: string };
 
-function AdminCourses() {
+export function AdminCourses() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
