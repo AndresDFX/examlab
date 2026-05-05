@@ -2,6 +2,23 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Dedup global de toasts: useNotifications está siendo invocado en
+// 3 lugares simultáneos (NotificationBell sidebar, NotificationBell
+// header mobile, dashboard que también lee la lista). Cada hook tiene
+// su propio lastSeenIdRef, así que sin un Set compartido el mismo id
+// genera 1 toast por instancia (3 toasts iguales). Este Set vive a
+// nivel de módulo y es leído/escrito por todas las instancias del
+// hook. Lo recortamos al pasar 100 ids para no acumular memoria.
+const TOASTED_NOTIFICATION_IDS = new Set<string>();
+function rememberToastedId(id: string) {
+  TOASTED_NOTIFICATION_IDS.add(id);
+  if (TOASTED_NOTIFICATION_IDS.size > 100) {
+    const arr = Array.from(TOASTED_NOTIFICATION_IDS);
+    TOASTED_NOTIFICATION_IDS.clear();
+    arr.slice(-50).forEach((x) => TOASTED_NOTIFICATION_IDS.add(x));
+  }
+}
+
 export interface Notification {
   id: string;
   user_id: string;
@@ -44,10 +61,16 @@ export function useNotifications(userId: string | undefined) {
       lastSeenIdRef.current = items[0].id;
       const fresh = isInitialLoad ? "initial load" : "new top notification";
       console.debug(`[notifications] ${fresh}: ${items[0].title}`);
-      // Toast para notificaciones genuinamente nuevas (no en el primer
-      // load post-mount, que solo está repintando lo que ya estaba).
-      if (!isInitialLoad && typeof document !== "undefined" && document.visibilityState === "visible") {
-        const n = items[0];
+      // Toast solo para notificaciones genuinamente nuevas y solo
+      // una vez por id (gate global del módulo, ver arriba).
+      const n = items[0];
+      const shouldToast =
+        !isInitialLoad &&
+        !TOASTED_NOTIFICATION_IDS.has(n.id) &&
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible";
+      if (shouldToast) {
+        rememberToastedId(n.id);
         toast(n.title ?? "Notificación nueva", {
           description: n.body ?? undefined,
           duration: 6000,
