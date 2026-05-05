@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, Terminal } from "lucide-react";
+import { Play, Loader2, Terminal, Info } from "lucide-react";
 
 export type CodeLanguage = "java" | "python" | "javascript";
 
@@ -147,6 +147,16 @@ export function CodeEditor({
           </Button>
         )}
       </div>
+
+      {language === "java" && (
+        <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
+          <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
+          <span>
+            La primera ejecución de Java tarda más porque el navegador descarga
+            la máquina virtual una sola vez. Las siguientes son inmediatas.
+          </span>
+        </div>
+      )}
 
       <div className="rounded-md border overflow-hidden">
         <Editor

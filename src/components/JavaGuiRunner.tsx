@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Play, Coffee, AlertTriangle, Terminal, Maximize2, RotateCcw } from "lucide-react";
+import { Loader2, Play, Coffee, AlertTriangle, Terminal, Maximize2, RotateCcw, Info } from "lucide-react";
 
 declare global {
   interface Window {
@@ -285,6 +285,14 @@ export function JavaGuiRunner({
           Volver a abrir la vista Swing
         </button>
       )}
+
+      <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
+        <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
+        <span>
+          La primera ejecución tarda más porque el navegador descarga la
+          máquina virtual de Java una sola vez. Las siguientes son inmediatas.
+        </span>
+      </div>
 
       <div className="rounded-md border overflow-hidden">
         <Editor
