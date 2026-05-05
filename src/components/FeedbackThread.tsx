@@ -254,6 +254,18 @@ export function FeedbackThread({
       // Refresca en background para tomar nombres reales desde profiles
       // (si user_metadata.full_name está vacío) y comentarios concurrentes.
       void load();
+      // Notificar al otro lado de la conversación. Fire-and-forget:
+      // si el RPC falla (p. ej. la migración aún no corrió), el
+      // comentario igual quedó persistido y se ve.
+      void db
+        .rpc("notify_feedback_event", {
+          _thread_id: t.id,
+          _event: "comment",
+          _actor_role: isTeacher ? "teacher" : "student",
+        })
+        .then(({ error: rpcErr }: { error: unknown }) => {
+          if (rpcErr) console.warn("[FeedbackThread] notify rpc", rpcErr);
+        });
     } finally {
       setSending(false);
     }
@@ -273,6 +285,15 @@ export function FeedbackThread({
     if (error) return toast.error(error.message);
     toast.success(next ? "Conversación cerrada" : "Conversación reabierta");
     await load();
+    void db
+      .rpc("notify_feedback_event", {
+        _thread_id: thread.id,
+        _event: next ? "closed" : "reopened",
+        _actor_role: "teacher",
+      })
+      .then(({ error: rpcErr }: { error: unknown }) => {
+        if (rpcErr) console.warn("[FeedbackThread] notify rpc", rpcErr);
+      });
   };
 
   const closed = !!thread?.closed;
