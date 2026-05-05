@@ -92,7 +92,7 @@ function toDateInput(value: string | null | undefined): string {
 type Profile = { id: string; full_name: string; institutional_email: string };
 
 function AdminCourses() {
-  const { roles } = useAuth();
+  const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
@@ -134,6 +134,11 @@ function AdminCourses() {
   const [dupLoading, setDupLoading] = useState(false);
 
   const isAdmin = roles.includes("Admin");
+  const isTeacher = roles.includes("Docente");
+  // Docente tiene los mismos privilegios que Admin para gestionar
+  // cursos, EXCEPTO auto-asignarse en course_teachers (lo bloquea
+  // tanto la RLS como el filtro del dialog de docentes más abajo).
+  const canManage = isAdmin || isTeacher;
 
   const load = async () => {
     const { data } = await supabase
@@ -777,7 +782,10 @@ function AdminCourses() {
     setWeightsOpen(false);
   };
 
-  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+  if (!canManage)
+    return (
+      <p className="text-muted-foreground">Necesitas rol Admin o Docente.</p>
+    );
 
   return (
     <div className="space-y-5">
@@ -1344,14 +1352,27 @@ function AdminCourses() {
             <DialogTitle>Docentes — {teacherCourse?.name}</DialogTitle>
           </DialogHeader>
           <AssignSelector
-            items={teachers}
+            // Un Docente no puede auto-asignarse: filtramos su propia
+            // fila del listado. La RLS lo bloquearía igual, esto solo
+            // evita ver un checkbox que se tropieza con error.
+            items={isAdmin ? teachers : teachers.filter((t) => t.id !== user?.id)}
             selectedIds={assignedTeacherIds}
             onToggle={toggleTeacher}
             onSelectAll={assignTeachersMany}
             onDeselectAll={unassignTeachersMany}
-            emptyText="No hay usuarios con rol Docente."
+            emptyText={
+              isAdmin
+                ? "No hay usuarios con rol Docente."
+                : "No hay otros docentes para asignar a este curso."
+            }
             countNoun="asignados"
           />
+          {!isAdmin && (
+            <p className="text-[11px] text-muted-foreground">
+              No puedes asignarte a ti mismo a un curso. Si necesitas estar
+              en este curso, pídele a un Admin que te agregue.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
 

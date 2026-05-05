@@ -46,8 +46,10 @@ const NAV: NavItem[] = [
     roles: ["Admin", "Docente", "Estudiante"],
   },
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
-  { to: "/app/admin/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Admin"] },
-  { to: "/app/teacher/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Docente"] },
+  // El gestor de cursos completo (CRUD + matrículas + docentes + cortes
+  // + duplicar) atiende ahora a Admin y Docente. La RLS impide a un
+  // Docente auto-asignarse en course_teachers; el resto es paridad.
+  { to: "/app/admin/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Admin", "Docente"] },
   { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
   { to: "/app/teacher/gradebook", labelKey: "nav.grades", icon: ClipboardList, roles: ["Docente"] },
   { to: "/app/teacher/workshops", labelKey: "nav.workshops", icon: Hammer, roles: ["Docente"] },
