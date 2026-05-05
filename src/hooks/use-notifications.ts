@@ -18,9 +18,11 @@ export function useNotifications(userId: string | undefined) {
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Load notifications. Comparamos contra el último id que ya
-  // teníamos para detectar cuando el poll trae algo nuevo y dejar
-  // un trail en consola — útil para depurar realtime caído.
+  // Tracking del último id visto. Cuando load() detecta un id nuevo
+  // arriba, dispara el toast — eso permite que el toast se vea tanto
+  // si la notificación llegó por realtime como si llegó por polling.
+  // El handler de realtime también llama load(), así que la lógica
+  // queda en un solo lugar y sin duplicados.
   const lastSeenIdRef = useRef<string | null>(null);
   const load = useCallback(async () => {
     if (!userId) return;
@@ -35,10 +37,32 @@ export function useNotifications(userId: string | undefined) {
       return;
     }
     const items = (data ?? []) as Notification[];
-    if (items.length > 0 && items[0].id !== lastSeenIdRef.current) {
-      const fresh = lastSeenIdRef.current ? "new top notification" : "initial load";
-      console.debug(`[notifications] ${fresh}: ${items[0].title}`);
+    const previousTopId = lastSeenIdRef.current;
+    const isInitialLoad = previousTopId === null;
+
+    if (items.length > 0 && items[0].id !== previousTopId) {
       lastSeenIdRef.current = items[0].id;
+      const fresh = isInitialLoad ? "initial load" : "new top notification";
+      console.debug(`[notifications] ${fresh}: ${items[0].title}`);
+      // Toast para notificaciones genuinamente nuevas (no en el primer
+      // load post-mount, que solo está repintando lo que ya estaba).
+      if (!isInitialLoad && typeof document !== "undefined" && document.visibilityState === "visible") {
+        const n = items[0];
+        toast(n.title ?? "Notificación nueva", {
+          description: n.body ?? undefined,
+          duration: 6000,
+          action: n.link
+            ? {
+                label: "Ver",
+                onClick: () => {
+                  if (typeof window !== "undefined" && n.link) {
+                    window.location.href = n.link;
+                  }
+                },
+              }
+            : undefined,
+        });
+      }
     }
     setNotifications(items);
     setUnreadCount(items.filter((n) => !n.read).length);
@@ -76,37 +100,14 @@ export function useNotifications(userId: string | undefined) {
         },
         (payload) => {
           console.debug("[notifications] realtime INSERT", payload?.new);
-          // Refetch completo en lugar de merge optimista. payload.new
-          // a veces no incluye todas las columnas (depende del
-          // REPLICA IDENTITY) y queremos que la lista quede idéntica
-          // a lo que devuelve la query.
+          // Refetch + lógica de toast vive en load(). El handler aquí
+          // solo dispara el push del SW si el tab está oculto, porque
+          // load() no haría toast in-app de todos modos.
           void load();
 
           const n = payload.new as Notification | undefined;
-          if (!n) return;
-
-          // Toast in-app cuando el tab está visible: el usuario ve
-          // de inmediato que llegó algo nuevo, sin tener que mirar
-          // la campana. Click → navega al link de la notificación.
-          if (typeof document !== "undefined" && document.visibilityState === "visible") {
-            toast(n.title ?? "Notificación nueva", {
-              description: n.body ?? undefined,
-              action: n.link
-                ? {
-                    label: "Ver",
-                    onClick: () => {
-                      if (typeof window !== "undefined" && n.link) {
-                        window.location.href = n.link;
-                      }
-                    },
-                  }
-                : undefined,
-              duration: 6000,
-            });
-          }
-
-          // Push del SW si el tab está oculto.
           if (
+            n &&
             typeof document !== "undefined" &&
             document.visibilityState === "hidden" &&
             typeof navigator !== "undefined" &&

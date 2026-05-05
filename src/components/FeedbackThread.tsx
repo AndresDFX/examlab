@@ -440,7 +440,7 @@ export function FeedbackThread({
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(c.created_at).toLocaleString()}
                     </span>
-                    {mine && !isEditing && (
+                    {mine && !isEditing && !closed && (
                       <>
                         <Button
                           variant="ghost"

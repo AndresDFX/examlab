@@ -262,13 +262,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           fullscreen del examen. */}
       <aside
         className={cn(
-          // self-start evita que el flex parent estire el aside a su
-          // propia altura (más alta que el viewport cuando el dashboard
-          // tiene scroll). Sin esto el footer del sidebar quedaba abajo
-          // de la página, no del viewport, y había que hacer scroll
-          // para ver "Cerrar sesión".
-          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen sticky top-0 self-start",
-          sidebarCollapsed ? "hidden" : "hidden md:flex w-64",
+          // position: fixed garantiza que el sidebar SIEMPRE quede
+          // pegado al viewport sin importar la altura del contenido
+          // ni el flex flow del padre. sticky/h-screen/self-start
+          // se comportaban irregularmente cuando el dashboard era
+          // alto y el footer (campana, contraseña, salir) caía
+          // fuera del viewport.
+          "flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
+          sidebarCollapsed
+            ? "hidden"
+            : "hidden md:flex md:fixed md:top-0 md:left-0 md:bottom-0 md:w-64 md:z-30",
         )}
       >
         <div className="px-4 py-3 border-b border-sidebar-border">
@@ -618,7 +621,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </Button>
       )}
 
-      <main className="flex-1 min-w-0 pt-14 md:pt-0">
+      <main
+        className={cn(
+          "flex-1 min-w-0 pt-14 md:pt-0",
+          // Compensar el sidebar fijo en desktop. Cuando está colapsado
+          // el contenido ocupa todo el ancho.
+          !sidebarCollapsed && "md:ml-64",
+        )}
+      >
         {/* Page container — constrained on desktop, full-bleed with 16px
             gutters on mobile. Bottom padding reserves room for the bottom
             nav on mobile so fixed content doesn't get clipped. */}
