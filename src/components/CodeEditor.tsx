@@ -94,7 +94,11 @@ export function CodeEditor({
     [blockClipboard],
   );
 
-  const config = LANGUAGE_CONFIG[language];
+  // Fallback a Java si el q.language guardado no está en
+  // LANGUAGE_CONFIG (p. ej. valor heredado de migraciones, "html",
+  // null o un typo). Sin esto config queda undefined y el render
+  // crashea con "Cannot read properties of undefined (reading 'label')".
+  const config = LANGUAGE_CONFIG[language] ?? LANGUAGE_CONFIG.java;
 
   // Reactive dark mode detection
   const [isDark, setIsDark] = useState(false);

@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot, ExternalLink } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { statusLabel } from "@/utils/status-labels";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -322,8 +323,8 @@ function StudentProjectDetail() {
                 <div className="text-2xl font-semibold tabular-nums">
                   {gradeShow != null ? `${gradeShow} / ${project.max_score}` : "—"}
                 </div>
-                <Badge variant="outline" className="text-[10px] capitalize mt-1">
-                  {submission.status.replace(/_/g, " ")}
+                <Badge variant="outline" className="text-[10px] mt-1">
+                  {statusLabel(submission.status)}
                 </Badge>
               </div>
             </CardContent>

@@ -50,6 +50,7 @@ import {
   type CutWeights,
 } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
+import { statusLabel } from "@/utils/status-labels";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -564,8 +565,8 @@ function StudentGrades() {
                               {fmt(it.grade)}
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                              <Badge variant="secondary" className="text-[10px] capitalize">
-                                {it.status.replace(/_/g, " ")}
+                              <Badge variant="secondary" className="text-[10px]">
+                                {statusLabel(it.status)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">

@@ -39,6 +39,7 @@ import {
   TimerReset,
 } from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
+import { statusLabel } from "@/utils/status-labels";
 import {
   computeFinalGrade,
   type BreakdownItem as GradeBreakdown,
@@ -507,7 +508,7 @@ function ExamMonitor() {
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-[10px]">
-                          {latest.status}
+                          {statusLabel(latest.status)}
                         </Badge>
                       )}
                     </TableCell>
@@ -639,7 +640,7 @@ function ExamMonitor() {
                               </Badge>
                             ) : (
                               <Badge variant="secondary" className="text-[10px]">
-                                {a.status}
+                                {statusLabel(a.status)}
                               </Badge>
                             )}
                           </div>
@@ -695,7 +696,7 @@ function ExamMonitor() {
           <DialogHeader>
             <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
-              {viewingSub?.profile?.institutional_email} · Estado: {viewingSub?.status}
+              {viewingSub?.profile?.institutional_email} · Estado: {statusLabel(viewingSub?.status)}
             </DialogDescription>
           </DialogHeader>
 

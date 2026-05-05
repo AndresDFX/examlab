@@ -98,17 +98,46 @@ export function FeedbackThread({
       // profiles(id), y PostgREST no infiere FKs transitivas.
       // Devolvía PGRST200 silencioso y la lista quedaba vacía.
       // En su lugar: traer comentarios y perfiles por separado.
-      const { data: rawComments, error: cErr } = await db
+      // Intentamos con author_role primero; si la migración de esa
+      // columna aún no se aplicó en este entorno, retry sin ella.
+      let rawComments: unknown[] | null = null;
+      const first = await db
         .from("feedback_comments")
         .select("id, thread_id, user_id, body, created_at, author_role")
         .eq("thread_id", (t as Thread).id)
         .order("created_at", { ascending: true });
-      if (cErr) {
-        console.error("[FeedbackThread] load comments", cErr);
+      if (first.error) {
+        const code = (first.error as { code?: string }).code;
+        // 42703 = undefined_column en Postgres; PGRST204 también
+        // aparece cuando PostgREST no encuentra la columna.
+        if (code === "42703" || code === "PGRST204") {
+          console.warn(
+            "[FeedbackThread] author_role column missing; falling back",
+          );
+          const second = await db
+            .from("feedback_comments")
+            .select("id, thread_id, user_id, body, created_at")
+            .eq("thread_id", (t as Thread).id)
+            .order("created_at", { ascending: true });
+          if (second.error) {
+            console.error("[FeedbackThread] load comments", second.error);
+            setComments([]);
+            return;
+          }
+          rawComments = second.data ?? [];
+        } else {
+          console.error("[FeedbackThread] load comments", first.error);
+          setComments([]);
+          return;
+        }
+      } else {
+        rawComments = first.data ?? [];
+      }
+      const list = (rawComments ?? []) as Comment[];
+      if (!list) {
         setComments([]);
         return;
       }
-      const list = (rawComments ?? []) as Comment[];
       const userIds = Array.from(new Set(list.map((c) => c.user_id)));
       let profilesById = new Map<
         string,
@@ -170,7 +199,8 @@ export function FeedbackThread({
       // Insertamos pidiendo la fila de vuelta para que la UI optimista
       // tenga el id real y created_at del servidor — evita pintar un
       // comentario "fantasma" si load() después se queda corto.
-      const { data: inserted, error } = await db
+      let inserted: Comment | null = null;
+      const firstInsert = await db
         .from("feedback_comments")
         .insert({
           thread_id: t.id,
@@ -180,9 +210,31 @@ export function FeedbackThread({
         })
         .select("id, thread_id, user_id, body, created_at, author_role")
         .single();
-      if (error || !inserted) {
-        console.error("[FeedbackThread] insert comment", error);
-        toast.error(error?.message ?? "No se pudo enviar el comentario");
+      if (firstInsert.error) {
+        const code = (firstInsert.error as { code?: string }).code;
+        if (code === "42703" || code === "PGRST204") {
+          // Migración de author_role aún no aplicada — insertamos sin él.
+          const fallback = await db
+            .from("feedback_comments")
+            .insert({ thread_id: t.id, user_id: user.id, body: text })
+            .select("id, thread_id, user_id, body, created_at")
+            .single();
+          if (fallback.error || !fallback.data) {
+            console.error("[FeedbackThread] insert comment", fallback.error);
+            toast.error(fallback.error?.message ?? "No se pudo enviar el comentario");
+            return;
+          }
+          inserted = fallback.data as Comment;
+        } else {
+          console.error("[FeedbackThread] insert comment", firstInsert.error);
+          toast.error(firstInsert.error.message ?? "No se pudo enviar el comentario");
+          return;
+        }
+      } else {
+        inserted = firstInsert.data as Comment;
+      }
+      if (!inserted) {
+        toast.error("No se pudo enviar el comentario");
         return;
       }
       // Optimistic append: aunque load() falle por algún motivo, el

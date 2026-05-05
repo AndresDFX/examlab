@@ -62,6 +62,7 @@ import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { statusLabel } from "@/utils/status-labels";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -773,9 +774,9 @@ function TeacherProjects() {
                   <TableCell>
                     <Badge
                       variant={p.status === "published" ? "default" : "secondary"}
-                      className="text-[10px] capitalize"
+                      className="text-[10px]"
                     >
-                      {p.status}
+                      {statusLabel(p.status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs">
@@ -1146,9 +1147,9 @@ function TeacherProjects() {
                           </span>
                           <Badge
                             variant={sub.status === "calificado" ? "default" : "secondary"}
-                            className="text-[10px] ml-auto capitalize"
+                            className="text-[10px] ml-auto"
                           >
-                            {sub.status}
+                            {statusLabel(sub.status)}
                           </Badge>
                           <Badge variant="outline" className="text-[10px] tabular-nums">
                             {grade != null ? `${grade}/${gradingProject?.max_score}` : "—"}
