@@ -35,20 +35,20 @@ export function useNotifications(userId: string | undefined) {
     load();
   }, [load]);
 
-  // Realtime subscription for new notifications
+  // Realtime subscription for new notifications. Si por alguna razón el
+  // subscribe nunca llega a SUBSCRIBED (proxy, replica_identity, etc.)
+  // tenemos un poll cada 30 s + refresh al volver a la pestaña que
+  // funcionan como red de seguridad. En el camino feliz, realtime
+  // entrega en ms y los fallbacks no aportan ningún round-trip extra
+  // porque la lista local ya tiene la fila.
   useEffect(() => {
     if (!userId) return;
 
-    // Tear down any prior channel synchronously before creating a new one.
-    // A lingering same-named (subscribed) channel will cause
-    // `supabase.channel()` to return it and then throw on `.on()`.
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
-    // Randomized suffix guarantees the name cannot collide with a channel
-    // whose cleanup is still in flight (StrictMode, fast route changes).
     const channelName = `notif-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const channel = supabase.channel(channelName);
 
@@ -63,11 +63,11 @@ export function useNotifications(userId: string | undefined) {
         },
         (payload) => {
           const n = payload.new as Notification;
-          setNotifications((prev) => [n, ...prev]);
-          setUnreadCount((prev) => prev + 1);
+          // Dedup defensivo: si el poll lo trajo antes que realtime, no
+          // duplicamos.
+          setNotifications((prev) => (prev.some((x) => x.id === n.id) ? prev : [n, ...prev]));
+          setUnreadCount((prev) => prev + (n.read ? 0 : 1));
 
-          // When the tab is hidden, hand the notification to the Service Worker
-          // so it can surface an OS-level toast. Requires user-granted permission.
           if (
             typeof document !== "undefined" &&
             document.visibilityState === "hidden" &&
@@ -85,7 +85,11 @@ export function useNotifications(userId: string | undefined) {
           }
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || err) {
+          console.warn("[notifications] realtime subscribe", status, err);
+        }
+      });
 
     channelRef.current = channel;
 
@@ -96,6 +100,29 @@ export function useNotifications(userId: string | undefined) {
       channelRef.current = null;
     };
   }, [userId]);
+
+  // Refetch al volver a la pestaña: cubre el caso clásico de
+  // "estaba en otro tab y al volver no me había llegado nada".
+  useEffect(() => {
+    if (!userId || typeof document === "undefined") return;
+    const onVis = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [userId, load]);
+
+  // Polling cada 30 s mientras el tab está visible. Garantiza que las
+  // notificaciones aparezcan aunque realtime esté caído.
+  useEffect(() => {
+    if (!userId) return;
+    const id = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        void load();
+      }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [userId, load]);
 
   const markAsRead = useCallback(async (id: string) => {
     await supabase.from("notifications").update({ read: true }).eq("id", id);
