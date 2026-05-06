@@ -246,7 +246,7 @@ function TeacherExams() {
     for (const cid of courseIds) {
       const { data, error } = await supabase
         .from("exams")
-        .insert({ ...basePayload, course_id: cid })
+        .insert({ ...basePayload, course_id: cid } as any)
         .select()
         .single();
       if (error) {
