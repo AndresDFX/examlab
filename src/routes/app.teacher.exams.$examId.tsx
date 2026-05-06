@@ -678,10 +678,10 @@ function ExamEditor() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {selectedCut ? (
                           <>
-                            Máximo {cutWeight}, que es lo que vale el corte{" "}
-                            <span className="font-medium">{selectedCut.name}</span> en la nota
-                            final del curso. Distribuye este número entre los exámenes del
-                            corte para asignar más peso al examen final que a un quiz, etc.
+                            Cuánto pesa este examen en la <strong>nota final del curso</strong>.
+                            Máximo {cutWeight} (lo que vale el corte{" "}
+                            <span className="font-medium">{selectedCut.name}</span>). La suma
+                            de pesos de items + asistencia del corte debe igualar {cutWeight}.
                           </>
                         ) : (
                           "Asigna primero un corte de evaluación arriba para poder configurar el peso."

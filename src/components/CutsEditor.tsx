@@ -1,13 +1,18 @@
 /**
- * CutsEditor — Inline editor for evaluation cuts (cortes evaluativos) of a course.
+ * CutsEditor — Editor de cortes evaluativos del curso.
  *
- * Each cut has its own date range, weight (relative to the course final grade),
- * and four sub-weights (exams, workshops, attendance, projects) that must sum 100
- * within the cut. The DB triggers `enforce_cut_weights_max_100` already prevent
- * the global cut weight from exceeding 100; sub-weight validation is UI-only.
+ * Modelo de pesos (post-migración 20260507100000):
+ *   - cut.weight = % de la nota final que aporta el corte (cortes suman 100).
+ *   - Items (exams, workshops, projects) tienen weight = % de la nota final.
+ *     Se editan en sus propias pantallas, no acá.
+ *   - cut.attendance_weight = % de la nota final para la asistencia del corte.
+ *   - Validación soft: la suma de (items en el corte + attendance_weight)
+ *     debería ser igual a cut.weight para que el reparto sea exacto. Si no
+ *     coincide, computeWeightedGrade reescala los pesos automáticamente al
+ *     calcular la nota — así nada se rompe pero el docente lo ve en el badge.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, FileText, Hammer, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,8 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/components/ConfirmDialog";
 
-// grade_cuts has new sub-weight columns introduced via a migration that may
-// not be reflected in src/integrations/supabase/types.ts yet — use a loose cast.
+// grade_cuts y los items aún no están todos en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
@@ -32,26 +36,83 @@ type Cut = {
   start_date: string | null;
   end_date: string | null;
   weight: number;
-  exam_weight: number;
-  workshop_weight: number;
   attendance_weight: number;
-  project_weight: number;
+  // Buckets legacy — los queremos en el tipo para no romper el SELECT *,
+  // pero no se usan en el render ni el cálculo.
+  exam_weight?: number;
+  workshop_weight?: number;
+  project_weight?: number;
 };
 
-export function CutsEditor({ courseId }: { courseId: string }) {
+type CutItem = {
+  id: string;
+  kind: "exam" | "workshop" | "project";
+  title: string;
+  weight: number;
+  cut_id: string | null;
+};
+
+const ITEM_ICON: Record<CutItem["kind"], typeof FileText> = {
+  exam: FileText,
+  workshop: Hammer,
+  project: FolderKanban,
+};
+const ITEM_LABEL: Record<CutItem["kind"], string> = {
+  exam: "Examen",
+  workshop: "Taller",
+  project: "Proyecto",
+};
+
+export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
   const confirm = useConfirm();
   const [cuts, setCuts] = useState<Cut[]>([]);
+  const [items, setItems] = useState<CutItem[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await db
-      .from("grade_cuts")
-      .select("*")
-      .eq("course_id", courseId)
-      .order("position");
-    setCuts((data ?? []) as Cut[]);
+    const [cutsRes, examsRes, workshopsRes, projectsRes] = await Promise.all([
+      db.from("grade_cuts").select("*").eq("course_id", courseId).order("position"),
+      db
+        .from("exams")
+        .select("id, title, weight, cut_id, parent_exam_id")
+        .eq("course_id", courseId),
+      db.from("workshops").select("id, title, weight, cut_id").eq("course_id", courseId),
+      db.from("projects").select("id, title, weight, cut_id").eq("course_id", courseId),
+    ]);
+    setCuts((cutsRes.data ?? []) as Cut[]);
+    const merged: CutItem[] = [];
+    for (const e of (examsRes.data ?? []) as any[]) {
+      // Excluye supletorios (parent_exam_id != null) — no son items propios.
+      if (e.parent_exam_id) continue;
+      merged.push({
+        id: e.id,
+        kind: "exam",
+        title: e.title,
+        weight: Number(e.weight ?? 1),
+        cut_id: e.cut_id ?? null,
+      });
+    }
+    for (const w of (workshopsRes.data ?? []) as any[]) {
+      merged.push({
+        id: w.id,
+        kind: "workshop",
+        title: w.title,
+        weight: Number(w.weight ?? 1),
+        cut_id: w.cut_id ?? null,
+      });
+    }
+    for (const p of (projectsRes.data ?? []) as any[]) {
+      merged.push({
+        id: p.id,
+        kind: "project",
+        title: p.title,
+        weight: Number(p.weight ?? 1),
+        cut_id: p.cut_id ?? null,
+      });
+    }
+    setItems(merged);
     setLoading(false);
   }, [courseId]);
 
@@ -72,10 +133,11 @@ export function CutsEditor({ courseId }: { courseId: string }) {
         name: `Corte ${cuts.length + 1}`,
         position: cuts.length,
         weight: 0,
-        exam_weight: 40,
-        workshop_weight: 30,
-        attendance_weight: 10,
-        project_weight: 20,
+        attendance_weight: 0,
+        // Legacy: cero, no se usan en el cálculo nuevo.
+        exam_weight: 0,
+        workshop_weight: 0,
+        project_weight: 0,
       })
       .select()
       .single();
@@ -93,7 +155,8 @@ export function CutsEditor({ courseId }: { courseId: string }) {
   const removeCut = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar corte",
-      description: "Se eliminará el corte y todos sus items. Esta acción no se puede deshacer.",
+      description:
+        "Se eliminará el corte y los items que lo tenían asignado quedarán sin corte. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
@@ -119,10 +182,10 @@ export function CutsEditor({ courseId }: { courseId: string }) {
           <p className="text-sm font-medium">Cortes evaluativos</p>
           <p className="text-xs text-muted-foreground max-w-xl">
             Cada corte vale un porcentaje de la nota final del curso (la suma de todos los
-            cortes debe ser 100%). Dentro de cada corte, los componentes (exámenes, talleres,
-            asistencia, proyecto) se reparten ese porcentaje. Ejemplo: si Corte 1 vale 30% y
-            adentro Exámenes={"{"}40%{"}"}, los exámenes pesan 30 × 40 / 100 ={" "}
-            <span className="font-medium text-foreground">12% de la nota final</span>.
+            cortes debe ser 100%). Cada examen, taller y proyecto se asigna a un corte y
+            tiene un <span className="font-medium text-foreground">peso directo en %</span>{" "}
+            de la nota final. La suma de items + asistencia dentro de un corte debe igualar
+            el peso del corte.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -156,19 +219,14 @@ export function CutsEditor({ courseId }: { courseId: string }) {
           </div>
         )}
         {cuts.map((cut) => {
-          const subSum =
-            Number(cut.exam_weight || 0) +
-            Number(cut.workshop_weight || 0) +
-            Number(cut.attendance_weight || 0) +
-            Number(cut.project_weight || 0);
-          // % efectivo de la nota final que aporta cada componente:
-          // cut.weight (% del corte en el curso) × component_weight (%
-          // dentro del corte) / 100. Mostramos esto debajo de cada
-          // input para que el docente vea inmediatamente el impacto
-          // real en la calificación del estudiante.
-          const effective = (componentWeight: number) =>
-            ((Number(cut.weight || 0) * Number(componentWeight || 0)) / 100).toFixed(1);
           const isOpen = expanded.has(cut.id);
+          const cutItems = items.filter((i) => i.cut_id === cut.id);
+          const itemsSum = cutItems.reduce((a, b) => a + Number(b.weight || 0), 0);
+          const attWeight = Number(cut.attendance_weight || 0);
+          const allocated = itemsSum + attWeight;
+          const expected = Number(cut.weight || 0);
+          const matches = Math.abs(allocated - expected) < 0.01;
+          const overAllocated = allocated > expected + 0.01;
           return (
             <div key={cut.id} className="rounded border bg-muted/30 p-2 space-y-2">
               <div className="grid items-center gap-2 md:grid-cols-[auto_2fr_1fr_1fr_1fr_auto]">
@@ -179,7 +237,11 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                   onClick={() => toggle(cut.id)}
                   className="h-8 w-8 p-0"
                 >
-                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {isOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
                 </Button>
                 <Input
                   value={cut.name}
@@ -215,92 +277,77 @@ export function CutsEditor({ courseId }: { courseId: string }) {
               </div>
 
               {isOpen && (
-                <div className="space-y-2 rounded bg-background p-2">
-                  <p className="text-[11px] text-muted-foreground">
-                    Distribuye el {cut.weight || 0}% de este corte entre los componentes.
-                    Los % adentro deben sumar 100. Debajo de cada input ves cuánto pesa ese
-                    componente sobre la nota final del curso.
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="space-y-3 rounded bg-background p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-start">
                     <div>
-                      <Label className="text-xs">Exámenes</Label>
+                      <Label className="text-xs">Asistencia (% de la nota final)</Label>
                       <Input
                         type="number"
                         min={0}
-                        max={100}
-                        value={cut.exam_weight || ""}
-                        onChange={(e) =>
-                          updateCut(cut.id, {
-                            exam_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                          })
-                        }
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-                        = {effective(cut.exam_weight)}% del total
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Talleres</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={cut.workshop_weight || ""}
-                        onChange={(e) =>
-                          updateCut(cut.id, {
-                            workshop_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                          })
-                        }
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-                        = {effective(cut.workshop_weight)}% del total
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Asistencia</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
+                        max={expected}
+                        step="0.1"
                         value={cut.attendance_weight || ""}
-                        onChange={(e) =>
-                          updateCut(cut.id, {
-                            attendance_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                          })
-                        }
+                        onChange={(e) => {
+                          const raw = e.target.value === "" ? 0 : Number(e.target.value);
+                          const capped = expected > 0 ? Math.min(raw, expected) : raw;
+                          updateCut(cut.id, { attendance_weight: capped });
+                        }}
+                        className="w-32 mt-1"
                       />
-                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-                        = {effective(cut.attendance_weight)}% del total
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Cuánto vale la asistencia de este corte sobre la nota final del curso.
+                        Máximo {expected || 0} (lo que vale el corte). Si dejas 0, las
+                        sesiones del rango del corte no afectan la nota.
                       </p>
                     </div>
-                    <div>
-                      <Label className="text-xs">Proyecto</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={cut.project_weight || ""}
-                        onChange={(e) =>
-                          updateCut(cut.id, {
-                            project_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                          })
-                        }
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-                        = {effective(cut.project_weight)}% del total
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between border-t pt-2">
-                    <span className="text-[11px] text-muted-foreground">
-                      Suma dentro del corte (debe ser 100%):
-                    </span>
                     <Badge
-                      variant={subSum === 100 ? "secondary" : "destructive"}
-                      className="text-xs"
+                      variant={
+                        matches ? "secondary" : overAllocated ? "destructive" : "outline"
+                      }
+                      className="text-xs whitespace-nowrap"
+                      title="Suma de pesos asignados al corte (items + asistencia) versus el peso del corte"
                     >
-                      {subSum}%
+                      Asignado: {allocated.toFixed(1)} / {expected || 0}
+                      {!matches && expected > 0 && (
+                        <span className="ml-1">
+                          ({overAllocated ? "exceso" : "faltan"}{" "}
+                          {Math.abs(expected - allocated).toFixed(1)})
+                        </span>
+                      )}
                     </Badge>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium">Items asignados a este corte</p>
+                    {cutItems.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground italic">
+                        No hay items asignados. Edita un examen, taller o proyecto y
+                        selecciona este corte para que aparezca acá.
+                      </p>
+                    ) : (
+                      <ul className="text-xs space-y-1">
+                        {cutItems.map((it) => {
+                          const Icon = ITEM_ICON[it.kind];
+                          return (
+                            <li
+                              key={`${it.kind}-${it.id}`}
+                              className="flex items-center justify-between gap-2 rounded border bg-muted/40 px-2 py-1"
+                            >
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="text-[11px] text-muted-foreground shrink-0">
+                                  {ITEM_LABEL[it.kind]}:
+                                </span>
+                                <span className="truncate">{it.title}</span>
+                              </span>
+                              <span className="font-mono tabular-nums shrink-0">
+                                {it.weight.toFixed(1)}%
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 </div>
               )}

@@ -44,12 +44,7 @@ import {
   FolderKanban,
   CalendarCheck,
 } from "lucide-react";
-import {
-  computeCutGrade,
-  computeCourseFinalGrade,
-  type CutComponentScores,
-  type CutWeights,
-} from "@/utils/grade";
+import { computeWeightedGrade } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
@@ -99,8 +94,6 @@ type ItemRow = {
 type CutBreakdown = {
   cut: Cut;
   items: ItemRow[];
-  componentScores: CutComponentScores;
-  weights: CutWeights;
   grade: number | null;
 };
 
@@ -274,6 +267,7 @@ function StudentGrades() {
             rawMax: w.max_score ?? 100,
             grade: raw != null ? toScale(raw, w.max_score ?? 100) : null,
             status: sub?.status ?? "pendiente",
+            weight: Number(w.weight ?? 1),
             reviewWorkshopId: sub ? w.id : null,
           });
         }
@@ -291,6 +285,7 @@ function StudentGrades() {
             rawMax: p.max_score ?? 100,
             grade: raw != null ? toScale(raw, p.max_score ?? 100) : null,
             status: sub?.status ?? "pendiente",
+            weight: Number(p.weight ?? 1),
           });
         }
 
@@ -300,33 +295,15 @@ function StudentGrades() {
         const allRecords = (attRecords ?? []) as { session_id: string; status: string }[];
         const recordsBySession = new Map(allRecords.map((r) => [r.session_id, r.status]));
 
-        // Construye el desglose por corte
+        // Construye el desglose por corte usando el modelo nuevo:
+        // cada item aporta su weight (% del total) y la asistencia del
+        // corte aporta cut.attendance_weight (también % del total).
         const breakdown: CutBreakdown[] = cuts.map((cut) => {
           const cutItems = rows.filter((r) => r.cut_id === cut.id);
 
-          // Promedios por componente (de los items con calificación)
-          const avg = (items: ItemRow[]): number | null => {
-            const withGrade = items.filter((i) => i.grade != null);
-            if (!withGrade.length) return null;
-            return withGrade.reduce((a, b) => a + (b.grade as number), 0) / withGrade.length;
-          };
-          // Promedio ponderado por peso relativo (para exámenes)
-          const weightedAvg = (items: ItemRow[]): number | null => {
-            const withGrade = items.filter((i) => i.grade != null);
-            if (!withGrade.length) return null;
-            const totalW = withGrade.reduce((a, b) => a + (b.weight ?? 1), 0);
-            if (totalW <= 0) return avg(items);
-            return (
-              withGrade.reduce((a, b) => a + (b.grade as number) * (b.weight ?? 1), 0) / totalW
-            );
-          };
-
-          const workshopAvg = avg(cutItems.filter((i) => i.kind === "workshop"));
-          const examAvg = weightedAvg(cutItems.filter((i) => i.kind === "exam"));
-          const projectAvg = avg(cutItems.filter((i) => i.kind === "project"));
-
-          // Asistencia del corte: filtra sesiones por fecha, calcula % presente y escala.
-          let attendanceAvg: number | null = null;
+          // Asistencia del corte: filtra sesiones por fecha, calcula %
+          // presente y escala. Se modela como un ItemRow más con peso =
+          // cut.attendance_weight para entrar al weighted avg uniforme.
           let attItem: ItemRow | null = null;
           if (cut.start_date && cut.end_date) {
             const sessionsInCut = allSessions.filter(
@@ -338,7 +315,7 @@ function StudentGrades() {
                 (s) => recordsBySession.get(s.id) === "presente",
               ).length;
               const pct = present / sessionsInCut.length;
-              attendanceAvg =
+              const attendanceAvg =
                 course.grade_scale_min +
                 pct * (course.grade_scale_max - course.grade_scale_min);
               attItem = {
@@ -350,29 +327,19 @@ function StudentGrades() {
                 rawMax: sessionsInCut.length,
                 grade: attendanceAvg,
                 status: "calculado",
+                weight: Number(cut.attendance_weight ?? 0),
               };
             }
           }
 
-          const componentScores: CutComponentScores = {
-            workshop: workshopAvg,
-            exam: examAvg,
-            project: projectAvg,
-            attendance: attendanceAvg,
-          };
-          const weights: CutWeights = {
-            workshop: cut.workshop_weight,
-            exam: cut.exam_weight,
-            project: cut.project_weight,
-            attendance: cut.attendance_weight,
-          };
-          const grade = computeCutGrade(componentScores, weights);
+          const allCutItems = attItem ? [...cutItems, attItem] : cutItems;
+          const grade = computeWeightedGrade(
+            allCutItems.map((i) => ({ score: i.grade, weight: i.weight ?? 1 })),
+          );
 
           return {
             cut,
-            items: attItem ? [...cutItems, attItem] : cutItems,
-            componentScores,
-            weights,
+            items: allCutItems,
             grade,
           };
         });
@@ -388,13 +355,20 @@ function StudentGrades() {
 
   const course = courses.find((c) => c.id === courseId);
 
-  const finalGrade = useMemo(
-    () =>
-      computeCourseFinalGrade(
-        cutsBreakdown.map((c) => ({ weight: c.cut.weight, grade: c.grade })),
-      ),
-    [cutsBreakdown],
-  );
+  // La nota final ahora es el weighted avg de TODOS los items del curso
+  // (de todos los cortes) + asistencias por corte. Cada item ya tiene su
+  // weight expresado en % del total, así que pasamos todos directos al
+  // helper. Esto evita doble re-escala / pérdida de precisión que tendría
+  // promediar primero por corte y luego entre cortes.
+  const finalGrade = useMemo(() => {
+    const items: { score: number | null; weight: number }[] = [];
+    for (const cb of cutsBreakdown) {
+      for (const it of cb.items) {
+        items.push({ score: it.grade, weight: it.weight ?? 1 });
+      }
+    }
+    return computeWeightedGrade(items);
+  }, [cutsBreakdown]);
 
   const passes = course && finalGrade != null ? finalGrade >= course.passing_grade : null;
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));

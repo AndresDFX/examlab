@@ -61,14 +61,45 @@ export function computeFinalGrade(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Course-level hierarchy: Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]
+// Course-level hierarchy: Curso → Cortes → [Items, Asistencia]
 //
-// REGLA DE NEGOCIO INMUTABLE:
-//   - La nota final del curso es la suma ponderada de los CORTES.
-//   - La nota de cada corte es la suma ponderada de sus 4 componentes.
-//   - Componentes sin datos NO penalizan: sus pesos se reescalan entre los
-//     componentes que sí tienen calificación. Mismo principio entre cortes.
+// MODELO DE PESOS (post-migración 20260507100000):
+//   - cut.weight = % de la nota final que aporta el corte (cortes suman 100).
+//   - exam.weight, workshop.weight, project.weight = % de la nota final del
+//     curso para ese item. La suma de items + attendance_weight de un corte
+//     debe ser igual a cut.weight (validación soft).
+//   - cut.attendance_weight = % de la nota final para la asistencia del corte.
+//   - Items sin datos NO penalizan: sus pesos se reescalan entre los items
+//     que sí tienen score, dentro de su corte y entre cortes.
+//
+// LEGACY: cut.exam_weight / workshop_weight / project_weight ya no se usan.
+// Quedan en la DB como 0 tras la migración para no romper queries antiguas.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export interface GradedItem {
+  /** Peso del item como % de la nota final (0..100). */
+  weight: number;
+  /** Nota del item ya escalada al rango del curso, o null si no hay dato. */
+  score: number | null;
+}
+
+/**
+ * Promedio ponderado robusto: items con score null se omiten y sus
+ * pesos se redistribuyen entre los items que sí tienen score. Sirve
+ * tanto para calcular la nota de UN corte (pasando solo items del
+ * corte + entry de asistencia) como la nota FINAL del curso (pasando
+ * todos los items + todas las asistencias).
+ *
+ * Retorna null cuando no hay items con score (UI muestra "—" en vez de 0).
+ */
+export function computeWeightedGrade(items: readonly GradedItem[]): number | null {
+  const usable = items.filter((i) => i.score != null && Number(i.weight) > 0);
+  if (usable.length === 0) return null;
+  const totalWeight = usable.reduce((a, i) => a + Number(i.weight), 0);
+  if (totalWeight <= 0) return null;
+  const sum = usable.reduce((a, i) => a + Number(i.score) * Number(i.weight), 0);
+  return Number((sum / totalWeight).toFixed(2));
+}
 
 export interface CutWeights {
   workshop: number;

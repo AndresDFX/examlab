@@ -81,7 +81,7 @@ const db = supabase as any;
 export const Route = createFileRoute("/app/teacher/projects")({ component: TeacherProjects });
 
 type Course = { id: string; name: string; period: string | null; language?: string | null };
-type Cut = { id: string; course_id: string; name: string };
+type Cut = { id: string; course_id: string; name: string; weight: number };
 type Student = { id: string; full_name: string; institutional_email: string };
 
 type Project = {
@@ -198,7 +198,7 @@ function TeacherProjects() {
     }
 
     try {
-      const cs2 = await db.from("grade_cuts").select("id, course_id, name").order("position");
+      const cs2 = await db.from("grade_cuts").select("id, course_id, name, weight").order("position");
       if (cs2.error) throw new Error(`grade_cuts: ${cs2.error.message}`);
       setCuts((cs2.data ?? []) as Cut[]);
     } catch (e) {
@@ -335,7 +335,7 @@ function TeacherProjects() {
       ? form.course_id
       : linked[0];
     const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
-    const payload = {
+    const payload: Record<string, any> = {
       course_id: primaryCourse,
       cut_id: form.cut_id || null,
       title: form.title,
@@ -348,6 +348,10 @@ function TeacherProjects() {
       max_score: Number(form.max_score) || 100,
       status: form.status ?? "draft",
     };
+    // weight solo aplica con corte; si no, dejamos que el DEFAULT 1 se mantenga
+    if (form.cut_id && (form as any).weight != null) {
+      payload.weight = Number((form as any).weight);
+    }
 
     let projectId: string | null = null;
     if (editing) {
@@ -958,6 +962,45 @@ function TeacherProjects() {
                     ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              {(() => {
+                const selectedCut = form.cut_id
+                  ? cuts.find((c) => c.id === form.cut_id)
+                  : null;
+                const cutWeight = selectedCut?.weight ?? 0;
+                return (
+                  <>
+                    <Label>Peso del proyecto en la nota final</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={cutWeight || undefined}
+                      step="0.1"
+                      placeholder="1"
+                      className="w-32"
+                      disabled={!selectedCut}
+                      value={(form as any).weight ?? 1}
+                      onChange={(e) => {
+                        const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                        const capped = cutWeight > 0 ? Math.min(raw, cutWeight) : raw;
+                        setForm({ ...form, weight: capped } as any);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {selectedCut ? (
+                        <>
+                          Cuánto pesa este proyecto en la <strong>nota final del curso</strong>.
+                          Máximo {cutWeight} (lo que vale el corte{" "}
+                          <span className="font-medium">{selectedCut.name}</span>).
+                        </>
+                      ) : (
+                        "Asigna primero un corte para poder configurar el peso."
+                      )}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

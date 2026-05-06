@@ -41,12 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import {
-  computeCutGrade,
-  computeCourseFinalGrade,
-  type CutComponentScores,
-  type CutWeights,
-} from "@/utils/grade";
+import { computeWeightedGrade, type GradedItem } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
 
 // grade_cuts/projects pueden no estar en types.ts auto-generados
@@ -515,8 +510,10 @@ function Gradebook() {
   const detailCutColumns = detailCutId ? (columnsByCut.get(detailCutId) ?? []) : [];
   const detailCut = detailCutId ? cuts.find((c) => c.id === detailCutId) : null;
 
-  // ───────── Consolidado por cortes (Curso → Cortes → 4 componentes) ─────────
-  // Reusa la misma lógica que la vista del estudiante para garantizar consistencia.
+  // ───────── Consolidado por cortes (modelo nuevo: peso = % de la nota final)
+  // Cada item (examen, taller, proyecto) y la asistencia por corte aportan
+  // directamente con su peso al cálculo. La nota del corte y la final usan
+  // computeWeightedGrade que reescala pesos cuando hay items sin score.
   const consolidated = useMemo(() => {
     if (!selectedCourse || !cuts.length || !students.length) return null;
 
@@ -533,56 +530,49 @@ function Gradebook() {
     }
 
     return students.map((stu) => {
-      const cutGrades = cuts.map((cut) => {
-        // Exámenes del corte. ai_grade y final_override_grade ya están en la
-        // escala del curso (post-migración), así que pasamos rawMax = max para
-        // que toScale los devuelva tal cual.
-        const cutExams = allExams.filter(
-          (e) => !e.parent_exam_id && (e.cut_id ?? null) === cut.id,
-        );
-        const examScores: { score: number; weight: number }[] = [];
-        for (const e of cutExams) {
-          let sub = examSubs.find((s) => s.user_id === stu.id && s.exam_id === e.id);
-          if (!sub) {
-            const makeups = allExams.filter((m) => m.parent_exam_id === e.id).map((m) => m.id);
-            sub = examSubs.find((s) => s.user_id === stu.id && makeups.includes(s.exam_id));
-          }
-          const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
-          if (raw != null) {
-            const w = Number(e.weight ?? 1);
-            examScores.push({ score: toScale(Number(raw), max), weight: w > 0 ? w : 0 });
-          }
-        }
-        const examWeightSum = examScores.reduce((a, b) => a + b.weight, 0);
-        const examAvg = examWeightSum > 0
-          ? examScores.reduce((a, b) => a + b.score * b.weight, 0) / examWeightSum
-          : null;
+      // Lista de items del curso (con su corte y peso). Se reusa para
+      // calcular el promedio del corte y el final.
+      const allItems: Array<{ cutId: string | null; score: number | null; weight: number }> = [];
 
-        // Talleres del corte
-        const cutWorkshops = allWorkshops.filter((w) => (w.cut_id ?? null) === cut.id);
-        const wsScores: number[] = [];
-        for (const w of cutWorkshops) {
-          const sub = wsSubs.find((s) => s.user_id === stu.id && s.workshop_id === w.id);
-          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-          if (raw != null) wsScores.push(toScale(Number(raw), w.max_score ?? 100));
+      // Exams (con makeup fallback)
+      for (const e of allExams.filter((x) => !x.parent_exam_id)) {
+        let sub = examSubs.find((s) => s.user_id === stu.id && s.exam_id === e.id);
+        if (!sub) {
+          const makeups = allExams.filter((m) => m.parent_exam_id === e.id).map((m) => m.id);
+          sub = examSubs.find((s) => s.user_id === stu.id && makeups.includes(s.exam_id));
         }
-        const wsAvg = wsScores.length
-          ? wsScores.reduce((a, b) => a + b, 0) / wsScores.length
-          : null;
+        const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
+        allItems.push({
+          cutId: e.cut_id ?? null,
+          weight: Math.max(0, Number((e as any).weight ?? 1) || 0),
+          score: raw != null ? toScale(Number(raw), max) : null,
+        });
+      }
 
-        // Proyectos del corte
-        const cutProjects = projects.filter((p) => (p.cut_id ?? null) === cut.id);
-        const prjScores: number[] = [];
-        for (const p of cutProjects) {
-          const sub = projectSubs.find((s) => s.user_id === stu.id && s.project_id === p.id);
-          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-          if (raw != null) prjScores.push(toScale(Number(raw), p.max_score ?? 100));
-        }
-        const prjAvg = prjScores.length
-          ? prjScores.reduce((a, b) => a + b, 0) / prjScores.length
-          : null;
+      // Workshops
+      for (const w of allWorkshops) {
+        const sub = wsSubs.find((s) => s.user_id === stu.id && s.workshop_id === w.id);
+        const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+        allItems.push({
+          cutId: w.cut_id ?? null,
+          weight: Math.max(0, Number((w as any).weight ?? 1) || 0),
+          score: raw != null ? toScale(Number(raw), w.max_score ?? 100) : null,
+        });
+      }
 
-        // Asistencia del corte (sesiones cuya fecha cae en el rango del corte)
+      // Projects
+      for (const p of projects) {
+        const sub = projectSubs.find((s) => s.user_id === stu.id && s.project_id === p.id);
+        const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+        allItems.push({
+          cutId: p.cut_id ?? null,
+          weight: Math.max(0, Number((p as any).weight ?? 1) || 0),
+          score: raw != null ? toScale(Number(raw), p.max_score ?? 100) : null,
+        });
+      }
+
+      // Asistencia por corte (entry adicional con peso = cut.attendance_weight)
+      const attEntries = cuts.map((cut) => {
         let attAvg: number | null = null;
         if (cut.start_date && cut.end_date) {
           const sessionsInCut = attSessions.filter(
@@ -595,25 +585,32 @@ function Gradebook() {
             attAvg = min + (present / sessionsInCut.length) * (max - min);
           }
         }
-
-        const componentScores: CutComponentScores = {
-          workshop: wsAvg,
-          exam: examAvg,
-          project: prjAvg,
-          attendance: attAvg,
+        return {
+          cutId: cut.id,
+          weight: Math.max(0, Number(cut.attendance_weight ?? 0) || 0),
+          score: attAvg,
         };
-        const weights: CutWeights = {
-          workshop: cut.workshop_weight,
-          exam: cut.exam_weight,
-          project: cut.project_weight,
-          attendance: cut.attendance_weight,
-        };
-        return { cutId: cut.id, grade: computeCutGrade(componentScores, weights) };
       });
 
-      const finalGrade = computeCourseFinalGrade(
-        cutGrades.map((cg, i) => ({ weight: cuts[i].weight, grade: cg.grade })),
-      );
+      // Nota por corte: weighted avg de items del corte + asistencia del corte
+      const cutGrades = cuts.map((cut) => {
+        const items: GradedItem[] = allItems
+          .filter((i) => i.cutId === cut.id)
+          .map((i) => ({ score: i.score, weight: i.weight }));
+        const att = attEntries.find((a) => a.cutId === cut.id);
+        if (att) items.push({ score: att.score, weight: att.weight });
+        return { cutId: cut.id, grade: computeWeightedGrade(items) };
+      });
+
+      // Nota final: weighted avg de TODOS los items + TODAS las asistencias.
+      // No es lo mismo que ponderar las notas de los cortes — esto evita
+      // doble redondeo/re-escala y respeta exactamente el peso configurado.
+      const finalItems: GradedItem[] = [
+        ...allItems.map((i) => ({ score: i.score, weight: i.weight })),
+        ...attEntries.map((a) => ({ score: a.score, weight: a.weight })),
+      ];
+      const finalGrade = computeWeightedGrade(finalItems);
+
       return { student: stu, cutGrades, finalGrade };
     });
   }, [

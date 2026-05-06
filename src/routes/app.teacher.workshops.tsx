@@ -1155,10 +1155,10 @@ function TeacherWorkshops() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {selectedCut ? (
                         <>
-                          Máximo {cutWeight}, que es lo que vale el corte{" "}
-                          <span className="font-medium">{selectedCut.name}</span> en la nota
-                          final. Distribuye este número entre los talleres del corte (ej. 1 =
-                          taller normal, 2 = taller doble, 0.5 = taller corto).
+                          Cuánto pesa este taller en la <strong>nota final del curso</strong>.
+                          Máximo {cutWeight} (lo que vale el corte{" "}
+                          <span className="font-medium">{selectedCut.name}</span>). La suma
+                          de pesos de items + asistencia del corte debe igualar {cutWeight}.
                         </>
                       ) : (
                         "Asigna primero un corte de evaluación arriba para poder configurar el peso."
