@@ -2,6 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import { useTranslation } from "react-i18next";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -204,10 +205,15 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  // delayDuration en 200ms para que tooltips de RowAction aparezcan
+  // rápido al pasar el mouse — el default de 700ms se siente lento
+  // en grids donde el usuario hace hover rápidamente entre filas.
   return (
-    <ConfirmProvider>
-      <Outlet />
-      <Toaster richColors position="top-right" expand visibleToasts={6} />
-    </ConfirmProvider>
+    <TooltipProvider delayDuration={200}>
+      <ConfirmProvider>
+        <Outlet />
+        <Toaster richColors position="top-right" expand visibleToasts={6} />
+      </ConfirmProvider>
+    </TooltipProvider>
   );
 }

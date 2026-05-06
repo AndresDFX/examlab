@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -861,54 +862,37 @@ export function AdminCourses() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <RowAction
+                        label="Pesos de calificación"
+                        icon={Settings}
                         onClick={() => openWeights(c)}
-                        title="Pesos de calificación"
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Estudiantes"
+                        icon={Users}
                         onClick={() => openEnroll(c)}
-                        title="Estudiantes"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Docentes"
+                        icon={UserCog}
                         onClick={() => openTeachers(c)}
-                        title="Docentes"
-                      >
-                        <UserCog className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Duplicar"
+                        icon={Copy}
                         onClick={() => openDuplicate(c)}
-                        title="Duplicar"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Editar"
+                        icon={Pencil}
                         onClick={() => openEdit(c)}
-                        title="Editar"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Eliminar"
+                        icon={Trash2}
+                        tone="destructive"
                         onClick={() => remove(c.id)}
-                        title="Eliminar"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

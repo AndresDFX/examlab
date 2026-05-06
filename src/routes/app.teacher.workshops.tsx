@@ -33,6 +33,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { RowAction } from "@/components/ui/row-action";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { toast } from "sonner";
 import {
@@ -933,36 +934,27 @@ function TeacherWorkshops() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <RowAction
+                        label="Asignación / excluir estudiantes"
+                        icon={Users}
                         onClick={() => openAssign(ws)}
-                        title="Asignación / excluir estudiantes"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Preguntas del taller"
+                        icon={ListChecks}
                         onClick={() => {
                           setQuestionsWs(ws);
                           setQuestionsOpen(true);
                         }}
-                        title="Preguntas del taller"
-                      >
-                        <ListChecks className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Calificar"
+                        icon={CheckCircle2}
                         onClick={() => openGrading(ws)}
-                        title="Calificar"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Editar"
+                        icon={Pencil}
                         onClick={() => {
                           setForm({
                             ...ws,
@@ -973,26 +965,18 @@ function TeacherWorkshops() {
                           } as any);
                           setOpen(true);
                         }}
-                        title="Editar"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Duplicar"
+                        icon={Copy}
                         onClick={() => duplicateWorkshop(ws)}
-                        title="Duplicar"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <RowAction
+                        label="Eliminar"
+                        icon={Trash2}
+                        tone="destructive"
                         onClick={() => remove(ws.id)}
-                        title="Eliminar"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1491,17 +1475,14 @@ function TeacherWorkshops() {
                               ? "Entregado"
                               : "Pendiente"}
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      <RowAction
+                        label="Eliminar entrega"
+                        icon={Trash2}
+                        tone="destructive"
                         onClick={() =>
                           deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")
                         }
-                        title="Eliminar entrega"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      />
                     </div>
                   </div>
 

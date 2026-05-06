@@ -53,6 +53,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { RowAction } from "@/components/ui/row-action";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
 
@@ -568,28 +569,22 @@ function ExamMonitor() {
                             <span className="ml-1 text-[11px]">+5m</span>
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                        <RowAction
+                          label="Ver intentos"
+                          icon={Eye}
                           onClick={() => setAttemptsForUser(row.userId)}
-                          title="Ver intentos"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                        />
                         {row.attempts.length > 0 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => deleteAllAttempts(row)}
-                            title={
+                          <RowAction
+                            label={
                               row.attempts.length === 1
                                 ? "Eliminar el intento del estudiante"
                                 : `Eliminar los ${row.attempts.length} intentos del estudiante`
                             }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                            icon={Trash2}
+                            tone="destructive"
+                            onClick={() => deleteAllAttempts(row)}
+                          />
                         )}
                       </div>
                     </TableCell>
@@ -686,26 +681,18 @@ function ExamMonitor() {
                         </div>
                         <div className="flex items-center gap-1">
                           {isFinal && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                openView(a);
-                              }}
-                              title="Ver respuestas y calificar"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
+                            <RowAction
+                              label="Ver respuestas y calificar"
+                              icon={Eye}
+                              onClick={() => openView(a)}
+                            />
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
+                          <RowAction
+                            label="Eliminar este intento"
+                            icon={Trash2}
+                            tone="destructive"
                             onClick={() => deleteOneAttempt(a)}
-                            title="Eliminar este intento"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          />
                         </div>
                       </div>
                     );

@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2 } from "lucide-react";
+import { RowAction } from "@/components/ui/row-action";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -394,32 +395,19 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }}>
-                        <Button variant="ghost" size="sm" title={t("exam.liveMonitor")}>
-                          <Monitor className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }}>
-                        <Button variant="ghost" size="sm" title={t("common.edit")}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => duplicate(e)}
-                        title="Duplicar"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <RowAction asChild label={t("exam.liveMonitor")} icon={Monitor}>
+                        <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }} />
+                      </RowAction>
+                      <RowAction asChild label={t("common.edit")} icon={Pencil}>
+                        <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }} />
+                      </RowAction>
+                      <RowAction label="Duplicar" icon={Copy} onClick={() => duplicate(e)} />
+                      <RowAction
+                        label={t("common.delete", { defaultValue: "Eliminar" })}
+                        icon={Trash2}
+                        tone="destructive"
                         onClick={() => remove(e)}
-                        title={t("common.delete", { defaultValue: "Eliminar" })}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

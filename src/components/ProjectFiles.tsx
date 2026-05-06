@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -290,40 +291,29 @@ export function TeacherProjectFilesEditor({
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => moveQ(q.id, "up")}
+                  <RowAction
+                    label="Subir"
+                    icon={ChevronUp}
                     disabled={idx === 0}
-                    title="Subir"
-                  >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => moveQ(q.id, "down")}
+                    onClick={() => moveQ(q.id, "up")}
+                  />
+                  <RowAction
+                    label="Bajar"
+                    icon={ChevronDown}
                     disabled={idx === questions.length - 1}
-                    title="Bajar"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                    onClick={() => moveQ(q.id, "down")}
+                  />
+                  <RowAction
+                    label="Editar pregunta"
+                    icon={Pencil}
                     onClick={() => loadIntoForm(q)}
-                    title="Editar pregunta"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  />
+                  <RowAction
+                    label="Eliminar pregunta"
+                    icon={Trash2}
+                    tone="destructive"
                     onClick={() => removeQ(q.id)}
-                    title="Eliminar pregunta"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  />
                 </div>
               </CardContent>
             </Card>

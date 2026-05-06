@@ -63,6 +63,7 @@ import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { RowAction } from "@/components/ui/row-action";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -801,46 +802,32 @@ function TeacherProjects() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Archivos esperados"
+                      <RowAction
+                        label="Archivos esperados"
+                        icon={FileText}
                         onClick={() => openFilesDialog(p)}
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Asignar estudiantes"
+                      />
+                      <RowAction
+                        label="Asignar estudiantes"
+                        icon={Users}
                         onClick={() => openAssignDialog(p)}
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Entregas y calificación"
+                      />
+                      <RowAction
+                        label="Entregas y calificación"
+                        icon={ClipboardList}
                         onClick={() => openGradingDialog(p)}
-                      >
-                        <ClipboardList className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title={t("common.edit")}
+                      />
+                      <RowAction
+                        label={t("common.edit")}
+                        icon={Pencil}
                         onClick={() => openEdit(p)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title={t("common.delete")}
+                      />
+                      <RowAction
+                        label={t("common.delete")}
+                        icon={Trash2}
+                        tone="destructive"
                         onClick={() => remove(p)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

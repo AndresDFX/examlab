@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import {
   Select,
   SelectContent,
@@ -577,33 +578,19 @@ function StudentGrades() {
                             </TableCell>
                             <TableCell className="text-right">
                               {it.kind === "exam" && it.reviewExamId ? (
-                                <Link
-                                  to="/app/student/review/$examId"
-                                  params={{ examId: it.reviewExamId }}
-                                >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs"
-                                  >
-                                    <MessageSquareText className="h-3.5 w-3.5" />
-                                    Detalle
-                                  </Button>
-                                </Link>
+                                <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
+                                  <Link
+                                    to="/app/student/review/$examId"
+                                    params={{ examId: it.reviewExamId }}
+                                  />
+                                </RowAction>
                               ) : it.kind === "workshop" && it.reviewWorkshopId ? (
-                                <Link
-                                  to="/app/student/workshop/$workshopId"
-                                  params={{ workshopId: it.reviewWorkshopId }}
-                                >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs"
-                                  >
-                                    <MessageSquareText className="h-3.5 w-3.5" />
-                                    Detalle
-                                  </Button>
-                                </Link>
+                                <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
+                                  <Link
+                                    to="/app/student/workshop/$workshopId"
+                                    params={{ workshopId: it.reviewWorkshopId }}
+                                  />
+                                </RowAction>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}

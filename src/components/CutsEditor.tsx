@@ -11,6 +11,7 @@ import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -184,15 +185,12 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                   }
                   placeholder="Peso %"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
+                <RowAction
+                  label="Eliminar corte"
+                  icon={Trash2}
+                  tone="destructive"
                   onClick={() => removeCut(cut.id)}
-                  title="Eliminar corte"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                />
               </div>
 
               {isOpen && (

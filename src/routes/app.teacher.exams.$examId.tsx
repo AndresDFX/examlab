@@ -39,6 +39,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
+import { RowAction } from "@/components/ui/row-action";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -965,40 +966,29 @@ function ExamEditor() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveQuestion(q.id, "up")}
+                    <RowAction
+                      label="Subir"
+                      icon={ChevronUp}
                       disabled={i === 0}
-                      title="Subir"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveQuestion(q.id, "down")}
+                      onClick={() => moveQuestion(q.id, "up")}
+                    />
+                    <RowAction
+                      label="Bajar"
+                      icon={ChevronDown}
                       disabled={i === questions.length - 1}
-                      title="Bajar"
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      onClick={() => moveQuestion(q.id, "down")}
+                    />
+                    <RowAction
+                      label="Editar pregunta"
+                      icon={Pencil}
                       onClick={() => loadQIntoForm(q)}
-                      title="Editar pregunta"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    />
+                    <RowAction
+                      label="Eliminar pregunta"
+                      icon={Trash2}
+                      tone="destructive"
                       onClick={() => removeQuestion(q.id)}
-                      title="Eliminar pregunta"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    />
                   </div>
                 </CardContent>
               </Card>
