@@ -8,11 +8,12 @@
  * DB triggers prevent a single insert/update from exceeding 100; the UI also
  * surfaces the running sums so the teacher sees the constraint live.
  */
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { Plus, Trash2, Save, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -230,20 +231,12 @@ function GradingConfigPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link to="/app/teacher/courses">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            {t("common.back")}
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-            {t("grading.configTitle")}
-          </h1>
-          <p className="text-muted-foreground text-sm">{courseName}</p>
-        </div>
-      </div>
+      <PageHeader
+        backTo="/app/teacher/courses"
+        backLabel={t("common.back")}
+        title={t("grading.configTitle")}
+        subtitle={courseName}
+      />
 
       {/* Banner de deprecación: la nueva configuración vive en el diálogo de curso. */}
       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">

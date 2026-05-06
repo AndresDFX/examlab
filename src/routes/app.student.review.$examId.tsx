@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
@@ -402,17 +403,11 @@ function StudentExamReview() {
 function BackHeader({ title, courseName }: { title: string; courseName?: string | null }) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-wrap items-start gap-3">
-      <Link to="/app/student/exams">
-        <Button variant="ghost" size="sm" className="shrink-0">
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          {t("exam.review.backToExams")}
-        </Button>
-      </Link>
-      <div className="min-w-0">
-        <h1 className="text-xl md:text-2xl font-semibold tracking-tight truncate">{title}</h1>
-        {courseName && <p className="text-sm text-muted-foreground">{courseName}</p>}
-      </div>
-    </div>
+    <PageHeader
+      backTo="/app/student/exams"
+      backLabel={t("exam.review.backToExams")}
+      title={title}
+      subtitle={courseName ?? undefined}
+    />
   );
 }

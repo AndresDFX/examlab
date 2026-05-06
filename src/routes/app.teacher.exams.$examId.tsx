@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,7 +21,6 @@ import { AssignSelector } from "@/components/AssignSelector";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Plus,
   Sparkles,
   Trash2,
@@ -40,6 +39,7 @@ import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -395,15 +395,7 @@ function ExamEditor() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link to="/app/teacher/exams">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Volver
-          </Button>
-        </Link>
-        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{exam.title}</h1>
-      </div>
+      <PageHeader backTo="/app/teacher/exams" title={exam.title} />
 
       <Tabs defaultValue={(exam as any).is_external ? "external-grades" : "config"}>
         <TabsList className="flex-wrap h-auto">

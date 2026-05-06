@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +26,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Clock,
   AlertTriangle,
   Sparkles,
@@ -40,6 +39,7 @@ import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
 import {
   computeFinalGrade,
@@ -442,24 +442,18 @@ function ExamMonitor() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link to="/app/teacher/exams">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            {t("common.back")}
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
-            {t("monitor.title")}: {exam.title}
-          </h1>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        backTo="/app/teacher/exams"
+        backLabel={t("common.back")}
+        title={`${t("monitor.title")}: ${exam.title}`}
+        subtitle={
+          <>
             {exam.course?.name} · Modo de reintento:{" "}
             <span className="font-medium">{retryModeLabel(retryMode)}</span> · Máx. intentos:{" "}
             {maxAttempts}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Live submissions */}
       <Card>

@@ -21,6 +21,7 @@ import { ArrowLeft, FileText, MessageSquareText, Bot, ExternalLink } from "lucid
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -251,17 +252,12 @@ function StudentProjectDetail() {
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
-      <div className="flex flex-wrap items-start gap-3">
-        <Link to="/app/student/projects">
-          <Button variant="ghost" size="sm" className="shrink-0">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Proyectos
-          </Button>
-        </Link>
-        <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{project.title}</h1>
-          <p className="text-sm text-muted-foreground">{project.course?.name}</p>
-        </div>
-      </div>
+      <PageHeader
+        backTo="/app/student/projects"
+        backLabel="Proyectos"
+        title={project.title}
+        subtitle={project.course?.name}
+      />
 
       {!submission && (
         <Card className="border-dashed">
