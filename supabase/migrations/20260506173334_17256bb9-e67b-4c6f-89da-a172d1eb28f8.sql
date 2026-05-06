@@ -1,0 +1,1 @@
+alter table public.exams add column if not exists max_warnings integer not null default 3 check (max_warnings between 1 and 50);
