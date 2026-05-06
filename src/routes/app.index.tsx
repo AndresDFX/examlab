@@ -489,7 +489,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         {/* Quick actions */}
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickActions")}</h2>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <QuickCard
               to="/app/teacher/exams"
               title={t("dashboard.cards.createExam")}
@@ -848,7 +848,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
 
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickAccess")}</h2>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <QuickCard
               to="/app/student/exams"
               title={t("dashboard.cards.examsStudent")}
@@ -931,16 +931,21 @@ function QuickCard({
   icon: any;
   color?: string;
 }) {
+  // Cards compactos: padding y tamaño de ícono reducidos para que en
+  // la columna angosta del dashboard (1/4 del ancho en md+) las
+  // tarjetas no se vean abultadas. La descripción se trunca a 1 línea
+  // con `line-clamp-1` — antes "Define entregables y asigna a cursos"
+  // se partía a 2 líneas y desbalanceaba el grid.
   return (
     <Link to={to}>
-      <Card className="hover:border-primary/40 transition-colors cursor-pointer">
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
-            <Icon className="h-4.5 w-4.5" />
+      <Card className="hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer">
+        <CardContent className="p-3 flex items-center gap-2.5">
+          <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${color}`}>
+            <Icon className="h-4 w-4" />
           </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium">{title}</div>
-            <div className="text-xs text-muted-foreground">{desc}</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium leading-tight">{title}</div>
+            <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{desc}</div>
           </div>
         </CardContent>
       </Card>
