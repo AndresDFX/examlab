@@ -218,7 +218,7 @@ function ExamEditor() {
       payload.schedule_type = ((exam as any).schedule_type ?? "normal") as string;
       payload.retry_mode = ((exam as any).retry_mode ?? "last") as string;
     }
-    const { error } = await supabase.from("exams").update(payload).eq("id", examId);
+    const { error } = await supabase.from("exams").update(payload as any).eq("id", examId);
     if (error) return toast.error(error.message);
     toast.success("Examen actualizado correctamente");
     navigate({ to: "/app/teacher/exams" });
