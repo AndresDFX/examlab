@@ -733,6 +733,18 @@ function TakeExam() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") e.preventDefault();
       if (e.altKey && (e.key === "Tab" || e.key === "F4")) e.preventDefault();
+      // Bloqueo Esc durante el examen: que no cierre dialogs ni
+      // cancele autocomplete/selección/etc. del navegador. NOTA: no
+      // podemos evitar que el navegador salga de fullscreen al pulsar
+      // Esc — esa salida la maneja el SO/browser y nuestro código no
+      // la intercepta. Cuando ocurre, fullscreenchange dispara y
+      // recordWarning("fullscreen_exit") suma el strike correspondiente.
+      // stopPropagation además evita que Radix Dialog reciba el evento
+      // y cierre el modal abierto en ese momento.
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     };
     const onFsChange = () => {
       if (!document.fullscreenElement && started && !submittedRef.current) {
