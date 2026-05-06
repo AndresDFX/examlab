@@ -104,7 +104,7 @@ type Workshop = {
   status: string;
   course?: { name: string; period: string | null };
 };
-type Cut = { id: string; course_id: string; name: string };
+type Cut = { id: string; course_id: string; name: string; weight: number };
 type Student = { id: string; full_name: string; institutional_email: string };
 type WsSub = {
   id: string;
@@ -211,7 +211,7 @@ function TeacherWorkshops() {
         .from("workshops")
         .select("*, course:courses(name, period)")
         .order("created_at", { ascending: false }),
-      (supabase as any).from("grade_cuts").select("id, course_id, name").order("position"),
+      (supabase as any).from("grade_cuts").select("id, course_id, name, weight").order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
@@ -278,7 +278,7 @@ function TeacherWorkshops() {
     }
 
     const isExternal = !!(form as any).is_external;
-    const basePayload = {
+    const basePayload: Record<string, any> = {
       title: form.title,
       description: form.description ?? null,
       instructions: form.instructions ?? null,
@@ -294,6 +294,13 @@ function TeacherWorkshops() {
       cut_id: form.cut_id || null,
       is_external: isExternal,
     };
+    // weight solo tiene sentido cuando hay corte; lo enviamos solo si
+    // el form lo incluye, así DB defaults toman el resto. Patrón
+    // consistente con cómo manejamos campos desactivados en otros
+    // formularios (ver memoria de feedback).
+    if (form.cut_id && (form as any).weight != null) {
+      basePayload.weight = Number((form as any).weight);
+    }
 
     if (form.id) {
       const { error } = await supabase
@@ -1116,6 +1123,50 @@ function TeacherWorkshops() {
                     Este curso aún no tiene cortes definidos.
                   </p>
                 )}
+            </div>
+            {/*
+             * Peso del taller dentro del corte. Habilitado solo cuando
+             * hay un corte seleccionado, con cap = cut.weight para que
+             * el docente vea claro el rango (ej. si el corte vale 30%
+             * el peso máximo del taller es 30, no 100). Por defecto 1.
+             */}
+            <div>
+              {(() => {
+                const selectedCut = form.cut_id ? cuts.find((c) => c.id === form.cut_id) : null;
+                const cutWeight = selectedCut?.weight ?? 0;
+                return (
+                  <>
+                    <Label>Peso del taller dentro del corte</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={cutWeight || undefined}
+                      step="0.1"
+                      placeholder="1"
+                      className="w-32 mt-1"
+                      disabled={!selectedCut}
+                      value={(form as any).weight ?? 1}
+                      onChange={(e) => {
+                        const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                        const capped = cutWeight > 0 ? Math.min(raw, cutWeight) : raw;
+                        setForm({ ...form, weight: capped } as any);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {selectedCut ? (
+                        <>
+                          Máximo {cutWeight}, que es lo que vale el corte{" "}
+                          <span className="font-medium">{selectedCut.name}</span> en la nota
+                          final. Distribuye este número entre los talleres del corte (ej. 1 =
+                          taller normal, 2 = taller doble, 0.5 = taller corto).
+                        </>
+                      ) : (
+                        "Asigna primero un corte de evaluación arriba para poder configurar el peso."
+                      )}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             <div>
               <Label>Descripción</Label>

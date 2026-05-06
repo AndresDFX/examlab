@@ -63,7 +63,7 @@ function ExamEditor() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
-  const [cuts, setCuts] = useState<Array<{ id: string; name: string }>>([]);
+  const [cuts, setCuts] = useState<Array<{ id: string; name: string; weight: number }>>([]);
   const [cutItems, setCutItems] = useState<Array<{ id: string; cut_id: string; item_type: string; weight: number; exam_id: string | null; workshop_id: string | null; project_id: string | null; project_title: string | null }>>([]);
   const [examTitlesById, setExamTitlesById] = useState<Record<string, string>>({});
   const [workshopTitlesById, setWorkshopTitlesById] = useState<Record<string, string>>({});
@@ -150,10 +150,10 @@ function ExamEditor() {
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));
       const { data: cs } = await (supabase as any)
         .from("grade_cuts")
-        .select("id, name")
+        .select("id, name, weight")
         .eq("course_id", e.course_id)
         .order("position");
-      const cutsArr = (cs ?? []) as Array<{ id: string; name: string }>;
+      const cutsArr = (cs ?? []) as Array<{ id: string; name: string; weight: number }>;
       setCuts(cutsArr);
       const cutIds = cutsArr.map((c) => c.id);
       if (cutIds.length) {
@@ -650,25 +650,46 @@ function ExamEditor() {
                 )}
               </div>
               <div>
-                <Label>Peso del examen dentro del corte</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  placeholder="1"
-                  className="w-32"
-                  value={(exam as any).weight ?? 1}
-                  onChange={(e) =>
-                    setExam({
-                      ...exam,
-                      weight: e.target.value === "" ? 1 : Number(e.target.value),
-                    } as any)
-                  }
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Peso relativo respecto a otros exámenes del mismo corte. Ej: 1 = parcial normal,
-                  0.5 = examen corto/quiz, 2 = examen final que vale el doble.
-                </p>
+                {(() => {
+                  const cutId = (exam as any).cut_id as string | null | undefined;
+                  const selectedCut = cutId ? cuts.find((c) => c.id === cutId) : null;
+                  const cutWeight = selectedCut?.weight ?? 0;
+                  return (
+                    <>
+                      <Label>Peso del examen dentro del corte</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={cutWeight || undefined}
+                        step="0.1"
+                        placeholder="1"
+                        className="w-32"
+                        disabled={!selectedCut}
+                        value={(exam as any).weight ?? 1}
+                        onChange={(e) => {
+                          const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                          // Cap a peso del corte para que el docente no pueda
+                          // poner un peso mayor que la contribución total del
+                          // corte a la nota final.
+                          const capped = cutWeight > 0 ? Math.min(raw, cutWeight) : raw;
+                          setExam({ ...exam, weight: capped } as any);
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selectedCut ? (
+                          <>
+                            Máximo {cutWeight}, que es lo que vale el corte{" "}
+                            <span className="font-medium">{selectedCut.name}</span> en la nota
+                            final del curso. Distribuye este número entre los exámenes del
+                            corte para asignar más peso al examen final que a un quiz, etc.
+                          </>
+                        ) : (
+                          "Asigna primero un corte de evaluación arriba para poder configurar el peso."
+                        )}
+                      </p>
+                    </>
+                  );
+                })()}
                 {(() => {
                   const cutId = (exam as any).cut_id as string | null | undefined;
                   if (!cutId) return null;
