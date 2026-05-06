@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -208,12 +209,20 @@ function RootComponent() {
   // delayDuration en 200ms para que tooltips de RowAction aparezcan
   // rápido al pasar el mouse — el default de 700ms se siente lento
   // en grids donde el usuario hace hover rápidamente entre filas.
+  //
+  // ErrorBoundary envuelve el árbol entero como red final: si algún
+  // componente fuera de las rutas (provider, layout compartido) lanza
+  // en render, el usuario ve un mensaje claro en vez de pantalla
+  // en blanco. Errores DENTRO de rutas siguen siendo capturados por
+  // el defaultErrorComponent de TanStack Router (router.tsx).
   return (
-    <TooltipProvider delayDuration={200}>
-      <ConfirmProvider>
-        <Outlet />
-        <Toaster richColors position="top-right" expand visibleToasts={6} />
-      </ConfirmProvider>
-    </TooltipProvider>
+    <ErrorBoundary>
+      <TooltipProvider delayDuration={200}>
+        <ConfirmProvider>
+          <Outlet />
+          <Toaster richColors position="top-right" expand visibleToasts={6} />
+        </ConfirmProvider>
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 }
