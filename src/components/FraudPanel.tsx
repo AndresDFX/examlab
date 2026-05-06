@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Bot, Loader2, Search, Users } from "lucide-react";
+import { AlertTriangle, Bot, Search, Users } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Panel reutilizable para docente: análisis de fraude (IA) y detección
@@ -179,7 +180,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             className="h-8 text-xs"
           >
             {detecting ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              <Spinner size="sm" className="mr-1.5" />
             ) : (
               <Search className="h-3.5 w-3.5 mr-1.5" />
             )}

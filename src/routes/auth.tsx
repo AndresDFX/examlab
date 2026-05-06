@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -136,7 +137,7 @@ function AuthPage() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} {t("auth.submit")}
+                {loading && <Spinner size="md" className="mr-2" />} {t("auth.submit")}
               </Button>
             </form>
             <p className="text-xs text-muted-foreground mt-4 text-center">
@@ -150,7 +151,7 @@ function AuthPage() {
                 onClick={runSeed}
                 disabled={seedingLoading}
               >
-                {seedingLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {seedingLoading && <Spinner size="md" className="mr-2" />}
                 {t("auth.seedDemo")}
               </Button>
             </div>

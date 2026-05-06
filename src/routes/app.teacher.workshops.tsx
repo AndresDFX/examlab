@@ -50,12 +50,13 @@ import {
   CheckSquare,
   XSquare,
   Sparkles,
-  Loader2,
   ThumbsUp,
   ThumbsDown,
   HelpCircle,
   Copy,
+  ListChecks,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
@@ -71,7 +72,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ListChecks } from "lucide-react";
 
 const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,max_score,status
 Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,100,published
@@ -1408,7 +1408,7 @@ function TeacherWorkshops() {
               </div>
               <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
                 {aiGradingAll ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Spinner size="md" className="mr-1" />
                 ) : (
                   <Sparkles className="h-4 w-4 mr-1" />
                 )}
@@ -1625,7 +1625,7 @@ function TeacherWorkshops() {
                                     disabled={savingAnswerId === ans?.id}
                                   >
                                     {savingAnswerId === ans?.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      <Spinner size="sm" className="mr-1" />
                                     ) : (
                                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                                     )}
@@ -1638,7 +1638,7 @@ function TeacherWorkshops() {
                                     disabled={aiGradingAnswerId === ans?.id}
                                   >
                                     {aiGradingAnswerId === ans?.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      <Spinner size="sm" className="mr-1" />
                                     ) : (
                                       <Sparkles className="h-3.5 w-3.5 mr-1" />
                                     )}
@@ -1729,7 +1729,7 @@ function TeacherWorkshops() {
                         disabled={aiGradingId === sub.id}
                       >
                         {aiGradingId === sub.id ? (
-                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                          <Spinner size="sm" className="mr-1" />
                         ) : (
                           <Sparkles className="h-3.5 w-3.5 mr-1" />
                         )}

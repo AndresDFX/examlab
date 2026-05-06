@@ -6,8 +6,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +69,7 @@ export const RowAction = forwardRef<HTMLButtonElement, RowActionProps>(function 
   // que inyectarlo como hijo del Link — si no, el Link queda vacío
   // y no se ve nada. Clonamos y pisamos los children del Link.
   const glyph = loading ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
+    <Spinner size="md" />
   ) : (
     <Icon className="h-4 w-4" />
   );

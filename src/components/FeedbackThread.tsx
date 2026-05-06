@@ -19,7 +19,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Lock, Unlock, Send, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
+import { MessageSquare, Lock, Unlock, Send, Pencil, Trash2, Check, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
 
@@ -386,7 +387,7 @@ export function FeedbackThread({
 
       {loading && (
         <p className="text-xs text-muted-foreground">
-          <Loader2 className="inline h-3 w-3 animate-spin mr-1" />
+          <Spinner size="xs" inline className="mr-1" />
           Cargando…
         </p>
       )}
@@ -461,7 +462,7 @@ export function FeedbackThread({
                           disabled={isDeletingThis}
                         >
                           {isDeletingThis ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <Spinner size="xs" />
                           ) : (
                             <Trash2 className="h-3 w-3" />
                           )}
@@ -506,7 +507,7 @@ export function FeedbackThread({
                         disabled={savingEdit || !editingText.trim()}
                       >
                         {savingEdit ? (
-                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          <Spinner size="xs" className="mr-1" />
                         ) : (
                           <Check className="h-3 w-3 mr-1" />
                         )}
@@ -547,7 +548,7 @@ export function FeedbackThread({
             className="self-end h-9"
           >
             {sending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Spinner size="xs" />
             ) : (
               <Send className="h-3 w-3" />
             )}

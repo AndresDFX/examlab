@@ -71,7 +71,7 @@ const STATUS_OPTIONS = [
     short: "P",
     label: "Presente",
     icon: CheckCircle2,
-    color: "text-emerald-600 dark:text-emerald-400",
+    color: "text-success",
   },
   { value: "ausente", short: "A", label: "Ausente", icon: X, color: "text-destructive" },
 ];
@@ -444,10 +444,7 @@ function TeacherAttendance() {
                           onClick={() => markAllPresent(sess.id)}
                           title="Marcar a todos como presentes"
                         >
-                          <CheckCircle2
-                            className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
-                            aria-hidden
-                          />
+                          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
                         </Button>
                         <Button
                           type="button"
@@ -517,7 +514,7 @@ function TeacherAttendance() {
                             onValueChange={(v) => setAttendance(sess.id, s.id, v)}
                           >
                             <SelectTrigger
-                              className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-emerald-600 dark:text-emerald-400 border-emerald-500/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
+                              className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-success border-success/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
                             >
                               <SelectValue placeholder="—" />
                             </SelectTrigger>

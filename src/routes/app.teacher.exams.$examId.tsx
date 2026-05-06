@@ -24,7 +24,6 @@ import {
   ArrowLeft,
   Plus,
   Sparkles,
-  Loader2,
   Trash2,
   CheckSquare,
   XSquare,
@@ -40,6 +39,7 @@ import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
+import { Spinner } from "@/components/ui/spinner";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -810,7 +810,7 @@ function ExamEditor() {
               )}
               <Button onClick={generateAI} disabled={aiLoading}>
                 {aiLoading ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Spinner size="md" className="mr-1" />
                 ) : (
                   <Sparkles className="h-4 w-4 mr-1" />
                 )}

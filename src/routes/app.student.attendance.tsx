@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/loaders";
 import {
   Select,
   SelectContent,
@@ -60,7 +61,7 @@ function statusMeta(status: string | null | undefined) {
       return {
         label: "Presente",
         icon: CheckCircle2,
-        className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+        className: "bg-success/10 text-success border-success/30",
       };
     case "ausente":
       return {
@@ -239,11 +240,7 @@ function StudentAttendance() {
         )}
       </div>
 
-      {loadingCourses && (
-        <p className="text-sm text-muted-foreground flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
-        </p>
-      )}
+      {loadingCourses && <SectionLoader />}
 
       {!loadingCourses && courses.length === 0 && (
         <Card className="border-dashed">
@@ -265,7 +262,7 @@ function StudentAttendance() {
             <Card>
               <CardContent className="p-4">
                 <div className="text-xs text-muted-foreground">Presentes</div>
-                <div className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                <div className="text-2xl font-semibold tabular-nums text-success">
                   {stats.presente}
                 </div>
               </CardContent>

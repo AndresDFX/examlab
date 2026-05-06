@@ -745,7 +745,7 @@ function Gradebook() {
                       <TableCell
                         className={`text-center text-sm font-semibold tabular-nums bg-muted/30 ${
                           passes === true
-                            ? "text-emerald-700 dark:text-emerald-400"
+                            ? "text-success"
                             : passes === false
                               ? "text-destructive"
                               : ""

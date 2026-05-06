@@ -458,7 +458,7 @@ function StudentGrades() {
             <Card
               className={
                 passes === true
-                  ? "border-emerald-500/40 bg-emerald-500/5"
+                  ? "border-success/40 bg-success/5"
                   : passes === false
                     ? "border-destructive/40 bg-destructive/5"
                     : ""
@@ -473,7 +473,7 @@ function StudentGrades() {
                 </div>
                 <div className="text-2xl font-semibold tabular-nums">{fmt(finalGrade)}</div>
                 {passes === true && (
-                  <div className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+                  <div className="flex items-center gap-1 text-xs text-success">
                     <CheckCircle2 className="h-3 w-3" /> Aprobando
                   </div>
                 )}

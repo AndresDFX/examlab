@@ -51,7 +51,6 @@ import {
   Trash2,
   Users,
   FileText,
-  Loader2,
   ClipboardList,
   Sparkles,
   Save,
@@ -64,10 +63,12 @@ import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
+import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { SectionLoader } from "@/components/ui/loaders";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -1113,11 +1114,7 @@ function TeacherProjects() {
               Entregas — {gradingProject?.title}
             </DialogTitle>
           </DialogHeader>
-          {gradingLoading && (
-            <p className="text-sm text-muted-foreground p-4 text-center">
-              <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando entregas…
-            </p>
-          )}
+          {gradingLoading && <SectionLoader text="Cargando entregas…" className="justify-center" />}
           {!gradingLoading && gradingSubs.length === 0 && (
             <p className="text-sm text-muted-foreground p-4 text-center">
               Aún no hay entregas para este proyecto.
@@ -1237,7 +1234,7 @@ function TeacherProjects() {
                                       onClick={() => aiRegradeSubFile(sub.id, f)}
                                     >
                                       {aiRegradingId === a?.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                        <Spinner size="sm" className="mr-1" />
                                       ) : (
                                         <Sparkles className="h-3.5 w-3.5 mr-1" />
                                       )}
@@ -1249,7 +1246,7 @@ function TeacherProjects() {
                                       onClick={() => saveSubFileGrade(sub.id, f.id)}
                                     >
                                       {savingId === a?.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                        <Spinner size="sm" className="mr-1" />
                                       ) : (
                                         <Save className="h-3.5 w-3.5 mr-1" />
                                       )}

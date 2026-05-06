@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Search, CheckSquare, XSquare, Loader2 } from "lucide-react";
+import { Search, CheckSquare, XSquare } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 export type AssignSelectorItem = {
   id: string;
@@ -120,9 +121,9 @@ export function AssignSelector({
 
       <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
         {loading && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando…
-          </p>
+          <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground py-4">
+            <Spinner size="xs" /> Cargando…
+          </div>
         )}
         {!loading && errorText && (
           <p className="text-sm text-destructive text-center py-4">{errorText}</p>

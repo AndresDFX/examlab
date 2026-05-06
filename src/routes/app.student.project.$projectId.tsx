@@ -17,9 +17,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, Loader2, MessageSquareText, Bot, ExternalLink } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquareText, Bot, ExternalLink } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SectionLoader } from "@/components/ui/loaders";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -207,9 +208,7 @@ function StudentProjectDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground p-6">
-        <Loader2 className="h-4 w-4 animate-spin" /> {t("common.loading")}
-      </div>
+      <SectionLoader text={t("common.loading")} />
     );
   }
 

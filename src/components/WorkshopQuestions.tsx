@@ -21,7 +21,6 @@ import { toast } from "sonner";
 import {
   Plus,
   Trash2,
-  Loader2,
   Sparkles,
   Send,
   Pencil,
@@ -30,6 +29,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -264,7 +264,7 @@ export function TeacherWorkshopQuestionsEditor({
         <TabsContent value="list" className="space-y-2">
           {loading && (
             <p className="text-sm text-muted-foreground">
-              <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando…
+              <Spinner size="xs" inline className="mr-1" /> Cargando…
             </p>
           )}
           {!loading && questions.length === 0 && (
@@ -479,7 +479,7 @@ export function TeacherWorkshopQuestionsEditor({
           </div>
           <Button onClick={generateWithAI} disabled={aiLoading}>
             {aiLoading ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Spinner size="md" className="mr-1" />
             ) : (
               <Sparkles className="h-4 w-4 mr-1" />
             )}
@@ -715,7 +715,7 @@ export function StudentWorkshopTaker({
   if (loading) {
     return (
       <p className="text-sm text-muted-foreground">
-        <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando preguntas…
+        <Spinner size="xs" inline className="mr-1" /> Cargando preguntas…
       </p>
     );
   }
@@ -812,7 +812,7 @@ export function StudentWorkshopTaker({
         <Button onClick={submit} disabled={submitting} className="w-full">
           {submitting ? (
             <>
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Spinner size="md" className="mr-1" />
               {t("workshop.submitting")}
             </>
           ) : (

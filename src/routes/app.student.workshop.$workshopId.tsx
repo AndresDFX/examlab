@@ -18,9 +18,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, Loader2, MessageSquareText } from "lucide-react";
+import { ArrowLeft, ExternalLink, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SectionLoader } from "@/components/ui/loaders";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,
@@ -161,9 +162,7 @@ function StudentWorkshopDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground p-6">
-        <Loader2 className="h-4 w-4 animate-spin" /> {t("common.loading")}
-      </div>
+      <SectionLoader text={t("common.loading")} />
     );
   }
 

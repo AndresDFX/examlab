@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { SectionLoader } from "@/components/ui/loaders";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -14,7 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ClipboardList, Loader2, Save } from "lucide-react";
+import { CheckCircle2, ClipboardList, Save } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Editor de notas para actividades externas (parciales/talleres
@@ -275,7 +277,7 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
               className="h-8 text-xs"
             >
               {bulkSaving ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                <Spinner size="sm" className="mr-1.5" />
               ) : (
                 <Save className="h-3.5 w-3.5 mr-1.5" />
               )}
@@ -293,9 +295,7 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
       </CardHeader>
       <CardContent className="p-0">
         {loading ? (
-          <p className="text-sm text-muted-foreground p-4 text-center">
-            <Loader2 className="inline h-3 w-3 animate-spin mr-1" /> Cargando estudiantes…
-          </p>
+          <SectionLoader text="Cargando estudiantes…" className="justify-center" />
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground p-4 text-center">
             No hay estudiantes matriculados en este curso aún.
@@ -347,7 +347,7 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
                       className="h-8 text-xs"
                     >
                       {savingId === row.userId ? (
-                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        <Spinner size="sm" className="mr-1" />
                       ) : row.hasGrade ? (
                         <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
                       ) : (

@@ -29,7 +29,6 @@ import {
   ArrowLeft,
   Clock,
   AlertTriangle,
-  Loader2,
   Sparkles,
   Trash2,
   Eye,
@@ -40,6 +39,7 @@ import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { Spinner } from "@/components/ui/spinner";
 import {
   computeFinalGrade,
   type BreakdownItem as GradeBreakdown,
@@ -545,7 +545,7 @@ function ExamMonitor() {
                             title="Agregar 5 minutos a este estudiante"
                           >
                             {loading === `add_time-${row.userId}` ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <Spinner size="sm" />
                             ) : (
                               <TimerReset className="h-3.5 w-3.5" />
                             )}
@@ -850,7 +850,7 @@ function ExamMonitor() {
                                 className="h-8"
                               >
                                 {savingQid === q.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                  <Spinner size="sm" className="mr-1" />
                                 ) : (
                                   <Save className="h-3.5 w-3.5 mr-1" />
                                 )}
@@ -865,7 +865,7 @@ function ExamMonitor() {
                                 title="Calificar esta pregunta con IA"
                               >
                                 {aiGradingQid === q.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                  <Spinner size="sm" className="mr-1" />
                                 ) : (
                                   <Sparkles className="h-3.5 w-3.5 mr-1" />
                                 )}
@@ -929,7 +929,7 @@ function ExamMonitor() {
                   disabled={aiGradingId === viewingSub.id}
                 >
                   {aiGradingId === viewingSub.id ? (
-                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    <Spinner size="sm" className="mr-1" />
                   ) : (
                     <Sparkles className="h-3.5 w-3.5 mr-1" />
                   )}
@@ -950,7 +950,7 @@ function ExamMonitor() {
                     disabled={savingOverride}
                   >
                     {savingOverride ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      <Spinner size="sm" className="mr-1" />
                     ) : (
                       <Save className="h-3.5 w-3.5 mr-1" />
                     )}

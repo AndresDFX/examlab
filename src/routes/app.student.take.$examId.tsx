@@ -16,7 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Maximize2, Send, Loader2, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Clock, Maximize2, Send, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -1053,7 +1054,7 @@ function TakeExam() {
         ) : (
           <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
             {submitting ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Spinner size="md" className="mr-1" />
             ) : (
               <Send className="h-4 w-4 mr-1" />
             )}
@@ -1177,7 +1178,7 @@ function TakeExam() {
               disabled={submitting}
             >
               {submitting ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="md" className="mr-1" />
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
