@@ -31,6 +31,12 @@ const dateFmt = new Intl.DateTimeFormat(LOCALE, {
   day: "2-digit",
 });
 
+/** Día + mes sin año, para tiles angostos. "30 sep". */
+const dateShortFmt = new Intl.DateTimeFormat(LOCALE, {
+  month: "short",
+  day: "2-digit",
+});
+
 const dateLongFmt = new Intl.DateTimeFormat(LOCALE, {
   year: "numeric",
   month: "long",
@@ -62,6 +68,13 @@ const weekdayFmt = new Intl.DateTimeFormat(LOCALE, {
 export function formatDate(value: DateInput, fallback = "—"): string {
   const d = toDate(value);
   return d ? dateFmt.format(d) : fallback;
+}
+
+/** Día + mes sin año. "30 sep". Para tiles compactos donde el año
+ * se asume del contexto (calendario semanal, columna de asistencia). */
+export function formatDateShort(value: DateInput, fallback = "—"): string {
+  const d = toDate(value);
+  return d ? dateShortFmt.format(d) : fallback;
 }
 
 /** Fecha con mes completo. "30 de septiembre de 2026". */

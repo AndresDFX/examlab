@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { Plus, CheckCircle2, X, Eraser } from "lucide-react";
 import { toCSV } from "@/lib/csv";
+import { formatDateShort } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -458,11 +459,8 @@ function TeacherAttendance() {
                         </Button>
                       </div>
                       <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
-                        <span className="text-[10px] font-medium leading-tight">
-                          {new Date(sess.session_date + "T12:00:00").toLocaleDateString(undefined, {
-                            day: "2-digit",
-                            month: "short",
-                          })}
+                        <span className="text-[10px] font-medium leading-tight tabular-nums">
+                          {formatDateShort(sess.session_date + "T12:00:00")}
                         </span>
                         {sess.title && (
                           <span

@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SectionLoader } from "@/components/ui/loaders";
+import { formatDateOnly } from "@/lib/format";
 import {
   Select,
   SelectContent,
@@ -323,11 +324,7 @@ function StudentAttendance() {
                         return (
                           <TableRow key={s.id}>
                             <TableCell className="font-medium tabular-nums">
-                              {new Date(s.session_date + "T00:00:00").toLocaleDateString("es-CO", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })}
+                              {formatDateOnly(s.session_date)}
                             </TableCell>
                             <TableCell className="text-sm">
                               {s.title ?? <span className="text-muted-foreground">—</span>}

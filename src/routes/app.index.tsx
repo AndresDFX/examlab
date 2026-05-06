@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,16 +51,12 @@ function formatNotifDate(
   if (diffHours < 24) return t("dashboard.notifications.relativeHours", { hour: diffHours });
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1)
-    return `${t("dashboard.notifications.relativeYesterday")} ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
+    return `${t("dashboard.notifications.relativeYesterday")} ${formatTime(d)}`;
+  // Weekday + time: caso muy específico de notificaciones recientes
+  // (esta semana). Lo dejamos inline porque ningún otro lugar lo usa.
   if (diffDays < 7)
     return d.toLocaleDateString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" });
-  return d.toLocaleDateString(locale, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTime(d);
 }
 
 function Dashboard() {
