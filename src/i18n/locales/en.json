@@ -213,8 +213,11 @@
       "course": "Course",
       "start": "Start",
       "duration": "Duration",
-      "type": "Type"
+      "type": "Type",
+      "navigation": "Navigation"
     },
+    "kindExternal": "External",
+    "kindOnline": "Online",
     "selectCourses": "(select one or more)",
     "coursesHelp": "A copy of the exam will be created in each selected course.",
     "createdIn": "Exam created in {{count}} courses successfully",

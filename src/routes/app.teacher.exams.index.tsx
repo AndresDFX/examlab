@@ -344,7 +344,10 @@ function TeacherExams() {
                 <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t("exam.columns.duration")}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t("exam.columns.type")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("exam.columns.type")}</TableHead>
+                <TableHead className="hidden lg:table-cell">
+                  {t("exam.columns.navigation")}
+                </TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -387,6 +390,17 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="text-sm hidden lg:table-cell">
                     {e.time_limit_minutes} {t("common.min")}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {(e as any).is_external ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        {t("exam.kindExternal")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {t("exam.kindOnline")}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <Badge variant="secondary" className="text-[10px]">
