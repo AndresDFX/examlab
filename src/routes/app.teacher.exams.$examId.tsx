@@ -192,24 +192,33 @@ function ExamEditor() {
       rawAttempts === null || rawAttempts === "" || rawAttempts === undefined
         ? null
         : Math.max(1, Number(rawAttempts) || 1);
-    const { error } = await supabase
-      .from("exams")
-      .update({
-        title: exam.title,
-        description: exam.description,
-        start_time: new Date(exam.start_time).toISOString(),
-        end_time: new Date(exam.end_time).toISOString(),
-        time_limit_minutes: Number(exam.time_limit_minutes),
-        navigation_type: exam.navigation_type,
-        shuffle_enabled: !!exam.shuffle_enabled,
-        max_attempts: normalizedAttempts,
-        max_warnings: Math.max(1, Math.min(50, Number((exam as any).max_warnings ?? 3) || 3)),
-        cut_id: (exam as any).cut_id || null,
-        weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
-        schedule_type: ((exam as any).schedule_type ?? "normal") as string,
-        retry_mode: ((exam as any).retry_mode ?? "last") as string,
-      } as any)
-      .eq("id", examId);
+    const isExternal = !!(exam as any).is_external;
+    // Para externos NO mandamos los campos de duración / navegación /
+    // proctoring / reintentos: el alumno no toma este examen, no aplican.
+    // Además, mandar columnas opcionales en cada update aumenta la
+    // probabilidad de toparse con un schema-cache PostgREST stale tras
+    // alguna migración reciente (ver bug 'Could not find max_warnings').
+    const payload: Record<string, any> = {
+      title: exam.title,
+      description: exam.description,
+      start_time: new Date(exam.start_time).toISOString(),
+      end_time: new Date(exam.end_time).toISOString(),
+      max_attempts: normalizedAttempts,
+      cut_id: (exam as any).cut_id || null,
+      weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
+    };
+    if (!isExternal) {
+      payload.time_limit_minutes = Number(exam.time_limit_minutes);
+      payload.navigation_type = exam.navigation_type;
+      payload.shuffle_enabled = !!exam.shuffle_enabled;
+      payload.max_warnings = Math.max(
+        1,
+        Math.min(50, Number((exam as any).max_warnings ?? 3) || 3),
+      );
+      payload.schedule_type = ((exam as any).schedule_type ?? "normal") as string;
+      payload.retry_mode = ((exam as any).retry_mode ?? "last") as string;
+    }
+    const { error } = await supabase.from("exams").update(payload).eq("id", examId);
     if (error) return toast.error(error.message);
     toast.success("Examen actualizado correctamente");
     navigate({ to: "/app/teacher/exams" });

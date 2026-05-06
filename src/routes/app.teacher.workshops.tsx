@@ -1011,11 +1011,12 @@ function TeacherWorkshops() {
             <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
               <div className="space-y-0.5">
                 <Label htmlFor="ws-is-external" className="text-sm">
-                  Actividad externa (presencial)
+                  Actividad externa
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un taller que ya ocurrió fuera de la plataforma. Solo registras
-                  notas para el cálculo del corte.
+                  Un taller que ocurrió fuera de la plataforma — presencial o
+                  hecho en otra herramienta. Solo registras notas para el
+                  cálculo del corte.
                 </p>
               </div>
               <Switch

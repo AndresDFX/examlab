@@ -210,38 +210,36 @@ function TeacherExams() {
       return;
     }
     const courseIds = [...selectedCourseIds];
-    // Para externos: las columnas NOT NULL de start/end/duration igual
-    // hay que llenarlas; usamos la fecha del parcial para todo y duration=1.
-    // Así el examen no se puede tomar (ventana de 0 segundos) pero sigue
-    // siendo un row válido al que el docente le carga notas manualmente.
-    const startIso = isExternal
-      ? new Date(form.start_time!).toISOString()
-      : new Date(form.start_time!).toISOString();
-    const endIso = isExternal
-      ? new Date(form.start_time!).toISOString()
-      : new Date(form.end_time!).toISOString();
-    const basePayload = {
+    // Para externos: start/end son la fecha de la actividad (ventana de
+    // 0s, así el examen no se puede tomar pero sigue siendo un row válido
+    // al que el docente le carga notas manualmente). Los campos de
+    // duración / navegación / proctoring / reintentos NO se incluyen en
+    // el payload — los DEFAULT de la DB se encargan, y así nos blindamos
+    // contra "Could not find the 'X' column in schema cache" si alguna
+    // columna fue añadida por migración reciente.
+    const startIso = new Date(form.start_time!).toISOString();
+    const endIso = isExternal ? startIso : new Date(form.end_time!).toISOString();
+    const basePayload: Record<string, any> = {
       title: form.title,
       description: form.description ?? null,
       start_time: startIso,
       end_time: endIso,
-      time_limit_minutes: isExternal ? 1 : Number(form.time_limit_minutes) || 60,
-      navigation_type: isExternal ? "libre" : form.navigation_type ?? "libre",
-      shuffle_enabled: !isExternal && !!form.shuffle_enabled,
       parent_exam_id: form.parent_exam_id || null,
-      schedule_type: isExternal
-        ? "normal"
-        : (((form as any).schedule_type ?? "normal") as string),
-      retry_mode: isExternal
-        ? "last"
-        : (((form as any).retry_mode ?? "last") as string),
-      max_warnings: isExternal
-        ? 1
-        : Math.max(1, Math.min(50, Number((form as any).max_warnings ?? 3) || 3)),
       created_by: user.id,
       cut_id: courseIds.length === 1 ? form.cut_id || null : null,
       is_external: isExternal,
-    } as any;
+    };
+    if (!isExternal) {
+      basePayload.time_limit_minutes = Number(form.time_limit_minutes) || 60;
+      basePayload.navigation_type = form.navigation_type ?? "libre";
+      basePayload.shuffle_enabled = !!form.shuffle_enabled;
+      basePayload.schedule_type = ((form as any).schedule_type ?? "normal") as string;
+      basePayload.retry_mode = ((form as any).retry_mode ?? "last") as string;
+      basePayload.max_warnings = Math.max(
+        1,
+        Math.min(50, Number((form as any).max_warnings ?? 3) || 3),
+      );
+    }
 
     // Create one exam per selected course
     let firstId: string | null = null;
@@ -447,11 +445,12 @@ function TeacherExams() {
             <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
               <div className="space-y-0.5">
                 <Label htmlFor="is-external" className="text-sm">
-                  Actividad externa (presencial)
+                  Actividad externa
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un parcial que ya ocurrió fuera de la plataforma. Solo registras
-                  notas para el cálculo del corte.
+                  Un parcial que ocurrió fuera de la plataforma — presencial o
+                  hecho en otra herramienta. Solo registras notas para el
+                  cálculo del corte.
                 </p>
               </div>
               <Switch
