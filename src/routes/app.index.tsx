@@ -489,7 +489,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         {/* Quick actions */}
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickActions")}</h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <QuickCard
               to="/app/teacher/exams"
               title={t("dashboard.cards.createExam")}
@@ -848,7 +848,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
 
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickAccess")}</h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <QuickCard
               to="/app/student/exams"
               title={t("dashboard.cards.examsStudent")}
