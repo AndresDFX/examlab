@@ -51,7 +51,8 @@ import {
   type CutWeights,
 } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
-import { statusLabel } from "@/utils/status-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { TableEmpty } from "@/components/ui/empty-state";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -553,11 +554,7 @@ function StudentGrades() {
                     </TableHeader>
                     <TableBody>
                       {cb.items.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
-                            Sin actividades en este corte.
-                          </TableCell>
-                        </TableRow>
+                        <TableEmpty colSpan={6} text="Sin actividades en este corte." />
                       ) : (
                         cb.items.map((it) => (
                           <TableRow key={`${it.kind}-${it.id}`}>
@@ -572,9 +569,7 @@ function StudentGrades() {
                               {fmt(it.grade)}
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                              <Badge variant="secondary" className="text-[10px]">
-                                {statusLabel(it.status)}
-                              </Badge>
+                              <StatusBadge status={it.status} />
                             </TableCell>
                             <TableCell className="text-right">
                               {it.kind === "exam" && it.reviewExamId ? (

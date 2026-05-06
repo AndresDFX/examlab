@@ -5,6 +5,7 @@ import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
+import { TableEmpty } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -395,13 +396,7 @@ function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No hay usuarios.
-                      </TableCell>
-                    </TableRow>
-                  )}
+                  {rows.length === 0 && <TableEmpty colSpan={5} text="No hay usuarios." />}
                   {rows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">

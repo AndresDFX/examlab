@@ -29,7 +29,6 @@ import {
   ArrowLeft,
   Clock,
   AlertTriangle,
-  CheckCircle2,
   Loader2,
   Sparkles,
   Trash2,
@@ -39,6 +38,8 @@ import {
 } from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import { statusLabel } from "@/utils/status-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { TableEmpty } from "@/components/ui/empty-state";
 import {
   computeFinalGrade,
   type BreakdownItem as GradeBreakdown,
@@ -485,11 +486,7 @@ function ExamMonitor() {
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Ningún estudiante ha iniciado el examen aún.
-                  </TableCell>
-                </TableRow>
+                <TableEmpty colSpan={6} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.map((row) => {
                 const latest = row.latest;
@@ -513,23 +510,9 @@ function ExamMonitor() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      {inProg ? (
-                        <Badge className="bg-success text-success-foreground text-[10px]">
-                          En progreso
-                        </Badge>
-                      ) : latest.status === "sospechoso" ? (
-                        <Badge variant="destructive" className="text-[10px]">
-                          <AlertTriangle className="h-3 w-3 mr-0.5" /> Sospechoso
-                        </Badge>
-                      ) : isFinalStatus(latest.status) ? (
-                        <Badge variant="secondary" className="text-[10px]">
-                          <CheckCircle2 className="h-3 w-3 mr-0.5" /> Completado
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px]">
-                          {statusLabel(latest.status)}
-                        </Badge>
-                      )}
+                      <StatusBadge
+                        status={inProg ? "en_progreso" : latest.status}
+                      />
                     </TableCell>
                     <TableCell className="text-sm tabular-nums">
                       {row.effectiveGrade == null ? (
@@ -651,19 +634,7 @@ function ExamMonitor() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 text-sm font-medium">
                             <span>Intento {idx + 1}</span>
-                            {a.status === "en_progreso" ? (
-                              <Badge className="bg-success text-success-foreground text-[10px]">
-                                En progreso
-                              </Badge>
-                            ) : a.status === "sospechoso" ? (
-                              <Badge variant="destructive" className="text-[10px]">
-                                Sospechoso
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px]">
-                                {statusLabel(a.status)}
-                              </Badge>
-                            )}
+                            <StatusBadge status={a.status} />
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Iniciado: {new Date(a.started_at ?? a.created_at).toLocaleString()}

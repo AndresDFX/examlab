@@ -66,6 +66,8 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { TableEmpty } from "@/components/ui/empty-state";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -790,12 +792,7 @@ function TeacherProjects() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={p.status === "published" ? "default" : "secondary"}
-                      className="text-[10px]"
-                    >
-                      {statusLabel(p.status)}
-                    </Badge>
+                    <StatusBadge status={p.status} />
                   </TableCell>
                   <TableCell className="text-xs">
                     {p.due_date ? new Date(p.due_date).toLocaleString() : "—"}
@@ -833,11 +830,7 @@ function TeacherProjects() {
                 </TableRow>
               ))}
               {projects.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    {t("common.empty")}
-                  </TableCell>
-                </TableRow>
+                <TableEmpty colSpan={7} text={t("common.empty")} />
               )}
             </TableBody>
           </Table>
@@ -1159,12 +1152,9 @@ function TeacherProjects() {
                           <span className="text-[10px] text-muted-foreground">
                             {sub.profile?.institutional_email}
                           </span>
-                          <Badge
-                            variant={sub.status === "calificado" ? "default" : "secondary"}
-                            className="text-[10px] ml-auto"
-                          >
-                            {statusLabel(sub.status)}
-                          </Badge>
+                          <div className="ml-auto">
+                            <StatusBadge status={sub.status} />
+                          </div>
                           <Badge variant="outline" className="text-[10px] tabular-nums">
                             {grade != null ? `${grade}/${gradingProject?.max_score}` : "—"}
                           </Badge>

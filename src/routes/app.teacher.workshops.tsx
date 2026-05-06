@@ -34,6 +34,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { TableEmpty } from "@/components/ui/empty-state";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { toast } from "sonner";
 import {
@@ -896,11 +898,7 @@ function TeacherWorkshops() {
             </TableHeader>
             <TableBody>
               {workshops.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    No hay talleres creados aún.
-                  </TableCell>
-                </TableRow>
+                <TableEmpty colSpan={5} text="No hay talleres creados aún." />
               )}
               {workshops.map((ws) => (
                 <TableRow key={ws.id}>
@@ -915,22 +913,7 @@ function TeacherWorkshops() {
                     {ws.due_date ? new Date(ws.due_date).toLocaleDateString() : "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={
-                        ws.status === "published"
-                          ? "default"
-                          : ws.status === "closed"
-                            ? "secondary"
-                            : "outline"
-                      }
-                      className="text-[10px]"
-                    >
-                      {ws.status === "published"
-                        ? "Publicado"
-                        : ws.status === "closed"
-                          ? "Cerrado"
-                          : "Borrador"}
-                    </Badge>
+                    <StatusBadge status={ws.status} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
@@ -1455,26 +1438,7 @@ function TeacherWorkshops() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <Badge
-                        variant={
-                          sub.status === "calificado"
-                            ? "default"
-                            : sub.status === "ai_revisado"
-                              ? "outline"
-                              : sub.status === "entregado"
-                                ? "secondary"
-                                : "outline"
-                        }
-                        className={`text-[10px] ${sub.status === "ai_revisado" ? "border-amber-400 text-amber-600 dark:text-amber-400" : ""}`}
-                      >
-                        {sub.status === "calificado"
-                          ? "Calificado"
-                          : sub.status === "ai_revisado"
-                            ? "Revisión IA"
-                            : sub.status === "entregado"
-                              ? "Entregado"
-                              : "Pendiente"}
-                      </Badge>
+                      <StatusBadge status={sub.status || "pendiente"} />
                       <RowAction
                         label="Eliminar entrega"
                         icon={Trash2}

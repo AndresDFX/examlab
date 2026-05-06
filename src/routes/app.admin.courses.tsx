@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
+import { TableEmpty } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -814,13 +815,7 @@ export function AdminCourses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {courses.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No hay cursos creados.
-                  </TableCell>
-                </TableRow>
-              )}
+              {courses.length === 0 && <TableEmpty colSpan={6} text="No hay cursos creados." />}
               {courses.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">

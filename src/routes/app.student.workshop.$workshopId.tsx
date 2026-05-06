@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, Loader2, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
-import { statusLabel } from "@/utils/status-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,
@@ -327,9 +327,7 @@ function StudentWorkshopDetail() {
                 <div className="text-2xl font-semibold tabular-nums">
                   {gradeShow != null ? `${gradeShow} / ${workshop.max_score}` : "—"}
                 </div>
-                <Badge variant="outline" className="text-[10px] mt-1">
-                  {statusLabel(submission.status)}
-                </Badge>
+                <StatusBadge status={submission.status} className="mt-1" />
               </div>
             </CardContent>
           </Card>
