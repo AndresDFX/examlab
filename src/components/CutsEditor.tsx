@@ -115,10 +115,14 @@ export function CutsEditor({ courseId }: { courseId: string }) {
   return (
     <div className="rounded-md border p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="space-y-1">
           <p className="text-sm font-medium">Cortes evaluativos</p>
-          <p className="text-xs text-muted-foreground">
-            Cada corte tiene fechas, peso global y pesos por componente (deben sumar 100% dentro del corte).
+          <p className="text-xs text-muted-foreground max-w-xl">
+            Cada corte vale un porcentaje de la nota final del curso (la suma de todos los
+            cortes debe ser 100%). Dentro de cada corte, los componentes (exámenes, talleres,
+            asistencia, proyecto) se reparten ese porcentaje. Ejemplo: si Corte 1 vale 30% y
+            adentro Exámenes={"{"}40%{"}"}, los exámenes pesan 30 × 40 / 100 ={" "}
+            <span className="font-medium text-foreground">12% de la nota final</span>.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -141,12 +145,29 @@ export function CutsEditor({ courseId }: { courseId: string }) {
       )}
 
       <div className="space-y-2">
+        {cuts.length > 0 && (
+          <div className="hidden md:grid items-center gap-2 px-2 md:grid-cols-[auto_2fr_1fr_1fr_1fr_auto] text-[11px] text-muted-foreground">
+            <div />
+            <div>Nombre del corte</div>
+            <div>Fecha inicio</div>
+            <div>Fecha fin</div>
+            <div>% de la nota final</div>
+            <div />
+          </div>
+        )}
         {cuts.map((cut) => {
           const subSum =
             Number(cut.exam_weight || 0) +
             Number(cut.workshop_weight || 0) +
             Number(cut.attendance_weight || 0) +
             Number(cut.project_weight || 0);
+          // % efectivo de la nota final que aporta cada componente:
+          // cut.weight (% del corte en el curso) × component_weight (%
+          // dentro del corte) / 100. Mostramos esto debajo de cada
+          // input para que el docente vea inmediatamente el impacto
+          // real en la calificación del estudiante.
+          const effective = (componentWeight: number) =>
+            ((Number(cut.weight || 0) * Number(componentWeight || 0)) / 100).toFixed(1);
           const isOpen = expanded.has(cut.id);
           return (
             <div key={cut.id} className="rounded border bg-muted/30 p-2 space-y-2">
@@ -195,9 +216,14 @@ export function CutsEditor({ courseId }: { courseId: string }) {
 
               {isOpen && (
                 <div className="space-y-2 rounded bg-background p-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    Distribuye el {cut.weight || 0}% de este corte entre los componentes.
+                    Los % adentro deben sumar 100. Debajo de cada input ves cuánto pesa ese
+                    componente sobre la nota final del curso.
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div>
-                      <Label className="text-xs">Exámenes %</Label>
+                      <Label className="text-xs">Exámenes</Label>
                       <Input
                         type="number"
                         min={0}
@@ -209,9 +235,12 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                           })
                         }
                       />
+                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                        = {effective(cut.exam_weight)}% del total
+                      </p>
                     </div>
                     <div>
-                      <Label className="text-xs">Talleres %</Label>
+                      <Label className="text-xs">Talleres</Label>
                       <Input
                         type="number"
                         min={0}
@@ -223,9 +252,12 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                           })
                         }
                       />
+                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                        = {effective(cut.workshop_weight)}% del total
+                      </p>
                     </div>
                     <div>
-                      <Label className="text-xs">Asistencia %</Label>
+                      <Label className="text-xs">Asistencia</Label>
                       <Input
                         type="number"
                         min={0}
@@ -237,9 +269,12 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                           })
                         }
                       />
+                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                        = {effective(cut.attendance_weight)}% del total
+                      </p>
                     </div>
                     <div>
-                      <Label className="text-xs">Proyecto %</Label>
+                      <Label className="text-xs">Proyecto</Label>
                       <Input
                         type="number"
                         min={0}
@@ -251,14 +286,20 @@ export function CutsEditor({ courseId }: { courseId: string }) {
                           })
                         }
                       />
+                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                        = {effective(cut.project_weight)}% del total
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-between border-t pt-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      Suma dentro del corte (debe ser 100%):
+                    </span>
                     <Badge
                       variant={subSum === 100 ? "secondary" : "destructive"}
                       className="text-xs"
                     >
-                      Sub-pesos: {subSum}%
+                      {subSum}%
                     </Badge>
                   </div>
                 </div>

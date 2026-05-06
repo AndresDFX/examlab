@@ -433,12 +433,30 @@ function Gradebook() {
       return;
     }
 
+    // Mapa user_id → calificaciones consolidadas por corte + final
+    // ponderada. Usa la misma lógica del consolidado en pantalla, así
+    // el CSV refleja exactamente lo que ve el docente.
+    const consolidatedByUser = new Map<
+      string,
+      { cutGrades: Array<{ cutId: string; grade: number | null }>; finalGrade: number | null }
+    >();
+    if (consolidated) {
+      for (const r of consolidated) {
+        consolidatedByUser.set(r.student.id, {
+          cutGrades: r.cutGrades,
+          finalGrade: r.finalGrade,
+        });
+      }
+    }
+    const fmt = (n: number | null | undefined) => (n != null ? n.toFixed(2) : "");
+
     const csvRows = students.map((s) => {
       const row: Record<string, string> = {
         nombre: s.full_name,
         email_institucional: s.institutional_email,
         email_personal: s.personal_email ?? "",
       };
+      // Detalle item por item (exámenes y talleres con su nota cruda).
       columns.forEach((col) => {
         const g = getGrade(s.id, col);
         const prefix = col.kind === "workshop" ? "[T] " : "";
@@ -449,6 +467,14 @@ function Gradebook() {
           row[label] = "";
         }
       });
+      // Calificación por corte + final ponderada al final del row, en
+      // orden de los cortes para que sea fácil de leer en Excel.
+      const stuConsolidated = consolidatedByUser.get(s.id);
+      cuts.forEach((cut) => {
+        const cg = stuConsolidated?.cutGrades.find((c) => c.cutId === cut.id);
+        row[`${cut.name} (${cut.weight}%)`] = fmt(cg?.grade ?? null);
+      });
+      row["Calificación final"] = fmt(stuConsolidated?.finalGrade ?? null);
       return row;
     });
 
