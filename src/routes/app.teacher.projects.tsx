@@ -62,6 +62,7 @@ import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -1154,7 +1155,8 @@ function TeacherProjects() {
           {!gradingLoading && gradingSubs.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score}
+                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score}{" "}
+                · <span className="font-medium">decimales con coma (ej. 4,5)</span>
               </p>
               <Accordion type="multiple" className="w-full">
                 {gradingSubs.map((sub) => {
@@ -1228,19 +1230,12 @@ function TeacherProjects() {
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div>
                                       <Label className="text-[10px]">Calificación (max {f.points})</Label>
-                                      <Input
-                                        type="number"
+                                      <DecimalInput
                                         min={0}
                                         max={f.points}
-                                        step={0.1}
-                                        value={a?.ai_grade ?? ""}
-                                        onChange={(e) =>
-                                          patchSubFile(sub.id, f.id, {
-                                            ai_grade:
-                                              e.target.value === ""
-                                                ? null
-                                                : Number(e.target.value),
-                                          })
+                                        value={a?.ai_grade ?? null}
+                                        onChange={(v) =>
+                                          patchSubFile(sub.id, f.id, { ai_grade: v })
                                         }
                                       />
                                     </div>

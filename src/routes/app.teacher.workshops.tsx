@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { toast } from "sonner";
 import {
@@ -1407,6 +1408,7 @@ function TeacherWorkshops() {
                     0–{gradingWs?.max_score ?? 100}
                   </span>
                 </span>
+                <span className="font-medium">Decimales con coma (ej. 4,5).</span>
               </div>
             ) : null;
           })()}
@@ -1648,17 +1650,12 @@ function TeacherWorkshops() {
                                 <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
                                   <div>
                                     <Label className="text-[11px]">Calificación IA</Label>
-                                    <Input
-                                      type="number"
+                                    <DecimalInput
                                       min={0}
                                       max={q.points}
-                                      step="0.1"
-                                      value={ans?.ai_grade ?? ""}
-                                      onChange={(e) =>
-                                        patchAnswer(sub.id, q.id, {
-                                          ai_grade:
-                                            e.target.value === "" ? null : Number(e.target.value),
-                                        })
+                                      value={ans?.ai_grade ?? null}
+                                      onChange={(v) =>
+                                        patchAnswer(sub.id, q.id, { ai_grade: v })
                                       }
                                       className="h-8 text-sm mt-1"
                                     />
@@ -1740,21 +1737,14 @@ function TeacherWorkshops() {
                   <div className="space-y-2">
                     <div>
                       <Label className="text-xs">Calificación final</Label>
-                      <Input
-                        type="number"
+                      <DecimalInput
                         min={0}
                         max={gradingWs?.max_score ?? 100}
-                        value={sub.final_grade ?? ""}
-                        onChange={(e) => {
+                        value={sub.final_grade ?? null}
+                        onChange={(v) => {
                           setWsSubs((prev) =>
                             prev.map((s) =>
-                              s.id === sub.id
-                                ? {
-                                    ...s,
-                                    final_grade:
-                                      e.target.value === "" ? null : Number(e.target.value),
-                                  }
-                                : s,
+                              s.id === sub.id ? { ...s, final_grade: v } : s,
                             ),
                           );
                         }}

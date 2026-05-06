@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,6 +52,7 @@ import {
 import { useConfirm } from "@/components/ConfirmDialog";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
+import { DecimalInput } from "@/components/ui/decimal-input";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
 
@@ -111,11 +111,11 @@ function ExamMonitor() {
   // estudiante en cuanto haya datos. Sin esto el docente caía en el
   // grid genérico y tenía que buscar al estudiante a mano.
   const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
-  const [overrideValue, setOverrideValue] = useState<string>("");
+  const [overrideValue, setOverrideValue] = useState<number | null>(null);
   const [savingOverride, setSavingOverride] = useState(false);
-  const [qOverrides, setQOverrides] = useState<Record<string, { score: string; feedback: string }>>(
-    {},
-  );
+  const [qOverrides, setQOverrides] = useState<
+    Record<string, { score: number | null; feedback: string }>
+  >({});
   const [savingQid, setSavingQid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -257,18 +257,20 @@ function ExamMonitor() {
   const openView = (sub: Submission) => {
     setViewingId(sub.id);
     const cur = sub.final_override_grade ?? sub.ai_grade;
-    setOverrideValue(cur != null ? String(cur) : "");
+    setOverrideValue(cur != null ? Number(cur) : null);
     const manual: Record<string, ManualOverride> = sub.answers?.__manual_overrides ?? {};
-    const next: Record<string, { score: string; feedback: string }> = {};
+    const next: Record<string, { score: number | null; feedback: string }> = {};
     for (const [qid, v] of Object.entries(manual)) {
-      next[qid] = { score: v.score != null ? String(v.score) : "", feedback: v.feedback ?? "" };
+      next[qid] = {
+        score: v.score != null ? Number(v.score) : null,
+        feedback: v.feedback ?? "",
+      };
     }
     setQOverrides(next);
   };
 
   const saveOverride = async (sub: Submission) => {
-    const trimmed = overrideValue.trim();
-    const numValue = trimmed === "" ? null : Number(trimmed);
+    const numValue = overrideValue;
     if (numValue != null && (Number.isNaN(numValue) || numValue < 0 || numValue > 5)) {
       toast.error("La calificación debe ser un número entre 0 y 5");
       return;
@@ -287,15 +289,11 @@ function ExamMonitor() {
   };
 
   const saveQuestionOverride = async (sub: Submission, q: Question) => {
-    const entry = qOverrides[q.id] ?? { score: "", feedback: "" };
-    const trimmed = entry.score.trim();
-    let numScore: number | null = null;
-    if (trimmed !== "") {
-      numScore = Number(trimmed);
-      if (Number.isNaN(numScore) || numScore < 0 || numScore > q.points) {
-        toast.error(`La calificación debe estar entre 0 y ${q.points}`);
-        return;
-      }
+    const entry = qOverrides[q.id] ?? { score: null, feedback: "" };
+    const numScore: number | null = entry.score;
+    if (numScore != null && (Number.isNaN(numScore) || numScore < 0 || numScore > q.points)) {
+      toast.error(`La calificación debe estar entre 0 y ${q.points}`);
+      return;
     }
     setSavingQid(q.id);
     const prevAnswers = sub.answers ?? {};
@@ -332,7 +330,7 @@ function ExamMonitor() {
         s.id === sub.id ? { ...s, answers: nextAnswers, final_override_grade: recomputed } : s,
       ),
     );
-    setOverrideValue(recomputed != null ? String(recomputed) : "");
+    setOverrideValue(recomputed != null ? Number(recomputed) : null);
   };
 
   const viewingSub = useMemo(
@@ -725,6 +723,8 @@ function ExamMonitor() {
             <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
               {viewingSub?.profile?.institutional_email} · Estado: {statusLabel(viewingSub?.status)}
+              {" · "}
+              <span className="font-medium">Decimales con coma (ej. 4,5).</span>
             </DialogDescription>
           </DialogHeader>
 
@@ -780,7 +780,7 @@ function ExamMonitor() {
                     const choices = q.options?.choices as string[] | undefined;
                     const bd = byId.get(q.id);
                     const override = manual[q.id];
-                    const qEntry = qOverrides[q.id] ?? { score: "", feedback: "" };
+                    const qEntry = qOverrides[q.id] ?? { score: null, feedback: "" };
                     return (
                       <Card key={q.id}>
                         <CardHeader className="pb-2">
@@ -868,19 +868,17 @@ function ExamMonitor() {
 
                           <div className="border-t pt-2 space-y-2">
                             <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
+                              <DecimalInput
                                 min={0}
                                 max={q.points}
-                                step={0.1}
                                 placeholder={`Calificación manual 0-${q.points}`}
                                 value={qEntry.score}
-                                onChange={(e) =>
+                                onChange={(v) =>
                                   setQOverrides((prev) => ({
                                     ...prev,
                                     [q.id]: {
-                                      ...(prev[q.id] ?? { score: "", feedback: "" }),
-                                      score: e.target.value,
+                                      ...(prev[q.id] ?? { score: null, feedback: "" }),
+                                      score: v,
                                     },
                                   }))
                                 }
@@ -923,7 +921,7 @@ function ExamMonitor() {
                                 setQOverrides((prev) => ({
                                   ...prev,
                                   [q.id]: {
-                                    ...(prev[q.id] ?? { score: "", feedback: "" }),
+                                    ...(prev[q.id] ?? { score: null, feedback: "" }),
                                     feedback: e.target.value,
                                   },
                                 }))
@@ -980,14 +978,12 @@ function ExamMonitor() {
                   Recalificar todo con IA
                 </Button>
                 <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
+                  <DecimalInput
                     min={0}
                     max={5}
-                    step={0.1}
                     placeholder="Calificación 0-5"
                     value={overrideValue}
-                    onChange={(e) => setOverrideValue(e.target.value)}
+                    onChange={setOverrideValue}
                     className="w-24 h-8 text-sm"
                   />
                   <Button

@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -46,7 +46,7 @@ interface Row {
   userId: string;
   fullName: string;
   email: string;
-  grade: string;
+  grade: number | null;
   feedback: string;
   submissionId: string | null;
   hasGrade: boolean;
@@ -97,13 +97,14 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
 
       const newRows: Row[] = ((profs ?? []) as any[]).map((p) => {
         const sub = subByUser.get(p.id);
-        const grade =
+        const rawGrade =
           kind === "exam" ? sub?.final_override_grade : sub?.final_grade;
+        const grade = rawGrade != null ? Number(rawGrade) : null;
         return {
           userId: p.id,
           fullName: p.full_name ?? "—",
           email: p.institutional_email ?? "",
-          grade: grade != null ? String(grade) : "",
+          grade,
           feedback: sub?.teacher_feedback ?? "",
           submissionId: sub?.id ?? null,
           hasGrade: grade != null,
@@ -126,9 +127,10 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
     setRows((prev) => prev.map((r) => (r.userId === userId ? { ...r, ...patch } : r)));
   };
 
-  const validateGrade = (raw: string): { ok: true; value: number | null } | { ok: false; msg: string } => {
-    if (raw.trim() === "") return { ok: true, value: null };
-    const n = Number(raw);
+  const validateGrade = (
+    n: number | null,
+  ): { ok: true; value: number | null } | { ok: false; msg: string } => {
+    if (n == null) return { ok: true, value: null };
     if (Number.isNaN(n)) return { ok: false, msg: "Nota inválida" };
     if (n < 0) return { ok: false, msg: "La nota no puede ser negativa" };
     if (n > maxScore) return { ok: false, msg: `La nota no puede superar ${maxScore}` };
@@ -237,7 +239,8 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
     let okCount = 0;
     try {
       for (const row of rows) {
-        if (row.grade.trim() === "" && !row.feedback.trim()) continue;
+        // Saltamos filas vacías para no crear submissions sin nota.
+        if (row.grade == null && !row.feedback.trim()) continue;
         const ok = await saveRow(row);
         if (ok) okCount += 1;
       }
@@ -282,7 +285,10 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
         </div>
         <p className="text-xs text-muted-foreground">
           Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada
-          estudiante (0–{maxScore}) para que cuente en el cálculo del corte.
+          estudiante (0–{maxScore}) para que cuente en el cálculo del corte.{" "}
+          <span className="font-medium">
+            Usa coma para decimales (ej. 4,5).
+          </span>
         </p>
       </CardHeader>
       <CardContent className="p-0">
@@ -312,15 +318,13 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
                     <div className="text-xs text-muted-foreground">{row.email}</div>
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
+                    <DecimalInput
                       min={0}
                       max={maxScore}
-                      step="0.01"
                       value={row.grade}
-                      onChange={(e) => updateRow(row.userId, { grade: e.target.value })}
+                      onChange={(v) => updateRow(row.userId, { grade: v })}
                       placeholder="—"
-                      className="h-8 text-sm tabular-nums"
+                      className="h-8 text-sm"
                     />
                   </TableCell>
                   {kind === "workshop" && (
