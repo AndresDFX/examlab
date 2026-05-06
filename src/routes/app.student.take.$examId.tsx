@@ -126,6 +126,9 @@ function TakeExam() {
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+  // Modal de confirmación para "Siguiente" en navegación secuencial:
+  // el alumno debe entender explícitamente que no podrá regresar.
+  const [confirmNextOpen, setConfirmNextOpen] = useState(false);
   const [codeOutputs, setCodeOutputs] = useState<Record<string, string>>({});
   const [runningCode, setRunningCode] = useState<Record<string, boolean>>({});
   const [offline, setOffline] = useState(!isOnline());
@@ -487,54 +490,60 @@ function TakeExam() {
         return;
       }
 
-      // Notify course teachers via RPC (students cannot INSERT into
-      // notifications directly under current RLS; the function runs with
-      // SECURITY DEFINER and authorizes by the caller's submission)
+      // Optimización: la UI debe responder rápido (~300ms del update
+      // anterior). La notificación al docente y la calificación con IA
+      // son tareas de servidor que el alumno no necesita esperar — las
+      // disparamos sin await ("fire-and-forget"). El fetch sale del
+      // navegador inmediatamente y completa en el servidor incluso si
+      // el alumno navega a otra ruta. Antes esto bloqueaba ~5-15s por
+      // pregunta abierta esperando a que Gemini calificara una por una.
       if (markSuspicious && exam) {
-        try {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", user!.id)
-            .single();
-          const studentName = profile?.full_name ?? "Un estudiante";
+        void (async () => {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", user!.id)
+              .single();
+            const studentName = profile?.full_name ?? "Un estudiante";
 
-          const events = warningEventsRef.current.slice(-maxWarnings);
-          const eventLines = events
-            .map((ev, i) => {
-              const when = new Date(ev.at).toLocaleTimeString("es-CO", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
-              const where = ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
-              return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
-            })
-            .join("\n");
-          const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${maxWarnings} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
+            const events = warningEventsRef.current.slice(-maxWarnings);
+            const eventLines = events
+              .map((ev, i) => {
+                const when = new Date(ev.at).toLocaleTimeString("es-CO", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+                const where =
+                  ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
+                return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
+              })
+              .join("\n");
+            const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${maxWarnings} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
 
-          const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
-            _exam_id: examId,
-            _title: "Examen sospechoso",
-            _body: body,
-            _link: `/app/teacher/monitor/${examId}`,
-          });
-          if (rpcErr) console.error("notify_exam_teachers RPC failed:", rpcErr);
-        } catch (e) {
-          console.error("Error notifying teachers:", e);
-        }
+            const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
+              _exam_id: examId,
+              _title: "Examen sospechoso",
+              _body: body,
+              _link: `/app/teacher/monitor/${examId}`,
+            });
+            if (rpcErr) console.error("notify_exam_teachers RPC failed:", rpcErr);
+          } catch (e) {
+            console.error("Error notifying teachers:", e);
+          }
+        })();
       }
 
       try {
         if (document.fullscreenElement) await document.exitFullscreen();
       } catch {}
-      try {
-        await supabase.functions.invoke("ai-grade-submission", {
-          body: { submissionId: submissionIdRef.current },
-        });
-      } catch (e) {
-        console.error(e);
-      }
+      // Disparamos el grading IA sin esperar — corre en background en el
+      // edge function. El docente verá la calificación cuando el modelo
+      // termine; el alumno no tiene que mirar un spinner mientras tanto.
+      void supabase.functions
+        .invoke("ai-grade-submission", { body: { submissionId: submissionIdRef.current } })
+        .catch((e) => console.error("ai-grade-submission failed:", e));
       toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
       navigate({ to: "/app/student/exams" });
     },
@@ -1044,13 +1053,26 @@ function TakeExam() {
       <div className="flex items-center justify-between gap-2 mt-6">
         <Button
           variant="outline"
-          disabled={currentIdx === 0}
+          // En navegación secuencial el alumno NO puede volver atrás
+          // una vez que avanza, así que deshabilitamos "Anterior"
+          // siempre. En libre solo cuando está en la primera pregunta.
+          disabled={exam.navigation_type === "secuencial" || currentIdx === 0}
           onClick={() => setCurrentIdx((i) => i - 1)}
         >
           {t("exam.previous")}
         </Button>
         {currentIdx < questions.length - 1 ? (
-          <Button onClick={() => setCurrentIdx((i) => i + 1)}>{t("exam.next")}</Button>
+          <Button
+            onClick={() => {
+              if (exam.navigation_type === "secuencial") {
+                setConfirmNextOpen(true);
+              } else {
+                setCurrentIdx((i) => i + 1);
+              }
+            }}
+          >
+            {t("exam.next")}
+          </Button>
         ) : (
           <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
             {submitting ? (
@@ -1062,6 +1084,40 @@ function TakeExam() {
           </Button>
         )}
       </div>
+
+      <Dialog open={confirmNextOpen} onOpenChange={setConfirmNextOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+              ¿Pasar a la siguiente pregunta?
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p>
+                  Este examen tiene <strong>navegación secuencial</strong>: una vez que avances no
+                  podrás regresar a esta pregunta.
+                </p>
+                <p>Asegúrate de haber respondido lo que querías antes de continuar.</p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setConfirmNextOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConfirmNextOpen(false);
+                setCurrentIdx((i) => i + 1);
+              }}
+            >
+              Sí, avanzar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={manualLeaveOpen}
