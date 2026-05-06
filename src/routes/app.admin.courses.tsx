@@ -43,6 +43,7 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  BookOpen,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AssignSelector } from "@/components/AssignSelector";
@@ -816,7 +817,20 @@ export function AdminCourses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {courses.length === 0 && <TableEmpty colSpan={6} text="No hay cursos creados." />}
+              {courses.length === 0 && (
+                <TableEmpty
+                  colSpan={6}
+                  icon={BookOpen}
+                  text="Aún no hay cursos creados."
+                  hint="Crea el primer curso y asigna estudiantes y docentes."
+                  action={
+                    <Button size="sm" onClick={openNew}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Crear primer curso
+                    </Button>
+                  }
+                />
+              )}
               {courses.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">

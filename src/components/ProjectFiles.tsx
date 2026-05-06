@@ -215,7 +215,8 @@ export function TeacherProjectFilesEditor({
   const removeQ = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar pregunta",
-      description: "Se eliminará la pregunta del proyecto.",
+      description:
+        "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });

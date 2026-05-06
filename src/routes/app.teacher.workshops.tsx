@@ -55,6 +55,7 @@ import {
   HelpCircle,
   Copy,
   ListChecks,
+  Hammer,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
@@ -380,7 +381,8 @@ function TeacherWorkshops() {
   const remove = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar taller",
-      description: "Se eliminarán las asignaciones y entregas asociadas al taller.",
+      description:
+        "Se eliminarán las asignaciones y entregas asociadas al taller. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar taller",
       tone: "destructive",
     });
@@ -899,7 +901,18 @@ function TeacherWorkshops() {
             </TableHeader>
             <TableBody>
               {workshops.length === 0 && (
-                <TableEmpty colSpan={5} text="No hay talleres creados aún." />
+                <TableEmpty
+                  colSpan={5}
+                  icon={Hammer}
+                  text="Aún no has creado ningún taller."
+                  hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
+                  action={
+                    <Button size="sm" onClick={openNew}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Crear primer taller
+                    </Button>
+                  }
+                />
               )}
               {workshops.map((ws) => (
                 <TableRow key={ws.id}>

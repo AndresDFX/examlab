@@ -344,7 +344,8 @@ function TeacherAttendance() {
   const deleteSession = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar sesión",
-      description: "Se eliminará la sesión y todos sus registros de asistencia.",
+      description:
+        "Se eliminará la sesión y todos sus registros de asistencia. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });

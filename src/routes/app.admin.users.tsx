@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Trash2, Pencil, Loader2 } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Pencil, Loader2, Users as UsersIcon } from "lucide-react";
 import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
 
@@ -396,7 +396,20 @@ function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.length === 0 && <TableEmpty colSpan={5} text="No hay usuarios." />}
+                  {rows.length === 0 && (
+                    <TableEmpty
+                      colSpan={5}
+                      icon={UsersIcon}
+                      text="Aún no hay usuarios registrados."
+                      hint="Crea el primero o importa un CSV con varios a la vez."
+                      action={
+                        <Button size="sm" onClick={openNew}>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Crear primer usuario
+                        </Button>
+                      }
+                    />
+                  )}
                   {rows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">

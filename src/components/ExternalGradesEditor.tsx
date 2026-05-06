@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DecimalInput } from "@/components/ui/decimal-input";
-import { SectionLoader } from "@/components/ui/loaders";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -294,9 +294,7 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
         </p>
       </CardHeader>
       <CardContent className="p-0">
-        {loading ? (
-          <SectionLoader text="Cargando estudiantes…" className="justify-center" />
-        ) : rows.length === 0 ? (
+        {!loading && rows.length === 0 ? (
           <p className="text-sm text-muted-foreground p-4 text-center">
             No hay estudiantes matriculados en este curso aún.
           </p>
@@ -311,7 +309,9 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {loading && <TableSkeleton rows={5} cols={kind === "workshop" ? 4 : 3} />}
+              {!loading &&
+                rows.map((row) => (
                 <TableRow key={row.userId}>
                   <TableCell>
                     <div className="font-medium">{row.fullName}</div>

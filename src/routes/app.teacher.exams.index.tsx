@@ -36,8 +36,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2 } from "lucide-react";
+import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
 import { RowAction } from "@/components/ui/row-action";
+import { TableEmpty } from "@/components/ui/empty-state";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
@@ -353,6 +354,20 @@ function TeacherExams() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {exams.length === 0 && (
+                <TableEmpty
+                  colSpan={7}
+                  icon={FileText}
+                  text="Aún no has creado ningún examen."
+                  hint="Diseña tu primer examen — puedes generar preguntas con IA."
+                  action={
+                    <Button size="sm" onClick={openNew}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Crear primer examen
+                    </Button>
+                  }
+                />
+              )}
               {exams.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium">

@@ -204,7 +204,8 @@ export function TeacherWorkshopQuestionsEditor({
   const removeQ = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar pregunta",
-      description: "Se eliminará la pregunta del taller.",
+      description:
+        "Se eliminará la pregunta del taller. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });

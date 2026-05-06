@@ -55,6 +55,9 @@ interface TableEmptyProps {
   text: string;
   hint?: string;
   icon?: ComponentType<{ className?: string }>;
+  /** CTA opcional (botón / link). Solo cuando hay una acción primaria
+   *  obvia para llenar la lista — "Crear primer examen", etc. */
+  action?: ReactNode;
 }
 
 /**
@@ -62,7 +65,13 @@ interface TableEmptyProps {
  * misma jerarquía visual que EmptyState pero comprimida — una tabla
  * vacía no debe ocupar tanto espacio como una página vacía.
  */
-export function TableEmpty({ colSpan, text, hint, icon: Icon }: Readonly<TableEmptyProps>) {
+export function TableEmpty({
+  colSpan,
+  text,
+  hint,
+  icon: Icon,
+  action,
+}: Readonly<TableEmptyProps>) {
   return (
     <TableRow>
       <TableCell colSpan={colSpan} className="text-center py-8">
@@ -70,6 +79,7 @@ export function TableEmpty({ colSpan, text, hint, icon: Icon }: Readonly<TableEm
           {Icon ? <Icon className="h-5 w-5 text-muted-foreground" /> : null}
           <p className="text-sm text-muted-foreground">{text}</p>
           {hint ? <p className="text-xs text-muted-foreground/80">{hint}</p> : null}
+          {action ? <div className="mt-2">{action}</div> : null}
         </div>
       </TableCell>
     </TableRow>

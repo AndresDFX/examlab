@@ -55,6 +55,7 @@ import {
   Sparkles,
   Save,
   UserPlus,
+  FolderKanban,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
@@ -68,7 +69,7 @@ import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { SectionLoader } from "@/components/ui/loaders";
+import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime } from "@/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -385,7 +386,8 @@ function TeacherProjects() {
   const remove = async (p: Project) => {
     const ok = await confirm({
       title: `Eliminar ${p.title}`,
-      description: "Se eliminará el proyecto y todas sus entregas.",
+      description:
+        "Se eliminará el proyecto y todas sus entregas. Esta acción no se puede deshacer.",
       confirmLabel: t("common.delete"),
       tone: "destructive",
     });
@@ -832,7 +834,18 @@ function TeacherProjects() {
                 </TableRow>
               ))}
               {projects.length === 0 && (
-                <TableEmpty colSpan={7} text={t("common.empty")} />
+                <TableEmpty
+                  colSpan={7}
+                  icon={FolderKanban}
+                  text="Aún no has creado ningún proyecto."
+                  hint="Define los archivos esperados y asígnalo a uno o varios cursos."
+                  action={
+                    <Button size="sm" onClick={openNew}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Crear primer proyecto
+                    </Button>
+                  }
+                />
               )}
             </TableBody>
           </Table>
@@ -1115,7 +1128,7 @@ function TeacherProjects() {
               Entregas — {gradingProject?.title}
             </DialogTitle>
           </DialogHeader>
-          {gradingLoading && <SectionLoader text="Cargando entregas…" className="justify-center" />}
+          {gradingLoading && <ListSkeleton rows={3} rowHeight="h-24" />}
           {!gradingLoading && gradingSubs.length === 0 && (
             <p className="text-sm text-muted-foreground p-4 text-center">
               Aún no hay entregas para este proyecto.
