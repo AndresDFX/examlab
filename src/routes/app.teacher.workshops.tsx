@@ -57,6 +57,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDate } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
@@ -909,9 +910,7 @@ function TeacherWorkshops() {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{ws.course?.name}</TableCell>
-                  <TableCell className="text-sm">
-                    {ws.due_date ? new Date(ws.due_date).toLocaleDateString() : "—"}
-                  </TableCell>
+                  <TableCell className="text-sm tabular-nums">{formatDate(ws.due_date)}</TableCell>
                   <TableCell>
                     <StatusBadge status={ws.status} />
                   </TableCell>

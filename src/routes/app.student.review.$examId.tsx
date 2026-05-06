@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -237,7 +238,7 @@ function StudentExamReview() {
               <div className="text-xs text-muted-foreground">
                 {submission.submitted_at
                   ? t("exam.review.submittedAt", {
-                      when: new Date(submission.submitted_at).toLocaleString(),
+                      when: formatDateTime(submission.submitted_at),
                     })
                   : t("exam.review.submittedNoDate")}
               </div>

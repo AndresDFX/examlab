@@ -40,6 +40,7 @@ import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDateTime } from "@/lib/format";
 import {
   computeFinalGrade,
   type BreakdownItem as GradeBreakdown,
@@ -403,7 +404,7 @@ function ExamMonitor() {
 
   const deleteOneAttempt = async (sub: Submission) => {
     const ok = await confirm({
-      title: `Eliminar intento del ${new Date(sub.created_at).toLocaleString()}`,
+      title: `Eliminar intento del ${formatDateTime(sub.created_at)}`,
       description:
         "Se eliminará este intento de forma permanente. La calificación efectiva del examen se recalculará según el modo de reintento.",
       confirmLabel: "Eliminar intento",
@@ -636,10 +637,10 @@ function ExamMonitor() {
                             <span>Intento {idx + 1}</span>
                             <StatusBadge status={a.status} />
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            Iniciado: {new Date(a.started_at ?? a.created_at).toLocaleString()}
+                          <div className="text-xs text-muted-foreground tabular-nums">
+                            Iniciado: {formatDateTime(a.started_at ?? a.created_at)}
                             {a.submitted_at && (
-                              <> · Entregado: {new Date(a.submitted_at).toLocaleString()}</>
+                              <> · Entregado: {formatDateTime(a.submitted_at)}</>
                             )}
                           </div>
                           <div className="text-xs">
@@ -706,7 +707,7 @@ function ExamMonitor() {
                           return (
                             <div key={i} className="flex items-center gap-2">
                               <span className="text-muted-foreground tabular-nums">
-                                {ts ? new Date(ts).toLocaleString() : "—"}
+                                {formatDateTime(ts)}
                               </span>
                               <span className="font-medium">{warningLabel(ev.type)}</span>
                               {typeof ev.questionIdx === "number" && (

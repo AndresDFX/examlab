@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
+import { formatDate } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -405,7 +406,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   title={p.title}
                   subtitle={p.course?.name}
                   date={
-                    p.due_date ? new Date(p.due_date).toLocaleDateString() : t("dashboard.noDate")
+                    p.due_date ? formatDate(p.due_date) : t("dashboard.noDate")
                   }
                 />
               ))
@@ -438,7 +439,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                     key={e.id}
                     title={e.title}
                     subtitle={e.course?.name}
-                    date={new Date(e.start_time).toLocaleDateString()}
+                    date={formatDate(e.start_time)}
                     badge={isOpen ? t("dashboard.inProgress") : undefined}
                     badgeColor="bg-success text-success-foreground"
                   />
@@ -473,7 +474,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   title={w.title}
                   subtitle={w.course?.name}
                   date={
-                    w.due_date ? new Date(w.due_date).toLocaleDateString() : t("dashboard.noDate")
+                    w.due_date ? formatDate(w.due_date) : t("dashboard.noDate")
                   }
                 />
               ))
@@ -772,7 +773,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                       <div className="text-xs text-muted-foreground">{w.course?.name}</div>
                       {w.due_date && (
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {t("dashboard.dueLabel")}: {new Date(w.due_date).toLocaleDateString()}
+                          {t("dashboard.dueLabel")}: {formatDate(w.due_date)}
                         </div>
                       )}
                     </div>
@@ -824,7 +825,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                         <div className="text-xs text-muted-foreground">{p.course?.name}</div>
                         {p.due_date && (
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            {t("dashboard.dueLabel")}: {new Date(p.due_date).toLocaleDateString()}
+                            {t("dashboard.dueLabel")}: {formatDate(p.due_date)}
                           </div>
                         )}
                       </div>

@@ -22,6 +22,7 @@ import { ArrowLeft, ExternalLink, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,
@@ -316,7 +317,7 @@ function StudentWorkshopDetail() {
                   <div className="text-xs text-muted-foreground">
                     {submission.submitted_at
                       ? t("exam.review.submittedAt", {
-                          when: new Date(submission.submitted_at).toLocaleString(),
+                          when: formatDateTime(submission.submitted_at),
                         })
                       : t("exam.review.submittedNoDate")}
                   </div>

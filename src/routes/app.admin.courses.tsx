@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { formatDateOnly } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -845,11 +846,11 @@ export function AdminCourses() {
                       <span className="text-muted-foreground ml-1">(≥{c.passing_grade})</span>
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground tabular-nums">
                     {c.start_date && c.end_date
-                      ? `${new Date(c.start_date + "T00:00").toLocaleDateString()} → ${new Date(c.end_date + "T00:00").toLocaleDateString()}`
+                      ? `${formatDateOnly(c.start_date)} → ${formatDateOnly(c.end_date)}`
                       : c.start_date
-                        ? `Desde ${new Date(c.start_date + "T00:00").toLocaleDateString()}`
+                        ? `Desde ${formatDateOnly(c.start_date)}`
                         : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden lg:table-cell max-w-48 truncate">

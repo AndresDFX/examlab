@@ -30,6 +30,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { StudentWorkshopTaker } from "@/components/WorkshopQuestions";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
@@ -178,9 +179,9 @@ function StudentWorkshops() {
 
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   {workshop.due_date && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 tabular-nums">
                       <Clock className="h-3 w-3" />
-                      {t("dashboard.dueLabel")}: {new Date(workshop.due_date).toLocaleString()}
+                      {t("dashboard.dueLabel")}: {formatDateTime(workshop.due_date)}
                     </div>
                   )}
                   <div>

@@ -25,6 +25,7 @@ import {
   FileText,
 } from "lucide-react";
 import { StudentProjectTaker } from "@/components/ProjectFiles";
+import { formatDateTime } from "@/lib/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -243,9 +244,9 @@ function StudentProjects() {
 
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   {project.due_date && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 tabular-nums">
                       <Clock className="h-3 w-3" />
-                      {t("dashboard.dueLabel")}: {new Date(project.due_date).toLocaleString()}
+                      {t("dashboard.dueLabel")}: {formatDateTime(project.due_date)}
                     </div>
                   )}
                   <div className="flex items-center gap-1.5">

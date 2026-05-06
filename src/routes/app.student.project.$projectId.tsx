@@ -21,6 +21,7 @@ import { ArrowLeft, FileText, MessageSquareText, Bot, ExternalLink } from "lucid
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
+import { formatDateTime } from "@/lib/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -312,7 +313,7 @@ function StudentProjectDetail() {
                   <div className="text-xs text-muted-foreground">
                     {submission.submitted_at
                       ? t("project.review.submittedAt", {
-                          when: new Date(submission.submitted_at).toLocaleString(),
+                          when: formatDateTime(submission.submitted_at),
                         })
                       : t("project.review.submittedNoDate")}
                   </div>

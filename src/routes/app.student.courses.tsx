@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar, BookOpen, Clock, FileText, Hammer, UserCog, Scale } from "lucide-react";
+import { formatDateOnly } from "@/lib/format";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 
@@ -173,15 +174,15 @@ function StudentCourses() {
                   {(c.start_date || c.end_date) && (
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       {c.start_date && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 tabular-nums">
                           <Calendar className="h-3 w-3" />
-                          {new Date(c.start_date + "T00:00").toLocaleDateString()}
+                          {formatDateOnly(c.start_date)}
                         </div>
                       )}
                       {c.end_date && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 tabular-nums">
                           <Clock className="h-3 w-3" />
-                          {new Date(c.end_date + "T00:00").toLocaleDateString()}
+                          {formatDateOnly(c.end_date)}
                         </div>
                       )}
                     </div>
@@ -214,9 +215,8 @@ function StudentCourses() {
               <div className="flex flex-wrap gap-1.5">
                 {selected.period && <Badge variant="outline">{selected.period}</Badge>}
                 {selected.start_date && selected.end_date && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {new Date(selected.start_date + "T00:00").toLocaleDateString()} →{" "}
-                    {new Date(selected.end_date + "T00:00").toLocaleDateString()}
+                  <Badge variant="secondary" className="text-[10px] tabular-nums">
+                    {formatDateOnly(selected.start_date)} → {formatDateOnly(selected.end_date)}
                   </Badge>
                 )}
               </div>

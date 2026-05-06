@@ -69,6 +69,7 @@ import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { SectionLoader } from "@/components/ui/loaders";
+import { formatDateTime } from "@/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -795,8 +796,8 @@ function TeacherProjects() {
                   <TableCell>
                     <StatusBadge status={p.status} />
                   </TableCell>
-                  <TableCell className="text-xs">
-                    {p.due_date ? new Date(p.due_date).toLocaleString() : "—"}
+                  <TableCell className="text-xs tabular-nums">
+                    {formatDateTime(p.due_date)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
@@ -1160,11 +1161,8 @@ function TeacherProjects() {
                       <AccordionContent>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <p className="text-[11px] text-muted-foreground">
-                              Enviado:{" "}
-                              {sub.submitted_at
-                                ? new Date(sub.submitted_at).toLocaleString()
-                                : "—"}
+                            <p className="text-[11px] text-muted-foreground tabular-nums">
+                              Enviado: {formatDateTime(sub.submitted_at)}
                             </p>
                             <Button
                               size="sm"

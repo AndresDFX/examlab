@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert } from "lucide-react";
 import { StudentExamNotes } from "@/components/ExamNotesManager";
 import { MAX_WARNINGS } from "@/utils/proctoring";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
@@ -189,8 +190,8 @@ function StudentExams() {
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-3 w-3" />
                     {t("exam.availability", {
-                      start: new Date(exam.start_time).toLocaleString(),
-                      end: new Date(exam.end_time).toLocaleString(),
+                      start: formatDateTime(exam.start_time),
+                      end: formatDateTime(exam.end_time),
                     })}
                   </div>
                   <div className="flex items-center justify-between gap-2">

@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Lock, Unlock, Send, Pencil, Trash2, Check, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
 
@@ -438,8 +439,8 @@ export function FeedbackThread({
                     )}
                   </span>
                   <span className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(c.created_at).toLocaleString()}
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {formatDateTime(c.created_at)}
                     </span>
                     {mine && !isEditing && !closed && (
                       <>

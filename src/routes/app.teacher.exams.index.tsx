@@ -38,6 +38,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2 } from "lucide-react";
 import { RowAction } from "@/components/ui/row-action";
+import { formatDateTime, formatDuration } from "@/lib/format";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -372,8 +373,7 @@ function TeacherExams() {
                         )}
                       </div>
                       <div className="sm:hidden text-[11px] text-muted-foreground tabular-nums">
-                        {new Date(e.start_time).toLocaleString()} · {e.time_limit_minutes}{" "}
-                        {t("common.min")}
+                        {formatDateTime(e.start_time)} · {formatDuration(e.time_limit_minutes)}
                       </div>
                     </div>
                   </TableCell>
@@ -385,11 +385,11 @@ function TeacherExams() {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm hidden sm:table-cell">
-                    {new Date(e.start_time).toLocaleString()}
+                  <TableCell className="text-sm hidden sm:table-cell tabular-nums">
+                    {formatDateTime(e.start_time)}
                   </TableCell>
-                  <TableCell className="text-sm hidden lg:table-cell">
-                    {e.time_limit_minutes} {t("common.min")}
+                  <TableCell className="text-sm hidden lg:table-cell tabular-nums">
+                    {formatDuration(e.time_limit_minutes)}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {(e as any).is_external ? (
