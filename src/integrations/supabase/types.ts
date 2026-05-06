@@ -458,6 +458,7 @@ export type Database = {
           id: string
           is_external: boolean
           max_attempts: number | null
+          max_warnings: number
           navigation_type: string
           parent_exam_id: string | null
           retry_mode: string
@@ -479,6 +480,7 @@ export type Database = {
           id?: string
           is_external?: boolean
           max_attempts?: number | null
+          max_warnings?: number
           navigation_type?: string
           parent_exam_id?: string | null
           retry_mode?: string
@@ -500,6 +502,7 @@ export type Database = {
           id?: string
           is_external?: boolean
           max_attempts?: number | null
+          max_warnings?: number
           navigation_type?: string
           parent_exam_id?: string | null
           retry_mode?: string
