@@ -500,6 +500,12 @@ function StudentGrades() {
               Aprobar ≥{" "}
               <span className="font-medium tabular-nums">{course.passing_grade}</span>
             </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Puntaje</span> = lo que sacaste sobre el
+              total de la actividad ·{" "}
+              <span className="font-medium text-foreground">Nota</span> = ese puntaje convertido a
+              la escala del curso, que es la que cuenta para tu calificación final.
+            </div>
           </div>
 
           {/* Detalle por corte */}
@@ -536,9 +542,9 @@ function StudentGrades() {
                       <TableRow>
                         <TableHead>Actividad</TableHead>
                         <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                        <TableHead className="text-right">Bruto</TableHead>
+                        <TableHead className="text-right">Puntaje</TableHead>
                         <TableHead className="text-right">
-                          Equiv ({course.grade_scale_min}–{course.grade_scale_max})
+                          Nota ({course.grade_scale_min}–{course.grade_scale_max})
                         </TableHead>
                         <TableHead className="hidden md:table-cell">Estado</TableHead>
                         <TableHead className="text-right w-[1%]">Detalle</TableHead>
@@ -627,9 +633,9 @@ function StudentGrades() {
                     <TableRow>
                       <TableHead>Actividad</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right">Bruto</TableHead>
+                      <TableHead className="text-right">Puntaje</TableHead>
                       <TableHead className="text-right">
-                        Equiv ({course.grade_scale_min}–{course.grade_scale_max})
+                        Nota ({course.grade_scale_min}–{course.grade_scale_max})
                       </TableHead>
                     </TableRow>
                   </TableHeader>
