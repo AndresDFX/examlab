@@ -1025,6 +1025,67 @@ export type Database = {
           },
         ]
       }
+      project_group_members: {
+        Row: {
+          group_id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "project_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_groups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          project_id: string
+          signup_code: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          project_id: string
+          signup_code?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          signup_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_groups_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_submission_attachments: {
         Row: {
           created_at: string
@@ -1159,6 +1220,7 @@ export type Database = {
           defense_factor: number | null
           defense_notes: string | null
           final_grade: number | null
+          group_id: string | null
           id: string
           project_id: string
           repository_url: string | null
@@ -1181,6 +1243,7 @@ export type Database = {
           defense_factor?: number | null
           defense_notes?: string | null
           final_grade?: number | null
+          group_id?: string | null
           id?: string
           project_id: string
           repository_url?: string | null
@@ -1203,6 +1266,7 @@ export type Database = {
           defense_factor?: number | null
           defense_notes?: string | null
           final_grade?: number | null
+          group_id?: string | null
           id?: string
           project_id?: string
           repository_url?: string | null
@@ -1214,7 +1278,15 @@ export type Database = {
           user_id?: string
           zip_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "project_submissions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "project_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects: {
         Row: {
@@ -1226,6 +1298,9 @@ export type Database = {
           description: string | null
           due_date: string | null
           external_link: string | null
+          group_mode: string
+          group_size_max: number
+          group_size_min: number
           id: string
           instructions: string | null
           max_files: number
@@ -1246,6 +1321,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           external_link?: string | null
+          group_mode?: string
+          group_size_max?: number
+          group_size_min?: number
           id?: string
           instructions?: string | null
           max_files?: number
@@ -1266,6 +1344,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           external_link?: string | null
+          group_mode?: string
+          group_size_max?: number
+          group_size_min?: number
           id?: string
           instructions?: string | null
           max_files?: number
