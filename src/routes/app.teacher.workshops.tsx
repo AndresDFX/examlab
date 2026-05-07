@@ -363,8 +363,8 @@ function TeacherWorkshops() {
         await autoAssignWorkshop(form.id, form.course_id!);
         await supabase.rpc("notify_course_students", {
           _course_id: form.course_id!,
-          _title: "Nuevo taller disponible",
-          _body: `Se ha publicado el taller "${form.title}"`,
+          _title: "Taller actualizado",
+          _body: `Se actualizó el taller "${form.title}"`,
           _kind: "workshop",
           _link: "/app/student/workshops",
         });

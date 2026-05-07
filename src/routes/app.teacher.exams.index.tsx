@@ -287,6 +287,17 @@ function TeacherExams() {
       if (!firstId) firstId = data.id;
       // Auto-asignar todos los estudiantes matriculados en el curso
       await autoAssignExam(data.id, cid);
+      // Notificar a los estudiantes del curso. Para externos no aplica
+      // (la actividad ya pasó, solo se registra la nota).
+      if (!isExternal) {
+        await supabase.rpc("notify_course_students", {
+          _course_id: cid,
+          _title: "Nuevo examen disponible",
+          _body: `Se ha publicado el examen "${form.title}"`,
+          _kind: "exam",
+          _link: "/app/student/exams",
+        });
+      }
     }
 
     toast.success(

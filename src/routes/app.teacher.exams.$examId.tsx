@@ -258,6 +258,16 @@ function ExamEditor() {
     }
     const { error } = await supabase.from("exams").update(payload as any).eq("id", examId);
     if (error) return toast.error(error.message);
+    // Notificar a los estudiantes del curso. Para externos no aplica.
+    if (!isExternal && exam.course_id) {
+      await supabase.rpc("notify_course_students", {
+        _course_id: exam.course_id,
+        _title: "Examen actualizado",
+        _body: `Se actualizó el examen "${exam.title}"`,
+        _kind: "exam",
+        _link: "/app/student/exams",
+      });
+    }
     toast.success("Examen actualizado correctamente");
     navigate({ to: "/app/teacher/exams" });
   };

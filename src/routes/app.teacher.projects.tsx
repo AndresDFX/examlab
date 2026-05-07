@@ -447,6 +447,25 @@ function TeacherProjects() {
         const added = await autoAssignProject(projectId, linked);
         if (added > 0) toast.success(`${added} estudiante(s) asignados automáticamente`);
       }
+
+      // Notificar a los estudiantes solo cuando el proyecto está
+      // publicado y NO es externo. Distintos titles para create/update.
+      if (payload.status === "published" && !isExternal) {
+        const isUpdate = !!editing;
+        const title = isUpdate ? "Proyecto actualizado" : "Nuevo proyecto disponible";
+        const body = isUpdate
+          ? `Se actualizó el proyecto "${form.title}"`
+          : `Se ha publicado el proyecto "${form.title}"`;
+        for (const cid of linked) {
+          await supabase.rpc("notify_course_students", {
+            _course_id: cid,
+            _title: title,
+            _body: body,
+            _kind: "info",
+            _link: "/app/student/projects",
+          });
+        }
+      }
     }
 
     setOpen(false);
