@@ -1086,6 +1086,7 @@ export type Database = {
           selected_option: string | null
           submission_id: string
           updated_at: string
+          zip_path: string | null
         }
         Insert: {
           ai_feedback?: string | null
@@ -1099,6 +1100,7 @@ export type Database = {
           selected_option?: string | null
           submission_id: string
           updated_at?: string
+          zip_path?: string | null
         }
         Update: {
           ai_feedback?: string | null
@@ -1112,6 +1114,7 @@ export type Database = {
           selected_option?: string | null
           submission_id?: string
           updated_at?: string
+          zip_path?: string | null
         }
         Relationships: [
           {
@@ -1152,10 +1155,15 @@ export type Database = {
           ai_feedback: string | null
           ai_grade: number | null
           created_at: string
+          defense_at: string | null
+          defense_factor: number | null
+          defense_notes: string | null
           final_grade: number | null
           id: string
           project_id: string
+          repository_url: string | null
           status: string
+          submission_grade: number | null
           submitted_at: string | null
           teacher_feedback: string | null
           updated_at: string
@@ -1169,10 +1177,15 @@ export type Database = {
           ai_feedback?: string | null
           ai_grade?: number | null
           created_at?: string
+          defense_at?: string | null
+          defense_factor?: number | null
+          defense_notes?: string | null
           final_grade?: number | null
           id?: string
           project_id: string
+          repository_url?: string | null
           status?: string
+          submission_grade?: number | null
           submitted_at?: string | null
           teacher_feedback?: string | null
           updated_at?: string
@@ -1186,10 +1199,15 @@ export type Database = {
           ai_feedback?: string | null
           ai_grade?: number | null
           created_at?: string
+          defense_at?: string | null
+          defense_factor?: number | null
+          defense_notes?: string | null
           final_grade?: number | null
           id?: string
           project_id?: string
+          repository_url?: string | null
           status?: string
+          submission_grade?: number | null
           submitted_at?: string | null
           teacher_feedback?: string | null
           updated_at?: string
@@ -1479,6 +1497,67 @@ export type Database = {
           },
         ]
       }
+      workshop_group_members: {
+        Row: {
+          group_id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_groups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          signup_code: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          signup_code?: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          signup_code?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_groups_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshop_questions: {
         Row: {
           content: string
@@ -1587,6 +1666,7 @@ export type Database = {
           external_link: string | null
           file_url: string | null
           final_grade: number | null
+          group_id: string | null
           id: string
           status: string
           submitted_at: string | null
@@ -1606,6 +1686,7 @@ export type Database = {
           external_link?: string | null
           file_url?: string | null
           final_grade?: number | null
+          group_id?: string | null
           id?: string
           status?: string
           submitted_at?: string | null
@@ -1625,6 +1706,7 @@ export type Database = {
           external_link?: string | null
           file_url?: string | null
           final_grade?: number | null
+          group_id?: string | null
           id?: string
           status?: string
           submitted_at?: string | null
@@ -1634,6 +1716,13 @@ export type Database = {
           workshop_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workshop_submissions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workshop_submissions_workshop_id_fkey"
             columns: ["workshop_id"]
@@ -1653,6 +1742,9 @@ export type Database = {
           description: string | null
           due_date: string | null
           external_link: string | null
+          group_mode: string
+          group_size_max: number
+          group_size_min: number
           id: string
           instructions: string | null
           is_external: boolean
@@ -1673,6 +1765,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           external_link?: string | null
+          group_mode?: string
+          group_size_max?: number
+          group_size_min?: number
           id?: string
           instructions?: string | null
           is_external?: boolean
@@ -1693,6 +1788,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           external_link?: string | null
+          group_mode?: string
+          group_size_max?: number
+          group_size_min?: number
           id?: string
           instructions?: string | null
           is_external?: boolean
