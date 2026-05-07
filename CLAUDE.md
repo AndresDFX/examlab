@@ -192,6 +192,17 @@ Los estudiantes se marcan presentes solos para que el docente no tenga que llama
 - **Deep-link**: el QR codifica `https://<host>/app/student/attendance?session=X&code=Y`. Si el estudiante lo abre así (cámara nativa o desde la app), el effect en `app.student.attendance.tsx` parsea, llama RPC y limpia la URL con `history.replaceState`.
 - **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
 
+### Trabajo en grupo en talleres (V1: teacher_assigned)
+Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma nota.
+
+- **DB** (migración 20260507150000): `workshops.group_mode` (`individual` | `teacher_assigned` | `self_signup` — V1 expone solo individual y teacher_assigned). Tabla `workshop_groups(id, workshop_id, name, signup_code)` + `workshop_group_members(group_id, user_id)` con trigger que evita estar en >1 grupo del mismo taller. Columna `workshop_submissions.group_id` (cuando hay grupo, la submission pertenece al grupo).
+- **RLS**: groups y members con SELECT abierto + write Docente/Admin. `workshop_submissions` extendido a "dueño O miembro del grupo de la submission O Docente/Admin" en SELECT/INSERT/UPDATE — eso permite que cualquier miembro del grupo edite la misma fila.
+- **UI Docente**: toggle "Trabajo en grupo" en el form del taller (solo cuando NO es externo). Botón "Grupos" en el grid (icono UsersRound) abre [WorkshopGroupsEditor](src/components/WorkshopGroupsEditor.tsx) — panel con estudiantes sin asignar + grupos creados con asignación por dropdown.
+- **UI Estudiante**: en `app.student.workshops.tsx` la query de submission filtra por `group_id` cuando aplica (cualquier miembro ve la misma entrega). Card "Tu grupo: X" arriba del taller con miembros. Si el taller es grupal y el estudiante no tiene grupo asignado, el botón "Responder y enviar" se bloquea con mensaje "Espera a que el docente te asigne uno".
+- **Submission compartida**: `StudentWorkshopTaker` acepta prop `groupId`. La query existente y el INSERT incluyen `group_id` cuando hay grupo. `user_id` se mantiene como "último editor".
+- **Notificación de calificación**: `saveGrade` en el editor de calificación lee `submission.group_id`; si existe, inserta una notificación por cada miembro del grupo. Caso individual: solo al `user_id`.
+- **Self-signup**: queda para V2. La columna `signup_code` ya está en la tabla para no migrar después.
+
 ### Notificaciones realtime + push
 `use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
 

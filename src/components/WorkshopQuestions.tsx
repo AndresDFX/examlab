@@ -500,12 +500,16 @@ export function StudentWorkshopTaker({
   workshopTitle,
   maxScore,
   courseLanguage = "es",
+  groupId,
   onGraded,
 }: {
   workshopId: string;
   workshopTitle: string;
   maxScore: number;
   courseLanguage?: "es" | "en";
+  /** Si el taller es grupal, ID del grupo del estudiante. La submission
+   *  se filtra/crea con este group_id en lugar de user_id. */
+  groupId?: string | null;
   onGraded?: (finalGrade: number) => void;
 }) {
   const { user } = useAuth();
@@ -541,13 +545,17 @@ export function StudentWorkshopTaker({
       if (cancelled) return;
       setQuestions((qs ?? []) as WorkshopQuestion[]);
 
-      // Load existing submission/answers if any
-      const { data: sub } = await supabase
+      // Load existing submission/answers. Si hay grupo, la submission
+      // pertenece al grupo (cualquier miembro puede ver/editar).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const subQuery = dbAny
         .from("workshop_submissions")
         .select("id, final_grade, status")
-        .eq("workshop_id", workshopId)
-        .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("workshop_id", workshopId);
+      const { data: sub } = await (groupId
+        ? subQuery.eq("group_id", groupId).maybeSingle()
+        : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.id) {
         const { data: ans } = await supabase
           .from("workshop_submission_answers")
@@ -630,26 +638,35 @@ export function StudentWorkshopTaker({
     }
     setSubmitting(true);
     try {
-      // Upsert submission
+      // Upsert submission. Si es grupal, filtramos/insertamos por
+      // group_id para que cualquier miembro toque la misma fila.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny2 = supabase as any;
       let submissionId: string;
-      const { data: existing } = await supabase
+      const existingQuery = dbAny2
         .from("workshop_submissions")
         .select("id")
-        .eq("workshop_id", workshopId)
-        .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("workshop_id", workshopId);
+      const { data: existing } = await (groupId
+        ? existingQuery.eq("group_id", groupId).maybeSingle()
+        : existingQuery.eq("user_id", user.id).maybeSingle());
       if (existing?.id) {
         submissionId = existing.id;
-        await supabase
+        await dbAny2
           .from("workshop_submissions")
-          .update({ status: "entregado", submitted_at: new Date().toISOString() })
+          .update({
+            status: "entregado",
+            submitted_at: new Date().toISOString(),
+            user_id: user.id, // último editor (auditoría)
+          })
           .eq("id", submissionId);
       } else {
-        const { data: created, error } = await supabase
+        const { data: created, error } = await dbAny2
           .from("workshop_submissions")
           .insert({
             workshop_id: workshopId,
             user_id: user.id,
+            group_id: groupId ?? null,
             status: "entregado",
             submitted_at: new Date().toISOString(),
           })

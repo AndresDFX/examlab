@@ -38,6 +38,7 @@ type WorkshopLoaded = {
   due_date: string | null;
   max_score: number;
   status: string;
+  group_mode?: "individual" | "teacher_assigned" | "self_signup";
   course: { name: string; grade_scale_min: number; grade_scale_max: number };
 };
 
@@ -72,6 +73,12 @@ type AnswerRow = {
   ai_feedback: string | null;
 };
 
+type GroupInfo = {
+  id: string;
+  name: string;
+  members: { id: string; fullName: string }[];
+};
+
 function StudentWorkshopDetail() {
   const { workshopId } = Route.useParams();
   const { user } = useAuth();
@@ -82,6 +89,7 @@ function StudentWorkshopDetail() {
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [answersByQid, setAnswersByQid] = useState<Record<string, AnswerRow>>({});
+  const [myGroup, setMyGroup] = useState<GroupInfo | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -105,22 +113,86 @@ function StudentWorkshopDetail() {
           return;
         }
 
-        const [{ data: ws, error: wsErr }, { data: sub }, { data: qs }] = await Promise.all([
-          supabase
-            .from("workshops")
-            .select(
-              "id, title, description, instructions, external_link, due_date, max_score, status, course:courses(name, grade_scale_min, grade_scale_max)",
-            )
-            .eq("id", workshopId)
-            .single(),
-          supabase
-            .from("workshop_submissions")
-            .select(
-              "id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
-            )
-            .eq("workshop_id", workshopId)
-            .eq("user_id", user.id)
-            .maybeSingle(),
+        // Cargar workshop primero para saber si es de grupo. Después
+        // resolvemos el grupo del estudiante (si aplica) y la
+        // submission queda filtrada por group_id en vez de user_id.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dbAny = supabase as any;
+        const { data: ws, error: wsErr } = await dbAny
+          .from("workshops")
+          .select(
+            "id, title, description, instructions, external_link, due_date, max_score, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max)",
+          )
+          .eq("id", workshopId)
+          .single();
+        if (cancelled) return;
+        if (wsErr || !ws) {
+          setError("not_found");
+          return;
+        }
+
+        let myGroupId: string | null = null;
+        let groupInfo: GroupInfo | null = null;
+        if ((ws as any).group_mode && (ws as any).group_mode !== "individual") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = supabase as any;
+          // Buscar grupo del estudiante en este taller
+          const { data: myGroups } = await db
+            .from("workshop_group_members")
+            .select("group_id, group:workshop_groups!inner(id, name, workshop_id)")
+            .eq("user_id", user.id);
+          const mine = ((myGroups ?? []) as { group: { id: string; name: string; workshop_id: string } }[]).find(
+            (g) => g.group?.workshop_id === workshopId,
+          );
+          if (mine) {
+            myGroupId = mine.group.id;
+            // Cargar miembros del grupo
+            const { data: ms } = await db
+              .from("workshop_group_members")
+              .select("user_id")
+              .eq("group_id", myGroupId);
+            const memberIds = ((ms ?? []) as { user_id: string }[]).map((m) => m.user_id);
+            const { data: profs } =
+              memberIds.length > 0
+                ? await supabase
+                    .from("profiles")
+                    .select("id, full_name")
+                    .in("id", memberIds)
+                : { data: [] as { id: string; full_name: string }[] };
+            groupInfo = {
+              id: mine.group.id,
+              name: mine.group.name,
+              members: ((profs ?? []) as { id: string; full_name: string }[]).map((p) => ({
+                id: p.id,
+                fullName: p.full_name,
+              })),
+            };
+          }
+        }
+        setMyGroup(groupInfo);
+
+        // Submission: si hay grupo, filtramos por group_id (la entrega
+        // es del grupo, cualquier miembro la ve y edita). Si no hay
+        // grupo, comportamiento individual normal.
+        const subQuery = myGroupId
+          ? dbAny
+              .from("workshop_submissions")
+              .select(
+                "id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
+              )
+              .eq("workshop_id", workshopId)
+              .eq("group_id", myGroupId)
+              .maybeSingle()
+          : supabase
+              .from("workshop_submissions")
+              .select(
+                "id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
+              )
+              .eq("workshop_id", workshopId)
+              .eq("user_id", user.id)
+              .maybeSingle();
+        const [{ data: sub }, { data: qs }] = await Promise.all([
+          subQuery,
           supabase
             .from("workshop_questions")
             .select("id, type, content, options, position, points, expected_rubric, language")
@@ -129,10 +201,6 @@ function StudentWorkshopDetail() {
         ]);
 
         if (cancelled) return;
-        if (wsErr || !ws) {
-          setError("not_found");
-          return;
-        }
 
         setWorkshop(ws as WorkshopLoaded);
         setSubmission(sub as SubmissionRow | null);
@@ -262,6 +330,52 @@ function StudentWorkshopDetail() {
         title={workshop.title}
         subtitle={workshop.course?.name}
       />
+
+      {/* Info de grupo: si el taller es grupal y el estudiante tiene
+          asignado un grupo, mostrar miembros. Si NO tiene grupo, alertar. */}
+      {workshop.group_mode && workshop.group_mode !== "individual" && (
+        <Card
+          className={
+            myGroup
+              ? "border-primary/30 bg-primary/5"
+              : "border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10"
+          }
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              {myGroup ? `Tu grupo: ${myGroup.name}` : "Trabajo en grupo"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm">
+            {myGroup ? (
+              <>
+                <p className="text-xs text-muted-foreground mb-2">
+                  La entrega es del grupo: cualquier miembro puede editarla y todos reciben
+                  la misma nota.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {myGroup.members.map((m) => (
+                    <span
+                      key={m.id}
+                      className="text-xs rounded-full bg-background border px-2 py-0.5"
+                    >
+                      {m.fullName}
+                      {m.id === user.id && (
+                        <span className="ml-1 text-muted-foreground">(tú)</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-xs">
+                Este taller es de trabajo en grupo, pero aún no tienes un grupo asignado.
+                Espera a que el docente te asigne uno antes de entregar.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {!submission && (
         <Card className="border-dashed">

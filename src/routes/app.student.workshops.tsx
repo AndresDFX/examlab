@@ -45,6 +45,7 @@ type WorkshopRow = {
     start_date: string | null;
     max_score: number;
     status: string;
+    group_mode?: "individual" | "teacher_assigned" | "self_signup";
     course: {
       name: string;
       grade_scale_min: number;
@@ -52,6 +53,8 @@ type WorkshopRow = {
       language?: string | null;
     };
   };
+  /** Si el taller es grupal y el estudiante tiene grupo, ID del grupo. */
+  groupId?: string | null;
   submission?: {
     id: string;
     ai_grade: number | null;
@@ -78,7 +81,7 @@ function StudentWorkshops() {
     const { data: asg } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, course:courses(name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid);
 
@@ -89,20 +92,59 @@ function StudentWorkshops() {
       .filter((w: any) => Boolean(w) && !w.is_external);
     const ids = workshops.map((w: any) => w.id);
 
-    const { data: subs } = ids.length
-      ? await supabase
-          .from("workshop_submissions")
-          .select(
-            "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
-          )
-          .in("workshop_id", ids)
-          .eq("user_id", uid)
-      : { data: [] as any[] };
+    // Para talleres grupales: el estudiante puede tener un grupo, y la
+    // submission pertenece al grupo (no al user). Mapeamos workshop_id
+    // → group_id y la query de submission cambia entre user_id y group_id
+    // según el caso.
+    const groupWorkshopIds = workshops
+      .filter((w: any) => w.group_mode && w.group_mode !== "individual")
+      .map((w: any) => w.id as string);
+    const groupIdByWorkshop = new Map<string, string>();
+    if (groupWorkshopIds.length > 0) {
+      const { data: myGroups } = await client
+        .from("workshop_group_members")
+        .select("group:workshop_groups!inner(id, workshop_id)")
+        .eq("user_id", uid);
+      for (const m of (myGroups ?? []) as {
+        group: { id: string; workshop_id: string };
+      }[]) {
+        if (m.group && groupWorkshopIds.includes(m.group.workshop_id)) {
+          groupIdByWorkshop.set(m.group.workshop_id, m.group.id);
+        }
+      }
+    }
+
+    // Splitting de IDs: los individuales se buscan por user_id; los
+    // grupales por group_id de mi grupo (si lo tengo).
+    const indivIds = ids.filter((id: string) => !groupIdByWorkshop.has(id));
+    const myGroupIds = Array.from(groupIdByWorkshop.values());
+
+    const [{ data: indivSubs }, { data: groupSubs }] = await Promise.all([
+      indivIds.length > 0
+        ? supabase
+            .from("workshop_submissions")
+            .select(
+              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+            )
+            .in("workshop_id", indivIds)
+            .eq("user_id", uid)
+        : Promise.resolve({ data: [] as any[] }),
+      myGroupIds.length > 0
+        ? supabase
+            .from("workshop_submissions")
+            .select(
+              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+            )
+            .in("group_id", myGroupIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const subs = [...(indivSubs ?? []), ...(groupSubs ?? [])];
 
     setRows(
       workshops.map((w: any) => ({
         workshop: w,
         submission: subs?.find((s: any) => s.workshop_id === w.id),
+        groupId: groupIdByWorkshop.get(w.id) ?? null,
       })),
     );
   };
@@ -128,12 +170,15 @@ function StudentWorkshops() {
         {visibleRows.length === 0 && (
           <p className="text-muted-foreground text-sm">{t("common.empty")}</p>
         )}
-        {visibleRows.map(({ workshop, submission }) => {
+        {visibleRows.map(({ workshop, submission, groupId }) => {
           const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;
           const isUpcoming = workshop.start_date && new Date(workshop.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
           const isOpen = workshop.status === "published" && !isOverdue && !isUpcoming;
+          const isGroupWorkshop =
+            workshop.group_mode && workshop.group_mode !== "individual";
+          const blockedNoGroup = isGroupWorkshop && !groupId;
           return (
             <Card key={workshop.id}>
               <CardContent className="p-5 space-y-3">
@@ -221,13 +266,20 @@ function StudentWorkshops() {
                   </div>
                 )}
 
+                {/* Aviso: taller grupal sin grupo asignado */}
+                {isOpen && blockedNoGroup && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10 p-2 text-xs">
+                    Trabajo en grupo: aún no tienes grupo asignado. Espera a que el docente
+                    te asigne uno antes de poder entregar.
+                  </div>
+                )}
                 {/* Single CTA: respond and submit. Re-opens for review when graded. */}
-                {isOpen && !isGraded && (
+                {isOpen && !isGraded && !blockedNoGroup && (
                   <Button
                     size="sm"
                     className="w-full"
                     onClick={() => {
-                      setQuestionsWs({ workshop, submission });
+                      setQuestionsWs({ workshop, submission, groupId });
                       setQuestionsOpen(true);
                     }}
                   >
@@ -276,6 +328,7 @@ function StudentWorkshops() {
               workshopTitle={questionsWs.workshop.title}
               maxScore={questionsWs.workshop.max_score}
               courseLanguage={questionsWs.workshop.course?.language === "en" ? "en" : "es"}
+              groupId={questionsWs.groupId ?? null}
               onGraded={() => {
                 if (user) void reload(user.id);
               }}

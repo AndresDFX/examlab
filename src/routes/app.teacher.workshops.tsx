@@ -37,6 +37,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
+import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
 import { toast } from "sonner";
 import {
   Plus,
@@ -56,6 +57,7 @@ import {
   Copy,
   ListChecks,
   Hammer,
+  UsersRound,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
@@ -109,6 +111,7 @@ type Workshop = {
   rubric: any;
   max_score: number;
   status: string;
+  group_mode?: "individual" | "teacher_assigned" | "self_signup";
   course?: { name: string; period: string | null };
 };
 type Cut = {
@@ -208,6 +211,8 @@ function TeacherWorkshops() {
   // Questions editor
   const [questionsWs, setQuestionsWs] = useState<Workshop | null>(null);
   const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [groupsWs, setGroupsWs] = useState<Workshop | null>(null);
 
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
@@ -328,6 +333,9 @@ function TeacherWorkshops() {
     }
 
     const isExternal = !!(form as any).is_external;
+    const groupMode: string = isExternal
+      ? "individual"
+      : ((form as any).group_mode ?? "individual");
     const basePayload: Record<string, any> = {
       title: form.title,
       description: form.description ?? null,
@@ -343,6 +351,7 @@ function TeacherWorkshops() {
       created_by: user.id,
       cut_id: form.cut_id || null,
       is_external: isExternal,
+      group_mode: groupMode,
     };
     // weight solo tiene sentido cuando hay corte; lo enviamos solo si
     // el form lo incluye, así DB defaults toman el resto. Patrón
@@ -863,6 +872,37 @@ function TeacherWorkshops() {
           : s,
       ),
     );
+
+    // Notificar al estudiante (o a todos los miembros del grupo si la
+    // entrega es grupal). El RPC notify_course_students no aplica acá
+    // porque va a TODOS los del curso; insertamos directo en
+    // notifications con RLS de Docente/Admin.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subData = data as any;
+    const wsTitle = gradingWs?.title ?? "el taller";
+    let recipients: string[] = [];
+    if (subData.group_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const { data: ms } = await dbAny
+        .from("workshop_group_members")
+        .select("user_id")
+        .eq("group_id", subData.group_id);
+      recipients = ((ms ?? []) as { user_id: string }[]).map((m) => m.user_id);
+    } else if (subData.user_id) {
+      recipients = [subData.user_id];
+    }
+    if (recipients.length > 0) {
+      await supabase.from("notifications").insert(
+        recipients.map((uid) => ({
+          user_id: uid,
+          title: "Taller calificado",
+          body: `Tu taller "${wsTitle}" ya tiene calificación: ${grade}`,
+          kind: "grade",
+          link: "/app/student/workshops",
+        })),
+      );
+    }
   };
 
   const deleteSubmission = async (subId: string, studentName: string) => {
@@ -1005,6 +1045,17 @@ function TeacherWorkshops() {
                         icon={Users}
                         onClick={() => openAssign(ws)}
                       />
+                      {(ws as any).group_mode &&
+                        (ws as any).group_mode !== "individual" && (
+                          <RowAction
+                            label="Grupos"
+                            icon={UsersRound}
+                            onClick={() => {
+                              setGroupsWs(ws);
+                              setGroupsOpen(true);
+                            }}
+                          />
+                        )}
                       <RowAction
                         label="Preguntas del taller"
                         icon={ListChecks}
@@ -1078,6 +1129,36 @@ function TeacherWorkshops() {
                 }
               />
             </div>
+            {/*
+             * Toggle "Trabajo en grupo": cuando está activo, los
+             * estudiantes entregan en grupo. La asignación de grupos se
+             * configura desde el botón "Grupos" en el grid del taller
+             * (sólo modo teacher_assigned por ahora).
+             */}
+            {!(form as any).is_external && (
+              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ws-group-mode" className="text-sm">
+                    Trabajo en grupo
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    La entrega es del grupo: todos los miembros editan la misma entrega y
+                    reciben la misma nota. Después de guardar, configura los grupos desde el
+                    botón <strong>Grupos</strong> del taller.
+                  </p>
+                </div>
+                <Switch
+                  id="ws-group-mode"
+                  checked={((form as any).group_mode ?? "individual") !== "individual"}
+                  onCheckedChange={(v) =>
+                    setForm({
+                      ...form,
+                      group_mode: v ? "teacher_assigned" : "individual",
+                    } as any)
+                  }
+                />
+              </div>
+            )}
             <div>
               <Label required>Título</Label>
               <Input
@@ -1883,6 +1964,23 @@ function TeacherWorkshops() {
               </Card>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workshop groups editor dialog */}
+      <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Grupos del taller {groupsWs ? `— ${groupsWs.title}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {groupsWs && (
+            <WorkshopGroupsEditor
+              workshopId={groupsWs.id}
+              courseId={groupsWs.course_id}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
