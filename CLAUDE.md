@@ -166,6 +166,17 @@ Sistema de overrides de prompts para los modelos de IA, separado por **caso de u
 - UI: `app/admin/ai-prompts.tsx` (CRUD globales, restaurar default), `app/teacher/ai-prompts.tsx` (selector de curso, ver global de referencia, override editable, "Volver al global" elimina la fila).
 - RLS: SELECT abierto a authenticated; INSERT/UPDATE/DELETE de globales solo Admin; de overrides solo docente del curso (vía `course_teachers`) o Admin.
 
+### Asistencia self check-in con QR rotativo (TOTP-like)
+Los estudiantes se marcan presentes solos para que el docente no tenga que llamar uno a uno.
+
+- **DB**: `attendance_sessions.check_in_open` (visible a todos) + tabla privada `attendance_check_in_state(session_id, seed, rotation_seconds, opened_at, closes_at)` con RLS Docente/Admin only — la **seed nunca llega al estudiante**.
+- **Código**: derivación TOTP-like — `sha256(seed || ":" || period)[:7 hex] % 1000000` con `period = floor(epoch/rotation_seconds)`. La función SQL `compute_attendance_code(seed, period)` y el JS `computeAttendanceCode()` en [src/lib/attendance-code.ts](src/lib/attendance-code.ts) **deben coincidir bit-a-bit**.
+- **Validación**: el estudiante llama `student_check_in_attendance(session_id, code)` SECURITY DEFINER, que acepta el código del período actual y el anterior (gracia de rotación). Verifica matrícula, ventana abierta, no expirada.
+- **UI Docente** ([AttendanceCheckInProjector](src/components/AttendanceCheckInProjector.tsx)): overlay fullscreen vía Fullscreen API con QR + código + countdown + contador realtime de presentes (Supabase channel sobre `attendance_records` filtrado por `session_id`). Botón "Cerrar check-in" → opcional confirm "marcar pendientes como ausentes" → RPC `teacher_mark_pending_absent`.
+- **UI Estudiante** ([AttendanceQRScanner](src/components/AttendanceQRScanner.tsx)): `html5-qrcode` (~50KB) escanea QR. Fallback input manual de 6 dígitos. Card "Check-in disponible" arriba de la vista de asistencia cuando hay sesiones con `check_in_open=true`.
+- **Deep-link**: el QR codifica `https://<host>/app/student/attendance?session=X&code=Y`. Si el estudiante lo abre así (cámara nativa o desde la app), el effect en `app.student.attendance.tsx` parsea, llama RPC y limpia la URL con `history.replaceState`.
+- **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
+
 ### Notificaciones realtime + push
 `use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
 

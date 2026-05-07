@@ -13,12 +13,14 @@
  * "sin registro".
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SectionLoader } from "@/components/ui/loaders";
 import { formatDateOnly } from "@/lib/format";
 import {
@@ -36,7 +38,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CalendarCheck, CheckCircle2, X, Loader2 } from "lucide-react";
+import { CalendarCheck, CheckCircle2, X, Loader2, QrCode, Keyboard, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { AttendanceQRScanner } from "@/components/AttendanceQRScanner";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+
+const CHECK_IN_ERROR_MESSAGES: Record<string, string> = {
+  no_auth: "Necesitas iniciar sesión.",
+  session_not_found: "La sesión ya no existe.",
+  check_in_closed: "El check-in está cerrado o expiró.",
+  not_enrolled: "No estás matriculado en este curso.",
+  invalid_code: "Código inválido. Pídele al docente el actual.",
+  unauthorized: "No tienes permiso.",
+};
 
 export const Route = createFileRoute("/app/student/attendance")({
   component: StudentAttendance,
@@ -48,7 +64,9 @@ type Session = {
   course_id: string;
   session_date: string;
   title: string | null;
+  check_in_open?: boolean;
 };
+type OpenSession = Session & { course_name: string };
 type Record_ = {
   id: string;
   session_id: string;
@@ -100,6 +118,13 @@ function StudentAttendance() {
   const [records, setRecords] = useState<Record_[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+
+  // Check-in self-service
+  const [openSessions, setOpenSessions] = useState<OpenSession[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState<OpenSession | null>(null);
+  const [manualCode, setManualCode] = useState("");
+  const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
 
   // Cursos donde el alumno está matriculado.
   useEffect(() => {
@@ -169,6 +194,101 @@ function StudentAttendance() {
     };
   }, [user, selectedCourseId]);
 
+  // Carga sesiones con check_in abierto en cualquier curso del estudiante.
+  const loadOpenSessions = useCallback(async () => {
+    if (!user || courses.length === 0) {
+      setOpenSessions([]);
+      return;
+    }
+    const courseIds = courses.map((c) => c.id);
+    const { data } = await db
+      .from("attendance_sessions")
+      .select("id, course_id, session_date, title, check_in_open")
+      .eq("check_in_open", true)
+      .in("course_id", courseIds);
+    const courseName = new Map(courses.map((c) => [c.id, c.name]));
+    setOpenSessions(
+      ((data ?? []) as Session[]).map((s) => ({
+        ...s,
+        course_name: courseName.get(s.course_id) ?? "",
+      })),
+    );
+  }, [user, courses]);
+
+  useEffect(() => {
+    void loadOpenSessions();
+  }, [loadOpenSessions]);
+
+  // Realtime: si una sesión abre/cierra, refrescamos.
+  useEffect(() => {
+    if (!user || courses.length === 0) return;
+    const channel = supabase
+      .channel(`student-attendance-open-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "attendance_sessions" },
+        () => void loadOpenSessions(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, courses, loadOpenSessions]);
+
+  const submitCheckIn = useCallback(
+    async (sessionId: string, code: string): Promise<boolean> => {
+      const cleaned = code.replace(/\s+/g, "");
+      if (!/^\d{6}$/.test(cleaned)) {
+        toast.error("El código debe tener 6 dígitos");
+        return false;
+      }
+      setSubmittingCheckIn(true);
+      try {
+        const { data, error } = await db.rpc("student_check_in_attendance", {
+          p_session_id: sessionId,
+          p_code: cleaned,
+        });
+        if (error) {
+          toast.error(error.message);
+          return false;
+        }
+        const result = data as { ok: boolean; error?: string };
+        if (!result?.ok) {
+          toast.error(CHECK_IN_ERROR_MESSAGES[result?.error ?? ""] ?? result?.error ?? "Error");
+          return false;
+        }
+        toast.success("¡Marcado como presente!");
+        // Refresca records del curso seleccionado para que se vea inmediato
+        if (selectedCourseId) {
+          const { data: recs } = await supabase
+            .from("attendance_records")
+            .select("id, session_id, status, note")
+            .eq("user_id", user!.id);
+          setRecords((recs ?? []) as Record_[]);
+        }
+        return true;
+      } finally {
+        setSubmittingCheckIn(false);
+      }
+    },
+    [selectedCourseId, user],
+  );
+
+  // Deep-link: si llegamos con ?session=...&code=... auto check-in.
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session");
+    const code = params.get("code");
+    if (!sessionId || !code) return;
+    // Limpia la URL antes para no re-disparar al reciclar el effect.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("session");
+    url.searchParams.delete("code");
+    window.history.replaceState({}, "", url.toString());
+    void submitCheckIn(sessionId, code);
+  }, [user, submitCheckIn]);
+
   const recordBySession = useMemo(() => {
     const map = new Map<string, Record_>();
     for (const r of records) map.set(r.session_id, r);
@@ -200,11 +320,7 @@ function StudentAttendance() {
   }, [sessions, recordBySession]);
 
   if (!user) {
-    return (
-      <p className="text-muted-foreground p-6">
-        Inicia sesión para ver tu asistencia.
-      </p>
-    );
+    return <p className="text-muted-foreground p-6">Inicia sesión para ver tu asistencia.</p>;
   }
 
   return (
@@ -240,6 +356,56 @@ function StudentAttendance() {
           </div>
         )}
       </div>
+
+      {/* Check-in disponible */}
+      {openSessions.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="py-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Check-in de asistencia disponible
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Tu docente abrió la asistencia. Escanea el QR proyectado o escribe el código.
+            </p>
+            <div className="space-y-2">
+              {openSessions.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{s.course_name}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {formatDateOnly(s.session_date)}
+                      {s.title ? ` · ${s.title}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" onClick={() => setScannerOpen(true)}>
+                      <QrCode className="h-4 w-4 mr-1" />
+                      Escanear QR
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setManualCode("");
+                        setManualOpen(s);
+                      }}
+                    >
+                      <Keyboard className="h-4 w-4 mr-1" />
+                      Tengo el código
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {loadingCourses && <SectionLoader />}
 
@@ -355,6 +521,95 @@ function StudentAttendance() {
           )}
         </>
       )}
+
+      {/* Scanner dialog */}
+      {scannerOpen && (
+        <CheckInDialog title="Escanear QR" onClose={() => setScannerOpen(false)}>
+          <AttendanceQRScanner
+            onClose={() => setScannerOpen(false)}
+            onDetected={async ({ sessionId, code }) => {
+              const ok = await submitCheckIn(sessionId, code);
+              if (ok) {
+                setScannerOpen(false);
+                void loadOpenSessions();
+              }
+            }}
+          />
+        </CheckInDialog>
+      )}
+
+      {/* Manual code dialog */}
+      {manualOpen && (
+        <CheckInDialog title="Ingresar código manual" onClose={() => setManualOpen(null)}>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Pídele al docente el código de 6 dígitos que aparece bajo el QR.
+            </p>
+            <Input
+              autoFocus
+              inputMode="numeric"
+              pattern="\d*"
+              maxLength={7}
+              placeholder="123456"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value.replace(/[^\d\s]/g, ""))}
+              className="text-center text-2xl font-mono tracking-widest tabular-nums"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setManualOpen(null)}
+                disabled={submittingCheckIn}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!manualOpen) return;
+                  const ok = await submitCheckIn(manualOpen.id, manualCode);
+                  if (ok) {
+                    setManualOpen(null);
+                    void loadOpenSessions();
+                  }
+                }}
+                disabled={submittingCheckIn}
+              >
+                {submittingCheckIn ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                )}
+                Marcar presente
+              </Button>
+            </div>
+          </div>
+        </CheckInDialog>
+      )}
+    </div>
+  );
+}
+
+function CheckInDialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-base font-semibold mb-3">{title}</div>
+        {children}
+      </div>
     </div>
   );
 }
