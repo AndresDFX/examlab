@@ -156,6 +156,14 @@ Para parciales/talleres que ya pasaron fuera de la plataforma (presencial o virt
 - **Plagio entre estudiantes**: edge function `detect-plagiarism` compara entregas pares vía Gemini, persiste en tabla `similarity_pairs (kind, ref_id, score, reasons)`. RLS solo docente/admin.
 - `<FraudPanel kind refId>` reutilizable en monitor de examen, dialog de calificación de taller, dialog de entregas de proyecto.
 
+### Selección de modelo de IA (tabla `ai_model_settings`)
+Una sola configuración global activa a la vez (UNIQUE PARTIAL idx sobre `is_active=true`). Solo Admin escribe.
+
+- Providers V1: `lovable` (Gemini via gateway) y `openai` (gpt-4o, gpt-4o-mini, etc).
+- API keys NO se guardan en DB — viven como env vars en Lovable (`LOVABLE_API_KEY`, `OPENAI_API_KEY`). La tabla solo elige `provider` + `model`.
+- Edge function lee la fila activa via `getActiveAiModel()` y construye URL/auth/header según provider en el helper `aiChatCompletion(body)`. Ambos providers hablan el mismo formato OpenAI chat-completions, así que el body (messages/tools/tool_choice) viaja idéntico — solo cambia `model`.
+- UI Admin en `app.admin.ai-prompts.tsx` con tabs: **Prompts** (editor de los 5 use_cases globales) + **Modelo** (provider + model). El path se mantuvo por compatibilidad.
+
 ### Prompts de IA customizables (tabla `ai_prompts`)
 Sistema de overrides de prompts para los modelos de IA, separado por **caso de uso** (no por módulo):
 

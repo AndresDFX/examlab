@@ -23,6 +23,75 @@ const adminClient = createClient(
  *      hardcoded (mismo texto que el seed) para que la calificación nunca
  *      se rompa por config faltante.
  */
+// Cache del modelo activo por invocación. La edge function es stateless
+// entre invocaciones, pero dentro de una sola invocación pueden hacerse
+// múltiples llamadas (ej. exam con N preguntas) — evitamos N queries.
+let cachedModel: { provider: "lovable" | "openai"; model: string } | null = null;
+
+async function getActiveAiModel(): Promise<{ provider: "lovable" | "openai"; model: string }> {
+  if (cachedModel) return cachedModel;
+  try {
+    const { data } = await adminClient
+      .from("ai_model_settings")
+      .select("provider, model")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (data && (data.provider === "lovable" || data.provider === "openai")) {
+      cachedModel = { provider: data.provider, model: data.model };
+      return cachedModel;
+    }
+  } catch (e) {
+    console.warn("[ai_model_settings] resolve failed, using default:", e);
+  }
+  // Fallback al comportamiento previo si no hay config.
+  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash" };
+  return cachedModel;
+}
+
+/**
+ * Wrapper único de chat completions. Internamente decide endpoint/auth/modelo
+ * según la config activa en ai_model_settings.
+ *
+ * - lovable → ai.gateway.lovable.dev/v1/chat/completions + LOVABLE_API_KEY
+ * - openai  → api.openai.com/v1/chat/completions + OPENAI_API_KEY
+ *
+ * Ambos hablan el mismo formato OpenAI chat-completions, así que el body
+ * (messages/tools/tool_choice) viaja idéntico — solo cambia `model`.
+ */
+async function aiChatCompletion(body: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tools?: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tool_choice?: any;
+}): Promise<Response> {
+  const m = await getActiveAiModel();
+  let url: string;
+  let key: string | undefined;
+  if (m.provider === "openai") {
+    url = "https://api.openai.com/v1/chat/completions";
+    key = Deno.env.get("OPENAI_API_KEY");
+    if (!key) {
+      throw new Error(
+        "OPENAI_API_KEY missing. Configure el secret en Lovable o cambie el provider a 'lovable' en /app/admin/ai.",
+      );
+    }
+  } else {
+    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    key = Deno.env.get("LOVABLE_API_KEY");
+    if (!key) throw new Error("LOVABLE_API_KEY missing");
+  }
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model: m.model, ...body }),
+  });
+}
+
 async function resolveSystemPrompt(
   useCase: string,
   courseId: string | null | undefined,
@@ -58,8 +127,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
-    const KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!KEY) throw new Error("LOVABLE_API_KEY missing");
+    // La validación del API key vive ahora en aiChatCompletion según el
+    // provider activo (LOVABLE_API_KEY o OPENAI_API_KEY).
 
     // ── Workshop grading mode ──
     if (body.workshopGrading) {
@@ -86,11 +155,7 @@ Deno.serve(async (req) => {
       // criterios; estas reglas garantizan el contrato de salida.
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxScore ?? 100}.\nREGLA DE IDIOMA: responde siempre en ${wsLangName}.`;
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const aiRes = await aiChatCompletion({
           messages: [
             {
               role: "system",
@@ -131,7 +196,6 @@ Deno.serve(async (req) => {
             },
           ],
           tool_choice: { type: "function", function: { name: "score_workshop" } },
-        }),
       });
 
       if (!aiRes.ok) {
@@ -190,11 +254,7 @@ Deno.serve(async (req) => {
       );
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const aiRes = await aiChatCompletion({
           messages: [
             {
               role: "system",
@@ -240,7 +300,6 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             },
           ],
           tool_choice: { type: "function", function: { name: "score_project_file" } },
-        }),
       });
 
       if (aiRes.status === 429) {
@@ -318,11 +377,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       );
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${wqLangName}.\n${extraInstructions}`;
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const aiRes = await aiChatCompletion({
           messages: [
             {
               role: "system",
@@ -357,7 +412,6 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             },
           ],
           tool_choice: { type: "function", function: { name: "score_question" } },
-        }),
       });
 
       if (aiRes.status === 429) {
@@ -483,11 +537,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       );
       const projectSystemPrompt = `${customSystemFull}\n\nTipo de proyecto: ${project.project_type}.\nPuntaje máximo permitido: ${project.max_score}.\nREGLA DE IDIOMA: responde siempre en ${langName}.`;
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+      const aiRes = await aiChatCompletion({
           messages: [
             {
               role: "system",
@@ -533,7 +583,6 @@ Idioma de salida: ${langName}.`,
             },
           ],
           tool_choice: { type: "function", function: { name: "score_project" } },
-        }),
       });
 
       if (aiRes.status === 429) {
@@ -694,11 +743,7 @@ Idioma de salida: ${langName}.`,
           });
           continue;
         }
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+        const aiRes = await aiChatCompletion({
             messages: [
               {
                 role: "system",
@@ -736,7 +781,6 @@ Idioma de salida: ${langName}.`,
               },
             ],
             tool_choice: { type: "function", function: { name: "score_answer" } },
-          }),
         });
         if (!aiRes.ok) {
           breakdown.push({
