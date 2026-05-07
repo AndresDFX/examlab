@@ -571,26 +571,28 @@ function Gradebook() {
         });
       }
 
-      // Asistencia por corte (entry adicional con peso = cut.attendance_weight)
-      const attEntries = cuts.map((cut) => {
-        let attAvg: number | null = null;
-        if (cut.start_date && cut.end_date) {
+      // Asistencia por corte: solo aporta si hay sesiones programadas en la
+      // ventana del corte. Sin sesiones → no es "nota perdida", es "no aplica
+      // todavía" → omitirlo del weighted avg (mismo criterio que la vista del
+      // estudiante en app.student.grades.tsx).
+      const attEntries = cuts
+        .map((cut) => {
+          if (!cut.start_date || !cut.end_date) return null;
           const sessionsInCut = attSessions.filter(
             (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
           );
-          if (sessionsInCut.length > 0) {
-            const present = sessionsInCut.filter(
-              (s) => recordsBySessionUser.get(`${s.id}::${stu.id}`) === "presente",
-            ).length;
-            attAvg = min + (present / sessionsInCut.length) * (max - min);
-          }
-        }
-        return {
-          cutId: cut.id,
-          weight: Math.max(0, Number(cut.attendance_weight ?? 0) || 0),
-          score: attAvg,
-        };
-      });
+          if (sessionsInCut.length === 0) return null;
+          const present = sessionsInCut.filter(
+            (s) => recordsBySessionUser.get(`${s.id}::${stu.id}`) === "presente",
+          ).length;
+          const attAvg = min + (present / sessionsInCut.length) * (max - min);
+          return {
+            cutId: cut.id,
+            weight: Math.max(0, Number(cut.attendance_weight ?? 0) || 0),
+            score: attAvg,
+          };
+        })
+        .filter((e): e is { cutId: string; weight: number; score: number } => e != null);
 
       // Nota por corte: weighted avg de items del corte + asistencia del corte
       const cutGrades = cuts.map((cut) => {
