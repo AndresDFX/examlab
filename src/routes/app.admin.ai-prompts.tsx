@@ -255,24 +255,19 @@ function AdminAIPrompts() {
             return (
               <Card key={uc.key}>
                 <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                        {uc.label}
-                        {isDefault ? (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Default
-                          </Badge>
-                        ) : (
-                          <Badge className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
-                            Personalizado
-                          </Badge>
-                        )}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">{uc.description}</p>
-                    </div>
-                    <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{uc.key}</code>
-                  </div>
+                  <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                    {uc.label}
+                    {isDefault ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Default
+                      </Badge>
+                    ) : (
+                      <Badge className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
+                        Personalizado
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">{uc.description}</p>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Textarea

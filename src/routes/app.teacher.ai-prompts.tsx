@@ -330,24 +330,19 @@ function TeacherAIPrompts() {
             return (
               <Card key={uc.key}>
                 <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                        {uc.label}
-                        {hasOverride ? (
-                          <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25">
-                            Override del curso
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Usando global
-                          </Badge>
-                        )}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">{uc.description}</p>
-                    </div>
-                    <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{uc.key}</code>
-                  </div>
+                  <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                    {uc.label}
+                    {hasOverride ? (
+                      <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25">
+                        Override del curso
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Usando global
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">{uc.description}</p>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* Prompt global de referencia */}
