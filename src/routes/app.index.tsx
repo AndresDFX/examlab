@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { PendingGradingModal } from "@/components/PendingGradingModal";
 import {
   Users,
   BookOpen,
@@ -297,6 +298,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
+  const [pendingGradingOpen, setPendingGradingOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -372,6 +374,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.pendingGrades")}
           value={counts.pendingGrades}
           color="text-pink-500 dark:text-pink-400"
+          onClick={() => setPendingGradingOpen(true)}
         />
         <Stat
           icon={BookOpen}
@@ -518,6 +521,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           </div>
         </div>
       </div>
+
+      <PendingGradingModal open={pendingGradingOpen} onOpenChange={setPendingGradingOpen} />
     </>
   );
 }
@@ -890,14 +895,24 @@ function Stat({
   label,
   value,
   color = "text-primary",
+  onClick,
 }: {
   icon: any;
   label: string;
   value: number;
   color?: string;
+  onClick?: () => void;
 }) {
+  const interactive = !!onClick;
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={
+        interactive
+          ? "cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
+          : undefined
+      }
+    >
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div>
