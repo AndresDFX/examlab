@@ -42,6 +42,7 @@ type ProjectLoaded = {
   max_files: number;
   max_score: number;
   status: string;
+  group_mode?: "individual" | "teacher_assigned" | "self_signup";
   // Cargado en una segunda fase vía project_courses (ya no hay FK directa
   // de projects.course_id a courses, así que el join PostgREST falla con
   // PGRST200; lo resolvemos como "el primer curso vinculado").
@@ -100,26 +101,18 @@ function StudentProjectDetail() {
         // por eso el access check es autoritativo y no depende de pr.
         const [
           { data: pr, error: prErr },
-          { data: sub },
           { data: fs },
           { data: asg },
           { data: linked },
           { data: ownEnrollments },
+          { data: myGroupRows },
         ] = await Promise.all([
           db
             .from("projects")
             .select(
-              "id, course_id, title, description, instructions, external_link, due_date, max_files, max_score, status",
+              "id, course_id, title, description, instructions, external_link, due_date, max_files, max_score, status, group_mode",
             )
             .eq("id", projectId)
-            .maybeSingle(),
-          db
-            .from("project_submissions")
-            .select(
-              "id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
-            )
-            .eq("project_id", projectId)
-            .eq("user_id", user.id)
             .maybeSingle(),
           db
             .from("project_files")
@@ -134,7 +127,32 @@ function StudentProjectDetail() {
             .maybeSingle(),
           db.from("project_courses").select("course_id").eq("project_id", projectId),
           db.from("course_enrollments").select("course_id").eq("user_id", user.id),
+          db
+            .from("project_group_members")
+            .select("group:project_groups!inner(id, project_id)")
+            .eq("user_id", user.id),
         ]);
+
+        // Determinar grupo del estudiante para este proyecto (si aplica).
+        let myGroupId: string | null = null;
+        if (
+          pr &&
+          (pr as ProjectLoaded).group_mode &&
+          (pr as ProjectLoaded).group_mode !== "individual"
+        ) {
+          const groups = (myGroupRows ?? []) as { group: { id: string; project_id: string } }[];
+          myGroupId = groups.find((g) => g.group?.project_id === projectId)?.group?.id ?? null;
+        }
+
+        // La submission se busca por group_id si el estudiante tiene grupo
+        // (modo grupal); de lo contrario por user_id (incluye modo mixto sin grupo).
+        const subQuery = db
+          .from("project_submissions")
+          .select("id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at")
+          .eq("project_id", projectId);
+        const { data: sub } = await (myGroupId
+          ? subQuery.eq("group_id", myGroupId).maybeSingle()
+          : subQuery.eq("user_id", user.id).maybeSingle());
 
         if (cancelled) return;
 
@@ -209,9 +227,7 @@ function StudentProjectDetail() {
   }
 
   if (loading) {
-    return (
-      <SectionLoader text={t("common.loading")} />
-    );
+    return <SectionLoader text={t("common.loading")} />;
   }
 
   if (error === "no_assignment") {

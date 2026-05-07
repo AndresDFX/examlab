@@ -43,6 +43,7 @@ type ProjectRow = {
     max_files: number;
     max_score: number;
     status: string;
+    group_mode?: "individual" | "teacher_assigned" | "self_signup";
     course: {
       name: string;
       grade_scale_min: number;
@@ -50,6 +51,8 @@ type ProjectRow = {
       language?: string | null;
     };
   };
+  /** Si el proyecto es grupal y el estudiante tiene grupo, ID del grupo. */
+  groupId?: string | null;
   submission?: {
     id: string;
     ai_grade: number | null;
@@ -125,7 +128,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, status, course:courses(name, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .neq("status", "draft");
@@ -134,7 +137,7 @@ function StudentProjects() {
         res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, course_id",
+            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, course_id",
           )
           .in("id", allIds)
           .neq("status", "draft");
@@ -146,18 +149,57 @@ function StudentProjects() {
     }
 
     const ids = projects.map((p) => p.id);
+
+    // Para proyectos grupales: el estudiante puede tener un grupo, y la
+    // submission pertenece al grupo (no al user). Mapeamos project_id
+    // → group_id y la query de submissions cambia entre user_id y group_id
+    // según el caso.
+    const groupProjectIds = projects
+      .filter((p) => p.group_mode && p.group_mode !== "individual")
+      .map((p) => p.id);
+    const groupIdByProject = new Map<string, string>();
+    if (groupProjectIds.length > 0) {
+      const { data: myGroups } = await db
+        .from("project_group_members")
+        .select("group:project_groups!inner(id, project_id)")
+        .eq("user_id", uid);
+      for (const m of (myGroups ?? []) as {
+        group: { id: string; project_id: string };
+      }[]) {
+        if (m.group && groupProjectIds.includes(m.group.project_id)) {
+          groupIdByProject.set(m.group.project_id, m.group.id);
+        }
+      }
+    }
+
+    // Splitting: individuales (incluye grupales sin grupo asignado, modo mixto)
+    // se buscan por user_id; los grupales con grupo asignado por group_id.
+    const indivIds = ids.filter((id) => !groupIdByProject.has(id));
+    const myGroupIds = Array.from(groupIdByProject.values());
+
     let subs: Array<ProjectRow["submission"] & { project_id: string }> = [];
-    if (ids.length) {
+    if (indivIds.length || myGroupIds.length) {
       try {
-        const { data, error } = await db
-          .from("project_submissions")
-          .select(
-            "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at",
-          )
-          .in("project_id", ids)
-          .eq("user_id", uid);
-        if (error) throw new Error(`project_submissions: ${error.message}`);
-        subs = (data ?? []) as typeof subs;
+        const [{ data: indivSubs }, { data: groupSubs }] = await Promise.all([
+          indivIds.length
+            ? db
+                .from("project_submissions")
+                .select(
+                  "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+                )
+                .in("project_id", indivIds)
+                .eq("user_id", uid)
+            : Promise.resolve({ data: [] as any[] }),
+          myGroupIds.length
+            ? db
+                .from("project_submissions")
+                .select(
+                  "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+                )
+                .in("group_id", myGroupIds)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        subs = [...((indivSubs ?? []) as typeof subs), ...((groupSubs ?? []) as typeof subs)];
       } catch (e) {
         console.error("[student-projects] project_submissions load failed", e);
       }
@@ -167,6 +209,7 @@ function StudentProjects() {
       projects.map((p) => ({
         project: p,
         submission: subs.find((s) => s.project_id === p.id) as ProjectRow["submission"],
+        groupId: groupIdByProject.get(p.id) ?? null,
       })),
     );
   };
@@ -182,19 +225,14 @@ function StudentProjects() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-        <p className="text-sm text-muted-foreground">
-          {rows.length} proyectos asignados
-        </p>
+        <p className="text-sm text-muted-foreground">{rows.length} proyectos asignados</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {rows.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("common.empty")}</p>
-        )}
-        {rows.map(({ project, submission }) => {
+        {rows.length === 0 && <p className="text-muted-foreground text-sm">{t("common.empty")}</p>}
+        {rows.map(({ project, submission, groupId }) => {
           const isOverdue = project.due_date && new Date(project.due_date).getTime() < now;
-          const isUpcoming =
-            project.start_date && new Date(project.start_date).getTime() > now;
+          const isUpcoming = project.start_date && new Date(project.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
           const isOpen = project.status === "published" && !isOverdue && !isUpcoming;
@@ -278,7 +316,7 @@ function StudentProjects() {
                     size="sm"
                     className="w-full"
                     onClick={() => {
-                      setActive({ project, submission });
+                      setActive({ project, submission, groupId });
                       setOpen(true);
                     }}
                   >
@@ -330,6 +368,7 @@ function StudentProjects() {
                 projectTitle={active.project.title}
                 maxScore={active.project.max_score}
                 courseLanguage={active.project.course?.language === "en" ? "en" : "es"}
+                groupId={active.groupId ?? null}
                 onGraded={() => {
                   if (user) void reload(user.id);
                 }}

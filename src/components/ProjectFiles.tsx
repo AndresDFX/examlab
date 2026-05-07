@@ -215,8 +215,7 @@ export function TeacherProjectFilesEditor({
   const removeQ = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar pregunta",
-      description:
-        "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
+      description: "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
@@ -250,7 +249,8 @@ export function TeacherProjectFilesEditor({
       });
       if (error) toast.error(error.message ?? "Error generando con IA");
       else if (data?.error) toast.error(data.error);
-      else if (data?.inserted) toast.success(`${data.inserted.length} pregunta(s) generadas con IA`);
+      else if (data?.inserted)
+        toast.success(`${data.inserted.length} pregunta(s) generadas con IA`);
       setAiTopics("");
       void load();
     } catch (e: any) {
@@ -265,7 +265,9 @@ export function TeacherProjectFilesEditor({
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>
-          <TabsTrigger value="manual">{editingId ? "Editar pregunta" : "Agregar manual"}</TabsTrigger>
+          <TabsTrigger value="manual">
+            {editingId ? "Editar pregunta" : "Agregar manual"}
+          </TabsTrigger>
           <TabsTrigger value="ai">Generar con IA</TabsTrigger>
         </TabsList>
 
@@ -283,8 +285,12 @@ export function TeacherProjectFilesEditor({
               <CardContent className="p-3 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-[10px]">{idx + 1}</Badge>
-                    <Badge variant="secondary" className="text-[10px] capitalize">{q.type}</Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      {idx + 1}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px] capitalize">
+                      {q.type}
+                    </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
                   </div>
                   <div className="text-sm">
@@ -326,7 +332,9 @@ export function TeacherProjectFilesEditor({
             <div>
               <Label required>Tipo</Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abierta">Abierta</SelectItem>
                   <SelectItem value="cerrada">Cerrada (opción múltiple)</SelectItem>
@@ -382,7 +390,9 @@ export function TeacherProjectFilesEditor({
             <div>
               <Label required>Lenguaje</Label>
               <Select value={qLanguage} onValueChange={setQLanguage}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="java">Java</SelectItem>
                   <SelectItem value="python">Python</SelectItem>
@@ -447,7 +457,9 @@ export function TeacherProjectFilesEditor({
             <div>
               <Label required>Tipo</Label>
               <Select value={aiType} onValueChange={(v) => setAiType(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abierta">Abierta</SelectItem>
                   <SelectItem value="cerrada">Cerrada</SelectItem>
@@ -471,7 +483,9 @@ export function TeacherProjectFilesEditor({
               <div>
                 <Label required>Lenguaje</Label>
                 <Select value={aiLanguage} onValueChange={setAiLanguage}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="java">Java</SelectItem>
                     <SelectItem value="python">Python</SelectItem>
@@ -503,12 +517,16 @@ export function StudentProjectTaker({
   projectTitle,
   maxScore,
   courseLanguage = "es",
+  groupId = null,
   onGraded,
 }: {
   projectId: string;
   projectTitle: string;
   maxScore: number;
   courseLanguage?: "es" | "en";
+  /** Si el proyecto es grupal, ID del grupo del estudiante. La submission
+   *  se filtra/crea con este group_id en lugar de user_id. */
+  groupId?: string | null;
   onGraded?: (finalGrade: number) => void;
 }) {
   const { user } = useAuth();
@@ -523,7 +541,7 @@ export function StudentProjectTaker({
 
   useEffect(() => {
     if (!user) return;
-    const key = `${projectId}::${user.id}`;
+    const key = `${projectId}::${user.id}::${groupId ?? "indiv"}`;
     if (loadedForRef.current === key) return;
     loadedForRef.current = key;
     let cancelled = false;
@@ -537,12 +555,15 @@ export function StudentProjectTaker({
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
 
-      const { data: sub } = await db
+      // Si hay grupo, la submission pertenece al grupo (cualquier
+      // miembro la ve y edita). Si no, comportamiento individual normal.
+      const subQuery = db
         .from("project_submissions")
         .select("id, final_grade, status, repository_url")
-        .eq("project_id", projectId)
-        .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("project_id", projectId);
+      const { data: sub } = await (groupId
+        ? subQuery.eq("group_id", groupId).maybeSingle()
+        : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.repository_url) setRepositoryUrl(sub.repository_url);
       if (sub?.id) {
         const { data: ans } = await db
@@ -626,10 +647,7 @@ export function StudentProjectTaker({
               </span>
               .
             </p>
-            <p>
-              Esas preguntas recibirán 0 puntos. ¿Quieres entregar el proyecto
-              de todas formas?
-            </p>
+            <p>Esas preguntas recibirán 0 puntos. ¿Quieres entregar el proyecto de todas formas?</p>
           </div>
         ),
         confirmLabel: "Entregar de todas formas",
@@ -641,12 +659,13 @@ export function StudentProjectTaker({
     setSubmitting(true);
     try {
       let submissionId: string;
-      const { data: existing } = await db
-        .from("project_submissions")
-        .select("id")
-        .eq("project_id", projectId)
-        .eq("user_id", user.id)
-        .maybeSingle();
+      // Si hay grupo: filtramos/insertamos por group_id para que cualquier
+      // miembro toque la misma fila. user_id se mantiene como "último
+      // editor" para auditoría.
+      const existingQuery = db.from("project_submissions").select("id").eq("project_id", projectId);
+      const { data: existing } = await (groupId
+        ? existingQuery.eq("group_id", groupId).maybeSingle()
+        : existingQuery.eq("user_id", user.id).maybeSingle());
       if (existing?.id) {
         submissionId = existing.id;
         await db
@@ -655,6 +674,7 @@ export function StudentProjectTaker({
             status: "entregado",
             submitted_at: new Date().toISOString(),
             repository_url: url,
+            user_id: user.id,
           })
           .eq("id", submissionId);
       } else {
@@ -663,6 +683,7 @@ export function StudentProjectTaker({
           .insert({
             project_id: projectId,
             user_id: user.id,
+            group_id: groupId ?? null,
             status: "entregado",
             submitted_at: new Date().toISOString(),
             repository_url: url,
@@ -795,9 +816,7 @@ export function StudentProjectTaker({
       }
 
       const submissionScore =
-        totalPoints > 0
-          ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2))
-          : 0;
+        totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
 
       // submission_grade = nota de la entrega. final_grade queda null
       // hasta que el docente registre la sustentación (defense_factor).
@@ -887,8 +906,12 @@ export function StudentProjectTaker({
         <Card key={q.id}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">{idx + 1}</Badge>
-              <Badge variant="secondary" className="text-[10px] capitalize">{q.type}</Badge>
+              <Badge variant="outline" className="text-[10px]">
+                {idx + 1}
+              </Badge>
+              <Badge variant="secondary" className="text-[10px] capitalize">
+                {q.type}
+              </Badge>
               <span className="text-xs text-muted-foreground">{q.points} pts</span>
             </CardTitle>
           </CardHeader>
@@ -928,10 +951,7 @@ export function StudentProjectTaker({
               />
             )}
             {q.type === "diagrama" && (
-              <DiagramEditor
-                value={answers[q.id] ?? ""}
-                onChange={(v) => updateAnswer(q.id, v)}
-              />
+              <DiagramEditor value={answers[q.id] ?? ""} onChange={(v) => updateAnswer(q.id, v)} />
             )}
             {q.type === "java_gui" && (
               <JavaGuiRunner
@@ -966,11 +986,7 @@ export function StudentProjectTaker({
       ))}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         <Button onClick={submit} disabled={submitting} className="w-full">
-          {submitting ? (
-            <Spinner size="md" className="mr-1" />
-          ) : (
-            <Send className="h-4 w-4 mr-1" />
-          )}
+          {submitting ? <Spinner size="md" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
           Enviar proyecto y calificar con IA
         </Button>
       </div>

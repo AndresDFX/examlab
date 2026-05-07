@@ -46,6 +46,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
+import { ProjectGroupsEditor } from "@/components/ProjectGroupsEditor";
 import { toast } from "sonner";
 import {
   Plus,
@@ -58,6 +59,7 @@ import {
   Save,
   UserPlus,
   FolderKanban,
+  UsersRound,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
@@ -81,7 +83,12 @@ import { TableEmpty } from "@/components/ui/empty-state";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime } from "@/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 // projects, project_* aún no están en los tipos generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,6 +123,7 @@ type Project = {
   max_score: number;
   status: "draft" | "published" | "closed";
   is_external?: boolean;
+  group_mode?: "individual" | "teacher_assigned" | "self_signup";
   course?: { name: string; period: string | null; language?: string | null };
   // Lista de IDs de cursos vinculados (incluye course_id primario)
   linked_course_ids?: string[];
@@ -154,6 +162,34 @@ function TeacherProjects() {
   const [filesOpen, setFilesOpen] = useState(false);
   const [filesProject, setFilesProject] = useState<Project | null>(null);
 
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [groupsProject, setGroupsProject] = useState<Project | null>(null);
+
+  /**
+   * Abre el editor de grupos del proyecto. Si está en modo `individual`,
+   * lo cambia a `teacher_assigned` silenciosamente para que el flujo
+   * sea de un click — espejo del comportamiento en talleres.
+   */
+  const openGroupsForProject = async (p: Project) => {
+    const mode = (p as any).group_mode ?? "individual";
+    let updated = p;
+    if (mode === "individual") {
+      const { error } = await db
+        .from("projects")
+        .update({ group_mode: "teacher_assigned" })
+        .eq("id", p.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      updated = { ...p, group_mode: "teacher_assigned" } as Project;
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
+      toast.success("Trabajo en grupo activado");
+    }
+    setGroupsProject(updated);
+    setGroupsOpen(true);
+  };
+
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignProject, setAssignProject] = useState<Project | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -189,7 +225,9 @@ function TeacherProjects() {
   };
   const [gradingOpen, setGradingOpen] = useState(false);
   const [gradingProject, setGradingProject] = useState<Project | null>(null);
-  const [gradingFiles, setGradingFiles] = useState<Array<{ id: string; title: string; points: number }>>([]);
+  const [gradingFiles, setGradingFiles] = useState<
+    Array<{ id: string; title: string; points: number }>
+  >([]);
   const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
   const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
   const [gradingLoading, setGradingLoading] = useState(false);
@@ -372,17 +410,16 @@ function TeacherProjects() {
     }
     const next = Array.from(current);
     // El curso primario es el primero seleccionado
-    const primary = next.includes(form.course_id ?? "")
-      ? form.course_id
-      : next[0];
+    const primary = next.includes(form.course_id ?? "") ? form.course_id : next[0];
     setForm({
       ...form,
       linked_course_ids: next,
       course_id: primary,
       // Si el corte ya no pertenece al curso primario, resetear
-      cut_id: primary && cuts.find((c) => c.id === form.cut_id)?.course_id === primary
-        ? form.cut_id
-        : null,
+      cut_id:
+        primary && cuts.find((c) => c.id === form.cut_id)?.course_id === primary
+          ? form.cut_id
+          : null,
     });
   };
 
@@ -392,9 +429,8 @@ function TeacherProjects() {
       toast.error("Título y al menos un curso son obligatorios");
       return;
     }
-    const primaryCourse = form.course_id && linked.includes(form.course_id)
-      ? form.course_id
-      : linked[0];
+    const primaryCourse =
+      form.course_id && linked.includes(form.course_id) ? form.course_id : linked[0];
     const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
     const isExternal = !!(form as any).is_external;
     // Patrón "campos desactivados": cuando is_external=true, omitir
@@ -584,7 +620,6 @@ function TeacherProjects() {
     toast.success(`${toAdd.length} estudiante(s) asignados del curso`);
   };
 
-
   const toggleAssign = async (uid: string) => {
     if (!assignProject) return;
     const has = assigned.has(uid);
@@ -668,20 +703,13 @@ function TeacherProjects() {
         const userIds = subsList.map((s) => s.user_id);
         const subIds = subsList.map((s) => s.id);
         const [{ data: profs }, { data: ans }] = await Promise.all([
-          db
-            .from("profiles")
-            .select("id, full_name, institutional_email")
-            .in("id", userIds),
+          db.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
           db
             .from("project_submission_files")
-            .select(
-              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood",
-            )
+            .select("id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood")
             .in("submission_id", subIds),
         ]);
-        const profMap = new Map(
-          ((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]),
-        );
+        const profMap = new Map(((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]));
         const grouped: Record<string, SubFile[]> = {};
         for (const a of (ans ?? []) as SubFile[]) {
           (grouped[a.submission_id] ||= []).push(a);
@@ -792,7 +820,8 @@ function TeacherProjects() {
       toast.error("La entrega aún no tiene calificación. Califica los archivos primero.");
       return;
     }
-    const validFactor = factor != null && !Number.isNaN(factor) ? Math.max(0, Math.min(1, factor)) : null;
+    const validFactor =
+      factor != null && !Number.isNaN(factor) ? Math.max(0, Math.min(1, factor)) : null;
     const newFinal =
       validFactor != null ? Number((Number(subGrade) * validFactor).toFixed(2)) : null;
     const { error } = await db
@@ -830,7 +859,10 @@ function TeacherProjects() {
     );
   };
 
-  const aiRegradeSubFile = async (subId: string, file: { id: string; title: string; points: number }) => {
+  const aiRegradeSubFile = async (
+    subId: string,
+    file: { id: string; title: string; points: number },
+  ) => {
     const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === file.id);
     if (!ans?.id) {
       toast.error("Sin contenido para recalificar");
@@ -838,8 +870,7 @@ function TeacherProjects() {
     }
     setAiRegradingId(ans.id);
     try {
-      const courseLang =
-        (gradingProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
+      const courseLang = (gradingProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
       // fetch expected_rubric + description for the file
       const { data: meta } = await db
         .from("project_files")
@@ -896,7 +927,6 @@ function TeacherProjects() {
     });
     toast.success("Entrega eliminada");
   };
-
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
@@ -992,6 +1022,17 @@ function TeacherProjects() {
                         icon={Users}
                         onClick={() => openAssignDialog(p)}
                       />
+                      {!p.is_external && (
+                        <RowAction
+                          label={
+                            (p as any).group_mode && (p as any).group_mode !== "individual"
+                              ? "Grupos"
+                              : "Activar grupos"
+                          }
+                          icon={UsersRound}
+                          onClick={() => openGroupsForProject(p)}
+                        />
+                      )}
                       <RowAction
                         label="Entregas y calificación"
                         icon={ClipboardList}
@@ -1076,24 +1117,24 @@ function TeacherProjects() {
               />
             </div>
             {!(form as any).is_external && (
-            <div>
-              <Label>Instrucciones</Label>
-              <Textarea
-                rows={4}
-                value={form.instructions ?? ""}
-                onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-              />
-            </div>
+              <div>
+                <Label>Instrucciones</Label>
+                <Textarea
+                  rows={4}
+                  value={form.instructions ?? ""}
+                  onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+                />
+              </div>
             )}
             {!(form as any).is_external && (
-            <div>
-              <Label>Link externo (opcional)</Label>
-              <Input
-                placeholder="https://..."
-                value={form.external_link ?? ""}
-                onChange={(e) => setForm({ ...form, external_link: e.target.value })}
-              />
-            </div>
+              <div>
+                <Label>Link externo (opcional)</Label>
+                <Input
+                  placeholder="https://..."
+                  value={form.external_link ?? ""}
+                  onChange={(e) => setForm({ ...form, external_link: e.target.value })}
+                />
+              </div>
             )}
             <div className="space-y-2">
               <Label required>{t("nav.courses")} (puedes seleccionar varios)</Label>
@@ -1109,10 +1150,7 @@ function TeacherProjects() {
                       key={c.id}
                       className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
                     >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => toggleFormCourse(c.id)}
-                      />
+                      <Checkbox checked={checked} onCheckedChange={() => toggleFormCourse(c.id)} />
                       <span className="flex-1">
                         {c.name}
                         {c.period ? ` · ${c.period}` : ""}
@@ -1166,9 +1204,7 @@ function TeacherProjects() {
             </div>
             <div>
               {(() => {
-                const selectedCut = form.cut_id
-                  ? cuts.find((c) => c.id === form.cut_id)
-                  : null;
+                const selectedCut = form.cut_id ? cuts.find((c) => c.id === form.cut_id) : null;
                 const pjBucket = Number(selectedCut?.project_weight ?? 0);
                 const editingId = (form as any).id as string | undefined;
                 const otherProjectsSum = projects
@@ -1305,6 +1341,27 @@ function TeacherProjects() {
         </DialogContent>
       </Dialog>
 
+      {/* Project groups editor dialog */}
+      <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Grupos del proyecto {groupsProject ? `— ${groupsProject.title}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {groupsProject && (
+            <ProjectGroupsEditor
+              projectId={groupsProject.id}
+              courseIds={
+                groupsProject.linked_course_ids?.length
+                  ? groupsProject.linked_course_ids
+                  : [groupsProject.course_id]
+              }
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Files (slots) editor */}
       <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -1431,8 +1488,8 @@ function TeacherProjects() {
           {!gradingProject?.is_external && !gradingLoading && gradingSubs.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score}{" "}
-                · <span className="font-medium">decimales con coma (ej. 4,5)</span>
+                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
+                <span className="font-medium">decimales con coma (ej. 4,5)</span>
               </p>
               <Accordion type="multiple" className="w-full">
                 {gradingSubs.map((sub) => {
@@ -1440,8 +1497,7 @@ function TeacherProjects() {
                   // grade que aparece en el badge del header: la final si ya
                   // hay sustentación, si no la de la entrega (submission_grade
                   // o el legacy ai_grade), si no nada.
-                  const headerGrade =
-                    sub.final_grade ?? sub.submission_grade ?? sub.ai_grade;
+                  const headerGrade = sub.final_grade ?? sub.submission_grade ?? sub.ai_grade;
                   return (
                     <AccordionItem key={sub.id} value={sub.id}>
                       <AccordionTrigger className="hover:no-underline">
@@ -1514,10 +1570,7 @@ function TeacherProjects() {
                                       {f.points} pts
                                     </span>
                                     {a?.ai_likelihood != null && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] ml-auto"
-                                      >
+                                      <Badge variant="outline" className="text-[10px] ml-auto">
                                         IA: {Math.round(Number(a.ai_likelihood) * 100)}%
                                       </Badge>
                                     )}
@@ -1530,7 +1583,9 @@ function TeacherProjects() {
                                   />
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div>
-                                      <Label className="text-[10px]">Calificación (max {f.points})</Label>
+                                      <Label className="text-[10px]">
+                                        Calificación (max {f.points})
+                                      </Label>
                                       <DecimalInput
                                         min={0}
                                         max={f.points}
