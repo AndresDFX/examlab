@@ -45,7 +45,7 @@ import {
   BookOpen,
   HelpCircle,
 } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   useMultiSelect,
@@ -100,6 +100,13 @@ function toDateInput(value: string | null | undefined): string {
   if (!value) return "";
   // Si viene como ISO con tiempo, recorta. Si viene YYYY-MM-DD, la primera parte ya es eso.
   return value.length >= 10 ? value.slice(0, 10) : value;
+}
+
+/** Formatea un porcentaje quitando ceros sobrantes y usando coma. "33,33", "30", "0". */
+function formatPercent(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  // 2 decimales máx, sin trailing zeros, locale es-CO para usar coma.
+  return n.toLocaleString("es-CO", { maximumFractionDigits: 2 });
 }
 type Profile = { id: string; full_name: string; institutional_email: string };
 
@@ -956,58 +963,38 @@ export function AdminCourses() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
                         <Label className="text-xs">Peso exámenes (%)</Label>
-                        <Input
-                          type="number"
-                          step="1"
-                          value={editing.exam_weight ?? ""}
-                          onChange={(e) =>
-                            setEditing({
-                              ...editing,
-                              exam_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                            })
-                          }
+                        <DecimalInput
+                          min={0}
+                          max={100}
+                          value={editing.exam_weight ?? null}
+                          onChange={(v) => setEditing({ ...editing, exam_weight: v ?? 0 })}
                         />
                       </div>
                       <div>
                         <Label className="text-xs">Peso talleres (%)</Label>
-                        <Input
-                          type="number"
-                          step="1"
-                          value={editing.workshop_weight ?? ""}
-                          onChange={(e) =>
-                            setEditing({
-                              ...editing,
-                              workshop_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                            })
-                          }
+                        <DecimalInput
+                          min={0}
+                          max={100}
+                          value={editing.workshop_weight ?? null}
+                          onChange={(v) => setEditing({ ...editing, workshop_weight: v ?? 0 })}
                         />
                       </div>
                       <div>
                         <Label className="text-xs">Peso asistencia (%)</Label>
-                        <Input
-                          type="number"
-                          step="1"
-                          value={editing.attendance_weight ?? ""}
-                          onChange={(e) =>
-                            setEditing({
-                              ...editing,
-                              attendance_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                            })
-                          }
+                        <DecimalInput
+                          min={0}
+                          max={100}
+                          value={editing.attendance_weight ?? null}
+                          onChange={(v) => setEditing({ ...editing, attendance_weight: v ?? 0 })}
                         />
                       </div>
                       <div>
                         <Label className="text-xs">Peso proyecto (%)</Label>
-                        <Input
-                          type="number"
-                          step="1"
-                          value={editing.project_weight ?? ""}
-                          onChange={(e) =>
-                            setEditing({
-                              ...editing,
-                              project_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                            })
-                          }
+                        <DecimalInput
+                          min={0}
+                          max={100}
+                          value={editing.project_weight ?? null}
+                          onChange={(v) => setEditing({ ...editing, project_weight: v ?? 0 })}
                         />
                       </div>
                     </div>
@@ -1017,16 +1004,14 @@ export function AdminCourses() {
                         (editing.workshop_weight ?? 0) +
                         (editing.attendance_weight ?? 0) +
                         (editing.project_weight ?? 0);
+                      const ok = Math.abs(total - 100) < 0.01;
                       return (
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-muted-foreground">
                             Total de pesos: debe sumar 100%
                           </p>
-                          <Badge
-                            variant={total === 100 ? "default" : "destructive"}
-                            className="text-xs"
-                          >
-                            {total}%
+                          <Badge variant={ok ? "default" : "destructive"} className="text-xs">
+                            {formatPercent(total)}%
                           </Badge>
                         </div>
                       );
@@ -1066,12 +1051,13 @@ export function AdminCourses() {
                             (a, c) => a + Number(c.weight || 0),
                             0,
                           );
+                          // Tolerancia de 0.01 para que decimales como
+                          // 33,33 + 33,33 + 33,34 = 100 no fallen por
+                          // suma flotante imprecisa.
+                          const ok = Math.abs(sumCuts - 100) < 0.01;
                           return (
-                            <Badge
-                              variant={sumCuts === 100 ? "default" : "destructive"}
-                              className="text-xs"
-                            >
-                              Total: {sumCuts}%
+                            <Badge variant={ok ? "default" : "destructive"} className="text-xs">
+                              Total: {formatPercent(sumCuts)}%
                             </Badge>
                           );
                         })()}
@@ -1152,16 +1138,11 @@ export function AdminCourses() {
                             </div>
                             <div className="min-w-0">
                               <Label className="text-[10px] text-muted-foreground">Peso %</Label>
-                              <Input
-                                type="number"
+                              <DecimalInput
                                 min={0}
                                 max={100}
-                                value={cut.weight ?? ""}
-                                onChange={(e) =>
-                                  updateDraftCut(idx, {
-                                    weight: e.target.value === "" ? 0 : Number(e.target.value),
-                                  })
-                                }
+                                value={cut.weight ?? null}
+                                onChange={(v) => updateDraftCut(idx, { weight: v ?? 0 })}
                                 placeholder="0-100"
                                 className="min-w-0 w-full"
                               />
@@ -1173,64 +1154,46 @@ export function AdminCourses() {
                               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
                                 <div className="min-w-0">
                                   <Label className="text-xs">Talleres %</Label>
-                                  <Input
-                                    type="number"
+                                  <DecimalInput
                                     min={0}
                                     max={100}
-                                    value={cut.workshop_weight ?? ""}
-                                    onChange={(e) =>
-                                      updateDraftCut(idx, {
-                                        workshop_weight:
-                                          e.target.value === "" ? 0 : Number(e.target.value),
-                                      })
+                                    value={cut.workshop_weight ?? null}
+                                    onChange={(v) =>
+                                      updateDraftCut(idx, { workshop_weight: v ?? 0 })
                                     }
                                     className="h-8 min-w-0 w-full"
                                   />
                                 </div>
                                 <div className="min-w-0">
                                   <Label className="text-xs">Exámenes %</Label>
-                                  <Input
-                                    type="number"
+                                  <DecimalInput
                                     min={0}
                                     max={100}
-                                    value={cut.exam_weight ?? ""}
-                                    onChange={(e) =>
-                                      updateDraftCut(idx, {
-                                        exam_weight:
-                                          e.target.value === "" ? 0 : Number(e.target.value),
-                                      })
-                                    }
+                                    value={cut.exam_weight ?? null}
+                                    onChange={(v) => updateDraftCut(idx, { exam_weight: v ?? 0 })}
                                     className="h-8 min-w-0 w-full"
                                   />
                                 </div>
                                 <div className="min-w-0">
                                   <Label className="text-xs">Proyectos %</Label>
-                                  <Input
-                                    type="number"
+                                  <DecimalInput
                                     min={0}
                                     max={100}
-                                    value={cut.project_weight ?? ""}
-                                    onChange={(e) =>
-                                      updateDraftCut(idx, {
-                                        project_weight:
-                                          e.target.value === "" ? 0 : Number(e.target.value),
-                                      })
+                                    value={cut.project_weight ?? null}
+                                    onChange={(v) =>
+                                      updateDraftCut(idx, { project_weight: v ?? 0 })
                                     }
                                     className="h-8 min-w-0 w-full"
                                   />
                                 </div>
                                 <div className="min-w-0">
                                   <Label className="text-xs">Asistencia %</Label>
-                                  <Input
-                                    type="number"
+                                  <DecimalInput
                                     min={0}
                                     max={100}
-                                    value={cut.attendance_weight ?? ""}
-                                    onChange={(e) =>
-                                      updateDraftCut(idx, {
-                                        attendance_weight:
-                                          e.target.value === "" ? 0 : Number(e.target.value),
-                                      })
+                                    value={cut.attendance_weight ?? null}
+                                    onChange={(v) =>
+                                      updateDraftCut(idx, { attendance_weight: v ?? 0 })
                                     }
                                     className="h-8 min-w-0 w-full"
                                   />
@@ -1240,15 +1203,21 @@ export function AdminCourses() {
                                 {/* Regla: la suma de sub-pesos del corte = cut.weight (no 100).
                                     El total se mide contra el peso del corte sobre la nota
                                     final, así un corte de 30% se llena con sub-pesos que
-                                    sumen 30. Sub-pesos en 0 son válidos. */}
-                                <Badge
-                                  variant={
-                                    subSum === Number(cut.weight ?? 0) ? "secondary" : "destructive"
-                                  }
-                                  className="text-xs"
-                                >
-                                  Sub-pesos: {subSum}% / {Number(cut.weight ?? 0)}% del corte
-                                </Badge>
+                                    sumen 30. Sub-pesos en 0 son válidos. Tolerancia 0.01
+                                    para evitar falsos negativos por suma flotante. */}
+                                {(() => {
+                                  const target = Number(cut.weight ?? 0);
+                                  const ok = Math.abs(subSum - target) < 0.01;
+                                  return (
+                                    <Badge
+                                      variant={ok ? "secondary" : "destructive"}
+                                      className="text-xs"
+                                    >
+                                      Sub-pesos: {formatPercent(subSum)}% / {formatPercent(target)}%
+                                      del corte
+                                    </Badge>
+                                  );
+                                })()}
                               </div>
                             </div>
                           )}
