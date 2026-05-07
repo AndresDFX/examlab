@@ -135,13 +135,11 @@
     border-color: var(--color-border);
   }
 
-  /* Mobile-first: prevent accidental horizontal overflow at the document
-     root, respect iOS safe areas, and keep tap highlights subtle.
-     IMPORTANTE: NO usamos overflow-x:hidden en <html> — combinarlo con
-     body{overflow-x:hidden} hace que iOS Safari no propague el scroll
-     vertical correctamente y el dedo no responde en algunas vistas.
-     overscroll-behavior:none queda solo en x (evita pull horizontal); el
-     pull-to-refresh y momentum vertical se mantienen. */
+  /* Mobile-first: respect iOS safe areas y tap highlights. NO usamos
+     overflow ni overscroll-behavior aquí — cualquier propiedad de scroll
+     en <html>/<body> bloquea el momentum scroll de iOS Safari y hace que
+     el dedo no responda. El overflow horizontal se controla en
+     contenedores específicos (cards, tablas, etc) cuando hace falta. */
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -152,8 +150,6 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-x: clip;
-    overscroll-behavior-x: none;
     -webkit-tap-highlight-color: transparent;
   }
   h1,
