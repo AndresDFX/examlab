@@ -63,7 +63,22 @@ function ExamEditor() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [exam, setExam] = useState<Exam | null>(null);
-  const [cuts, setCuts] = useState<Array<{ id: string; name: string; weight: number }>>([]);
+  const [cuts, setCuts] = useState<
+    Array<{
+      id: string;
+      name: string;
+      weight: number;
+      exam_weight: number;
+      workshop_weight: number;
+      project_weight: number;
+      attendance_weight: number;
+    }>
+  >([]);
+  // Exámenes del MISMO curso para calcular el bucket "exam_weight"
+  // disponible: sumamos los weights de los otros exámenes del corte.
+  const [examsInCourse, setExamsInCourse] = useState<
+    Array<{ id: string; title: string; cut_id: string | null; weight: number }>
+  >([]);
   const [cutItems, setCutItems] = useState<Array<{ id: string; cut_id: string; item_type: string; weight: number; exam_id: string | null; workshop_id: string | null; project_id: string | null; project_title: string | null }>>([]);
   const [examTitlesById, setExamTitlesById] = useState<Record<string, string>>({});
   const [workshopTitlesById, setWorkshopTitlesById] = useState<Record<string, string>>({});
@@ -150,11 +165,33 @@ function ExamEditor() {
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));
       const { data: cs } = await (supabase as any)
         .from("grade_cuts")
-        .select("id, name, weight")
+        .select("id, name, weight, exam_weight, workshop_weight, project_weight, attendance_weight")
         .eq("course_id", e.course_id)
         .order("position");
-      const cutsArr = (cs ?? []) as Array<{ id: string; name: string; weight: number }>;
+      const cutsArr = (cs ?? []) as Array<{
+        id: string;
+        name: string;
+        weight: number;
+        exam_weight: number;
+        workshop_weight: number;
+        project_weight: number;
+        attendance_weight: number;
+      }>;
       setCuts(cutsArr);
+      const { data: examsInCourseData } = await supabase
+        .from("exams")
+        .select("id, title, cut_id, weight, parent_exam_id")
+        .eq("course_id", e.course_id);
+      setExamsInCourse(
+        ((examsInCourseData ?? []) as any[])
+          .filter((x) => !x.parent_exam_id)
+          .map((x) => ({
+            id: x.id,
+            title: x.title,
+            cut_id: x.cut_id ?? null,
+            weight: Number(x.weight ?? 0),
+          })),
+      );
       const cutIds = cutsArr.map((c) => c.id);
       if (cutIds.length) {
         const { data: items } = await (supabase as any)
@@ -653,14 +690,22 @@ function ExamEditor() {
                 {(() => {
                   const cutId = (exam as any).cut_id as string | null | undefined;
                   const selectedCut = cutId ? cuts.find((c) => c.id === cutId) : null;
-                  const cutWeight = selectedCut?.weight ?? 0;
+                  // Bucket de exámenes en el corte. Suma actual del bucket =
+                  // pesos de los OTROS exámenes del corte (no el actual).
+                  const examBucket = Number(selectedCut?.exam_weight ?? 0);
+                  const otherExamsSum = examsInCourse
+                    .filter((x) => x.id !== examId && x.cut_id === cutId)
+                    .reduce((s, x) => s + x.weight, 0);
+                  const examMax = Math.max(0, examBucket - otherExamsSum);
+                  const currentWeight = Number((exam as any).weight ?? 1) || 0;
+                  const overBucket = currentWeight > examMax + 0.01;
                   return (
                     <>
-                      <Label>Peso del examen dentro del corte</Label>
+                      <Label>Peso del examen (dentro del bucket de exámenes del corte)</Label>
                       <Input
                         type="number"
                         min={0}
-                        max={cutWeight || undefined}
+                        max={examMax || undefined}
                         step="0.1"
                         placeholder="1"
                         className="w-32"
@@ -668,10 +713,9 @@ function ExamEditor() {
                         value={(exam as any).weight ?? 1}
                         onChange={(e) => {
                           const raw = e.target.value === "" ? 1 : Number(e.target.value);
-                          // Cap a peso del corte para que el docente no pueda
-                          // poner un peso mayor que la contribución total del
-                          // corte a la nota final.
-                          const capped = cutWeight > 0 ? Math.min(raw, cutWeight) : raw;
+                          // Cap al remanente del bucket de exámenes del corte
+                          // (no del cut.weight global).
+                          const capped = examMax > 0 ? Math.min(raw, examMax) : raw;
                           setExam({ ...exam, weight: capped } as any);
                         }}
                       />
@@ -679,9 +723,16 @@ function ExamEditor() {
                         {selectedCut ? (
                           <>
                             Cuánto pesa este examen en la <strong>nota final del curso</strong>.
-                            Máximo {cutWeight} (lo que vale el corte{" "}
-                            <span className="font-medium">{selectedCut.name}</span>). La suma
-                            de pesos de items + asistencia del corte debe igualar {cutWeight}.
+                            Bucket exámenes del corte{" "}
+                            <span className="font-medium">{selectedCut.name}</span>: {examBucket}.
+                            Otros exámenes del corte suman {otherExamsSum.toFixed(1)}, te queda{" "}
+                            <strong>{examMax.toFixed(1)}</strong> disponible.
+                            {overBucket && (
+                              <span className="block text-destructive mt-1">
+                                El peso actual ({currentWeight.toFixed(1)}) excede el bucket. Reduce
+                                este o ajusta el bucket en el editor de cortes.
+                              </span>
+                            )}
                           </>
                         ) : (
                           "Asigna primero un corte de evaluación arriba para poder configurar el peso."

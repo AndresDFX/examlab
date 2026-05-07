@@ -96,16 +96,20 @@ Cada item (examen, taller, proyecto) y la asistencia de un corte tienen un peso 
 
 ```
 cut.weight              = % de la nota final que aporta el corte (cuts suman 100)
-cut.attendance_weight   = % de la nota final para la asistencia del corte
-exam.weight             = % de la nota final para ese examen
-workshop.weight         = % de la nota final para ese taller
-project.weight          = % de la nota final para ese proyecto
+cut.workshop_weight     = bucket: cuánto del corte vale TODOS los talleres juntos
+cut.exam_weight         = bucket: cuánto del corte vale TODOS los exámenes juntos
+cut.project_weight      = bucket: cuánto del corte vale TODOS los proyectos juntos
+cut.attendance_weight   = bucket: cuánto del corte vale la asistencia
+exam.weight             = % de la nota final para ese examen (cap = exam_weight bucket)
+workshop.weight         = % de la nota final para ese taller (cap = workshop_weight bucket)
+project.weight          = % de la nota final para ese proyecto (cap = project_weight bucket)
 
-REGLA: la suma de (items + attendance_weight) dentro de un corte
-       debe igualar cut.weight. CutsEditor muestra un badge de validación.
+REGLA: workshop_weight + exam_weight + project_weight + attendance_weight = cut.weight.
+       Y items del mismo tipo no pueden exceder su bucket. CutsEditor valida ambas
+       y los forms de cada item muestran "te queda X disponible" del bucket.
 ```
 
-`cut.exam_weight / workshop_weight / project_weight` son **legacy** (quedan en 0 tras la migración, no se usan).
+Migración 20260507130000 hizo backfill: para cada cut puso `workshop_weight = sum(workshops.weight asignados al corte)` etc, así que el comportamiento previo se preserva.
 
 **Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` **cuentan como 0** con su peso original (NO se reescalan). Eso refleja la realidad del estudiante: lo que debe y todavía no entregó/no tiene nota es nota perdida hasta que aparezca. Solo retorna `null` (UI muestra "—") cuando NINGÚN item del set tiene score. Misma regla en `computeCutGrade` y `computeCourseFinalGrade`.
 
@@ -151,8 +155,8 @@ Solo `computeSecondsLeft(exam?.end_time)`. El hook `useRealtimeTimer` inicializa
 
 ## Features adicionales
 
-### Actividades externas (`is_external` en exams y workshops)
-Para parciales/talleres que ya pasaron fuera de la plataforma (presencial o virtual en otra herramienta) y solo se registran notas. Toggle en el dialog de creación esconde duración/navegación/proctoring/preguntas. El editor del examen muestra una pestaña "Notas externas" (`ExternalGradesEditor`) que lista a los matriculados y guarda directo en `submissions.final_override_grade` / `workshop_submissions.final_grade`. Items externos se filtran del listado del estudiante.
+### Actividades externas (`is_external` en exams, workshops y projects)
+Para parciales/talleres/proyectos que ya pasaron fuera de la plataforma (presencial o virtual en otra herramienta) y solo se registran notas. Toggle en el dialog de creación esconde campos sin sentido (duración/navegación/proctoring/preguntas para examen, archivos esperados/instrucciones para proyecto). El editor de notas externas (`ExternalGradesEditor`) lista a los matriculados con columnas Nota + **Observación** (campo libre por estudiante), y guarda en `submissions.{final_override_grade, teacher_feedback}` / `workshop_submissions.{final_grade, teacher_feedback}` / `project_submissions.{final_grade, teacher_feedback}`. La columna `submissions.teacher_feedback` la agregó la migración 20260507130000.
 
 ### Detección de fraude (FraudPanel)
 - **Análisis IA por entrega**: cada calificación con IA puebla `submissions.ai_detected_score / ai_detected_reasons` (0..1 + razones). Threshold 0.6 marca `ai_detected = true` y status `sospechoso`.

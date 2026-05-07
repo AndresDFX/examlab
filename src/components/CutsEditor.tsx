@@ -1,15 +1,18 @@
 /**
  * CutsEditor — Editor de cortes evaluativos del curso.
  *
- * Modelo de pesos (post-migración 20260507100000):
+ * Modelo de pesos (post-migración 20260507130000):
  *   - cut.weight = % de la nota final que aporta el corte (cortes suman 100).
- *   - Items (exams, workshops, projects) tienen weight = % de la nota final.
+ *   - Cada item (exam, workshop, project) tiene weight = % de la nota final.
  *     Se editan en sus propias pantallas, no acá.
- *   - cut.attendance_weight = % de la nota final para la asistencia del corte.
- *   - Validación soft: la suma de (items en el corte + attendance_weight)
- *     debería ser igual a cut.weight para que el reparto sea exacto. Si no
- *     coincide, computeWeightedGrade reescala los pesos automáticamente al
- *     calcular la nota — así nada se rompe pero el docente lo ve en el badge.
+ *   - cut.attendance_weight = % de la nota final para asistencia del corte.
+ *   - cut.workshop_weight / exam_weight / project_weight = "buckets" por tipo
+ *     dentro del corte. Cada bucket es el cap acumulado de los items de ese
+ *     tipo. Suma de 4 buckets (workshop + exam + project + attendance) debe
+ *     igualar cut.weight.
+ *   - Validación soft: si los items asignados no llenan el bucket exacto,
+ *     se muestra warning pero el cálculo sigue funcionando con
+ *     computeWeightedGrade (items con score=null cuentan como 0).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, ChevronDown, ChevronRight, FileText, Hammer, FolderKanban } from "lucide-react";
@@ -37,11 +40,11 @@ type Cut = {
   end_date: string | null;
   weight: number;
   attendance_weight: number;
-  // Buckets legacy — los queremos en el tipo para no romper el SELECT *,
-  // pero no se usan en el render ni el cálculo.
-  exam_weight?: number;
-  workshop_weight?: number;
-  project_weight?: number;
+  // Buckets por tipo dentro del corte. Suman cut.weight junto con
+  // attendance_weight. Caps de los items en sus respectivos forms.
+  exam_weight: number;
+  workshop_weight: number;
+  project_weight: number;
 };
 
 type CutItem = {
@@ -134,7 +137,7 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
         position: cuts.length,
         weight: 0,
         attendance_weight: 0,
-        // Legacy: cero, no se usan en el cálculo nuevo.
+        // Buckets por tipo — el docente los configura al expandir el corte.
         exam_weight: 0,
         workshop_weight: 0,
         project_weight: 0,
@@ -221,12 +224,25 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
         {cuts.map((cut) => {
           const isOpen = expanded.has(cut.id);
           const cutItems = items.filter((i) => i.cut_id === cut.id);
-          const itemsSum = cutItems.reduce((a, b) => a + Number(b.weight || 0), 0);
-          const attWeight = Number(cut.attendance_weight || 0);
-          const allocated = itemsSum + attWeight;
+          // Buckets configurados por el docente
+          const wsBucket = Number(cut.workshop_weight || 0);
+          const exBucket = Number(cut.exam_weight || 0);
+          const pjBucket = Number(cut.project_weight || 0);
+          const attBucket = Number(cut.attendance_weight || 0);
+          const bucketsSum = wsBucket + exBucket + pjBucket + attBucket;
+          // Items realmente asignados por tipo
+          const wsAssigned = cutItems
+            .filter((i) => i.kind === "workshop")
+            .reduce((a, b) => a + Number(b.weight || 0), 0);
+          const exAssigned = cutItems
+            .filter((i) => i.kind === "exam")
+            .reduce((a, b) => a + Number(b.weight || 0), 0);
+          const pjAssigned = cutItems
+            .filter((i) => i.kind === "project")
+            .reduce((a, b) => a + Number(b.weight || 0), 0);
           const expected = Number(cut.weight || 0);
-          const matches = Math.abs(allocated - expected) < 0.01;
-          const overAllocated = allocated > expected + 0.01;
+          const matches = Math.abs(bucketsSum - expected) < 0.01;
+          const overAllocated = bucketsSum > expected + 0.01;
           return (
             <div key={cut.id} className="rounded border bg-muted/30 p-2 space-y-2">
               <div className="grid items-center gap-2 md:grid-cols-[auto_2fr_1fr_1fr_1fr_auto]">
@@ -278,40 +294,61 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
 
               {isOpen && (
                 <div className="space-y-3 rounded bg-background p-3">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-start">
-                    <div>
-                      <Label className="text-xs">Asistencia (% de la nota final)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={expected}
-                        step="0.1"
-                        value={cut.attendance_weight || ""}
-                        onChange={(e) => {
-                          const raw = e.target.value === "" ? 0 : Number(e.target.value);
-                          const capped = expected > 0 ? Math.min(raw, expected) : raw;
-                          updateCut(cut.id, { attendance_weight: capped });
-                        }}
-                        className="w-32 mt-1"
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Cuánto vale la asistencia de este corte sobre la nota final del curso.
-                        Máximo {expected || 0} (lo que vale el corte). Si dejas 0, las
-                        sesiones del rango del corte no afectan la nota.
-                      </p>
-                    </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Define cuánto vale cada tipo de actividad dentro de este corte. La suma de los 4
+                    buckets debe igualar el peso del corte ({expected || 0}%). Cada item individual
+                    (taller/examen/proyecto) compite por su bucket — al crearlo, el max permitido
+                    será el remanente del bucket.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <BucketInput
+                      label="Talleres"
+                      icon={Hammer}
+                      value={wsBucket}
+                      assigned={wsAssigned}
+                      max={expected}
+                      onChange={(v) => updateCut(cut.id, { workshop_weight: v })}
+                    />
+                    <BucketInput
+                      label="Exámenes"
+                      icon={FileText}
+                      value={exBucket}
+                      assigned={exAssigned}
+                      max={expected}
+                      onChange={(v) => updateCut(cut.id, { exam_weight: v })}
+                    />
+                    <BucketInput
+                      label="Proyectos"
+                      icon={FolderKanban}
+                      value={pjBucket}
+                      assigned={pjAssigned}
+                      max={expected}
+                      onChange={(v) => updateCut(cut.id, { project_weight: v })}
+                    />
+                    <BucketInput
+                      label="Asistencia"
+                      icon={null}
+                      value={attBucket}
+                      assigned={attBucket}
+                      max={expected}
+                      onChange={(v) => updateCut(cut.id, { attendance_weight: v })}
+                      hideAssigned
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end">
                     <Badge
                       variant={
                         matches ? "secondary" : overAllocated ? "destructive" : "outline"
                       }
                       className="text-xs whitespace-nowrap"
-                      title="Suma de pesos asignados al corte (items + asistencia) versus el peso del corte"
+                      title="Suma de los 4 buckets vs peso del corte"
                     >
-                      Asignado: {allocated.toFixed(1)} / {expected || 0}
+                      Buckets: {bucketsSum.toFixed(1)} / {expected || 0}
                       {!matches && expected > 0 && (
                         <span className="ml-1">
                           ({overAllocated ? "exceso" : "faltan"}{" "}
-                          {Math.abs(expected - allocated).toFixed(1)})
+                          {Math.abs(expected - bucketsSum).toFixed(1)})
                         </span>
                       )}
                     </Badge>
@@ -355,6 +392,60 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Input de un bucket. Muestra el peso configurado y, si hay items
+ * asignados de ese tipo, cuánto del bucket ya está consumido.
+ */
+function BucketInput({
+  label,
+  icon: Icon,
+  value,
+  assigned,
+  max,
+  onChange,
+  hideAssigned = false,
+}: {
+  label: string;
+  icon: typeof FileText | null;
+  value: number;
+  assigned: number;
+  max: number;
+  onChange: (v: number) => void;
+  hideAssigned?: boolean;
+}) {
+  const over = !hideAssigned && assigned > value + 0.01;
+  return (
+    <div>
+      <Label className="text-xs flex items-center gap-1">
+        {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+        {label}
+      </Label>
+      <Input
+        type="number"
+        min={0}
+        max={max || undefined}
+        step="0.1"
+        value={value || ""}
+        onChange={(e) => {
+          const raw = e.target.value === "" ? 0 : Number(e.target.value);
+          onChange(max > 0 ? Math.min(raw, max) : raw);
+        }}
+        className="mt-1"
+      />
+      {!hideAssigned && (
+        <p
+          className={`text-[10px] mt-1 tabular-nums ${
+            over ? "text-destructive" : "text-muted-foreground"
+          }`}
+        >
+          Asignado: {assigned.toFixed(1)} / {value.toFixed(1)}
+          {over && <span className="ml-1">(exceso)</span>}
+        </p>
+      )}
     </div>
   );
 }

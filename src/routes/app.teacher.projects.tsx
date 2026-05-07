@@ -44,6 +44,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { toast } from "sonner";
 import {
   Plus,
@@ -88,7 +90,16 @@ const db = supabase as any;
 export const Route = createFileRoute("/app/teacher/projects")({ component: TeacherProjects });
 
 type Course = { id: string; name: string; period: string | null; language?: string | null };
-type Cut = { id: string; course_id: string; name: string; weight: number };
+type Cut = {
+  id: string;
+  course_id: string;
+  name: string;
+  weight: number;
+  workshop_weight: number;
+  exam_weight: number;
+  project_weight: number;
+  attendance_weight: number;
+};
 type Student = { id: string; full_name: string; institutional_email: string };
 
 type Project = {
@@ -104,6 +115,7 @@ type Project = {
   due_date: string | null;
   max_score: number;
   status: "draft" | "published" | "closed";
+  is_external?: boolean;
   course?: { name: string; period: string | null; language?: string | null };
   // Lista de IDs de cursos vinculados (incluye course_id primario)
   linked_course_ids?: string[];
@@ -221,7 +233,12 @@ function TeacherProjects() {
     }
 
     try {
-      const cs2 = await db.from("grade_cuts").select("id, course_id, name, weight").order("position");
+      const cs2 = await db
+        .from("grade_cuts")
+        .select(
+          "id, course_id, name, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+        )
+        .order("position");
       if (cs2.error) throw new Error(`grade_cuts: ${cs2.error.message}`);
       setCuts((cs2.data ?? []) as Cut[]);
     } catch (e) {
@@ -374,19 +391,29 @@ function TeacherProjects() {
       ? form.course_id
       : linked[0];
     const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
+    const isExternal = !!(form as any).is_external;
+    // Patrón "campos desactivados": cuando is_external=true, omitir
+    // campos sin sentido (instrucciones, link, archivos esperados) del
+    // payload para no insertar dummies.
     const payload: Record<string, any> = {
       course_id: primaryCourse,
       cut_id: form.cut_id || null,
       title: form.title,
       description: form.description ?? null,
-      instructions: form.instructions ?? null,
-      external_link: form.external_link || null,
-      max_files: maxFiles,
-      start_date: form.start_date ? new Date(form.start_date).toISOString() : null,
-      due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
       max_score: Number(form.max_score) || 100,
       status: form.status ?? "draft",
+      is_external: isExternal,
     };
+    if (!isExternal) {
+      payload.instructions = form.instructions ?? null;
+      payload.external_link = form.external_link || null;
+      payload.max_files = maxFiles;
+      payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
+      payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
+    } else {
+      // Para externos: due_date marca cuándo ocurrió, sin start ni files.
+      payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
+    }
     // weight solo aplica con corte; si no, dejamos que el DEFAULT 1 se mantenga
     if (form.cut_id && (form as any).weight != null) {
       payload.weight = Number((form as any).weight);
@@ -916,6 +943,28 @@ function TeacherProjects() {
             <DialogTitle>{editing ? "Editar proyecto" : "Nuevo proyecto"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {/*
+             * Toggle "Actividad externa": cuando el proyecto ya ocurrió fuera
+             * de la plataforma y solo se registra la nota. Esconde campos que
+             * no aplican (instrucciones, link, archivos esperados) y al editar
+             * la calificación se muestra el editor de notas externas.
+             */}
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+              <div className="space-y-0.5">
+                <Label htmlFor="project-is-external" className="text-sm">
+                  Actividad externa
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Un proyecto que ocurrió fuera de la plataforma. Solo registras notas y
+                  observaciones por estudiante.
+                </p>
+              </div>
+              <Switch
+                id="project-is-external"
+                checked={!!(form as any).is_external}
+                onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
+              />
+            </div>
             <div>
               <Label required>Título</Label>
               <Input
@@ -931,6 +980,7 @@ function TeacherProjects() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
+            {!(form as any).is_external && (
             <div>
               <Label>Instrucciones</Label>
               <Textarea
@@ -939,6 +989,8 @@ function TeacherProjects() {
                 onChange={(e) => setForm({ ...form, instructions: e.target.value })}
               />
             </div>
+            )}
+            {!(form as any).is_external && (
             <div>
               <Label>Link externo (opcional)</Label>
               <Input
@@ -947,6 +999,7 @@ function TeacherProjects() {
                 onChange={(e) => setForm({ ...form, external_link: e.target.value })}
               />
             </div>
+            )}
             <div className="space-y-2">
               <Label required>{t("nav.courses")} (puedes seleccionar varios)</Label>
               <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
@@ -1021,14 +1074,21 @@ function TeacherProjects() {
                 const selectedCut = form.cut_id
                   ? cuts.find((c) => c.id === form.cut_id)
                   : null;
-                const cutWeight = selectedCut?.weight ?? 0;
+                const pjBucket = Number(selectedCut?.project_weight ?? 0);
+                const editingId = (form as any).id as string | undefined;
+                const otherProjectsSum = projects
+                  .filter((p) => p.cut_id === form.cut_id && p.id !== editingId)
+                  .reduce((s, p) => s + Number((p as any).weight ?? 0), 0);
+                const pjMax = Math.max(0, pjBucket - otherProjectsSum);
+                const currentWeight = Number((form as any).weight ?? 1) || 0;
+                const overBucket = currentWeight > pjMax + 0.01;
                 return (
                   <>
-                    <Label>Peso del proyecto en la nota final</Label>
+                    <Label>Peso del proyecto (dentro del bucket de proyectos del corte)</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={cutWeight || undefined}
+                      max={pjMax || undefined}
                       step="0.1"
                       placeholder="1"
                       className="w-32"
@@ -1036,16 +1096,23 @@ function TeacherProjects() {
                       value={(form as any).weight ?? 1}
                       onChange={(e) => {
                         const raw = e.target.value === "" ? 1 : Number(e.target.value);
-                        const capped = cutWeight > 0 ? Math.min(raw, cutWeight) : raw;
+                        const capped = pjMax > 0 ? Math.min(raw, pjMax) : raw;
                         setForm({ ...form, weight: capped } as any);
                       }}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       {selectedCut ? (
                         <>
-                          Cuánto pesa este proyecto en la <strong>nota final del curso</strong>.
-                          Máximo {cutWeight} (lo que vale el corte{" "}
-                          <span className="font-medium">{selectedCut.name}</span>).
+                          Bucket proyectos del corte{" "}
+                          <span className="font-medium">{selectedCut.name}</span>: {pjBucket}.
+                          Otros proyectos del corte suman {otherProjectsSum.toFixed(1)}, te queda{" "}
+                          <strong>{pjMax.toFixed(1)}</strong> disponible.
+                          {overBucket && (
+                            <span className="block text-destructive mt-1">
+                              El peso actual ({currentWeight.toFixed(1)}) excede el bucket. Reduce
+                              este o ajusta el bucket en el editor de cortes.
+                            </span>
+                          )}
                         </>
                       ) : (
                         "Asigna primero un corte para poder configurar el peso."
@@ -1056,25 +1123,27 @@ function TeacherProjects() {
               })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label required>Número de archivos</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={form.max_files ?? 3}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      max_files: e.target.value === "" ? 1 : Number(e.target.value),
-                    })
-                  }
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Cuántas cajas de texto se mostrarán al estudiante (una por archivo). La IA
-                  calificará cada caja por separado.
-                </p>
-              </div>
+              {!(form as any).is_external && (
+                <div>
+                  <Label required>Número de archivos</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={form.max_files ?? 3}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        max_files: e.target.value === "" ? 1 : Number(e.target.value),
+                      })
+                    }
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Cuántas cajas de texto se mostrarán al estudiante (una por archivo). La IA
+                    calificará cada caja por separado.
+                  </p>
+                </div>
+              )}
               <div>
                 <Label required>Puntaje máximo</Label>
                 <Input
@@ -1091,15 +1160,19 @@ function TeacherProjects() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
+              {!(form as any).is_external && (
+                <div>
+                  <Label required>{t("common.startDate")}</Label>
+                  <DateTimePicker
+                    value={form.start_date ? toLocal(form.start_date) : ""}
+                    onChange={(v) => setForm({ ...form, start_date: v })}
+                  />
+                </div>
+              )}
               <div>
-                <Label required>{t("common.startDate")}</Label>
-                <DateTimePicker
-                  value={form.start_date ? toLocal(form.start_date) : ""}
-                  onChange={(v) => setForm({ ...form, start_date: v })}
-                />
-              </div>
-              <div>
-                <Label required>{t("common.endDate")}</Label>
+                <Label required>
+                  {(form as any).is_external ? "Fecha del evento" : t("common.endDate")}
+                </Label>
                 <DateTimePicker
                   value={form.due_date ? toLocal(form.due_date) : ""}
                   onChange={(v) => setForm({ ...form, due_date: v })}
@@ -1221,25 +1294,41 @@ function TeacherProjects() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Entregas — {gradingProject?.title}
+              {gradingProject?.is_external ? "Notas externas" : "Entregas"} —{" "}
+              {gradingProject?.title}
             </DialogTitle>
           </DialogHeader>
-          {gradingLoading && <ListSkeleton rows={3} rowHeight="h-24" />}
-          {!gradingLoading && gradingSubs.length === 0 && (
+          {/* Proyecto externo: mostrar el editor de notas externas en lugar
+              de la lista de entregas reales. */}
+          {gradingProject?.is_external && (
+            <ExternalGradesEditor
+              kind="project"
+              refId={gradingProject.id}
+              courseId={gradingProject.course_id}
+              maxScore={Number(gradingProject.max_score) || 100}
+            />
+          )}
+          {!gradingProject?.is_external && gradingLoading && (
+            <ListSkeleton rows={3} rowHeight="h-24" />
+          )}
+          {!gradingProject?.is_external && !gradingLoading && gradingSubs.length === 0 && (
             <p className="text-sm text-muted-foreground p-4 text-center">
               Aún no hay entregas para este proyecto.
             </p>
           )}
-          {!gradingLoading && gradingProject && gradingSubs.length > 0 && (
-            <FraudPanel
-              kind="project"
-              refId={gradingProject.id}
-              userNames={Object.fromEntries(
-                gradingSubs.map((s) => [s.user_id, (s as any).profile?.full_name ?? "—"]),
-              )}
-            />
-          )}
-          {!gradingLoading && gradingSubs.length > 0 && (
+          {!gradingProject?.is_external &&
+            !gradingLoading &&
+            gradingProject &&
+            gradingSubs.length > 0 && (
+              <FraudPanel
+                kind="project"
+                refId={gradingProject.id}
+                userNames={Object.fromEntries(
+                  gradingSubs.map((s) => [s.user_id, (s as any).profile?.full_name ?? "—"]),
+                )}
+              />
+            )}
+          {!gradingProject?.is_external && !gradingLoading && gradingSubs.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score}{" "}

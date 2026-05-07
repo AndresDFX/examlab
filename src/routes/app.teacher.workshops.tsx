@@ -111,7 +111,16 @@ type Workshop = {
   status: string;
   course?: { name: string; period: string | null };
 };
-type Cut = { id: string; course_id: string; name: string; weight: number };
+type Cut = {
+  id: string;
+  course_id: string;
+  name: string;
+  weight: number;
+  workshop_weight: number;
+  exam_weight: number;
+  project_weight: number;
+  attendance_weight: number;
+};
 type Student = { id: string; full_name: string; institutional_email: string };
 type WsSub = {
   id: string;
@@ -233,7 +242,12 @@ function TeacherWorkshops() {
         .from("workshops")
         .select("*, course:courses(name, period)")
         .order("created_at", { ascending: false }),
-      (supabase as any).from("grade_cuts").select("id, course_id, name, weight").order("position"),
+      (supabase as any)
+        .from("grade_cuts")
+        .select(
+          "id, course_id, name, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+        )
+        .order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
@@ -1175,22 +1189,29 @@ function TeacherWorkshops() {
                 )}
             </div>
             {/*
-             * Peso del taller dentro del corte. Habilitado solo cuando
-             * hay un corte seleccionado, con cap = cut.weight para que
-             * el docente vea claro el rango (ej. si el corte vale 30%
-             * el peso máximo del taller es 30, no 100). Por defecto 1.
+             * Peso del taller dentro del bucket de talleres del corte.
+             * Cap = cut.workshop_weight - sum(otros talleres del corte).
              */}
             <div>
               {(() => {
                 const selectedCut = form.cut_id ? cuts.find((c) => c.id === form.cut_id) : null;
-                const cutWeight = selectedCut?.weight ?? 0;
+                const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
+                const editingId = (form as any).id as string | undefined;
+                const otherWorkshopsSum = workshops
+                  .filter(
+                    (w) => (w as any).cut_id === form.cut_id && w.id !== editingId,
+                  )
+                  .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+                const wsMax = Math.max(0, wsBucket - otherWorkshopsSum);
+                const currentWeight = Number((form as any).weight ?? 1) || 0;
+                const overBucket = currentWeight > wsMax + 0.01;
                 return (
                   <>
-                    <Label>Peso del taller dentro del corte</Label>
+                    <Label>Peso del taller (dentro del bucket de talleres del corte)</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={cutWeight || undefined}
+                      max={wsMax || undefined}
                       step="0.1"
                       placeholder="1"
                       className="w-32 mt-1"
@@ -1198,17 +1219,23 @@ function TeacherWorkshops() {
                       value={(form as any).weight ?? 1}
                       onChange={(e) => {
                         const raw = e.target.value === "" ? 1 : Number(e.target.value);
-                        const capped = cutWeight > 0 ? Math.min(raw, cutWeight) : raw;
+                        const capped = wsMax > 0 ? Math.min(raw, wsMax) : raw;
                         setForm({ ...form, weight: capped } as any);
                       }}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       {selectedCut ? (
                         <>
-                          Cuánto pesa este taller en la <strong>nota final del curso</strong>.
-                          Máximo {cutWeight} (lo que vale el corte{" "}
-                          <span className="font-medium">{selectedCut.name}</span>). La suma
-                          de pesos de items + asistencia del corte debe igualar {cutWeight}.
+                          Bucket talleres del corte{" "}
+                          <span className="font-medium">{selectedCut.name}</span>: {wsBucket}.
+                          Otros talleres del corte suman {otherWorkshopsSum.toFixed(1)}, te queda{" "}
+                          <strong>{wsMax.toFixed(1)}</strong> disponible.
+                          {overBucket && (
+                            <span className="block text-destructive mt-1">
+                              El peso actual ({currentWeight.toFixed(1)}) excede el bucket. Reduce
+                              este o ajusta el bucket en el editor de cortes.
+                            </span>
+                          )}
                         </>
                       ) : (
                         "Asigna primero un corte de evaluación arriba para poder configurar el peso."

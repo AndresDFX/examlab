@@ -32,7 +32,7 @@ import { Spinner } from "@/components/ui/spinner";
  * porque sin ese id futuras ediciones harían INSERT duplicado.
  */
 
-export type ExternalKind = "exam" | "workshop";
+export type ExternalKind = "exam" | "workshop" | "project";
 
 interface Props {
   kind: ExternalKind;
@@ -67,16 +67,23 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
         .from("course_enrollments")
         .select("user_id")
         .eq("course_id", courseId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
       const subsPromise =
         kind === "exam"
-          ? supabase
+          ? db
               .from("submissions")
-              .select("id, user_id, final_override_grade")
+              .select("id, user_id, final_override_grade, teacher_feedback")
               .eq("exam_id", refId)
-          : supabase
-              .from("workshop_submissions")
-              .select("id, user_id, final_grade, teacher_feedback")
-              .eq("workshop_id", refId);
+          : kind === "workshop"
+            ? db
+                .from("workshop_submissions")
+                .select("id, user_id, final_grade, teacher_feedback")
+                .eq("workshop_id", refId)
+            : db
+                .from("project_submissions")
+                .select("id, user_id, final_grade, teacher_feedback")
+                .eq("project_id", refId);
       const [{ data: enr, error: enrErr }, { data: subs, error: subsErr }] = await Promise.all([
         enrPromise,
         subsPromise,
@@ -152,12 +159,15 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
       return false;
     }
     const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
     if (kind === "exam") {
       if (row.submissionId) {
-        const { error } = await supabase
+        const { error } = await db
           .from("submissions")
           .update({
             final_override_grade: v.value,
+            teacher_feedback: row.feedback || null,
             status: "completado",
             submitted_at: now,
           })
@@ -167,12 +177,13 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
           return false;
         }
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from("submissions")
           .insert({
             exam_id: refId,
             user_id: row.userId,
             final_override_grade: v.value,
+            teacher_feedback: row.feedback || null,
             started_at: now,
             submitted_at: now,
             status: "completado",
@@ -186,10 +197,9 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
       }
-    } else {
-      // workshop
+    } else if (kind === "workshop") {
       if (row.submissionId) {
-        const { error } = await supabase
+        const { error } = await db
           .from("workshop_submissions")
           .update({
             final_grade: v.value,
@@ -203,10 +213,45 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
           return false;
         }
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from("workshop_submissions")
           .insert({
             workshop_id: refId,
+            user_id: row.userId,
+            final_grade: v.value,
+            teacher_feedback: row.feedback || null,
+            submitted_at: now,
+            status: "calificado",
+          })
+          .select("id")
+          .single();
+        if (error) {
+          toast.error(`${row.fullName}: ${error.message}`);
+          return false;
+        }
+        if (data?.id) updateRow(row.userId, { submissionId: data.id });
+      }
+    } else {
+      // project
+      if (row.submissionId) {
+        const { error } = await db
+          .from("project_submissions")
+          .update({
+            final_grade: v.value,
+            teacher_feedback: row.feedback || null,
+            status: "calificado",
+            submitted_at: now,
+          })
+          .eq("id", row.submissionId);
+        if (error) {
+          toast.error(`${row.fullName}: ${error.message}`);
+          return false;
+        }
+      } else {
+        const { data, error } = await db
+          .from("project_submissions")
+          .insert({
+            project_id: refId,
             user_id: row.userId,
             final_grade: v.value,
             teacher_feedback: row.feedback || null,
@@ -304,12 +349,12 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
               <TableRow>
                 <TableHead>Estudiante</TableHead>
                 <TableHead className="w-32">Nota</TableHead>
-                {kind === "workshop" && <TableHead>Retroalimentación</TableHead>}
+                <TableHead>Observación</TableHead>
                 <TableHead className="w-28 text-right">Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableSkeleton rows={5} cols={kind === "workshop" ? 4 : 3} />}
+              {loading && <TableSkeleton rows={5} cols={4} />}
               {!loading &&
                 rows.map((row) => (
                 <TableRow key={row.userId}>
@@ -327,17 +372,15 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
                       className="h-8 text-sm"
                     />
                   </TableCell>
-                  {kind === "workshop" && (
-                    <TableCell>
-                      <Textarea
-                        rows={1}
-                        value={row.feedback}
-                        onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
-                        placeholder="Comentario opcional"
-                        className="min-h-[32px] text-xs"
-                      />
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <Textarea
+                      rows={1}
+                      value={row.feedback}
+                      onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
+                      placeholder="Comentario opcional"
+                      className="min-h-[32px] text-xs"
+                    />
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
