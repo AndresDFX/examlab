@@ -25,15 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import {
-  Clock,
-  AlertTriangle,
-  Sparkles,
-  Trash2,
-  Eye,
-  Save,
-  TimerReset,
-} from "lucide-react";
+import { Clock, AlertTriangle, Sparkles, Trash2, Eye, Save, TimerReset } from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -46,11 +38,7 @@ import {
   type BreakdownItem as GradeBreakdown,
   type ManualOverride as GradeManual,
 } from "@/utils/grade";
-import {
-  computeAttemptGrade,
-  retryModeLabel,
-  type RetryMode,
-} from "@/utils/exam-attempts";
+import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
@@ -114,6 +102,10 @@ function ExamMonitor() {
   // estudiante en cuanto haya datos. Sin esto el docente caía en el
   // grid genérico y tenía que buscar al estudiante a mano.
   const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
+  // Question_id a destacar dentro del modal "Respuestas" cuando el
+  // deep-link viene del modal de Conversaciones abiertas. Aplica un
+  // ring temporal y scroll a la card de la pregunta.
+  const [highlightQuestionId, setHighlightQuestionId] = useState<string | null>(null);
   const [overrideValue, setOverrideValue] = useState<number | null>(null);
   const [savingOverride, setSavingOverride] = useState(false);
   const [qOverrides, setQOverrides] = useState<
@@ -124,9 +116,7 @@ function ExamMonitor() {
   const load = useCallback(async () => {
     const { data: e } = await (supabase as any)
       .from("exams")
-      .select(
-        "*, course:courses(name, grade_scale_max, max_exam_attempts)",
-      )
+      .select("*, course:courses(name, grade_scale_max, max_exam_attempts)")
       .eq("id", examId)
       .single();
     setExam(e);
@@ -164,19 +154,59 @@ function ExamMonitor() {
     setQuestions((data ?? []) as Question[]);
   }, [examId]);
 
-  // Deep-link desde notificación: ?student=USER_ID → abrir el modal
-  // de intentos de ese estudiante. Solo se intenta una vez; espera
-  // a tener al menos un submission cargado para no saltar a un
-  // estudiante sin datos.
+  // Deep-link desde notificación o modal "Conversaciones abiertas":
+  //   ?student=USER_ID      → abre el modal de intentos del estudiante.
+  //   ?submission=SUB_ID    → además abre el modal "Respuestas" para
+  //                           ese intento (Eye en la fila).
+  //   ?question=Q_ID        → además scrollea + ring temporal a la card
+  //                           de esa pregunta dentro del modal.
+  // Solo se intenta una vez; espera a tener al menos un submission
+  // cargado para no saltar a un estudiante sin datos.
   useEffect(() => {
     if (autoOpenedFromUrl || submissions.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const studentParam = params.get("student");
+    const submissionParam = params.get("submission");
+    const questionParam = params.get("question");
     if (studentParam) {
       setAttemptsForUser(studentParam);
     }
+    if (submissionParam) {
+      const sub = submissions.find((s) => s.id === submissionParam);
+      if (sub) {
+        openView(sub);
+      }
+    }
+    if (questionParam) {
+      setHighlightQuestionId(questionParam);
+    }
+    // Limpia los params para que un refresh no re-dispare.
+    if (studentParam || submissionParam || questionParam) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("student");
+      url.searchParams.delete("submission");
+      url.searchParams.delete("question");
+      window.history.replaceState({}, "", url.toString());
+    }
     setAutoOpenedFromUrl(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submissions, autoOpenedFromUrl]);
+
+  // Scroll + ring temporal a la pregunta destacada cuando el modal
+  // "Respuestas" ya está abierto (viewingId presente). Se limpia tras
+  // 3.5s y al cerrar el modal para no re-disparar.
+  useEffect(() => {
+    if (!viewingId || !highlightQuestionId) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`exam-q-${highlightQuestionId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    const clear = setTimeout(() => setHighlightQuestionId(null), 3500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(clear);
+    };
+  }, [viewingId, highlightQuestionId]);
 
   useEffect(() => {
     load();
@@ -256,7 +286,6 @@ function ExamMonitor() {
 
   // (deleteSubmission ahora vive en deleteOneAttempt / deleteAllAttempts dentro del dialog)
 
-
   const openView = (sub: Submission) => {
     setViewingId(sub.id);
     const cur = sub.final_override_grade ?? sub.ai_grade;
@@ -285,7 +314,9 @@ function ExamMonitor() {
       .eq("id", sub.id);
     setSavingOverride(false);
     if (error) return toast.error(error.message);
-    toast.success(numValue == null ? "Calificación manual eliminada" : "Calificación guardada correctamente");
+    toast.success(
+      numValue == null ? "Calificación manual eliminada" : "Calificación guardada correctamente",
+    );
     setSubmissions((prev) =>
       prev.map((s) => (s.id === sub.id ? { ...s, final_override_grade: numValue } : s)),
     );
@@ -326,7 +357,11 @@ function ExamMonitor() {
       .eq("id", sub.id);
     setSavingQid(null);
     if (error) return toast.error(error.message);
-    toast.success(numScore == null ? "Calificación por pregunta eliminada" : "Calificación por pregunta guardada");
+    toast.success(
+      numScore == null
+        ? "Calificación por pregunta eliminada"
+        : "Calificación por pregunta guardada",
+    );
 
     setSubmissions((prev) =>
       prev.map((s) =>
@@ -437,7 +472,7 @@ function ExamMonitor() {
   };
 
   const attemptsRow = attemptsForUser
-    ? studentRows.find((r) => r.userId === attemptsForUser) ?? null
+    ? (studentRows.find((r) => r.userId === attemptsForUser) ?? null)
     : null;
 
   return (
@@ -505,9 +540,7 @@ function ExamMonitor() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge
-                        status={inProg ? "en_progreso" : latest.status}
-                      />
+                      <StatusBadge status={inProg ? "en_progreso" : latest.status} />
                     </TableCell>
                     <TableCell className="text-sm tabular-nums">
                       {row.effectiveGrade == null ? (
@@ -583,20 +616,14 @@ function ExamMonitor() {
       />
 
       {/* Dialog: lista de intentos del estudiante */}
-      <Dialog
-        open={attemptsForUser != null}
-        onOpenChange={(o) => !o && setAttemptsForUser(null)}
-      >
+      <Dialog open={attemptsForUser != null} onOpenChange={(o) => !o && setAttemptsForUser(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>
-              Intentos de {attemptsRow?.profile?.full_name ?? "—"}
-            </DialogTitle>
+            <DialogTitle>Intentos de {attemptsRow?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
-              {attemptsRow?.profile?.institutional_email} ·{" "}
-              {attemptsRow?.attemptsUsed ?? 0} finalizado(s) ·{" "}
-              {attemptsRow?.currentNumber ?? 0} de {maxAttempts} usados ·{" "}
-              Modo: {retryModeLabel(retryMode)}
+              {attemptsRow?.profile?.institutional_email} · {attemptsRow?.attemptsUsed ?? 0}{" "}
+              finalizado(s) · {attemptsRow?.currentNumber ?? 0} de {maxAttempts} usados · Modo:{" "}
+              {retryModeLabel(retryMode)}
             </DialogDescription>
           </DialogHeader>
           {attemptsRow && (
@@ -604,9 +631,7 @@ function ExamMonitor() {
               <div className="rounded-md border p-3 flex items-center justify-between">
                 <div className="text-sm">
                   Calificación efectiva:{" "}
-                  <span className="font-semibold">
-                    {attemptsRow.effectiveGrade ?? "—"}
-                  </span>
+                  <span className="font-semibold">{attemptsRow.effectiveGrade ?? "—"}</span>
                 </div>
                 <Button
                   variant="destructive"
@@ -633,9 +658,7 @@ function ExamMonitor() {
                           </div>
                           <div className="text-xs text-muted-foreground tabular-nums">
                             Iniciado: {formatDateTime(a.started_at ?? a.created_at)}
-                            {a.submitted_at && (
-                              <> · Entregado: {formatDateTime(a.submitted_at)}</>
-                            )}
+                            {a.submitted_at && <> · Entregado: {formatDateTime(a.submitted_at)}</>}
                           </div>
                           <div className="text-xs">
                             Calificación:{" "}
@@ -735,7 +758,13 @@ function ExamMonitor() {
                     const override = manual[q.id];
                     const qEntry = qOverrides[q.id] ?? { score: null, feedback: "" };
                     return (
-                      <Card key={q.id}>
+                      <Card
+                        key={q.id}
+                        id={`exam-q-${q.id}`}
+                        className={
+                          highlightQuestionId === q.id ? "ring-2 ring-primary/60" : undefined
+                        }
+                      >
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
                             <span>Pregunta {idx + 1}</span>

@@ -245,6 +245,9 @@ function TeacherWorkshops() {
   // deep-link (?submission=ID): se setea en el effect de la URL y el
   // effect de wsSubs lo consume.
   const [highlightSubId, setHighlightSubId] = useState<string | null>(null);
+  // Pregunta a destacar dentro del accordion expandido cuando el
+  // deep-link viene del modal de Conversaciones abiertas (?question=ID).
+  const [highlightWsQuestionId, setHighlightWsQuestionId] = useState<string | null>(null);
   // Per-question grading: questions of the workshop, and answers grouped
   // by submission. Edits live in `answersBySub` until the teacher saves a
   // single question or recomputes the global grade.
@@ -341,9 +344,9 @@ function TeacherWorkshops() {
     load();
   }, []);
 
-  // Deep-link desde notificación. Acepta:
-  //   ?workshop=WS_ID&submission=SUB_ID  (notificaciones nuevas)
-  //   ?id=WS_ID                          (legacy)
+  // Deep-link desde notificación o modal de Conversaciones abiertas:
+  //   ?workshop=WS_ID&submission=SUB_ID&question=Q_ID  (vista profunda)
+  //   ?id=WS_ID                                         (legacy)
   // Si el taller ya no existe (eliminado o sin permiso), toast claro y
   // limpia la URL.
   const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
@@ -352,10 +355,12 @@ function TeacherWorkshops() {
     const params = new URLSearchParams(window.location.search);
     const wsParam = params.get("workshop") ?? params.get("id");
     const subParam = params.get("submission");
+    const qParam = params.get("question");
     if (wsParam) {
       const ws = workshops.find((w) => w.id === wsParam);
       if (ws) {
         if (subParam) setHighlightSubId(subParam);
+        if (qParam) setHighlightWsQuestionId(qParam);
         void openGrading(ws as Workshop);
       } else {
         toast.info(
@@ -365,6 +370,7 @@ function TeacherWorkshops() {
       const url = new URL(window.location.href);
       url.searchParams.delete("workshop");
       url.searchParams.delete("submission");
+      url.searchParams.delete("question");
       url.searchParams.delete("id");
       window.history.replaceState({}, "", url.toString());
     }
@@ -392,6 +398,23 @@ function TeacherWorkshops() {
       clearTimeout(clear);
     };
   }, [gradingOpen, highlightSubId, wsSubs]);
+
+  // Cuando hay highlightWsQuestionId pendiente y la submission destacada
+  // ya está renderizada con sus answers cargadas, scrollea + ring a la
+  // card de la pregunta dentro del accordion (que se auto-expande vía
+  // openExpandedSubs). Se limpia tras el efecto.
+  useEffect(() => {
+    if (!gradingOpen || !highlightWsQuestionId || !highlightSubId) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`ws-q-${highlightSubId}-${highlightWsQuestionId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+    const clear = setTimeout(() => setHighlightWsQuestionId(null), 3500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(clear);
+    };
+  }, [gradingOpen, highlightWsQuestionId, highlightSubId, wsSubs]);
 
   const openNew = () => {
     const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -1873,7 +1896,16 @@ function TeacherWorkshops() {
 
                     {/* Per-question review & grading (editable) */}
                     {wsQuestions.length > 0 && (
-                      <Accordion type="single" collapsible className="w-full">
+                      <Accordion
+                        type="single"
+                        collapsible
+                        className="w-full"
+                        defaultValue={
+                          highlightSubId === sub.id && highlightWsQuestionId
+                            ? `per-q-${sub.id}`
+                            : undefined
+                        }
+                      >
                         <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
                           <AccordionTrigger className="px-3 py-2 text-sm">
                             Revisar respuestas por pregunta ({wsQuestions.length})
@@ -1889,10 +1921,15 @@ function TeacherWorkshops() {
                                 ans?.selected_option ??
                                 ans?.answer_text ??
                                 "";
+                              const isHighlighted =
+                                highlightSubId === sub.id && highlightWsQuestionId === q.id;
                               return (
                                 <div
                                   key={q.id}
-                                  className="rounded-md border p-3 space-y-2 bg-muted/20"
+                                  id={`ws-q-${sub.id}-${q.id}`}
+                                  className={`rounded-md border p-3 space-y-2 bg-muted/20 ${
+                                    isHighlighted ? "ring-2 ring-primary/60" : ""
+                                  }`}
                                 >
                                   <div className="flex flex-wrap items-center gap-2">
                                     <Badge variant="outline" className="text-[10px]">

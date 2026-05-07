@@ -279,25 +279,42 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
     if (!t.refId) return;
     onOpenChange(false);
     if (t.parent_kind === "exam") {
-      // monitor lee `?student=USER_ID` para auto-abrir los intentos de
-      // ese estudiante; sin él el docente cae en la lista plana.
+      // monitor lee:
+      //   ?student=USER_ID      → auto-abre el dialog de intentos.
+      //   ?submission=SUB_ID    → auto-abre el dialog de respuestas
+      //                           del intento (Eye en la fila).
+      //   ?question=QUESTION_ID → scrollea + ring temporal a la card de
+      //                           la pregunta dentro del dialog.
       navigate({
         to: "/app/teacher/monitor/$examId",
         params: { examId: t.refId },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        search: (t.studentUserId ? { student: t.studentUserId } : {}) as any,
+        search: {
+          ...(t.studentUserId ? { student: t.studentUserId } : {}),
+          submission: t.submission_id,
+          question: t.question_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
       });
     } else if (t.parent_kind === "workshop") {
       navigate({
         to: "/app/teacher/workshops",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        search: { workshop: t.refId, submission: t.submission_id } as any,
+        search: {
+          workshop: t.refId,
+          submission: t.submission_id,
+          question: t.question_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
       });
     } else {
       navigate({
         to: "/app/teacher/projects",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        search: { project: t.refId, submission: t.submission_id } as any,
+        search: {
+          project: t.refId,
+          submission: t.submission_id,
+          // En proyectos cada thread es por archivo (project_files.id).
+          file: t.question_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
       });
     }
   };

@@ -255,6 +255,9 @@ function TeacherProjects() {
   // Submission a destacar/scrollear cuando el dialog abre desde un
   // deep-link (?submission=ID).
   const [highlightSubId, setHighlightSubId] = useState<string | null>(null);
+  // Archivo a destacar dentro del accordion expandido cuando el
+  // deep-link viene del modal de Conversaciones abiertas (?file=ID).
+  const [highlightFileId, setHighlightFileId] = useState<string | null>(null);
   const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [aiRegradingId, setAiRegradingId] = useState<string | null>(null);
@@ -364,22 +367,24 @@ function TeacherProjects() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher]);
 
-  // Deep-link desde notificación. Acepta:
-  //   ?project=PROJECT_ID&submission=SUB_ID  (notificaciones nuevas)
-  //   ?id=PROJECT_ID                          (legacy, notificaciones viejas)
-  // → abre el grading dialog del proyecto. Si el proyecto ya no existe
-  // (eliminado o sin permiso), toast claro y limpia la URL para evitar
-  // que el efecto se vuelva a disparar en cada render.
+  // Deep-link desde notificación o modal de Conversaciones abiertas:
+  //   ?project=PROJECT_ID&submission=SUB_ID&file=FILE_ID
+  //   ?id=PROJECT_ID    (legacy, notificaciones viejas)
+  // → abre el grading dialog, expande la submission y scrollea al
+  // archivo cuya conversación se quiere ver. Si el proyecto ya no
+  // existe, toast claro y limpia la URL para no re-disparar.
   const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
   useEffect(() => {
     if (autoOpenedFromUrl || projects.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const projectParam = params.get("project") ?? params.get("id");
     const subParam = params.get("submission");
+    const fileParam = params.get("file");
     if (projectParam) {
       const p = projects.find((pr) => pr.id === projectParam);
       if (p) {
         if (subParam) setHighlightSubId(subParam);
+        if (fileParam) setHighlightFileId(fileParam);
         void openGradingDialog(p);
       } else {
         toast.info(
@@ -390,12 +395,29 @@ function TeacherProjects() {
       const url = new URL(window.location.href);
       url.searchParams.delete("project");
       url.searchParams.delete("submission");
+      url.searchParams.delete("file");
       url.searchParams.delete("id");
       window.history.replaceState({}, "", url.toString());
     }
     setAutoOpenedFromUrl(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, autoOpenedFromUrl]);
+
+  // Cuando hay highlightFileId pendiente y la submission destacada ya
+  // está expandida con sus answers cargadas, scrollea + ring a la card
+  // del archivo. El accordion se auto-expandió en el effect anterior.
+  useEffect(() => {
+    if (!gradingOpen || !highlightFileId || !highlightSubId) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`pj-file-${highlightSubId}-${highlightFileId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+    const clear = setTimeout(() => setHighlightFileId(null), 3500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(clear);
+    };
+  }, [gradingOpen, highlightFileId, highlightSubId, gradingSubs]);
 
   // Scroll + ring temporal + auto-expand del accordion a la submission
   // destacada (deep-link desde el modal "Conversaciones abiertas" o desde
@@ -1649,8 +1671,14 @@ function TeacherProjects() {
                           />
                           {gradingFiles.map((f) => {
                             const a = ans.find((x) => x.file_id === f.id);
+                            const isHighlighted =
+                              highlightSubId === sub.id && highlightFileId === f.id;
                             return (
-                              <Card key={f.id}>
+                              <Card
+                                key={f.id}
+                                id={`pj-file-${sub.id}-${f.id}`}
+                                className={isHighlighted ? "ring-2 ring-primary/60" : undefined}
+                              >
                                 <CardContent className="p-3 space-y-2">
                                   <div className="flex items-center gap-2">
                                     <FileText className="h-3.5 w-3.5 text-muted-foreground" />
