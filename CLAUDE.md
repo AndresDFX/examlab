@@ -156,6 +156,16 @@ Para parciales/talleres que ya pasaron fuera de la plataforma (presencial o virt
 - **Plagio entre estudiantes**: edge function `detect-plagiarism` compara entregas pares vía Gemini, persiste en tabla `similarity_pairs (kind, ref_id, score, reasons)`. RLS solo docente/admin.
 - `<FraudPanel kind refId>` reutilizable en monitor de examen, dialog de calificación de taller, dialog de entregas de proyecto.
 
+### Prompts de IA customizables (tabla `ai_prompts`)
+Sistema de overrides de prompts para los modelos de IA, separado por **caso de uso** (no por módulo):
+
+- 5 use cases: `workshop_full`, `workshop_question`, `project_file`, `project_full`, `exam_question`.
+- Una fila por `(use_case, course_id)`. `course_id IS NULL` = prompt global del sistema (lo edita Admin). `course_id` no-null = override del curso (lo edita el docente del curso).
+- El edge `ai-grade-submission` resuelve via `resolveSystemPrompt(useCase, courseId, fallback)`: course override gana al global, fallback al texto hardcodeado si la tabla está vacía.
+- **Solo se persiste el system prompt** (rol/criterios). Los datos dinámicos (rúbrica, respuesta, idioma, puntaje máx.) se inyectan en el `user` message desde el código — el admin/docente no puede romper el contrato olvidando un placeholder.
+- UI: `app/admin/ai-prompts.tsx` (CRUD globales, restaurar default), `app/teacher/ai-prompts.tsx` (selector de curso, ver global de referencia, override editable, "Volver al global" elimina la fila).
+- RLS: SELECT abierto a authenticated; INSERT/UPDATE/DELETE de globales solo Admin; de overrides solo docente del curso (vía `course_teachers`) o Admin.
+
 ### Notificaciones realtime + push
 `use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
 

@@ -27,6 +27,8 @@ import { Route as AppStudentCoursesRouteImport } from './routes/app.student.cour
 import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.attendance'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
+import { Route as AppAdminAIPromptsRouteImport } from './routes/app.admin.ai-prompts'
+import { Route as AppTeacherAIPromptsRouteImport } from './routes/app.teacher.ai-prompts'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
@@ -126,6 +128,16 @@ const AppAdminCoursesRoute = AppAdminCoursesRouteImport.update({
   path: '/admin/courses',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminAIPromptsRoute = AppAdminAIPromptsRouteImport.update({
+  id: '/admin/ai-prompts',
+  path: '/admin/ai-prompts',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherAIPromptsRoute = AppTeacherAIPromptsRouteImport.update({
+  id: '/teacher/ai-prompts',
+  path: '/teacher/ai-prompts',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   id: '/teacher/exams/',
   path: '/teacher/exams/',
@@ -178,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/admin/ai-prompts': typeof AppAdminAIPromptsRoute
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
@@ -189,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/teacher/ai-prompts': typeof AppTeacherAIPromptsRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -205,6 +219,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/admin/ai-prompts': typeof AppAdminAIPromptsRoute
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
@@ -216,6 +231,7 @@ export interface FileRoutesByTo {
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/teacher/ai-prompts': typeof AppTeacherAIPromptsRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -234,6 +250,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/admin/ai-prompts': typeof AppAdminAIPromptsRoute
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
@@ -245,6 +262,7 @@ export interface FileRoutesById {
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/teacher/ai-prompts': typeof AppTeacherAIPromptsRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -264,6 +282,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/admin/courses'
     | '/app/admin/users'
+    | '/app/admin/ai-prompts'
     | '/app/student/attendance'
     | '/app/student/courses'
     | '/app/student/exams'
@@ -275,6 +294,7 @@ export interface FileRouteTypes {
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/workshops'
+    | '/app/teacher/ai-prompts'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -291,6 +311,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/admin/courses'
     | '/app/admin/users'
+    | '/app/admin/ai-prompts'
     | '/app/student/attendance'
     | '/app/student/courses'
     | '/app/student/exams'
@@ -302,6 +323,7 @@ export interface FileRouteTypes {
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/workshops'
+    | '/app/teacher/ai-prompts'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -319,6 +341,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/admin/courses'
     | '/app/admin/users'
+    | '/app/admin/ai-prompts'
     | '/app/student/attendance'
     | '/app/student/courses'
     | '/app/student/exams'
@@ -330,6 +353,7 @@ export interface FileRouteTypes {
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/workshops'
+    | '/app/teacher/ai-prompts'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -474,6 +498,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminCoursesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/ai-prompts': {
+      id: '/app/admin/ai-prompts'
+      path: '/admin/ai-prompts'
+      fullPath: '/app/admin/ai-prompts'
+      preLoaderRoute: typeof AppAdminAIPromptsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/ai-prompts': {
+      id: '/app/teacher/ai-prompts'
+      path: '/teacher/ai-prompts'
+      fullPath: '/app/teacher/ai-prompts'
+      preLoaderRoute: typeof AppTeacherAIPromptsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/exams/': {
       id: '/app/teacher/exams/'
       path: '/teacher/exams'
@@ -538,6 +576,8 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppAdminAIPromptsRoute: typeof AppAdminAIPromptsRoute
+  AppTeacherAIPromptsRoute: typeof AppTeacherAIPromptsRoute
   AppStudentAttendanceRoute: typeof AppStudentAttendanceRoute
   AppStudentCoursesRoute: typeof AppStudentCoursesRoute
   AppStudentExamsRoute: typeof AppStudentExamsRoute
@@ -564,6 +604,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
+  AppAdminAIPromptsRoute: AppAdminAIPromptsRoute,
+  AppTeacherAIPromptsRoute: AppTeacherAIPromptsRoute,
   AppStudentAttendanceRoute: AppStudentAttendanceRoute,
   AppStudentCoursesRoute: AppStudentCoursesRoute,
   AppStudentExamsRoute: AppStudentExamsRoute,

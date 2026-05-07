@@ -66,6 +66,7 @@
     "studentGrades": "Grades",
     "studentAttendance": "Attendance",
     "projects": "Projects",
+    "aiPrompts": "AI prompts",
     "signOut": "Sign out",
     "changePassword": "Change password",
     "theme": "Theme"

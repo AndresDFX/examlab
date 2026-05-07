@@ -27,6 +27,7 @@ import {
   Menu,
   FolderKanban,
   CalendarCheck,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -96,6 +97,8 @@ const NAV: NavItem[] = [
     icon: ClipboardList,
     roles: ["Estudiante"],
   },
+  // Prompts IA (override por curso)
+  { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
   // Asistencia
   { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: CalendarCheck, roles: ["Docente"] },
   {
@@ -106,6 +109,7 @@ const NAV: NavItem[] = [
   },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
+  { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
 ];
 
 const ROLE_CONFIG: Record<
@@ -145,6 +149,8 @@ const ROLE_CONFIG: Record<
 const NAV_ICON_COLOR: Record<string, string> = {
   "/app": "text-sky-300",
   "/app/admin/users": "text-indigo-300",
+  "/app/admin/ai-prompts": "text-violet-300",
+  "/app/teacher/ai-prompts": "text-violet-300",
   "/app/admin/courses": "text-fuchsia-300",
   "/app/teacher/courses": "text-fuchsia-300",
   "/app/teacher/exams": "text-amber-300",

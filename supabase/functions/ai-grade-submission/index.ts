@@ -6,6 +6,54 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Cliente service-role compartido para leer ai_prompts (tabla con RLS).
+// La función igual lo necesita más abajo para escribir submissions, así
+// que reusamos la misma instancia.
+const adminClient = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
+
+/**
+ * Resuelve el system prompt para un use_case dado, considerando el
+ * override por curso si existe. Estrategia:
+ *   1. Si `courseId` está, busca override del curso → si existe, lo usa.
+ *   2. Si no, busca el global (course_id IS NULL).
+ *   3. Si la tabla está vacía o no llega nada (red/RLS), usa el fallback
+ *      hardcoded (mismo texto que el seed) para que la calificación nunca
+ *      se rompa por config faltante.
+ */
+async function resolveSystemPrompt(
+  useCase: string,
+  courseId: string | null | undefined,
+  fallback: string,
+): Promise<string> {
+  try {
+    let q = adminClient
+      .from("ai_prompts")
+      .select("system_prompt, course_id")
+      .eq("use_case", useCase);
+    if (courseId) {
+      q = q.or(`course_id.eq.${courseId},course_id.is.null`);
+    } else {
+      q = q.is("course_id", null);
+    }
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) return fallback;
+    // Override del curso gana sobre global. Ordenamos en JS porque
+    // PostgREST no permite ordenar nulls last directo en este esquema.
+    const sorted = [...data].sort((a, b) => {
+      if (a.course_id && !b.course_id) return -1;
+      if (!a.course_id && b.course_id) return 1;
+      return 0;
+    });
+    return sorted[0]?.system_prompt || fallback;
+  } catch (e) {
+    console.warn("[ai_prompts] resolve failed, using fallback:", e);
+    return fallback;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -22,10 +70,21 @@ Deno.serve(async (req) => {
         maxScore,
         studentAnswer,
         courseLanguage,
+        courseId,
       } = body;
       if (!studentAnswer) throw new Error("studentAnswer requerido");
       const wsLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
       const wsLangName = wsLang === "en" ? "inglés (English)" : "español";
+
+      const customSystem = await resolveSystemPrompt(
+        "workshop_full",
+        courseId,
+        "Eres un evaluador académico imparcial. Calificas entregas de talleres según las instrucciones y rúbrica proporcionadas. Das un puntaje numérico, retroalimentación detallada y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA.",
+      );
+      // Reglas mecánicas que el código añade siempre — tope numérico
+      // y regla de idioma. El sistema editable mantiene la persona y
+      // criterios; estas reglas garantizan el contrato de salida.
+      const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxScore ?? 100}.\nREGLA DE IDIOMA: responde siempre en ${wsLangName}.`;
 
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -35,8 +94,7 @@ Deno.serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `Eres un evaluador académico imparcial. Calificas entregas de talleres según las instrucciones y rúbrica proporcionadas. Devuelves un puntaje numérico entre 0 y ${maxScore ?? 100}, y una retroalimentación detallada.
-REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${wsLangName}. Toda la retroalimentación debe estar en ${wsLangName}.`,
+              content: systemPrompt,
             },
             {
               role: "user",
@@ -117,12 +175,20 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ws
         maxPoints = 1,
         studentContent,
         courseLanguage,
+        courseId,
       } = body;
       if (!studentContent || !fileTitle) {
         throw new Error("fileTitle y studentContent requeridos");
       }
       const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
       const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
+
+      const customSystem = await resolveSystemPrompt(
+        "project_file",
+        courseId,
+        "Eres un evaluador académico imparcial. Calificas el contenido textual de UN archivo del proyecto de un estudiante. Das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.",
+      );
+      const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -132,8 +198,7 @@ REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${ws
           messages: [
             {
               role: "system",
-              content: `Eres un evaluador académico imparcial. Calificas el contenido textual de UN archivo del proyecto de un estudiante. Devuelves un puntaje entre 0 y ${maxPoints} y retroalimentación útil, además de una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.
-REGLA DE IDIOMA: responde siempre en ${pfLangName}.`,
+              content: systemPrompt,
             },
             {
               role: "user",
@@ -229,6 +294,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         studentAnswer,
         language,
         courseLanguage,
+        courseId,
       } = body;
       if (!studentAnswer || !questionType) {
         throw new Error("questionType y studentAnswer requeridos");
@@ -245,6 +311,13 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         extraInstructions = `La respuesta es la opción seleccionada. Compara contra la opción correcta indicada en la rúbrica.`;
       }
 
+      const customSystem = await resolveSystemPrompt(
+        "workshop_question",
+        courseId,
+        "Eres un evaluador académico imparcial. Calificas la respuesta de un estudiante a UNA pregunta de taller. Das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA.",
+      );
+      const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${wqLangName}.\n${extraInstructions}`;
+
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
@@ -253,8 +326,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           messages: [
             {
               role: "system",
-              content: `Eres un evaluador académico imparcial. Calificas la respuesta de un estudiante a UNA pregunta de taller. Devuelves un puntaje entre 0 y ${maxPoints}, y retroalimentación útil en ${wqLangName}.
-${extraInstructions}`,
+              content: systemPrompt,
             },
             {
               role: "user",
@@ -404,6 +476,13 @@ ${extraInstructions}`,
         .map((f) => `--- archivo: ${f.path} ---\n${f.content}`)
         .join("\n\n");
 
+      const customSystemFull = await resolveSystemPrompt(
+        "project_full",
+        project.course_id,
+        "Eres un evaluador académico imparcial y experto. Calificas un proyecto académico basándote en sus archivos. Das nota, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones claras.",
+      );
+      const projectSystemPrompt = `${customSystemFull}\n\nTipo de proyecto: ${project.project_type}.\nPuntaje máximo permitido: ${project.max_score}.\nREGLA DE IDIOMA: responde siempre en ${langName}.`;
+
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
@@ -412,8 +491,7 @@ ${extraInstructions}`,
           messages: [
             {
               role: "system",
-              content: `Eres un evaluador académico imparcial y experto. Calificas un proyecto académico de tipo "${project.project_type}" basándote en sus archivos. Devuelves nota entre 0 y ${project.max_score}, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones.
-REGLA DE IDIOMA: responde en ${langName}.`,
+              content: projectSystemPrompt,
             },
             {
               role: "user",
@@ -546,6 +624,21 @@ Idioma de salida: ${langName}.`,
     const examLang: "es" | "en" = (examMeta as any)?.course?.language === "en" ? "en" : "es";
     const examLangName = examLang === "en" ? "inglés (English)" : "español";
     const gradeScaleMax = Number((examMeta as any)?.course?.grade_scale_max ?? 5) || 5;
+    // Resolvemos el system prompt una sola vez por exam (todas las
+    // preguntas de este examen comparten persona/criterios). Pasamos
+    // sub.exam_id → courses join arriba ya nos dio el course; tomamos
+    // el course_id del examen para buscar override.
+    const { data: examCourse } = await admin
+      .from("exams")
+      .select("course_id")
+      .eq("id", sub.exam_id)
+      .maybeSingle();
+    const examCourseId = (examCourse as any)?.course_id ?? null;
+    const customExamSystem = await resolveSystemPrompt(
+      "exam_question",
+      examCourseId,
+      "Eres un evaluador imparcial. Calificas respuestas de exámenes según la rúbrica dada. Das un puntaje, una breve justificación y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA con razones.",
+    );
 
     const answers: Record<string, any> = sub.answers || {};
     const prevBreakdown: any[] = Array.isArray(answers.__breakdown) ? answers.__breakdown : [];
@@ -609,8 +702,7 @@ Idioma de salida: ${langName}.`,
             messages: [
               {
                 role: "system",
-                content: `Eres un evaluador imparcial. Calificas respuestas según la rúbrica dada. Devuelves: (1) puntaje entre 0 y el máximo, (2) justificación breve, (3) probabilidad 0..1 de que la respuesta haya sido generada por IA, y (4) razones de esa estimación.
-REGLA DE IDIOMA: responde siempre en el idioma configurado para este curso: ${examLangName}. La retroalimentación debe estar en ${examLangName}.`,
+                content: `${customExamSystem}\n\nPuntaje máximo permitido: ${q.points}.\nREGLA DE IDIOMA: responde siempre en ${examLangName}.`,
               },
               {
                 role: "user",
