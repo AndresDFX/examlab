@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
-import { PendingExamGradesModal } from "@/components/PendingExamGradesModal";
+import { PendingExamNotesModal } from "@/components/PendingExamNotesModal";
 import {
   Users,
   BookOpen,
@@ -296,7 +296,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   void userId;
   const [counts, setCounts] = useState({
-    pendingExamGrades: 0,
+    pendingExamNotes: 0,
     workshops: 0,
     projects: 0,
     openThreads: 0,
@@ -306,18 +306,19 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
   const [openFeedbackModalOpen, setOpenFeedbackModalOpen] = useState(false);
-  const [pendingExamsModalOpen, setPendingExamsModalOpen] = useState(false);
+  const [pendingNotesModalOpen, setPendingNotesModalOpen] = useState(false);
 
-  // Cuenta entregas con nota IA pendiente de aprobación (final_override_grade
-  // sin setear). Se llama también después de aprobar desde el modal para
-  // refrescar el badge sin recargar todo el dashboard.
-  const refreshPendingExamGrades = async () => {
-    const { count } = await supabase
-      .from("submissions")
+  // Cuenta de exam_notes (notas de apoyo) en estado 'pendiente' — chuletas
+  // que el estudiante subió y esperan revisión del docente. Se llama
+  // también después de aprobar/rechazar desde el modal para refrescar
+  // el badge sin recargar el dashboard completo.
+  const refreshPendingExamNotes = async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count } = await (supabase as any)
+      .from("exam_notes")
       .select("id", { count: "exact", head: true })
-      .is("final_override_grade", null)
-      .not("ai_grade", "is", null);
-    setCounts((prev) => ({ ...prev, pendingExamGrades: count ?? 0 }));
+      .eq("status", "pendiente");
+    setCounts((prev) => ({ ...prev, pendingExamNotes: count ?? 0 }));
   };
 
   useEffect(() => {
@@ -325,14 +326,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       const now = new Date().toISOString();
       // Conversaciones abiertas: feedback_threads con closed=false que el
       // docente puede ver (RLS filtra por curso vía is_question_course_teacher).
-      // Notas de examen pendientes: submissions con ai_grade y sin
-      // final_override_grade (la IA propuso, el docente todavía no aprobó).
-      const [pendingExam, w, pr, threads, c] = await Promise.all([
+      // Notas de examen pendientes: exam_notes en status='pendiente' (chuletas
+      // subidas por el estudiante esperando aprobación del docente).
+      const [pendingNotes, w, pr, threads, c] = await Promise.all([
         (supabase as any)
-          .from("submissions")
+          .from("exam_notes")
           .select("id", { count: "exact", head: true })
-          .is("final_override_grade", null)
-          .not("ai_grade", "is", null),
+          .eq("status", "pendiente"),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
         (supabase as any).from("projects").select("id", { count: "exact", head: true }),
         (supabase as any)
@@ -342,7 +342,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         supabase.from("courses").select("id", { count: "exact", head: true }),
       ]);
       setCounts({
-        pendingExamGrades: pendingExam.count ?? 0,
+        pendingExamNotes: pendingNotes.count ?? 0,
         workshops: w.count ?? 0,
         projects: pr.count ?? 0,
         openThreads: threads.count ?? 0,
@@ -380,12 +380,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
-          label={t("dashboard.stats.pendingExamGrades", {
+          label={t("dashboard.stats.pendingExamNotes", {
             defaultValue: "Notas de examen pendientes",
           })}
-          value={counts.pendingExamGrades}
+          value={counts.pendingExamNotes}
           color="text-violet-500 dark:text-violet-400"
-          onClick={() => setPendingExamsModalOpen(true)}
+          onClick={() => setPendingNotesModalOpen(true)}
         />
         <Stat
           icon={Hammer}
@@ -551,10 +551,10 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       </div>
 
       <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />
-      <PendingExamGradesModal
-        open={pendingExamsModalOpen}
-        onOpenChange={setPendingExamsModalOpen}
-        onChange={refreshPendingExamGrades}
+      <PendingExamNotesModal
+        open={pendingNotesModalOpen}
+        onOpenChange={setPendingNotesModalOpen}
+        onChange={refreshPendingExamNotes}
       />
     </>
   );
