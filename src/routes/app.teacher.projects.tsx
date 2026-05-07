@@ -231,6 +231,10 @@ function TeacherProjects() {
   const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
   const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
   const [gradingLoading, setGradingLoading] = useState(false);
+  // Submission a destacar/scrollear cuando el dialog abre desde un
+  // deep-link (?submission=ID).
+  const [highlightSubId, setHighlightSubId] = useState<string | null>(null);
+  const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [aiRegradingId, setAiRegradingId] = useState<string | null>(null);
 
@@ -350,9 +354,11 @@ function TeacherProjects() {
     if (autoOpenedFromUrl || projects.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const projectParam = params.get("project") ?? params.get("id");
+    const subParam = params.get("submission");
     if (projectParam) {
       const p = projects.find((pr) => pr.id === projectParam);
       if (p) {
+        if (subParam) setHighlightSubId(subParam);
         void openGradingDialog(p);
       } else {
         toast.info(
@@ -369,6 +375,30 @@ function TeacherProjects() {
     setAutoOpenedFromUrl(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, autoOpenedFromUrl]);
+
+  // Scroll + ring temporal + auto-expand del accordion a la submission
+  // destacada (deep-link desde el modal "Conversaciones abiertas" o desde
+  // una notificación).
+  useEffect(() => {
+    if (!gradingOpen || !highlightSubId || gradingSubs.length === 0) return;
+    const target = gradingSubs.find((s) => s.id === highlightSubId);
+    if (!target) {
+      setHighlightSubId(null);
+      return;
+    }
+    setOpenAccordionItems((prev) =>
+      prev.includes(highlightSubId) ? prev : [...prev, highlightSubId],
+    );
+    const t = setTimeout(() => {
+      const el = document.getElementById(`pj-sub-${highlightSubId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    const clear = setTimeout(() => setHighlightSubId(null), 3500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(clear);
+    };
+  }, [gradingOpen, highlightSubId, gradingSubs]);
 
   const openNew = () => {
     setEditing(null);
@@ -1491,7 +1521,12 @@ function TeacherProjects() {
                 {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
                 <span className="font-medium">decimales con coma (ej. 4,5)</span>
               </p>
-              <Accordion type="multiple" className="w-full">
+              <Accordion
+                type="multiple"
+                className="w-full"
+                value={openAccordionItems}
+                onValueChange={setOpenAccordionItems}
+              >
                 {gradingSubs.map((sub) => {
                   const ans = gradingAnsBySub[sub.id] ?? [];
                   // grade que aparece en el badge del header: la final si ya
@@ -1499,7 +1534,14 @@ function TeacherProjects() {
                   // o el legacy ai_grade), si no nada.
                   const headerGrade = sub.final_grade ?? sub.submission_grade ?? sub.ai_grade;
                   return (
-                    <AccordionItem key={sub.id} value={sub.id}>
+                    <AccordionItem
+                      key={sub.id}
+                      value={sub.id}
+                      id={`pj-sub-${sub.id}`}
+                      className={
+                        highlightSubId === sub.id ? "ring-2 ring-primary/60 rounded-md" : ""
+                      }
+                    >
                       <AccordionTrigger className="hover:no-underline">
                         <div className="flex flex-1 items-center gap-2 text-left">
                           <span className="font-medium text-sm">

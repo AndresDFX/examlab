@@ -19,12 +19,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,7 +48,9 @@ type ThreadRow = {
   refTitle?: string;
   questionTitle?: string;
   studentName?: string;
-  lastComment?: { body: string; created_at: string; authorName: string } | null;
+  studentUserId?: string;
+  courseName?: string;
+  lastComment?: { created_at: string; authorName: string } | null;
 };
 
 interface Props {
@@ -126,27 +123,50 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
         pjFMap.set(f.id, { project_id: f.project_id, title: f.title }),
       );
 
-      // Resolver ref → title (examen/taller/proyecto)
+      // Resolver ref → title + course_id (examen/taller/proyecto)
       const examIds = Array.from(new Set(Array.from(examQMap.values()).map((x) => x.exam_id)));
       const wsIds = Array.from(new Set(Array.from(wsQMap.values()).map((x) => x.workshop_id)));
       const pjIds = Array.from(new Set(Array.from(pjFMap.values()).map((x) => x.project_id)));
       const [exams, workshops, projects] = await Promise.all([
         examIds.length
-          ? db.from("exams").select("id, title").in("id", examIds)
+          ? db.from("exams").select("id, title, course_id").in("id", examIds)
           : Promise.resolve({ data: [] }),
         wsIds.length
-          ? db.from("workshops").select("id, title").in("id", wsIds)
+          ? db.from("workshops").select("id, title, course_id").in("id", wsIds)
           : Promise.resolve({ data: [] }),
         pjIds.length
-          ? db.from("projects").select("id, title").in("id", pjIds)
+          ? db.from("projects").select("id, title, course_id").in("id", pjIds)
           : Promise.resolve({ data: [] }),
       ]);
-      const examTitleById = new Map<string, string>();
-      ((exams.data ?? []) as any[]).forEach((x) => examTitleById.set(x.id, x.title));
-      const wsTitleById = new Map<string, string>();
-      ((workshops.data ?? []) as any[]).forEach((x) => wsTitleById.set(x.id, x.title));
-      const pjTitleById = new Map<string, string>();
-      ((projects.data ?? []) as any[]).forEach((x) => pjTitleById.set(x.id, x.title));
+      const examInfoById = new Map<string, { title: string; course_id: string | null }>();
+      ((exams.data ?? []) as any[]).forEach((x) =>
+        examInfoById.set(x.id, { title: x.title, course_id: x.course_id ?? null }),
+      );
+      const wsInfoById = new Map<string, { title: string; course_id: string | null }>();
+      ((workshops.data ?? []) as any[]).forEach((x) =>
+        wsInfoById.set(x.id, { title: x.title, course_id: x.course_id ?? null }),
+      );
+      const pjInfoById = new Map<string, { title: string; course_id: string | null }>();
+      ((projects.data ?? []) as any[]).forEach((x) =>
+        pjInfoById.set(x.id, { title: x.title, course_id: x.course_id ?? null }),
+      );
+
+      // Resolver course names para mostrar contexto al docente.
+      const courseIds = Array.from(
+        new Set(
+          [
+            ...Array.from(examInfoById.values()).map((v) => v.course_id),
+            ...Array.from(wsInfoById.values()).map((v) => v.course_id),
+            ...Array.from(pjInfoById.values()).map((v) => v.course_id),
+          ].filter(Boolean) as string[],
+        ),
+      );
+      const courseNameById = new Map<string, string>();
+      if (courseIds.length) {
+        const { data: courses } = await db.from("courses").select("id, name").in("id", courseIds);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ((courses ?? []) as any[]).forEach((c) => courseNameById.set(c.id, c.name));
+      }
 
       // Último comentario por thread + autor
       const threadIds = rows.map((r) => r.id);
@@ -155,10 +175,7 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
         .select("thread_id, user_id, body, created_at")
         .in("thread_id", threadIds)
         .order("created_at", { ascending: false });
-      const lastByThread = new Map<
-        string,
-        { user_id: string; body: string; created_at: string }
-      >();
+      const lastByThread = new Map<string, { user_id: string; body: string; created_at: string }>();
       ((comments ?? []) as any[]).forEach((c) => {
         if (!lastByThread.has(c.thread_id)) {
           lastByThread.set(c.thread_id, {
@@ -200,10 +217,7 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
       );
       const nameById = new Map<string, string>();
       if (userIds.length) {
-        const { data: profs } = await db
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", userIds);
+        const { data: profs } = await db.from("profiles").select("id, full_name").in("id", userIds);
         ((profs ?? []) as any[]).forEach((p) => nameById.set(p.id, p.full_name));
       }
 
@@ -211,21 +225,28 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
         let refId: string | undefined;
         let refTitle: string | undefined;
         let qContent: string | undefined;
+        let courseId: string | null | undefined;
         if (r.parent_kind === "exam") {
           const q = examQMap.get(r.question_id);
           refId = q?.exam_id;
           qContent = q?.content;
-          if (refId) refTitle = examTitleById.get(refId);
+          const info = refId ? examInfoById.get(refId) : undefined;
+          refTitle = info?.title;
+          courseId = info?.course_id;
         } else if (r.parent_kind === "workshop") {
           const q = wsQMap.get(r.question_id);
           refId = q?.workshop_id;
           qContent = q?.content;
-          if (refId) refTitle = wsTitleById.get(refId);
+          const info = refId ? wsInfoById.get(refId) : undefined;
+          refTitle = info?.title;
+          courseId = info?.course_id;
         } else {
           const f = pjFMap.get(r.question_id);
           refId = f?.project_id;
           qContent = f?.title;
-          if (refId) refTitle = pjTitleById.get(refId);
+          const info = refId ? pjInfoById.get(refId) : undefined;
+          refTitle = info?.title;
+          courseId = info?.course_id;
         }
         const lastC = lastByThread.get(r.id);
         const studentUserId = subUserById.get(r.submission_id);
@@ -235,9 +256,10 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
           refTitle,
           questionTitle: qContent,
           studentName: studentUserId ? nameById.get(studentUserId) : undefined,
+          studentUserId,
+          courseName: courseId ? courseNameById.get(courseId) : undefined,
           lastComment: lastC
             ? {
-                body: lastC.body,
                 created_at: lastC.created_at,
                 authorName: nameById.get(lastC.user_id) ?? "Usuario",
               }
@@ -257,7 +279,14 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
     if (!t.refId) return;
     onOpenChange(false);
     if (t.parent_kind === "exam") {
-      navigate({ to: "/app/teacher/monitor/$examId", params: { examId: t.refId } });
+      // monitor lee `?student=USER_ID` para auto-abrir los intentos de
+      // ese estudiante; sin él el docente cae en la lista plana.
+      navigate({
+        to: "/app/teacher/monitor/$examId",
+        params: { examId: t.refId },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        search: (t.studentUserId ? { student: t.studentUserId } : {}) as any,
+      });
     } else if (t.parent_kind === "workshop") {
       navigate({
         to: "/app/teacher/workshops",
@@ -377,29 +406,27 @@ function Section({
 }
 
 function ThreadRowItem({ thread, onGo }: { thread: ThreadRow; onGo: () => void }) {
-  const lastBody = thread.lastComment?.body ?? "(sin comentarios)";
   const lastWhen = thread.lastComment?.created_at ?? thread.created_at;
+  const lastAuthor = thread.lastComment?.authorName;
   return (
-    <div className="flex items-start gap-2 rounded-md border p-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">
+    <div className="flex items-center gap-2 rounded-md border p-2.5">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="text-sm font-medium truncate">{thread.studentName ?? "Estudiante"}</div>
+        <div className="text-xs text-muted-foreground truncate">
+          {thread.courseName ? `${thread.courseName} · ` : ""}
           {thread.refTitle ?? "(eliminado)"}
         </div>
-        <div className="text-xs text-muted-foreground truncate">
-          {thread.studentName ?? "Estudiante"}
-          {thread.questionTitle ? ` · ${thread.questionTitle}` : ""}
-        </div>
-        <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
-          <span className="font-medium">
-            {thread.lastComment?.authorName ?? "—"}:
-          </span>{" "}
-          {lastBody}
-        </div>
-        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+        {thread.questionTitle && (
+          <div className="text-[11px] text-muted-foreground/80 truncate">
+            {thread.questionTitle}
+          </div>
+        )}
+        <div className="text-[10px] text-muted-foreground/70 tabular-nums">
+          {lastAuthor ? `Último: ${lastAuthor} · ` : ""}
           {formatDateTime(lastWhen)}
         </div>
       </div>
-      <Button size="sm" variant="outline" onClick={onGo}>
+      <Button size="sm" variant="outline" onClick={onGo} className="shrink-0">
         Ir <ArrowRight className="h-3 w-3 ml-1" />
       </Button>
     </div>

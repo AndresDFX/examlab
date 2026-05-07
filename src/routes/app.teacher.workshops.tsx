@@ -223,6 +223,10 @@ function TeacherWorkshops() {
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [gradingOpen, setGradingOpen] = useState(false);
+  // Submission a destacar/scrollear cuando el dialog abre desde un
+  // deep-link (?submission=ID): se setea en el effect de la URL y el
+  // effect de wsSubs lo consume.
+  const [highlightSubId, setHighlightSubId] = useState<string | null>(null);
   // Per-question grading: questions of the workshop, and answers grouped
   // by submission. Edits live in `answersBySub` until the teacher saves a
   // single question or recomputes the global grade.
@@ -264,9 +268,7 @@ function TeacherWorkshops() {
         return;
       }
       updatedWs = { ...ws, group_mode: "teacher_assigned" } as Workshop;
-      setWorkshops((prev) =>
-        prev.map((w) => (w.id === ws.id ? updatedWs : w)),
-      );
+      setWorkshops((prev) => prev.map((w) => (w.id === ws.id ? updatedWs : w)));
       toast.success("Trabajo en grupo activado");
     }
     setGroupsWs(updatedWs);
@@ -331,9 +333,11 @@ function TeacherWorkshops() {
     if (autoOpenedFromUrl || workshops.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const wsParam = params.get("workshop") ?? params.get("id");
+    const subParam = params.get("submission");
     if (wsParam) {
       const ws = workshops.find((w) => w.id === wsParam);
       if (ws) {
+        if (subParam) setHighlightSubId(subParam);
         void openGrading(ws as Workshop);
       } else {
         toast.info(
@@ -349,6 +353,27 @@ function TeacherWorkshops() {
     setAutoOpenedFromUrl(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workshops, autoOpenedFromUrl]);
+
+  // Cuando el grading dialog tiene cargadas las submissions y hay un
+  // highlightSubId pendiente, scrollea a esa Card y aplica un ring
+  // temporal. Se limpia tras el efecto para no re-disparar.
+  useEffect(() => {
+    if (!gradingOpen || !highlightSubId || wsSubs.length === 0) return;
+    const target = wsSubs.find((s) => s.id === highlightSubId);
+    if (!target) {
+      setHighlightSubId(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      const el = document.getElementById(`ws-sub-${highlightSubId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    const clear = setTimeout(() => setHighlightSubId(null), 3500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(clear);
+    };
+  }, [gradingOpen, highlightSubId, wsSubs]);
 
   const openNew = () => {
     const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -610,10 +635,7 @@ function TeacherWorkshops() {
       const userIds = subs.map((s: any) => s.user_id);
       const subIds = subs.map((s: any) => s.id);
       const [{ data: profiles }, { data: ans }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, full_name, institutional_email")
-          .in("id", userIds),
+        supabase.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
         supabase
           .from("workshop_submission_answers")
           .select(
@@ -699,14 +721,18 @@ function TeacherWorkshops() {
         .update({ final_grade: newFinal, status: "calificado" })
         .eq("id", subId);
       if (subErr) {
-        toast.error(`Calificación guardada, pero falló recalcular calificación global: ${subErr.message}`);
+        toast.error(
+          `Calificación guardada, pero falló recalcular calificación global: ${subErr.message}`,
+        );
       } else {
         setWsSubs((prev) =>
           prev.map((s) =>
             s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
           ),
         );
-        toast.success(`Pregunta guardada · calificación global: ${newFinal}/${gradingWs?.max_score ?? 100}`);
+        toast.success(
+          `Pregunta guardada · calificación global: ${newFinal}/${gradingWs?.max_score ?? 100}`,
+        );
       }
     } finally {
       setSavingAnswerId(null);
@@ -724,7 +750,11 @@ function TeacherWorkshops() {
       return;
     }
     const raw =
-      answer.code_content ?? answer.diagram_code ?? answer.selected_option ?? answer.answer_text ?? "";
+      answer.code_content ??
+      answer.diagram_code ??
+      answer.selected_option ??
+      answer.answer_text ??
+      "";
     setAiGradingAnswerId(answer.id);
     try {
       const courseLanguage =
@@ -760,7 +790,6 @@ function TeacherWorkshops() {
       setAiGradingAnswerId(null);
     }
   };
-
 
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
@@ -1109,8 +1138,7 @@ function TeacherWorkshops() {
                       {!(ws as any).is_external && (
                         <RowAction
                           label={
-                            (ws as any).group_mode &&
-                            (ws as any).group_mode !== "individual"
+                            (ws as any).group_mode && (ws as any).group_mode !== "individual"
                               ? "Grupos"
                               : "Activar grupos"
                           }
@@ -1178,17 +1206,14 @@ function TeacherWorkshops() {
                   Actividad externa
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un taller que ocurrió fuera de la plataforma — presencial o
-                  hecho en otra herramienta. Solo registras notas para el
-                  cálculo del corte.
+                  Un taller que ocurrió fuera de la plataforma — presencial o hecho en otra
+                  herramienta. Solo registras notas para el cálculo del corte.
                 </p>
               </div>
               <Switch
                 id="ws-is-external"
                 checked={!!(form as any).is_external}
-                onCheckedChange={(v) =>
-                  setForm({ ...form, is_external: v } as any)
-                }
+                onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
               />
             </div>
             {/*
@@ -1204,9 +1229,9 @@ function TeacherWorkshops() {
                     Trabajo en grupo
                   </Label>
                   <p className="text-[11px] text-muted-foreground leading-tight">
-                    La entrega es del grupo: todos los miembros editan la misma entrega y
-                    reciben la misma nota. Después de guardar, configura los grupos desde el
-                    botón <strong>Grupos</strong> del taller.
+                    La entrega es del grupo: todos los miembros editan la misma entrega y reciben la
+                    misma nota. Después de guardar, configura los grupos desde el botón{" "}
+                    <strong>Grupos</strong> del taller.
                   </p>
                 </div>
                 <Switch
@@ -1291,14 +1316,11 @@ function TeacherWorkshops() {
                     : []
                   : [...selectedCourseIds];
                 const availableCuts = cuts.filter((c) => targetCourseIds.includes(c.course_id));
-                const showCuts =
-                  form.id || selectedCourseIds.size === 1 ? availableCuts : [];
+                const showCuts = form.id || selectedCourseIds.size === 1 ? availableCuts : [];
                 return (
                   <Select
                     value={form.cut_id ?? "__none__"}
-                    onValueChange={(v) =>
-                      setForm({ ...form, cut_id: v === "__none__" ? null : v })
-                    }
+                    onValueChange={(v) => setForm({ ...form, cut_id: v === "__none__" ? null : v })}
                     disabled={!form.id && selectedCourseIds.size !== 1}
                   >
                     <SelectTrigger className="mt-1">
@@ -1322,9 +1344,7 @@ function TeacherWorkshops() {
               )}
               {(form.id || selectedCourseIds.size === 1) &&
                 cuts.filter((c) =>
-                  form.id
-                    ? c.course_id === form.course_id
-                    : selectedCourseIds.has(c.course_id),
+                  form.id ? c.course_id === form.course_id : selectedCourseIds.has(c.course_id),
                 ).length === 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Este curso aún no tiene cortes definidos.
@@ -1608,10 +1628,7 @@ function TeacherWorkshops() {
                     key={s.id}
                     className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
                   >
-                    <Checkbox
-                      checked={included}
-                      onCheckedChange={(v) => toggleAssign(s.id, !!v)}
-                    />
+                    <Checkbox checked={included} onCheckedChange={(v) => toggleAssign(s.id, !!v)} />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{s.full_name}</div>
                       <div className="text-xs text-muted-foreground truncate">
@@ -1714,326 +1731,331 @@ function TeacherWorkshops() {
             )}
             {!(gradingWs as any)?.is_external &&
               wsSubs.map((sub) => (
-              <Card
-                key={sub.id}
-                className={
-                  sub.status === "ai_revisado" ? "border-amber-400/50 dark:border-amber-500/30" : ""
-                }
-              >
-                <CardContent className="p-4 space-y-3">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-sm">{sub.profile?.full_name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {sub.profile?.institutional_email}
+                <Card
+                  key={sub.id}
+                  id={`ws-sub-${sub.id}`}
+                  className={[
+                    sub.status === "ai_revisado"
+                      ? "border-amber-400/50 dark:border-amber-500/30"
+                      : "",
+                    highlightSubId === sub.id ? "ring-2 ring-primary/60" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <CardContent className="p-4 space-y-3">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-sm">{sub.profile?.full_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {sub.profile?.institutional_email}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={sub.status || "pendiente"} />
+                        <RowAction
+                          label="Eliminar entrega"
+                          icon={Trash2}
+                          tone="destructive"
+                          onClick={() =>
+                            deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")
+                          }
+                        />
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <StatusBadge status={sub.status || "pendiente"} />
-                      <RowAction
-                        label="Eliminar entrega"
-                        icon={Trash2}
-                        tone="destructive"
-                        onClick={() =>
-                          deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")
-                        }
-                      />
-                    </div>
-                  </div>
 
-                  {/* Student content */}
-                  {sub.content && (
-                    <p className="text-sm bg-muted/50 p-2.5 rounded whitespace-pre-wrap">
-                      {sub.content}
-                    </p>
-                  )}
-                  {sub.file_url && (
-                    <button
-                      onClick={async () => {
-                        const { data } = await supabase.storage
-                          .from("workshop-files")
-                          .createSignedUrl(sub.file_url!, 3600);
-                        if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                        else toast.error("No se pudo generar el enlace de descarga");
-                      }}
-                      className="flex items-center gap-1.5 text-sm text-primary hover:underline"
-                    >
-                      <FileIcon className="h-3.5 w-3.5" />
-                      <span className="truncate max-w-[200px]">
-                        {sub.file_url.split("/").pop()}
-                      </span>
-                      <Download className="h-3 w-3 shrink-0" />
-                    </button>
-                  )}
-                  {sub.external_link && (
-                    <a
-                      href={sub.external_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary flex items-center gap-1"
-                    >
-                      <ExternalLink className="h-3 w-3" /> {sub.external_link}
-                    </a>
-                  )}
-
-                  {/* AI Review pending approval */}
-                  {sub.status === "ai_revisado" && sub.ai_grade != null && (
-                    <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-medium">
-                          Calificación IA: {sub.ai_grade}/{gradingWs?.max_score ?? 100}
+                    {/* Student content */}
+                    {sub.content && (
+                      <p className="text-sm bg-muted/50 p-2.5 rounded whitespace-pre-wrap">
+                        {sub.content}
+                      </p>
+                    )}
+                    {sub.file_url && (
+                      <button
+                        onClick={async () => {
+                          const { data } = await supabase.storage
+                            .from("workshop-files")
+                            .createSignedUrl(sub.file_url!, 3600);
+                          if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                          else toast.error("No se pudo generar el enlace de descarga");
+                        }}
+                        className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                      >
+                        <FileIcon className="h-3.5 w-3.5" />
+                        <span className="truncate max-w-[200px]">
+                          {sub.file_url.split("/").pop()}
                         </span>
+                        <Download className="h-3 w-3 shrink-0" />
+                      </button>
+                    )}
+                    {sub.external_link && (
+                      <a
+                        href={sub.external_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" /> {sub.external_link}
+                      </a>
+                    )}
+
+                    {/* AI Review pending approval */}
+                    {sub.status === "ai_revisado" && sub.ai_grade != null && (
+                      <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          <span className="text-sm font-medium">
+                            Calificación IA: {sub.ai_grade}/{gradingWs?.max_score ?? 100}
+                          </span>
+                        </div>
+                        {sub.ai_feedback && (
+                          <p className="text-sm text-muted-foreground">{sub.ai_feedback}</p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            onClick={() => approveAIGrade(sub.id)}
+                          >
+                            <ThumbsUp className="h-3.5 w-3.5" /> Aprobar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5"
+                            onClick={() => rejectAIGrade(sub.id)}
+                          >
+                            <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
+                          </Button>
+                        </div>
                       </div>
-                      {sub.ai_feedback && (
-                        <p className="text-sm text-muted-foreground">{sub.ai_feedback}</p>
-                      )}
+                    )}
+
+                    {/* Per-question review & grading (editable) */}
+                    {wsQuestions.length > 0 && (
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
+                          <AccordionTrigger className="px-3 py-2 text-sm">
+                            Revisar respuestas por pregunta ({wsQuestions.length})
+                          </AccordionTrigger>
+                          <AccordionContent className="px-3 pb-3 space-y-3">
+                            {wsQuestions.map((q, idx) => {
+                              const ans = (answersBySub[sub.id] ?? []).find(
+                                (a) => a.question_id === q.id,
+                              );
+                              const raw =
+                                ans?.code_content ??
+                                ans?.diagram_code ??
+                                ans?.selected_option ??
+                                ans?.answer_text ??
+                                "";
+                              return (
+                                <div
+                                  key={q.id}
+                                  className="rounded-md border p-3 space-y-2 bg-muted/20"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {idx + 1}
+                                    </Badge>
+                                    <Badge variant="secondary" className="text-[10px] capitalize">
+                                      {q.type}
+                                    </Badge>
+                                    <span className="text-[11px] text-muted-foreground">
+                                      máx {q.points} pts
+                                    </span>
+                                  </div>
+                                  <div className="text-sm">
+                                    <MarkdownInline>{q.content}</MarkdownInline>
+                                  </div>
+                                  <div>
+                                    <Label className="text-[11px] text-muted-foreground">
+                                      Respuesta del estudiante
+                                    </Label>
+                                    {q.type === "cerrada" ? (
+                                      <div className="text-sm mt-1">
+                                        {(() => {
+                                          const i =
+                                            ans?.selected_option != null
+                                              ? Number(ans.selected_option)
+                                              : -1;
+                                          const choice = q.options?.choices?.[i];
+                                          const correct = q.options?.correct_index;
+                                          return choice != null ? (
+                                            <span
+                                              className={
+                                                correct === i
+                                                  ? "text-emerald-600 dark:text-emerald-400"
+                                                  : "text-destructive"
+                                              }
+                                            >
+                                              {String.fromCharCode(65 + i)}. {choice}
+                                            </span>
+                                          ) : (
+                                            <span className="italic text-muted-foreground">
+                                              Sin respuesta
+                                            </span>
+                                          );
+                                        })()}
+                                      </div>
+                                    ) : raw ? (
+                                      <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
+                                        {raw}
+                                      </pre>
+                                    ) : (
+                                      <p className="text-xs italic text-muted-foreground mt-1">
+                                        Sin respuesta
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
+                                    <div>
+                                      <Label className="text-[11px]">Calificación IA</Label>
+                                      <DecimalInput
+                                        min={0}
+                                        max={q.points}
+                                        value={ans?.ai_grade ?? null}
+                                        onChange={(v) => patchAnswer(sub.id, q.id, { ai_grade: v })}
+                                        className="h-8 text-sm mt-1"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-[11px]">Retroalimentación</Label>
+                                      <Textarea
+                                        rows={2}
+                                        value={ans?.ai_feedback ?? ""}
+                                        onChange={(e) =>
+                                          patchAnswer(sub.id, q.id, { ai_feedback: e.target.value })
+                                        }
+                                        className="text-sm mt-1"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => saveAnswerGrade(sub.id, q.id)}
+                                      disabled={savingAnswerId === ans?.id}
+                                    >
+                                      {savingAnswerId === ans?.id ? (
+                                        <Spinner size="sm" className="mr-1" />
+                                      ) : (
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Guardar pregunta
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => aiRegradeAnswer(sub.id, q, ans)}
+                                      disabled={aiGradingAnswerId === ans?.id}
+                                    >
+                                      {aiGradingAnswerId === ans?.id ? (
+                                        <Spinner size="sm" className="mr-1" />
+                                      ) : (
+                                        <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Recalificar IA
+                                    </Button>
+                                  </div>
+                                  <FeedbackThread
+                                    parentKind="workshop"
+                                    questionId={q.id}
+                                    submissionId={sub.id}
+                                    isTeacher
+                                  />
+                                </div>
+                              );
+                            })}
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  const newFinal = recomputeFinalGrade(sub.id);
+                                  setWsSubs((prev) =>
+                                    prev.map((s) =>
+                                      s.id === sub.id ? { ...s, final_grade: newFinal } : s,
+                                    ),
+                                  );
+                                  toast.info(
+                                    `Calificación global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar calificación" para persistir.`,
+                                  );
+                                }}
+                              >
+                                Recalcular calificación global
+                              </Button>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    )}
+
+                    {/* Manual grading / override */}
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="text-xs">Calificación final</Label>
+                        <DecimalInput
+                          min={0}
+                          max={gradingWs?.max_score ?? 100}
+                          value={sub.final_grade ?? null}
+                          onChange={(v) => {
+                            setWsSubs((prev) =>
+                              prev.map((s) => (s.id === sub.id ? { ...s, final_grade: v } : s)),
+                            );
+                          }}
+                          className="h-8 text-sm mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Retroalimentación</Label>
+                        <Textarea
+                          rows={3}
+                          value={sub.teacher_feedback ?? ""}
+                          onChange={(e) => {
+                            setWsSubs((prev) =>
+                              prev.map((s) =>
+                                s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s,
+                              ),
+                            );
+                          }}
+                          className="text-sm mt-1"
+                          placeholder="Escribe tu retroalimentación detallada..."
+                        />
+                      </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                          onClick={() => approveAIGrade(sub.id)}
+                          onClick={() =>
+                            saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")
+                          }
                         >
-                          <ThumbsUp className="h-3.5 w-3.5" /> Aprobar
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5"
-                          onClick={() => rejectAIGrade(sub.id)}
+                          onClick={() => gradeOneWithAI(sub)}
+                          disabled={aiGradingId === sub.id}
                         >
-                          <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
+                          {aiGradingId === sub.id ? (
+                            <Spinner size="sm" className="mr-1" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          {sub.status === "calificado" || sub.status === "ai_revisado"
+                            ? "Recalificar con IA"
+                            : "Calificar con IA"}
                         </Button>
                       </div>
                     </div>
-                  )}
-
-                  {/* Per-question review & grading (editable) */}
-                  {wsQuestions.length > 0 && (
-                    <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
-                        <AccordionTrigger className="px-3 py-2 text-sm">
-                          Revisar respuestas por pregunta ({wsQuestions.length})
-                        </AccordionTrigger>
-                        <AccordionContent className="px-3 pb-3 space-y-3">
-                          {wsQuestions.map((q, idx) => {
-                            const ans = (answersBySub[sub.id] ?? []).find(
-                              (a) => a.question_id === q.id,
-                            );
-                            const raw =
-                              ans?.code_content ??
-                              ans?.diagram_code ??
-                              ans?.selected_option ??
-                              ans?.answer_text ??
-                              "";
-                            return (
-                              <div key={q.id} className="rounded-md border p-3 space-y-2 bg-muted/20">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {idx + 1}
-                                  </Badge>
-                                  <Badge variant="secondary" className="text-[10px] capitalize">
-                                    {q.type}
-                                  </Badge>
-                                  <span className="text-[11px] text-muted-foreground">
-                                    máx {q.points} pts
-                                  </span>
-                                </div>
-                                <div className="text-sm">
-                                  <MarkdownInline>{q.content}</MarkdownInline>
-                                </div>
-                                <div>
-                                  <Label className="text-[11px] text-muted-foreground">
-                                    Respuesta del estudiante
-                                  </Label>
-                                  {q.type === "cerrada" ? (
-                                    <div className="text-sm mt-1">
-                                      {(() => {
-                                        const i =
-                                          ans?.selected_option != null
-                                            ? Number(ans.selected_option)
-                                            : -1;
-                                        const choice = q.options?.choices?.[i];
-                                        const correct = q.options?.correct_index;
-                                        return choice != null ? (
-                                          <span
-                                            className={
-                                              correct === i
-                                                ? "text-emerald-600 dark:text-emerald-400"
-                                                : "text-destructive"
-                                            }
-                                          >
-                                            {String.fromCharCode(65 + i)}. {choice}
-                                          </span>
-                                        ) : (
-                                          <span className="italic text-muted-foreground">
-                                            Sin respuesta
-                                          </span>
-                                        );
-                                      })()}
-                                    </div>
-                                  ) : raw ? (
-                                    <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
-                                      {raw}
-                                    </pre>
-                                  ) : (
-                                    <p className="text-xs italic text-muted-foreground mt-1">
-                                      Sin respuesta
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
-                                  <div>
-                                    <Label className="text-[11px]">Calificación IA</Label>
-                                    <DecimalInput
-                                      min={0}
-                                      max={q.points}
-                                      value={ans?.ai_grade ?? null}
-                                      onChange={(v) =>
-                                        patchAnswer(sub.id, q.id, { ai_grade: v })
-                                      }
-                                      className="h-8 text-sm mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-[11px]">Retroalimentación</Label>
-                                    <Textarea
-                                      rows={2}
-                                      value={ans?.ai_feedback ?? ""}
-                                      onChange={(e) =>
-                                        patchAnswer(sub.id, q.id, { ai_feedback: e.target.value })
-                                      }
-                                      className="text-sm mt-1"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => saveAnswerGrade(sub.id, q.id)}
-                                    disabled={savingAnswerId === ans?.id}
-                                  >
-                                    {savingAnswerId === ans?.id ? (
-                                      <Spinner size="sm" className="mr-1" />
-                                    ) : (
-                                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                    )}
-                                    Guardar pregunta
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => aiRegradeAnswer(sub.id, q, ans)}
-                                    disabled={aiGradingAnswerId === ans?.id}
-                                  >
-                                    {aiGradingAnswerId === ans?.id ? (
-                                      <Spinner size="sm" className="mr-1" />
-                                    ) : (
-                                      <Sparkles className="h-3.5 w-3.5 mr-1" />
-                                    )}
-                                    Recalificar IA
-                                  </Button>
-                                </div>
-                                <FeedbackThread
-                                  parentKind="workshop"
-                                  questionId={q.id}
-                                  submissionId={sub.id}
-                                  isTeacher
-                                />
-                              </div>
-                            );
-                          })}
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                const newFinal = recomputeFinalGrade(sub.id);
-                                setWsSubs((prev) =>
-                                  prev.map((s) =>
-                                    s.id === sub.id ? { ...s, final_grade: newFinal } : s,
-                                  ),
-                                );
-                                toast.info(
-                                  `Calificación global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar calificación" para persistir.`,
-                                );
-                              }}
-                            >
-                              Recalcular calificación global
-                            </Button>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  )}
-
-                  {/* Manual grading / override */}
-                  <div className="space-y-2">
-                    <div>
-                      <Label className="text-xs">Calificación final</Label>
-                      <DecimalInput
-                        min={0}
-                        max={gradingWs?.max_score ?? 100}
-                        value={sub.final_grade ?? null}
-                        onChange={(v) => {
-                          setWsSubs((prev) =>
-                            prev.map((s) =>
-                              s.id === sub.id ? { ...s, final_grade: v } : s,
-                            ),
-                          );
-                        }}
-                        className="h-8 text-sm mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Retroalimentación</Label>
-                      <Textarea
-                        rows={3}
-                        value={sub.teacher_feedback ?? ""}
-                        onChange={(e) => {
-                          setWsSubs((prev) =>
-                            prev.map((s) =>
-                              s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s,
-                            ),
-                          );
-                        }}
-                        className="text-sm mt-1"
-                        placeholder="Escribe tu retroalimentación detallada..."
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")
-                        }
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => gradeOneWithAI(sub)}
-                        disabled={aiGradingId === sub.id}
-                      >
-                        {aiGradingId === sub.id ? (
-                          <Spinner size="sm" className="mr-1" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5 mr-1" />
-                        )}
-                        {sub.status === "calificado" || sub.status === "ai_revisado"
-                          ? "Recalificar con IA"
-                          : "Calificar con IA"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))}
           </div>
         </DialogContent>
       </Dialog>
@@ -2042,15 +2064,10 @@ function TeacherWorkshops() {
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              Grupos del taller {groupsWs ? `— ${groupsWs.title}` : ""}
-            </DialogTitle>
+            <DialogTitle>Grupos del taller {groupsWs ? `— ${groupsWs.title}` : ""}</DialogTitle>
           </DialogHeader>
           {groupsWs && (
-            <WorkshopGroupsEditor
-              workshopId={groupsWs.id}
-              courseId={groupsWs.course_id}
-            />
+            <WorkshopGroupsEditor workshopId={groupsWs.id} courseId={groupsWs.course_id} />
           )}
         </DialogContent>
       </Dialog>
