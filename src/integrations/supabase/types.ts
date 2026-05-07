@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_prompts: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          id: string
+          system_prompt: string
+          updated_at: string
+          updated_by: string | null
+          use_case: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          system_prompt: string
+          updated_at?: string
+          updated_by?: string | null
+          use_case: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          system_prompt?: string
+          updated_at?: string
+          updated_by?: string | null
+          use_case?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_records: {
         Row: {
           created_at: string
@@ -1114,6 +1152,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          weight: number
         }
         Insert: {
           ai_generated?: boolean
@@ -1133,6 +1172,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          weight?: number
         }
         Update: {
           ai_generated?: boolean
@@ -1152,6 +1192,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          weight?: number
         }
         Relationships: [
           {
@@ -1556,6 +1597,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          weight: number
         }
         Insert: {
           ai_generated?: boolean
@@ -1575,6 +1617,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          weight?: number
         }
         Update: {
           ai_generated?: boolean
@@ -1594,6 +1637,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          weight?: number
         }
         Relationships: [
           {
