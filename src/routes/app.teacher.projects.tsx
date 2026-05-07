@@ -170,6 +170,11 @@ function TeacherProjects() {
     status: string;
     final_grade: number | null;
     ai_grade: number | null;
+    submission_grade: number | null;
+    defense_factor: number | null;
+    defense_notes: string | null;
+    defense_at: string | null;
+    repository_url: string | null;
     submitted_at: string | null;
     profile?: { full_name: string; institutional_email: string };
   };
@@ -651,7 +656,7 @@ function TeacherProjects() {
         db
           .from("project_submissions")
           .select(
-            "id, user_id, status, final_grade, ai_grade, submitted_at",
+            "id, user_id, status, final_grade, ai_grade, submission_grade, defense_factor, defense_notes, defense_at, repository_url, submitted_at",
           )
           .eq("project_id", p.id)
           .order("submitted_at", { ascending: false }),
@@ -732,10 +737,21 @@ function TeacherProjects() {
         toast.error(error.message);
         return;
       }
-      const newFinal = recomputeProjectGrade(subId);
+      const newSubmissionGrade = recomputeProjectGrade(subId);
+      // Modelo: submission_grade siempre se actualiza con la nota de la
+      // entrega. final_grade depende de defense_factor: si ya hay sustentación,
+      // se recalcula; si no, queda null hasta que el docente sustente.
+      const sub = gradingSubs.find((s) => s.id === subId);
+      const factor = sub?.defense_factor;
+      const newFinalGrade =
+        factor != null ? Number((newSubmissionGrade * factor).toFixed(2)) : null;
       const { error: subErr } = await db
         .from("project_submissions")
-        .update({ final_grade: newFinal, status: "calificado" })
+        .update({
+          submission_grade: newSubmissionGrade,
+          final_grade: newFinalGrade,
+          status: factor != null ? "calificado" : "entregado",
+        })
         .eq("id", subId);
       if (subErr) {
         toast.error(`Guardado, pero falló recalcular: ${subErr.message}`);
@@ -743,15 +759,75 @@ function TeacherProjects() {
       }
       setGradingSubs((prev) =>
         prev.map((s) =>
-          s.id === subId ? { ...s, final_grade: newFinal, status: "calificado" } : s,
+          s.id === subId
+            ? {
+                ...s,
+                submission_grade: newSubmissionGrade,
+                final_grade: newFinalGrade,
+                status: factor != null ? "calificado" : "entregado",
+              }
+            : s,
         ),
       );
       toast.success(
-        `Guardado · calificación global: ${newFinal}/${gradingProject?.max_score ?? 100}`,
+        factor != null
+          ? `Guardado · final: ${newFinalGrade}/${gradingProject?.max_score ?? 100} (entrega ${newSubmissionGrade} × sustentación ${factor})`
+          : `Entrega: ${newSubmissionGrade}/${gradingProject?.max_score ?? 100} — falta sustentación`,
       );
     } finally {
       setSavingId(null);
     }
+  };
+
+  /**
+   * Persiste la sustentación: factor 0..1 + notas. Recalcula final_grade
+   * como submission_grade × factor. Si factor es null/vacío, deja la
+   * entrega "sin sustentar" (final_grade null, status entregado).
+   */
+  const saveDefense = async (subId: string, factor: number | null, notes: string) => {
+    const sub = gradingSubs.find((s) => s.id === subId);
+    if (!sub) return;
+    const subGrade = sub.submission_grade ?? sub.ai_grade;
+    if (subGrade == null) {
+      toast.error("La entrega aún no tiene calificación. Califica los archivos primero.");
+      return;
+    }
+    const validFactor = factor != null && !Number.isNaN(factor) ? Math.max(0, Math.min(1, factor)) : null;
+    const newFinal =
+      validFactor != null ? Number((Number(subGrade) * validFactor).toFixed(2)) : null;
+    const { error } = await db
+      .from("project_submissions")
+      .update({
+        defense_factor: validFactor,
+        defense_notes: notes || null,
+        defense_at: validFactor != null ? new Date().toISOString() : null,
+        final_grade: newFinal,
+        status: validFactor != null ? "calificado" : "entregado",
+      })
+      .eq("id", subId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGradingSubs((prev) =>
+      prev.map((s) =>
+        s.id === subId
+          ? {
+              ...s,
+              defense_factor: validFactor,
+              defense_notes: notes || null,
+              defense_at: validFactor != null ? new Date().toISOString() : null,
+              final_grade: newFinal,
+              status: validFactor != null ? "calificado" : "entregado",
+            }
+          : s,
+      ),
+    );
+    toast.success(
+      validFactor != null
+        ? `Sustentación guardada · nota final: ${newFinal}/${gradingProject?.max_score ?? 100}`
+        : "Sustentación borrada",
+    );
   };
 
   const aiRegradeSubFile = async (subId: string, file: { id: string; title: string; points: number }) => {
@@ -1356,7 +1432,11 @@ function TeacherProjects() {
               <Accordion type="multiple" className="w-full">
                 {gradingSubs.map((sub) => {
                   const ans = gradingAnsBySub[sub.id] ?? [];
-                  const grade = sub.final_grade ?? sub.ai_grade;
+                  // grade que aparece en el badge del header: la final si ya
+                  // hay sustentación, si no la de la entrega (submission_grade
+                  // o el legacy ai_grade), si no nada.
+                  const headerGrade =
+                    sub.final_grade ?? sub.submission_grade ?? sub.ai_grade;
                   return (
                     <AccordionItem key={sub.id} value={sub.id}>
                       <AccordionTrigger className="hover:no-underline">
@@ -1370,14 +1450,21 @@ function TeacherProjects() {
                           <div className="ml-auto">
                             <StatusBadge status={sub.status} />
                           </div>
+                          {sub.defense_factor == null && headerGrade != null && (
+                            <Badge variant="secondary" className="text-[9px]">
+                              Falta sustentar
+                            </Badge>
+                          )}
                           <Badge variant="outline" className="text-[10px] tabular-nums">
-                            {grade != null ? `${grade}/${gradingProject?.max_score}` : "—"}
+                            {headerGrade != null
+                              ? `${headerGrade}/${gradingProject?.max_score}`
+                              : "—"}
                           </Badge>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
                             <p className="text-[11px] text-muted-foreground tabular-nums">
                               Enviado: {formatDateTime(sub.submitted_at)}
                             </p>
@@ -1390,6 +1477,26 @@ function TeacherProjects() {
                               <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar entrega
                             </Button>
                           </div>
+                          {sub.repository_url && (
+                            <div className="rounded-md border bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/30 p-2.5 space-y-1">
+                              <div className="text-[11px] text-muted-foreground">
+                                Repositorio del estudiante (verificar fechas vs entrega):
+                              </div>
+                              <a
+                                href={sub.repository_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline break-all"
+                              >
+                                {sub.repository_url}
+                              </a>
+                            </div>
+                          )}
+                          <DefensePanel
+                            sub={sub}
+                            maxScore={Number(gradingProject?.max_score ?? 100)}
+                            onSave={saveDefense}
+                          />
                           {gradingFiles.map((f) => {
                             const a = ans.find((x) => x.file_id === f.id);
                             return (
@@ -1499,6 +1606,96 @@ function TeacherProjects() {
         onConfirm={handleBulkDelete}
       />
     </div>
+  );
+}
+
+/**
+ * Panel de sustentación dentro del dialog de calificación. Muestra la
+ * nota de la entrega + un input 0..1 para el factor de sustentación +
+ * notas + botón guardar. Calcula la nota final como
+ * `submission_grade × defense_factor` cuando se guarda.
+ */
+function DefensePanel({
+  sub,
+  maxScore,
+  onSave,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sub: any;
+  maxScore: number;
+  onSave: (subId: string, factor: number | null, notes: string) => Promise<void>;
+}) {
+  const [factor, setFactor] = useState<string>(
+    sub.defense_factor != null ? String(sub.defense_factor) : "",
+  );
+  const [notes, setNotes] = useState<string>(sub.defense_notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const subGrade: number | null = sub.submission_grade ?? sub.ai_grade ?? null;
+  const factorNum = factor.trim() === "" ? null : Number(factor.replace(",", "."));
+  const factorValid = factorNum == null || (factorNum >= 0 && factorNum <= 1);
+  const previewFinal =
+    subGrade != null && factorNum != null && factorValid
+      ? Number((Number(subGrade) * factorNum).toFixed(2))
+      : null;
+  return (
+    <Card className="border-primary/30 bg-primary/5">
+      <CardContent className="p-3 space-y-2">
+        <div className="text-sm font-medium">Sustentación</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div>
+            <div className="text-muted-foreground text-[11px]">Nota entrega</div>
+            <div className="font-mono tabular-nums">
+              {subGrade != null ? `${subGrade}/${maxScore}` : "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[11px]">Factor (0–1)</div>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="ej. 0,8"
+              value={factor}
+              onChange={(e) => setFactor(e.target.value)}
+              className="h-8 text-xs"
+            />
+            {!factorValid && (
+              <p className="text-[10px] text-destructive mt-0.5">Debe estar entre 0 y 1</p>
+            )}
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[11px]">Nota final = entrega × factor</div>
+            <div className="font-mono tabular-nums font-semibold">
+              {previewFinal != null ? `${previewFinal}/${maxScore}` : "—"}
+            </div>
+          </div>
+        </div>
+        <Textarea
+          rows={2}
+          placeholder="Notas de la sustentación (opcional)"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="text-xs"
+        />
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={async () => {
+              if (!factorValid) return;
+              setSaving(true);
+              try {
+                await onSave(sub.id, factorNum, notes);
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving || !factorValid}
+          >
+            {saving ? <Spinner size="sm" className="mr-1" /> : null}
+            Guardar sustentación
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

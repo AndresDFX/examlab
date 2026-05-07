@@ -192,6 +192,14 @@ Los estudiantes se marcan presentes solos para que el docente no tenga que llama
 - **Deep-link**: el QR codifica `https://<host>/app/student/attendance?session=X&code=Y`. Si el estudiante lo abre así (cámara nativa o desde la app), el effect en `app.student.attendance.tsx` parsea, llama RPC y limpia la URL con `history.replaceState`.
 - **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
 
+### Proyectos: sustentación + link al repo obligatorio
+La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentación, `final_grade=null` (el estudiante ve "Falta sustentación").
+
+- **DB** (migración 20260507170000): `project_submissions.submission_grade`, `defense_factor` (0..1, CHECK), `defense_notes`, `defense_at`, `repository_url`. Backfill: para entregas ya calificadas pone `submission_grade = final_grade` y `defense_factor = 1` para preservar el comportamiento previo.
+- **Estudiante**: el `submit` exige un link `https?://...` (validación en cliente, columna NULLABLE en DB para no romper históricos). La IA califica → llena `submission_grade`, deja `final_grade=null`. UI explica que la nota final llega tras la sustentación.
+- **Docente**: en el dialog de calificación se muestra el link prominente con borde ámbar y advertencia "verificar fechas vs entrega". Cada submission tiene un `<DefensePanel>` con: nota entrega + input factor 0–1 + preview de nota final + notas + botón "Guardar sustentación". Al guardar persiste `defense_factor`/`defense_notes`/`defense_at` y recalcula `final_grade = submission_grade × factor`.
+- **Verificación de fechas vs commits**: el sistema solo persiste el link y la fecha de entrega — la comparación contra fechas de modificación del repo es manual del docente. La verificación automática vía API de GitHub/Drive queda como mejora futura (requiere OAuth y casos edge).
+
 ### Proyectos: entrega de código completo en ZIP (`type='codigo_zip'`)
 Slot adicional en `project_files` para que el estudiante suba un ZIP con todo su código fuente. Diagramas y documentos siguen entregándose en preguntas separadas (tipo `abierta`/`diagrama`/etc).
 

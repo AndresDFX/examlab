@@ -393,10 +393,9 @@ export function TeacherProjectFilesEditor({
           )}
           {qType === "codigo_zip" && (
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              El estudiante subirá un <strong>archivo .zip</strong> con todo su código fuente. La
-              IA descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc) en
-              conjunto. Diagramas y documentos van en preguntas separadas (tipo Abierta o
-              Diagrama).
+              El estudiante subirá un <strong>archivo .zip</strong> con todo su código fuente. La IA
+              descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc) en
+              conjunto. Diagramas y documentos van en preguntas separadas (tipo Abierta o Diagrama).
             </div>
           )}
           <div>
@@ -519,6 +518,7 @@ export function StudentProjectTaker({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [graded, setGraded] = useState<{ grade: number } | null>(null);
+  const [repositoryUrl, setRepositoryUrl] = useState<string>("");
   const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -539,10 +539,11 @@ export function StudentProjectTaker({
 
       const { data: sub } = await db
         .from("project_submissions")
-        .select("id, final_grade, status")
+        .select("id, final_grade, status, repository_url")
         .eq("project_id", projectId)
         .eq("user_id", user.id)
         .maybeSingle();
+      if (sub?.repository_url) setRepositoryUrl(sub.repository_url);
       if (sub?.id) {
         const { data: ans } = await db
           .from("project_submission_files")
@@ -597,6 +598,18 @@ export function StudentProjectTaker({
       toast.error("Este proyecto no tiene preguntas");
       return;
     }
+    // Link al repositorio: obligatorio. Validamos URL razonable
+    // (cualquier http/https) — el filtro fino (GitHub vs Drive vs otra)
+    // queda al docente al revisar manualmente.
+    const url = repositoryUrl.trim();
+    if (!url) {
+      toast.error("El link al repositorio (GitHub o Drive) es obligatorio");
+      return;
+    }
+    if (!/^https?:\/\/\S+\.\S+/i.test(url)) {
+      toast.error("Ingresa una URL válida (debe empezar con http:// o https://)");
+      return;
+    }
     // Confirmación del design system antes de entregar con respuestas
     // vacías. Las preguntas en blanco reciben 0 puntos por la lógica
     // de calificación; el modal evita entregas accidentales.
@@ -638,7 +651,11 @@ export function StudentProjectTaker({
         submissionId = existing.id;
         await db
           .from("project_submissions")
-          .update({ status: "entregado", submitted_at: new Date().toISOString() })
+          .update({
+            status: "entregado",
+            submitted_at: new Date().toISOString(),
+            repository_url: url,
+          })
           .eq("id", submissionId);
       } else {
         const { data: created, error } = await db
@@ -648,6 +665,7 @@ export function StudentProjectTaker({
             user_id: user.id,
             status: "entregado",
             submitted_at: new Date().toISOString(),
+            repository_url: url,
           })
           .select("id")
           .single();
@@ -776,24 +794,30 @@ export function StudentProjectTaker({
         totalEarned += earned;
       }
 
-      const finalGrade =
+      const submissionScore =
         totalPoints > 0
           ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2))
           : 0;
 
+      // submission_grade = nota de la entrega. final_grade queda null
+      // hasta que el docente registre la sustentación (defense_factor).
+      // Status pasa a 'entregado' (no 'calificado') porque falta sustentar.
       await db
         .from("project_submissions")
         .update({
-          ai_grade: finalGrade,
-          final_grade: finalGrade,
-          ai_feedback: `Calificación automática inmediata sobre ${maxScore} pts.`,
-          status: "calificado",
+          ai_grade: submissionScore,
+          submission_grade: submissionScore,
+          final_grade: null,
+          ai_feedback: `Calificación automática de la entrega sobre ${maxScore} pts. Falta sustentación.`,
+          status: "entregado",
         })
         .eq("id", submissionId);
 
-      setGraded({ grade: finalGrade });
-      onGraded?.(finalGrade);
-      toast.success(`Calificación: ${finalGrade} / ${maxScore}`);
+      setGraded({ grade: submissionScore });
+      onGraded?.(submissionScore);
+      toast.success(
+        `Entrega calificada: ${submissionScore} / ${maxScore}. La nota final se calcula tras la sustentación.`,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -815,14 +839,17 @@ export function StudentProjectTaker({
     return (
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader>
-          <CardTitle className="text-base">Resultado del proyecto</CardTitle>
+          <CardTitle className="text-base">Calificación de la entrega</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-2xl font-semibold tabular-nums">
             {graded.grade} / {maxScore}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            La calificación fue generada automáticamente por IA al enviar el proyecto.
+            Esta es la nota de la entrega calculada por IA. La{" "}
+            <strong>nota final del proyecto</strong> se calcula como{" "}
+            <code>entrega × factor de sustentación</code> y se publica cuando el docente registre tu
+            sustentación.
           </p>
         </CardContent>
       </Card>
@@ -832,6 +859,30 @@ export function StudentProjectTaker({
   return (
     <div className="space-y-4">
       <h3 className="font-semibold">{projectTitle}</h3>
+
+      {/* Link al repositorio: obligatorio. Permite al docente verificar
+          fechas de modificación contra la fecha de entrega. */}
+      <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">
+            Link al repositorio (GitHub o Drive) <span className="text-destructive">*</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Input
+            type="url"
+            placeholder="https://github.com/usuario/proyecto  o  https://drive.google.com/..."
+            value={repositoryUrl}
+            onChange={(e) => setRepositoryUrl(e.target.value)}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            <strong>Obligatorio</strong>. El docente verificará que la fecha de modificación de los
+            archivos sea igual o anterior a la fecha de entrega — no edites el repositorio después
+            de entregar.
+          </p>
+        </CardContent>
+      </Card>
+
       {questions.map((q, idx) => (
         <Card key={q.id}>
           <CardHeader className="pb-2">
@@ -898,9 +949,9 @@ export function StudentProjectTaker({
                   className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Sube un archivo .zip con todo el código fuente del proyecto. Máximo 100MB. La
-                  IA descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp,
-                  etc.) en conjunto.
+                  Sube un archivo .zip con todo el código fuente del proyecto. Máximo 100MB. La IA
+                  descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc.) en
+                  conjunto.
                 </p>
                 {answers[q.id] instanceof File && (
                   <Badge variant="secondary" className="text-[10px]">
