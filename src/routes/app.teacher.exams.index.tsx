@@ -50,6 +50,7 @@ import {
   MultiSelectToolbar,
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
+import { ListFilters } from "@/components/ui/list-filters";
 
 const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
 Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
@@ -86,7 +87,19 @@ function TeacherExams() {
   const [form, setForm] = useState<Partial<Exam>>({});
   const examDirty = useDirtyDialog(open, form);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const sel = useMultiSelect(exams);
+  const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  // Filtra exámenes por título y curso. Se aplica también al
+  // multi-select para que el "seleccionar todo" abarque solo lo visible.
+  const filteredExams = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return exams.filter((e) => {
+      if (courseFilter && e.course_id !== courseFilter) return false;
+      if (q && !e.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [exams, search, courseFilter]);
+  const sel = useMultiSelect(filteredExams);
 
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await supabase.from("exams").delete().in("id", ids);
@@ -98,13 +111,13 @@ function TeacherExams() {
 
   const selectedExamItems = useMemo(
     () =>
-      exams
+      filteredExams
         .filter((e) => sel.isSelected(e.id))
         .map((e) => ({
           id: e.id,
           label: `${e.title}${e.course?.name ? ` — ${e.course.name}` : ""}`,
         })),
-    [exams, sel],
+    [filteredExams, sel],
   );
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
@@ -115,7 +128,7 @@ function TeacherExams() {
       title: t("exam.deleteTitle", { defaultValue: "Eliminar examen" }),
       description: t("exam.deleteDesc", {
         defaultValue:
-          "Se eliminarán las preguntas, asignaciones y entregas asociadas al examen \"{{title}}\". Esta acción no se puede deshacer.",
+          'Se eliminarán las preguntas, asignaciones y entregas asociadas al examen "{{title}}". Esta acción no se puede deshacer.',
         title: exam.title,
       }),
       confirmLabel: t("common.delete", { defaultValue: "Eliminar" }),
@@ -317,7 +330,9 @@ function TeacherExams() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            {t("exam.subtitle", { count: exams.length })}
+            {filteredExams.length === exams.length
+              ? t("exam.subtitle", { count: exams.length })
+              : `${filteredExams.length} de ${exams.length}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -376,6 +391,15 @@ function TeacherExams() {
         </div>
       </div>
 
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar examen por título…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={courses}
+      />
+
       <MultiSelectToolbar
         count={sel.count}
         onClear={sel.clear}
@@ -404,7 +428,7 @@ function TeacherExams() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {exams.length === 0 && (
+              {exams.length === 0 ? (
                 <TableEmpty
                   colSpan={8}
                   icon={FileText}
@@ -417,8 +441,15 @@ function TeacherExams() {
                     </Button>
                   }
                 />
-              )}
-              {exams.map((e) => (
+              ) : filteredExams.length === 0 ? (
+                <TableEmpty
+                  colSpan={8}
+                  icon={FileText}
+                  text="Sin resultados para los filtros actuales."
+                  hint="Limpia el buscador o el curso para ver todos los exámenes."
+                />
+              ) : null}
+              {filteredExams.map((e) => (
                 <TableRow key={e.id} data-state={sel.isSelected(e.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={e.id} state={sel} />
@@ -518,17 +549,14 @@ function TeacherExams() {
                   Actividad externa
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un parcial que ocurrió fuera de la plataforma — presencial o
-                  hecho en otra herramienta. Solo registras notas para el
-                  cálculo del corte.
+                  Un parcial que ocurrió fuera de la plataforma — presencial o hecho en otra
+                  herramienta. Solo registras notas para el cálculo del corte.
                 </p>
               </div>
               <Switch
                 id="is-external"
                 checked={!!(form as any).is_external}
-                onCheckedChange={(v) =>
-                  setForm({ ...form, is_external: v } as any)
-                }
+                onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
               />
             </div>
             <div>
@@ -625,119 +653,121 @@ function TeacherExams() {
               )}
             </div>
             {!(form as any).is_external && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label required>
-                  {t("common.duration")} ({t("common.min")})
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={form.time_limit_minutes || ""}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      time_limit_minutes:
-                        e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
-                    })
-                  }
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label required>
+                    {t("common.duration")} ({t("common.min")})
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.time_limit_minutes || ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        time_limit_minutes:
+                          e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>{t("exam.navigation")}</Label>
+                  <Select
+                    value={form.navigation_type}
+                    onValueChange={(v) => setForm({ ...form, navigation_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="libre">{t("exam.navigationFree")}</SelectItem>
+                      <SelectItem value="secuencial">{t("exam.navigationSequential")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+            )}
+            {!(form as any).is_external && (
               <div>
-                <Label>{t("exam.navigation")}</Label>
+                <Label>
+                  Tipo de programación{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (Normal: el cronómetro cuenta hasta la fecha de fin para todos. Relativo: cada
+                    estudiante tiene la duración indicada desde que abre el examen, dentro de la
+                    ventana.)
+                  </span>
+                </Label>
                 <Select
-                  value={form.navigation_type}
-                  onValueChange={(v) => setForm({ ...form, navigation_type: v })}
+                  value={(form as any).schedule_type ?? "normal"}
+                  onValueChange={(v) => setForm({ ...form, schedule_type: v } as any)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="libre">{t("exam.navigationFree")}</SelectItem>
-                    <SelectItem value="secuencial">{t("exam.navigationSequential")}</SelectItem>
+                    <SelectItem value="normal">Normal (sincrónico)</SelectItem>
+                    <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
             )}
             {!(form as any).is_external && (
-            <div>
-              <Label>
-                Tipo de programación{" "}
-                <span className="text-xs text-muted-foreground font-normal">
-                  (Normal: el cronómetro cuenta hasta la fecha de fin para todos. Relativo: cada
-                  estudiante tiene la duración indicada desde que abre el examen, dentro de la
-                  ventana.)
-                </span>
-              </Label>
-              <Select
-                value={(form as any).schedule_type ?? "normal"}
-                onValueChange={(v) => setForm({ ...form, schedule_type: v } as any)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal (sincrónico)</SelectItem>
-                  <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <div>
+                <Label>
+                  Modo de calificación con reintentos{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (Aplica solo si se permite más de un intento.)
+                  </span>
+                </Label>
+                <Select
+                  value={(form as any).retry_mode ?? "last"}
+                  onValueChange={(v) => setForm({ ...form, retry_mode: v } as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="last">Último intento</SelectItem>
+                    <SelectItem value="average">Promedio</SelectItem>
+                    <SelectItem value="highest">Más alto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             {!(form as any).is_external && (
-            <div>
-              <Label>
-                Modo de calificación con reintentos{" "}
-                <span className="text-xs text-muted-foreground font-normal">
-                  (Aplica solo si se permite más de un intento.)
-                </span>
-              </Label>
-              <Select
-                value={(form as any).retry_mode ?? "last"}
-                onValueChange={(v) => setForm({ ...form, retry_mode: v } as any)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="last">Último intento</SelectItem>
-                  <SelectItem value="average">Promedio</SelectItem>
-                  <SelectItem value="highest">Más alto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="flex items-center justify-between">
+                <Label>{t("exam.shuffle")}</Label>
+                <Switch
+                  checked={!!form.shuffle_enabled}
+                  onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
+                />
+              </div>
             )}
             {!(form as any).is_external && (
-            <div className="flex items-center justify-between">
-              <Label>{t("exam.shuffle")}</Label>
-              <Switch
-                checked={!!form.shuffle_enabled}
-                onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
-              />
-            </div>
-            )}
-            {!(form as any).is_external && (
-            <div>
-              <Label>
-                Advertencias máximas{" "}
-                <span className="text-xs text-muted-foreground font-normal">
-                  (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
-                </span>
-              </Label>
-              <Input
-                type="number"
-                min={1}
-                max={50}
-                value={(form as any).max_warnings ?? 3}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    max_warnings:
-                      e.target.value === "" ? 3 : Math.max(1, Math.min(50, Number(e.target.value))),
-                  } as any)
-                }
-              />
-            </div>
+              <div>
+                <Label>
+                  Advertencias máximas{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
+                  </span>
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={(form as any).max_warnings ?? 3}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      max_warnings:
+                        e.target.value === ""
+                          ? 3
+                          : Math.max(1, Math.min(50, Number(e.target.value))),
+                    } as any)
+                  }
+                />
+              </div>
             )}
             <div>
               <Label>
@@ -753,9 +783,7 @@ function TeacherExams() {
                 return (
                   <Select
                     value={form.cut_id ?? "__none__"}
-                    onValueChange={(v) =>
-                      setForm({ ...form, cut_id: v === "__none__" ? null : v })
-                    }
+                    onValueChange={(v) => setForm({ ...form, cut_id: v === "__none__" ? null : v })}
                     disabled={!single}
                   >
                     <SelectTrigger>

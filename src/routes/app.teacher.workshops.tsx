@@ -70,6 +70,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { ListFilters } from "@/components/ui/list-filters";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
@@ -170,7 +171,21 @@ function TeacherWorkshops() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const sel = useMultiSelect(workshops);
+  const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  // Filtra por título (ASCII case-insensitive) y por course_id si hay
+  // curso seleccionado. Se usa tanto para el render de la tabla como
+  // para el multi-select (no queremos que el "seleccionar todo" abarque
+  // filas ocultas por el filtro).
+  const filteredWorkshops = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return workshops.filter((w) => {
+      if (courseFilter && w.course_id !== courseFilter) return false;
+      if (q && !w.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [workshops, search, courseFilter]);
+  const sel = useMultiSelect(filteredWorkshops);
 
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await supabase.from("workshops").delete().in("id", ids);
@@ -181,8 +196,11 @@ function TeacherWorkshops() {
   };
 
   const selectedWorkshopItems = useMemo(
-    () => workshops.filter((w) => sel.isSelected(w.id)).map((w) => ({ id: w.id, label: w.title })),
-    [workshops, sel],
+    () =>
+      filteredWorkshops
+        .filter((w) => sel.isSelected(w.id))
+        .map((w) => ({ id: w.id, label: w.title })),
+    [filteredWorkshops, sel],
   );
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
@@ -1016,7 +1034,11 @@ function TeacherWorkshops() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Talleres</h1>
-          <p className="text-sm text-muted-foreground">{workshops.length} talleres creados</p>
+          <p className="text-sm text-muted-foreground">
+            {filteredWorkshops.length === workshops.length
+              ? `${workshops.length} talleres creados`
+              : `${filteredWorkshops.length} de ${workshops.length} talleres`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ImportExportMenu
@@ -1074,6 +1096,15 @@ function TeacherWorkshops() {
         </div>
       </div>
 
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar taller por título…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={courses}
+      />
+
       <MultiSelectToolbar
         count={sel.count}
         onClear={sel.clear}
@@ -1098,7 +1129,7 @@ function TeacherWorkshops() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workshops.length === 0 && (
+              {workshops.length === 0 ? (
                 <TableEmpty
                   colSpan={6}
                   icon={Hammer}
@@ -1111,8 +1142,15 @@ function TeacherWorkshops() {
                     </Button>
                   }
                 />
-              )}
-              {workshops.map((ws) => (
+              ) : filteredWorkshops.length === 0 ? (
+                <TableEmpty
+                  colSpan={6}
+                  icon={Hammer}
+                  text="Sin resultados para los filtros actuales."
+                  hint="Limpia el buscador o el curso para ver todos los talleres."
+                />
+              ) : null}
+              {filteredWorkshops.map((ws) => (
                 <TableRow key={ws.id} data-state={sel.isSelected(ws.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={ws.id} state={sel} />

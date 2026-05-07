@@ -69,6 +69,7 @@ import {
   MultiSelectToolbar,
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
+import { ListFilters } from "@/components/ui/list-filters";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
@@ -139,7 +140,24 @@ function TeacherProjects() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const sel = useMultiSelect(projects);
+  const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  // Proyectos filtrados por título y curso. A diferencia de talleres/
+  // exámenes, un proyecto puede estar vinculado a N cursos vía
+  // linked_course_ids — el match contra el filtro chequea esa lista
+  // (cae al course_id legacy si no hay vínculos).
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return projects.filter((p) => {
+      if (courseFilter) {
+        const linked = p.linked_course_ids ?? [p.course_id];
+        if (!linked.includes(courseFilter)) return false;
+      }
+      if (q && !p.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [projects, search, courseFilter]);
+  const sel = useMultiSelect(filteredProjects);
 
   const handleBulkDelete = async (ids: string[]) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,8 +169,11 @@ function TeacherProjects() {
   };
 
   const selectedProjectItems = useMemo(
-    () => projects.filter((p) => sel.isSelected(p.id)).map((p) => ({ id: p.id, label: p.title })),
-    [projects, sel],
+    () =>
+      filteredProjects
+        .filter((p) => sel.isSelected(p.id))
+        .map((p) => ({ id: p.id, label: p.title })),
+    [filteredProjects, sel],
   );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
@@ -973,12 +994,25 @@ function TeacherProjects() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-          <p className="text-sm text-muted-foreground">{projects.length} proyectos</p>
+          <p className="text-sm text-muted-foreground">
+            {filteredProjects.length === projects.length
+              ? `${projects.length} proyectos`
+              : `${filteredProjects.length} de ${projects.length} proyectos`}
+          </p>
         </div>
         <Button onClick={openNew}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
         </Button>
       </div>
+
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar proyecto por título…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={courses}
+      />
 
       <MultiSelectToolbar
         count={sel.count}
@@ -1006,7 +1040,7 @@ function TeacherProjects() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projects.map((p) => (
+              {filteredProjects.map((p) => (
                 <TableRow key={p.id} data-state={sel.isSelected(p.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={p.id} state={sel} />
@@ -1089,7 +1123,7 @@ function TeacherProjects() {
                   </TableCell>
                 </TableRow>
               ))}
-              {projects.length === 0 && (
+              {projects.length === 0 ? (
                 <TableEmpty
                   colSpan={8}
                   icon={FolderKanban}
@@ -1102,7 +1136,14 @@ function TeacherProjects() {
                     </Button>
                   }
                 />
-              )}
+              ) : filteredProjects.length === 0 ? (
+                <TableEmpty
+                  colSpan={8}
+                  icon={FolderKanban}
+                  text="Sin resultados para los filtros actuales."
+                  hint="Limpia el buscador o el curso para ver todos los proyectos."
+                />
+              ) : null}
             </TableBody>
           </Table>
         </CardContent>
