@@ -311,7 +311,7 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquareText className="h-5 w-5" />
@@ -333,7 +333,7 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
             No hay conversaciones abiertas 🎉
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             {groups.exam.length > 0 && (
               <Section
                 icon={FileText}
@@ -392,7 +392,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 min-w-0">
       <div className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${color}`} />
         <h3 className="text-sm font-medium">{title}</h3>
@@ -400,7 +400,7 @@ function Section({
           {count}
         </Badge>
       </div>
-      <div className="space-y-1.5">{children}</div>
+      <div className="space-y-1.5 min-w-0">{children}</div>
     </div>
   );
 }
@@ -409,19 +409,19 @@ function ThreadRowItem({ thread, onGo }: { thread: ThreadRow; onGo: () => void }
   const lastWhen = thread.lastComment?.created_at ?? thread.created_at;
   const lastAuthor = thread.lastComment?.authorName;
   return (
-    <div className="flex items-center gap-2 rounded-md border p-2.5">
-      <div className="min-w-0 flex-1 space-y-0.5">
+    <div className="flex w-full min-w-0 items-center gap-2 rounded-md border p-2.5">
+      <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden">
         <div className="text-sm font-medium truncate">{thread.studentName ?? "Estudiante"}</div>
         <div className="text-xs text-muted-foreground truncate">
           {thread.courseName ? `${thread.courseName} · ` : ""}
           {thread.refTitle ?? "(eliminado)"}
         </div>
         {thread.questionTitle && (
-          <div className="text-[11px] text-muted-foreground/80 truncate">
+          <div className="text-[11px] text-muted-foreground/80 truncate break-words">
             {thread.questionTitle}
           </div>
         )}
-        <div className="text-[10px] text-muted-foreground/70 tabular-nums">
+        <div className="text-[10px] text-muted-foreground/70 truncate tabular-nums">
           {lastAuthor ? `Último: ${lastAuthor} · ` : ""}
           {formatDateTime(lastWhen)}
         </div>
