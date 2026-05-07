@@ -253,7 +253,7 @@ function AdminDashboard() {
                 </div>
               </div>
             ))}
-            <Link to="/app/admin/users">
+            <Link to="/app/admin/users" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manageUsers")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -407,7 +407,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                 />
               ))
             )}
-            <Link to="/app/teacher/projects">
+            <Link to="/app/teacher/projects" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -442,7 +442,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                 );
               })
             )}
-            <Link to="/app/teacher/exams">
+            <Link to="/app/teacher/exams" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -475,7 +475,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                 />
               ))
             )}
-            <Link to="/app/teacher/workshops">
+            <Link to="/app/teacher/workshops" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -706,7 +706,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                 const isOpen =
                   new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
                 return (
-                  <Link key={e.id} to="/app/student/take/$examId" params={{ examId: e.id }}>
+                  <Link key={e.id} to="/app/student/take/$examId" params={{ examId: e.id }} className="block">
                     <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
                       <div className="mt-0.5">
                         {isOpen ? (
@@ -731,7 +731,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                 );
               })
             )}
-            <Link to="/app/student/exams">
+            <Link to="/app/student/exams" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -782,7 +782,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                 );
               })
             )}
-            <Link to="/app/student/workshops">
+            <Link to="/app/student/workshops" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -807,7 +807,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
               pendingProjects.map((p: any) => {
                 const isOverdue = p.due_date && new Date(p.due_date) < new Date();
                 return (
-                  <Link key={p.id} to="/app/student/projects">
+                  <Link key={p.id} to="/app/student/projects" className="block">
                     <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
                       <div className="mt-0.5">
                         {isOverdue ? (
@@ -835,7 +835,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                 );
               })
             )}
-            <Link to="/app/student/projects">
+            <Link to="/app/student/projects" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -934,7 +934,7 @@ function QuickCard({
   // con `line-clamp-1` — antes "Define entregables y asigna a cursos"
   // se partía a 2 líneas y desbalanceaba el grid.
   return (
-    <Link to={to}>
+    <Link to={to} className="block">
       <Card className="hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer">
         <CardContent className="p-3 flex items-center gap-2.5">
           <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${color}`}>
