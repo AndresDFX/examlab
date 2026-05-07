@@ -272,18 +272,24 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
                   value={cut.end_date ?? ""}
                   onChange={(v) => updateCut(cut.id, { end_date: v || null })}
                 />
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={cut.weight || ""}
-                  onChange={(e) =>
-                    updateCut(cut.id, {
-                      weight: e.target.value === "" ? 0 : Number(e.target.value),
-                    })
-                  }
-                  placeholder="Peso %"
-                />
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="pr-7"
+                    value={cut.weight || ""}
+                    onChange={(e) =>
+                      updateCut(cut.id, {
+                        weight: e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    placeholder="Peso"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                    %
+                  </span>
+                </div>
                 <RowAction
                   label="Eliminar corte"
                   icon={Trash2}
@@ -344,11 +350,11 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
                       className="text-xs whitespace-nowrap"
                       title="Suma de los 4 buckets vs peso del corte"
                     >
-                      Buckets: {bucketsSum.toFixed(1)} / {expected || 0}
+                      Buckets: {bucketsSum.toFixed(1)}% / {expected || 0}%
                       {!matches && expected > 0 && (
                         <span className="ml-1">
                           ({overAllocated ? "exceso" : "faltan"}{" "}
-                          {Math.abs(expected - bucketsSum).toFixed(1)})
+                          {Math.abs(expected - bucketsSum).toFixed(1)}%)
                         </span>
                       )}
                     </Badge>
@@ -424,25 +430,30 @@ function BucketInput({
         {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
         {label}
       </Label>
-      <Input
-        type="number"
-        min={0}
-        max={max || undefined}
-        step="0.1"
-        value={value || ""}
-        onChange={(e) => {
-          const raw = e.target.value === "" ? 0 : Number(e.target.value);
-          onChange(max > 0 ? Math.min(raw, max) : raw);
-        }}
-        className="mt-1"
-      />
+      <div className="relative mt-1">
+        <Input
+          type="number"
+          min={0}
+          max={max || undefined}
+          step="0.1"
+          value={value || ""}
+          onChange={(e) => {
+            const raw = e.target.value === "" ? 0 : Number(e.target.value);
+            onChange(max > 0 ? Math.min(raw, max) : raw);
+          }}
+          className="pr-7"
+        />
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+          %
+        </span>
+      </div>
       {!hideAssigned && (
         <p
           className={`text-[10px] mt-1 tabular-nums ${
             over ? "text-destructive" : "text-muted-foreground"
           }`}
         >
-          Asignado: {assigned.toFixed(1)} / {value.toFixed(1)}
+          Asignado: {assigned.toFixed(1)}% / {value.toFixed(1)}%
           {over && <span className="ml-1">(exceso)</span>}
         </p>
       )}

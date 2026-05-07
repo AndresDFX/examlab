@@ -1179,32 +1179,37 @@ function TeacherProjects() {
                 const overBucket = currentWeight > pjMax + 0.01;
                 return (
                   <>
-                    <Label>Peso del proyecto (dentro del bucket de proyectos del corte)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={pjMax || undefined}
-                      step="0.1"
-                      placeholder="1"
-                      className="w-32"
-                      disabled={!selectedCut}
-                      value={(form as any).weight ?? 1}
-                      onChange={(e) => {
-                        const raw = e.target.value === "" ? 1 : Number(e.target.value);
-                        const capped = pjMax > 0 ? Math.min(raw, pjMax) : raw;
-                        setForm({ ...form, weight: capped } as any);
-                      }}
-                    />
+                    <Label>Peso del proyecto (% del bucket de proyectos del corte)</Label>
+                    <div className="relative w-32">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={pjMax || undefined}
+                        step="0.1"
+                        placeholder="1"
+                        className="pr-7"
+                        disabled={!selectedCut}
+                        value={(form as any).weight ?? 1}
+                        onChange={(e) => {
+                          const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                          const capped = pjMax > 0 ? Math.min(raw, pjMax) : raw;
+                          setForm({ ...form, weight: capped } as any);
+                        }}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                        %
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {selectedCut ? (
                         <>
                           Bucket proyectos del corte{" "}
-                          <span className="font-medium">{selectedCut.name}</span>: {pjBucket}.
-                          Otros proyectos del corte suman {otherProjectsSum.toFixed(1)}, te queda{" "}
-                          <strong>{pjMax.toFixed(1)}</strong> disponible.
+                          <span className="font-medium">{selectedCut.name}</span>: {pjBucket}%.
+                          Otros proyectos del corte suman {otherProjectsSum.toFixed(1)}%, te queda{" "}
+                          <strong>{pjMax.toFixed(1)}%</strong> disponible.
                           {overBucket && (
                             <span className="block text-destructive mt-1">
-                              El peso actual ({currentWeight.toFixed(1)}) excede el bucket. Reduce
+                              El peso actual ({currentWeight.toFixed(1)}%) excede el bucket. Reduce
                               este o ajusta el bucket en el editor de cortes.
                             </span>
                           )}

@@ -1320,34 +1320,36 @@ function TeacherWorkshops() {
                 const bucketFull = wsMax === 0 && wsBucket > 0;
                 return (
                   <>
-                    <Label>Peso del taller (dentro del bucket de talleres del corte)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={wsMax || undefined}
-                      step="0.1"
-                      placeholder="1"
-                      className="w-32 mt-1"
-                      disabled={!selectedCut || bucketFull}
-                      value={(form as any).weight ?? 1}
-                      onChange={(e) => {
-                        const raw = e.target.value === "" ? 1 : Number(e.target.value);
-                        const capped = wsMax > 0 ? Math.min(raw, wsMax) : raw;
-                        setForm({ ...form, weight: capped } as any);
-                      }}
-                    />
+                    <Label>Peso del taller (% del bucket de talleres del corte)</Label>
+                    <div className="relative mt-1 w-32">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={wsMax || undefined}
+                        step="0.1"
+                        placeholder="1"
+                        className="pr-7"
+                        disabled={!selectedCut || bucketFull}
+                        value={(form as any).weight ?? 1}
+                        onChange={(e) => {
+                          const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                          const capped = wsMax > 0 ? Math.min(raw, wsMax) : raw;
+                          setForm({ ...form, weight: capped } as any);
+                        }}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                        %
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {selectedCut ? (
                         <>
                           Bucket talleres del corte{" "}
-                          <span className="font-medium">{selectedCut.name}</span>: {wsBucket}.
-                          Otros talleres del corte suman {otherWorkshopsSum.toFixed(1)}, te queda{" "}
-                          <strong>{wsMax.toFixed(1)}</strong> disponible
+                          <span className="font-medium">{selectedCut.name}</span>: {wsBucket}%.
+                          Otros talleres del corte suman {otherWorkshopsSum.toFixed(1)}%, te queda{" "}
+                          <strong>{wsMax.toFixed(1)}%</strong> disponible
                           {currentWeight > 0 && wsMax > 0 && (
-                            <>
-                              {" "}
-                              (peso actual: {currentWeight.toFixed(1)})
-                            </>
+                            <> (peso actual: {currentWeight.toFixed(1)}%)</>
                           )}
                           .
                           {bucketFull && (

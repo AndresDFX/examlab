@@ -711,36 +711,41 @@ function ExamEditor() {
                   const overBucket = currentWeight > examMax + 0.01;
                   return (
                     <>
-                      <Label>Peso del examen (dentro del bucket de exámenes del corte)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={examMax || undefined}
-                        step="0.1"
-                        placeholder="1"
-                        className="w-32"
-                        disabled={!selectedCut}
-                        value={(exam as any).weight ?? 1}
-                        onChange={(e) => {
-                          const raw = e.target.value === "" ? 1 : Number(e.target.value);
-                          // Cap al remanente del bucket de exámenes del corte
-                          // (no del cut.weight global).
-                          const capped = examMax > 0 ? Math.min(raw, examMax) : raw;
-                          setExam({ ...exam, weight: capped } as any);
-                        }}
-                      />
+                      <Label>Peso del examen (% del bucket de exámenes del corte)</Label>
+                      <div className="relative w-32">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={examMax || undefined}
+                          step="0.1"
+                          placeholder="1"
+                          className="pr-7"
+                          disabled={!selectedCut}
+                          value={(exam as any).weight ?? 1}
+                          onChange={(e) => {
+                            const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                            // Cap al remanente del bucket de exámenes del corte
+                            // (no del cut.weight global).
+                            const capped = examMax > 0 ? Math.min(raw, examMax) : raw;
+                            setExam({ ...exam, weight: capped } as any);
+                          }}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                          %
+                        </span>
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {selectedCut ? (
                           <>
                             Cuánto pesa este examen en la <strong>nota final del curso</strong>.
                             Bucket exámenes del corte{" "}
-                            <span className="font-medium">{selectedCut.name}</span>: {examBucket}.
-                            Otros exámenes del corte suman {otherExamsSum.toFixed(1)}, te queda{" "}
-                            <strong>{examMax.toFixed(1)}</strong> disponible.
+                            <span className="font-medium">{selectedCut.name}</span>: {examBucket}%.
+                            Otros exámenes del corte suman {otherExamsSum.toFixed(1)}%, te queda{" "}
+                            <strong>{examMax.toFixed(1)}%</strong> disponible.
                             {overBucket && (
                               <span className="block text-destructive mt-1">
-                                El peso actual ({currentWeight.toFixed(1)}) excede el bucket. Reduce
-                                este o ajusta el bucket en el editor de cortes.
+                                El peso actual ({currentWeight.toFixed(1)}%) excede el bucket.
+                                Reduce este o ajusta el bucket en el editor de cortes.
                               </span>
                             )}
                           </>
@@ -770,18 +775,18 @@ function ExamEditor() {
                           Pesos del corte "{cutName}"
                         </div>
                         <Badge variant={over ? "destructive" : remaining === 0 ? "default" : "secondary"}>
-                          {total.toFixed(1)} / 100
+                          {total.toFixed(1)}% / 100%
                           {over
-                            ? ` (excede ${(total - 100).toFixed(1)})`
+                            ? ` (excede ${(total - 100).toFixed(1)}%)`
                             : remaining > 0
-                            ? ` (faltan ${remaining.toFixed(1)})`
+                            ? ` (faltan ${remaining.toFixed(1)}%)`
                             : ""}
                         </Badge>
                       </div>
                       {itemsInCut.length === 0 && !currentExamItem ? (
                         <p className="text-xs text-muted-foreground">
                           Este corte aún no tiene items. Al guardar, este examen se agregará con peso{" "}
-                          {currentWeight}.
+                          {currentWeight}%.
                         </p>
                       ) : (
                         <ul className="text-xs space-y-1">
@@ -799,19 +804,19 @@ function ExamEditor() {
                             return (
                               <li key={i.id} className="flex justify-between">
                                 <span className="text-muted-foreground">{label}</span>
-                                <span className="font-mono">{Number(i.weight).toFixed(1)}</span>
+                                <span className="font-mono">{Number(i.weight).toFixed(1)}%</span>
                               </li>
                             );
                           })}
                           <li className="flex justify-between border-t pt-1">
                             <span className="font-medium">Este examen ({exam.title || "sin título"})</span>
-                            <span className="font-mono font-medium">{currentWeight.toFixed(1)}</span>
+                            <span className="font-mono font-medium">{currentWeight.toFixed(1)}%</span>
                           </li>
                         </ul>
                       )}
                       {over && (
                         <p className="text-xs text-destructive">
-                          La suma supera 100. Reduce este peso o ajusta otros items del corte.
+                          La suma supera 100%. Reduce este peso o ajusta otros items del corte.
                         </p>
                       )}
                     </div>
