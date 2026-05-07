@@ -89,10 +89,16 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
       const ms = new Date(state.closesAt).getTime() - Date.now();
       setMsToClose(ms);
       if (ms <= 0) {
-        // Auto-cierre por expiración
+        // Auto-cierre por expiración. CRÍTICO: cerrar también la DB
+        // (UPDATE check_in_open=false + DELETE state) antes de invocar
+        // onClose. Si no, queda inconsistencia: sessions.check_in_open
+        // sigue true pero la ventana ya pasó → al reabrir el proyector,
+        // el tick vuelve a detectar expiración y se cierra en loop.
         cancelled = true;
         toast.info("La ventana de check-in expiró");
-        onClose();
+        void db
+          .rpc("teacher_close_attendance_check_in", { p_session_id: state.sessionId })
+          .finally(() => onClose());
       }
     };
     const id = setInterval(tick, 1000);
@@ -100,7 +106,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [state.rotationSeconds, state.closesAt, recomputeCode, onClose]);
+  }, [state.rotationSeconds, state.closesAt, state.sessionId, recomputeCode, onClose]);
 
   // Carga inicial + realtime de presentes para esta sesión.
   useEffect(() => {

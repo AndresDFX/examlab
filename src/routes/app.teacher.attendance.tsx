@@ -423,12 +423,31 @@ function TeacherAttendance() {
       toast.error(error.message);
       return;
     }
+    // Sesión inconsistente: check_in_open=true pero no hay state. Limpiar
+    // y permitir al docente iniciar uno nuevo.
     if (!data) {
-      toast.error("No hay un check-in activo para esta sesión");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).rpc("teacher_close_attendance_check_in", {
+        p_session_id: sess.id,
+      });
+      toast.info("El check-in anterior expiró. Inicia uno nuevo.");
       loadCourse();
+      openCheckInConfig(sess);
       return;
     }
     const row = data as { seed: string; rotation_seconds: number; closes_at: string };
+    // State expirado en DB pero check_in_open=true: limpiar y abrir uno
+    // nuevo en vez de reabrir un proyector que se cerrará en el primer tick.
+    if (new Date(row.closes_at).getTime() <= Date.now()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).rpc("teacher_close_attendance_check_in", {
+        p_session_id: sess.id,
+      });
+      toast.info("El check-in anterior expiró. Inicia uno nuevo.");
+      loadCourse();
+      openCheckInConfig(sess);
+      return;
+    }
     setProjector({
       sessionId: sess.id,
       seed: row.seed,
