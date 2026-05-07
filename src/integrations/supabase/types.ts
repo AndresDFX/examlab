@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_model_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          model: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          model: string
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          model?: string
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ai_prompts: {
         Row: {
           course_id: string | null
@@ -48,6 +78,38 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_check_in_state: {
+        Row: {
+          closes_at: string
+          opened_at: string
+          rotation_seconds: number
+          seed: string
+          session_id: string
+        }
+        Insert: {
+          closes_at: string
+          opened_at?: string
+          rotation_seconds?: number
+          seed: string
+          session_id: string
+        }
+        Update: {
+          closes_at?: string
+          opened_at?: string
+          rotation_seconds?: number
+          seed?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_check_in_state_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "attendance_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -89,6 +151,7 @@ export type Database = {
       }
       attendance_sessions: {
         Row: {
+          check_in_open: boolean
           course_id: string
           created_at: string
           created_by: string
@@ -97,6 +160,7 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          check_in_open?: boolean
           course_id: string
           created_at?: string
           created_by: string
@@ -105,6 +169,7 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          check_in_open?: boolean
           course_id?: string
           created_at?: string
           created_by?: string
@@ -1661,6 +1726,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      compute_attendance_code: {
+        Args: { p_period: number; p_seed: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1706,6 +1775,26 @@ export type Database = {
       notify_students_cut_closing: { Args: { _days?: number }; Returns: number }
       notify_teachers_pending_grading: { Args: never; Returns: number }
       notify_teachers_workshop_due_tomorrow: { Args: never; Returns: number }
+      student_check_in_attendance: {
+        Args: { p_code: string; p_session_id: string }
+        Returns: Json
+      }
+      teacher_close_attendance_check_in: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
+      teacher_mark_pending_absent: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
+      teacher_open_attendance_check_in: {
+        Args: {
+          p_duration_minutes?: number
+          p_rotation_seconds?: number
+          p_session_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "Admin" | "Docente" | "Estudiante"
