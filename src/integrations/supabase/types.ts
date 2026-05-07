@@ -1303,6 +1303,7 @@ export type Database = {
           group_size_min: number
           id: string
           instructions: string | null
+          is_external: boolean
           max_files: number
           max_score: number
           project_type: string
@@ -1326,6 +1327,7 @@ export type Database = {
           group_size_min?: number
           id?: string
           instructions?: string | null
+          is_external?: boolean
           max_files?: number
           max_score?: number
           project_type?: string
@@ -1349,6 +1351,7 @@ export type Database = {
           group_size_min?: number
           id?: string
           instructions?: string | null
+          is_external?: boolean
           max_files?: number
           max_score?: number
           project_type?: string
@@ -1481,6 +1484,7 @@ export type Database = {
           started_at: string
           status: string
           submitted_at: string | null
+          teacher_feedback: string | null
           updated_at: string
           user_id: string
         }
@@ -1498,6 +1502,7 @@ export type Database = {
           started_at?: string
           status?: string
           submitted_at?: string | null
+          teacher_feedback?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1515,6 +1520,7 @@ export type Database = {
           started_at?: string
           status?: string
           submitted_at?: string | null
+          teacher_feedback?: string | null
           updated_at?: string
           user_id?: string
         }
