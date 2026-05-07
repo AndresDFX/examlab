@@ -109,6 +109,8 @@ REGLA: la suma de (items + attendance_weight) dentro de un corte
 
 **Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` **cuentan como 0** con su peso original (NO se reescalan). Eso refleja la realidad del estudiante: lo que debe y todavía no entregó/no tiene nota es nota perdida hasta que aparezca. Solo retorna `null` (UI muestra "—") cuando NINGÚN item del set tiene score. Misma regla en `computeCutGrade` y `computeCourseFinalGrade`.
 
+**Asistencia → corte**: `attendance_sessions` NO tiene `cut_id`. La pertenencia se deriva por fechas: una sesión cuenta para el corte X si `session_date` está entre `cut.start_date` y `cut.end_date`. El score de asistencia del corte es `presentes / sesionesEnCorte` escalado a la escala del curso, y entra al weighted avg con `weight = cut.attendance_weight`. Implementado idéntico en `app.student.grades.tsx` y `app.teacher.gradebook.tsx`.
+
 **Forms de items**: input de Peso disabled cuando no hay corte; max = `cut.weight`.
 
 ---
