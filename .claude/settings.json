@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx tsr *)",
       "Bash(git commit -m ' *)",
-      "Read(//d/Projects/Personal/examlab/src/routes/**)"
+      "Read(//d/Projects/Personal/examlab/src/routes/**)",
+      "Bash(dos2unix supabase/functions/ai-grade-submission/index.ts)",
+      "Bash(sed -i 's/\\\\r$//' supabase/functions/ai-grade-submission/index.ts)"
     ]
   }
 }

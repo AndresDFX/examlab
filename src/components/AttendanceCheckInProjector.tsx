@@ -25,7 +25,6 @@ import {
   buildAttendanceCheckInUrl,
   computeAttendanceCode,
 } from "@/lib/attendance-code";
-import { useConfirm } from "@/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -56,7 +55,6 @@ function formatRemaining(ms: number): string {
 
 export function AttendanceCheckInProjector({ state, onClose }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const confirm = useConfirm();
   const [code, setCode] = useState("------");
   const [secondsToRotation, setSecondsToRotation] = useState(state.rotationSeconds);
   const [msToClose, setMsToClose] = useState(() => new Date(state.closesAt).getTime() - Date.now());
@@ -177,14 +175,11 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
   }, []);
 
   const handleCloseCheckIn = async () => {
-    const ok = await confirm({
-      title: "Cerrar check-in",
-      description:
-        "Los estudiantes no podrán seguir marcándose. Después podrás marcar a los pendientes como ausentes.",
-      confirmLabel: "Cerrar check-in",
-      tone: "warning",
-    });
-    if (!ok) return;
+    // No mostramos confirm aquí: estaríamos en fullscreen y el Dialog se
+    // renderiza en document.body, fuera del elemento fullscreen-ed → queda
+    // OCULTO y el botón parece colgarse. Si el docente cierra por error,
+    // puede reabrir el check-in. La confirmación de "marcar pendientes
+    // ausentes" sí aparece después porque ya salimos de fullscreen.
     setClosing(true);
     try {
       const { error } = await db.rpc("teacher_close_attendance_check_in", {
@@ -194,7 +189,9 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
         toast.error(error.message);
         return;
       }
-      await exitFullscreen();
+      // Fire-and-forget: en algunos browsers exitFullscreen no resuelve
+      // hasta el próximo fullscreenchange y eso bloquea el handler.
+      void exitFullscreen();
       onClose();
       toast.success("Check-in cerrado");
     } finally {
