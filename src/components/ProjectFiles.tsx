@@ -504,6 +504,7 @@ export function StudentProjectTaker({
   onGraded?: (finalGrade: number) => void;
 }) {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -560,11 +561,57 @@ export function StudentProjectTaker({
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
 
+  /**
+   * Devuelve los números de pregunta (1-indexed) cuyas respuestas están
+   * vacías. Para "cerrada" cuenta como vacía si no se eligió opción;
+   * para el resto cuenta como vacía si el contenido (string) trim es "".
+   */
+  const getUnansweredNumbers = (): number[] => {
+    const empty: number[] = [];
+    questions.forEach((q, idx) => {
+      const a = answers[q.id];
+      const isCerrada = q.type === "cerrada";
+      const isBlank = isCerrada
+        ? a === undefined || a === null || a === ""
+        : !String(a ?? "").trim();
+      if (isBlank) empty.push(idx + 1);
+    });
+    return empty;
+  };
+
   const submit = async () => {
     if (!user) return;
     if (!questions.length) {
       toast.error("Este proyecto no tiene preguntas");
       return;
+    }
+    // Confirmación del design system antes de entregar con respuestas
+    // vacías. Las preguntas en blanco reciben 0 puntos por la lógica
+    // de calificación; el modal evita entregas accidentales.
+    const unanswered = getUnansweredNumbers();
+    if (unanswered.length > 0) {
+      const ok = await confirm({
+        title: `${unanswered.length} pregunta${unanswered.length === 1 ? "" : "s"} sin responder`,
+        description: (
+          <div className="space-y-1">
+            <p>
+              Sin respuesta:{" "}
+              <span className="font-medium text-foreground">
+                {unanswered.map((n) => `#${n}`).join(", ")}
+              </span>
+              .
+            </p>
+            <p>
+              Esas preguntas recibirán 0 puntos. ¿Quieres entregar el proyecto
+              de todas formas?
+            </p>
+          </div>
+        ),
+        confirmLabel: "Entregar de todas formas",
+        cancelLabel: "Seguir respondiendo",
+        tone: "warning",
+      });
+      if (!ok) return;
     }
     setSubmitting(true);
     try {
