@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
+import { PendingExamGradesModal } from "@/components/PendingExamGradesModal";
 import {
   Users,
   BookOpen,
@@ -52,8 +53,7 @@ function formatNotifDate(
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return t("dashboard.notifications.relativeHours", { hour: diffHours });
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1)
-    return `${t("dashboard.notifications.relativeYesterday")} ${formatTime(d)}`;
+  if (diffDays === 1) return `${t("dashboard.notifications.relativeYesterday")} ${formatTime(d)}`;
   // Weekday + time: caso muy específico de notificaciones recientes
   // (esta semana). Lo dejamos inline porque ningún otro lugar lo usa.
   if (diffDays < 7)
@@ -295,19 +295,44 @@ function AdminDashboard() {
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   void userId;
-  const [counts, setCounts] = useState({ exams: 0, workshops: 0, projects: 0, openThreads: 0, courses: 0 });
+  const [counts, setCounts] = useState({
+    pendingExamGrades: 0,
+    workshops: 0,
+    projects: 0,
+    openThreads: 0,
+    courses: 0,
+  });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
   const [openFeedbackModalOpen, setOpenFeedbackModalOpen] = useState(false);
+  const [pendingExamsModalOpen, setPendingExamsModalOpen] = useState(false);
+
+  // Cuenta entregas con nota IA pendiente de aprobación (final_override_grade
+  // sin setear). Se llama también después de aprobar desde el modal para
+  // refrescar el badge sin recargar todo el dashboard.
+  const refreshPendingExamGrades = async () => {
+    const { count } = await supabase
+      .from("submissions")
+      .select("id", { count: "exact", head: true })
+      .is("final_override_grade", null)
+      .not("ai_grade", "is", null);
+    setCounts((prev) => ({ ...prev, pendingExamGrades: count ?? 0 }));
+  };
 
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
       // Conversaciones abiertas: feedback_threads con closed=false que el
       // docente puede ver (RLS filtra por curso vía is_question_course_teacher).
-      const [e, w, pr, threads, c] = await Promise.all([
-        supabase.from("exams").select("id", { count: "exact", head: true }),
+      // Notas de examen pendientes: submissions con ai_grade y sin
+      // final_override_grade (la IA propuso, el docente todavía no aprobó).
+      const [pendingExam, w, pr, threads, c] = await Promise.all([
+        (supabase as any)
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .is("final_override_grade", null)
+          .not("ai_grade", "is", null),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
         (supabase as any).from("projects").select("id", { count: "exact", head: true }),
         (supabase as any)
@@ -317,7 +342,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         supabase.from("courses").select("id", { count: "exact", head: true }),
       ]);
       setCounts({
-        exams: e.count ?? 0,
+        pendingExamGrades: pendingExam.count ?? 0,
         workshops: w.count ?? 0,
         projects: pr.count ?? 0,
         openThreads: threads.count ?? 0,
@@ -355,9 +380,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
-          label={t("dashboard.stats.exams")}
-          value={counts.exams}
+          label={t("dashboard.stats.pendingExamGrades", {
+            defaultValue: "Notas de examen pendientes",
+          })}
+          value={counts.pendingExamGrades}
           color="text-violet-500 dark:text-violet-400"
+          onClick={() => setPendingExamsModalOpen(true)}
         />
         <Stat
           icon={Hammer}
@@ -408,9 +436,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   key={p.id}
                   title={p.title}
                   subtitle={p.course?.name}
-                  date={
-                    p.due_date ? formatDate(p.due_date) : t("dashboard.noDate")
-                  }
+                  date={p.due_date ? formatDate(p.due_date) : t("dashboard.noDate")}
                 />
               ))
             )}
@@ -476,9 +502,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   key={w.id}
                   title={w.title}
                   subtitle={w.course?.name}
-                  date={
-                    w.due_date ? formatDate(w.due_date) : t("dashboard.noDate")
-                  }
+                  date={w.due_date ? formatDate(w.due_date) : t("dashboard.noDate")}
                 />
               ))
             )}
@@ -527,6 +551,11 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       </div>
 
       <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />
+      <PendingExamGradesModal
+        open={pendingExamsModalOpen}
+        onOpenChange={setPendingExamsModalOpen}
+        onChange={refreshPendingExamGrades}
+      />
     </>
   );
 }
@@ -554,15 +583,17 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .eq("user_id", userId);
       const examIds = (asg ?? []).map((a: any) => a.exam?.id).filter(Boolean);
       const { data: doneSubs } = examIds.length
-        ? await supabase.from("submissions").select("exam_id").eq("user_id", userId).in("exam_id", examIds).in("status", ["completado", "sospechoso"])
+        ? await supabase
+            .from("submissions")
+            .select("exam_id")
+            .eq("user_id", userId)
+            .in("exam_id", examIds)
+            .in("status", ["completado", "sospechoso"])
         : { data: [] as any[] };
       const doneExamIds = new Set((doneSubs ?? []).map((s: any) => s.exam_id));
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
-        .filter(
-          (e: any) =>
-            e && new Date(e.end_time) > new Date() && !doneExamIds.has(e.id),
-        )
+        .filter((e: any) => e && new Date(e.end_time) > new Date() && !doneExamIds.has(e.id))
         .sort(
           (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
         )
@@ -633,9 +664,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       );
       const pjs = ((pjData ?? []) as any[])
         .filter(
-          (p) =>
-            !submittedIds.has(p.id) &&
-            (!p.start_date || new Date(p.start_date) <= new Date()),
+          (p) => !submittedIds.has(p.id) && (!p.start_date || new Date(p.start_date) <= new Date()),
         )
         .sort(
           (a: any, b: any) =>
@@ -715,7 +744,12 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                 const isOpen =
                   new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
                 return (
-                  <Link key={e.id} to="/app/student/take/$examId" params={{ examId: e.id }} className="block">
+                  <Link
+                    key={e.id}
+                    to="/app/student/take/$examId"
+                    params={{ examId: e.id }}
+                    className="block"
+                  >
                     <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
                       <div className="mt-0.5">
                         {isOpen ? (
