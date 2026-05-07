@@ -1,12 +1,15 @@
 /**
  * Editor de grupos para un taller (modo teacher_assigned).
  *
- * Lista los estudiantes matriculados (sin asignar) y los grupos creados,
- * permite crear/eliminar grupos y mover estudiantes con checkboxes.
+ * Soporta drag & drop nativo (HTML5) para mover estudiantes:
+ *   - desde "sin grupo" hacia un grupo
+ *   - entre grupos
+ *   - desde un grupo de vuelta a "sin grupo"
  *
- * Restricción de DB (trigger): un user solo puede estar en UN grupo por
- * taller. La UI fuerza esto del lado cliente moviendo en lugar de
- * permitir asignar a múltiples.
+ * Modo mixto: en el mismo taller pueden coexistir estudiantes con
+ * grupo (entregan en grupo) y sin grupo (entregan individual). El
+ * trigger de DB sigue garantizando que cada user esté en MÁXIMO un
+ * grupo del taller.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, UserMinus, Loader2, Users } from "lucide-react";
+import { Plus, Trash2, GripVertical, Loader2, Users } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +33,8 @@ interface Props {
   courseId: string;
 }
 
+const UNASSIGNED = "__unassigned__";
+
 export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const confirm = useConfirm();
   const [students, setStudents] = useState<Student[]>([]);
@@ -38,6 +43,8 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [newGroupName, setNewGroupName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [draggingUserId, setDraggingUserId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,28 +155,73 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
     await load();
   };
 
-  const addToGroup = async (userId: string, groupId: string) => {
-    const { error } = await db
-      .from("workshop_group_members")
-      .insert({ group_id: groupId, user_id: userId });
-    if (error) {
-      toast.error(error.message);
-      return;
+  /**
+   * Mueve a un usuario desde su grupo actual (o desde "sin asignar") al
+   * destino (otro grupo o UNASSIGNED). Aplica la operación más mínima
+   * posible: si el user ya está en el destino, no hace nada.
+   */
+  const moveUser = async (userId: string, target: string) => {
+    const currentGroupId = memberByUser.get(userId);
+    if (currentGroupId === target) return;
+    if (target === UNASSIGNED) {
+      if (!currentGroupId) return;
+      const { error } = await db
+        .from("workshop_group_members")
+        .delete()
+        .eq("group_id", currentGroupId)
+        .eq("user_id", userId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+    } else {
+      // Borrar membresía previa primero (el trigger no permite >1 grupo
+      // por taller, así que el INSERT solo no es seguro).
+      if (currentGroupId) {
+        const { error: dErr } = await db
+          .from("workshop_group_members")
+          .delete()
+          .eq("group_id", currentGroupId)
+          .eq("user_id", userId);
+        if (dErr) {
+          toast.error(dErr.message);
+          return;
+        }
+      }
+      const { error } = await db
+        .from("workshop_group_members")
+        .insert({ group_id: target, user_id: userId });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
     }
     await load();
   };
 
-  const removeFromGroup = async (userId: string, groupId: string) => {
-    const { error } = await db
-      .from("workshop_group_members")
-      .delete()
-      .eq("group_id", groupId)
-      .eq("user_id", userId);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    await load();
+  // ── Drag & drop handlers ──
+  const onDragStart = (userId: string) => (e: React.DragEvent) => {
+    setDraggingUserId(userId);
+    e.dataTransfer.setData("text/user-id", userId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const onDragEnd = () => {
+    setDraggingUserId(null);
+    setDragOverTarget(null);
+  };
+  const onDragOver = (target: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverTarget(target);
+  };
+  const onDragLeave = () => setDragOverTarget(null);
+  const onDrop = (target: string) => async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverTarget(null);
+    const userId = e.dataTransfer.getData("text/user-id") || draggingUserId;
+    setDraggingUserId(null);
+    if (!userId) return;
+    await moveUser(userId, target);
   };
 
   return (
@@ -184,9 +236,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             </Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Crea grupos y asigna estudiantes. Cada estudiante puede pertenecer a un solo grupo del
-            taller. Cuando entreguen, todos los miembros editarán la misma entrega y recibirán la
-            misma nota.
+            Crea grupos y arrastra estudiantes. Pueden coexistir miembros con grupo (entregan en
+            grupo) y sin grupo (entregan individual) en el mismo taller. Cada estudiante puede
+            pertenecer a un solo grupo a la vez.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -218,54 +270,43 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Sin asignar */}
-          <Card>
+          {/* Sin asignar — drop target para "quitar de grupo" */}
+          <Card
+            className={
+              dragOverTarget === UNASSIGNED
+                ? "ring-2 ring-primary/60 transition-all"
+                : "transition-all"
+            }
+            onDragOver={onDragOver(UNASSIGNED)}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop(UNASSIGNED)}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                Estudiantes sin grupo
+                Sin grupo (entrega individual)
                 <Badge variant="outline" className="text-[10px]">
                   {unassigned.length}
                 </Badge>
               </CardTitle>
+              <p className="text-[10px] text-muted-foreground">
+                Estos estudiantes entregan el taller individualmente. Arrastra a un grupo para
+                cambiar.
+              </p>
             </CardHeader>
-            <CardContent className="space-y-1.5">
+            <CardContent className="space-y-1.5 min-h-[80px]">
               {unassigned.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
                   Todos los estudiantes están en algún grupo.
                 </p>
               ) : (
                 unassigned.map((s) => (
-                  <div
+                  <DraggableStudent
                     key={s.id}
-                    className="flex items-center justify-between gap-2 rounded border p-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm truncate">{s.full_name}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">{s.institutional_email}</div>
-                    </div>
-                    {groups.length > 0 ? (
-                      <select
-                        className="text-xs border rounded px-1.5 py-1 bg-background"
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) void addToGroup(s.id, e.target.value);
-                        }}
-                      >
-                        <option value="" disabled>
-                          Asignar a…
-                        </option>
-                        {groups.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">
-                        Crea un grupo primero
-                      </span>
-                    )}
-                  </div>
+                    student={s}
+                    isDragging={draggingUserId === s.id}
+                    onDragStart={onDragStart(s.id)}
+                    onDragEnd={onDragEnd}
+                  />
                 ))
               )}
             </CardContent>
@@ -276,14 +317,23 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             {groups.length === 0 && (
               <Card>
                 <CardContent className="p-6 text-sm text-muted-foreground text-center">
-                  Sin grupos creados. Empieza creando uno arriba.
+                  Sin grupos creados. Empieza creando uno arriba y arrastra estudiantes.
                 </CardContent>
               </Card>
             )}
             {groups.map((g) => {
               const ms = studentsByGroup.get(g.id) ?? [];
+              const isOver = dragOverTarget === g.id;
               return (
-                <Card key={g.id}>
+                <Card
+                  key={g.id}
+                  className={
+                    isOver ? "ring-2 ring-primary/60 transition-all" : "transition-all"
+                  }
+                  onDragOver={onDragOver(g.id)}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop(g.id)}
+                >
                   <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-sm flex items-center gap-2">
                       {g.name}
@@ -301,33 +351,20 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </CardHeader>
-                  <CardContent className="space-y-1.5">
+                  <CardContent className="space-y-1.5 min-h-[60px]">
                     {ms.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">
-                        Sin miembros. Asigna estudiantes desde el panel de la izquierda.
+                        Arrastra estudiantes aquí.
                       </p>
                     ) : (
                       ms.map((s) => (
-                        <div
+                        <DraggableStudent
                           key={s.id}
-                          className="flex items-center justify-between gap-2 rounded bg-muted/30 px-2 py-1.5"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm truncate">{s.full_name}</div>
-                            <div className="text-[10px] text-muted-foreground truncate">
-                              {s.institutional_email}
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => removeFromGroup(s.id, g.id)}
-                            title="Quitar del grupo"
-                          >
-                            <UserMinus className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                          student={s}
+                          isDragging={draggingUserId === s.id}
+                          onDragStart={onDragStart(s.id)}
+                          onDragEnd={onDragEnd}
+                        />
                       ))
                     )}
                   </CardContent>
@@ -337,6 +374,37 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DraggableStudent({
+  student,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  student: Student;
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`flex items-center gap-2 rounded border bg-background p-2 cursor-grab active:cursor-grabbing select-none ${
+        isDragging ? "opacity-40" : "hover:bg-muted/40"
+      }`}
+    >
+      <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm truncate">{student.full_name}</div>
+        <div className="text-[10px] text-muted-foreground truncate">
+          {student.institutional_email}
+        </div>
+      </div>
     </div>
   );
 }

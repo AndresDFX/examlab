@@ -333,46 +333,30 @@ function StudentWorkshopDetail() {
 
       {/* Info de grupo: si el taller es grupal y el estudiante tiene
           asignado un grupo, mostrar miembros. Si NO tiene grupo, alertar. */}
-      {workshop.group_mode && workshop.group_mode !== "individual" && (
-        <Card
-          className={
-            myGroup
-              ? "border-primary/30 bg-primary/5"
-              : "border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10"
-          }
-        >
+      {/* Card del grupo: solo aparece si el estudiante TIENE grupo. En
+          modo mixto, los estudiantes sin grupo no ven nada y entregan
+          individualmente como un taller normal. */}
+      {myGroup && (
+        <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">
-              {myGroup ? `Tu grupo: ${myGroup.name}` : "Trabajo en grupo"}
-            </CardTitle>
+            <CardTitle className="text-base">Tu grupo: {myGroup.name}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
-            {myGroup ? (
-              <>
-                <p className="text-xs text-muted-foreground mb-2">
-                  La entrega es del grupo: cualquier miembro puede editarla y todos reciben
-                  la misma nota.
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {myGroup.members.map((m) => (
-                    <span
-                      key={m.id}
-                      className="text-xs rounded-full bg-background border px-2 py-0.5"
-                    >
-                      {m.fullName}
-                      {m.id === user.id && (
-                        <span className="ml-1 text-muted-foreground">(tú)</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="text-xs">
-                Este taller es de trabajo en grupo, pero aún no tienes un grupo asignado.
-                Espera a que el docente te asigne uno antes de entregar.
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mb-2">
+              La entrega es del grupo: cualquier miembro puede editarla y todos reciben la
+              misma nota.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {myGroup.members.map((m) => (
+                <span
+                  key={m.id}
+                  className="text-xs rounded-full bg-background border px-2 py-0.5"
+                >
+                  {m.fullName}
+                  {m.id === user.id && <span className="ml-1 text-muted-foreground">(tú)</span>}
+                </span>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

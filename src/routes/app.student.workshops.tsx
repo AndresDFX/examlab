@@ -176,9 +176,13 @@ function StudentWorkshops() {
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
           const isOpen = workshop.status === "published" && !isOverdue && !isUpcoming;
+          // Modo mixto: en un taller con group_mode != 'individual',
+          // pueden coexistir estudiantes con grupo (entregan en grupo) y
+          // sin grupo (entregan individual). NO bloqueamos al estudiante
+          // sin grupo — simplemente entrega individualmente.
           const isGroupWorkshop =
             workshop.group_mode && workshop.group_mode !== "individual";
-          const blockedNoGroup = isGroupWorkshop && !groupId;
+          void isGroupWorkshop;
           return (
             <Card key={workshop.id}>
               <CardContent className="p-5 space-y-3">
@@ -266,15 +270,10 @@ function StudentWorkshops() {
                   </div>
                 )}
 
-                {/* Aviso: taller grupal sin grupo asignado */}
-                {isOpen && blockedNoGroup && (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10 p-2 text-xs">
-                    Trabajo en grupo: aún no tienes grupo asignado. Espera a que el docente
-                    te asigne uno antes de poder entregar.
-                  </div>
-                )}
-                {/* Single CTA: respond and submit. Re-opens for review when graded. */}
-                {isOpen && !isGraded && !blockedNoGroup && (
+                {/* Single CTA: respond and submit. Re-opens for review when graded.
+                    En modo mixto: si el estudiante tiene grupo, la entrega es del
+                    grupo; si no, entrega individualmente. */}
+                {isOpen && !isGraded && (
                   <Button
                     size="sm"
                     className="w-full"
