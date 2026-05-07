@@ -303,22 +303,36 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
-      const [e, w, pr, pg, c] = await Promise.all([
+      // Para "Por calificar" sumamos los 3 tipos (examen + taller + proyecto)
+      // con !inner para que solo cuente los que tienen entidad padre viva
+      // (descarta huérfanos cuyo exam/workshop/project fue eliminado).
+      // Misma lógica que PendingGradingModal — para que el conteo coincida.
+      const [e, w, pr, pgExams, pgWorkshops, pgProjects, c] = await Promise.all([
         supabase.from("exams").select("id", { count: "exact", head: true }),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
         (supabase as any).from("projects").select("id", { count: "exact", head: true }),
         supabase
           .from("submissions")
-          .select("id", { count: "exact", head: true })
+          .select("id, exam:exams!inner(id)", { count: "exact", head: true })
           .eq("status", "completado")
           .is("final_override_grade", null),
+        supabase
+          .from("workshop_submissions")
+          .select("id, workshop:workshops!inner(id)", { count: "exact", head: true })
+          .in("status", ["entregado", "calificado"])
+          .is("final_grade", null),
+        (supabase as any)
+          .from("project_submissions")
+          .select("id, project:projects!inner(id)", { count: "exact", head: true })
+          .eq("status", "entregado")
+          .is("final_grade", null),
         supabase.from("courses").select("id", { count: "exact", head: true }),
       ]);
       setCounts({
         exams: e.count ?? 0,
         workshops: w.count ?? 0,
         projects: pr.count ?? 0,
-        pendingGrades: pg.count ?? 0,
+        pendingGrades: (pgExams.count ?? 0) + (pgWorkshops.count ?? 0) + (pgProjects.count ?? 0),
         courses: c.count ?? 0,
       });
 

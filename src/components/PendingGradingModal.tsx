@@ -29,25 +29,28 @@ const db = supabase as any;
 type ExamPending = {
   id: string;
   exam_id: string;
+  user_id: string;
   submitted_at: string | null;
-  exam: { id: string; title: string; course?: { name: string } | null };
-  student: { full_name: string } | null;
+  exam: { id: string; title: string; course?: { name: string } | null } | null;
+  studentName?: string;
 };
 
 type WorkshopPending = {
   id: string;
   workshop_id: string;
+  user_id: string;
   submitted_at: string | null;
-  workshop: { id: string; title: string; course?: { name: string } | null };
-  student: { full_name: string } | null;
+  workshop: { id: string; title: string; course?: { name: string } | null } | null;
+  studentName?: string;
 };
 
 type ProjectPending = {
   id: string;
   project_id: string;
+  user_id: string;
   submitted_at: string | null;
-  project: { id: string; title: string; course?: { name: string } | null };
-  student: { full_name: string } | null;
+  project: { id: string; title: string; course?: { name: string } | null } | null;
+  studentName?: string;
 };
 
 interface Props {
@@ -67,11 +70,13 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      // submissions.user_id → auth.users (no FK directa a profiles), así que
+      // traemos profiles aparte y mappeamos por user_id en JS.
       const [eRes, wRes, pRes] = await Promise.all([
         db
           .from("submissions")
           .select(
-            "id, exam_id, submitted_at, exam:exams(id, title, course:courses(name)), student:profiles!submissions_user_id_fkey(full_name)",
+            "id, exam_id, user_id, submitted_at, exam:exams!inner(id, title, course:courses(name))",
           )
           .eq("status", "completado")
           .is("final_override_grade", null)
@@ -80,7 +85,7 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
         db
           .from("workshop_submissions")
           .select(
-            "id, workshop_id, submitted_at, workshop:workshops(id, title, course:courses(name)), student:profiles!workshop_submissions_user_id_fkey(full_name)",
+            "id, workshop_id, user_id, submitted_at, workshop:workshops!inner(id, title, course:courses(name))",
           )
           .in("status", ["entregado", "calificado"])
           .is("final_grade", null)
@@ -89,7 +94,7 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
         db
           .from("project_submissions")
           .select(
-            "id, project_id, submitted_at, project:projects(id, title, course:courses(name)), student:profiles!project_submissions_user_id_fkey(full_name)",
+            "id, project_id, user_id, submitted_at, project:projects!inner(id, title, course:courses(name))",
           )
           .eq("status", "entregado")
           .is("final_grade", null)
@@ -97,9 +102,32 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
           .limit(50),
       ]);
       if (cancelled) return;
-      setExams(((eRes.data ?? []) as ExamPending[]).filter((r) => r.exam));
-      setWorkshops(((wRes.data ?? []) as WorkshopPending[]).filter((r) => r.workshop));
-      setProjects(((pRes.data ?? []) as ProjectPending[]).filter((r) => r.project));
+
+      const eRows = (eRes.data ?? []) as ExamPending[];
+      const wRows = (wRes.data ?? []) as WorkshopPending[];
+      const pRows = (pRes.data ?? []) as ProjectPending[];
+
+      // Recolecta todos los user_ids y trae profiles en un solo query.
+      const userIds = Array.from(
+        new Set([
+          ...eRows.map((r) => r.user_id),
+          ...wRows.map((r) => r.user_id),
+          ...pRows.map((r) => r.user_id),
+        ]),
+      );
+      const nameById = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profs } = await db.from("profiles").select("id, full_name").in("id", userIds);
+        for (const p of (profs ?? []) as { id: string; full_name: string }[]) {
+          nameById.set(p.id, p.full_name);
+        }
+      }
+      const attach = <T extends { user_id: string; studentName?: string }>(rows: T[]) =>
+        rows.map((r) => ({ ...r, studentName: nameById.get(r.user_id) ?? "Estudiante" }));
+
+      setExams(attach(eRows));
+      setWorkshops(attach(wRows));
+      setProjects(attach(pRows));
       setLoading(false);
     })();
     return () => {
@@ -156,8 +184,8 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
                 {exams.map((s) => (
                   <PendingRow
                     key={s.id}
-                    title={s.exam.title}
-                    subtitle={`${s.student?.full_name ?? "Estudiante"} · ${s.exam.course?.name ?? ""}`}
+                    title={s.exam?.title ?? "(examen eliminado)"}
+                    subtitle={`${s.studentName ?? "Estudiante"} · ${s.exam?.course?.name ?? ""}`}
                     when={s.submitted_at}
                     onGo={() => goToExam(s.exam_id)}
                   />
@@ -175,8 +203,8 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
                 {workshops.map((s) => (
                   <PendingRow
                     key={s.id}
-                    title={s.workshop.title}
-                    subtitle={`${s.student?.full_name ?? "Estudiante"} · ${s.workshop.course?.name ?? ""}`}
+                    title={s.workshop?.title ?? "(taller eliminado)"}
+                    subtitle={`${s.studentName ?? "Estudiante"} · ${s.workshop?.course?.name ?? ""}`}
                     when={s.submitted_at}
                     onGo={goToWorkshops}
                   />
@@ -194,8 +222,8 @@ export function PendingGradingModal({ open, onOpenChange }: Props) {
                 {projects.map((s) => (
                   <PendingRow
                     key={s.id}
-                    title={s.project.title}
-                    subtitle={`${s.student?.full_name ?? "Estudiante"} · ${s.project.course?.name ?? ""}`}
+                    title={s.project?.title ?? "(proyecto eliminado)"}
+                    subtitle={`${s.studentName ?? "Estudiante"} · ${s.project?.course?.name ?? ""}`}
                     when={s.submitted_at}
                     onGo={goToProjects}
                   />

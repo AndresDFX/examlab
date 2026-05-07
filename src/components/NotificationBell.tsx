@@ -37,7 +37,23 @@ export function NotificationBell({ userId, variant = "default" }: NotificationBe
 
   const handleClick = (n: Notification) => {
     if (!n.read) markAsRead(n.id);
-    if (n.link) navigate({ to: n.link });
+    if (!n.link) return;
+    // El link puede traer query string (ej. ?project=X&submission=Y para
+    // notificaciones de feedback). TanStack Router con `navigate({ to })`
+    // sin schema de search declarado puede ignorar el query — partimos
+    // pathname y search para que se pase correctamente.
+    const [pathname, queryString] = n.link.split("?");
+    if (queryString) {
+      const params = new URLSearchParams(queryString);
+      const search: Record<string, string> = {};
+      params.forEach((value, key) => {
+        search[key] = value;
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      navigate({ to: pathname, search } as any);
+    } else {
+      navigate({ to: pathname });
+    }
   };
 
   const isSidebar = variant === "sidebar";

@@ -279,16 +279,32 @@ function TeacherProjects() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher]);
 
-  // Deep-link desde notificación: ?id=PROJECT_ID&student=USER_ID
-  // → abrir el grading dialog del proyecto. Solo una vez al cargar.
+  // Deep-link desde notificación. Acepta:
+  //   ?project=PROJECT_ID&submission=SUB_ID  (notificaciones nuevas)
+  //   ?id=PROJECT_ID                          (legacy, notificaciones viejas)
+  // → abre el grading dialog del proyecto. Si el proyecto ya no existe
+  // (eliminado o sin permiso), toast claro y limpia la URL para evitar
+  // que el efecto se vuelva a disparar en cada render.
   const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false);
   useEffect(() => {
     if (autoOpenedFromUrl || projects.length === 0) return;
     const params = new URLSearchParams(window.location.search);
-    const idParam = params.get("id");
-    if (idParam) {
-      const p = projects.find((pr) => pr.id === idParam);
-      if (p) void openGradingDialog(p);
+    const projectParam = params.get("project") ?? params.get("id");
+    if (projectParam) {
+      const p = projects.find((pr) => pr.id === projectParam);
+      if (p) {
+        void openGradingDialog(p);
+      } else {
+        toast.info(
+          "El proyecto referenciado en la notificación ya no existe o no tienes acceso a él.",
+        );
+      }
+      // Limpia los query params para que un refresh no re-dispare.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("project");
+      url.searchParams.delete("submission");
+      url.searchParams.delete("id");
+      window.history.replaceState({}, "", url.toString());
     }
     setAutoOpenedFromUrl(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
