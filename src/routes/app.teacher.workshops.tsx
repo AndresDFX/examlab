@@ -415,7 +415,7 @@ function TeacherWorkshops() {
       for (const cid of courseIds) {
         const { data: newWs, error } = await supabase
           .from("workshops")
-          .insert({ ...basePayload, course_id: cid })
+          .insert({ ...basePayload, course_id: cid } as any)
           .select()
           .single();
         if (error) {
