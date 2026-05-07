@@ -43,7 +43,9 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
+  HelpCircle,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   useMultiSelect,
@@ -243,10 +245,12 @@ export function AdminCourses() {
     start_date: null,
     end_date: null,
     weight: n > 0 ? Math.round(100 / n) : 0,
-    exam_weight: 40,
-    workshop_weight: 30,
-    attendance_weight: 10,
-    project_weight: 20,
+    // Sub-pesos arrancan en 0; el docente los llena hasta sumar cut.weight
+    // según los tipos de evaluación que vaya a usar en este corte.
+    exam_weight: 0,
+    workshop_weight: 0,
+    attendance_weight: 0,
+    project_weight: 0,
   });
 
   /** Cambia el número total de cortes. Pide confirmación si se reduce y hay items. */
@@ -955,7 +959,7 @@ export function AdminCourses() {
                         <Input
                           type="number"
                           step="1"
-                          value={editing.exam_weight || ""}
+                          value={editing.exam_weight ?? ""}
                           onChange={(e) =>
                             setEditing({
                               ...editing,
@@ -969,7 +973,7 @@ export function AdminCourses() {
                         <Input
                           type="number"
                           step="1"
-                          value={editing.workshop_weight || ""}
+                          value={editing.workshop_weight ?? ""}
                           onChange={(e) =>
                             setEditing({
                               ...editing,
@@ -983,7 +987,7 @@ export function AdminCourses() {
                         <Input
                           type="number"
                           step="1"
-                          value={editing.attendance_weight || ""}
+                          value={editing.attendance_weight ?? ""}
                           onChange={(e) =>
                             setEditing({
                               ...editing,
@@ -997,7 +1001,7 @@ export function AdminCourses() {
                         <Input
                           type="number"
                           step="1"
-                          value={editing.project_weight || ""}
+                          value={editing.project_weight ?? ""}
                           onChange={(e) =>
                             setEditing({
                               ...editing,
@@ -1078,6 +1082,18 @@ export function AdminCourses() {
                     <p className="text-xs text-muted-foreground italic">Sin cortes configurados.</p>
                   )}
 
+                  {editingCuts.length > 0 && (
+                    <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                      <HelpCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
+                      <span>
+                        Pulsa el ícono <ChevronRight className="inline h-3 w-3 align-text-bottom" />{" "}
+                        de cada corte para abrir y configurar los sub-pesos por tipo (talleres,
+                        exámenes, proyectos y asistencia). Los sub-pesos pueden ir en 0 si el corte
+                        no tiene ese tipo de evaluación.
+                      </span>
+                    </p>
+                  )}
+
                   <div
                     className={`space-y-2 ${editingCuts.length > 3 ? "max-h-[40vh] overflow-y-auto pr-1" : ""}`}
                   >
@@ -1140,7 +1156,7 @@ export function AdminCourses() {
                                 type="number"
                                 min={0}
                                 max={100}
-                                value={cut.weight || ""}
+                                value={cut.weight ?? ""}
                                 onChange={(e) =>
                                   updateDraftCut(idx, {
                                     weight: e.target.value === "" ? 0 : Number(e.target.value),
@@ -1161,7 +1177,7 @@ export function AdminCourses() {
                                     type="number"
                                     min={0}
                                     max={100}
-                                    value={cut.workshop_weight || ""}
+                                    value={cut.workshop_weight ?? ""}
                                     onChange={(e) =>
                                       updateDraftCut(idx, {
                                         workshop_weight:
@@ -1177,7 +1193,7 @@ export function AdminCourses() {
                                     type="number"
                                     min={0}
                                     max={100}
-                                    value={cut.exam_weight || ""}
+                                    value={cut.exam_weight ?? ""}
                                     onChange={(e) =>
                                       updateDraftCut(idx, {
                                         exam_weight:
@@ -1193,7 +1209,7 @@ export function AdminCourses() {
                                     type="number"
                                     min={0}
                                     max={100}
-                                    value={cut.project_weight || ""}
+                                    value={cut.project_weight ?? ""}
                                     onChange={(e) =>
                                       updateDraftCut(idx, {
                                         project_weight:
@@ -1209,7 +1225,7 @@ export function AdminCourses() {
                                     type="number"
                                     min={0}
                                     max={100}
-                                    value={cut.attendance_weight || ""}
+                                    value={cut.attendance_weight ?? ""}
                                     onChange={(e) =>
                                       updateDraftCut(idx, {
                                         attendance_weight:
@@ -1220,12 +1236,18 @@ export function AdminCourses() {
                                   />
                                 </div>
                               </div>
-                              <div className="flex items-center justify-end">
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Regla: la suma de sub-pesos del corte = cut.weight (no 100).
+                                    El total se mide contra el peso del corte sobre la nota
+                                    final, así un corte de 30% se llena con sub-pesos que
+                                    sumen 30. Sub-pesos en 0 son válidos. */}
                                 <Badge
-                                  variant={subSum === 100 ? "secondary" : "destructive"}
+                                  variant={
+                                    subSum === Number(cut.weight ?? 0) ? "secondary" : "destructive"
+                                  }
                                   className="text-xs"
                                 >
-                                  Sub-pesos: {subSum}%
+                                  Sub-pesos: {subSum}% / {Number(cut.weight ?? 0)}% del corte
                                 </Badge>
                               </div>
                             </div>
