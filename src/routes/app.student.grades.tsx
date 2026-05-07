@@ -423,8 +423,7 @@ function StudentGrades() {
                   </div>
                   <div className="text-2xl font-semibold tabular-nums">{fmt(cb.grade)}</div>
                   <div className="text-[11px] text-muted-foreground">
-                    T:{cb.weights.workshop}% E:{cb.weights.exam}% P:{cb.weights.project}% A:
-                    {cb.weights.attendance}%
+                    {cb.items.filter((i) => i.grade != null).length}/{cb.items.length} item(s) calificado(s)
                   </div>
                 </CardContent>
               </Card>
