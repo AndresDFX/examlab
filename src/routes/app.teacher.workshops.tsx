@@ -187,6 +187,36 @@ function TeacherWorkshops() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
+
+  /**
+   * Cap dinámico del peso: cuando cambia el corte seleccionado o la
+   * lista de talleres del mismo corte (alguien creó/editó otro),
+   * recalcula `disponibleEnBucket = workshop_weight - sum(otros)` y
+   * ajusta `form.weight` a ese máximo si lo excede. Así el campo
+   * "Peso del taller dentro del corte" siempre refleja el límite real,
+   * incluso si el docente seleccionó un corte distinto al inicial.
+   */
+  const workshopWeightMax = useMemo(() => {
+    if (!form.cut_id) return null;
+    const cut = cuts.find((c) => c.id === form.cut_id);
+    if (!cut) return null;
+    const bucket = Number(cut.workshop_weight ?? 0);
+    const editingId = (form as any).id as string | undefined;
+    const sumOthers = workshops
+      .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId)
+      .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+    return Math.max(0, bucket - sumOthers);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.cut_id, (form as any).id, cuts, workshops]);
+
+  useEffect(() => {
+    if (workshopWeightMax == null) return;
+    const current = Number((form as any).weight ?? 0);
+    if (current > workshopWeightMax) {
+      setForm((prev) => ({ ...prev, weight: workshopWeightMax }) as Partial<Workshop>);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workshopWeightMax]);
   const workshopDirty = useDirtyDialog(open, form);
 
   // Grading view
@@ -354,11 +384,13 @@ function TeacherWorkshops() {
       group_mode: groupMode,
     };
     // weight solo tiene sentido cuando hay corte; lo enviamos solo si
-    // el form lo incluye, así DB defaults toman el resto. Patrón
-    // consistente con cómo manejamos campos desactivados en otros
-    // formularios (ver memoria de feedback).
+    // el form lo incluye. Cap server-side: como el browser solo respeta
+    // `max=` como hint, también capeamos aquí antes de persistir contra
+    // el bucket disponible (workshop_weight - sum(otros del corte)).
     if (form.cut_id && (form as any).weight != null) {
-      basePayload.weight = Number((form as any).weight);
+      const requested = Number((form as any).weight);
+      const cap = workshopWeightMax;
+      basePayload.weight = cap != null ? Math.max(0, Math.min(requested, cap)) : requested;
     }
 
     if (form.id) {
@@ -1279,13 +1311,13 @@ function TeacherWorkshops() {
                 const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
                 const editingId = (form as any).id as string | undefined;
                 const otherWorkshopsSum = workshops
-                  .filter(
-                    (w) => (w as any).cut_id === form.cut_id && w.id !== editingId,
-                  )
+                  .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId)
                   .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
-                const wsMax = Math.max(0, wsBucket - otherWorkshopsSum);
+                // Reusa el max ya calculado en el useMemo de arriba; el
+                // useEffect garantiza que form.weight nunca lo exceda.
+                const wsMax = workshopWeightMax ?? 0;
                 const currentWeight = Number((form as any).weight ?? 1) || 0;
-                const overBucket = currentWeight > wsMax + 0.01;
+                const bucketFull = wsMax === 0 && wsBucket > 0;
                 return (
                   <>
                     <Label>Peso del taller (dentro del bucket de talleres del corte)</Label>
@@ -1296,7 +1328,7 @@ function TeacherWorkshops() {
                       step="0.1"
                       placeholder="1"
                       className="w-32 mt-1"
-                      disabled={!selectedCut}
+                      disabled={!selectedCut || bucketFull}
                       value={(form as any).weight ?? 1}
                       onChange={(e) => {
                         const raw = e.target.value === "" ? 1 : Number(e.target.value);
@@ -1310,11 +1342,18 @@ function TeacherWorkshops() {
                           Bucket talleres del corte{" "}
                           <span className="font-medium">{selectedCut.name}</span>: {wsBucket}.
                           Otros talleres del corte suman {otherWorkshopsSum.toFixed(1)}, te queda{" "}
-                          <strong>{wsMax.toFixed(1)}</strong> disponible.
-                          {overBucket && (
+                          <strong>{wsMax.toFixed(1)}</strong> disponible
+                          {currentWeight > 0 && wsMax > 0 && (
+                            <>
+                              {" "}
+                              (peso actual: {currentWeight.toFixed(1)})
+                            </>
+                          )}
+                          .
+                          {bucketFull && (
                             <span className="block text-destructive mt-1">
-                              El peso actual ({currentWeight.toFixed(1)}) excede el bucket. Reduce
-                              este o ajusta el bucket en el editor de cortes.
+                              El bucket de talleres está lleno. Aumenta workshop_weight del corte o
+                              reduce el peso de otros talleres.
                             </span>
                           )}
                         </>
