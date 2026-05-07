@@ -192,6 +192,15 @@ Los estudiantes se marcan presentes solos para que el docente no tenga que llama
 - **Deep-link**: el QR codifica `https://<host>/app/student/attendance?session=X&code=Y`. Si el estudiante lo abre así (cámara nativa o desde la app), el effect en `app.student.attendance.tsx` parsea, llama RPC y limpia la URL con `history.replaceState`.
 - **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
 
+### Proyectos: entrega de código completo en ZIP (`type='codigo_zip'`)
+Slot adicional en `project_files` para que el estudiante suba un ZIP con todo su código fuente. Diagramas y documentos siguen entregándose en preguntas separadas (tipo `abierta`/`diagrama`/etc).
+
+- **DB** (migración 20260507160000): bucket `project-files` (100MB max), columna `project_submission_files.zip_path`, nuevo tipo `codigo_zip` permitido en `project_files.type`. RLS de Storage: estudiante sube/lee/borra los suyos; docente/admin lee todos.
+- **UI Docente** ([ProjectFiles.tsx](src/components/ProjectFiles.tsx)): nuevo item "Código completo (ZIP)" en el selector de tipo del slot. La generación con IA NO ofrece este tipo — debe configurarse manualmente.
+- **UI Estudiante**: input `<input type="file" accept=".zip">` cuando el slot es `codigo_zip`. Al enviar, sube a `project-files/<user_id>/<submission_id>/<file_id>.zip` y persiste `zip_path` en `project_submission_files`.
+- **Edge function** (`ai-grade-submission`, modo `projectCodeZipGrading`): descarga el ZIP via `adminClient.storage.from('project-files').download()`, descomprime con `fflate`, **filtra por whitelist de extensiones de código** (.java, .py, .js/.ts/.tsx, .c/.cpp, .cs, .go, .rs, etc + makefile/dockerfile), trunca archivos >50KB, tope global 200K chars, concatena con encabezado `─── path ───` y manda al modelo. Usa el system prompt `project_full`.
+- **Caso vacío**: si el ZIP no contiene archivos de código reconocidos, retorna grade=0 con feedback claro al estudiante.
+
 ### Trabajo en grupo en talleres (V1: teacher_assigned)
 Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma nota.
 

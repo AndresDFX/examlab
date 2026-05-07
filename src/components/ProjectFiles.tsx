@@ -57,7 +57,7 @@ export type ProjectFile = {
   language: string | null;
   starter_code: string | null;
   points: number;
-  type: "abierta" | "cerrada" | "codigo" | "diagrama" | "java_gui";
+  type: "abierta" | "cerrada" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: any;
 };
@@ -330,7 +330,8 @@ export function TeacherProjectFilesEditor({
                 <SelectContent>
                   <SelectItem value="abierta">Abierta</SelectItem>
                   <SelectItem value="cerrada">Cerrada (opción múltiple)</SelectItem>
-                  <SelectItem value="codigo">Código</SelectItem>
+                  <SelectItem value="codigo">Código (un archivo en textarea)</SelectItem>
+                  <SelectItem value="codigo_zip">Código completo (ZIP)</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
                   <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
                 </SelectContent>
@@ -388,6 +389,14 @@ export function TeacherProjectFilesEditor({
                   <SelectItem value="javascript">JavaScript</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {qType === "codigo_zip" && (
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              El estudiante subirá un <strong>archivo .zip</strong> con todo su código fuente. La
+              IA descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc) en
+              conjunto. Diagramas y documentos van en preguntas separadas (tipo Abierta o
+              Diagrama).
             </div>
           )}
           <div>
@@ -571,9 +580,12 @@ export function StudentProjectTaker({
     questions.forEach((q, idx) => {
       const a = answers[q.id];
       const isCerrada = q.type === "cerrada";
+      const isCodeZip = q.type === "codigo_zip";
       const isBlank = isCerrada
         ? a === undefined || a === null || a === ""
-        : !String(a ?? "").trim();
+        : isCodeZip
+          ? !(a instanceof File)
+          : !String(a ?? "").trim();
       if (isBlank) empty.push(idx + 1);
     });
     return empty;
@@ -675,6 +687,53 @@ export function StudentProjectTaker({
           payload.content = choices[Number(raw)] ?? String(raw);
           payload.ai_grade = earned;
           payload.ai_feedback = feedback;
+        } else if (q.type === "codigo_zip") {
+          // raw debería ser un File. Si no hay file, marca 0.
+          const file = raw instanceof File ? raw : null;
+          if (!file) {
+            payload.content = "";
+            payload.ai_grade = 0;
+            payload.ai_feedback = "Sin archivo ZIP";
+          } else {
+            // Upload a Storage en <user_id>/<submission_id>/<file_id>.zip
+            const path = `${user.id}/${submissionId}/${q.id}.zip`;
+            const { error: upErr } = await supabase.storage
+              .from("project-files")
+              .upload(path, file, { upsert: true, contentType: "application/zip" });
+            if (upErr) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = `Error al subir ZIP: ${upErr.message}`;
+            } else {
+              payload.zip_path = path;
+              const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+                "ai-grade-submission",
+                {
+                  body: {
+                    projectCodeZipGrading: true,
+                    zipPath: path,
+                    fileTitle: q.title,
+                    fileDescription: q.description,
+                    expectedRubric: q.expected_rubric,
+                    maxPoints: q.points,
+                    courseLanguage,
+                    courseId: undefined,
+                  },
+                },
+              );
+              if (aiErr || aiData?.error) {
+                payload.ai_grade = 0;
+                payload.ai_feedback = `Error IA: ${aiErr?.message ?? aiData?.error ?? "Desconocido"}`;
+              } else {
+                earned = Number(aiData?.grade) || 0;
+                feedback = aiData?.feedback ?? feedback;
+                payload.ai_grade = earned;
+                payload.ai_feedback = feedback;
+                payload.ai_likelihood =
+                  typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
+                payload.ai_reasons = aiData?.ai_reasons ?? null;
+              }
+            }
+          }
         } else if (!String(raw).trim()) {
           payload.content = "";
           payload.ai_grade = 0;
@@ -829,6 +888,27 @@ export function StudentProjectTaker({
                 onChange={(v) => updateAnswer(q.id, v)}
                 height="280px"
               />
+            )}
+            {q.type === "codigo_zip" && (
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  onChange={(e) => updateAnswer(q.id, e.target.files?.[0] ?? null)}
+                  className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Sube un archivo .zip con todo el código fuente del proyecto. Máximo 100MB. La
+                  IA descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp,
+                  etc.) en conjunto.
+                </p>
+                {answers[q.id] instanceof File && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {(answers[q.id] as File).name} ·{" "}
+                    {Math.round(((answers[q.id] as File).size / 1024 / 1024) * 10) / 10} MB
+                  </Badge>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

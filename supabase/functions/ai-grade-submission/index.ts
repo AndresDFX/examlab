@@ -343,6 +343,204 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       );
     }
 
+    // ── Project CODE-ZIP grading ──
+    // Body: { projectCodeZipGrading: true, zipPath, fileTitle, fileDescription,
+    //         expectedRubric, maxPoints, courseLanguage, courseId }
+    // Descarga el ZIP de Storage (bucket project-files), filtra archivos de
+    // código por extensión, los concatena con encabezado por archivo y
+    // manda todo a la IA para evaluación. Devuelve { ok, grade, feedback,
+    // ai_likelihood, ai_reasons }.
+    if (body.projectCodeZipGrading) {
+      const {
+        zipPath,
+        fileTitle,
+        fileDescription,
+        expectedRubric,
+        maxPoints = 1,
+        courseLanguage,
+        courseId,
+      } = body;
+      if (!zipPath || !fileTitle) {
+        throw new Error("zipPath y fileTitle requeridos");
+      }
+      const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
+      const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
+
+      // Descarga el zip via admin client (RLS + service role).
+      const { data: zipBlob, error: dlErr } = await adminClient.storage
+        .from("project-files")
+        .download(zipPath);
+      if (dlErr || !zipBlob) {
+        throw new Error(`No se pudo descargar el ZIP: ${dlErr?.message ?? "missing"}`);
+      }
+      const zipBuf = new Uint8Array(await zipBlob.arrayBuffer());
+
+      // Descomprime
+      const fflate = await import("https://esm.sh/fflate@0.8.2");
+      const unzipped = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+        fflate.unzip(zipBuf, (err, files) => (err ? reject(err) : resolve(files)));
+      });
+
+      // Whitelist de extensiones de código fuente. Doc/imágenes/binarios
+      // van en preguntas separadas, no aquí.
+      const CODE_EXT = new Set([
+        "java","kt","scala","groovy",
+        "py","rb","php",
+        "js","jsx","ts","tsx","mjs","cjs","vue","svelte",
+        "c","cpp","cc","cxx","h","hpp","hxx",
+        "cs","fs","vb",
+        "go","rs","swift","m","mm",
+        "sql","sh","bash","zsh","ps1",
+        "html","css","scss","sass","less",
+        "json","yaml","yml","toml","xml",
+        "lua","r","jl","pl","ex","exs","erl","clj","cljs",
+        "dart","gradle","makefile",
+      ]);
+
+      const allPaths = Object.keys(unzipped).filter((p) => !p.endsWith("/"));
+      const codeFiles: { path: string; content: string }[] = [];
+      let totalChars = 0;
+      const MAX_CHARS = 200_000; // ~ tope para no exceder context window
+
+      for (const path of allPaths) {
+        const lower = path.toLowerCase();
+        const ext = lower.split(".").pop() ?? "";
+        const baseName = lower.split("/").pop() ?? "";
+        const isWhitelisted =
+          CODE_EXT.has(ext) ||
+          baseName === "makefile" ||
+          baseName === "dockerfile" ||
+          baseName === ".gitignore";
+        if (!isWhitelisted) continue;
+        const data = unzipped[path];
+        if (!data || data.length === 0) continue;
+        // Decodifica como UTF-8. Si el archivo es binario raro, ignoramos.
+        let text: string;
+        try {
+          text = new TextDecoder("utf-8", { fatal: false }).decode(data);
+        } catch {
+          continue;
+        }
+        // Skip muy grandes individuales para no bloquear todo
+        if (text.length > 50_000) text = text.slice(0, 50_000) + "\n…[truncado]…";
+        if (totalChars + text.length > MAX_CHARS) break;
+        totalChars += text.length;
+        codeFiles.push({ path, content: text });
+      }
+
+      if (codeFiles.length === 0) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            grade: 0,
+            feedback:
+              "El ZIP no contiene archivos de código reconocidos. Verifica que estés subiendo archivos fuente (.java, .py, .js, etc).",
+            ai_likelihood: 0,
+            ai_detected: false,
+            ai_reasons: "",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const customSystem = await resolveSystemPrompt(
+        "project_full",
+        courseId,
+        "Eres un evaluador académico imparcial y experto. Calificas un proyecto académico basándote en sus archivos. Das nota, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones claras.",
+      );
+      const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
+
+      const fileSection = codeFiles
+        .map(
+          (f) =>
+            `─── ${f.path} ───\n${f.content}\n`,
+        )
+        .join("\n");
+
+      const aiRes = await aiChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: `Pregunta del proyecto: ${fileTitle}
+Descripción: ${fileDescription ?? "(sin descripción)"}
+Rúbrica esperada: ${expectedRubric ?? "Evalúa diseño, corrección y completitud del código."}
+Puntaje máximo: ${maxPoints}
+
+Contenido del ZIP (${codeFiles.length} archivo(s) de código):
+
+${fileSection}
+
+Idioma de salida obligatorio: ${pfLangName}.`,
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "score_code_zip",
+              description: "Calificar el código fuente entregado en un ZIP",
+              parameters: {
+                type: "object",
+                properties: {
+                  score: { type: "number" },
+                  feedback: { type: "string" },
+                  ai_likelihood: { type: "number" },
+                  ai_reasons: { type: "string" },
+                },
+                required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+              },
+            },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "score_code_zip" } },
+      });
+
+      if (aiRes.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (aiRes.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Sin créditos de IA. Agrega créditos al workspace." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error("AI error", aiRes.status, errText);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJson = await aiRes.json();
+      const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+      const args = tc
+        ? JSON.parse(tc.function.arguments)
+        : { score: 0, feedback: "", ai_likelihood: 0, ai_reasons: "" };
+      const score = Math.max(0, Math.min(Number(maxPoints) || 0, Number(args.score) || 0));
+      const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          grade: score,
+          feedback: args.feedback,
+          ai_likelihood: aiLikelihood,
+          ai_detected: aiLikelihood >= 0.6,
+          ai_reasons: args.ai_reasons ?? "",
+          files_evaluated: codeFiles.length,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // ── Workshop QUESTION grading (per-question, supports diagrama/codigo) ──
     if (body.workshopQuestionGrading) {
       const {
