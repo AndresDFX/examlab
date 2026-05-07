@@ -61,7 +61,7 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className, hideIcon }: Readonly<StatusBadgeProps>) {
-  const meta = (status && STATUS_META[status]) ?? { variant: "outline" as StatusVariant };
+  const meta = (status ? STATUS_META[status] : undefined) ?? { variant: "outline" as StatusVariant };
   const Icon = hideIcon ? undefined : meta.icon;
   return (
     <Badge variant={meta.variant} className={cn("text-[10px]", className)}>
