@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,6 +60,13 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
@@ -150,6 +157,21 @@ function TeacherWorkshops() {
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const sel = useMultiSelect(workshops);
+
+  const handleBulkDelete = async (ids: string[]) => {
+    const { error } = await supabase.from("workshops").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    toast.success(`${ids.length} taller(es) eliminado(s) correctamente`);
+    sel.clear();
+    load();
+  };
+
+  const selectedWorkshopItems = useMemo(
+    () => workshops.filter((w) => sel.isSelected(w.id)).map((w) => ({ id: w.id, label: w.title })),
+    [workshops, sel],
+  );
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
@@ -894,11 +916,22 @@ function TeacherWorkshops() {
         </div>
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular="taller"
+        entityNamePlural="talleres"
+      />
+
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <MultiSelectHeaderCheckbox state={sel} />
+                </TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead>Curso</TableHead>
                 <TableHead>Fecha límite</TableHead>
@@ -909,7 +942,7 @@ function TeacherWorkshops() {
             <TableBody>
               {workshops.length === 0 && (
                 <TableEmpty
-                  colSpan={5}
+                  colSpan={6}
                   icon={Hammer}
                   text="Aún no has creado ningún taller."
                   hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
@@ -922,7 +955,10 @@ function TeacherWorkshops() {
                 />
               )}
               {workshops.map((ws) => (
-                <TableRow key={ws.id}>
+                <TableRow key={ws.id} data-state={sel.isSelected(ws.id) ? "selected" : undefined}>
+                  <TableCell className="w-10">
+                    <MultiSelectCheckbox id={ws.id} state={sel} />
+                  </TableCell>
                   <TableCell className="font-medium">
                     {ws.title}
                     {ws.external_link && (
@@ -1827,6 +1863,16 @@ function TeacherWorkshops() {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedWorkshopItems}
+        entityNameSingular="taller"
+        entityNamePlural="talleres"
+        extraWarning="Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados."
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }

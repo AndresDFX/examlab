@@ -11,7 +11,7 @@
  * y rúbrica para que la calificación sea consistente.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,6 +58,13 @@ import {
   FolderKanban,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
@@ -111,6 +118,22 @@ function TeacherProjects() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const sel = useMultiSelect(projects);
+
+  const handleBulkDelete = async (ids: string[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("projects").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    toast.success(`${ids.length} proyecto(s) eliminado(s) correctamente`);
+    sel.clear();
+    load();
+  };
+
+  const selectedProjectItems = useMemo(
+    () => projects.filter((p) => sel.isSelected(p.id)).map((p) => ({ id: p.id, label: p.title })),
+    [projects, sel],
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState<Partial<Project>>({});
@@ -753,11 +776,22 @@ function TeacherProjects() {
         </Button>
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular="proyecto"
+        entityNamePlural="proyectos"
+      />
+
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <MultiSelectHeaderCheckbox state={sel} />
+                </TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead>Curso</TableHead>
                 <TableHead>Corte</TableHead>
@@ -769,7 +803,10 @@ function TeacherProjects() {
             </TableHeader>
             <TableBody>
               {projects.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} data-state={sel.isSelected(p.id) ? "selected" : undefined}>
+                  <TableCell className="w-10">
+                    <MultiSelectCheckbox id={p.id} state={sel} />
+                  </TableCell>
                   <TableCell className="font-medium">{p.title}</TableCell>
                   <TableCell className="text-muted-foreground">
                     <div className="flex flex-wrap gap-1 items-center">
@@ -839,7 +876,7 @@ function TeacherProjects() {
               ))}
               {projects.length === 0 && (
                 <TableEmpty
-                  colSpan={7}
+                  colSpan={8}
                   icon={FolderKanban}
                   text="Aún no has creado ningún proyecto."
                   hint="Define los archivos esperados y asígnalo a uno o varios cursos."
@@ -1327,6 +1364,16 @@ function TeacherProjects() {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedProjectItems}
+        entityNameSingular="proyecto"
+        entityNamePlural="proyectos"
+        extraWarning="Se eliminarán también las asignaciones, archivos esperados y entregas de los proyectos seleccionados."
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }

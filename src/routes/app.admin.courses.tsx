@@ -45,6 +45,13 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { AssignSelector } from "@/components/AssignSelector";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -100,6 +107,25 @@ export function AdminCourses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const sel = useMultiSelect(courses);
+
+  const handleBulkDelete = async (ids: string[]) => {
+    // ON DELETE CASCADE arrastra examenes/talleres/proyectos/etc.
+    const { error } = await supabase.from("courses").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    toast.success(`${ids.length} curso(s) eliminado(s) correctamente`);
+    sel.clear();
+    load();
+  };
+
+  const selectedCourseItems = useMemo(
+    () =>
+      courses
+        .filter((c) => sel.isSelected(c.id))
+        .map((c) => ({ id: c.id, label: `${c.name}${c.period ? ` (${c.period})` : ""}` })),
+    [courses, sel],
+  );
 
   // Cortes evaluativos del curso en edición (en memoria; se persiste al guardar).
   const [editingCuts, setEditingCuts] = useState<DraftCut[]>([]);
@@ -729,11 +755,22 @@ export function AdminCourses() {
         </Button>
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular="curso"
+        entityNamePlural="cursos"
+      />
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <MultiSelectHeaderCheckbox state={sel} />
+                </TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead className="hidden sm:table-cell">Periodo</TableHead>
                 <TableHead className="hidden sm:table-cell">Escala</TableHead>
@@ -745,7 +782,7 @@ export function AdminCourses() {
             <TableBody>
               {courses.length === 0 && (
                 <TableEmpty
-                  colSpan={6}
+                  colSpan={7}
                   icon={BookOpen}
                   text="Aún no hay cursos creados."
                   hint="Crea el primer curso y asigna estudiantes y docentes."
@@ -758,7 +795,10 @@ export function AdminCourses() {
                 />
               )}
               {courses.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} data-state={sel.isSelected(c.id) ? "selected" : undefined}>
+                  <TableCell className="w-10">
+                    <MultiSelectCheckbox id={c.id} state={sel} />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <div className="flex flex-col gap-1">
                       <span>{c.name}</span>
@@ -1372,6 +1412,15 @@ export function AdminCourses() {
         </DialogContent>
       </Dialog>
 
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedCourseItems}
+        entityNameSingular="curso"
+        entityNamePlural="cursos"
+        extraWarning="Se eliminarán también todos los exámenes, talleres, proyectos, matrículas, cortes y registros de asistencia asociados (cascade)."
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }

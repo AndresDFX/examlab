@@ -42,6 +42,7 @@ Vive en `src/components/ui/`. Componentes propios (encima de shadcn):
 | `TableSkeleton` / `ListSkeleton` | Placeholders pulsantes para grids/listas mientras cargan datos. Mejor UX que "Cargando…" sobre tabla vacía. |
 | `PageHeader` | Header de páginas de detalle: breadcrumb "← Volver" arriba (no compite con el título), `title` h1, `subtitle`, slot `actions` opcional, slot `icon` opcional. |
 | `ErrorBoundary` | React error boundary global, montado en `__root.tsx`. Captura errores fuera de rutas. Errores DENTRO de rutas los maneja `defaultErrorComponent` del router. |
+| `useMultiSelect` + `MultiSelectHeaderCheckbox` / `MultiSelectCheckbox` / `MultiSelectToolbar` / `BulkDeleteDialog` ([multi-select.tsx](src/components/ui/multi-select.tsx)) | Multi-selección + bulk delete para grids/tablas. Hook devuelve `{ selectedIds, toggle, toggleAll, isSelected, allSelected, indeterminate, count, clear }`. Toolbar aparece arriba cuando `count > 0`. BulkDeleteDialog muestra conteo + lista expandible (preview 5, expansible al resto) y ejecuta `.delete().in('id', ids)` atómico. Aplicado en grids de Usuarios, Cursos, Exámenes, Talleres y Proyectos. |
 
 ### Helpers utilitarios (`src/lib/`)
 

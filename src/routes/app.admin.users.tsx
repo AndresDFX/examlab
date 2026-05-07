@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +29,13 @@ import { toast } from "sonner";
 import { Plus, Upload, Download, Trash2, Pencil, Loader2, Users as UsersIcon } from "lucide-react";
 import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 
 export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
 
@@ -60,7 +67,29 @@ function AdminUsers() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const confirm = useConfirm();
+  const sel = useMultiSelect(rows);
+
+  const handleBulkDelete = async (ids: string[]) => {
+    // Atomic batch — Postgres transaccional. Borramos roles primero
+    // (FK), luego perfiles. Si alguno falla, ninguno se elimina.
+    const { error: rolesErr } = await supabase.from("user_roles").delete().in("user_id", ids);
+    if (rolesErr) throw new Error(rolesErr.message);
+    const { error } = await supabase.from("profiles").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    toast.success(`${ids.length} usuario(s) eliminado(s) correctamente`);
+    sel.clear();
+    load();
+  };
+
+  const selectedItems = useMemo(
+    () =>
+      rows
+        .filter((r) => sel.isSelected(r.id))
+        .map((r) => ({ id: r.id, label: `${r.full_name} (${r.institutional_email})` })),
+    [rows, sel],
+  );
 
   const isAdmin = roles.includes("Admin");
 
@@ -379,6 +408,14 @@ function AdminUsers() {
         </div>
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular="usuario"
+        entityNamePlural="usuarios"
+      />
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -388,6 +425,9 @@ function AdminUsers() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <MultiSelectHeaderCheckbox state={sel} />
+                    </TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead className="hidden sm:table-cell">Email institucional</TableHead>
                     <TableHead className="hidden md:table-cell">Email personal</TableHead>
@@ -398,7 +438,7 @@ function AdminUsers() {
                 <TableBody>
                   {rows.length === 0 && (
                     <TableEmpty
-                      colSpan={5}
+                      colSpan={6}
                       icon={UsersIcon}
                       text="Aún no hay usuarios registrados."
                       hint="Crea el primero o importa un CSV con varios a la vez."
@@ -411,7 +451,10 @@ function AdminUsers() {
                     />
                   )}
                   {rows.map((r) => (
-                    <TableRow key={r.id}>
+                    <TableRow key={r.id} data-state={sel.isSelected(r.id) ? "selected" : undefined}>
+                      <TableCell className="w-10">
+                        <MultiSelectCheckbox id={r.id} state={sel} />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-1">
                           <span>{r.full_name}</span>
@@ -563,6 +606,16 @@ function AdminUsers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedItems}
+        entityNameSingular="usuario"
+        entityNamePlural="usuarios"
+        extraWarning="Se eliminarán los perfiles y todos sus roles. Las cuentas de autenticación NO se borran."
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }

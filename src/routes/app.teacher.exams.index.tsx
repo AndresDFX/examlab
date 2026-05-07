@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -43,6 +43,13 @@ import { formatDateTime, formatDuration } from "@/lib/format";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 
 const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
 Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
@@ -78,6 +85,27 @@ function TeacherExams() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
   const examDirty = useDirtyDialog(open, form);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const sel = useMultiSelect(exams);
+
+  const handleBulkDelete = async (ids: string[]) => {
+    const { error } = await supabase.from("exams").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    toast.success(`${ids.length} examen(es) eliminado(s) correctamente`);
+    sel.clear();
+    load();
+  };
+
+  const selectedExamItems = useMemo(
+    () =>
+      exams
+        .filter((e) => sel.isSelected(e.id))
+        .map((e) => ({
+          id: e.id,
+          label: `${e.title}${e.course?.name ? ` — ${e.course.name}` : ""}`,
+        })),
+    [exams, sel],
+  );
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
   const confirm = useConfirm();
@@ -337,11 +365,22 @@ function TeacherExams() {
         </div>
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular="examen"
+        entityNamePlural="exámenes"
+      />
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <MultiSelectHeaderCheckbox state={sel} />
+                </TableHead>
                 <TableHead>{t("exam.columns.title")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
@@ -356,7 +395,7 @@ function TeacherExams() {
             <TableBody>
               {exams.length === 0 && (
                 <TableEmpty
-                  colSpan={7}
+                  colSpan={8}
                   icon={FileText}
                   text="Aún no has creado ningún examen."
                   hint="Diseña tu primer examen — puedes generar preguntas con IA."
@@ -369,7 +408,10 @@ function TeacherExams() {
                 />
               )}
               {exams.map((e) => (
-                <TableRow key={e.id}>
+                <TableRow key={e.id} data-state={sel.isSelected(e.id) ? "selected" : undefined}>
+                  <TableCell className="w-10">
+                    <MultiSelectCheckbox id={e.id} state={sel} />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -759,6 +801,16 @@ function TeacherExams() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedExamItems}
+        entityNameSingular="examen"
+        entityNamePlural="exámenes"
+        extraWarning="Se eliminarán también todas las preguntas, asignaciones y entregas de los exámenes seleccionados."
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }
