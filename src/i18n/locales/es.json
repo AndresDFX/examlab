@@ -214,6 +214,7 @@
     "columns": {
       "title": "Título",
       "course": "Curso",
+      "cut": "Corte",
       "start": "Inicio",
       "duration": "Duración",
       "type": "Tipo",

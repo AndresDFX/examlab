@@ -418,6 +418,7 @@ function TeacherExams() {
                 </TableHead>
                 <TableHead>{t("exam.columns.title")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("exam.columns.cut")}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t("exam.columns.duration")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.type")}</TableHead>
@@ -430,7 +431,7 @@ function TeacherExams() {
             <TableBody>
               {exams.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={FileText}
                   text="Aún no has creado ningún examen."
                   hint="Diseña tu primer examen — puedes generar preguntas con IA."
@@ -443,7 +444,7 @@ function TeacherExams() {
                 />
               ) : filteredExams.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={FileText}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los exámenes."
@@ -483,6 +484,9 @@ function TeacherExams() {
                         {e.course.period}
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
+                    {cuts.find((c) => c.id === e.cut_id)?.name ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm hidden sm:table-cell tabular-nums">
                     {formatDateTime(e.start_time)}

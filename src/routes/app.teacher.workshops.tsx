@@ -1146,6 +1146,7 @@ function TeacherWorkshops() {
                 </TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead>Curso</TableHead>
+                <TableHead>Corte</TableHead>
                 <TableHead>Fecha límite</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -1154,7 +1155,7 @@ function TeacherWorkshops() {
             <TableBody>
               {workshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={6}
+                  colSpan={7}
                   icon={Hammer}
                   text="Aún no has creado ningún taller."
                   hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
@@ -1167,7 +1168,7 @@ function TeacherWorkshops() {
                 />
               ) : filteredWorkshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={6}
+                  colSpan={7}
                   icon={Hammer}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los talleres."
@@ -1185,6 +1186,9 @@ function TeacherWorkshops() {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{ws.course?.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {cuts.find((c) => c.id === (ws as any).cut_id)?.name ?? "—"}
+                  </TableCell>
                   <TableCell className="text-sm tabular-nums">{formatDate(ws.due_date)}</TableCell>
                   <TableCell>
                     <StatusBadge status={ws.status} />
