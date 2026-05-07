@@ -466,6 +466,12 @@ function TeacherProjects() {
     // Patrón "campos desactivados": cuando is_external=true, omitir
     // campos sin sentido (instrucciones, link, archivos esperados) del
     // payload para no insertar dummies.
+    //
+    // is_external solo se envía cuando es true. Si el column todavía no
+    // está en el schema cache de PostgREST (Lovable aún no aplicó la
+    // migración), mandar is_external=false rompía el insert con
+    // "Could not find the 'is_external' column". El default de la
+    // tabla ya es false, así que omitirlo es seguro.
     const payload: Record<string, any> = {
       course_id: primaryCourse,
       cut_id: form.cut_id || null,
@@ -473,16 +479,16 @@ function TeacherProjects() {
       description: form.description ?? null,
       max_score: Number(form.max_score) || 100,
       status: form.status ?? "draft",
-      is_external: isExternal,
     };
-    if (!isExternal) {
+    if (isExternal) {
+      payload.is_external = true;
+      // Para externos: due_date marca cuándo ocurrió, sin start ni files.
+      payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
+    } else {
       payload.instructions = form.instructions ?? null;
       payload.external_link = form.external_link || null;
       payload.max_files = maxFiles;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
-      payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
-    } else {
-      // Para externos: due_date marca cuándo ocurrió, sin start ni files.
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     }
     // weight solo aplica con corte; si no, dejamos que el DEFAULT 1 se mantenga
