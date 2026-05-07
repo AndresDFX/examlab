@@ -89,7 +89,15 @@ const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_
 Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,100,published
 Programación I,Taller de árboles,,Resuelve los ejercicios 1-5,,2025-09-30T23:59,100,draft`;
 
-export const Route = createFileRoute("/app/teacher/workshops")({ component: TeacherWorkshops });
+export const Route = createFileRoute("/app/teacher/workshops")({
+  component: TeacherWorkshops,
+  validateSearch: (s: Record<string, unknown>) => ({
+    workshop: typeof s.workshop === "string" ? s.workshop : undefined,
+    id: typeof s.id === "string" ? s.id : undefined,
+    submission: typeof s.submission === "string" ? s.submission : undefined,
+    question: typeof s.question === "string" ? s.question : undefined,
+  }),
+});
 
 type Course = {
   id: string;
