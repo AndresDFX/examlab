@@ -97,22 +97,23 @@ describe("computeCutGrade", () => {
     expect(r).toBe(3.85);
   });
 
-  it("reescala los pesos cuando faltan componentes (proyecto null)", () => {
-    // Solo workshop(30%), exam(40%), attendance(10%) → totalWeight = 80
-    // (4.0*30 + 3.0*40 + 4.5*10) / 80 = (120 + 120 + 45) / 80 = 285/80 = 3.5625 → 3.56
+  it("componentes null cuentan como 0 con su peso original (proyecto null)", () => {
+    // Antes reescalaba; ahora project null = 0, sigue dividiendo entre 100.
+    // (4.0*30 + 3.0*40 + 0*20 + 4.5*10) / 100 = (120 + 120 + 0 + 45) / 100 = 2.85
     const r = computeCutGrade(
       { workshop: 4.0, exam: 3.0, project: null, attendance: 4.5 },
       fullWeights,
     );
-    expect(r).toBe(3.56);
+    expect(r).toBe(2.85);
   });
 
-  it("usa solo el componente disponible si los demás son null", () => {
+  it("componentes null cuentan como 0: solo exam=3 con peso 40 → 1.20", () => {
+    // 3*40 + 0*30 + 0*20 + 0*10 = 120 / 100 = 1.20
     const r = computeCutGrade(
       { workshop: null, exam: 3.0, project: null, attendance: null },
       fullWeights,
     );
-    expect(r).toBe(3);
+    expect(r).toBe(1.2);
   });
 
   it("retorna null si todos los componentes son null", () => {
@@ -163,15 +164,26 @@ describe("computeCourseFinalGrade", () => {
     expect(r).toBe(3.9);
   });
 
-  it("ignora cortes sin nota (reescala los demás)", () => {
-    // Corte 1 sin datos, Corte 2 (60%) y Corte 3 (40%) calificados
+  it("cortes sin nota cuentan como 0 con su peso original", () => {
+    // Corte 1 sin datos (peso 30) cuenta como 0. Pesos suman 130 (no 100,
+    // pero la fórmula divide por totalWeight, así que igual funciona).
+    // (0*30 + 4*60 + 3*40) / 130 = 360/130 = 2.769... → 2.77
     const r = computeCourseFinalGrade([
       { weight: 30, grade: null },
       { weight: 60, grade: 4.0 },
       { weight: 40, grade: 3.0 },
     ]);
-    // (4*60 + 3*40) / 100 = (240 + 120) / 100 = 3.6
-    expect(r).toBe(3.6);
+    expect(r).toBe(2.77);
+  });
+
+  it("caso real: solo Corte 1 calificado 4.20 (30%), Corte 2/3 sin nota → 1.26", () => {
+    // 4.20*30 + 0*30 + 0*40 = 126 / 100 = 1.26
+    const r = computeCourseFinalGrade([
+      { weight: 30, grade: 4.2 },
+      { weight: 30, grade: null },
+      { weight: 40, grade: null },
+    ]);
+    expect(r).toBe(1.26);
   });
 
   it("ignora cortes con peso 0", () => {

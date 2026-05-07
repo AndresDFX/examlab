@@ -106,7 +106,7 @@ REGLA: la suma de (items + attendance_weight) dentro de un corte
 
 `cut.exam_weight / workshop_weight / project_weight` son **legacy** (quedan en 0 tras la migración, no se usan).
 
-**Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` se omiten y sus pesos se redistribuyen entre los que sí tienen score (no penalizan al estudiante). Misma función para nota de corte (items del corte) y nota final (todos los items + todas las asistencias en un solo pase).
+**Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` **cuentan como 0** con su peso original (NO se reescalan). Eso refleja la realidad del estudiante: lo que debe y todavía no entregó/no tiene nota es nota perdida hasta que aparezca. Solo retorna `null` (UI muestra "—") cuando NINGÚN item del set tiene score. Misma regla en `computeCutGrade` y `computeCourseFinalGrade`.
 
 **Forms de items**: input de Peso disabled cuando no hay corte; max = `cut.weight`.
 
