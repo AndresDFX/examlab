@@ -325,6 +325,66 @@ export function AdminCourses() {
       toast.error("La fecha de fin debe ser posterior a la fecha de inicio");
       return;
     }
+
+    // ── Validación de pesos ──
+    // Tolerancia de 0.01 para evitar falsos negativos por suma flotante
+    // (ej. 33,33 + 33,33 + 33,34 = 100 exacto pero 99.99999... en JS).
+    const TOL = 0.01;
+    if (editingCuts.length === 0) {
+      // Sin cortes: los pesos por tipo del curso deben sumar 100.
+      const total =
+        Number(editing.exam_weight ?? 0) +
+        Number(editing.workshop_weight ?? 0) +
+        Number(editing.attendance_weight ?? 0) +
+        Number(editing.project_weight ?? 0);
+      if (Math.abs(total - 100) >= TOL) {
+        toast.error(`Los pesos del curso deben sumar 100% (suma actual: ${formatPercent(total)}%)`);
+        return;
+      }
+    } else {
+      // Con cortes: (a) la suma de cut.weight debe ser 100; (b) en cada
+      // corte, los sub-pesos deben sumar exactamente cut.weight.
+      const sumCuts = editingCuts.reduce((a, c) => a + Number(c.weight || 0), 0);
+      if (Math.abs(sumCuts - 100) >= TOL) {
+        toast.error(
+          `Los pesos de los cortes deben sumar 100% (suma actual: ${formatPercent(sumCuts)}%)`,
+        );
+        return;
+      }
+      const offending: string[] = [];
+      editingCuts.forEach((c, i) => {
+        const subSum =
+          Number(c.exam_weight || 0) +
+          Number(c.workshop_weight || 0) +
+          Number(c.attendance_weight || 0) +
+          Number(c.project_weight || 0);
+        const target = Number(c.weight || 0);
+        if (Math.abs(subSum - target) >= TOL) {
+          const label = c.name?.trim() || `Corte ${i + 1}`;
+          offending.push(
+            `${label}: sub-pesos ${formatPercent(subSum)}% ≠ ${formatPercent(target)}%`,
+          );
+        }
+      });
+      if (offending.length > 0) {
+        // Auto-expande los cortes con error para que el docente vea
+        // los inputs sin tener que abrirlos uno por uno.
+        const idxsWithError = editingCuts
+          .map((c, i) => ({ c, i }))
+          .filter(({ c }) => {
+            const subSum =
+              Number(c.exam_weight || 0) +
+              Number(c.workshop_weight || 0) +
+              Number(c.attendance_weight || 0) +
+              Number(c.project_weight || 0);
+            return Math.abs(subSum - Number(c.weight || 0)) >= TOL;
+          })
+          .map(({ i }) => i);
+        setExpandedCuts(new Set(idxsWithError));
+        toast.error(`Sub-pesos no cuadran con el peso del corte:\n${offending.join("\n")}`);
+        return;
+      }
+    }
     const payload = {
       name: editing.name,
       description: editing.description || null,
