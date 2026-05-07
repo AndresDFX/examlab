@@ -31,6 +31,7 @@ import { Button } from "./button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 const ALL_COURSES = "__all__";
+const ALL_CUTS = "__all_cuts__";
 
 interface ListFiltersProps {
   search: string;
@@ -42,6 +43,17 @@ interface ListFiltersProps {
   courses: Array<{ id: string; name: string }>;
   /** Etiqueta para el item "todos" — default "Todos los cursos". */
   allLabel?: string;
+  /**
+   * Lista completa de cuts (cualquier curso). Si está presente y hay un
+   * `courseId` seleccionado, se renderiza un segundo Select con los
+   * cuts de ese curso. Si el curso no tiene cuts, no se muestra nada.
+   */
+  cuts?: Array<{ id: string; course_id: string; name: string }>;
+  /** ID del corte seleccionado, o null para "Todos los cortes". */
+  cutId?: string | null;
+  onCutChange?: (v: string | null) => void;
+  /** Etiqueta para "todos los cortes" — default "Todos los cortes". */
+  allCutsLabel?: string;
 }
 
 export function ListFilters({
@@ -52,8 +64,14 @@ export function ListFilters({
   onCourseChange,
   courses,
   allLabel = "Todos los cursos",
+  cuts,
+  cutId,
+  onCutChange,
+  allCutsLabel = "Todos los cortes",
 }: ListFiltersProps) {
-  const hasFilters = !!search || courseId != null;
+  const cutsForCourse = courseId ? (cuts ?? []).filter((c) => c.course_id === courseId) : [];
+  const showCutSelect = !!courseId && cutsForCourse.length > 0 && !!onCutChange;
+  const hasFilters = !!search || courseId != null || cutId != null;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
@@ -81,6 +99,24 @@ export function ListFilters({
           ))}
         </SelectContent>
       </Select>
+      {showCutSelect && (
+        <Select
+          value={cutId ?? ALL_CUTS}
+          onValueChange={(v) => onCutChange?.(v === ALL_CUTS ? null : v)}
+        >
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder={allCutsLabel} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_CUTS}>{allCutsLabel}</SelectItem>
+            {cutsForCourse.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       {hasFilters && (
         <Button
           variant="ghost"
@@ -88,6 +124,7 @@ export function ListFilters({
           onClick={() => {
             onSearchChange("");
             onCourseChange(null);
+            onCutChange?.(null);
           }}
           title="Limpiar filtros"
         >

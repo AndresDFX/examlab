@@ -142,10 +142,12 @@ function TeacherProjects() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  // Proyectos filtrados por título y curso. A diferencia de talleres/
-  // exámenes, un proyecto puede estar vinculado a N cursos vía
-  // linked_course_ids — el match contra el filtro chequea esa lista
-  // (cae al course_id legacy si no hay vínculos).
+  const [cutFilter, setCutFilter] = useState<string | null>(null);
+  // Proyectos filtrados por título, curso y corte. A diferencia de
+  // talleres/exámenes, un proyecto puede estar vinculado a N cursos
+  // vía linked_course_ids — el match contra el filtro chequea esa
+  // lista (cae al course_id legacy si no hay vínculos). El filtro de
+  // corte aplica sobre cut_id (el corte siempre es del curso primario).
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase();
     return projects.filter((p) => {
@@ -153,10 +155,11 @@ function TeacherProjects() {
         const linked = p.linked_course_ids ?? [p.course_id];
         if (!linked.includes(courseFilter)) return false;
       }
+      if (cutFilter && p.cut_id !== cutFilter) return false;
       if (q && !p.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [projects, search, courseFilter]);
+  }, [projects, search, courseFilter, cutFilter]);
   const sel = useMultiSelect(filteredProjects);
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -1032,8 +1035,14 @@ function TeacherProjects() {
         onSearchChange={setSearch}
         searchPlaceholder="Buscar proyecto por título…"
         courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        onCourseChange={(v) => {
+          setCourseFilter(v);
+          setCutFilter(null);
+        }}
         courses={courses}
+        cuts={cuts}
+        cutId={cutFilter}
+        onCutChange={setCutFilter}
       />
 
       <MultiSelectToolbar

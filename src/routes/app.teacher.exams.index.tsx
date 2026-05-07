@@ -89,16 +89,18 @@ function TeacherExams() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  // Filtra exámenes por título y curso. Se aplica también al
+  const [cutFilter, setCutFilter] = useState<string | null>(null);
+  // Filtra exámenes por título, curso y corte. Se aplica también al
   // multi-select para que el "seleccionar todo" abarque solo lo visible.
   const filteredExams = useMemo(() => {
     const q = search.trim().toLowerCase();
     return exams.filter((e) => {
       if (courseFilter && e.course_id !== courseFilter) return false;
+      if (cutFilter && e.cut_id !== cutFilter) return false;
       if (q && !e.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [exams, search, courseFilter]);
+  }, [exams, search, courseFilter, cutFilter]);
   const sel = useMultiSelect(filteredExams);
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -396,8 +398,14 @@ function TeacherExams() {
         onSearchChange={setSearch}
         searchPlaceholder="Buscar examen por título…"
         courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        onCourseChange={(v) => {
+          setCourseFilter(v);
+          setCutFilter(null);
+        }}
         courses={courses}
+        cuts={cuts}
+        cutId={cutFilter}
+        onCutChange={setCutFilter}
       />
 
       <MultiSelectToolbar

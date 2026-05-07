@@ -173,18 +173,20 @@ function TeacherWorkshops() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  // Filtra por título (ASCII case-insensitive) y por course_id si hay
-  // curso seleccionado. Se usa tanto para el render de la tabla como
-  // para el multi-select (no queremos que el "seleccionar todo" abarque
-  // filas ocultas por el filtro).
+  const [cutFilter, setCutFilter] = useState<string | null>(null);
+  // Filtra por título (ASCII case-insensitive), por course_id si hay
+  // curso seleccionado, y por cut_id si hay corte. Se usa tanto para
+  // el render de la tabla como para el multi-select (no queremos que
+  // el "seleccionar todo" abarque filas ocultas por el filtro).
   const filteredWorkshops = useMemo(() => {
     const q = search.trim().toLowerCase();
     return workshops.filter((w) => {
       if (courseFilter && w.course_id !== courseFilter) return false;
+      if (cutFilter && (w as any).cut_id !== cutFilter) return false;
       if (q && !w.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [workshops, search, courseFilter]);
+  }, [workshops, search, courseFilter, cutFilter]);
   const sel = useMultiSelect(filteredWorkshops);
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -1124,8 +1126,17 @@ function TeacherWorkshops() {
         onSearchChange={setSearch}
         searchPlaceholder="Buscar taller por título…"
         courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        onCourseChange={(v) => {
+          setCourseFilter(v);
+          // Resetear corte cuando cambia el curso: los cortes son
+          // específicos del curso, así que conservar el corte anterior
+          // dejaría un filtro inválido.
+          setCutFilter(null);
+        }}
         courses={courses}
+        cuts={cuts}
+        cutId={cutFilter}
+        onCutChange={setCutFilter}
       />
 
       <MultiSelectToolbar
