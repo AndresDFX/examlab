@@ -45,7 +45,14 @@ import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 
-export const Route = createFileRoute("/app/teacher/monitor/$examId")({ component: ExamMonitor });
+export const Route = createFileRoute("/app/teacher/monitor/$examId")({
+  component: ExamMonitor,
+  validateSearch: (s: Record<string, unknown>) => ({
+    student: typeof s.student === "string" ? s.student : undefined,
+    submission: typeof s.submission === "string" ? s.submission : undefined,
+    question: typeof s.question === "string" ? s.question : undefined,
+  }),
+});
 
 type Submission = {
   id: string;
