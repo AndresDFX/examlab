@@ -95,7 +95,14 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-export const Route = createFileRoute("/app/teacher/projects")({ component: TeacherProjects });
+export const Route = createFileRoute("/app/teacher/projects")({
+  component: TeacherProjects,
+  validateSearch: (s: Record<string, unknown>) => ({
+    project: typeof s.project === "string" ? s.project : undefined,
+    submission: typeof s.submission === "string" ? s.submission : undefined,
+    file: typeof s.file === "string" ? s.file : undefined,
+  }),
+});
 
 type Course = { id: string; name: string; period: string | null; language?: string | null };
 type Cut = {
