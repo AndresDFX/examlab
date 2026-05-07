@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { PendingGradingModal } from "@/components/PendingGradingModal";
+import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
 import {
   Users,
   BookOpen,
@@ -29,6 +29,7 @@ import {
   Play,
   Send,
   Eye,
+  MessageSquareText,
   TrendingUp,
   UserCog,
 } from "lucide-react";
@@ -294,45 +295,32 @@ function AdminDashboard() {
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   void userId;
-  const [counts, setCounts] = useState({ exams: 0, workshops: 0, projects: 0, pendingGrades: 0, courses: 0 });
+  const [counts, setCounts] = useState({ exams: 0, workshops: 0, projects: 0, openThreads: 0, courses: 0 });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
-  const [pendingGradingOpen, setPendingGradingOpen] = useState(false);
+  const [openFeedbackModalOpen, setOpenFeedbackModalOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
-      // Para "Por calificar" sumamos los 3 tipos (examen + taller + proyecto)
-      // con !inner para que solo cuente los que tienen entidad padre viva
-      // (descarta huérfanos cuyo exam/workshop/project fue eliminado).
-      // Misma lógica que PendingGradingModal — para que el conteo coincida.
-      const [e, w, pr, pgExams, pgWorkshops, pgProjects, c] = await Promise.all([
+      // Conversaciones abiertas: feedback_threads con closed=false que el
+      // docente puede ver (RLS filtra por curso vía is_question_course_teacher).
+      const [e, w, pr, threads, c] = await Promise.all([
         supabase.from("exams").select("id", { count: "exact", head: true }),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
         (supabase as any).from("projects").select("id", { count: "exact", head: true }),
-        supabase
-          .from("submissions")
-          .select("id, exam:exams!inner(id)", { count: "exact", head: true })
-          .eq("status", "completado")
-          .is("final_override_grade", null),
-        supabase
-          .from("workshop_submissions")
-          .select("id, workshop:workshops!inner(id)", { count: "exact", head: true })
-          .in("status", ["entregado", "calificado"])
-          .is("final_grade", null),
         (supabase as any)
-          .from("project_submissions")
-          .select("id, project:projects!inner(id)", { count: "exact", head: true })
-          .eq("status", "entregado")
-          .is("final_grade", null),
+          .from("feedback_threads")
+          .select("id", { count: "exact", head: true })
+          .eq("closed", false),
         supabase.from("courses").select("id", { count: "exact", head: true }),
       ]);
       setCounts({
         exams: e.count ?? 0,
         workshops: w.count ?? 0,
         projects: pr.count ?? 0,
-        pendingGrades: (pgExams.count ?? 0) + (pgWorkshops.count ?? 0) + (pgProjects.count ?? 0),
+        openThreads: threads.count ?? 0,
         courses: c.count ?? 0,
       });
 
@@ -384,11 +372,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-rose-500 dark:text-rose-400"
         />
         <Stat
-          icon={Eye}
-          label={t("dashboard.stats.pendingGrades")}
-          value={counts.pendingGrades}
+          icon={MessageSquareText}
+          label={t("dashboard.stats.openThreads", {
+            defaultValue: "Conversaciones abiertas",
+          })}
+          value={counts.openThreads}
           color="text-pink-500 dark:text-pink-400"
-          onClick={() => setPendingGradingOpen(true)}
+          onClick={() => setOpenFeedbackModalOpen(true)}
         />
         <Stat
           icon={BookOpen}
@@ -536,7 +526,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         </div>
       </div>
 
-      <PendingGradingModal open={pendingGradingOpen} onOpenChange={setPendingGradingOpen} />
+      <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />
     </>
   );
 }
