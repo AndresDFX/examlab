@@ -30,7 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, CheckCircle2, X, Eraser, QrCode, Loader2 } from "lucide-react";
+import { Plus, CheckCircle2, X, Eraser, QrCode, Loader2, Trash2 } from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -493,15 +493,26 @@ function TeacherAttendance() {
 
   // Delete session
   const deleteSession = async (id: string) => {
+    const sess = sessions.find((s) => s.id === id);
+    const recordsForSession = records.filter((r) => r.session_id === id).length;
+    const dateLabel = sess
+      ? `${sess.session_date}${sess.title ? ` · ${sess.title}` : ""}`
+      : "esta sesión";
     const ok = await confirm({
       title: "Eliminar sesión",
       description:
-        "Se eliminará la sesión y todos sus registros de asistencia. Esta acción no se puede deshacer.",
+        `Se eliminará la sesión "${dateLabel}" y sus ${recordsForSession} registro(s) de asistencia. ` +
+        (sess?.check_in_open ? "El check-in activo se cerrará. " : "") +
+        "Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
     if (!ok) return;
-    await supabase.from("attendance_sessions").delete().eq("id", id);
+    const { error } = await supabase.from("attendance_sessions").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Sesión eliminada correctamente");
     loadCourse();
   };
@@ -624,6 +635,16 @@ function TeacherAttendance() {
                           title="Quitar asistencia de todos (reiniciar sesión)"
                         >
                           <Eraser className="h-4 w-4 text-muted-foreground" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 hover:bg-destructive/10 hover:border-destructive/40"
+                          onClick={() => deleteSession(sess.id)}
+                          title="Eliminar sesión completa"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                         </Button>
                       </div>
                       {sess.check_in_open && (
