@@ -440,7 +440,10 @@ export function AdminCourses() {
     if (checked) {
       const { error } = await supabase
         .from("course_enrollments")
-        .upsert({ course_id: enrollCourse.id, user_id: uid }, { onConflict: "course_id,user_id", ignoreDuplicates: true });
+        .upsert(
+          { course_id: enrollCourse.id, user_id: uid },
+          { onConflict: "course_id,user_id", ignoreDuplicates: true },
+        );
       if (error) return toast.error(error.message);
       setEnrolledIds((prev) => new Set([...prev, uid]));
       toast.success("Estudiante matriculado correctamente");
@@ -738,10 +741,7 @@ export function AdminCourses() {
     }
   };
 
-  if (!canManage)
-    return (
-      <p className="text-muted-foreground">Necesitas rol Admin o Docente.</p>
-    );
+  if (!canManage) return <p className="text-muted-foreground">Necesitas rol Admin o Docente.</p>;
 
   return (
     <div className="space-y-5">
@@ -838,26 +838,10 @@ export function AdminCourses() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <RowAction
-                        label="Estudiantes"
-                        icon={Users}
-                        onClick={() => openEnroll(c)}
-                      />
-                      <RowAction
-                        label="Docentes"
-                        icon={UserCog}
-                        onClick={() => openTeachers(c)}
-                      />
-                      <RowAction
-                        label="Duplicar"
-                        icon={Copy}
-                        onClick={() => openDuplicate(c)}
-                      />
-                      <RowAction
-                        label="Editar"
-                        icon={Pencil}
-                        onClick={() => openEdit(c)}
-                      />
+                      <RowAction label="Estudiantes" icon={Users} onClick={() => openEnroll(c)} />
+                      <RowAction label="Docentes" icon={UserCog} onClick={() => openTeachers(c)} />
+                      <RowAction label="Duplicar" icon={Copy} onClick={() => openDuplicate(c)} />
+                      <RowAction label="Editar" icon={Pencil} onClick={() => openEdit(c)} />
                       <RowAction
                         label="Eliminar"
                         icon={Trash2}
@@ -958,84 +942,98 @@ export function AdminCourses() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-xs">Peso exámenes (%)</Label>
-                    <Input
-                      type="number"
-                      step="1"
-                      value={editing.exam_weight || ""}
-                      onChange={(e) =>
-                        setEditing({
-                          ...editing,
-                          exam_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Peso talleres (%)</Label>
-                    <Input
-                      type="number"
-                      step="1"
-                      value={editing.workshop_weight || ""}
-                      onChange={(e) =>
-                        setEditing({
-                          ...editing,
-                          workshop_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Peso asistencia (%)</Label>
-                    <Input
-                      type="number"
-                      step="1"
-                      value={editing.attendance_weight || ""}
-                      onChange={(e) =>
-                        setEditing({
-                          ...editing,
-                          attendance_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Peso proyecto (%)</Label>
-                    <Input
-                      type="number"
-                      step="1"
-                      value={editing.project_weight || ""}
-                      onChange={(e) =>
-                        setEditing({
-                          ...editing,
-                          project_weight: e.target.value === "" ? 0 : Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                {(() => {
-                  const total =
-                    (editing.exam_weight ?? 0) +
-                    (editing.workshop_weight ?? 0) +
-                    (editing.attendance_weight ?? 0) +
-                    (editing.project_weight ?? 0);
-                  return (
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">
-                        Total de pesos: debe sumar 100%
-                      </p>
-                      <Badge
-                        variant={total === 100 ? "default" : "destructive"}
-                        className="text-xs"
-                      >
-                        {total}%
-                      </Badge>
+                {/* Pesos por tipo a nivel de curso. Cuando el curso tiene
+                    cortes, los pesos se definen DENTRO de cada corte (cada
+                    cut tiene sus buckets exam/workshop/project/attendance),
+                    así que estos campos globales se ocultan para no inducir
+                    a error. Si no hay cortes, aplican al curso completo. */}
+                {editingCuts.length === 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <Label className="text-xs">Peso exámenes (%)</Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          value={editing.exam_weight || ""}
+                          onChange={(e) =>
+                            setEditing({
+                              ...editing,
+                              exam_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Peso talleres (%)</Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          value={editing.workshop_weight || ""}
+                          onChange={(e) =>
+                            setEditing({
+                              ...editing,
+                              workshop_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Peso asistencia (%)</Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          value={editing.attendance_weight || ""}
+                          onChange={(e) =>
+                            setEditing({
+                              ...editing,
+                              attendance_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Peso proyecto (%)</Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          value={editing.project_weight || ""}
+                          onChange={(e) =>
+                            setEditing({
+                              ...editing,
+                              project_weight: e.target.value === "" ? 0 : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  );
-                })()}
+                    {(() => {
+                      const total =
+                        (editing.exam_weight ?? 0) +
+                        (editing.workshop_weight ?? 0) +
+                        (editing.attendance_weight ?? 0) +
+                        (editing.project_weight ?? 0);
+                      return (
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Total de pesos: debe sumar 100%
+                          </p>
+                          <Badge
+                            variant={total === 100 ? "default" : "destructive"}
+                            className="text-xs"
+                          >
+                            {total}%
+                          </Badge>
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <p className="rounded-md border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground">
+                    Los pesos por tipo (exámenes / talleres / asistencia / proyecto) se configuran
+                    dentro de cada corte abajo. Aquí solo se editan si el curso no tiene cortes.
+                  </p>
+                )}
 
                 {/* ── Cortes evaluativos (inline, en memoria) ── */}
                 <div className="rounded-md border p-3 space-y-3">
@@ -1077,9 +1075,7 @@ export function AdminCourses() {
                   </div>
 
                   {editingCuts.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">
-                      Sin cortes configurados.
-                    </p>
+                    <p className="text-xs text-muted-foreground italic">Sin cortes configurados.</p>
                   )}
 
                   <div
@@ -1324,8 +1320,8 @@ export function AdminCourses() {
           />
           {!isAdmin && (
             <p className="text-[11px] text-muted-foreground">
-              No puedes asignarte a ti mismo a un curso. Si necesitas estar
-              en este curso, pídele a un Admin que te agregue.
+              No puedes asignarte a ti mismo a un curso. Si necesitas estar en este curso, pídele a
+              un Admin que te agregue.
             </p>
           )}
         </DialogContent>
