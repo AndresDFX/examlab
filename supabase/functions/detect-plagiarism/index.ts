@@ -101,20 +101,87 @@ Deno.serve(async (req) => {
         }
       }
     } else if (kind === "workshop") {
-      const { data: subs, error } = await admin
+      // Modelo nuevo: las respuestas viven en workshop_submission_answers
+      // (una fila por pregunta). Comparamos por pregunta — análoga a
+      // como hacemos con exámenes — para no diluir la señal mezclando
+      // respuestas de preguntas distintas.
+      const { data: subs, error: sErr } = await admin
         .from("workshop_submissions")
-        .select("id, user_id, content")
+        .select("id, user_id, status, content")
         .eq("workshop_id", refId);
-      if (error) throw error;
-      const items: Item[] = (subs ?? [])
-        .map((s: any) => ({
-          submissionId: s.id as string,
-          userId: s.user_id as string,
-          text: ((s.content as string) ?? "").slice(0, MAX_CHARS_PER_TEXT),
-        }))
-        .filter((x) => x.text.trim().length >= MIN_TEXT_LENGTH);
-      if (items.length >= 2) {
-        groups.push({ questionId: null, questionLabel: "Entrega", items });
+      if (sErr) throw sErr;
+      const { data: qs, error: qErr } = await admin
+        .from("workshop_questions")
+        .select("id, type, content, position")
+        .eq("workshop_id", refId)
+        .order("position");
+      if (qErr) throw qErr;
+
+      const submissionIds = (subs ?? []).map((s: any) => s.id);
+      const userBySub = new Map<string, string>();
+      ((subs ?? []) as any[]).forEach((s) => userBySub.set(s.id, s.user_id));
+
+      let answers: any[] = [];
+      if (submissionIds.length > 0) {
+        const { data: ans, error: aErr } = await admin
+          .from("workshop_submission_answers")
+          .select(
+            "submission_id, question_id, answer_text, code_content, diagram_code, selected_option",
+          )
+          .in("submission_id", submissionIds);
+        if (aErr) throw aErr;
+        answers = ans ?? [];
+      }
+
+      // Agrupar por pregunta
+      const ansByQ = new Map<string, any[]>();
+      for (const a of answers) {
+        const key = a.question_id;
+        if (!ansByQ.has(key)) ansByQ.set(key, []);
+        ansByQ.get(key)!.push(a);
+      }
+
+      for (const q of qs ?? []) {
+        if ((q as any).type === "cerrada") continue;
+        const list = ansByQ.get((q as any).id) ?? [];
+        const items: Item[] = list
+          .map((a: any) => {
+            const text =
+              a.code_content ??
+              a.diagram_code ??
+              a.answer_text ??
+              "";
+            const userId = userBySub.get(a.submission_id) ?? "";
+            return {
+              submissionId: a.submission_id as string,
+              userId,
+              text: String(text).slice(0, MAX_CHARS_PER_TEXT),
+            };
+          })
+          .filter((x) => x.userId && x.text.trim().length >= MIN_TEXT_LENGTH);
+        if (items.length >= 2) {
+          groups.push({
+            questionId: (q as any).id as string,
+            questionLabel: `Pregunta ${(q as any).position ?? "?"}`,
+            items,
+          });
+        }
+      }
+
+      // Fallback legacy: si NO hay preguntas configuradas o ninguna trajo
+      // respuestas, intentamos el modelo viejo de "una entrega = un texto"
+      // en workshop_submissions.content. Cubre talleres antiguos.
+      if (groups.length === 0) {
+        const items: Item[] = ((subs ?? []) as any[])
+          .map((s) => ({
+            submissionId: s.id as string,
+            userId: s.user_id as string,
+            text: ((s.content as string) ?? "").slice(0, MAX_CHARS_PER_TEXT),
+          }))
+          .filter((x) => x.text.trim().length >= MIN_TEXT_LENGTH);
+        if (items.length >= 2) {
+          groups.push({ questionId: null, questionLabel: "Entrega", items });
+        }
       }
     } else if (kind === "project") {
       // v1: comparamos ai_feedback como proxy textual del contenido del

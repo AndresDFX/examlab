@@ -244,6 +244,35 @@ function TeacherWorkshops() {
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [groupsWs, setGroupsWs] = useState<Workshop | null>(null);
 
+  /**
+   * Abre el editor de grupos del taller. Si el taller está en modo
+   * `individual` (default histórico), lo cambia a `teacher_assigned`
+   * primero — así el docente no tiene que entrar a editar el form solo
+   * para activar el toggle. Los grupos creados aquí son utilizables
+   * inmediatamente.
+   */
+  const openGroupsForWorkshop = async (ws: Workshop) => {
+    const mode = (ws as any).group_mode ?? "individual";
+    let updatedWs = ws;
+    if (mode === "individual") {
+      const { error } = await (supabase as any)
+        .from("workshops")
+        .update({ group_mode: "teacher_assigned" })
+        .eq("id", ws.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      updatedWs = { ...ws, group_mode: "teacher_assigned" } as Workshop;
+      setWorkshops((prev) =>
+        prev.map((w) => (w.id === ws.id ? updatedWs : w)),
+      );
+      toast.success("Trabajo en grupo activado");
+    }
+    setGroupsWs(updatedWs);
+    setGroupsOpen(true);
+  };
+
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   /** Auto-assign a workshop to all students enrolled in the course */
@@ -1077,17 +1106,18 @@ function TeacherWorkshops() {
                         icon={Users}
                         onClick={() => openAssign(ws)}
                       />
-                      {(ws as any).group_mode &&
-                        (ws as any).group_mode !== "individual" && (
-                          <RowAction
-                            label="Grupos"
-                            icon={UsersRound}
-                            onClick={() => {
-                              setGroupsWs(ws);
-                              setGroupsOpen(true);
-                            }}
-                          />
-                        )}
+                      {!(ws as any).is_external && (
+                        <RowAction
+                          label={
+                            (ws as any).group_mode &&
+                            (ws as any).group_mode !== "individual"
+                              ? "Grupos"
+                              : "Activar grupos"
+                          }
+                          icon={UsersRound}
+                          onClick={() => openGroupsForWorkshop(ws)}
+                        />
+                      )}
                       <RowAction
                         label="Preguntas del taller"
                         icon={ListChecks}
