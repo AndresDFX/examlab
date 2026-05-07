@@ -66,6 +66,13 @@ type Session = {
   created_by: string;
   check_in_open?: boolean;
 };
+type Cut = {
+  id: string;
+  name: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+};
 type Student = { id: string; full_name: string; institutional_email: string };
 type Record_ = {
   id: string;
@@ -92,6 +99,7 @@ function TeacherAttendance() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [cuts, setCuts] = useState<Cut[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<Record_[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
@@ -125,15 +133,23 @@ function TeacherAttendance() {
   const loadCourse = useCallback(async () => {
     if (!courseId) return;
 
-    const [{ data: sess }, { data: enr }] = await Promise.all([
+    const [{ data: sess }, { data: enr }, { data: cs }] = await Promise.all([
       supabase
         .from("attendance_sessions")
         .select("*")
         .eq("course_id", courseId)
         .order("session_date"),
       supabase.from("course_enrollments").select("user_id").eq("course_id", courseId),
+      // grade_cuts no está en types.ts auto-generado todavía
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("grade_cuts")
+        .select("id, name, position, start_date, end_date")
+        .eq("course_id", courseId)
+        .order("position"),
     ]);
     setSessions((sess ?? []) as Session[]);
+    setCuts((cs ?? []) as Cut[]);
 
     const userIds = (enr ?? []).map((e: any) => e.user_id);
     if (userIds.length) {
@@ -517,6 +533,43 @@ function TeacherAttendance() {
     loadCourse();
   };
 
+  // Agrupa las sesiones por corte, derivando la pertenencia por fechas
+  // (idéntico a gradebook): la sesión cae en el corte si
+  // cut.start_date <= session_date <= cut.end_date. Las que no caen en
+  // ningún corte (o cuando no hay cuts definidos) van al grupo "Sin corte".
+  // Mantiene el orden por session_date dentro de cada grupo.
+  type CutGroup = { cut: Cut | null; sessions: Session[] };
+  const cutGroups: CutGroup[] = (() => {
+    if (sessions.length === 0) return [];
+    const groups: CutGroup[] = cuts.map((c) => ({ cut: c, sessions: [] }));
+    const orphan: CutGroup = { cut: null, sessions: [] };
+    for (const sess of sessions) {
+      const match = cuts.find(
+        (c) =>
+          c.start_date != null &&
+          c.end_date != null &&
+          sess.session_date >= c.start_date &&
+          sess.session_date <= c.end_date,
+      );
+      if (match) {
+        groups.find((g) => g.cut?.id === match.id)!.sessions.push(sess);
+      } else {
+        orphan.sessions.push(sess);
+      }
+    }
+    const nonEmpty = groups.filter((g) => g.sessions.length > 0);
+    if (orphan.sessions.length > 0) nonEmpty.push(orphan);
+    return nonEmpty;
+  })();
+  // Marca el id de la primera sesión de cada grupo (excepto el primer
+  // grupo en absoluto) para pintar un divisor visual entre cortes.
+  const cutBoundaryIds = new Set(
+    cutGroups
+      .slice(1)
+      .map((g) => g.sessions[0]?.id)
+      .filter(Boolean) as string[],
+  );
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   return (
@@ -594,10 +647,37 @@ function TeacherAttendance() {
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
+              {cutGroups.length > 0 && (
+                <TableRow>
+                  <TableHead className="sticky left-0 z-10 bg-card" />
+                  {cutGroups.map((g, idx) => (
+                    <TableHead
+                      key={g.cut?.id ?? `orphan-${idx}`}
+                      colSpan={g.sessions.length}
+                      className={`text-center text-xs font-semibold uppercase tracking-wide py-1.5 bg-muted/40 border-b ${
+                        idx > 0 ? "border-l-2 border-l-primary/40" : ""
+                      }`}
+                    >
+                      <span className={g.cut ? "" : "text-muted-foreground italic"}>
+                        {g.cut ? g.cut.name : "Sin corte"}
+                      </span>
+                      <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                        {g.sessions.length} sesión{g.sessions.length === 1 ? "" : "es"}
+                      </span>
+                    </TableHead>
+                  ))}
+                  <TableHead />
+                </TableRow>
+              )}
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
                 {sessions.map((sess) => (
-                  <TableHead key={sess.id} className="text-center min-w-[7.5rem] align-bottom p-2">
+                  <TableHead
+                    key={sess.id}
+                    className={`text-center min-w-[7.5rem] align-bottom p-2 ${
+                      cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                    }`}
+                  >
                     <div className="flex flex-col items-stretch gap-1.5">
                       <div className="flex items-center justify-center gap-1">
                         <Button
@@ -648,10 +728,7 @@ function TeacherAttendance() {
                         </Button>
                       </div>
                       {sess.check_in_open && (
-                        <Badge
-                          variant="default"
-                          className="text-[9px] py-0 px-1 self-center"
-                        >
+                        <Badge variant="default" className="text-[9px] py-0 px-1 self-center">
                           Check-in activo
                         </Badge>
                       )}
@@ -703,7 +780,12 @@ function TeacherAttendance() {
                     {sessions.map((sess) => {
                       const status = getStatus(sess.id, s.id);
                       return (
-                        <TableCell key={sess.id} className="text-center p-1">
+                        <TableCell
+                          key={sess.id}
+                          className={`text-center p-1 ${
+                            cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                          }`}
+                        >
                           <Select
                             value={status || "none"}
                             onValueChange={(v) => setAttendance(sess.id, s.id, v)}
@@ -785,9 +867,8 @@ function TeacherAttendance() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Los estudiantes escanearán el QR (o escribirán el código) para
-              marcarse presentes desde su app, sin que tengas que llamar a
-              cada uno.
+              Los estudiantes escanearán el QR (o escribirán el código) para marcarse presentes
+              desde su app, sin que tengas que llamar a cada uno.
             </p>
             <div>
               <Label>Duración de la ventana (minutos)</Label>
@@ -803,8 +884,8 @@ function TeacherAttendance() {
                 }
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Cuánto tiempo permanece abierta la ventana antes de cerrarse
-                automáticamente. Default 10 min.
+                Cuánto tiempo permanece abierta la ventana antes de cerrarse automáticamente.
+                Default 10 min.
               </p>
             </div>
             <div>
@@ -821,8 +902,8 @@ function TeacherAttendance() {
                 }
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Cada cuánto cambia el código de 6 dígitos. Más corto = más
-                seguro, más fricción si la red está lenta. Default 60s.
+                Cada cuánto cambia el código de 6 dígitos. Más corto = más seguro, más fricción si
+                la red está lenta. Default 60s.
               </p>
             </div>
           </div>
@@ -847,9 +928,7 @@ function TeacherAttendance() {
       </Dialog>
 
       {/* Projector overlay */}
-      {projector && (
-        <AttendanceCheckInProjector state={projector} onClose={closeProjector} />
-      )}
+      {projector && <AttendanceCheckInProjector state={projector} onClose={closeProjector} />}
     </div>
   );
 }
