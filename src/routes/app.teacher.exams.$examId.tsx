@@ -627,19 +627,14 @@ function ExamEditor() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="flex items-center gap-2 flex-wrap">
-                    <span>
-                      Duración (min){" "}
-                      <span className="text-xs text-muted-foreground font-normal">
-                        (se calcula automáticamente, pero puedes editarla)
-                      </span>
-                    </span>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <Label className="m-0">Duración (min)</Label>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-[11px] ml-auto"
+                      className="h-7 px-2 text-[11px]"
                       onClick={evaluateTimeWithAI}
                       disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
                       title={
@@ -655,7 +650,10 @@ function ExamEditor() {
                       )}
                       Evaluar tiempo con IA
                     </Button>
-                  </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Se calcula automáticamente, pero puedes editarla.
+                  </p>
                   <Input
                     type="number"
                     min={1}
