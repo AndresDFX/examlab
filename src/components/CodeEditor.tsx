@@ -49,6 +49,9 @@ interface CodeEditorProps {
    * a nivel del editor o se cuela el paste.
    */
   blockClipboard?: boolean;
+  /** Esconde tips informativos (ej. el banner de Java cold-start).
+   *  Útil para vistas read-only de revisión donde el banner sobra. */
+  hideHints?: boolean;
 }
 
 const LANGUAGE_CONFIG: Record<
@@ -85,6 +88,7 @@ export function CodeEditor({
   showLanguageSelector = true,
   showRunButton = true,
   blockClipboard = false,
+  hideHints = false,
 }: CodeEditorProps) {
   const editorRef = useRef<any>(null);
 
@@ -164,7 +168,7 @@ export function CodeEditor({
         )}
       </div>
 
-      {language === "java" && (
+      {language === "java" && !hideHints && (
         <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
           <span>

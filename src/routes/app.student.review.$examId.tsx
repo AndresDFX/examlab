@@ -12,6 +12,7 @@ import { FeedbackThread } from "@/components/FeedbackThread";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
 import { CodeRunOutput } from "@/components/CodeRunOutput";
+import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -339,18 +340,37 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {q.type !== "cerrada" && (
-                  <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono min-h-[44px]">
-                    {ans == null || ans === "" ? (
-                      <span className="text-muted-foreground italic font-sans">
-                        {t("exam.review.noAnswer")}
-                      </span>
-                    ) : typeof ans === "string" ? (
-                      ans
-                    ) : (
-                      JSON.stringify(ans, null, 2)
-                    )}
-                  </div>
+                {q.type === "codigo" || q.type === "java_gui" ? (
+                  <CodeEditor
+                    value={
+                      ans == null || ans === ""
+                        ? "// Sin responder"
+                        : typeof ans === "string"
+                          ? ans
+                          : JSON.stringify(ans, null, 2)
+                    }
+                    onChange={() => {}}
+                    language={(q.language as CodeLanguage) ?? "java"}
+                    readOnly
+                    showLanguageSelector={false}
+                    showRunButton={false}
+                    hideHints
+                    height="220px"
+                  />
+                ) : (
+                  q.type !== "cerrada" && (
+                    <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono min-h-[44px]">
+                      {ans == null || ans === "" ? (
+                        <span className="text-muted-foreground italic font-sans">
+                          {t("exam.review.noAnswer")}
+                        </span>
+                      ) : typeof ans === "string" ? (
+                        ans
+                      ) : (
+                        JSON.stringify(ans, null, 2)
+                      )}
+                    </div>
+                  )
                 )}
 
                 {/* Líneas del compilador / consola: la última ejecución

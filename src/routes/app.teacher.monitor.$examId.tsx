@@ -54,6 +54,7 @@ import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/components/CodeRunOutput";
+import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({
   component: ExamMonitor,
@@ -200,15 +201,22 @@ function ExamMonitor() {
     setQuestions((data ?? []) as Question[]);
   }, [examId]);
 
-  // Conteo de conversaciones abiertas (feedback_threads sin cerrar) por
-  // estudiante en este examen. Lo refrescamos cuando cambian las
-  // submissions y vía realtime cuando un thread se abre/cierra. Permite
-  // mostrar en el grid "Conversaciones: 2" con color destacado para que
-  // el docente vea de un vistazo dónde hay diálogo pendiente.
+  // Conteo de conversaciones abiertas y de "respuestas pendientes" por
+  // estudiante en este examen.
+  //   - openThreadsByUser: total de threads con closed=false del alumno.
+  //   - pendingReplyByUser: subconjunto donde la ÚLTIMA comment fue del
+  //     alumno → el docente debe responder. Si el último comentario es
+  //     del docente, esperamos al alumno y no cuenta como pendiente.
+  // Se carga cuando cambian las submissions. (Si en el futuro queremos
+  // realtime, suscribimos a feedback_comments filtrado por thread_id IN
+  // (...) — por ahora un load on submissions-change es suficiente para
+  // el flujo de revisión).
   const [openThreadsByUser, setOpenThreadsByUser] = useState<Record<string, number>>({});
+  const [pendingReplyByUser, setPendingReplyByUser] = useState<Record<string, number>>({});
   useEffect(() => {
     if (!submissions.length) {
       setOpenThreadsByUser({});
+      setPendingReplyByUser({});
       return;
     }
     const subUserById = new Map(submissions.map((s) => [s.id, s.user_id]));
@@ -216,20 +224,57 @@ function ExamMonitor() {
     let cancelled = false;
     (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data: threads } = await (supabase as any)
         .from("feedback_threads")
-        .select("submission_id")
+        .select("id, submission_id")
         .eq("parent_kind", "exam")
         .eq("closed", false)
         .in("submission_id", subIds);
       if (cancelled) return;
-      const counts: Record<string, number> = {};
-      for (const row of (data ?? []) as { submission_id: string }[]) {
-        const uid = subUserById.get(row.submission_id);
+      const threadsArr = (threads ?? []) as { id: string; submission_id: string }[];
+      const openCounts: Record<string, number> = {};
+      const threadOwner = new Map<string, string>();
+      for (const t of threadsArr) {
+        const uid = subUserById.get(t.submission_id);
         if (!uid) continue;
-        counts[uid] = (counts[uid] ?? 0) + 1;
+        openCounts[uid] = (openCounts[uid] ?? 0) + 1;
+        threadOwner.set(t.id, uid);
       }
-      setOpenThreadsByUser(counts);
+      setOpenThreadsByUser(openCounts);
+
+      // Comments para determinar el ÚLTIMO autor de cada thread.
+      const threadIds = threadsArr.map((t) => t.id);
+      if (threadIds.length === 0) {
+        setPendingReplyByUser({});
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: comments } = await (supabase as any)
+        .from("feedback_comments")
+        .select("thread_id, user_id, created_at")
+        .in("thread_id", threadIds)
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      const lastByThread = new Map<string, string>(); // thread_id → user_id del último comentario
+      for (const c of (comments ?? []) as {
+        thread_id: string;
+        user_id: string;
+        created_at: string;
+      }[]) {
+        if (!lastByThread.has(c.thread_id)) lastByThread.set(c.thread_id, c.user_id);
+      }
+      const pendingCounts: Record<string, number> = {};
+      for (const [threadId, ownerUid] of threadOwner.entries()) {
+        const lastAuthor = lastByThread.get(threadId);
+        // Pendiente si el último comentario lo escribió el ALUMNO
+        // (dueño de la submission). Si todavía no hay comentarios,
+        // tampoco lo contamos como pendiente — un thread vacío suele
+        // ser ruido o un placeholder.
+        if (lastAuthor && lastAuthor === ownerUid) {
+          pendingCounts[ownerUid] = (pendingCounts[ownerUid] ?? 0) + 1;
+        }
+      }
+      setPendingReplyByUser(pendingCounts);
     })();
     return () => {
       cancelled = true;
@@ -721,12 +766,13 @@ function ExamMonitor() {
                 <TableHead>Calificación efectiva</TableHead>
                 <TableHead>{t("monitor.warnings")}</TableHead>
                 <TableHead>Conversaciones</TableHead>
+                <TableHead>Respuestas pendientes</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={8} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty colSpan={9} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.map((row) => {
                 const latest = row.latest;
@@ -801,6 +847,28 @@ function ExamMonitor() {
                             onClick={() => openView(latest)}
                             title="Ver respuestas y conversaciones"
                             className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
+                          >
+                            <MessageSquareText className="h-3 w-3" />
+                            <span className="tabular-nums">{count}</span>
+                          </button>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        // "Respuestas pendientes" = subset de conversaciones
+                        // donde el último comentario fue del estudiante.
+                        // Color rojo (destructive) — el docente debe responder.
+                        const count = pendingReplyByUser[row.userId] ?? 0;
+                        if (count === 0) {
+                          return <span className="text-xs text-muted-foreground">—</span>;
+                        }
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => openView(latest)}
+                            title="Conversaciones donde el estudiante espera tu respuesta"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/60 bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive hover:bg-destructive/25 transition-colors"
                           >
                             <MessageSquareText className="h-3 w-3" />
                             <span className="tabular-nums">{count}</span>
@@ -1099,16 +1167,42 @@ function ExamMonitor() {
                             </div>
                           )}
 
-                          {q.type !== "cerrada" && (
-                            <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
-                              {ans == null || ans === "" ? (
-                                <span className="text-muted-foreground italic">Sin responder</span>
-                              ) : typeof ans === "string" ? (
-                                ans
-                              ) : (
-                                JSON.stringify(ans, null, 2)
-                              )}
-                            </div>
+                          {/* Respuesta del estudiante:
+                              - codigo / java_gui → editor Monaco read-only
+                                (numeración de líneas + syntax highlighting),
+                                igual a lo que el alumno tenía en pantalla.
+                              - resto → bloque pre con texto plano. */}
+                          {q.type === "codigo" || q.type === "java_gui" ? (
+                            <CodeEditor
+                              value={
+                                ans == null || ans === ""
+                                  ? "// Sin responder"
+                                  : typeof ans === "string"
+                                    ? ans
+                                    : JSON.stringify(ans, null, 2)
+                              }
+                              onChange={() => {}}
+                              language={(q.language as CodeLanguage) ?? "java"}
+                              readOnly
+                              showLanguageSelector={false}
+                              showRunButton={false}
+                              hideHints
+                              height="220px"
+                            />
+                          ) : (
+                            q.type !== "cerrada" && (
+                              <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
+                                {ans == null || ans === "" ? (
+                                  <span className="text-muted-foreground italic">
+                                    Sin responder
+                                  </span>
+                                ) : typeof ans === "string" ? (
+                                  ans
+                                ) : (
+                                  JSON.stringify(ans, null, 2)
+                                )}
+                              </div>
+                            )
                           )}
 
                           {/* Líneas del compilador / consola: para preguntas de
