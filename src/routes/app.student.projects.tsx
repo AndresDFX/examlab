@@ -23,9 +23,12 @@ import {
   MessageSquareText,
   ListChecks,
   FileText,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { StudentProjectTaker } from "@/components/ProjectFiles";
 import { formatDateTime } from "@/lib/format";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -67,9 +70,32 @@ type ProjectRow = {
 function StudentProjects() {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<ProjectRow[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectRow | null>(null);
+
+  /** Borra la entrega del estudiante (RLS restringe a dentro del plazo).
+   *  Los archivos asociados caen por CASCADE (FK en project_submission_files).
+   *  En modo grupal afecta a la entrega del grupo. */
+  const deleteSubmission = async (projectTitle: string, submissionId: string, isGroup: boolean) => {
+    const ok = await confirm({
+      title: "Eliminar mi entrega",
+      description: isGroup
+        ? `Vas a eliminar la entrega del grupo en "${projectTitle}". Esto borra todos los archivos y afecta a todos los miembros del grupo. Podrán volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`
+        : `Vas a eliminar tu entrega en "${projectTitle}". Podrás volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.from("project_submissions").delete().eq("id", submissionId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Entrega eliminada");
+    if (user) await reload(user.id);
+  };
 
   const reload = async (uid: string) => {
     // Cada paso loguea su error a consola para que el diagnóstico sea
@@ -311,7 +337,10 @@ function StudentProjects() {
                   </div>
                 )}
 
-                {isOpen && !isGraded && (
+                {/* Mientras esté abierto el plazo, el estudiante puede
+                    actualizar su entrega aunque ya tenga calificación de
+                    IA — al re-entregar se vuelve a calificar. */}
+                {isOpen && (
                   <Button
                     size="sm"
                     className="w-full"
@@ -332,6 +361,20 @@ function StudentProjects() {
                       {t("project.viewDetail")}
                     </Button>
                   </Link>
+                )}
+
+                {/* Eliminar mi entrega — solo dentro del plazo. RLS lo
+                    valida también en BD (migración 20260508140000). */}
+                {isOpen && submission && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-full text-destructive hover:text-destructive"
+                    onClick={() => deleteSubmission(project.title, submission.id, !!groupId)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Eliminar mi entrega
+                  </Button>
                 )}
 
                 {project.status === "published" && isOverdue && !submission && (

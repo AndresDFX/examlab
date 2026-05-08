@@ -28,9 +28,12 @@ import {
   MessageSquare,
   MessageSquareText,
   ListChecks,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/components/WorkshopQuestions";
 import { formatDateTime } from "@/lib/format";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
@@ -69,9 +72,36 @@ type WorkshopRow = {
 function StudentWorkshops() {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<WorkshopRow[]>([]);
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
+
+  /** Borra la entrega del estudiante (RLS restringe a dentro del plazo).
+   *  Las respuestas asociadas caen por CASCADE (FK añadida en
+   *  20260508140000). En modo grupal afecta a la entrega del grupo. */
+  const deleteSubmission = async (
+    workshopTitle: string,
+    submissionId: string,
+    isGroup: boolean,
+  ) => {
+    const ok = await confirm({
+      title: "Eliminar mi entrega",
+      description: isGroup
+        ? `Vas a eliminar la entrega del grupo en "${workshopTitle}". Esto borra todas las respuestas y afecta a todos los miembros del grupo. Podrán volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`
+        : `Vas a eliminar tu entrega en "${workshopTitle}". Podrás volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await supabase.from("workshop_submissions").delete().eq("id", submissionId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Entrega eliminada");
+    if (user) await reload(user.id);
+  };
 
   const reload = async (uid: string) => {
     // courses.language se introdujo en migraciones recientes; cast hasta que se
@@ -180,8 +210,7 @@ function StudentWorkshops() {
           // pueden coexistir estudiantes con grupo (entregan en grupo) y
           // sin grupo (entregan individual). NO bloqueamos al estudiante
           // sin grupo — simplemente entrega individualmente.
-          const isGroupWorkshop =
-            workshop.group_mode && workshop.group_mode !== "individual";
+          const isGroupWorkshop = workshop.group_mode && workshop.group_mode !== "individual";
           void isGroupWorkshop;
           return (
             <Card key={workshop.id}>
@@ -270,10 +299,13 @@ function StudentWorkshops() {
                   </div>
                 )}
 
-                {/* Single CTA: respond and submit. Re-opens for review when graded.
-                    En modo mixto: si el estudiante tiene grupo, la entrega es del
-                    grupo; si no, entrega individualmente. */}
-                {isOpen && !isGraded && (
+                {/* CTA principal: responder/editar entrega. Mientras esté
+                    abierto el plazo, el estudiante puede actualizar su
+                    entrega aunque ya haya sido calificada por la IA — al
+                    re-entregar se vuelve a calificar. En modo mixto: si
+                    el estudiante tiene grupo, la entrega es del grupo;
+                    si no, entrega individualmente. */}
+                {isOpen && (
                   <Button
                     size="sm"
                     className="w-full"
@@ -294,6 +326,20 @@ function StudentWorkshops() {
                       {t("exam.viewDetail")}
                     </Button>
                   </Link>
+                )}
+
+                {/* Eliminar mi entrega — solo dentro del plazo. RLS lo
+                    valida también en BD (migración 20260508140000). */}
+                {isOpen && submission && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-full text-destructive hover:text-destructive"
+                    onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Eliminar mi entrega
+                  </Button>
                 )}
 
                 {workshop.status === "published" && isOverdue && !submission && (
