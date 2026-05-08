@@ -44,6 +44,7 @@ import {
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { JAVA_STARTER } from "@/components/CodeEditor";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
@@ -853,17 +854,15 @@ function ExamEditor() {
                     <>
                       <Label>Peso del examen (% del bucket de exámenes del corte)</Label>
                       <div className="relative w-32">
-                        <Input
-                          type="number"
+                        <DecimalInput
                           min={0}
                           max={examMax || undefined}
-                          step="0.1"
-                          placeholder="1"
+                          placeholder="1,0"
                           className="pr-7"
                           disabled={!selectedCut}
                           value={(exam as any).weight ?? 1}
-                          onChange={(e) => {
-                            const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                          onChange={(v) => {
+                            const raw = v == null ? 1 : v;
                             // Cap al remanente del bucket de exámenes del corte
                             // (no del cut.weight global).
                             const capped = examMax > 0 ? Math.min(raw, examMax) : raw;

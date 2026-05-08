@@ -1467,17 +1467,15 @@ function TeacherWorkshops() {
                   <>
                     <Label>Peso del taller (% del bucket de talleres del corte)</Label>
                     <div className="relative mt-1 w-32">
-                      <Input
-                        type="number"
+                      <DecimalInput
                         min={0}
                         max={wsMax || undefined}
-                        step="0.1"
-                        placeholder="1"
+                        placeholder="1,0"
                         className="pr-7"
                         disabled={!selectedCut || bucketFull}
                         value={(form as any).weight ?? 1}
-                        onChange={(e) => {
-                          const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                        onChange={(v) => {
+                          const raw = v == null ? 1 : v;
                           const capped = wsMax > 0 ? Math.min(raw, wsMax) : raw;
                           setForm({ ...form, weight: capped } as any);
                         }}

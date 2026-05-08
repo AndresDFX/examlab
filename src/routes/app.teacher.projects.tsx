@@ -1352,17 +1352,15 @@ function TeacherProjects() {
                   <>
                     <Label>Peso del proyecto (% del bucket de proyectos del corte)</Label>
                     <div className="relative w-32">
-                      <Input
-                        type="number"
+                      <DecimalInput
                         min={0}
                         max={pjMax || undefined}
-                        step="0.1"
-                        placeholder="1"
+                        placeholder="1,0"
                         className="pr-7"
                         disabled={!selectedCut}
                         value={(form as any).weight ?? 1}
-                        onChange={(e) => {
-                          const raw = e.target.value === "" ? 1 : Number(e.target.value);
+                        onChange={(v) => {
+                          const raw = v == null ? 1 : v;
                           const capped = pjMax > 0 ? Math.min(raw, pjMax) : raw;
                           setForm({ ...form, weight: capped } as any);
                         }}
