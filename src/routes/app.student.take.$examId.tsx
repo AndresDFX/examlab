@@ -28,7 +28,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
+import { CodeEditor, type CodeLanguage, JAVA_STARTER } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { runJavaInBrowser } from "@/lib/run-java";
@@ -89,7 +89,13 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
     return typeof v === "number" && v >= 0;
   }
   if (q.type === "codigo" || q.type === "java_gui") {
-    const code = (typeof v === "string" ? v : "").trim() || (q.starter_code ?? "").trim();
+    // Si no hay starter_code en la BD pero la pregunta es Java codigo,
+    // el editor muestra JAVA_STARTER por defecto — eso cuenta como
+    // tener contenido visible (se persistirá en mergeStarterCodeAnswers).
+    const starter =
+      (q.starter_code ?? "").trim() ||
+      (q.type === "codigo" && q.language === "java" ? JAVA_STARTER : "");
+    const code = (typeof v === "string" ? v : "").trim() || starter.trim();
     return code.length > 0;
   }
   if (q.type === "diagrama") {
@@ -116,7 +122,16 @@ function mergeStarterCodeAnswers(
     if (q.type !== "codigo" && q.type !== "java_gui") continue;
     const cur = next[q.id];
     const empty = cur === undefined || cur === null || String(cur).trim() === "";
-    if (empty && (q.starter_code ?? "").trim()) next[q.id] = q.starter_code;
+    if (!empty) continue;
+    // Fallback al starter_code de la pregunta. Si no hay y la pregunta
+    // es Java codigo, usa JAVA_STARTER (mismo template que ve el alumno
+    // por defecto en el editor) para que la entrega no llegue vacía.
+    const fallback = (q.starter_code ?? "").trim()
+      ? q.starter_code
+      : q.type === "codigo" && q.language === "java"
+        ? JAVA_STARTER
+        : null;
+    if (fallback) next[q.id] = fallback;
   }
   return next;
 }
@@ -1025,7 +1040,9 @@ function TakeExam() {
                 ) : q.type === "codigo" ? (
                   <div onBlur={saveAnswersNow}>
                     <CodeEditor
-                      value={answers[q.id] ?? q.starter_code ?? ""}
+                      value={
+                        answers[q.id] ?? q.starter_code ?? (lang === "java" ? JAVA_STARTER : "")
+                      }
                       onChange={(v) => updateAnswer(q.id, v)}
                       language={lang}
                       onRun={() => runCode(q.id, lang)}

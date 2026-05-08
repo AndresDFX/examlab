@@ -36,6 +36,7 @@ import {
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
+import { JAVA_STARTER } from "@/components/CodeEditor";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
@@ -79,7 +80,18 @@ function ExamEditor() {
   const [examsInCourse, setExamsInCourse] = useState<
     Array<{ id: string; title: string; cut_id: string | null; weight: number }>
   >([]);
-  const [cutItems, setCutItems] = useState<Array<{ id: string; cut_id: string; item_type: string; weight: number; exam_id: string | null; workshop_id: string | null; project_id: string | null; project_title: string | null }>>([]);
+  const [cutItems, setCutItems] = useState<
+    Array<{
+      id: string;
+      cut_id: string;
+      item_type: string;
+      weight: number;
+      exam_id: string | null;
+      workshop_id: string | null;
+      project_id: string | null;
+      project_title: string | null;
+    }>
+  >([]);
   const [examTitlesById, setExamTitlesById] = useState<Record<string, string>>({});
   const [workshopTitlesById, setWorkshopTitlesById] = useState<Record<string, string>>({});
   const [projectTitlesById, setProjectTitlesById] = useState<Record<string, string>>({});
@@ -200,19 +212,31 @@ function ExamEditor() {
           .in("cut_id", cutIds);
         const itemsArr = (items ?? []) as typeof cutItems;
         setCutItems(itemsArr);
-        const examIds = Array.from(new Set(itemsArr.filter((i) => i.exam_id).map((i) => i.exam_id!)));
-        const wsIds = Array.from(new Set(itemsArr.filter((i) => i.workshop_id).map((i) => i.workshop_id!)));
-        const prIds = Array.from(new Set(itemsArr.filter((i) => i.project_id).map((i) => i.project_id!)));
+        const examIds = Array.from(
+          new Set(itemsArr.filter((i) => i.exam_id).map((i) => i.exam_id!)),
+        );
+        const wsIds = Array.from(
+          new Set(itemsArr.filter((i) => i.workshop_id).map((i) => i.workshop_id!)),
+        );
+        const prIds = Array.from(
+          new Set(itemsArr.filter((i) => i.project_id).map((i) => i.project_id!)),
+        );
         if (examIds.length) {
           const { data: exs } = await supabase.from("exams").select("id, title").in("id", examIds);
           setExamTitlesById(Object.fromEntries((exs ?? []).map((x: any) => [x.id, x.title])));
         }
         if (wsIds.length) {
-          const { data: wss } = await supabase.from("workshops").select("id, title").in("id", wsIds);
+          const { data: wss } = await supabase
+            .from("workshops")
+            .select("id, title")
+            .in("id", wsIds);
           setWorkshopTitlesById(Object.fromEntries((wss ?? []).map((x: any) => [x.id, x.title])));
         }
         if (prIds.length) {
-          const { data: prs } = await (supabase as any).from("projects").select("id, title").in("id", prIds);
+          const { data: prs } = await (supabase as any)
+            .from("projects")
+            .select("id, title")
+            .in("id", prIds);
           setProjectTitlesById(Object.fromEntries((prs ?? []).map((x: any) => [x.id, x.title])));
         }
       } else {
@@ -256,7 +280,10 @@ function ExamEditor() {
       payload.schedule_type = ((exam as any).schedule_type ?? "normal") as string;
       payload.retry_mode = ((exam as any).retry_mode ?? "last") as string;
     }
-    const { error } = await supabase.from("exams").update(payload as any).eq("id", examId);
+    const { error } = await supabase
+      .from("exams")
+      .update(payload as any)
+      .eq("id", examId);
     if (error) return toast.error(error.message);
     // Notificar a los estudiantes del curso. Para externos no aplica.
     if (!isExternal && exam.course_id) {
@@ -274,7 +301,10 @@ function ExamEditor() {
 
   const submitQuestion = async () => {
     if (!qContent.trim()) return toast.error("Contenido requerido");
-    if ((qType === "abierta" || qType === "codigo" || qType === "diagrama" || qType === "java_gui") && !qRubric.trim())
+    if (
+      (qType === "abierta" || qType === "codigo" || qType === "diagrama" || qType === "java_gui") &&
+      !qRubric.trim()
+    )
       return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI");
     const options = qType === "cerrada" ? { choices: qChoices, correct_index: qCorrect } : null;
     const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
@@ -306,7 +336,12 @@ function ExamEditor() {
         points: qPoints,
         position: pos,
         language,
-        starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
+        starter_code:
+          qType === "java_gui"
+            ? JAVA_GUI_STARTER
+            : qType === "codigo" && language === "java"
+              ? JAVA_STARTER
+              : null,
       });
       if (error) return toast.error(error.message);
       toast.success("Pregunta agregada correctamente");
@@ -588,7 +623,9 @@ function ExamEditor() {
                       setExam({
                         ...exam,
                         max_warnings:
-                          e.target.value === "" ? 3 : Math.max(1, Math.min(50, Number(e.target.value))),
+                          e.target.value === ""
+                            ? 3
+                            : Math.max(1, Math.min(50, Number(e.target.value))),
                       } as any)
                     }
                   />
@@ -652,8 +689,8 @@ function ExamEditor() {
                 <Label>
                   Modo de calificación con reintentos{" "}
                   <span className="text-xs text-muted-foreground font-normal">
-                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la calificación
-                    final del examen cuando el estudiante presenta varios intentos.)
+                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la
+                    calificación final del examen cuando el estudiante presenta varios intentos.)
                   </span>
                 </Label>
                 <Select
@@ -664,9 +701,13 @@ function ExamEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="last">Último intento (toma la calificación más reciente)</SelectItem>
+                    <SelectItem value="last">
+                      Último intento (toma la calificación más reciente)
+                    </SelectItem>
                     <SelectItem value="average">Promedio de todos los intentos</SelectItem>
-                    <SelectItem value="highest">Más alto (mejor calificación entre los intentos)</SelectItem>
+                    <SelectItem value="highest">
+                      Más alto (mejor calificación entre los intentos)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -771,22 +812,22 @@ function ExamEditor() {
                   return (
                     <div className="mt-3 rounded-md border bg-muted/30 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="text-sm font-medium">
-                          Pesos del corte "{cutName}"
-                        </div>
-                        <Badge variant={over ? "destructive" : remaining === 0 ? "default" : "secondary"}>
+                        <div className="text-sm font-medium">Pesos del corte "{cutName}"</div>
+                        <Badge
+                          variant={over ? "destructive" : remaining === 0 ? "default" : "secondary"}
+                        >
                           {total.toFixed(1)}% / 100%
                           {over
                             ? ` (excede ${(total - 100).toFixed(1)}%)`
                             : remaining > 0
-                            ? ` (faltan ${remaining.toFixed(1)}%)`
-                            : ""}
+                              ? ` (faltan ${remaining.toFixed(1)}%)`
+                              : ""}
                         </Badge>
                       </div>
                       {itemsInCut.length === 0 && !currentExamItem ? (
                         <p className="text-xs text-muted-foreground">
-                          Este corte aún no tiene items. Al guardar, este examen se agregará con peso{" "}
-                          {currentWeight}%.
+                          Este corte aún no tiene items. Al guardar, este examen se agregará con
+                          peso {currentWeight}%.
                         </p>
                       ) : (
                         <ul className="text-xs space-y-1">
@@ -795,12 +836,14 @@ function ExamEditor() {
                               i.item_type === "exam"
                                 ? `Examen: ${examTitlesById[i.exam_id ?? ""] ?? "(sin título)"}`
                                 : i.item_type === "workshop"
-                                ? `Taller: ${workshopTitlesById[i.workshop_id ?? ""] ?? "(sin título)"}`
-                                : i.item_type === "project"
-                                ? `Proyecto: ${
-                                    projectTitlesById[i.project_id ?? ""] ?? i.project_title ?? "(sin título)"
-                                  }`
-                                : i.item_type;
+                                  ? `Taller: ${workshopTitlesById[i.workshop_id ?? ""] ?? "(sin título)"}`
+                                  : i.item_type === "project"
+                                    ? `Proyecto: ${
+                                        projectTitlesById[i.project_id ?? ""] ??
+                                        i.project_title ??
+                                        "(sin título)"
+                                      }`
+                                    : i.item_type;
                             return (
                               <li key={i.id} className="flex justify-between">
                                 <span className="text-muted-foreground">{label}</span>
@@ -809,8 +852,12 @@ function ExamEditor() {
                             );
                           })}
                           <li className="flex justify-between border-t pt-1">
-                            <span className="font-medium">Este examen ({exam.title || "sin título"})</span>
-                            <span className="font-mono font-medium">{currentWeight.toFixed(1)}%</span>
+                            <span className="font-medium">
+                              Este examen ({exam.title || "sin título"})
+                            </span>
+                            <span className="font-mono font-medium">
+                              {currentWeight.toFixed(1)}%
+                            </span>
                           </li>
                         </ul>
                       )}

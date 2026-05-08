@@ -195,6 +195,10 @@ function StudentAttendance() {
   }, [user, selectedCourseId]);
 
   // Carga sesiones con check_in abierto en cualquier curso del estudiante.
+  // Filtra las sesiones donde el estudiante YA tiene un registro de
+  // asistencia (presente / ausente) — sin importar si vino del QR o de
+  // que el docente lo marcó a mano. Si ya está marcado, no tiene sentido
+  // mostrar el aviso "Check-in disponible" ni el QR.
   const loadOpenSessions = useCallback(async () => {
     if (!user || courses.length === 0) {
       setOpenSessions([]);
@@ -206,12 +210,27 @@ function StudentAttendance() {
       .select("id, course_id, session_date, title, check_in_open")
       .eq("check_in_open", true)
       .in("course_id", courseIds);
+    const sessions = (data ?? []) as Session[];
+    const sessionIds = sessions.map((s) => s.id);
+    let alreadyMarkedIds = new Set<string>();
+    if (sessionIds.length > 0) {
+      const { data: recs } = await db
+        .from("attendance_records")
+        .select("session_id")
+        .eq("user_id", user.id)
+        .in("session_id", sessionIds);
+      alreadyMarkedIds = new Set(
+        ((recs ?? []) as { session_id: string }[]).map((r) => r.session_id),
+      );
+    }
     const courseName = new Map(courses.map((c) => [c.id, c.name]));
     setOpenSessions(
-      ((data ?? []) as Session[]).map((s) => ({
-        ...s,
-        course_name: courseName.get(s.course_id) ?? "",
-      })),
+      sessions
+        .filter((s) => !alreadyMarkedIds.has(s.id))
+        .map((s) => ({
+          ...s,
+          course_name: courseName.get(s.course_id) ?? "",
+        })),
     );
   }, [user, courses]);
 
@@ -219,7 +238,9 @@ function StudentAttendance() {
     void loadOpenSessions();
   }, [loadOpenSessions]);
 
-  // Realtime: si una sesión abre/cierra, refrescamos.
+  // Realtime: si una sesión abre/cierra, o si el docente marca/quita
+  // asistencia de este estudiante, refrescamos para ocultar/mostrar el
+  // aviso "Check-in disponible" sin que el estudiante tenga que recargar.
   useEffect(() => {
     if (!user || courses.length === 0) return;
     const channel = supabase
@@ -227,6 +248,16 @@ function StudentAttendance() {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "attendance_sessions" },
+        () => void loadOpenSessions(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "attendance_records",
+          filter: `user_id=eq.${user.id}`,
+        },
         () => void loadOpenSessions(),
       )
       .subscribe();

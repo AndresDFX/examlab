@@ -14,6 +14,22 @@ import { Play, Loader2, Terminal, Info } from "lucide-react";
 
 export type CodeLanguage = "java" | "python" | "javascript";
 
+/**
+ * Plantilla por defecto para preguntas de tipo `codigo` con
+ * `language='java'`. Usada como starter_code al crear preguntas
+ * nuevas en el form del docente y como fallback en el taker del
+ * estudiante cuando una pregunta vieja no tiene starter_code.
+ *
+ * Es deliberadamente mínima — clase Main + main + un println — para
+ * que el estudiante arranque desde algo compilable y enfoque su
+ * tiempo en el problema, no en escribir el boilerplate.
+ */
+export const JAVA_STARTER = `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Holi");
+    }
+}`;
+
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -152,8 +168,8 @@ export function CodeEditor({
         <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
           <span>
-            La primera ejecución de Java tarda más porque el navegador descarga
-            la máquina virtual una sola vez. Las siguientes son inmediatas.
+            La primera ejecución de Java tarda más porque el navegador descarga la máquina virtual
+            una sola vez. Las siguientes son inmediatas.
           </span>
         </div>
       )}

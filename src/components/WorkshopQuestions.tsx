@@ -30,7 +30,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { CodeEditor } from "@/components/CodeEditor";
+import { CodeEditor, JAVA_STARTER } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -161,7 +161,12 @@ export function TeacherWorkshopQuestionsEditor({
         points: qPoints,
         position: questions.length,
         language,
-        starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
+        starter_code:
+          qType === "java_gui"
+            ? JAVA_GUI_STARTER
+            : qType === "codigo" && language === "java"
+              ? JAVA_STARTER
+              : null,
       });
       if (error) {
         toast.error(error.message);
@@ -204,8 +209,7 @@ export function TeacherWorkshopQuestionsEditor({
   const removeQ = async (id: string) => {
     const ok = await confirm({
       title: "Eliminar pregunta",
-      description:
-        "Se eliminará la pregunta del taller. Esta acción no se puede deshacer.",
+      description: "Se eliminará la pregunta del taller. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
@@ -258,7 +262,9 @@ export function TeacherWorkshopQuestionsEditor({
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>
-          <TabsTrigger value="manual">{editingId ? "Editar pregunta" : "Agregar manual"}</TabsTrigger>
+          <TabsTrigger value="manual">
+            {editingId ? "Editar pregunta" : "Agregar manual"}
+          </TabsTrigger>
           <TabsTrigger value="ai">Generar con IA</TabsTrigger>
         </TabsList>
 
@@ -624,10 +630,7 @@ export function StudentWorkshopTaker({
               </span>
               .
             </p>
-            <p>
-              Esas preguntas recibirán 0 puntos. ¿Quieres entregar el taller
-              de todas formas?
-            </p>
+            <p>Esas preguntas recibirán 0 puntos. ¿Quieres entregar el taller de todas formas?</p>
           </div>
         ),
         confirmLabel: "Entregar de todas formas",
@@ -756,9 +759,7 @@ export function StudentWorkshopTaker({
       }
 
       const finalGrade =
-        totalPoints > 0
-          ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2))
-          : 0;
+        totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
 
       await supabase
         .from("workshop_submissions")
@@ -800,9 +801,7 @@ export function StudentWorkshopTaker({
           <p className="text-2xl font-semibold tabular-nums">
             {graded.grade} / {maxScore}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("workshop.aiGradedNotice")}
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">{t("workshop.aiGradedNotice")}</p>
         </CardContent>
       </Card>
     );
@@ -850,7 +849,9 @@ export function StudentWorkshopTaker({
             )}
             {q.type === "codigo" && (
               <CodeEditor
-                value={answers[q.id] ?? q.starter_code ?? ""}
+                value={
+                  answers[q.id] ?? q.starter_code ?? (q.language === "java" ? JAVA_STARTER : "")
+                }
                 onChange={(v) => updateAnswer(q.id, v ?? "")}
                 language={(q.language as any) ?? "java"}
                 showLanguageSelector={false}
@@ -859,10 +860,7 @@ export function StudentWorkshopTaker({
               />
             )}
             {q.type === "diagrama" && (
-              <DiagramEditor
-                value={answers[q.id] ?? ""}
-                onChange={(v) => updateAnswer(q.id, v)}
-              />
+              <DiagramEditor value={answers[q.id] ?? ""} onChange={(v) => updateAnswer(q.id, v)} />
             )}
             {q.type === "java_gui" && (
               <JavaGuiRunner
