@@ -862,7 +862,10 @@ function TeacherExams() {
             <div>
               <Label>
                 Corte de evaluación{" "}
-                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                <HelpHint>
+                  Opcional. Asigna el examen a un corte para que su peso cuente en el cálculo de la
+                  nota final del curso.
+                </HelpHint>
               </Label>
               {(() => {
                 const single = selectedCourseIds.size === 1;

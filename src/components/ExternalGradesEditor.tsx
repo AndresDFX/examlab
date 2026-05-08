@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -15,8 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ClipboardList, Save } from "lucide-react";
+import { CheckCircle2, ClipboardList, Save, Search, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { HelpHint } from "@/components/ui/help-hint";
 
 /**
  * Editor de notas para actividades externas (parciales/talleres
@@ -59,6 +61,7 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,8 +109,7 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
 
       const newRows: Row[] = ((profs ?? []) as any[]).map((p) => {
         const sub = subByUser.get(p.id);
-        const rawGrade =
-          kind === "exam" ? sub?.final_override_grade : sub?.final_grade;
+        const rawGrade = kind === "exam" ? sub?.final_override_grade : sub?.final_grade;
         const grade = rawGrade != null ? Number(rawGrade) : null;
         return {
           userId: p.id,
@@ -291,7 +293,10 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
         const ok = await saveRow(row);
         if (ok) okCount += 1;
       }
-      if (okCount > 0) toast.success(`${okCount} nota${okCount === 1 ? "" : "s"} guardada${okCount === 1 ? "" : "s"}`);
+      if (okCount > 0)
+        toast.success(
+          `${okCount} nota${okCount === 1 ? "" : "s"} guardada${okCount === 1 ? "" : "s"}`,
+        );
     } finally {
       setBulkSaving(false);
     }
@@ -303,13 +308,28 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
     return { total, graded };
   }, [rows]);
 
+  // Filtra por nombre o correo (case-insensitive). Usado solo para
+  // búsqueda visual; el `Guardar todo` sigue iterando `rows` completos.
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) => r.fullName.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q),
+    );
+  }, [rows, search]);
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" />
             Notas externas
+            <HelpHint>
+              Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada estudiante
+              (0–{maxScore}) para que cuente en el cálculo del corte. Usa coma para decimales (ej.{" "}
+              <strong>4,5</strong>).
+            </HelpHint>
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-[11px]">
@@ -330,13 +350,34 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada
-          estudiante (0–{maxScore}) para que cuente en el cálculo del corte.{" "}
-          <span className="font-medium">
-            Usa coma para decimales (ej. 4,5).
-          </span>
-        </p>
+        {rows.length > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar estudiante por nombre o correo…"
+                className="h-8 pl-8 pr-8 text-xs"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {search && (
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {filteredRows.length} de {rows.length}
+              </span>
+            )}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         {!loading && rows.length === 0 ? (
@@ -355,52 +396,59 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
             </TableHeader>
             <TableBody>
               {loading && <TableSkeleton rows={5} cols={4} />}
-              {!loading &&
-                rows.map((row) => (
-                <TableRow key={row.userId}>
-                  <TableCell>
-                    <div className="font-medium">{row.fullName}</div>
-                    <div className="text-xs text-muted-foreground">{row.email}</div>
-                  </TableCell>
-                  <TableCell>
-                    <DecimalInput
-                      min={0}
-                      max={maxScore}
-                      value={row.grade}
-                      onChange={(v) => updateRow(row.userId, { grade: v })}
-                      placeholder="—"
-                      className="h-8 text-sm"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Textarea
-                      rows={1}
-                      value={row.feedback}
-                      onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
-                      placeholder="Comentario opcional"
-                      className="min-h-[32px] text-xs"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleSaveOne(row)}
-                      disabled={savingId === row.userId || bulkSaving}
-                      className="h-8 text-xs"
-                    >
-                      {savingId === row.userId ? (
-                        <Spinner size="sm" className="mr-1" />
-                      ) : row.hasGrade ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
-                      ) : (
-                        <Save className="h-3.5 w-3.5 mr-1" />
-                      )}
-                      Guardar
-                    </Button>
+              {!loading && filteredRows.length === 0 && search && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">
+                    Ningún estudiante coincide con "{search}".
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
+              {!loading &&
+                filteredRows.map((row) => (
+                  <TableRow key={row.userId}>
+                    <TableCell>
+                      <div className="font-medium">{row.fullName}</div>
+                      <div className="text-xs text-muted-foreground">{row.email}</div>
+                    </TableCell>
+                    <TableCell>
+                      <DecimalInput
+                        min={0}
+                        max={maxScore}
+                        value={row.grade}
+                        onChange={(v) => updateRow(row.userId, { grade: v })}
+                        placeholder="—"
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Textarea
+                        rows={1}
+                        value={row.feedback}
+                        onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
+                        placeholder="Comentario opcional"
+                        className="min-h-[32px] text-xs"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSaveOne(row)}
+                        disabled={savingId === row.userId || bulkSaving}
+                        className="h-8 text-xs"
+                      >
+                        {savingId === row.userId ? (
+                          <Spinner size="sm" className="mr-1" />
+                        ) : row.hasGrade ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                        ) : (
+                          <Save className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Guardar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         )}

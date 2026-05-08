@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   Table,
   TableBody,
@@ -760,13 +761,46 @@ function ExamMonitor() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("roles.Estudiante")}</TableHead>
-                <TableHead className="hidden sm:table-cell">Intentos</TableHead>
+                <TableHead className="hidden sm:table-cell">
+                  <span className="inline-flex items-center gap-1">
+                    Intentos
+                    <HelpHint>
+                      Intento actual / máximo permitido por examen. Click para gestionar los
+                      intentos del estudiante.
+                    </HelpHint>
+                  </span>
+                </TableHead>
                 <TableHead>{t("common.status")}</TableHead>
-                <TableHead className="hidden md:table-cell">Pregunta</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  <span className="inline-flex items-center gap-1">
+                    Pregunta
+                    <HelpHint>
+                      Pregunta actual del intento en curso (índice / total). Se actualiza con cada
+                      autosave del estudiante.
+                    </HelpHint>
+                  </span>
+                </TableHead>
                 <TableHead>Nota</TableHead>
-                <TableHead className="hidden lg:table-cell">Strikes</TableHead>
-                <TableHead title="Conversaciones abiertas / pendientes de respuesta del docente">
-                  Diálogo
+                <TableHead className="hidden lg:table-cell">
+                  <span className="inline-flex items-center gap-1">
+                    Strikes
+                    <HelpHint>
+                      Advertencias acumuladas (cambio de pestaña, copiar/pegar, salir de pantalla
+                      completa, etc.). Al llegar al máximo del examen el intento se marca como
+                      sospechoso.
+                    </HelpHint>
+                  </span>
+                </TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    Diálogo
+                    <HelpHint>
+                      <strong className="text-amber-600 dark:text-amber-400">Ámbar</strong>:
+                      conversaciones abiertas con el estudiante.{" "}
+                      <strong className="text-destructive">Rojo</strong>: conversaciones esperando
+                      tu respuesta. Click para abrir el panel de comentarios.
+                    </HelpHint>
+                  </span>
                 </TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>

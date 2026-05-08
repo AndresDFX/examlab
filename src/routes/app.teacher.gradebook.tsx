@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -34,12 +35,7 @@ import {
   Eye,
   Inbox,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { computeWeightedGrade, type GradedItem } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
@@ -679,14 +675,18 @@ function Gradebook() {
               {selectedCourse.grade_scale_min} – {selectedCourse.grade_scale_max}
             </span>
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
             Aprobar ≥{" "}
             <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
           </div>
-          <div className="text-sm text-muted-foreground">
-            La calificación final del curso se calcula desde los <strong>cortes evaluativos</strong>{" "}
-            configurados (Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]). Los
-            estudiantes ven el consolidado en su vista de Calificaciones.
+          <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
+            ¿Cómo se calcula la nota final?
+            <HelpHint>
+              La calificación final del curso se calcula desde los{" "}
+              <strong>cortes evaluativos</strong> configurados (Curso → Cortes → [Talleres,
+              Exámenes, Proyectos, Asistencia]). Los estudiantes ven el consolidado en su vista de
+              Calificaciones.
+            </HelpHint>
           </div>
         </div>
       )}
@@ -695,12 +695,13 @@ function Gradebook() {
       {selectedCourse && consolidated && cuts.length > 0 && (
         <Card>
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold">Consolidado por cortes</h2>
-              <p className="text-xs text-muted-foreground">
-                Curso → Σ(Cortes × peso) → Σ(Talleres, Exámenes, Proyectos, Asistencia × peso)
-              </p>
-            </div>
+            <h2 className="text-sm font-semibold inline-flex items-center gap-1.5">
+              Consolidado por cortes
+              <HelpHint>
+                Curso → Σ(Cortes × peso) → Σ(Talleres, Exámenes, Proyectos, Asistencia × peso). Esta
+                vista es solo lectura — los pesos se editan en Cursos → Cortes.
+              </HelpHint>
+            </h2>
             <Badge variant="outline" className="text-[10px]">
               Solo lectura
             </Badge>
@@ -709,9 +710,7 @@ function Gradebook() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">
-                    Estudiante
-                  </TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
                   {cuts.map((c) => {
                     const itemCount = (columnsByCut.get(c.id) ?? []).length;
                     return (
@@ -748,9 +747,7 @@ function Gradebook() {
               <TableBody>
                 {consolidated.map((row) => {
                   const passes =
-                    row.finalGrade != null
-                      ? row.finalGrade >= selectedCourse.passing_grade
-                      : null;
+                    row.finalGrade != null ? row.finalGrade >= selectedCourse.passing_grade : null;
                   return (
                     <TableRow key={row.student.id}>
                       <TableCell className="sticky left-0 z-10 bg-card">
@@ -760,10 +757,7 @@ function Gradebook() {
                         </div>
                       </TableCell>
                       {row.cutGrades.map((cg) => (
-                        <TableCell
-                          key={cg.cutId}
-                          className="text-center text-sm tabular-nums"
-                        >
+                        <TableCell key={cg.cutId} className="text-center text-sm tabular-nums">
                           {cg.grade != null ? cg.grade.toFixed(2) : "—"}
                         </TableCell>
                       ))}
@@ -797,8 +791,8 @@ function Gradebook() {
             <div>
               <h2 className="text-sm font-semibold">Sin corte asignado</h2>
               <p className="text-xs text-muted-foreground">
-                Estos items no están vinculados a ningún corte. No suman al consolidado pero
-                se pueden calificar para llevar registro.
+                Estos items no están vinculados a ningún corte. No suman al consolidado pero se
+                pueden calificar para llevar registro.
               </p>
             </div>
           </div>

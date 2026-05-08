@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -270,8 +271,15 @@ export function AdminPromptsPanel() {
                     Personalizado
                   </Badge>
                 )}
+                <HelpHint>
+                  {uc.description}
+                  <br />
+                  <br />
+                  Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta
+                  del estudiante, idioma, puntaje máximo) se inyectan automáticamente por la función
+                  — no necesitas placeholders.
+                </HelpHint>
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">{uc.description}</p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea
@@ -281,11 +289,6 @@ export function AdminPromptsPanel() {
                 placeholder={uc.defaultPrompt}
                 className="font-mono text-xs leading-relaxed"
               />
-              <p className="text-[11px] text-muted-foreground">
-                Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta del
-                estudiante, idioma, puntaje máximo) se inyectan automáticamente por la función — no
-                necesitas placeholders.
-              </p>
               <div className="flex flex-wrap gap-2 justify-end">
                 {dirty && (
                   <Button

@@ -137,7 +137,11 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error } = await db
+    // .select() permite saber cuántas filas afectó realmente el UPDATE.
+    // Sin esto, RLS puede denegar silenciosamente (0 rows affected, sin
+    // error) y el usuario veía la fila desaparecer del modal aunque la
+    // BD seguía con status='pendiente'.
+    const { data: updated, error } = await db
       .from("exam_notes")
       .update({
         status: "aprobada",
@@ -145,10 +149,17 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
         reviewed_by: user?.id ?? null,
         reviewed_at: new Date().toISOString(),
       })
-      .eq("id", note.id);
+      .eq("id", note.id)
+      .select("id, status");
     setBusyId(null);
     if (error) {
       toast.error(error.message);
+      return;
+    }
+    if (!updated || (updated as { id: string }[]).length === 0) {
+      toast.error(
+        "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      );
       return;
     }
     toast.success(`Notas de ${note.studentName ?? "estudiante"} aprobadas`);
@@ -176,7 +187,11 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error } = await db
+    // .select() expone si RLS bloqueó silenciosamente: devuelve [] sin
+    // error. Antes el modal eliminaba la fila localmente aunque la BD
+    // seguía con status='pendiente', por eso el badge del dashboard no
+    // se actualizaba al recargar.
+    const { data: updated, error } = await db
       .from("exam_notes")
       .update({
         status: "rechazada",
@@ -184,10 +199,17 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
         reviewed_by: user?.id ?? null,
         reviewed_at: new Date().toISOString(),
       })
-      .eq("id", note.id);
+      .eq("id", note.id)
+      .select("id, status");
     setBusyId(null);
     if (error) {
       toast.error(error.message);
+      return;
+    }
+    if (!updated || (updated as { id: string }[]).length === 0) {
+      toast.error(
+        "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      );
       return;
     }
     toast.success("Rechazadas — el estudiante puede reenviar");

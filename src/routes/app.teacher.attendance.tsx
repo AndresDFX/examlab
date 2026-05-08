@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -871,7 +872,13 @@ function TeacherAttendance() {
               desde su app, sin que tengas que llamar a cada uno.
             </p>
             <div>
-              <Label>Duración de la ventana (minutos)</Label>
+              <Label>
+                Duración de la ventana (minutos){" "}
+                <HelpHint>
+                  Cuánto tiempo permanece abierta la ventana antes de cerrarse automáticamente.
+                  Default 10 min.
+                </HelpHint>
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -883,13 +890,15 @@ function TeacherAttendance() {
                   )
                 }
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Cuánto tiempo permanece abierta la ventana antes de cerrarse automáticamente.
-                Default 10 min.
-              </p>
             </div>
             <div>
-              <Label>Rotación del código (segundos)</Label>
+              <Label>
+                Rotación del código (segundos){" "}
+                <HelpHint>
+                  Cada cuánto cambia el código de 6 dígitos. Más corto = más seguro, más fricción si
+                  la red está lenta. Default 60s.
+                </HelpHint>
+              </Label>
               <Input
                 type="number"
                 min={15}
@@ -901,10 +910,6 @@ function TeacherAttendance() {
                   )
                 }
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Cada cuánto cambia el código de 6 dígitos. Más corto = más seguro, más fricción si
-                la red está lenta. Default 60s.
-              </p>
             </div>
           </div>
           <DialogFooter>

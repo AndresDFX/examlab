@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   Select,
   SelectContent,
@@ -44,11 +45,7 @@ const PROVIDER_LABELS: Record<Provider, string> = {
 // Sugerencias por provider — el admin puede escribir cualquier id de
 // modelo soportado, pero ofrecemos los más comunes en un datalist.
 const MODEL_SUGGESTIONS: Record<Provider, string[]> = {
-  lovable: [
-    "google/gemini-2.5-flash",
-    "google/gemini-2.5-pro",
-    "google/gemini-2.0-flash",
-  ],
+  lovable: ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-2.0-flash"],
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini"],
 };
 
@@ -166,14 +163,17 @@ export function AdminModelPanel() {
             )}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Define qué modelo usa el edge function de calificación con IA. La
-            configuración es global para toda la plataforma.
+            Define qué modelo usa el edge function de calificación con IA. La configuración es
+            global para toda la plataforma.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
             <Label>Proveedor</Label>
-            <Select value={draftProvider} onValueChange={(v) => handleProviderChange(v as Provider)}>
+            <Select
+              value={draftProvider}
+              onValueChange={(v) => handleProviderChange(v as Provider)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -185,7 +185,13 @@ export function AdminModelPanel() {
           </div>
 
           <div>
-            <Label>Modelo</Label>
+            <Label>
+              Modelo{" "}
+              <HelpHint>
+                Identificador exacto del modelo según el provider. Sugerencias en el menú; puedes
+                escribir cualquier modelo soportado.
+              </HelpHint>
+            </Label>
             <Input
               list={datalistId}
               value={draftModel}
@@ -198,24 +204,20 @@ export function AdminModelPanel() {
                 <option key={m} value={m} />
               ))}
             </datalist>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Identificador exacto del modelo según el provider. Sugerencias en
-              el menú; puedes escribir cualquier modelo soportado.
-            </p>
           </div>
 
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs space-y-1">
               <p>
-                La API key de <strong>{PROVIDER_LABELS[draftProvider]}</strong> se
-                lee del secret <code className="text-[11px]">{SECRET_NAME[draftProvider]}</code>{" "}
-                configurado en Lovable. Si está vacío, las llamadas de IA fallarán.
+                La API key de <strong>{PROVIDER_LABELS[draftProvider]}</strong> se lee del secret{" "}
+                <code className="text-[11px]">{SECRET_NAME[draftProvider]}</code> configurado en
+                Lovable. Si está vacío, las llamadas de IA fallarán.
               </p>
               {draftProvider === "openai" && (
                 <p>
-                  Configura el secret en Lovable → Settings → Edge Function Secrets
-                  antes de cambiar a este proveedor.
+                  Configura el secret en Lovable → Settings → Edge Function Secrets antes de cambiar
+                  a este proveedor.
                 </p>
               )}
             </AlertDescription>

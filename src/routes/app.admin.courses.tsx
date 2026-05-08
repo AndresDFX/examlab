@@ -43,9 +43,9 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
-  HelpCircle,
 } from "lucide-react";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { HelpHint } from "@/components/ui/help-hint";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   useMultiSelect,
@@ -1077,21 +1077,21 @@ export function AdminCourses() {
                       );
                     })()}
                   </>
-                ) : (
-                  <p className="rounded-md border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground">
-                    Los pesos por tipo (exámenes / talleres / asistencia / proyecto) se configuran
-                    dentro de cada corte abajo. Aquí solo se editan si el curso no tiene cortes.
-                  </p>
-                )}
+                ) : null}
 
                 {/* ── Cortes evaluativos (inline, en memoria) ── */}
                 <div className="rounded-md border p-3 space-y-3">
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div>
-                      <Label className="text-xs">Cantidad de cortes</Label>
-                      <p className="text-[11px] text-muted-foreground">
-                        Define cuántos cortes evaluativos tiene este curso. 0 = sin cortes.
-                      </p>
+                      <Label className="text-xs">
+                        Cantidad de cortes{" "}
+                        <HelpHint>
+                          Define cuántos cortes evaluativos tiene este curso. <strong>0</strong> =
+                          sin cortes (los pesos por tipo se editan en este mismo dialog). Si pones
+                          1+, los pesos por tipo (exámenes / talleres / proyectos / asistencia) se
+                          configuran dentro de cada corte abajo.
+                        </HelpHint>
+                      </Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <Input
@@ -1129,14 +1129,9 @@ export function AdminCourses() {
                   )}
 
                   {editingCuts.length > 0 && (
-                    <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
-                      <HelpCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
-                      <span>
-                        Pulsa el ícono <ChevronRight className="inline h-3 w-3 align-text-bottom" />{" "}
-                        de cada corte para abrir y configurar los sub-pesos por tipo (talleres,
-                        exámenes, proyectos y asistencia). Los sub-pesos pueden ir en 0 si el corte
-                        no tiene ese tipo de evaluación.
-                      </span>
+                    <p className="text-[11px] text-muted-foreground">
+                      Pulsa el ícono <ChevronRight className="inline h-3 w-3 align-text-bottom" />{" "}
+                      de cada corte para configurar los sub-pesos por tipo.
                     </p>
                   )}
 
@@ -1290,15 +1285,17 @@ export function AdminCourses() {
 
               {/* ── Reintentos por examen ── */}
               <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Intentos por examen</p>
-                    <p className="text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium inline-flex items-center gap-1.5">
+                    Intentos por examen
+                    <HelpHint>
                       Número máximo de veces que un estudiante puede presentar un examen de este
                       curso (útil para quices). Al superar el límite, el último intento queda
-                      registrado y el examen se marca como suspendido.
-                    </p>
-                  </div>
+                      registrado y el examen se marca como suspendido. Cada examen del curso hereda
+                      este valor por defecto y puede ajustarse individualmente desde el editor del
+                      examen.
+                    </HelpHint>
+                  </p>
                   <Input
                     type="number"
                     min={1}
@@ -1313,10 +1310,6 @@ export function AdminCourses() {
                     }
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Cada examen creado en este curso heredará este valor por defecto. Puedes ajustarlo
-                  individualmente desde el editor del examen.
-                </p>
               </div>
             </div>
           )}

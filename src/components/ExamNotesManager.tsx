@@ -13,7 +13,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, CheckCircle2, XCircle, Clock, Upload, ThumbsUp, ThumbsDown, User } from "lucide-react";
+import {
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Upload,
+  ThumbsUp,
+  ThumbsDown,
+  User,
+} from "lucide-react";
 
 export type ExamNote = {
   id: string;
@@ -68,11 +77,16 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
     }
     setBusy(true);
     if (note && note.status !== "aprobada") {
-      const { error } = await supabase
+      // Reenvío tras rechazo: limpia la razón y vuelve a pendiente.
+      // .select() expone deny silencioso de RLS (0 rows updated).
+      const { data: updated, error } = await supabase
         .from("exam_notes" as any)
         .update({ content: txt, status: "pendiente", rejection_reason: null })
-        .eq("id", note.id);
+        .eq("id", note.id)
+        .select("id");
       if (error) toast.error(error.message);
+      else if (!updated || (updated as { id: string }[]).length === 0)
+        toast.error("No se pudo enviar la nota. Recarga e intenta de nuevo.");
       else toast.success("Notas enviadas para revisión");
     } else {
       const { error } = await supabase
@@ -223,8 +237,13 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
 
   const approve = async (noteId: string) => {
     setBusy(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    // .select() detecta deny silencioso de RLS (0 rows affected sin
+    // error). Sin esto, el toast decía "Aprobadas" aunque la BD seguía
+    // sin cambios y el badge "Pendiente" reaparecía al recargar.
+    const { data: updated, error } = await supabase
       .from("exam_notes" as any)
       .update({
         status: "aprobada",
@@ -232,10 +251,20 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
         reviewed_by: user?.id ?? null,
         reviewed_at: new Date().toISOString(),
       })
-      .eq("id", noteId);
-    if (error) toast.error(error.message);
-    else toast.success("Notas aprobadas");
+      .eq("id", noteId)
+      .select("id");
     setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if (!updated || (updated as { id: string }[]).length === 0) {
+      toast.error(
+        "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      );
+      return;
+    }
+    toast.success("Notas aprobadas");
     void load();
   };
 
@@ -251,8 +280,10 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
     }
     if (!rejectDialog.noteId) return;
     setBusy(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: updated, error } = await supabase
       .from("exam_notes" as any)
       .update({
         status: "rechazada",
@@ -260,10 +291,20 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
         reviewed_by: user?.id ?? null,
         reviewed_at: new Date().toISOString(),
       })
-      .eq("id", rejectDialog.noteId);
-    if (error) toast.error(error.message);
-    else toast.success("Notas rechazadas — el estudiante podrá reenviar");
+      .eq("id", rejectDialog.noteId)
+      .select("id");
     setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if (!updated || (updated as { id: string }[]).length === 0) {
+      toast.error(
+        "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      );
+      return;
+    }
+    toast.success("Notas rechazadas — el estudiante podrá reenviar");
     setRejectDialog({ open: false, noteId: null });
     void load();
   };
@@ -333,7 +374,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
               <pre className="whitespace-pre-wrap text-xs bg-muted/40 rounded p-2 max-h-48 overflow-y-auto">
                 {n.content}
               </pre>
-              {n.status !== "aprobada" && (
+              {n.status === "pendiente" && (
                 <div className="flex gap-2 justify-end">
                   <Button
                     size="sm"
@@ -347,6 +388,17 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
                   <Button size="sm" onClick={() => approve(n.id)} disabled={busy}>
                     <ThumbsUp className="h-3.5 w-3.5 mr-1" />
                     Aprobar
+                  </Button>
+                </div>
+              )}
+              {n.status === "rechazada" && (
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    El estudiante puede subir una nueva versión.
+                  </span>
+                  <Button size="sm" onClick={() => approve(n.id)} disabled={busy}>
+                    <ThumbsUp className="h-3.5 w-3.5 mr-1" />
+                    Aprobar de todos modos
                   </Button>
                 </div>
               )}
@@ -432,4 +484,3 @@ export function useApprovedExamNote(examId: string, userId: string | undefined) 
   }, [examId, userId]);
   return content;
 }
-

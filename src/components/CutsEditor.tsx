@@ -15,7 +15,15 @@
  *     computeWeightedGrade (items con score=null cuentan como 0).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, ChevronDown, ChevronRight, FileText, Hammer, FolderKanban } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Hammer,
+  FolderKanban,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
+import { HelpHint } from "@/components/ui/help-hint";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/components/ConfirmDialog";
 
@@ -182,13 +191,15 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
     <div className="rounded-md border p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium">Cortes evaluativos</p>
-          <p className="text-xs text-muted-foreground max-w-xl">
-            Cada corte vale un porcentaje de la nota final del curso (la suma de todos los
-            cortes debe ser 100%). Cada examen, taller y proyecto se asigna a un corte y
-            tiene un <span className="font-medium text-foreground">peso directo en %</span>{" "}
-            de la nota final. La suma de items + asistencia dentro de un corte debe igualar
-            el peso del corte.
+          <p className="text-sm font-medium inline-flex items-center gap-1.5">
+            Cortes evaluativos
+            <HelpHint>
+              Cada corte vale un porcentaje de la nota final del curso (la suma de todos los cortes
+              debe ser 100%). Cada examen, taller y proyecto se asigna a un corte y tiene un{" "}
+              <span className="font-medium text-foreground">peso directo en %</span> de la nota
+              final. La suma de items + asistencia dentro de un corte debe igualar el peso del
+              corte.
+            </HelpHint>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -300,11 +311,14 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
 
               {isOpen && (
                 <div className="space-y-3 rounded bg-background p-3">
-                  <p className="text-[11px] text-muted-foreground">
-                    Define cuánto vale cada tipo de actividad dentro de este corte. La suma de los 4
-                    buckets debe igualar el peso del corte ({expected || 0}%). Cada item individual
-                    (taller/examen/proyecto) compite por su bucket — al crearlo, el max permitido
-                    será el remanente del bucket.
+                  <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+                    Sub-pesos del corte ({expected || 0}%)
+                    <HelpHint>
+                      Define cuánto vale cada tipo de actividad dentro de este corte. La suma de los
+                      4 buckets debe igualar el peso del corte ({expected || 0}%). Cada item
+                      individual (taller/examen/proyecto) compite por su bucket — al crearlo, el max
+                      permitido será el remanente del bucket.
+                    </HelpHint>
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <BucketInput
@@ -344,9 +358,7 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
 
                   <div className="flex items-center justify-end">
                     <Badge
-                      variant={
-                        matches ? "secondary" : overAllocated ? "destructive" : "outline"
-                      }
+                      variant={matches ? "secondary" : overAllocated ? "destructive" : "outline"}
                       className="text-xs whitespace-nowrap"
                       title="Suma de los 4 buckets vs peso del corte"
                     >
@@ -364,8 +376,8 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
                     <p className="text-xs font-medium">Items asignados a este corte</p>
                     {cutItems.length === 0 ? (
                       <p className="text-[11px] text-muted-foreground italic">
-                        No hay items asignados. Edita un examen, taller o proyecto y
-                        selecciona este corte para que aparezca acá.
+                        No hay items asignados. Edita un examen, taller o proyecto y selecciona este
+                        corte para que aparezca acá.
                       </p>
                     ) : (
                       <ul className="text-xs space-y-1">
