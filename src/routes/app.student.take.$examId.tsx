@@ -16,13 +16,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Maximize2, Send, Pause, WifiOff, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  Maximize2,
+  Send,
+  Pause,
+  WifiOff,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { runJavaInBrowser } from "@/lib/run-java";
-import { saveAnswersLocally, isOnline, setupOfflineSync, clearLocalAnswers } from "@/lib/offline-sync";
+import {
+  saveAnswersLocally,
+  isOnline,
+  setupOfflineSync,
+  clearLocalAnswers,
+} from "@/lib/offline-sync";
 import { useTranslation } from "react-i18next";
 import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/utils/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
@@ -165,7 +180,9 @@ function TakeExam() {
     supabase.auth.getSession().then(({ data }) => {
       authTokenRef.current = data.session?.access_token ?? null;
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_, session) => {
       authTokenRef.current = session?.access_token ?? null;
     });
     return () => subscription.unsubscribe();
@@ -515,8 +532,7 @@ function TakeExam() {
                   minute: "2-digit",
                   second: "2-digit",
                 });
-                const where =
-                  ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
+                const where = ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
                 return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
               })
               .join("\n");
@@ -617,7 +633,7 @@ function TakeExam() {
     return () => clearTimeout(t);
   }, [answers, warnings, started, saveAnswersNow]);
 
-  // Proctoring: focus tracking, copy/paste blocking, fullscreen enforcement
+  // Proctoring: focus tracking, contextmenu/key blocking, fullscreen enforcement
   useEffect(() => {
     if (!started) return;
 
@@ -707,9 +723,9 @@ function TakeExam() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-            "Authorization": `Bearer ${authTokenRef.current}`,
-            "Prefer": "return=minimal",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+            Authorization: `Bearer ${authTokenRef.current}`,
+            Prefer: "return=minimal",
           },
           body: JSON.stringify(body),
           keepalive: true,
@@ -722,14 +738,10 @@ function TakeExam() {
       recordWarning("pestaña");
     };
     const onContext = (e: Event) => e.preventDefault();
-    // Bloqueo silencioso. Las cajas de código (Monaco) además
-    // interceptan los atajos al nivel del editor — ver CodeEditor /
-    // JavaGuiRunner con blockClipboard. No emitimos toast ni
-    // advertencia: copiar/pegar/cortar simplemente no hacen nada.
-    const onCopy = (e: Event) => {
-      e.preventDefault();
-    };
-    const onSelect = (e: Event) => e.preventDefault();
+    // Nota: el bloqueo de copiar / pegar / cortar / selección se
+    // removió a propósito. La política de proctoring se queda en:
+    // contextmenu, keyDown (F11/Alt-Tab/Alt-F4/Esc), blur (cambio de
+    // pestaña) y fullscreenchange. Copy/paste son permitidos.
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") e.preventDefault();
       if (e.altKey && (e.key === "Tab" || e.key === "F4")) e.preventDefault();
@@ -757,10 +769,6 @@ function TakeExam() {
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
-    document.addEventListener("copy", onCopy);
-    document.addEventListener("cut", onCopy);
-    document.addEventListener("paste", onCopy);
-    document.addEventListener("selectstart", onSelect);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("fullscreenchange", onFsChange);
     return () => {
@@ -768,10 +776,6 @@ function TakeExam() {
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
-      document.removeEventListener("copy", onCopy);
-      document.removeEventListener("cut", onCopy);
-      document.removeEventListener("paste", onCopy);
-      document.removeEventListener("selectstart", onSelect);
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("fullscreenchange", onFsChange);
     };
@@ -828,8 +832,8 @@ function TakeExam() {
             <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
             <h2 className="text-xl font-semibold">Examen abierto en otro dispositivo</h2>
             <p className="text-sm text-muted-foreground">
-              Este examen ya está siendo presentado desde otro dispositivo o pestaña.
-              Cierra esa sesión primero. Si ya la cerraste, espera unos segundos y vuelve a intentar.
+              Este examen ya está siendo presentado desde otro dispositivo o pestaña. Cierra esa
+              sesión primero. Si ya la cerraste, espera unos segundos y vuelve a intentar.
             </p>
             <Button variant="outline" onClick={() => navigate({ to: "/app/student/exams" })}>
               Volver a mis exámenes
@@ -869,8 +873,8 @@ function TakeExam() {
                   </ul>
                 </li>
                 <li>
-                  <strong>Copiar, pegar, cortar y el clic derecho</strong> están deshabilitados.
-                  No generan advertencia: simplemente no funcionan.
+                  <strong>Copiar, pegar, cortar y el clic derecho</strong> están deshabilitados. No
+                  generan advertencia: simplemente no funcionan.
                 </li>
                 <li>Las respuestas se guardan automáticamente (incluso sin conexión).</li>
               </ul>
@@ -932,7 +936,10 @@ function TakeExam() {
               <span className="hidden sm:inline">Pausado</span>
             </Badge>
           )}
-          <Badge variant={warnings > 0 ? "destructive" : "outline"} className="text-[10px] sm:text-xs">
+          <Badge
+            variant={warnings > 0 ? "destructive" : "outline"}
+            className="text-[10px] sm:text-xs"
+          >
             <AlertTriangle className="h-3 w-3 mr-0.5 sm:mr-1" />
             {warnings}/{maxWarnings}
           </Badge>
@@ -1026,7 +1033,6 @@ function TakeExam() {
                       isRunning={runningCode[q.id] ?? false}
                       showLanguageSelector={false}
                       showRunButton={true}
-                      blockClipboard
                       height="250px"
                     />
                   </div>
@@ -1043,7 +1049,6 @@ function TakeExam() {
                       value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
                       onChange={(v) => updateAnswer(q.id, v)}
                       height="280px"
-                      blockClipboard
                     />
                   </div>
                 ) : (
@@ -1131,10 +1136,7 @@ function TakeExam() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={manualLeaveOpen}
-        onOpenChange={(open) => !open && setManualLeaveOpen(false)}
-      >
+      <Dialog open={manualLeaveOpen} onOpenChange={(open) => !open && setManualLeaveOpen(false)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1143,18 +1145,14 @@ function TakeExam() {
             </DialogTitle>
             <DialogDescription asChild>
               <div className="text-sm text-muted-foreground">
-                Retroceder cuenta como una salida no permitida y registra un{" "}
-                <strong>strike</strong>. Si acumulas {maxWarnings} strikes, el examen se marcará
-                como sospechoso. ¿Deseas salir de todas formas?
+                Retroceder cuenta como una salida no permitida y registra un <strong>strike</strong>
+                . Si acumulas {maxWarnings} strikes, el examen se marcará como sospechoso. ¿Deseas
+                salir de todas formas?
               </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setManualLeaveOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setManualLeaveOpen(false)}>
               Seguir en el examen
             </Button>
             <Button
