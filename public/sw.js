@@ -15,7 +15,7 @@
  *  - Cache name v3 invalida las versiones anteriores en `activate`.
  */
 
-const CACHE_NAME = "examlab-v6";
+const CACHE_NAME = "examlab-v7";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
