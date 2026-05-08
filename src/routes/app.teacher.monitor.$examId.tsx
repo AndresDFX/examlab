@@ -329,6 +329,79 @@ function ExamMonitor() {
     );
   };
 
+  // Borra TODAS las advertencias de un intento: focus_warnings=0,
+  // limpia __warning_events del JSON, y si el intento estaba en
+  // status='sospechoso' lo regresa a 'completado' (porque sospechoso
+  // se setea precisamente cuando supera el umbral de strikes).
+  const clearAllWarnings = async (sub: Submission) => {
+    const ok = await confirm({
+      title: "Limpiar advertencias",
+      description:
+        "Se eliminarán todas las advertencias de este intento. " +
+        (sub.status === "sospechoso"
+          ? "Como el intento está marcado como sospechoso, se regresará a estado 'completado'. "
+          : "") +
+        "Esta acción no se puede deshacer.",
+      confirmLabel: "Limpiar",
+      tone: "warning",
+    });
+    if (!ok) return;
+    const prevAnswers = sub.answers ?? {};
+    const { __warning_events: _evs, ...rest } = prevAnswers;
+    void _evs;
+    const nextAnswers = rest;
+    const nextStatus = sub.status === "sospechoso" ? "completado" : sub.status;
+    const { error } = await supabase
+      .from("submissions")
+      .update({ focus_warnings: 0, answers: nextAnswers, status: nextStatus })
+      .eq("id", sub.id);
+    if (error) return toast.error(error.message);
+    toast.success("Advertencias eliminadas");
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === sub.id ? { ...s, focus_warnings: 0, answers: nextAnswers, status: nextStatus } : s,
+      ),
+    );
+  };
+
+  // Borra UNA advertencia puntual del array de eventos. focus_warnings
+  // se decrementa para mantener consistencia con la longitud del array.
+  // Si tras decrementar el intento ya no supera el umbral y estaba en
+  // sospechoso, lo regresamos a completado.
+  const clearOneWarning = async (sub: Submission, idx: number) => {
+    const prevAnswers = sub.answers ?? {};
+    const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
+    if (idx < 0 || idx >= events.length) return;
+    const nextEvents = events.filter((_, i) => i !== idx);
+    const nextAnswers = { ...prevAnswers, __warning_events: nextEvents };
+    const nextWarnings = Math.max(0, (sub.focus_warnings ?? 0) - 1);
+    const examMax = exam?.max_warnings ?? 3;
+    const nextStatus =
+      sub.status === "sospechoso" && nextWarnings < examMax ? "completado" : sub.status;
+    const { error } = await supabase
+      .from("submissions")
+      .update({
+        focus_warnings: nextWarnings,
+        answers: nextAnswers,
+        status: nextStatus,
+      })
+      .eq("id", sub.id);
+    if (error) return toast.error(error.message);
+    toast.success("Advertencia eliminada");
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === sub.id
+          ? {
+              ...s,
+              focus_warnings: nextWarnings,
+              answers: nextAnswers,
+              status: nextStatus,
+            }
+          : s,
+      ),
+    );
+  };
+
   const saveQuestionOverride = async (sub: Submission, q: Question) => {
     const entry = qOverrides[q.id] ?? { score: null, feedback: "" };
     const numScore: number | null = entry.score;
@@ -720,9 +793,20 @@ function ExamMonitor() {
                   return (
                     <Card className="border-destructive/40 bg-destructive/5">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-destructive" />
-                          Eventos de advertencia ({events.length})
+                        <CardTitle className="text-sm flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                            Eventos de advertencia ({events.length})
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => clearAllWarnings(viewingSub)}
+                            title="Limpiar todas las advertencias del intento"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Limpiar todas
+                          </Button>
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="text-xs space-y-1">
@@ -739,6 +823,12 @@ function ExamMonitor() {
                                   · pregunta {ev.questionIdx + 1}
                                 </span>
                               )}
+                              <RowAction
+                                label="Eliminar esta advertencia"
+                                icon={Trash2}
+                                tone="destructive"
+                                onClick={() => clearOneWarning(viewingSub, i)}
+                              />
                             </div>
                           );
                         })}

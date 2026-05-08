@@ -74,9 +74,7 @@ Deno.serve(async (req) => {
         .order("position");
       if (qErr) throw qErr;
 
-      const valid = (subs ?? []).filter(
-        (s: any) => s.status !== "iniciado" && s.answers,
-      );
+      const valid = (subs ?? []).filter((s: any) => s.status !== "iniciado" && s.answers);
       for (const q of questions ?? []) {
         if (q.type === "cerrada") continue;
         const items: Item[] = valid
@@ -95,7 +93,7 @@ Deno.serve(async (req) => {
         if (items.length >= 2) {
           groups.push({
             questionId: q.id as string,
-            questionLabel: `Pregunta ${q.position ?? "?"}`,
+            questionLabel: `Pregunta ${q.position ?? "?"}: ${q.content ?? ""}`.slice(0, 1000),
             items,
           });
         }
@@ -146,11 +144,7 @@ Deno.serve(async (req) => {
         const list = ansByQ.get((q as any).id) ?? [];
         const items: Item[] = list
           .map((a: any) => {
-            const text =
-              a.code_content ??
-              a.diagram_code ??
-              a.answer_text ??
-              "";
+            const text = a.code_content ?? a.diagram_code ?? a.answer_text ?? "";
             const userId = userBySub.get(a.submission_id) ?? "";
             return {
               submissionId: a.submission_id as string,
@@ -162,7 +156,9 @@ Deno.serve(async (req) => {
         if (items.length >= 2) {
           groups.push({
             questionId: (q as any).id as string,
-            questionLabel: `Pregunta ${(q as any).position ?? "?"}`,
+            questionLabel: `Pregunta ${(q as any).position ?? "?"}: ${
+              (q as any).content ?? ""
+            }`.slice(0, 1000),
             items,
           });
         }
@@ -221,9 +217,7 @@ Deno.serve(async (req) => {
     const inserted: any[] = [];
     for (const group of groups) {
       const items = group.items.slice(0, MAX_ITEMS_PER_CALL);
-      const idxList = items
-        .map((it, i) => `[${i}]\n${it.text}`)
-        .join("\n\n---\n\n");
+      const idxList = items.map((it, i) => `[${i}]\n${it.text}`).join("\n\n---\n\n");
 
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -233,11 +227,36 @@ Deno.serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `Eres un detector de copia académica entre estudiantes. Recibes una lista numerada de respuestas a la MISMA pregunta o entrega. Identifica pares de respuestas que parecen copiadas entre sí (no de internet — eso es otro análisis). Para cada par sospechoso devuelve idx_a, idx_b, score 0..1 y una razón breve. Solo reporta pares con score >= ${MIN_REPORT_SCORE}. Ignora coincidencias triviales (saludos, palabras genéricas, "hola mundo", definiciones de libro de texto). Las respuestas idénticas o casi idénticas tienen score >= 0.85.`,
+              content: `Eres un detector de copia académica entre estudiantes. Recibes el ENUNCIADO de la pregunta y una lista numerada de respuestas a la MISMA pregunta. Tu tarea es identificar pares cuyas similitudes NO se justifican por el enunciado.
+
+Marcadores que SÍ cuentan como evidencia de copia (cuando el enunciado no los pide):
+  - Mismos nombres de variables, funciones o clases idénticos (ej: \`personasMayores30\`, \`filtrarEdad\`).
+  - Mismos literales en strings, prints o mensajes (ej: \`println("Resultado:")\`).
+  - Mismas listas de datos, valores hard-coded o ejemplos de prueba.
+  - Mismos errores: typos, bugs idénticos, comentarios mal escritos iguales, mismo orden raro de operaciones.
+  - Mismos comentarios palabra por palabra (humanos rara vez escriben los mismos comentarios).
+  - Mismo formato/orden inusual (espacios, saltos de línea atípicos, indentación rara).
+
+Marcadores que NO cuentan (son convergencia natural a la solución correcta):
+  - Boilerplate del lenguaje (declaración de \`class Main\`, \`public static void main\`, imports estándar).
+  - Estructura de control obvia para resolver el problema (un \`for\` para iterar una lista).
+  - Nombres de variables genéricos exigidos por el enunciado o de uso universal (\`i\`, \`j\`, \`temp\`, parámetros del enunciado).
+  - Palabras clave del lenguaje, sintaxis estándar.
+  - Salidas exactas que el enunciado pide producir.
+  - Plantillas/starter code idénticas (todos parten del mismo template).
+
+Score:
+  - 0.85+ requiere VARIOS marcadores no triviales coincidiendo (p. ej. mismos nombres de variables NO pedidos + mismos strings + mismo error).
+  - 0.6-0.85 requiere al menos un marcador fuerte y no trivial.
+  - <0.6 NO se reporta.
+
+Si las respuestas comparten solo estructura general u outputs exigidos por el enunciado, score bajo y NO reportes.
+
+Para cada par sospechoso devuelve idx_a, idx_b, score (0..1), y una razón breve y CONCRETA citando los marcadores específicos (ej: "ambos usan \`personasMayores30\` y el string \`Resultado:\` que el enunciado no pide"). Solo reporta pares con score >= ${MIN_REPORT_SCORE}.`,
             },
             {
               role: "user",
-              content: `${group.questionLabel}\n\nRespuestas:\n\n${idxList}\n\nDevuelve los pares sospechosos.`,
+              content: `Enunciado:\n${group.questionLabel}\n\nRespuestas:\n\n${idxList}\n\nDevuelve los pares sospechosos comparando contra el enunciado para distinguir similitud necesaria vs evidencia de copia.`,
             },
           ],
           tools: [
@@ -355,9 +374,9 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     console.error(e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

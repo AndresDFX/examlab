@@ -538,20 +538,10 @@ function TakeExam() {
               .eq("id", user!.id)
               .single();
             const studentName = profile?.full_name ?? "Un estudiante";
-
-            const events = warningEventsRef.current.slice(-maxWarnings);
-            const eventLines = events
-              .map((ev, i) => {
-                const when = new Date(ev.at).toLocaleTimeString("es-CO", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                });
-                const where = ev.questionIdx != null ? ` (pregunta ${ev.questionIdx + 1})` : "";
-                return `${i + 1}. ${warningLabel(ev.type)} — ${when}${where}`;
-              })
-              .join("\n");
-            const body = `${studentName} fue suspendido del examen "${exam.title}" por superar el límite de ${maxWarnings} advertencias.\n\nAcciones detectadas:\n${eventLines || "(sin detalle)"}`;
+            // Notificación resumida: un docente con muchos exámenes
+            // necesita el qué/quién, no el detalle. El detalle vive en
+            // el monitor (la card "Eventos de advertencia" lo muestra).
+            const body = `${studentName} superó el límite de ${maxWarnings} advertencias en el examen "${exam.title}" y fue suspendido. Revisa el detalle en el monitor.`;
 
             const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
               _exam_id: examId,
