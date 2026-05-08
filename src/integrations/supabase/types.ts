@@ -1478,6 +1478,7 @@ export type Database = {
           answers: Json
           created_at: string
           exam_id: string
+          extra_seconds: number
           final_override_grade: number | null
           focus_warnings: number
           id: string
@@ -1496,6 +1497,7 @@ export type Database = {
           answers?: Json
           created_at?: string
           exam_id: string
+          extra_seconds?: number
           final_override_grade?: number | null
           focus_warnings?: number
           id?: string
@@ -1514,6 +1516,7 @@ export type Database = {
           answers?: Json
           created_at?: string
           exam_id?: string
+          extra_seconds?: number
           final_override_grade?: number | null
           focus_warnings?: number
           id?: string
@@ -1739,7 +1742,15 @@ export type Database = {
           submission_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workshop_submission_answers_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workshop_submissions: {
         Row: {
