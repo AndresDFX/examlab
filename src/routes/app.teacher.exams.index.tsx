@@ -51,6 +51,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { HelpHint } from "@/components/ui/help-hint";
 
 const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
 Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
@@ -250,9 +251,7 @@ function TeacherExams() {
       setForm((f) => {
         const single = arr.length === 1;
         const validCut =
-          single && f.cut_id
-            ? cuts.some((c) => c.id === f.cut_id && c.course_id === first)
-            : false;
+          single && f.cut_id ? cuts.some((c) => c.id === f.cut_id && c.course_id === first) : false;
         return {
           ...f,
           course_id: first ?? f.course_id,
@@ -781,11 +780,11 @@ function TeacherExams() {
               <div>
                 <Label>
                   Tipo de programación{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    (Normal: el cronómetro cuenta hasta la fecha de fin para todos. Relativo: cada
-                    estudiante tiene la duración indicada desde que abre el examen, dentro de la
-                    ventana.)
-                  </span>
+                  <HelpHint>
+                    <strong>Normal:</strong> el cronómetro cuenta hasta la fecha de fin para todos.{" "}
+                    <strong>Relativo:</strong> cada estudiante tiene la duración indicada desde que
+                    abre el examen, dentro de la ventana.
+                  </HelpHint>
                 </Label>
                 <Select
                   value={(form as any).schedule_type ?? "normal"}
@@ -805,9 +804,10 @@ function TeacherExams() {
               <div>
                 <Label>
                   Modo de calificación con reintentos{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    (Aplica solo si se permite más de un intento.)
-                  </span>
+                  <HelpHint>
+                    Aplica solo si se permite más de un intento. Define cómo se calcula la
+                    calificación final cuando hay varios intentos.
+                  </HelpHint>
                 </Label>
                 <Select
                   value={(form as any).retry_mode ?? "last"}
@@ -837,9 +837,10 @@ function TeacherExams() {
               <div>
                 <Label>
                   Advertencias máximas{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
-                  </span>
+                  <HelpHint>
+                    Cuántas veces el alumno puede cambiar de pestaña, copiar/pegar, salir de
+                    pantalla completa, etc. antes de marcar la entrega como sospechosa.
+                  </HelpHint>
                 </Label>
                 <Input
                   type="number"

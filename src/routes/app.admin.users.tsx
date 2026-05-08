@@ -5,6 +5,7 @@ import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
+import { HelpHint } from "@/components/ui/help-hint";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -369,7 +370,12 @@ function AdminUsers() {
           <p className="text-sm text-muted-foreground">{rows.length} cuentas registradas</p>
         </div>
         <div className="flex gap-2 flex-wrap w-full sm:w-auto">
-          <Button variant="outline" size="sm" onClick={downloadTemplate} className="flex-1 sm:flex-none">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadTemplate}
+            className="flex-1 sm:flex-none"
+          >
             <Download className="h-4 w-4 mr-1" />
             <span className="hidden xs:inline">Template CSV</span>
             <span className="xs:hidden">Plantilla</span>
@@ -470,7 +476,9 @@ function AdminUsers() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm hidden sm:table-cell">{r.institutional_email}</TableCell>
+                      <TableCell className="text-sm hidden sm:table-cell">
+                        {r.institutional_email}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                         {r.personal_email ?? "—"}
                       </TableCell>
@@ -488,11 +496,7 @@ function AdminUsers() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5">
-                          <RowAction
-                            label="Editar"
-                            icon={Pencil}
-                            onClick={() => openEdit(r)}
-                          />
+                          <RowAction label="Editar" icon={Pencil} onClick={() => openEdit(r)} />
                           <RowAction
                             label="Eliminar"
                             icon={Trash2}
@@ -558,9 +562,7 @@ function AdminUsers() {
                 <div>
                   <Label>
                     Nueva contraseña{" "}
-                    <span className="text-xs text-muted-foreground font-normal">
-                      (dejar vacío para no cambiar)
-                    </span>
+                    <HelpHint>Déjalo vacío para no cambiar la contraseña actual.</HelpHint>
                   </Label>
                   <Input
                     type="text"
