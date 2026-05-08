@@ -25,7 +25,16 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Clock, AlertTriangle, Sparkles, Trash2, Eye, Save, TimerReset } from "lucide-react";
+import {
+  Clock,
+  AlertTriangle,
+  Sparkles,
+  Trash2,
+  Eye,
+  Save,
+  TimerReset,
+  MessageSquareText,
+} from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -44,6 +53,7 @@ import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
+import { CodeRunOutput } from "@/components/CodeRunOutput";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({
   component: ExamMonitor,
@@ -189,6 +199,42 @@ function ExamMonitor() {
       .order("position", { ascending: true });
     setQuestions((data ?? []) as Question[]);
   }, [examId]);
+
+  // Conteo de conversaciones abiertas (feedback_threads sin cerrar) por
+  // estudiante en este examen. Lo refrescamos cuando cambian las
+  // submissions y vía realtime cuando un thread se abre/cierra. Permite
+  // mostrar en el grid "Conversaciones: 2" con color destacado para que
+  // el docente vea de un vistazo dónde hay diálogo pendiente.
+  const [openThreadsByUser, setOpenThreadsByUser] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!submissions.length) {
+      setOpenThreadsByUser({});
+      return;
+    }
+    const subUserById = new Map(submissions.map((s) => [s.id, s.user_id]));
+    const subIds = submissions.map((s) => s.id);
+    let cancelled = false;
+    (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("feedback_threads")
+        .select("submission_id")
+        .eq("parent_kind", "exam")
+        .eq("closed", false)
+        .in("submission_id", subIds);
+      if (cancelled) return;
+      const counts: Record<string, number> = {};
+      for (const row of (data ?? []) as { submission_id: string }[]) {
+        const uid = subUserById.get(row.submission_id);
+        if (!uid) continue;
+        counts[uid] = (counts[uid] ?? 0) + 1;
+      }
+      setOpenThreadsByUser(counts);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [submissions]);
 
   // Deep-link desde notificación o modal "Conversaciones abiertas":
   //   ?student=USER_ID      → abre el modal de intentos del estudiante.
@@ -674,12 +720,13 @@ function ExamMonitor() {
                 <TableHead>Pregunta actual</TableHead>
                 <TableHead>Calificación efectiva</TableHead>
                 <TableHead>{t("monitor.warnings")}</TableHead>
+                <TableHead>Conversaciones</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={7} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty colSpan={8} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.map((row) => {
                 const latest = row.latest;
@@ -739,6 +786,27 @@ function ExamMonitor() {
                       >
                         {latest.focus_warnings}/3
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        // Color destacado (amber) cuando hay conversaciones
+                        // abiertas — dialogo pendiente de respuesta del docente.
+                        const count = openThreadsByUser[row.userId] ?? 0;
+                        if (count === 0) {
+                          return <span className="text-xs text-muted-foreground">—</span>;
+                        }
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => openView(latest)}
+                            title="Ver respuestas y conversaciones"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
+                          >
+                            <MessageSquareText className="h-3 w-3" />
+                            <span className="tabular-nums">{count}</span>
+                          </button>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -1041,6 +1109,19 @@ function ExamMonitor() {
                                 JSON.stringify(ans, null, 2)
                               )}
                             </div>
+                          )}
+
+                          {/* Líneas del compilador / consola: para preguntas de
+                              código mostramos la última ejecución registrada
+                              en code_executions del estudiante. Permite al
+                              docente ver qué imprimió el programa sin tener
+                              que correrlo a mano. */}
+                          {(q.type === "codigo" || q.type === "java_gui") && (
+                            <CodeRunOutput
+                              submissionId={viewingSub.id}
+                              questionId={q.id}
+                              userId={viewingSub.user_id}
+                            />
                           )}
 
                           {bd?.feedback && (

@@ -11,6 +11,7 @@ import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
+import { CodeRunOutput } from "@/components/CodeRunOutput";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -350,6 +351,13 @@ function StudentExamReview() {
                       JSON.stringify(ans, null, 2)
                     )}
                   </div>
+                )}
+
+                {/* Líneas del compilador / consola: la última ejecución
+                    registrada por el estudiante en `code_executions`
+                    durante la toma del examen. */}
+                {(q.type === "codigo" || q.type === "java_gui") && submission && user && (
+                  <CodeRunOutput submissionId={submission.id} questionId={q.id} userId={user.id} />
                 )}
 
                 {(iaFeedback || teacherFeedback) && (
