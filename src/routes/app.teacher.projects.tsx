@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   Select,
   SelectContent,
@@ -1339,7 +1340,14 @@ function TeacherProjects() {
               </div>
             )}
             <div className="space-y-2">
-              <Label required>{t("nav.courses")} (puedes seleccionar varios)</Label>
+              <Label required>
+                {t("nav.courses")} (puedes seleccionar varios){" "}
+                <HelpHint>
+                  El curso <strong>primario</strong> define el corte y el idioma usado por la IA.
+                  Los estudiantes matriculados en cualquiera de los cursos seleccionados verán el
+                  proyecto.
+                </HelpHint>
+              </Label>
               <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
                 {courses.length === 0 && (
                   <p className="text-xs text-muted-foreground">Sin cursos disponibles</p>
@@ -1378,10 +1386,6 @@ function TeacherProjects() {
                   );
                 })}
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                El curso primario define el corte y el idioma usado por la IA. Los estudiantes
-                matriculados en cualquiera de los cursos seleccionados verán el proyecto.
-              </p>
             </div>
             <div>
               <Label>Corte</Label>
@@ -1461,7 +1465,13 @@ function TeacherProjects() {
             <div className="grid grid-cols-2 gap-3">
               {!(form as any).is_external && (
                 <div>
-                  <Label required>Número de archivos</Label>
+                  <Label required>
+                    Número de archivos{" "}
+                    <HelpHint>
+                      Cuántas cajas de texto se mostrarán al estudiante (una por archivo). La IA
+                      calificará cada caja por separado.
+                    </HelpHint>
+                  </Label>
                   <Input
                     type="number"
                     min={1}
@@ -1474,10 +1484,6 @@ function TeacherProjects() {
                       })
                     }
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Cuántas cajas de texto se mostrarán al estudiante (una por archivo). La IA
-                    calificará cada caja por separado.
-                  </p>
                 </div>
               )}
               <div>

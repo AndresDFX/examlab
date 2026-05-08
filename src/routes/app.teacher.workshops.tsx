@@ -38,6 +38,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
+import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import {
   Plus,
@@ -53,7 +54,6 @@ import {
   Sparkles,
   ThumbsUp,
   ThumbsDown,
-  HelpCircle,
   Copy,
   ListChecks,
   Hammer,
@@ -1666,43 +1666,20 @@ function TeacherWorkshops() {
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
                   <Label>Rúbrica de calificación IA</Label>
-                  <span className="text-xs text-muted-foreground">(JSON, opcional)</span>
-                  <Dialog>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                      asChild
-                    >
-                      <span>
-                        <HelpCircle className="h-3.5 w-3.5" />
-                      </span>
-                    </Button>
-                  </Dialog>
-                </div>
-                <div className="rounded-md border bg-muted/30 p-3 mb-2 text-xs text-muted-foreground space-y-1.5">
-                  <p className="font-medium text-foreground text-xs">¿Cómo funciona?</p>
-                  <p>
-                    Define los criterios que la IA usará para calificar las entregas. Escribe un
-                    array JSON donde cada objeto tenga:
-                  </p>
-                  <ul className="list-disc list-inside space-y-0.5 ml-1">
-                    <li>
-                      <code className="bg-muted px-1 rounded">criterio</code>: nombre del criterio
-                      (ej: "Claridad")
-                    </li>
-                    <li>
-                      <code className="bg-muted px-1 rounded">peso</code>: porcentaje del puntaje
-                      total (deben sumar 100)
-                    </li>
-                  </ul>
-                  <p className="font-medium mt-1">Ejemplo:</p>
-                  <pre className="bg-muted p-2 rounded text-[11px] overflow-x-auto">{`[
-  { "criterio": "Claridad y redacción", "peso": 25 },
-  { "criterio": "Completitud del contenido", "peso": 40 },
-  { "criterio": "Uso correcto de conceptos", "peso": 35 }
+                  <HelpHint>
+                    <p className="font-medium text-foreground mb-1">JSON opcional</p>
+                    <p>
+                      Define los criterios que la IA usará para calificar. Array JSON donde cada
+                      objeto tiene <code className="bg-muted/40 px-1 rounded">criterio</code>{" "}
+                      (nombre) y <code className="bg-muted/40 px-1 rounded">peso</code> (% del
+                      puntaje total, deben sumar 100).
+                    </p>
+                    <pre className="bg-muted/40 mt-1 p-1.5 rounded text-[10px] overflow-x-auto">{`[
+  {"criterio":"Claridad","peso":25},
+  {"criterio":"Completitud","peso":40},
+  {"criterio":"Conceptos","peso":35}
 ]`}</pre>
+                  </HelpHint>
                 </div>
                 <Textarea
                   rows={3}
