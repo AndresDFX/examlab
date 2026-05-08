@@ -15,7 +15,7 @@
  *  - Cache name v3 invalida las versiones anteriores en `activate`.
  */
 
-const CACHE_NAME = "examlab-v6";
+const CACHE_NAME = "examlab-v7";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -83,27 +83,39 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
-        try {
-          return await fetch(request);
-        } catch (_) {
-          await new Promise((r) => setTimeout(r, 600));
+        // Hasta 3 intentos con backoff: 0ms, 700ms, 1800ms.
+        // Solo mostramos el fallback "Sin conexión" si efectivamente
+        // el navegador reporta offline. Si está online pero el fetch
+        // sigue fallando, devolvemos una página de "Error temporal"
+        // con reintentar — no mentimos diciendo que no hay internet.
+        const delays = [0, 700, 1800];
+        let lastErr;
+        for (const d of delays) {
+          if (d) await new Promise((r) => setTimeout(r, d));
           try {
-            return await fetch(request);
-          } catch (_) {
-            const html = `<!doctype html>
-<meta charset="utf-8">
-<title>ExamLab — Sin conexión</title>
-<body style="font-family:system-ui;padding:2rem;max-width:32rem;margin:0 auto;text-align:center;color:#1f2937">
-  <h1 style="font-size:1.5rem;margin:0 0 .5rem">Sin conexión</h1>
-  <p style="color:#6b7280;margin:0 0 1.5rem">No pudimos cargar la página. Si estás presentando un examen, tus respuestas guardadas hasta ahora siguen seguras: vuelve a intentar cuando tengas internet y podrás reanudar.</p>
-  <button onclick="location.reload()" style="background:#111827;color:#fff;border:0;border-radius:.5rem;padding:.6rem 1.2rem;font-size:.95rem;cursor:pointer">Reintentar</button>
-</body>`;
-            return new Response(html, {
-              status: 503,
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            });
+            const res = await fetch(request);
+            return res;
+          } catch (e) {
+            lastErr = e;
           }
         }
+        const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+        const title = offline ? "Sin conexión" : "Error temporal";
+        const body = offline
+          ? "No pudimos cargar la página. Si estás presentando un examen, tus respuestas guardadas hasta ahora siguen seguras: vuelve a intentar cuando tengas internet y podrás reanudar."
+          : "No pudimos cargar la página en este momento. Tus respuestas guardadas siguen seguras. Intenta de nuevo en unos segundos.";
+        const html = `<!doctype html>
+<meta charset="utf-8">
+<title>ExamLab — ${title}</title>
+<body style="font-family:system-ui;padding:2rem;max-width:32rem;margin:0 auto;text-align:center;color:#1f2937">
+  <h1 style="font-size:1.5rem;margin:0 0 .5rem">${title}</h1>
+  <p style="color:#6b7280;margin:0 0 1.5rem">${body}</p>
+  <button onclick="location.reload()" style="background:#111827;color:#fff;border:0;border-radius:.5rem;padding:.6rem 1.2rem;font-size:.95rem;cursor:pointer">Reintentar</button>
+</body>`;
+        return new Response(html, {
+          status: 503,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
       })(),
     );
     return;
