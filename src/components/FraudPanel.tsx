@@ -12,8 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Bot, Search, Users } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { AlertTriangle, Bot, Eye, Search, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { RowAction } from "@/components/ui/row-action";
 
 /**
  * Panel reutilizable para docente: análisis de fraude (IA) y detección
@@ -87,8 +95,10 @@ function scoreVariant(score: number): "destructive" | "default" | "secondary" {
 export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   const [aiSignals, setAiSignals] = useState<AiSignalRow[]>([]);
   const [pairs, setPairs] = useState<SimilarityRow[]>([]);
+  const [questionLabels, setQuestionLabels] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [detecting, setDetecting] = useState(false);
+  const [detailOpen, setDetailOpen] = useState<{ a: string; b: string } | null>(null);
 
   const table = TABLES[kind];
   const refColumn = REF_COLUMN[kind];
@@ -120,7 +130,38 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           reasons: s.ai_detected_reasons ?? null,
         })),
       );
-      setPairs(((pairsData ?? []) as any[]).map((p) => p as SimilarityRow));
+      const pairsArr = ((pairsData ?? []) as any[]).map((p) => p as SimilarityRow);
+      setPairs(pairsArr);
+
+      // Cargar etiquetas de las preguntas referenciadas en pairs para
+      // poder mostrarlas en el modal de detalle. El kind define la
+      // tabla: questions / workshop_questions / project_files.
+      const qIds = Array.from(
+        new Set(pairsArr.map((p) => p.question_id).filter((x): x is string => !!x)),
+      );
+      if (qIds.length > 0) {
+        const tableName =
+          kind === "exam"
+            ? "questions"
+            : kind === "workshop"
+              ? "workshop_questions"
+              : "project_files";
+        const titleColumn = kind === "project" ? "title" : "content";
+        const { data: qData } = await supabase
+          .from(tableName as any)
+          .select(`id, position, ${titleColumn}`)
+          .in("id", qIds);
+        const map: Record<string, string> = {};
+        for (const q of (qData ?? []) as any[]) {
+          const label =
+            (q.position != null ? `Pregunta ${Number(q.position) + 1}` : "Pregunta") +
+            (q[titleColumn] ? `: ${String(q[titleColumn]).slice(0, 80)}` : "");
+          map[q.id as string] = label;
+        }
+        setQuestionLabels(map);
+      } else {
+        setQuestionLabels({});
+      }
     } finally {
       setLoading(false);
     }
@@ -140,7 +181,9 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       const summary = data as { pairs?: unknown[]; groups_compared?: number; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
       if (found > 0) {
-        toast.success(`Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"}.`);
+        toast.success(
+          `Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"}.`,
+        );
       } else {
         toast.message("Detección completada", {
           description: summary?.message ?? "No se encontraron coincidencias relevantes.",
@@ -157,6 +200,45 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
 
   const hasAi = aiSignals.length > 0;
   const hasPairs = pairs.length > 0;
+
+  // Agrupa pairs por (userA, userB) — clave canonicalizada por orden
+  // alfabético para que pairs.user_a/user_b inversos no aparezcan dos
+  // veces. Cada grupo guarda el max score, count de preguntas y la
+  // lista de pairs originales para el modal de detalle.
+  type GroupedPair = {
+    userA: string;
+    userB: string;
+    maxScore: number;
+    questionCount: number;
+    pairs: SimilarityRow[];
+  };
+  const groupedPairs = useMemo<GroupedPair[]>(() => {
+    const map = new Map<string, GroupedPair>();
+    for (const p of pairs) {
+      const [a, b] = [p.user_a, p.user_b].sort();
+      const key = `${a}::${b}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.pairs.push(p);
+        existing.maxScore = Math.max(existing.maxScore, p.score);
+        existing.questionCount = existing.pairs.length;
+      } else {
+        map.set(key, {
+          userA: a,
+          userB: b,
+          maxScore: p.score,
+          questionCount: 1,
+          pairs: [p],
+        });
+      }
+    }
+    return Array.from(map.values()).sort((x, y) => y.maxScore - x.maxScore);
+  }, [pairs]);
+
+  const detailGroup =
+    detailOpen != null
+      ? (groupedPairs.find((g) => g.userA === detailOpen.a && g.userB === detailOpen.b) ?? null)
+      : null;
 
   const aiSummaryLabel = useMemo(() => {
     if (!hasAi) return "Sin señales de IA";
@@ -200,7 +282,8 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           </div>
           {!hasAi ? (
             <p className="text-xs text-muted-foreground">
-              Ninguna entrega supera el umbral del 60% de probabilidad de IA. Las señales se actualizan automáticamente al calificar con IA.
+              Ninguna entrega supera el umbral del 60% de probabilidad de IA. Las señales se
+              actualizan automáticamente al calificar con IA.
             </p>
           ) : (
             <Table>
@@ -230,18 +313,21 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           )}
         </div>
 
-        {/* Sección 2: pares de copia entre estudiantes */}
+        {/* Sección 2: pares de copia entre estudiantes (agregado) */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Users className="h-4 w-4 text-muted-foreground" />
             Posibles copias entre estudiantes
             <Badge variant="outline" className="ml-auto text-[11px]">
-              {hasPairs ? `${pairs.length} par${pairs.length === 1 ? "" : "es"}` : "Sin pares detectados"}
+              {hasPairs
+                ? `${groupedPairs.length} par${groupedPairs.length === 1 ? "" : "es"} de estudiantes`
+                : "Sin pares detectados"}
             </Badge>
           </div>
           {!hasPairs ? (
             <p className="text-xs text-muted-foreground">
-              Ejecuta "Detectar copias" para comparar las entregas con Gemini. Solo se muestran pares con similitud ≥ 60%.
+              Ejecuta "Detectar copias" para comparar las entregas con Gemini. Solo se muestran
+              pares con similitud ≥ 60%.
             </p>
           ) : (
             <Table>
@@ -249,20 +335,26 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                 <TableRow>
                   <TableHead>Estudiante A</TableHead>
                   <TableHead>Estudiante B</TableHead>
-                  <TableHead className="w-28">Similitud</TableHead>
-                  <TableHead>Razón</TableHead>
+                  <TableHead className="w-32">Similitud máx</TableHead>
+                  <TableHead className="w-24">Preguntas</TableHead>
+                  <TableHead className="text-right">Detalle</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pairs.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{shortName(p.user_a, userNames)}</TableCell>
-                    <TableCell className="font-medium">{shortName(p.user_b, userNames)}</TableCell>
+                {groupedPairs.map((g) => (
+                  <TableRow key={`${g.userA}::${g.userB}`}>
+                    <TableCell className="font-medium">{shortName(g.userA, userNames)}</TableCell>
+                    <TableCell className="font-medium">{shortName(g.userB, userNames)}</TableCell>
                     <TableCell>
-                      <Badge variant={scoreVariant(p.score)}>{formatScore(p.score)}</Badge>
+                      <Badge variant={scoreVariant(g.maxScore)}>{formatScore(g.maxScore)}</Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-pre-wrap">
-                      {p.reasons ?? "—"}
+                    <TableCell className="text-xs tabular-nums">{g.questionCount}</TableCell>
+                    <TableCell className="text-right">
+                      <RowAction
+                        label="Ver preguntas con posible copia"
+                        icon={Eye}
+                        onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -271,6 +363,45 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           )}
         </div>
       </CardContent>
+
+      {/* Modal: detalle por pregunta del par seleccionado. Lista cada
+          coincidencia con su question label, similitud y razón. */}
+      <Dialog open={detailOpen != null} onOpenChange={(o) => !o && setDetailOpen(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detalle: {shortName(detailOpen?.a ?? "", userNames)} ↔{" "}
+              {shortName(detailOpen?.b ?? "", userNames)}
+            </DialogTitle>
+            <DialogDescription>
+              Preguntas donde Gemini marcó coincidencias con score ≥ 60%.
+            </DialogDescription>
+          </DialogHeader>
+          {detailGroup && (
+            <div className="space-y-3">
+              {detailGroup.pairs
+                .slice()
+                .sort((a, b) => b.score - a.score)
+                .map((p) => {
+                  const label = p.question_id
+                    ? (questionLabels[p.question_id] ?? "Pregunta")
+                    : "Entrega general";
+                  return (
+                    <div key={p.id} className="rounded-md border p-3 space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-sm font-medium">{label}</div>
+                        <Badge variant={scoreVariant(p.score)}>{formatScore(p.score)}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {p.reasons ?? "(sin razón)"}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

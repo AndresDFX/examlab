@@ -180,6 +180,10 @@ function TakeExam() {
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
   );
+  // Indice de la pregunta visible. Se persiste en answers.__current_idx
+  // en cada autosave para que el monitor del docente pueda mostrar
+  // "Pregunta X de Y" en tiempo real para los intentos en curso.
+  const currentIdxRef = useRef(0);
 
   // Sidebar nav links in AppLayout dispatch this event when the exam is in progress
   // (useBlocker only intercepts router-level navigation from within the route subtree).
@@ -210,6 +214,9 @@ function TakeExam() {
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+  useEffect(() => {
+    currentIdxRef.current = currentIdx;
+  }, [currentIdx]);
 
   // Update state AND ref synchronously so blur/suspend handlers never read
   // stale answers between a keystroke and the next render commit.
@@ -439,7 +446,13 @@ function TakeExam() {
   // Persistir respuestas inmediatamente (autosave, entrega, tiempo agotado)
   const saveAnswersNow = useCallback(async () => {
     if (!submissionIdRef.current) return;
-    const currentAnswers = answersRef.current;
+    const currentAnswers = {
+      ...answersRef.current,
+      // Persistimos el índice de la pregunta visible para que el
+      // monitor del docente pueda mostrar "Pregunta X de Y" en tiempo
+      // real para los intentos en curso (vía postgres_changes).
+      __current_idx: currentIdxRef.current,
+    };
     const currentWarnings = warningsRef.current;
     if (isOnline()) {
       await supabase
@@ -1081,7 +1094,13 @@ function TakeExam() {
           // una vez que avanza, así que deshabilitamos "Anterior"
           // siempre. En libre solo cuando está en la primera pregunta.
           disabled={exam.navigation_type === "secuencial" || currentIdx === 0}
-          onClick={() => setCurrentIdx((i) => i - 1)}
+          onClick={() => {
+            setCurrentIdx((i) => i - 1);
+            // Push inmediato del nuevo índice al monitor — el autosave
+            // de 1.5s también lo haría pero perdemos el "instante" de
+            // navegación si el docente está mirando justo ahí.
+            void saveAnswersNow();
+          }}
         >
           {t("exam.previous")}
         </Button>
@@ -1092,6 +1111,7 @@ function TakeExam() {
                 setConfirmNextOpen(true);
               } else {
                 setCurrentIdx((i) => i + 1);
+                void saveAnswersNow();
               }
             }}
           >
@@ -1135,6 +1155,7 @@ function TakeExam() {
               onClick={() => {
                 setConfirmNextOpen(false);
                 setCurrentIdx((i) => i + 1);
+                void saveAnswersNow();
               }}
             >
               Sí, avanzar

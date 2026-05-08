@@ -65,6 +65,9 @@ type Submission = {
   created_at: string;
   started_at: string | null;
   submitted_at: string | null;
+  /** Tiempo extra concedido por el docente (segundos). 0 si no se ha
+   * agregado. Se suma a la fecha fin teórica del intento. */
+  extra_seconds: number;
   profile?: { full_name: string; institutional_email: string };
 };
 
@@ -90,6 +93,26 @@ type BreakdownItem = {
 type ManualOverride = { score: number; feedback?: string };
 
 const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
+
+/**
+ * Calcula la fecha fin de un intento. Para intentos terminados es
+ * `submitted_at`; para intentos en curso es `min(exam.end_time,
+ * started_at + time_limit*60s) + extra_seconds`. El extra_seconds
+ * lo concede el docente con el botón +5m del monitor.
+ */
+function computeAttemptEnd(
+  sub: { submitted_at: string | null; started_at: string | null; extra_seconds?: number },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  exam: any,
+): Date | null {
+  if (sub.submitted_at) return new Date(sub.submitted_at);
+  if (!sub.started_at) return null;
+  const startedAt = new Date(sub.started_at).getTime();
+  const timeLimitMs = Number(exam?.time_limit_minutes ?? 0) * 60_000;
+  const examEnd = exam?.end_time ? new Date(exam.end_time).getTime() : Infinity;
+  const naturalEnd = Math.min(examEnd, startedAt + timeLimitMs);
+  return new Date(naturalEnd + (sub.extra_seconds ?? 0) * 1000);
+}
 
 function ExamMonitor() {
   const { examId } = Route.useParams();
@@ -128,24 +151,30 @@ function ExamMonitor() {
       .single();
     setExam(e);
 
-    const { data: subs } = await supabase
+    // extra_seconds aún no está en types.ts auto-generados; casteamos
+    // a any para que el cliente lo selecte sin que el typing lo bloquee.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: subs } = await (supabase as any)
       .from("submissions")
       .select(
-        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, created_at, started_at, submitted_at",
+        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, created_at, started_at, submitted_at, extra_seconds",
       )
       .eq("exam_id", examId)
       .order("created_at", { ascending: true });
 
     if (subs?.length) {
-      const userIds = Array.from(new Set(subs.map((s) => s.user_id)));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subsArr = subs as any[];
+      const userIds = Array.from(new Set(subsArr.map((s) => s.user_id as string)));
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, institutional_email")
         .in("id", userIds);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
       setSubmissions(
-        subs.map((s) => ({ ...s, profile: profileMap.get(s.user_id) })) as Submission[],
+        subsArr.map((s) => ({ ...s, profile: profileMap.get(s.user_id) })) as Submission[],
       );
     } else {
       setSubmissions([]);
@@ -257,8 +286,61 @@ function ExamMonitor() {
       extra_seconds: extraSeconds,
       created_by: user.id,
     });
+    if (error) {
+      setLoading(null);
+      return toast.error(error.message);
+    }
+
+    // Para add_time: persistimos el extra en la submission del estudiante
+    // para que el monitor muestre la fecha fin diferente y sobreviva
+    // refreshes (no depender solo del realtime hook del estudiante).
+    if (action === "add_time" && targetUserId && extraSeconds > 0) {
+      const inProg = submissions.find(
+        (s) => s.user_id === targetUserId && s.status === "en_progreso",
+      );
+      if (inProg) {
+        const nextExtra = (inProg.extra_seconds ?? 0) + extraSeconds;
+        const { error: subErr } = await supabase
+          .from("submissions")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update({ extra_seconds: nextExtra } as any)
+          .eq("id", inProg.id);
+        if (subErr) {
+          setLoading(null);
+          return toast.error(subErr.message);
+        }
+        setSubmissions((prev) =>
+          prev.map((s) => (s.id === inProg.id ? { ...s, extra_seconds: nextExtra } : s)),
+        );
+      }
+    }
+    // Para add_time global: aplicamos el extra a todos los intentos
+    // en curso (la fecha fin de cada uno se corre por igual).
+    if (action === "add_time" && !targetUserId && extraSeconds > 0) {
+      const inProgIds = submissions.filter((s) => s.status === "en_progreso").map((s) => s.id);
+      if (inProgIds.length) {
+        // Una sola query por id — postgres no soporta UPDATE con
+        // expresión sobre el campo via JS client de manera idiomática
+        // sin RPC, así que lo hacemos uno por uno.
+        for (const id of inProgIds) {
+          const cur = submissions.find((s) => s.id === id);
+          const nextExtra = (cur?.extra_seconds ?? 0) + extraSeconds;
+          await supabase
+            .from("submissions")
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .update({ extra_seconds: nextExtra } as any)
+            .eq("id", id);
+        }
+        setSubmissions((prev) =>
+          prev.map((s) =>
+            s.status === "en_progreso"
+              ? { ...s, extra_seconds: (s.extra_seconds ?? 0) + extraSeconds }
+              : s,
+          ),
+        );
+      }
+    }
     setLoading(null);
-    if (error) return toast.error(error.message);
 
     const labels: Record<string, string> = {
       pause: "Temporizador pausado",
@@ -589,6 +671,7 @@ function ExamMonitor() {
                 <TableHead>{t("roles.Estudiante")}</TableHead>
                 <TableHead>Intentos</TableHead>
                 <TableHead>{t("common.status")}</TableHead>
+                <TableHead>Pregunta actual</TableHead>
                 <TableHead>Calificación efectiva</TableHead>
                 <TableHead>{t("monitor.warnings")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
@@ -596,11 +679,17 @@ function ExamMonitor() {
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={6} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty colSpan={7} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.map((row) => {
                 const latest = row.latest;
                 const inProg = !!row.inProgress;
+                // Pregunta actual del intento en curso. Persistida por el
+                // taker en answers.__current_idx en cada autosave (1.5s).
+                const currentIdx =
+                  inProg && typeof row.inProgress?.answers?.__current_idx === "number"
+                    ? (row.inProgress.answers.__current_idx as number)
+                    : null;
                 return (
                   <TableRow key={row.userId}>
                     <TableCell>
@@ -621,6 +710,15 @@ function ExamMonitor() {
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={inProg ? "en_progreso" : latest.status} />
+                    </TableCell>
+                    <TableCell className="text-sm tabular-nums">
+                      {inProg && currentIdx != null && questions.length > 0 ? (
+                        <span>
+                          {Math.min(currentIdx + 1, questions.length)} de {questions.length}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm tabular-nums">
                       {row.effectiveGrade == null ? (
@@ -726,6 +824,8 @@ function ExamMonitor() {
                   {attemptsRow.attempts.map((a, idx) => {
                     const grade = a.final_override_grade ?? a.ai_grade;
                     const isFinal = isFinalStatus(a.status);
+                    const endAt = computeAttemptEnd(a, exam);
+                    const extraMin = Math.round((a.extra_seconds ?? 0) / 60);
                     return (
                       <div
                         key={a.id}
@@ -735,10 +835,23 @@ function ExamMonitor() {
                           <div className="flex items-center gap-2 text-sm font-medium">
                             <span>Intento {idx + 1}</span>
                             <StatusBadge status={a.status} />
+                            {extraMin > 0 && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                <TimerReset className="h-3 w-3 mr-0.5" />+{extraMin}m extra
+                              </Badge>
+                            )}
                           </div>
-                          <div className="text-xs text-muted-foreground tabular-nums">
-                            Iniciado: {formatDateTime(a.started_at ?? a.created_at)}
-                            {a.submitted_at && <> · Entregado: {formatDateTime(a.submitted_at)}</>}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 text-xs text-muted-foreground tabular-nums">
+                            <div>
+                              <span className="text-foreground/60">Inicio:</span>{" "}
+                              {formatDateTime(a.started_at ?? a.created_at)}
+                            </div>
+                            <div>
+                              <span className="text-foreground/60">
+                                {a.submitted_at ? "Fin:" : "Fin previsto:"}
+                              </span>{" "}
+                              {endAt ? formatDateTime(endAt) : "—"}
+                            </div>
                           </div>
                           <div className="text-xs">
                             Calificación:{" "}
