@@ -592,6 +592,33 @@ function TeacherProjects() {
       const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
       if (rows.length) await db.from("project_courses").insert(rows);
 
+      // Al editar: si el conjunto de cursos vinculados cambió, recogemos
+      // los matriculados de los cursos vigentes y borramos asignaciones
+      // de usuarios que ya no están en ningún curso vinculado. autoAssign
+      // luego rellena los que falten (idempotente). Sin esto, quitar un
+      // curso del proyecto dejaba a sus estudiantes asignados huérfanos.
+      if (editing) {
+        const { data: enrAll } = await db
+          .from("course_enrollments")
+          .select("user_id")
+          .in("course_id", linked.length ? linked : ["00000000-0000-0000-0000-000000000000"]);
+        const validUsers = new Set(((enrAll ?? []) as { user_id: string }[]).map((r) => r.user_id));
+        const { data: assignedNow } = await db
+          .from("project_assignments")
+          .select("user_id")
+          .eq("project_id", projectId);
+        const toUnassign = ((assignedNow ?? []) as { user_id: string }[])
+          .map((r) => r.user_id)
+          .filter((uid) => !validUsers.has(uid));
+        if (toUnassign.length) {
+          await db
+            .from("project_assignments")
+            .delete()
+            .eq("project_id", projectId)
+            .in("user_id", toUnassign);
+        }
+      }
+
       // Auto-asignar a todos los matriculados de los cursos vinculados al publicar
       if (payload.status === "published") {
         const added = await autoAssignProject(projectId, linked);
@@ -1488,22 +1515,24 @@ function TeacherProjects() {
                 />
               </div>
             </div>
-            <div>
-              <Label>Estado</Label>
-              <Select
-                value={form.status ?? "draft"}
-                onValueChange={(v) => setForm({ ...form, status: v as Project["status"] })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="published">Publicado</SelectItem>
-                  <SelectItem value="closed">Cerrado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!form.is_external && (
+              <div>
+                <Label>Estado</Label>
+                <Select
+                  value={form.status ?? "draft"}
+                  onValueChange={(v) => setForm({ ...form, status: v as Project["status"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="published">Publicado</SelectItem>
+                    <SelectItem value="closed">Cerrado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>

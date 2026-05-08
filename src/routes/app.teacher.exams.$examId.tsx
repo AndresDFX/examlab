@@ -106,6 +106,17 @@ function ExamEditor() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
+  // Lista de cursos a los que el docente puede mover el examen. Se llena
+  // al montar el editor. RLS filtra a los cursos del docente; Admin ve
+  // todos. Permite cambiar el curso de asignación post-creación.
+  const [courses, setCourses] = useState<
+    Array<{ id: string; name: string; period: string | null }>
+  >([]);
+  // Curso original cargado de DB. Si al guardar cambia, hay que limpiar
+  // exam_assignments del curso anterior y re-auto-asignar los nuevos
+  // matriculados (no se puede dejar enlazados a usuarios que ya no están
+  // matriculados en el curso destino).
+  const [originalCourseId, setOriginalCourseId] = useState<string | null>(null);
 
   // New question manual (sirve para crear y editar — UPDATE cuando editingId)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -198,6 +209,89 @@ function ExamEditor() {
     );
   };
 
+  // Carga datos course-scoped (estudiantes, cuts, exams del curso, items
+  // de los cuts). Se invoca al montar y cuando el docente cambia el curso
+  // del examen desde el selector — así el panel de pesos refleja el bucket
+  // del nuevo curso al instante, sin esperar al save.
+  const loadCourseData = async (courseId: string) => {
+    const { data: enr } = await supabase
+      .from("course_enrollments")
+      .select("user_id")
+      .eq("course_id", courseId);
+    const userIds = (enr ?? []).map((r: any) => r.user_id);
+    let studs: Student[] = [];
+    if (userIds.length) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, full_name, institutional_email")
+        .in("id", userIds);
+      studs = (profs ?? []) as Student[];
+    }
+    setStudents(studs);
+    const { data: cs } = await (supabase as any)
+      .from("grade_cuts")
+      .select("id, name, weight, exam_weight, workshop_weight, project_weight, attendance_weight")
+      .eq("course_id", courseId)
+      .order("position");
+    const cutsArr = (cs ?? []) as Array<{
+      id: string;
+      name: string;
+      weight: number;
+      exam_weight: number;
+      workshop_weight: number;
+      project_weight: number;
+      attendance_weight: number;
+    }>;
+    setCuts(cutsArr);
+    const { data: examsInCourseData } = await supabase
+      .from("exams")
+      .select("id, title, cut_id, weight, parent_exam_id")
+      .eq("course_id", courseId);
+    setExamsInCourse(
+      ((examsInCourseData ?? []) as any[])
+        .filter((x) => !x.parent_exam_id)
+        .map((x) => ({
+          id: x.id,
+          title: x.title,
+          cut_id: x.cut_id ?? null,
+          weight: Number(x.weight ?? 0),
+        })),
+    );
+    const cutIds = cutsArr.map((c) => c.id);
+    if (cutIds.length) {
+      const { data: items } = await (supabase as any)
+        .from("grade_cut_items")
+        .select("id, cut_id, item_type, weight, exam_id, workshop_id, project_id, project_title")
+        .in("cut_id", cutIds);
+      const itemsArr = (items ?? []) as typeof cutItems;
+      setCutItems(itemsArr);
+      const examIds = Array.from(new Set(itemsArr.filter((i) => i.exam_id).map((i) => i.exam_id!)));
+      const wsIds = Array.from(
+        new Set(itemsArr.filter((i) => i.workshop_id).map((i) => i.workshop_id!)),
+      );
+      const prIds = Array.from(
+        new Set(itemsArr.filter((i) => i.project_id).map((i) => i.project_id!)),
+      );
+      if (examIds.length) {
+        const { data: exs } = await supabase.from("exams").select("id, title").in("id", examIds);
+        setExamTitlesById(Object.fromEntries((exs ?? []).map((x: any) => [x.id, x.title])));
+      }
+      if (wsIds.length) {
+        const { data: wss } = await supabase.from("workshops").select("id, title").in("id", wsIds);
+        setWorkshopTitlesById(Object.fromEntries((wss ?? []).map((x: any) => [x.id, x.title])));
+      }
+      if (prIds.length) {
+        const { data: prs } = await (supabase as any)
+          .from("projects")
+          .select("id, title")
+          .in("id", prIds);
+        setProjectTitlesById(Object.fromEntries((prs ?? []).map((x: any) => [x.id, x.title])));
+      }
+    } else {
+      setCutItems([]);
+    }
+  };
+
   const load = async () => {
     const { data: e } = await supabase
       .from("exams")
@@ -205,99 +299,28 @@ function ExamEditor() {
       .eq("id", examId)
       .single();
     setExam(e);
+    setOriginalCourseId(e?.course_id ?? null);
     const { data: qs } = await supabase
       .from("questions")
       .select("*")
       .eq("exam_id", examId)
       .order("position");
     setQuestions(qs ?? []);
+    // Cursos a los que el docente puede mover el examen. RLS de courses
+    // ya filtra a sus cursos (o todos si es Admin); aquí solo ordenamos.
+    const { data: cs } = await supabase
+      .from("courses")
+      .select("id, name, period")
+      .order("period", { ascending: false, nullsFirst: false })
+      .order("name");
+    setCourses((cs ?? []) as Array<{ id: string; name: string; period: string | null }>);
     if (e?.course_id) {
-      const { data: enr } = await supabase
-        .from("course_enrollments")
-        .select("user_id")
-        .eq("course_id", e.course_id);
-      const userIds = (enr ?? []).map((r: any) => r.user_id);
-      let studs: Student[] = [];
-      if (userIds.length) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("id, full_name, institutional_email")
-          .in("id", userIds);
-        studs = (profs ?? []) as Student[];
-      }
-      setStudents(studs);
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select("user_id")
         .eq("exam_id", examId);
       setAssigned(new Set((asg ?? []).map((a: any) => a.user_id)));
-      const { data: cs } = await (supabase as any)
-        .from("grade_cuts")
-        .select("id, name, weight, exam_weight, workshop_weight, project_weight, attendance_weight")
-        .eq("course_id", e.course_id)
-        .order("position");
-      const cutsArr = (cs ?? []) as Array<{
-        id: string;
-        name: string;
-        weight: number;
-        exam_weight: number;
-        workshop_weight: number;
-        project_weight: number;
-        attendance_weight: number;
-      }>;
-      setCuts(cutsArr);
-      const { data: examsInCourseData } = await supabase
-        .from("exams")
-        .select("id, title, cut_id, weight, parent_exam_id")
-        .eq("course_id", e.course_id);
-      setExamsInCourse(
-        ((examsInCourseData ?? []) as any[])
-          .filter((x) => !x.parent_exam_id)
-          .map((x) => ({
-            id: x.id,
-            title: x.title,
-            cut_id: x.cut_id ?? null,
-            weight: Number(x.weight ?? 0),
-          })),
-      );
-      const cutIds = cutsArr.map((c) => c.id);
-      if (cutIds.length) {
-        const { data: items } = await (supabase as any)
-          .from("grade_cut_items")
-          .select("id, cut_id, item_type, weight, exam_id, workshop_id, project_id, project_title")
-          .in("cut_id", cutIds);
-        const itemsArr = (items ?? []) as typeof cutItems;
-        setCutItems(itemsArr);
-        const examIds = Array.from(
-          new Set(itemsArr.filter((i) => i.exam_id).map((i) => i.exam_id!)),
-        );
-        const wsIds = Array.from(
-          new Set(itemsArr.filter((i) => i.workshop_id).map((i) => i.workshop_id!)),
-        );
-        const prIds = Array.from(
-          new Set(itemsArr.filter((i) => i.project_id).map((i) => i.project_id!)),
-        );
-        if (examIds.length) {
-          const { data: exs } = await supabase.from("exams").select("id, title").in("id", examIds);
-          setExamTitlesById(Object.fromEntries((exs ?? []).map((x: any) => [x.id, x.title])));
-        }
-        if (wsIds.length) {
-          const { data: wss } = await supabase
-            .from("workshops")
-            .select("id, title")
-            .in("id", wsIds);
-          setWorkshopTitlesById(Object.fromEntries((wss ?? []).map((x: any) => [x.id, x.title])));
-        }
-        if (prIds.length) {
-          const { data: prs } = await (supabase as any)
-            .from("projects")
-            .select("id, title")
-            .in("id", prIds);
-          setProjectTitlesById(Object.fromEntries((prs ?? []).map((x: any) => [x.id, x.title])));
-        }
-      } else {
-        setCutItems([]);
-      }
+      await loadCourseData(e.course_id);
     }
   };
   useEffect(() => {
@@ -340,9 +363,26 @@ function ExamEditor() {
     // Además, mandar columnas opcionales en cada update aumenta la
     // probabilidad de toparse con un schema-cache PostgREST stale tras
     // alguna migración reciente (ver bug 'Could not find max_warnings').
+    const newCourseId: string | null = (exam as any).course_id ?? null;
+    if (!newCourseId) {
+      toast.error("Selecciona un curso para el examen");
+      return;
+    }
+    const courseChanged = !!originalCourseId && newCourseId !== originalCourseId;
+    if (courseChanged) {
+      const ok = await confirm({
+        title: "Cambiar curso del examen",
+        description:
+          "El examen se moverá al nuevo curso: las asignaciones actuales (estudiantes del curso anterior) se borran y se re-asignan automáticamente todos los matriculados del nuevo curso. Las entregas existentes se mantienen, pero solo los alumnos del nuevo curso podrán ver el examen.",
+        confirmLabel: "Cambiar curso",
+        tone: "warning",
+      });
+      if (!ok) return;
+    }
     const payload: Record<string, any> = {
       title: exam.title,
       description: exam.description,
+      course_id: newCourseId,
       start_time: new Date(exam.start_time).toISOString(),
       end_time: new Date(exam.end_time).toISOString(),
       max_attempts: normalizedAttempts,
@@ -365,11 +405,24 @@ function ExamEditor() {
       .update(payload as any)
       .eq("id", examId);
     if (error) return toast.error(error.message);
-    // Notificar a los estudiantes del curso. Para externos no aplica.
-    if (!isExternal && exam.course_id) {
+    if (courseChanged) {
+      // Limpia asignaciones del curso anterior y re-asigna todos los
+      // matriculados del nuevo curso. Idempotente: si vuelves a guardar
+      // sin cambiar curso, no pasa nada (originalCourseId se actualiza
+      // tras el reload).
+      await supabase.from("exam_assignments").delete().eq("exam_id", examId);
+      const { data: enr } = await supabase
+        .from("course_enrollments")
+        .select("user_id")
+        .eq("course_id", newCourseId);
+      const rows = (enr ?? []).map((r: any) => ({ exam_id: examId, user_id: r.user_id }));
+      if (rows.length) await supabase.from("exam_assignments").insert(rows);
+    }
+    // Notificar a los estudiantes del curso (nuevo). Para externos no aplica.
+    if (!isExternal) {
       await supabase.rpc("notify_course_students", {
-        _course_id: exam.course_id,
-        _title: "Examen actualizado",
+        _course_id: newCourseId,
+        _title: courseChanged ? "Examen movido a este curso" : "Examen actualizado",
         _body: `Se actualizó el examen "${exam.title}"`,
         _kind: "exam",
         _link: "/app/student/exams",
@@ -607,9 +660,45 @@ function ExamEditor() {
                   onChange={(e) => setExam({ ...exam, description: e.target.value })}
                 />
               </div>
+              <div>
+                <Label required>Curso</Label>
+                <Select
+                  value={(exam as any).course_id ?? undefined}
+                  onValueChange={async (v) => {
+                    if (v === (exam as any).course_id) return;
+                    // Al cambiar el curso reseteamos cut_id (los cuts son
+                    // course-scoped) y refrescamos los datos del nuevo
+                    // curso para que el panel de pesos/bucket sea preciso.
+                    setExam({ ...exam, course_id: v, cut_id: null } as any);
+                    await loadCourseData(v);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.period ? (
+                          <span className="text-muted-foreground"> · {c.period}</span>
+                        ) : null}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {originalCourseId && (exam as any).course_id !== originalCourseId && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    Al guardar, el examen se moverá al nuevo curso: se borran las asignaciones
+                    actuales y se re-asignan los matriculados del nuevo curso.
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label required>Inicio</Label>
+                  <Label required>
+                    {(exam as any).is_external ? "Fecha del parcial" : "Inicio"}
+                  </Label>
                   <DateTimePicker
                     value={toLocal(exam.start_time)}
                     onChange={(start) => {
@@ -626,191 +715,208 @@ function ExamEditor() {
                       setExam({
                         ...exam,
                         start_time: start,
-                        end_time: autoEnd,
+                        // Para externos forzamos end_time = start_time
+                        // (ventana 0s) para que el examen no se pueda
+                        // tomar — solo se cargan notas manualmente.
+                        end_time: (exam as any).is_external ? start : autoEnd,
                         time_limit_minutes: diffMin,
                       });
                     }}
                   />
                 </div>
-                <div>
-                  <Label required>Fin</Label>
-                  <DateTimePicker
-                    value={toLocal(exam.end_time)}
-                    onChange={(end) => {
-                      const diffMin = exam.start_time
-                        ? Math.max(
-                            1,
-                            Math.round(
-                              (new Date(end).getTime() - new Date(exam.start_time).getTime()) /
-                                60000,
-                            ),
-                          )
-                        : exam.time_limit_minutes;
-                      setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <Label className="m-0">Duración (min)</Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-[11px]"
-                      onClick={evaluateTimeWithAI}
-                      disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
-                      title={
-                        (questions?.length ?? 0) === 0
-                          ? "Crea preguntas primero para poder evaluar el tiempo"
-                          : "Pide a la IA una sugerencia de duración basada en las preguntas"
-                      }
-                    >
-                      {timeEvalLoading ? (
-                        <Spinner size="xs" className="mr-1" />
-                      ) : (
-                        <Sparkles className="h-3 w-3 mr-1" />
-                      )}
-                      Evaluar tiempo con IA
-                    </Button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Se calcula automáticamente, pero puedes editarla.
-                  </p>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={exam.time_limit_minutes || ""}
-                    onChange={(e) =>
-                      setExam({
-                        ...exam,
-                        time_limit_minutes:
-                          e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Navegación</Label>
-                  <Select
-                    value={exam.navigation_type}
-                    onValueChange={(v) => setExam({ ...exam, navigation_type: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="libre">Libre</SelectItem>
-                      <SelectItem value="secuencial">Secuencial</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>
-                    Advertencias máximas{" "}
-                    <span className="text-xs text-muted-foreground font-normal">
-                      (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
-                    </span>
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={(exam as any).max_warnings ?? 3}
-                    onChange={(e) =>
-                      setExam({
-                        ...exam,
-                        max_warnings:
-                          e.target.value === ""
-                            ? 3
-                            : Math.max(1, Math.min(50, Number(e.target.value))),
-                      } as any)
-                    }
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>
-                  Tipo de programación{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    (Normal: temporizador absoluto hasta la fecha de fin. Relativo: cada estudiante
-                    tiene la duración indicada desde que abre el examen, dentro de la ventana.)
-                  </span>
-                </Label>
-                <Select
-                  value={(exam as any).schedule_type ?? "normal"}
-                  onValueChange={(v) => setExam({ ...exam, schedule_type: v } as any)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">Normal (sincrónico)</SelectItem>
-                    <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-start justify-between gap-3">
+                {!(exam as any).is_external && (
                   <div>
-                    <Label className="text-sm">Intentos máximos (override)</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Vacío = hereda del curso
-                      {exam.course?.max_exam_attempts != null && (
-                        <>
-                          {" "}
-                          (<strong>{exam.course.max_exam_attempts}</strong> intento
-                          {exam.course.max_exam_attempts === 1 ? "" : "s"})
-                        </>
-                      )}
-                      . Si el estudiante supera el límite, el último intento se marca como
-                      suspendido.
-                    </p>
+                    <Label required>Fin</Label>
+                    <DateTimePicker
+                      value={toLocal(exam.end_time)}
+                      onChange={(end) => {
+                        const diffMin = exam.start_time
+                          ? Math.max(
+                              1,
+                              Math.round(
+                                (new Date(end).getTime() - new Date(exam.start_time).getTime()) /
+                                  60000,
+                              ),
+                            )
+                          : exam.time_limit_minutes;
+                        setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
+                      }}
+                    />
                   </div>
-                  <Input
-                    type="number"
-                    min={1}
-                    step={1}
-                    placeholder="Heredar"
-                    className="w-24 text-right"
-                    value={exam.max_attempts ?? ""}
-                    onChange={(e) =>
-                      setExam({
-                        ...exam,
-                        max_attempts: e.target.value === "" ? null : Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
+                )}
               </div>
-              <div>
-                <Label>
-                  Modo de calificación con reintentos{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    (Solo aplica si hay más de un intento permitido. Define cómo se calcula la
-                    calificación final del examen cuando el estudiante presenta varios intentos.)
-                  </span>
-                </Label>
-                <Select
-                  value={(exam as any).retry_mode ?? "last"}
-                  onValueChange={(v) => setExam({ ...exam, retry_mode: v } as any)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="last">
-                      Último intento (toma la calificación más reciente)
-                    </SelectItem>
-                    <SelectItem value="average">Promedio de todos los intentos</SelectItem>
-                    <SelectItem value="highest">
-                      Más alto (mejor calificación entre los intentos)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/*
+               * Bloque "solo plataforma": duración, navegación, proctoring,
+               * intentos y reintentos. Para externos toda esta sección
+               * desaparece — solo se carga la nota manualmente. Igual al
+               * patrón usado en el dialog de creación (app.teacher.exams.index).
+               */}
+              {!(exam as any).is_external && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <Label className="m-0">Duración (min)</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={evaluateTimeWithAI}
+                          disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
+                          title={
+                            (questions?.length ?? 0) === 0
+                              ? "Crea preguntas primero para poder evaluar el tiempo"
+                              : "Pide a la IA una sugerencia de duración basada en las preguntas"
+                          }
+                        >
+                          {timeEvalLoading ? (
+                            <Spinner size="xs" className="mr-1" />
+                          ) : (
+                            <Sparkles className="h-3 w-3 mr-1" />
+                          )}
+                          Evaluar tiempo con IA
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Se calcula automáticamente, pero puedes editarla.
+                      </p>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={exam.time_limit_minutes || ""}
+                        onChange={(e) =>
+                          setExam({
+                            ...exam,
+                            time_limit_minutes:
+                              e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Navegación</Label>
+                      <Select
+                        value={exam.navigation_type}
+                        onValueChange={(v) => setExam({ ...exam, navigation_type: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="libre">Libre</SelectItem>
+                          <SelectItem value="secuencial">Secuencial</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>
+                        Advertencias máximas{" "}
+                        <span className="text-xs text-muted-foreground font-normal">
+                          (cambiar pestaña, copiar/pegar, salir de pantalla completa, etc.)
+                        </span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={(exam as any).max_warnings ?? 3}
+                        onChange={(e) =>
+                          setExam({
+                            ...exam,
+                            max_warnings:
+                              e.target.value === ""
+                                ? 3
+                                : Math.max(1, Math.min(50, Number(e.target.value))),
+                          } as any)
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>
+                      Tipo de programación{" "}
+                      <span className="text-xs text-muted-foreground font-normal">
+                        (Normal: temporizador absoluto hasta la fecha de fin. Relativo: cada
+                        estudiante tiene la duración indicada desde que abre el examen, dentro de la
+                        ventana.)
+                      </span>
+                    </Label>
+                    <Select
+                      value={(exam as any).schedule_type ?? "normal"}
+                      onValueChange={(v) => setExam({ ...exam, schedule_type: v } as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">Normal (sincrónico)</SelectItem>
+                        <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="rounded-md border p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <Label className="text-sm">Intentos máximos (override)</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Vacío = hereda del curso
+                          {exam.course?.max_exam_attempts != null && (
+                            <>
+                              {" "}
+                              (<strong>{exam.course.max_exam_attempts}</strong> intento
+                              {exam.course.max_exam_attempts === 1 ? "" : "s"})
+                            </>
+                          )}
+                          . Si el estudiante supera el límite, el último intento se marca como
+                          suspendido.
+                        </p>
+                      </div>
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder="Heredar"
+                        className="w-24 text-right"
+                        value={exam.max_attempts ?? ""}
+                        onChange={(e) =>
+                          setExam({
+                            ...exam,
+                            max_attempts: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>
+                      Modo de calificación con reintentos{" "}
+                      <span className="text-xs text-muted-foreground font-normal">
+                        (Solo aplica si hay más de un intento permitido. Define cómo se calcula la
+                        calificación final del examen cuando el estudiante presenta varios
+                        intentos.)
+                      </span>
+                    </Label>
+                    <Select
+                      value={(exam as any).retry_mode ?? "last"}
+                      onValueChange={(v) => setExam({ ...exam, retry_mode: v } as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="last">
+                          Último intento (toma la calificación más reciente)
+                        </SelectItem>
+                        <SelectItem value="average">Promedio de todos los intentos</SelectItem>
+                        <SelectItem value="highest">
+                          Más alto (mejor calificación entre los intentos)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
               <div>
                 <Label>Corte de evaluación (opcional)</Label>
                 <Select

@@ -215,6 +215,10 @@ function TeacherWorkshops() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
+  // Curso original al abrir el dialog de edición. Si al guardar el
+  // docente cambió el curso, hay que limpiar workshop_assignments del
+  // curso anterior y re-asignar matriculados del nuevo curso.
+  const [originalCourseId, setOriginalCourseId] = useState<string | null>(null);
 
   /**
    * Cap dinámico del peso: cuando cambia el corte seleccionado o la
@@ -440,6 +444,7 @@ function TeacherWorkshops() {
       status: "draft",
       rubric: null,
     });
+    setOriginalCourseId(null);
     setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
     setOpen(true);
   };
@@ -510,17 +515,36 @@ function TeacherWorkshops() {
     }
 
     if (form.id) {
+      const courseChanged = !!originalCourseId && form.course_id !== originalCourseId;
+      if (courseChanged) {
+        // Mismo flujo que en exam editor: el cambio de curso reasigna a
+        // los matriculados del nuevo curso. Las entregas existentes se
+        // mantienen pero solo el nuevo curso ve el taller.
+        const ok = await confirm({
+          title: "Cambiar curso del taller",
+          description:
+            "El taller se moverá al nuevo curso: se borran las asignaciones actuales y se re-asignan los matriculados del nuevo curso. Las entregas existentes se mantienen, pero solo los alumnos del nuevo curso podrán verlas.",
+          confirmLabel: "Cambiar curso",
+          tone: "warning",
+        });
+        if (!ok) return;
+      }
       const { error } = await supabase
         .from("workshops")
         .update({ ...basePayload, course_id: form.course_id! })
         .eq("id", form.id);
       if (error) return toast.error(error.message);
-      // Auto-assign all enrolled students when published
-      if (form.status === "published") {
+      if (courseChanged) {
+        await supabase.from("workshop_assignments").delete().eq("workshop_id", form.id);
         await autoAssignWorkshop(form.id, form.course_id!);
+      } else if (form.status === "published") {
+        // Auto-assign all enrolled students when published (idempotente)
+        await autoAssignWorkshop(form.id, form.course_id!);
+      }
+      if (form.status === "published" || courseChanged) {
         await supabase.rpc("notify_course_students", {
           _course_id: form.course_id!,
-          _title: "Taller actualizado",
+          _title: courseChanged ? "Taller movido a este curso" : "Taller actualizado",
           _body: `Se actualizó el taller "${form.title}"`,
           _kind: "workshop",
           _link: "/app/student/workshops",
@@ -1306,6 +1330,7 @@ function TeacherWorkshops() {
                               ? toLocalDatetime((ws as any).start_date)
                               : "",
                           } as any);
+                          setOriginalCourseId(ws.course_id ?? null);
                           setOpen(true);
                         }}
                       />
@@ -1558,35 +1583,43 @@ function TeacherWorkshops() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
-            <div>
-              <Label>Instrucciones</Label>
-              <Textarea
-                rows={4}
-                value={form.instructions ?? ""}
-                onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Link externo (opcional)</Label>
-              <Input
-                placeholder="https://..."
-                value={form.external_link ?? ""}
-                onChange={(e) => setForm({ ...form, external_link: e.target.value })}
-              />
-            </div>
+            {!(form as any).is_external && (
+              <div>
+                <Label>Instrucciones</Label>
+                <Textarea
+                  rows={4}
+                  value={form.instructions ?? ""}
+                  onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+                />
+              </div>
+            )}
+            {!(form as any).is_external && (
+              <div>
+                <Label>Link externo (opcional)</Label>
+                <Input
+                  placeholder="https://..."
+                  value={form.external_link ?? ""}
+                  onChange={(e) => setForm({ ...form, external_link: e.target.value })}
+                />
+              </div>
+            )}
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Fechas</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {!(form as any).is_external && (
+                  <div>
+                    <Label className="text-xs">Visible desde</Label>
+                    <DateTimePicker
+                      value={(form as any).start_date ?? ""}
+                      onChange={(v) => setForm({ ...form, start_date: v } as any)}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
                 <div>
-                  <Label className="text-xs">Visible desde</Label>
-                  <DateTimePicker
-                    value={(form as any).start_date ?? ""}
-                    onChange={(v) => setForm({ ...form, start_date: v } as any)}
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Fecha límite</Label>
+                  <Label className="text-xs">
+                    {(form as any).is_external ? "Fecha del taller" : "Fecha límite"}
+                  </Label>
                   <DateTimePicker
                     value={(form.due_date as any) ?? ""}
                     onChange={(v) => setForm({ ...form, due_date: v })}
@@ -1610,78 +1643,82 @@ function TeacherWorkshops() {
                   className="mt-1"
                 />
               </div>
-              <div>
-                <Label>Estado</Label>
-                <Select
-                  value={form.status ?? "draft"}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Borrador</SelectItem>
-                    <SelectItem value="published">Publicado</SelectItem>
-                    <SelectItem value="closed">Cerrado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Label>Rúbrica de calificación IA</Label>
-                <span className="text-xs text-muted-foreground">(JSON, opcional)</span>
-                <Dialog>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                    asChild
+              {!(form as any).is_external && (
+                <div>
+                  <Label>Estado</Label>
+                  <Select
+                    value={form.status ?? "draft"}
+                    onValueChange={(v) => setForm({ ...form, status: v })}
                   >
-                    <span>
-                      <HelpCircle className="h-3.5 w-3.5" />
-                    </span>
-                  </Button>
-                </Dialog>
-              </div>
-              <div className="rounded-md border bg-muted/30 p-3 mb-2 text-xs text-muted-foreground space-y-1.5">
-                <p className="font-medium text-foreground text-xs">¿Cómo funciona?</p>
-                <p>
-                  Define los criterios que la IA usará para calificar las entregas. Escribe un array
-                  JSON donde cada objeto tenga:
-                </p>
-                <ul className="list-disc list-inside space-y-0.5 ml-1">
-                  <li>
-                    <code className="bg-muted px-1 rounded">criterio</code>: nombre del criterio
-                    (ej: "Claridad")
-                  </li>
-                  <li>
-                    <code className="bg-muted px-1 rounded">peso</code>: porcentaje del puntaje
-                    total (deben sumar 100)
-                  </li>
-                </ul>
-                <p className="font-medium mt-1">Ejemplo:</p>
-                <pre className="bg-muted p-2 rounded text-[11px] overflow-x-auto">{`[
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Borrador</SelectItem>
+                      <SelectItem value="published">Publicado</SelectItem>
+                      <SelectItem value="closed">Cerrado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            {!(form as any).is_external && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Label>Rúbrica de calificación IA</Label>
+                  <span className="text-xs text-muted-foreground">(JSON, opcional)</span>
+                  <Dialog>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                      asChild
+                    >
+                      <span>
+                        <HelpCircle className="h-3.5 w-3.5" />
+                      </span>
+                    </Button>
+                  </Dialog>
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3 mb-2 text-xs text-muted-foreground space-y-1.5">
+                  <p className="font-medium text-foreground text-xs">¿Cómo funciona?</p>
+                  <p>
+                    Define los criterios que la IA usará para calificar las entregas. Escribe un
+                    array JSON donde cada objeto tenga:
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    <li>
+                      <code className="bg-muted px-1 rounded">criterio</code>: nombre del criterio
+                      (ej: "Claridad")
+                    </li>
+                    <li>
+                      <code className="bg-muted px-1 rounded">peso</code>: porcentaje del puntaje
+                      total (deben sumar 100)
+                    </li>
+                  </ul>
+                  <p className="font-medium mt-1">Ejemplo:</p>
+                  <pre className="bg-muted p-2 rounded text-[11px] overflow-x-auto">{`[
   { "criterio": "Claridad y redacción", "peso": 25 },
   { "criterio": "Completitud del contenido", "peso": 40 },
   { "criterio": "Uso correcto de conceptos", "peso": 35 }
 ]`}</pre>
+                </div>
+                <Textarea
+                  rows={3}
+                  placeholder='[{"criterio": "Claridad", "peso": 30}, {"criterio": "Completitud", "peso": 70}]'
+                  value={form.rubric ? JSON.stringify(form.rubric, null, 2) : ""}
+                  onChange={(e) => {
+                    try {
+                      setForm({ ...form, rubric: JSON.parse(e.target.value) });
+                    } catch {
+                      /* allow typing */
+                    }
+                  }}
+                  className="font-mono text-xs"
+                />
               </div>
-              <Textarea
-                rows={3}
-                placeholder='[{"criterio": "Claridad", "peso": 30}, {"criterio": "Completitud", "peso": 70}]'
-                value={form.rubric ? JSON.stringify(form.rubric, null, 2) : ""}
-                onChange={(e) => {
-                  try {
-                    setForm({ ...form, rubric: JSON.parse(e.target.value) });
-                  } catch {
-                    /* allow typing */
-                  }
-                }}
-                className="font-mono text-xs"
-              />
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
