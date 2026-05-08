@@ -760,19 +760,20 @@ function ExamMonitor() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("roles.Estudiante")}</TableHead>
-                <TableHead>Intentos</TableHead>
+                <TableHead className="hidden sm:table-cell">Intentos</TableHead>
                 <TableHead>{t("common.status")}</TableHead>
-                <TableHead>Pregunta actual</TableHead>
-                <TableHead>Calificación efectiva</TableHead>
-                <TableHead>{t("monitor.warnings")}</TableHead>
-                <TableHead>Conversaciones</TableHead>
-                <TableHead>Respuestas pendientes</TableHead>
+                <TableHead className="hidden md:table-cell">Pregunta</TableHead>
+                <TableHead>Nota</TableHead>
+                <TableHead className="hidden lg:table-cell">Strikes</TableHead>
+                <TableHead title="Conversaciones abiertas / pendientes de respuesta del docente">
+                  Diálogo
+                </TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={9} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty colSpan={8} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.map((row) => {
                 const latest = row.latest;
@@ -791,23 +792,23 @@ function ExamMonitor() {
                         {row.profile?.institutional_email}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <button
                         type="button"
-                        className="text-sm font-medium underline-offset-2 hover:underline"
+                        className="text-sm font-medium underline-offset-2 hover:underline tabular-nums"
                         onClick={() => setAttemptsForUser(row.userId)}
                         title="Ver y gestionar intentos"
                       >
-                        {row.currentNumber} de {maxAttempts}
+                        {row.currentNumber}/{maxAttempts}
                       </button>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={inProg ? "en_progreso" : latest.status} />
                     </TableCell>
-                    <TableCell className="text-sm tabular-nums">
+                    <TableCell className="text-sm tabular-nums hidden md:table-cell">
                       {inProg && currentIdx != null && questions.length > 0 ? (
                         <span>
-                          {Math.min(currentIdx + 1, questions.length)} de {questions.length}
+                          {Math.min(currentIdx + 1, questions.length)}/{questions.length}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -817,62 +818,54 @@ function ExamMonitor() {
                       {row.effectiveGrade == null ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">{row.effectiveGrade}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {retryModeLabel(retryMode)}
-                          </span>
-                        </div>
+                        <span className="font-medium">{row.effectiveGrade}</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <Badge
                         variant={latest.focus_warnings > 0 ? "destructive" : "outline"}
-                        className="text-[10px]"
+                        className="text-[10px] tabular-nums"
                       >
                         {latest.focus_warnings}/3
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      {/* Diálogo: combina "conversaciones abiertas" (ámbar)
+                          y "respuestas pendientes del docente" (rojo) en una
+                          sola celda. El badge rojo es subset del ámbar; lo
+                          mostramos al lado para que el docente vea de un
+                          vistazo cuántos hay y cuántos lo esperan. */}
                       {(() => {
-                        // Color destacado (amber) cuando hay conversaciones
-                        // abiertas — dialogo pendiente de respuesta del docente.
-                        const count = openThreadsByUser[row.userId] ?? 0;
-                        if (count === 0) {
+                        const open = openThreadsByUser[row.userId] ?? 0;
+                        const pending = pendingReplyByUser[row.userId] ?? 0;
+                        if (open === 0 && pending === 0) {
                           return <span className="text-xs text-muted-foreground">—</span>;
                         }
                         return (
-                          <button
-                            type="button"
-                            onClick={() => openView(latest)}
-                            title="Ver respuestas y conversaciones"
-                            className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
-                          >
-                            <MessageSquareText className="h-3 w-3" />
-                            <span className="tabular-nums">{count}</span>
-                          </button>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        // "Respuestas pendientes" = subset de conversaciones
-                        // donde el último comentario fue del estudiante.
-                        // Color rojo (destructive) — el docente debe responder.
-                        const count = pendingReplyByUser[row.userId] ?? 0;
-                        if (count === 0) {
-                          return <span className="text-xs text-muted-foreground">—</span>;
-                        }
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => openView(latest)}
-                            title="Conversaciones donde el estudiante espera tu respuesta"
-                            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/60 bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive hover:bg-destructive/25 transition-colors"
-                          >
-                            <MessageSquareText className="h-3 w-3" />
-                            <span className="tabular-nums">{count}</span>
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {open > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => openView(latest)}
+                                title={`${open} conversación(es) abierta(s)`}
+                                className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-400/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
+                              >
+                                <MessageSquareText className="h-3 w-3" />
+                                <span className="tabular-nums">{open}</span>
+                              </button>
+                            )}
+                            {pending > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => openView(latest)}
+                                title={`${pending} conversación(es) esperan tu respuesta`}
+                                className="inline-flex items-center gap-1 rounded-md border border-destructive/60 bg-destructive/15 px-1.5 py-0.5 text-[11px] font-semibold text-destructive hover:bg-destructive/25 transition-colors"
+                              >
+                                <AlertTriangle className="h-3 w-3" />
+                                <span className="tabular-nums">{pending}</span>
+                              </button>
+                            )}
+                          </div>
                         );
                       })()}
                     </TableCell>
