@@ -242,9 +242,23 @@ function TeacherExams() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      // Keep form.course_id in sync with first selected
-      const first = [...next][0];
-      if (first) setForm((f) => ({ ...f, course_id: first }));
+      // Keep form.course_id in sync with first selected. Si el cut_id
+      // actual no pertenece al curso seleccionado (o hay >1 curso), se
+      // limpia para evitar guardar cortes huérfanos de otro curso.
+      const arr = [...next];
+      const first = arr[0];
+      setForm((f) => {
+        const single = arr.length === 1;
+        const validCut =
+          single && f.cut_id
+            ? cuts.some((c) => c.id === f.cut_id && c.course_id === first)
+            : false;
+        return {
+          ...f,
+          course_id: first ?? f.course_id,
+          cut_id: validCut ? f.cut_id : null,
+        };
+      });
       return next;
     });
   };
