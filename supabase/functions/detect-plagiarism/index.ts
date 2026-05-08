@@ -44,6 +44,47 @@ const MIN_REPORT_SCORE = 0.6;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Fallback del system prompt si la fila global de `plagiarism_detection`
+// no está en la BD (RLS/red). El seed completo vive en la migración
+// 20260508160000_ai_prompts_plagio_y_ia.sql.
+const PLAGIARISM_FALLBACK = `Eres un detector de copia académica entre estudiantes. Recibes el ENUNCIADO de la pregunta y una lista numerada de respuestas a la MISMA pregunta. Identifica pares cuyas similitudes NO se justifican por el enunciado: mismos nombres de variables/funciones no pedidos, mismos strings/literales, mismos errores o typos, mismos comentarios palabra por palabra, formato/orden inusual idéntico. NO cuentan: boilerplate del lenguaje, estructura de control obvia, nombres genéricos (i, j, temp), salidas exactas que pide el enunciado, plantillas/starter code. Score 0.85+ requiere VARIOS marcadores no triviales; 0.6-0.85 al menos un marcador fuerte; <0.6 no reportes. Para cada par sospechoso devuelve idx_a, idx_b, score (0..1) y una razón breve y CONCRETA citando los marcadores específicos.`;
+
+/**
+ * Resuelve el system prompt de plagiarism_detection considerando override
+ * por curso si existe. Patrón idéntico a `resolveSystemPrompt` en
+ * ai-grade-submission/index.ts pero en su propia función para no acoplar
+ * los dos edge functions.
+ */
+async function resolvePlagiarismPrompt(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  courseId: string | null | undefined,
+): Promise<string> {
+  try {
+    let q = admin
+      .from("ai_prompts")
+      .select("system_prompt, course_id")
+      .eq("use_case", "plagiarism_detection");
+    if (courseId && UUID_RE.test(courseId)) {
+      q = q.or(`course_id.eq.${courseId},course_id.is.null`);
+    } else {
+      q = q.is("course_id", null);
+    }
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) return PLAGIARISM_FALLBACK;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sorted = [...data].sort((a: any, b: any) => {
+      if (a.course_id && !b.course_id) return -1;
+      if (!a.course_id && b.course_id) return 1;
+      return 0;
+    });
+    return sorted[0]?.system_prompt || PLAGIARISM_FALLBACK;
+  } catch (e) {
+    console.warn("[ai_prompts] plagiarism resolve failed, using fallback:", e);
+    return PLAGIARISM_FALLBACK;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -253,6 +294,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Resolvemos el system prompt una sola vez por invocación. Si el
+    // examen/taller/proyecto pertenece a un curso con override de
+    // `plagiarism_detection`, ese gana. Si no, usamos el global del
+    // sistema y, en último caso, el fallback hardcoded.
+    const refTable = kind === "exam" ? "exams" : kind === "workshop" ? "workshops" : "projects";
+    const { data: refRow } = await admin
+      .from(refTable)
+      .select("course_id")
+      .eq("id", refId)
+      .maybeSingle();
+    const refCourseId = (refRow as { course_id?: string } | null)?.course_id ?? null;
+    const systemPrompt = await resolvePlagiarismPrompt(admin, refCourseId);
+
     // Borrado idempotente: cualquier corrida re-genera los pares.
     await admin.from("similarity_pairs").delete().eq("kind", kind).eq("ref_id", refId);
 
@@ -269,32 +323,10 @@ Deno.serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `Eres un detector de copia académica entre estudiantes. Recibes el ENUNCIADO de la pregunta y una lista numerada de respuestas a la MISMA pregunta. Tu tarea es identificar pares cuyas similitudes NO se justifican por el enunciado.
-
-Marcadores que SÍ cuentan como evidencia de copia (cuando el enunciado no los pide):
-  - Mismos nombres de variables, funciones o clases idénticos (ej: \`personasMayores30\`, \`filtrarEdad\`).
-  - Mismos literales en strings, prints o mensajes (ej: \`println("Resultado:")\`).
-  - Mismas listas de datos, valores hard-coded o ejemplos de prueba.
-  - Mismos errores: typos, bugs idénticos, comentarios mal escritos iguales, mismo orden raro de operaciones.
-  - Mismos comentarios palabra por palabra (humanos rara vez escriben los mismos comentarios).
-  - Mismo formato/orden inusual (espacios, saltos de línea atípicos, indentación rara).
-
-Marcadores que NO cuentan (son convergencia natural a la solución correcta):
-  - Boilerplate del lenguaje (declaración de \`class Main\`, \`public static void main\`, imports estándar).
-  - Estructura de control obvia para resolver el problema (un \`for\` para iterar una lista).
-  - Nombres de variables genéricos exigidos por el enunciado o de uso universal (\`i\`, \`j\`, \`temp\`, parámetros del enunciado).
-  - Palabras clave del lenguaje, sintaxis estándar.
-  - Salidas exactas que el enunciado pide producir.
-  - Plantillas/starter code idénticas (todos parten del mismo template).
-
-Score:
-  - 0.85+ requiere VARIOS marcadores no triviales coincidiendo (p. ej. mismos nombres de variables NO pedidos + mismos strings + mismo error).
-  - 0.6-0.85 requiere al menos un marcador fuerte y no trivial.
-  - <0.6 NO se reporta.
-
-Si las respuestas comparten solo estructura general u outputs exigidos por el enunciado, score bajo y NO reportes.
-
-Para cada par sospechoso devuelve idx_a, idx_b, score (0..1), y una razón breve y CONCRETA citando los marcadores específicos (ej: "ambos usan \`personasMayores30\` y el string \`Resultado:\` que el enunciado no pide"). Solo reporta pares con score >= ${MIN_REPORT_SCORE}.`,
+              // Prompt resuelto vía ai_prompts (use_case='plagiarism_detection'):
+              // override de curso > global > fallback. Editable desde
+              // /app/admin/ai-prompts y /app/teacher/ai-prompts.
+              content: `${systemPrompt}\n\nSolo reporta pares con score >= ${MIN_REPORT_SCORE}.`,
             },
             {
               role: "user",

@@ -32,7 +32,9 @@ type UseCase =
   | "project_file"
   | "project_full"
   | "exam_question"
-  | "exam_time_evaluation";
+  | "exam_time_evaluation"
+  | "plagiarism_detection"
+  | "ai_content_detection";
 
 type UseCaseDef = {
   key: UseCase;
@@ -70,6 +72,18 @@ const USE_CASES: UseCaseDef[] = [
     key: "exam_time_evaluation",
     label: "Evaluación de duración de examen",
     description: "Sugerencia de IA sobre cuántos minutos debería durar el examen.",
+  },
+  {
+    key: "plagiarism_detection",
+    label: "Detección de copia entre estudiantes",
+    description:
+      "Prompt que usa el botón 'Detectar copias' para comparar respuestas a la misma pregunta y reportar pares sospechosos.",
+  },
+  {
+    key: "ai_content_detection",
+    label: "Detección de respuestas generadas por IA",
+    description:
+      "Reglas que se anexan al prompt de calificación cuando el modelo debe estimar la probabilidad de que la respuesta haya sido generada por IA.",
   },
 ];
 

@@ -127,6 +127,30 @@ async function resolveSystemPrompt(
   }
 }
 
+// Fallback corto del prompt de detección de IA. Solo se usa si la fila
+// global de `ai_content_detection` no está disponible (RLS/red). El seed
+// completo vive en la migración 20260508160000_ai_prompts_plagio_y_ia.sql.
+const AI_CONTENT_DETECTION_FALLBACK = `Estima la PROBABILIDAD (0..1) de que la respuesta haya sido generada por IA. Considera marcadores que SÍ suben la probabilidad (prosa demasiado pulida, estructura genérica, terminología fuera de la rúbrica, ausencia de voz personal, repetición del enunciado, listas/bullets espontáneos, respuestas exhaustivas para una pregunta corta) y marcadores que NO suben la probabilidad (typos, ideas mal redactadas, respuestas cortas pero precisas, reuso del enunciado). En ai_reasons cita marcadores CONCRETOS de la respuesta. Si no hay señales fuertes, retorna probabilidad <0.3 y di brevemente por qué parece humana.`;
+
+/**
+ * Resuelve el system prompt de calificación + anexa el prompt de
+ * detección de IA. Esto permite que el admin/docente edite ambos por
+ * separado (en /app/admin/ai-prompts y /app/teacher/ai-prompts) y que
+ * los cambios se reflejen en todas las rutas de grading sin duplicar
+ * el texto en cada use_case.
+ */
+async function buildGradingSystemPrompt(
+  useCase: string,
+  courseId: string | null | undefined,
+  gradingFallback: string,
+): Promise<string> {
+  const [grading, aiDetection] = await Promise.all([
+    resolveSystemPrompt(useCase, courseId, gradingFallback),
+    resolveSystemPrompt("ai_content_detection", courseId, AI_CONTENT_DETECTION_FALLBACK),
+  ]);
+  return `${grading}\n\n--- Detección de respuestas generadas por IA ---\n${aiDetection}`;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
@@ -188,7 +212,7 @@ Deno.serve(async (req) => {
       const wsLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
       const wsLangName = wsLang === "en" ? "inglés (English)" : "español";
 
-      const customSystem = await resolveSystemPrompt(
+      const customSystem = await buildGradingSystemPrompt(
         "workshop_full",
         courseId,
         "Eres un evaluador académico imparcial. Calificas entregas de talleres según las instrucciones y rúbrica proporcionadas. Das un puntaje numérico, retroalimentación detallada y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA.",
@@ -295,7 +319,7 @@ Deno.serve(async (req) => {
       const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
       const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
 
-      const customSystem = await resolveSystemPrompt(
+      const customSystem = await buildGradingSystemPrompt(
         "project_file",
         courseId,
         "Eres un evaluador académico imparcial. Calificas el contenido textual de UN archivo del proyecto de un estudiante. Das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.",
@@ -536,7 +560,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         );
       }
 
-      const customSystem = await resolveSystemPrompt(
+      const customSystem = await buildGradingSystemPrompt(
         "project_full",
         courseId,
         "Eres un evaluador académico imparcial y experto. Calificas un proyecto académico basándote en sus archivos. Das nota, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones claras.",
@@ -656,7 +680,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         extraInstructions = `La respuesta es la opción seleccionada. Compara contra la opción correcta indicada en la rúbrica.`;
       }
 
-      const customSystem = await resolveSystemPrompt(
+      const customSystem = await buildGradingSystemPrompt(
         "workshop_question",
         courseId,
         "Eres un evaluador académico imparcial. Calificas la respuesta de un estudiante a UNA pregunta de taller. Das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA.",
@@ -843,7 +867,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         .map((f) => `--- archivo: ${f.path} ---\n${f.content}`)
         .join("\n\n");
 
-      const customSystemFull = await resolveSystemPrompt(
+      const customSystemFull = await buildGradingSystemPrompt(
         "project_full",
         project.course_id,
         "Eres un evaluador académico imparcial y experto. Calificas un proyecto académico basándote en sus archivos. Das nota, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones claras.",
@@ -1012,31 +1036,10 @@ Idioma de salida: ${langName}.`,
       .eq("id", sub.exam_id)
       .maybeSingle();
     const examCourseId = (examCourse as any)?.course_id ?? null;
-    const customExamSystem = await resolveSystemPrompt(
+    const customExamSystem = await buildGradingSystemPrompt(
       "exam_question",
       examCourseId,
-      `Eres un evaluador imparcial de exámenes académicos. Por cada respuesta del estudiante:
-
-1) CALIFICA según la rúbrica con un score 0..max_points y una justificación breve.
-
-2) Estima la PROBABILIDAD (0..1) de que la respuesta haya sido generada por IA. Marcadores que SÍ suben la probabilidad:
-   - Prosa demasiado pulida, formal o "perfecta" para un examen escrito a mano.
-   - Estructura genérica de "introducción + desarrollo + conclusión" cuando no se pidió.
-   - Terminología técnica avanzada que no fue cubierta por la rúbrica/curso.
-   - Ausencia de voz personal, ejemplos propios, errores típicos de aprendiz.
-   - Fórmulas o sintaxis 100% correctas en código sin huellas de iteración (sin variables borradas, sin comentarios humanos).
-   - Repetición del enunciado en la respuesta como preámbulo.
-   - Listas con bullets o numeración consistente cuando no se pidió.
-   - Disclaimers o frases tipo "Como modelo de lenguaje…" (raro pero ocurre).
-   - Respuestas ENORMES y exhaustivas para una pregunta corta.
-
-Marcadores que NO suben la probabilidad (humanos hacen esto):
-   - Errores ortográficos, gramaticales, typos.
-   - Ideas correctas pero mal redactadas.
-   - Respuestas cortas pero precisas.
-   - Reuso de las palabras del enunciado.
-
-3) ai_reasons: cita marcadores CONCRETOS de la respuesta (no genéricos). Si no hay señales fuertes, retorna probabilidad baja (<0.3) y di brevemente por qué parece humana.`,
+      "Eres un evaluador imparcial de exámenes académicos. Por cada respuesta del estudiante calificas según la rúbrica con un score 0..max_points y una justificación breve, y además estimas la probabilidad (0..1) de que la respuesta haya sido generada por IA, con razones concretas.",
     );
 
     // Factor de velocidad: si el estudiante terminó el examen mucho más

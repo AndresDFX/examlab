@@ -25,7 +25,9 @@ type UseCase =
   | "project_file"
   | "project_full"
   | "exam_question"
-  | "exam_time_evaluation";
+  | "exam_time_evaluation"
+  | "plagiarism_detection"
+  | "ai_content_detection";
 
 type UseCaseDef = {
   key: UseCase;
@@ -79,6 +81,22 @@ const USE_CASES: UseCaseDef[] = [
       "Sugiere si la duración asignada a un examen es razonable dadas las preguntas (botón 'Evaluar tiempo con IA' en el editor del examen).",
     defaultPrompt:
       "Eres un experto en diseño de evaluaciones académicas. Recibes el listado de preguntas de un examen (con tipo, enunciado, puntaje y rúbrica esperada) y la duración actual asignada en minutos. Estima cuánto tiempo razonable necesita un estudiante PROMEDIO para resolver cada pregunta, suma los tiempos individuales agregando 10-15% de buffer, y devuelve suggested_minutes (entero), verdict (HOLGADA / AJUSTADA / CORTA / INSUFICIENTE) y explanation breve.",
+  },
+  {
+    key: "plagiarism_detection",
+    label: "Detección de copia entre estudiantes",
+    description:
+      "Prompt que usa el botón 'Detectar copias' (FraudPanel) para comparar respuestas de la misma pregunta y reportar pares sospechosos.",
+    defaultPrompt:
+      "Eres un detector de copia académica entre estudiantes. Recibes el enunciado de la pregunta y una lista numerada de respuestas a la MISMA pregunta. Identifica pares cuyas similitudes NO se justifican por el enunciado (mismos nombres de variables no pedidos, mismos strings, mismos errores, mismos comentarios). Para cada par sospechoso devuelve idx_a, idx_b, score (0..1) y una razón breve citando los marcadores específicos.",
+  },
+  {
+    key: "ai_content_detection",
+    label: "Detección de respuestas generadas por IA",
+    description:
+      "Reglas que se anexan a los prompts de calificación (talleres, proyectos, exámenes) para que el modelo estime la probabilidad de que la respuesta haya sido generada por IA y devuelva ai_likelihood + ai_reasons.",
+    defaultPrompt:
+      "Estima la probabilidad (0..1) de que la respuesta haya sido generada por IA. Considera prosa demasiado pulida, estructura genérica, terminología fuera de la rúbrica, ausencia de voz personal, repetición del enunciado y respuestas exhaustivas para preguntas cortas. En ai_reasons cita marcadores concretos de la respuesta. Si no hay señales fuertes, retorna probabilidad baja y explica brevemente por qué parece humana.",
   },
 ];
 
