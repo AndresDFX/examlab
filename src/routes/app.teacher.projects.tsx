@@ -544,9 +544,29 @@ function TeacherProjects() {
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     }
-    // weight solo aplica con corte; si no, dejamos que el DEFAULT 1 se mantenga
+    // weight solo aplica con corte; si no, dejamos que el DEFAULT 1 se mantenga.
+    // Validación dura del bucket: si el peso supera lo disponible en el
+    // bucket de proyectos del corte (project_weight - sum(otros)), no
+    // dejamos guardar. Antes el input capeaba on-change pero la lógica
+    // server-side no validaba; ahora bloqueamos con error claro.
     if (form.cut_id && (form as any).weight != null) {
-      payload.weight = Number((form as any).weight);
+      const requested = Math.max(0, Number((form as any).weight));
+      const cut = cuts.find((c) => c.id === form.cut_id);
+      const bucket = Number((cut as any)?.project_weight ?? 0);
+      const editingId = editing?.id;
+      const otherProjectsSum = projects
+        .filter((p) => p.cut_id === form.cut_id && p.id !== editingId)
+        .reduce((s, p) => s + Number((p as any).weight ?? 0), 0);
+      const available = Math.max(0, bucket - otherProjectsSum);
+      // Tolerancia 0.01 para evitar falsos negativos por flotante.
+      if (requested > available + 0.01) {
+        toast.error(
+          `El peso del proyecto (${requested}%) supera el bucket disponible del corte ` +
+            `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás proyectos del corte.`,
+        );
+        return;
+      }
+      payload.weight = requested;
     }
 
     let projectId: string | null = null;

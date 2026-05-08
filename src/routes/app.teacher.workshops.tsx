@@ -489,13 +489,24 @@ function TeacherWorkshops() {
       group_mode: groupMode,
     };
     // weight solo tiene sentido cuando hay corte; lo enviamos solo si
-    // el form lo incluye. Cap server-side: como el browser solo respeta
-    // `max=` como hint, también capeamos aquí antes de persistir contra
-    // el bucket disponible (workshop_weight - sum(otros del corte)).
+    // el form lo incluye. Validación dura: si el peso supera el bucket
+    // disponible (workshop_weight - sum(otros del corte)), bloqueamos el
+    // save con un error claro en vez de silenciosamente capearlo. Antes
+    // se hacía Math.min() y la pérdida de intención del docente pasaba
+    // desapercibida.
     if (form.cut_id && (form as any).weight != null) {
-      const requested = Number((form as any).weight);
-      const cap = workshopWeightMax;
-      basePayload.weight = cap != null ? Math.max(0, Math.min(requested, cap)) : requested;
+      const requested = Math.max(0, Number((form as any).weight));
+      const cap = workshopWeightMax ?? 0;
+      // Tolerancia de 0.01 para evitar falsos negativos por floating-point
+      // (ej. 33,33 + 33,33 + 33,34 = 100 exacto pero JS dice 99,99999...).
+      if (requested > cap + 0.01) {
+        toast.error(
+          `El peso del taller (${requested}%) supera el bucket disponible del corte ` +
+            `(${cap.toFixed(2)}% restantes). Reduce el peso o ajusta los demás talleres del corte.`,
+        );
+        return;
+      }
+      basePayload.weight = requested;
     }
 
     if (form.id) {

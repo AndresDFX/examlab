@@ -310,6 +310,30 @@ function ExamEditor() {
         ? null
         : Math.max(1, Number(rawAttempts) || 1);
     const isExternal = !!(exam as any).is_external;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const requestedWeight = Math.max(0, Number((exam as any).weight ?? 1) || 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cutId = (exam as any).cut_id ?? null;
+    // Validación dura del bucket: si el peso del examen supera lo
+    // disponible en el bucket de exámenes del corte (exam_weight -
+    // sum(otros exámenes del corte, sin contar supletorios)), no
+    // dejamos guardar.
+    if (cutId) {
+      const selectedCut = cuts.find((c) => c.id === cutId);
+      const examBucket = Number(selectedCut?.exam_weight ?? 0);
+      const otherExamsSum = examsInCourse
+        .filter((x) => x.id !== examId && x.cut_id === cutId)
+        .reduce((s, x) => s + x.weight, 0);
+      const available = Math.max(0, examBucket - otherExamsSum);
+      // Tolerancia 0.01 para evitar falsos negativos por flotante.
+      if (requestedWeight > available + 0.01) {
+        toast.error(
+          `El peso del examen (${requestedWeight}%) supera el bucket disponible del corte ` +
+            `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás exámenes del corte.`,
+        );
+        return;
+      }
+    }
     // Para externos NO mandamos los campos de duración / navegación /
     // proctoring / reintentos: el alumno no toma este examen, no aplican.
     // Además, mandar columnas opcionales en cada update aumenta la
@@ -321,8 +345,8 @@ function ExamEditor() {
       start_time: new Date(exam.start_time).toISOString(),
       end_time: new Date(exam.end_time).toISOString(),
       max_attempts: normalizedAttempts,
-      cut_id: (exam as any).cut_id || null,
-      weight: Math.max(0, Number((exam as any).weight ?? 1) || 0),
+      cut_id: cutId,
+      weight: requestedWeight,
     };
     if (!isExternal) {
       payload.time_limit_minutes = Number(exam.time_limit_minutes);
