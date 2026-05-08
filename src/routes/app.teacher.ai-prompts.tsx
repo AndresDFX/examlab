@@ -31,7 +31,8 @@ type UseCase =
   | "workshop_question"
   | "project_file"
   | "project_full"
-  | "exam_question";
+  | "exam_question"
+  | "exam_time_evaluation";
 
 type UseCaseDef = {
   key: UseCase;
@@ -64,6 +65,11 @@ const USE_CASES: UseCaseDef[] = [
     key: "exam_question",
     label: "Pregunta de examen",
     description: "Calificación de una pregunta abierta de examen.",
+  },
+  {
+    key: "exam_time_evaluation",
+    label: "Evaluación de duración de examen",
+    description: "Sugerencia de IA sobre cuántos minutos debería durar el examen.",
   },
 ];
 
@@ -258,9 +264,8 @@ function TeacherAIPrompts() {
             Prompts de IA por curso
           </h1>
           <p className="text-sm text-muted-foreground">
-            Personaliza el rol y criterios del modelo para cada caso de uso
-            dentro de un curso específico. Si no hay override, se usa el
-            prompt global del sistema.
+            Personaliza el rol y criterios del modelo para cada caso de uso dentro de un curso
+            específico. Si no hay override, se usa el prompt global del sistema.
           </p>
         </div>
       </div>
@@ -274,14 +279,9 @@ function TeacherAIPrompts() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando cursos…
               </div>
             ) : courses.length === 0 ? (
-              <p className="text-sm text-muted-foreground mt-1">
-                No tienes cursos asignados.
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">No tienes cursos asignados.</p>
             ) : (
-              <Select
-                value={courseId ?? undefined}
-                onValueChange={(v) => setCourseId(v)}
-              >
+              <Select value={courseId ?? undefined} onValueChange={(v) => setCourseId(v)}>
                 <SelectTrigger className="w-full sm:w-[400px] mt-1">
                   <SelectValue placeholder="Selecciona un curso" />
                 </SelectTrigger>
@@ -305,9 +305,9 @@ function TeacherAIPrompts() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Solo edita el rol/criterios del modelo. Los datos dinámicos
-            (rúbrica, respuesta del estudiante, idioma, puntaje máximo) se
-            inyectan automáticamente — no necesitas placeholders.
+            Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta del
+            estudiante, idioma, puntaje máximo) se inyectan automáticamente — no necesitas
+            placeholders.
           </AlertDescription>
         </Alert>
       )}
@@ -323,9 +323,7 @@ function TeacherAIPrompts() {
           {USE_CASES.map((uc) => {
             const override = overrides[uc.key];
             const draft = drafts[uc.key];
-            const dirty = override
-              ? draft !== override.system_prompt
-              : draft !== globals[uc.key];
+            const dirty = override ? draft !== override.system_prompt : draft !== globals[uc.key];
             const hasOverride = !!override;
             return (
               <Card key={uc.key}>
@@ -365,9 +363,7 @@ function TeacherAIPrompts() {
                     <Textarea
                       rows={6}
                       value={drafts[uc.key]}
-                      onChange={(e) =>
-                        setDrafts((d) => ({ ...d, [uc.key]: e.target.value }))
-                      }
+                      onChange={(e) => setDrafts((d) => ({ ...d, [uc.key]: e.target.value }))}
                       placeholder={globals[uc.key] || "Escribe el prompt para este curso…"}
                       className="font-mono text-xs leading-relaxed"
                     />

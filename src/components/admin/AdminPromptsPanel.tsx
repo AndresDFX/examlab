@@ -24,7 +24,8 @@ type UseCase =
   | "workshop_question"
   | "project_file"
   | "project_full"
-  | "exam_question";
+  | "exam_question"
+  | "exam_time_evaluation";
 
 type UseCaseDef = {
   key: UseCase;
@@ -70,6 +71,14 @@ const USE_CASES: UseCaseDef[] = [
     description: "Calificación de una pregunta abierta de examen (rúbrica + respuesta).",
     defaultPrompt:
       "Eres un evaluador imparcial. Calificas respuestas de exámenes según la rúbrica dada. Das un puntaje, una breve justificación y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA con razones.",
+  },
+  {
+    key: "exam_time_evaluation",
+    label: "Evaluación de duración de examen",
+    description:
+      "Sugiere si la duración asignada a un examen es razonable dadas las preguntas (botón 'Evaluar tiempo con IA' en el editor del examen).",
+    defaultPrompt:
+      "Eres un experto en diseño de evaluaciones académicas. Recibes el listado de preguntas de un examen (con tipo, enunciado, puntaje y rúbrica esperada) y la duración actual asignada en minutos. Estima cuánto tiempo razonable necesita un estudiante PROMEDIO para resolver cada pregunta, suma los tiempos individuales agregando 10-15% de buffer, y devuelve suggested_minutes (entero), verdict (HOLGADA / AJUSTADA / CORTA / INSUFICIENTE) y explanation breve.",
   },
 ];
 

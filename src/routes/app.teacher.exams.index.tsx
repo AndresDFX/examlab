@@ -428,6 +428,7 @@ function TeacherExams() {
                 <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.cut")}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("exam.columns.end")}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t("exam.columns.duration")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.type")}</TableHead>
                 <TableHead className="hidden lg:table-cell">
@@ -439,7 +440,7 @@ function TeacherExams() {
             <TableBody>
               {exams.length === 0 ? (
                 <TableEmpty
-                  colSpan={9}
+                  colSpan={10}
                   icon={FileText}
                   text="Aún no has creado ningún examen."
                   hint="Diseña tu primer examen — puedes generar preguntas con IA."
@@ -452,7 +453,7 @@ function TeacherExams() {
                 />
               ) : filteredExams.length === 0 ? (
                 <TableEmpty
-                  colSpan={9}
+                  colSpan={10}
                   icon={FileText}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los exámenes."
@@ -498,6 +499,21 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="text-sm hidden sm:table-cell tabular-nums">
                     {formatDateTime(e.start_time)}
+                  </TableCell>
+                  <TableCell className="text-sm hidden sm:table-cell tabular-nums">
+                    {(() => {
+                      // Fin = inicio + duración. Para sync con end_time
+                      // explícito tomamos el menor (la ventana puede
+                      // cerrar antes que el time_limit del intento).
+                      const start = new Date(e.start_time).getTime();
+                      const limit = Number(e.time_limit_minutes ?? 0) * 60_000;
+                      const fromLimit = start + limit;
+                      const explicit = (e as any).end_time
+                        ? new Date((e as any).end_time).getTime()
+                        : null;
+                      const end = explicit ? Math.min(explicit, fromLimit) : fromLimit;
+                      return formatDateTime(new Date(end));
+                    })()}
                   </TableCell>
                   <TableCell className="text-sm hidden lg:table-cell tabular-nums">
                     {formatDuration(e.time_limit_minutes)}

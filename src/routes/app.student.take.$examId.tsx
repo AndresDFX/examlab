@@ -253,12 +253,23 @@ function TakeExam() {
     (async () => {
       // `courses.language` se introduce en migraciones recientes; cast hasta refrescar tipos.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: e } = await (supabase as any)
+      const { data: e, error: eErr } = await (supabase as any)
         .from("exams")
         .select("*, course:courses(language, max_exam_attempts)")
         .eq("id", examId)
         .single();
-      if (!e) {
+      if (eErr || !e) {
+        // Si el fallo es de red (offline / blip transitorio), no botamos
+        // al estudiante — dejamos el spinner y reintentamos en 2s. Su
+        // intento en curso sigue intacto en DB; al reconectar podrá
+        // reanudar sin perder respuestas.
+        const msg = (eErr as { message?: string } | null)?.message ?? "";
+        const isNetwork = !navigator.onLine || /fetch|network/i.test(msg);
+        if (isNetwork) {
+          toast.warning("Sin conexión. Reintentando… tus respuestas guardadas siguen seguras.");
+          setTimeout(() => window.location.reload(), 2000);
+          return;
+        }
         toast.error("Examen no encontrado");
         navigate({ to: "/app/student/exams" });
         return;

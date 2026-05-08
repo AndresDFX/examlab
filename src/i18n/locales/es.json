@@ -216,6 +216,7 @@
       "course": "Curso",
       "cut": "Corte",
       "start": "Inicio",
+      "end": "Fin",
       "duration": "Duración",
       "type": "Tipo",
       "navigation": "Navegación"

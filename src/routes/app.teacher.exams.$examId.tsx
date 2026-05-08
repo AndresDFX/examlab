@@ -34,6 +34,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { TeacherExamNotes } from "@/components/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { JAVA_STARTER } from "@/components/CodeEditor";
@@ -141,6 +148,54 @@ function ExamEditor() {
   const [aiType, setAiType] = useState("abierta");
   const [aiLanguage, setAiLanguage] = useState("java");
   const [aiLoading, setAiLoading] = useState(false);
+
+  // Evaluación de tiempo del examen con IA.
+  const [timeEvalLoading, setTimeEvalLoading] = useState(false);
+  const [timeEvalResult, setTimeEvalResult] = useState<{
+    current_minutes: number;
+    suggested_minutes: number;
+    verdict: "HOLGADA" | "AJUSTADA" | "CORTA" | "INSUFICIENTE";
+    explanation: string;
+    question_count: number;
+  } | null>(null);
+
+  const evaluateTimeWithAI = async () => {
+    if (!exam) return;
+    if (!questions || questions.length === 0) {
+      toast.error("Crea al menos una pregunta antes de evaluar el tiempo.");
+      return;
+    }
+    setTimeEvalLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("evaluate-exam-time", {
+        body: { examId },
+      });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = data as any;
+      if (!res?.ok) throw new Error(res?.error ?? "Sin respuesta");
+      setTimeEvalResult({
+        current_minutes: Number(res.current_minutes) || 0,
+        suggested_minutes: Number(res.suggested_minutes) || 0,
+        verdict: res.verdict,
+        explanation: String(res.explanation ?? ""),
+        question_count: Number(res.question_count) || 0,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al evaluar el tiempo");
+    } finally {
+      setTimeEvalLoading(false);
+    }
+  };
+
+  const applyTimeSuggestion = () => {
+    if (!exam || !timeEvalResult) return;
+    setExam({ ...exam, time_limit_minutes: timeEvalResult.suggested_minutes });
+    setTimeEvalResult(null);
+    toast.success(
+      `Duración actualizada a ${timeEvalResult.suggested_minutes} min. Recuerda guardar el examen.`,
+    );
+  };
 
   const load = async () => {
     const { data: e } = await supabase
@@ -573,11 +628,33 @@ function ExamEditor() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>
-                    Duración (min){" "}
-                    <span className="text-xs text-muted-foreground font-normal">
-                      (se calcula automáticamente, pero puedes editarla)
+                  <Label className="flex items-center gap-2 flex-wrap">
+                    <span>
+                      Duración (min){" "}
+                      <span className="text-xs text-muted-foreground font-normal">
+                        (se calcula automáticamente, pero puedes editarla)
+                      </span>
                     </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[11px] ml-auto"
+                      onClick={evaluateTimeWithAI}
+                      disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
+                      title={
+                        (questions?.length ?? 0) === 0
+                          ? "Crea preguntas primero para poder evaluar el tiempo"
+                          : "Pide a la IA una sugerencia de duración basada en las preguntas"
+                      }
+                    >
+                      {timeEvalLoading ? (
+                        <Spinner size="xs" className="mr-1" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 mr-1" />
+                      )}
+                      Evaluar tiempo con IA
+                    </Button>
                   </Label>
                   <Input
                     type="number"
@@ -1159,6 +1236,67 @@ function ExamEditor() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Resultado de evaluación de tiempo con IA. */}
+      <Dialog open={!!timeEvalResult} onOpenChange={(o) => !o && setTimeEvalResult(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Sugerencia de duración
+            </DialogTitle>
+          </DialogHeader>
+          {timeEvalResult && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-md border p-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Actual</div>
+                  <div className="text-2xl font-semibold tabular-nums">
+                    {timeEvalResult.current_minutes}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">min</div>
+                </div>
+                <div className="rounded-md border border-primary/40 bg-primary/5 p-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Sugerido</div>
+                  <div className="text-2xl font-semibold tabular-nums text-primary">
+                    {timeEvalResult.suggested_minutes}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">min</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Veredicto</div>
+                  <Badge
+                    variant={
+                      timeEvalResult.verdict === "AJUSTADA"
+                        ? "default"
+                        : timeEvalResult.verdict === "HOLGADA"
+                          ? "secondary"
+                          : "destructive"
+                    }
+                    className="mt-2 text-[10px]"
+                  >
+                    {timeEvalResult.verdict}
+                  </Badge>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap rounded-md bg-muted/40 p-2">
+                {timeEvalResult.explanation || "Sin explicación."}
+              </p>
+              <p className="text-[11px] text-muted-foreground italic">
+                Basado en {timeEvalResult.question_count} pregunta(s).
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setTimeEvalResult(null)}>
+              Mantener {timeEvalResult?.current_minutes ?? 0} min
+            </Button>
+            <Button onClick={applyTimeSuggestion} disabled={!timeEvalResult}>
+              Usar {timeEvalResult?.suggested_minutes ?? 0} min
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -15,7 +15,7 @@
  *  - Cache name v3 invalida las versiones anteriores en `activate`.
  */
 
-const CACHE_NAME = "examlab-v5";
+const CACHE_NAME = "examlab-v6";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -72,18 +72,39 @@ self.addEventListener("fetch", (event) => {
   // rango con ERR_CACHE_OPERATION_NOT_SUPPORTED. Dejar pasar a la red directo.
   if (url.hostname.includes("leaningtech.com")) return;
 
-  // Navegación: SIEMPRE red. Sin cache. Si la red falla mostramos un
-  // fallback offline mínimo. NO reusamos HTML cacheado entre deploys porque
-  // referenciaría chunks viejos.
+  // Navegación: SIEMPRE red. Sin cache. Si la red falla:
+  //  - Reintenta UNA vez después de 600ms (la mayoría de fallos durante
+  //    una sesión activa son blips transitorios — DNS, wifi roaming, etc.)
+  //  - Solo si el segundo intento también falla, devolvemos el fallback.
+  //  - El fallback ahora tiene un botón "Reintentar" que recarga sin que
+  //    el alumno tenga que navegar a la URL a mano.
+  // NO reusamos HTML cacheado entre deploys porque referenciaría chunks
+  // viejos.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(
-        () =>
-          new Response(
-            "<!doctype html><meta charset=utf-8><title>ExamLab</title><body style='font-family:system-ui;padding:2rem;text-align:center'><h1>Sin conexión</h1><p>Reintenta cuando tengas internet.</p></body>",
-            { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
-          ),
-      ),
+      (async () => {
+        try {
+          return await fetch(request);
+        } catch (_) {
+          await new Promise((r) => setTimeout(r, 600));
+          try {
+            return await fetch(request);
+          } catch (_) {
+            const html = `<!doctype html>
+<meta charset="utf-8">
+<title>ExamLab — Sin conexión</title>
+<body style="font-family:system-ui;padding:2rem;max-width:32rem;margin:0 auto;text-align:center;color:#1f2937">
+  <h1 style="font-size:1.5rem;margin:0 0 .5rem">Sin conexión</h1>
+  <p style="color:#6b7280;margin:0 0 1.5rem">No pudimos cargar la página. Si estás presentando un examen, tus respuestas guardadas hasta ahora siguen seguras: vuelve a intentar cuando tengas internet y podrás reanudar.</p>
+  <button onclick="location.reload()" style="background:#111827;color:#fff;border:0;border-radius:.5rem;padding:.6rem 1.2rem;font-size:.95rem;cursor:pointer">Reintentar</button>
+</body>`;
+            return new Response(html, {
+              status: 503,
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            });
+          }
+        }
+      })(),
     );
     return;
   }

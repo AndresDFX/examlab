@@ -156,46 +156,46 @@ Deno.serve(async (req) => {
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxScore ?? 100}.\nREGLA DE IDIOMA: responde siempre en ${wsLangName}.`;
 
       const aiRes = await aiChatCompletion({
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: `Taller: ${workshopTitle ?? "Sin título"}\n\nInstrucciones: ${workshopInstructions ?? "Sin instrucciones específicas"}\n\nRúbrica de evaluación: ${rubric ?? "Evalúa calidad, completitud y corrección"}\n\nPuntaje máximo: ${maxScore ?? 100}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wsLangName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "score_workshop",
-                description: "Calificar entrega de taller y estimar si fue generada por IA",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", description: `Puntaje entre 0 y ${maxScore ?? 100}` },
-                    feedback: {
-                      type: "string",
-                      description: "Retroalimentación detallada",
-                    },
-                    ai_likelihood: {
-                      type: "number",
-                      description:
-                        "Probabilidad 0..1 de que la respuesta del estudiante haya sido generada por IA",
-                    },
-                    ai_reasons: {
-                      type: "string",
-                      description: "Breve razonamiento sobre la detección de IA",
-                    },
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: `Taller: ${workshopTitle ?? "Sin título"}\n\nInstrucciones: ${workshopInstructions ?? "Sin instrucciones específicas"}\n\nRúbrica de evaluación: ${rubric ?? "Evalúa calidad, completitud y corrección"}\n\nPuntaje máximo: ${maxScore ?? 100}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wsLangName}.`,
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "score_workshop",
+              description: "Calificar entrega de taller y estimar si fue generada por IA",
+              parameters: {
+                type: "object",
+                properties: {
+                  score: { type: "number", description: `Puntaje entre 0 y ${maxScore ?? 100}` },
+                  feedback: {
+                    type: "string",
+                    description: "Retroalimentación detallada",
                   },
-                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+                  ai_likelihood: {
+                    type: "number",
+                    description:
+                      "Probabilidad 0..1 de que la respuesta del estudiante haya sido generada por IA",
+                  },
+                  ai_reasons: {
+                    type: "string",
+                    description: "Breve razonamiento sobre la detección de IA",
+                  },
                 },
+                required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "score_workshop" } },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "score_workshop" } },
       });
 
       if (!aiRes.ok) {
@@ -208,7 +208,12 @@ Deno.serve(async (req) => {
       const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
       const args = tc
         ? JSON.parse(tc.function.arguments)
-        : { score: 0, feedback: "No se pudo generar retroalimentación", ai_likelihood: 0, ai_reasons: "" };
+        : {
+            score: 0,
+            feedback: "No se pudo generar retroalimentación",
+            ai_likelihood: 0,
+            ai_reasons: "",
+          };
       const score = Math.max(0, Math.min(Number(maxScore ?? 100), Number(args.score) || 0));
       const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
 
@@ -255,14 +260,14 @@ Deno.serve(async (req) => {
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
       const aiRes = await aiChatCompletion({
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: `Archivo: ${fileTitle}
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: `Archivo: ${fileTitle}
 Descripción esperada: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa corrección, completitud y claridad."}
 Puntaje máximo: ${maxPoints}
@@ -271,35 +276,34 @@ Contenido entregado por el estudiante:
 ${studentContent}
 
 Idioma de salida obligatorio: ${pfLangName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "score_project_file",
-                description: "Calificar contenido de un archivo de proyecto",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number" },
-                    feedback: { type: "string" },
-                    ai_likelihood: {
-                      type: "number",
-                      description:
-                        "Probabilidad 0..1 de que el contenido haya sido generado por IA",
-                    },
-                    ai_reasons: {
-                      type: "string",
-                      description: "Breve razonamiento sobre la detección de IA",
-                    },
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "score_project_file",
+              description: "Calificar contenido de un archivo de proyecto",
+              parameters: {
+                type: "object",
+                properties: {
+                  score: { type: "number" },
+                  feedback: { type: "string" },
+                  ai_likelihood: {
+                    type: "number",
+                    description: "Probabilidad 0..1 de que el contenido haya sido generado por IA",
                   },
-                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+                  ai_reasons: {
+                    type: "string",
+                    description: "Breve razonamiento sobre la detección de IA",
+                  },
                 },
+                required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "score_project_file" } },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "score_project_file" } },
       });
 
       if (aiRes.status === 429) {
@@ -384,17 +388,63 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       // Whitelist de extensiones de código fuente. Doc/imágenes/binarios
       // van en preguntas separadas, no aquí.
       const CODE_EXT = new Set([
-        "java","kt","scala","groovy",
-        "py","rb","php",
-        "js","jsx","ts","tsx","mjs","cjs","vue","svelte",
-        "c","cpp","cc","cxx","h","hpp","hxx",
-        "cs","fs","vb",
-        "go","rs","swift","m","mm",
-        "sql","sh","bash","zsh","ps1",
-        "html","css","scss","sass","less",
-        "json","yaml","yml","toml","xml",
-        "lua","r","jl","pl","ex","exs","erl","clj","cljs",
-        "dart","gradle","makefile",
+        "java",
+        "kt",
+        "scala",
+        "groovy",
+        "py",
+        "rb",
+        "php",
+        "js",
+        "jsx",
+        "ts",
+        "tsx",
+        "mjs",
+        "cjs",
+        "vue",
+        "svelte",
+        "c",
+        "cpp",
+        "cc",
+        "cxx",
+        "h",
+        "hpp",
+        "hxx",
+        "cs",
+        "fs",
+        "vb",
+        "go",
+        "rs",
+        "swift",
+        "m",
+        "mm",
+        "sql",
+        "sh",
+        "bash",
+        "zsh",
+        "ps1",
+        "html",
+        "css",
+        "scss",
+        "sass",
+        "less",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "xml",
+        "lua",
+        "r",
+        "jl",
+        "pl",
+        "ex",
+        "exs",
+        "erl",
+        "clj",
+        "cljs",
+        "dart",
+        "gradle",
+        "makefile",
       ]);
 
       const allPaths = Object.keys(unzipped).filter((p) => !p.endsWith("/"));
@@ -450,12 +500,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       );
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
-      const fileSection = codeFiles
-        .map(
-          (f) =>
-            `─── ${f.path} ───\n${f.content}\n`,
-        )
-        .join("\n");
+      const fileSection = codeFiles.map((f) => `─── ${f.path} ───\n${f.content}\n`).join("\n");
 
       const aiRes = await aiChatCompletion({
         messages: [
@@ -576,40 +621,40 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${wqLangName}.\n${extraInstructions}`;
 
       const aiRes = await aiChatCompletion({
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: `Tipo de pregunta: ${questionType}\n\nEnunciado: ${questionContent ?? ""}\n\nRúbrica esperada: ${expectedRubric ?? "Evalúa corrección y completitud."}\n\nPuntaje máximo: ${maxPoints}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wqLangName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "score_question",
-                description:
-                  "Calificar respuesta a pregunta de taller y estimar si fue generada por IA",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number" },
-                    feedback: { type: "string" },
-                    ai_likelihood: {
-                      type: "number",
-                      description: "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
-                    },
-                    ai_reasons: { type: "string" },
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: `Tipo de pregunta: ${questionType}\n\nEnunciado: ${questionContent ?? ""}\n\nRúbrica esperada: ${expectedRubric ?? "Evalúa corrección y completitud."}\n\nPuntaje máximo: ${maxPoints}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wqLangName}.`,
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "score_question",
+              description:
+                "Calificar respuesta a pregunta de taller y estimar si fue generada por IA",
+              parameters: {
+                type: "object",
+                properties: {
+                  score: { type: "number" },
+                  feedback: { type: "string" },
+                  ai_likelihood: {
+                    type: "number",
+                    description: "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
                   },
-                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+                  ai_reasons: { type: "string" },
                 },
+                required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "score_question" } },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "score_question" } },
       });
 
       if (aiRes.status === 429) {
@@ -684,9 +729,36 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       });
 
       const TEXT_EXT = new Set([
-        "py", "js", "ts", "tsx", "jsx", "java", "c", "h", "cpp", "hpp", "cs", "go",
-        "rb", "php", "html", "css", "scss", "md", "txt", "json", "yaml", "yml",
-        "xml", "sql", "mmd", "puml", "kt", "swift", "rs", "sh",
+        "py",
+        "js",
+        "ts",
+        "tsx",
+        "jsx",
+        "java",
+        "c",
+        "h",
+        "cpp",
+        "hpp",
+        "cs",
+        "go",
+        "rb",
+        "php",
+        "html",
+        "css",
+        "scss",
+        "md",
+        "txt",
+        "json",
+        "yaml",
+        "yml",
+        "xml",
+        "sql",
+        "mmd",
+        "puml",
+        "kt",
+        "swift",
+        "rs",
+        "sh",
       ]);
       const MAX_FILE_BYTES = 50_000;
       const MAX_TOTAL_BYTES = 250_000;
@@ -736,14 +808,14 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const projectSystemPrompt = `${customSystemFull}\n\nTipo de proyecto: ${project.project_type}.\nPuntaje máximo permitido: ${project.max_score}.\nREGLA DE IDIOMA: responde siempre en ${langName}.`;
 
       const aiRes = await aiChatCompletion({
-          messages: [
-            {
-              role: "system",
-              content: projectSystemPrompt,
-            },
-            {
-              role: "user",
-              content: `Título: ${project.title}
+        messages: [
+          {
+            role: "system",
+            content: projectSystemPrompt,
+          },
+          {
+            role: "user",
+            content: `Título: ${project.title}
 Tipo: ${project.project_type}
 Instrucciones del proyecto:
 ${project.instructions ?? project.description ?? "Sin instrucciones."}
@@ -758,29 +830,29 @@ Contenido de los archivos:
 ${filesContext || "(sin contenido legible)"}
 
 Idioma de salida: ${langName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "score_project",
-                description:
-                  "Calificar el proyecto y estimar probabilidad de que fue generado por IA",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number" },
-                    feedback: { type: "string" },
-                    ai_likelihood: { type: "number" },
-                    ai_reasons: { type: "string" },
-                  },
-                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "score_project",
+              description:
+                "Calificar el proyecto y estimar probabilidad de que fue generado por IA",
+              parameters: {
+                type: "object",
+                properties: {
+                  score: { type: "number" },
+                  feedback: { type: "string" },
+                  ai_likelihood: { type: "number" },
+                  ai_reasons: { type: "string" },
                 },
+                required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "score_project" } },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "score_project" } },
       });
 
       if (aiRes.status === 429) {
@@ -884,8 +956,48 @@ Idioma de salida: ${langName}.`,
     const customExamSystem = await resolveSystemPrompt(
       "exam_question",
       examCourseId,
-      "Eres un evaluador imparcial. Calificas respuestas de exámenes según la rúbrica dada. Das un puntaje, una breve justificación y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA con razones.",
+      `Eres un evaluador imparcial de exámenes académicos. Por cada respuesta del estudiante:
+
+1) CALIFICA según la rúbrica con un score 0..max_points y una justificación breve.
+
+2) Estima la PROBABILIDAD (0..1) de que la respuesta haya sido generada por IA. Marcadores que SÍ suben la probabilidad:
+   - Prosa demasiado pulida, formal o "perfecta" para un examen escrito a mano.
+   - Estructura genérica de "introducción + desarrollo + conclusión" cuando no se pidió.
+   - Terminología técnica avanzada que no fue cubierta por la rúbrica/curso.
+   - Ausencia de voz personal, ejemplos propios, errores típicos de aprendiz.
+   - Fórmulas o sintaxis 100% correctas en código sin huellas de iteración (sin variables borradas, sin comentarios humanos).
+   - Repetición del enunciado en la respuesta como preámbulo.
+   - Listas con bullets o numeración consistente cuando no se pidió.
+   - Disclaimers o frases tipo "Como modelo de lenguaje…" (raro pero ocurre).
+   - Respuestas ENORMES y exhaustivas para una pregunta corta.
+
+Marcadores que NO suben la probabilidad (humanos hacen esto):
+   - Errores ortográficos, gramaticales, typos.
+   - Ideas correctas pero mal redactadas.
+   - Respuestas cortas pero precisas.
+   - Reuso de las palabras del enunciado.
+
+3) ai_reasons: cita marcadores CONCRETOS de la respuesta (no genéricos). Si no hay señales fuertes, retorna probabilidad baja (<0.3) y di brevemente por qué parece humana.`,
     );
+
+    // Factor de velocidad: si el estudiante terminó el examen mucho más
+    // rápido que el tiempo asignado, eso es señal adicional de IA. Se
+    // calcula a nivel de submission (no por pregunta — no tenemos
+    // timestamps por pregunta) y se aplica como un boost al likelihood
+    // máximo al final.
+    const startedAt = sub.started_at ? new Date(sub.started_at).getTime() : null;
+    const submittedAt = sub.submitted_at ? new Date(sub.submitted_at).getTime() : Date.now();
+    const timeLimitSec = Number((examMeta as any)?.course?.time_limit_minutes ?? 0) || 0;
+    let actualSec = 0;
+    if (startedAt) actualSec = Math.max(0, Math.floor((submittedAt - startedAt) / 1000));
+    // El time_limit_minutes vive en exams, no en course; lo cargamos
+    // explícitamente para no acoplar el join.
+    const { data: examTimeRow } = await admin
+      .from("exams")
+      .select("time_limit_minutes")
+      .eq("id", sub.exam_id)
+      .maybeSingle();
+    const expectedSec = Number((examTimeRow as any)?.time_limit_minutes ?? timeLimitSec) * 60 || 0;
 
     const answers: Record<string, any> = sub.answers || {};
     const prevBreakdown: any[] = Array.isArray(answers.__breakdown) ? answers.__breakdown : [];
@@ -942,43 +1054,43 @@ Idioma de salida: ${langName}.`,
           continue;
         }
         const aiRes = await aiChatCompletion({
-            messages: [
-              {
-                role: "system",
-                content: `${customExamSystem}\n\nPuntaje máximo permitido: ${q.points}.\nREGLA DE IDIOMA: responde siempre en ${examLangName}.`,
-              },
-              {
-                role: "user",
-                content: `Pregunta: ${q.content}\n\nRúbrica esperada: ${q.expected_rubric}\n\nRespuesta del estudiante: ${userAnswer}\n\nPuntaje máximo: ${q.points}\n\nIdioma de salida obligatorio: ${examLangName}.`,
-              },
-            ],
-            tools: [
-              {
-                type: "function",
-                function: {
-                  name: "score_answer",
-                  description: "Calificar respuesta y estimar si fue generada por IA",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      score: { type: "number" },
-                      feedback: { type: "string" },
-                      ai_likelihood: {
-                        type: "number",
-                        description:
-                          "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
-                      },
-                      ai_reasons: {
-                        type: "string",
-                        description: "Razonamiento breve sobre la detección de IA",
-                      },
+          messages: [
+            {
+              role: "system",
+              content: `${customExamSystem}\n\nPuntaje máximo permitido: ${q.points}.\nREGLA DE IDIOMA: responde siempre en ${examLangName}.`,
+            },
+            {
+              role: "user",
+              content: `Pregunta: ${q.content}\n\nRúbrica esperada: ${q.expected_rubric}\n\nRespuesta del estudiante: ${userAnswer}\n\nPuntaje máximo: ${q.points}\n\nIdioma de salida obligatorio: ${examLangName}.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "score_answer",
+                description: "Calificar respuesta y estimar si fue generada por IA",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number" },
+                    feedback: { type: "string" },
+                    ai_likelihood: {
+                      type: "number",
+                      description:
+                        "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
                     },
-                    required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
+                    ai_reasons: {
+                      type: "string",
+                      description: "Razonamiento breve sobre la detección de IA",
+                    },
                   },
+                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
                 },
               },
-            ],
-            tool_choice: { type: "function", function: { name: "score_answer" } },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "score_answer" } },
         });
         if (!aiRes.ok) {
           breakdown.push({
@@ -1018,6 +1130,30 @@ Idioma de salida: ${langName}.`,
 
     const grade = totalPoints > 0 ? Number(((earned / totalPoints) * gradeScaleMax).toFixed(2)) : 0;
 
+    // Factor de velocidad: ratio actual/esperado. Cuanto menor el ratio
+    // (entrega muy rápida), mayor la sospecha. Boost máximo: +0.20.
+    //   ratio >= 0.5 → boost 0
+    //   ratio  = 0.3 → boost ~0.08
+    //   ratio  = 0.15 → boost ~0.14
+    //   ratio  = 0   → boost 0.20
+    // Solo aplica si tenemos los dos timestamps y al menos una pregunta
+    // abierta evaluada (preguntas cerradas se contestan rápido sin que
+    // sea sospechoso).
+    let speedBoost = 0;
+    let speedNote = "";
+    const openQuestionCount = aiReasonBuckets.length;
+    if (expectedSec > 0 && actualSec > 0 && openQuestionCount > 0) {
+      const ratio = actualSec / expectedSec;
+      if (ratio < 0.5) {
+        speedBoost = Math.min(0.2, 0.4 * (0.5 - ratio));
+        const minutes = Math.round(actualSec / 60);
+        const expectedMin = Math.round(expectedSec / 60);
+        const pct = Math.round(ratio * 100);
+        speedNote = `Velocidad sospechosa: terminó en ${minutes} min de ${expectedMin} min asignados (${pct}% del tiempo).`;
+      }
+    }
+    const finalAiLikelihood = Math.min(1, maxAiLikelihood + speedBoost);
+
     // Top 3 razones por likelihood. Si todas las preguntas son cerradas,
     // el bucket queda vacío y los campos ai_* quedan en sus valores por
     // defecto (false / null) — esa también es info útil para el docente.
@@ -1027,20 +1163,20 @@ Idioma de salida: ${langName}.`,
       .slice(0, 3)
       .map((b) => `[${b.likelihood.toFixed(2)}] ${b.reason}`)
       .join("\n");
-    const aiDetected = maxAiLikelihood >= 0.6;
+    const reasonsWithSpeed = speedNote ? `${speedNote}\n${topReasons}`.trim() : topReasons;
+    const aiDetected = finalAiLikelihood >= 0.6;
     // Si el docente ya forzó "sospechoso" (proctoring), respetamos ese
     // estado. Si la IA detecta fraude, también marcamos sospechoso para
     // que entre en la cola de revisión manual.
-    const newStatus =
-      sub.status === "sospechoso" || aiDetected ? "sospechoso" : "completado";
+    const newStatus = sub.status === "sospechoso" || aiDetected ? "sospechoso" : "completado";
 
     await admin
       .from("submissions")
       .update({
         ai_grade: grade,
         ai_detected: aiDetected,
-        ai_detected_score: maxAiLikelihood,
-        ai_detected_reasons: topReasons || null,
+        ai_detected_score: finalAiLikelihood,
+        ai_detected_reasons: reasonsWithSpeed || null,
         status: newStatus,
         submitted_at: sub.submitted_at ?? new Date().toISOString(),
         answers: { ...answers, __breakdown: breakdown },
@@ -1053,8 +1189,9 @@ Idioma de salida: ${langName}.`,
         grade,
         breakdown,
         ai_detected: aiDetected,
-        ai_likelihood: maxAiLikelihood,
-        ai_reasons: topReasons,
+        ai_likelihood: finalAiLikelihood,
+        ai_reasons: reasonsWithSpeed,
+        speed_boost: speedBoost,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
