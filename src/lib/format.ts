@@ -127,3 +127,15 @@ export function formatDuration(minutes: number | null | undefined): string {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
 }
+
+/**
+ * Formatea un porcentaje quitando ceros sobrantes y usando coma como
+ * separador decimal (locale es-CO). "33,33", "30", "0".
+ *
+ * Pensado para mostrar pesos de items / cortes / buckets con decimales
+ * que el docente entiende: 33,33% se ve como en pantalla, no 33.33%.
+ */
+export function formatPercent(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "0";
+  return n.toLocaleString("es-CO", { maximumFractionDigits: 2 });
+}

@@ -39,7 +39,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
 import { RowAction } from "@/components/ui/row-action";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { formatDateTime, formatDuration } from "@/lib/format";
+import { formatDateTime, formatDuration, formatPercent } from "@/lib/format";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -59,7 +59,7 @@ Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
 type Course = { id: string; name: string; period: string | null };
-type Cut = { id: string; course_id: string; name: string };
+type Cut = { id: string; course_id: string; name: string; exam_weight?: number };
 type Exam = {
   id: string;
   course_id: string;
@@ -73,6 +73,7 @@ type Exam = {
   shuffle_enabled: boolean;
   parent_exam_id: string | null;
   schedule_type?: string | null;
+  weight?: number | null;
   course?: { name: string; period: string | null };
 };
 
@@ -202,7 +203,10 @@ function TeacherExams() {
         .from("exams")
         .select("*, course:courses(name, period)")
         .order("start_time", { ascending: false }),
-      (supabase as any).from("grade_cuts").select("id, course_id, name").order("position"),
+      (supabase as any)
+        .from("grade_cuts")
+        .select("id, course_id, name, exam_weight")
+        .order("position"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
@@ -416,6 +420,43 @@ function TeacherExams() {
         entityNamePlural="exámenes"
       />
 
+      {/* Resumen de pesos cuando se filtra por corte: cuánto suman los
+          exámenes del corte vs el bucket exam_weight. Excluye supletorios
+          (parent_exam_id != null) — solo el examen original aporta peso. */}
+      {cutFilter &&
+        (() => {
+          const cut = cuts.find((c) => c.id === cutFilter);
+          if (!cut) return null;
+          const sum = filteredExams
+            .filter((e) => !e.parent_exam_id)
+            .reduce((s, e) => s + Number(e.weight ?? 0), 0);
+          const bucket = Number(cut.exam_weight ?? 0);
+          const ok = Math.abs(sum - bucket) < 0.01;
+          return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">
+                Suma de pesos en <span className="font-medium text-foreground">{cut.name}</span>:
+              </span>
+              <Badge
+                variant={ok ? "secondary" : sum > bucket + 0.01 ? "destructive" : "default"}
+                className="tabular-nums"
+              >
+                {formatPercent(sum)}% / {formatPercent(bucket)}%
+              </Badge>
+              {!ok && sum < bucket - 0.01 && (
+                <span className="text-muted-foreground">
+                  Quedan <strong>{formatPercent(bucket - sum)}%</strong> sin asignar.
+                </span>
+              )}
+              {sum > bucket + 0.01 && (
+                <span className="text-destructive">
+                  Sobrepasa el bucket por <strong>{formatPercent(sum - bucket)}%</strong>.
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -427,6 +468,7 @@ function TeacherExams() {
                 <TableHead>{t("exam.columns.title")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
                 <TableHead className="hidden md:table-cell">{t("exam.columns.cut")}</TableHead>
+                <TableHead className="text-right hidden md:table-cell">Peso</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("exam.columns.end")}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t("exam.columns.duration")}</TableHead>
@@ -440,7 +482,7 @@ function TeacherExams() {
             <TableBody>
               {exams.length === 0 ? (
                 <TableEmpty
-                  colSpan={10}
+                  colSpan={11}
                   icon={FileText}
                   text="Aún no has creado ningún examen."
                   hint="Diseña tu primer examen — puedes generar preguntas con IA."
@@ -453,7 +495,7 @@ function TeacherExams() {
                 />
               ) : filteredExams.length === 0 ? (
                 <TableEmpty
-                  colSpan={10}
+                  colSpan={11}
                   icon={FileText}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los exámenes."
@@ -496,6 +538,11 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
                     {cuts.find((c) => c.id === e.cut_id)?.name ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm tabular-nums text-right hidden md:table-cell">
+                    {e.cut_id != null && e.weight != null
+                      ? `${formatPercent(Number(e.weight))}%`
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-sm hidden sm:table-cell tabular-nums">
                     {formatDateTime(e.start_time)}

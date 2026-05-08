@@ -82,7 +82,7 @@ import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatPercent } from "@/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
   Accordion,
@@ -1080,6 +1080,40 @@ function TeacherProjects() {
         entityNamePlural="proyectos"
       />
 
+      {/* Resumen de pesos cuando se filtra por corte: cuánto suman los
+          proyectos del corte vs el bucket project_weight. */}
+      {cutFilter &&
+        (() => {
+          const cut = cuts.find((c) => c.id === cutFilter);
+          if (!cut) return null;
+          const sum = filteredProjects.reduce((s, p) => s + Number((p as any).weight ?? 0), 0);
+          const bucket = Number((cut as any).project_weight ?? 0);
+          const ok = Math.abs(sum - bucket) < 0.01;
+          return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">
+                Suma de pesos en <span className="font-medium text-foreground">{cut.name}</span>:
+              </span>
+              <Badge
+                variant={ok ? "secondary" : sum > bucket + 0.01 ? "destructive" : "default"}
+                className="tabular-nums"
+              >
+                {formatPercent(sum)}% / {formatPercent(bucket)}%
+              </Badge>
+              {!ok && sum < bucket - 0.01 && (
+                <span className="text-muted-foreground">
+                  Quedan <strong>{formatPercent(bucket - sum)}%</strong> sin asignar.
+                </span>
+              )}
+              {sum > bucket + 0.01 && (
+                <span className="text-destructive">
+                  Sobrepasa el bucket por <strong>{formatPercent(sum - bucket)}%</strong>.
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -1091,6 +1125,7 @@ function TeacherProjects() {
                 <TableHead>Título</TableHead>
                 <TableHead>Curso</TableHead>
                 <TableHead>Corte</TableHead>
+                <TableHead className="text-right">Peso</TableHead>
                 <TableHead>Archivos</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Entrega</TableHead>
@@ -1125,6 +1160,11 @@ function TeacherProjects() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm tabular-nums text-right">
+                    {p.cut_id != null && (p as any).weight != null
+                      ? `${formatPercent(Number((p as any).weight))}%`
+                      : "—"}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-[10px]">
@@ -1183,7 +1223,7 @@ function TeacherProjects() {
               ))}
               {projects.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={FolderKanban}
                   text="Aún no has creado ningún proyecto."
                   hint="Define los archivos esperados y asígnalo a uno o varios cursos."
@@ -1196,7 +1236,7 @@ function TeacherProjects() {
                 />
               ) : filteredProjects.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={FolderKanban}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los proyectos."

@@ -60,7 +60,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPercent } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   useMultiSelect,
@@ -1166,6 +1166,41 @@ function TeacherWorkshops() {
         entityNamePlural="talleres"
       />
 
+      {/* Resumen de pesos cuando se filtra por corte: muestra cuánto
+          suman los talleres de ese corte vs el bucket workshop_weight.
+          Tolerancia 0.01 para no marcar diff por errores de flotante. */}
+      {cutFilter &&
+        (() => {
+          const cut = cuts.find((c) => c.id === cutFilter);
+          if (!cut) return null;
+          const sum = filteredWorkshops.reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+          const bucket = Number(cut.workshop_weight ?? 0);
+          const ok = Math.abs(sum - bucket) < 0.01;
+          return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">
+                Suma de pesos en <span className="font-medium text-foreground">{cut.name}</span>:
+              </span>
+              <Badge
+                variant={ok ? "secondary" : sum > bucket + 0.01 ? "destructive" : "default"}
+                className="tabular-nums"
+              >
+                {formatPercent(sum)}% / {formatPercent(bucket)}%
+              </Badge>
+              {!ok && sum < bucket - 0.01 && (
+                <span className="text-muted-foreground">
+                  Quedan <strong>{formatPercent(bucket - sum)}%</strong> sin asignar.
+                </span>
+              )}
+              {sum > bucket + 0.01 && (
+                <span className="text-destructive">
+                  Sobrepasa el bucket por <strong>{formatPercent(sum - bucket)}%</strong>.
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -1177,6 +1212,7 @@ function TeacherWorkshops() {
                 <TableHead>Título</TableHead>
                 <TableHead>Curso</TableHead>
                 <TableHead>Corte</TableHead>
+                <TableHead className="text-right">Peso</TableHead>
                 <TableHead>Fecha límite</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -1185,7 +1221,7 @@ function TeacherWorkshops() {
             <TableBody>
               {workshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={7}
+                  colSpan={8}
                   icon={Hammer}
                   text="Aún no has creado ningún taller."
                   hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
@@ -1198,7 +1234,7 @@ function TeacherWorkshops() {
                 />
               ) : filteredWorkshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={7}
+                  colSpan={8}
                   icon={Hammer}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los talleres."
@@ -1218,6 +1254,11 @@ function TeacherWorkshops() {
                   <TableCell className="text-muted-foreground">{ws.course?.name}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {cuts.find((c) => c.id === (ws as any).cut_id)?.name ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm tabular-nums text-right">
+                    {(ws as any).cut_id != null && (ws as any).weight != null
+                      ? `${formatPercent(Number((ws as any).weight))}%`
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-sm tabular-nums">{formatDate(ws.due_date)}</TableCell>
                   <TableCell>
