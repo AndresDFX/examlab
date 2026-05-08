@@ -156,6 +156,13 @@ function TeacherAIPrompts() {
   // Carga prompts globales + overrides del curso seleccionado.
   const loadPrompts = async (cid: string) => {
     setLoadingPrompts(true);
+    // Guard: PostgREST .or() interpola `cid` en el filtro string.
+    // Si por alguna razón el state contiene algo distinto a un UUID,
+    // un valor con coma podría inyectar condiciones extra. Validamos.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid)) {
+      setLoadingPrompts(false);
+      return;
+    }
     const { data, error } = await db
       .from("ai_prompts")
       .select("id, use_case, course_id, system_prompt")

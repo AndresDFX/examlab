@@ -42,6 +42,8 @@ const MAX_CHARS_PER_TEXT = 3000;
 const MIN_TEXT_LENGTH = 30;
 const MIN_REPORT_SCORE = 0.6;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -52,10 +54,50 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // ── Authn/Authz ──
+    // La detección lee submissions de OTROS estudiantes y ejecuta IA
+    // (cuesta créditos). Solo Docente/Admin puede invocarla. Sin esto
+    // un estudiante con curiosidad podría exfiltrar metadatos / DoS.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: u } = await userClient.auth.getUser();
+    if (!u.user) {
+      return new Response(JSON.stringify({ error: "Token inválido" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", u.user.id);
+    const isTeacherOrAdmin = (roles ?? []).some(
+      (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+    );
+    if (!isTeacherOrAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Solo docentes/admins pueden ejecutar la detección de copia" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const { kind, refId } = await req.json();
     if (!kind || !refId) throw new Error("kind y refId requeridos");
     if (!["exam", "workshop", "project"].includes(kind)) {
       throw new Error("kind inválido");
+    }
+    if (typeof refId !== "string" || !UUID_RE.test(refId)) {
+      throw new Error("refId inválido");
     }
 
     // Construye los grupos a comparar según el tipo.

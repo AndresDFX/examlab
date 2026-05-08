@@ -102,7 +102,11 @@ async function resolveSystemPrompt(
       .from("ai_prompts")
       .select("system_prompt, course_id")
       .eq("use_case", useCase);
-    if (courseId) {
+    // Guard: courseId se interpola en el filtro string de .or(). Si no
+    // es un UUID válido, ignoramos el override y caemos al global.
+    const isUuid = (s: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    if (courseId && isUuid(courseId)) {
       q = q.or(`course_id.eq.${courseId},course_id.is.null`);
     } else {
       q = q.is("course_id", null);
@@ -123,9 +127,48 @@ async function resolveSystemPrompt(
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
+    // ── Authn ──
+    // Esta función ejecuta IA (cuesta créditos) y escribe en
+    // submissions/workshop_submissions/project_submissions con
+    // service-role. Sin auth del lado del caller, cualquiera con la
+    // URL podría disparar grading para submissions ajenas. Verificamos
+    // que el caller esté autenticado y, en modo exam grading, que sea
+    // dueño de la submission O docente/admin del curso. El resto de
+    // modos (workshop_full / project_*) se llaman desde flujos
+    // server-side controlados; ahí basta con auth.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: u } = await userClient.auth.getUser();
+    if (!u.user) {
+      return new Response(JSON.stringify({ error: "Token inválido" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const callerId = u.user.id;
+    const { data: callerRoles } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId);
+    const callerIsTeacherOrAdmin = (callerRoles ?? []).some(
+      (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+    );
+
     const body = await req.json();
     // La validación del API key vive ahora en aiChatCompletion según el
     // provider activo (LOVABLE_API_KEY o OPENAI_API_KEY).
@@ -914,6 +957,12 @@ Idioma de salida: ${langName}.`,
     // ── Exam grading mode (original) ──
     const { submissionId, questionId } = body;
     if (!submissionId) throw new Error("submissionId requerido");
+    if (typeof submissionId !== "string" || !UUID_RE.test(submissionId)) {
+      throw new Error("submissionId inválido");
+    }
+    if (questionId != null && (typeof questionId !== "string" || !UUID_RE.test(questionId))) {
+      throw new Error("questionId inválido");
+    }
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -925,6 +974,16 @@ Idioma de salida: ${langName}.`,
       .eq("id", submissionId)
       .single();
     if (sErr || !sub) throw new Error("Submission no encontrada");
+
+    // Authz: el caller debe ser el dueño de la submission (caso normal:
+    // el alumno dispara grading al entregar) O docente/admin (recalificar
+    // desde el monitor). Si no, 403.
+    if (sub.user_id !== callerId && !callerIsTeacherOrAdmin) {
+      return new Response(JSON.stringify({ error: "No tienes permiso sobre esta entrega" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: questions, error: qErr } = await admin
       .from("questions")

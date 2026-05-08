@@ -66,7 +66,11 @@ async function resolveSystemPrompt(
       .from("ai_prompts")
       .select("system_prompt, course_id")
       .eq("use_case", useCase);
-    if (courseId) {
+    // Guard: courseId se interpola en el filtro string. Si no es UUID
+    // válido, caemos al global en vez de arriesgar inyección.
+    const isUuid = (s: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    if (courseId && isUuid(courseId)) {
       q = q.or(`course_id.eq.${courseId},course_id.is.null`);
     } else {
       q = q.is("course_id", null);
@@ -93,11 +97,51 @@ Tu tarea:
 3) Compara contra la duración asignada y sugiere si es: HOLGADA (sobra ≥30%), AJUSTADA (±20%), CORTA (faltan 20-50%) o INSUFICIENTE (faltan >50%).
 4) Devuelve suggested_minutes (entero), verdict (uno de los 4) y explanation breve.`;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
+    // ── Authn/Authz ── Solo Docente/Admin: la función ejecuta IA
+    // (cuesta créditos) y lee preguntas privadas. Estudiantes no
+    // necesitan invocarla.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: u } = await userClient.auth.getUser();
+    if (!u.user) {
+      return new Response(JSON.stringify({ error: "Token inválido" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: roles } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", u.user.id);
+    const isTeacherOrAdmin = (roles ?? []).some(
+      (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+    );
+    if (!isTeacherOrAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Solo docentes/admins pueden evaluar la duración" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const { examId } = await req.json();
-    if (!examId) throw new Error("examId requerido");
+    if (!examId || typeof examId !== "string" || !UUID_RE.test(examId)) {
+      throw new Error("examId inválido");
+    }
 
     const { data: exam, error: eErr } = await adminClient
       .from("exams")
