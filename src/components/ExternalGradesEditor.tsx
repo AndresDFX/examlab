@@ -42,8 +42,16 @@ interface Props {
   refId: string;
   /** id del curso al que pertenece — sirve para listar matriculados */
   courseId: string;
-  /** Tope de nota (course.grade_scale_max para exam, workshop.max_score para workshop) */
-  maxScore: number;
+  /**
+   * Tope de nota. Se IGNORA y se reemplaza por `course.grade_scale_max`
+   * leído internamente: las notas externas siempre se ingresan en la
+   * escala del curso (0..grade_scale_max), no en max_score del item,
+   * porque el docente está transcribiendo manualmente la nota final
+   * que ya tenía en su libreta. Mantener max_score=100 acá producía
+   * que un "5" se interpretara como 5/100=0.25 al consolidar el corte.
+   * Se mantiene la prop por compat con llamadas existentes.
+   */
+  maxScore?: number;
 }
 
 interface Row {
