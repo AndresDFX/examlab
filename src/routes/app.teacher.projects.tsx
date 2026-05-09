@@ -1606,20 +1606,6 @@ function TeacherProjects() {
                 })}
               </div>
             )}
-            <div>
-              <Label required>Puntaje máximo</Label>
-              <Input
-                type="number"
-                min={1}
-                value={form.max_score ?? 100}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    max_score: e.target.value === "" ? 0 : Number(e.target.value),
-                  })
-                }
-              />
-            </div>
             <div className="grid grid-cols-2 gap-3">
               {!(form as any).is_external && (
                 <div>

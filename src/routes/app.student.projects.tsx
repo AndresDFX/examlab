@@ -44,6 +44,7 @@ type ProjectRow = {
     due_date: string | null;
     max_files: number;
     max_score: number;
+    is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup";
     course: {
@@ -153,7 +154,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .neq("status", "draft");
@@ -273,7 +274,9 @@ function StudentProjects() {
                   {isGraded ? (
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {grade != null ? `${grade}/${project.max_score}` : t("project.submitted")}
+                      {grade != null
+                        ? `${project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2)}/${project.course.grade_scale_max}`
+                        : t("project.submitted")}
                     </Badge>
                   ) : submission?.status === "entregado" ? (
                     <Badge variant="secondary" className="shrink-0">

@@ -47,6 +47,7 @@ type WorkshopRow = {
     due_date: string | null;
     start_date: string | null;
     max_score: number;
+    is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup";
     course: {
@@ -223,7 +224,9 @@ function StudentWorkshops() {
                   {isGraded ? (
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {grade != null ? `${grade}/${workshop.max_score}` : t("exam.submitted")}
+                      {grade != null
+                        ? `${workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2)}/${workshop.course.grade_scale_max}`
+                        : t("exam.submitted")}
                     </Badge>
                   ) : submission?.status === "entregado" ? (
                     <Badge variant="secondary" className="shrink-0">
@@ -268,12 +271,6 @@ function StudentWorkshops() {
                       {t("dashboard.dueLabel")}: {formatDateTime(workshop.due_date)}
                     </div>
                   )}
-                  <div>
-                    {t("exam.gradeLabel", {
-                      grade: workshop.max_score,
-                      max: workshop.course?.grade_scale_max ?? 5,
-                    })}
-                  </div>
                 </div>
 
                 {workshop.external_link && (

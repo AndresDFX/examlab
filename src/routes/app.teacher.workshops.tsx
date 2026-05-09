@@ -87,9 +87,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,max_score,status
-Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,100,published
-Programación I,Taller de árboles,,Resuelve los ejercicios 1-5,,2025-09-30T23:59,100,draft`;
+const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,status
+Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,published
+Programación I,Taller de árboles,,Resuelve los ejercicios 1-5,,2025-09-30T23:59,draft`;
 
 export const Route = createFileRoute("/app/teacher/workshops")({
   component: TeacherWorkshops,
@@ -1761,40 +1761,24 @@ function TeacherWorkshops() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {!(form as any).is_external && (
               <div>
-                <Label required>Puntaje máximo</Label>
-                <Input
-                  type="number"
-                  value={form.max_score || ""}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      max_score: e.target.value === "" ? 0 : Number(e.target.value),
-                    })
-                  }
-                  className="mt-1"
-                />
+                <Label>Estado</Label>
+                <Select
+                  value={form.status ?? "draft"}
+                  onValueChange={(v) => setForm({ ...form, status: v })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="published">Publicado</SelectItem>
+                    <SelectItem value="closed">Cerrado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              {!(form as any).is_external && (
-                <div>
-                  <Label>Estado</Label>
-                  <Select
-                    value={form.status ?? "draft"}
-                    onValueChange={(v) => setForm({ ...form, status: v })}
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="published">Publicado</SelectItem>
-                      <SelectItem value="closed">Cerrado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
+            )}
             {!(form as any).is_external && (
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
