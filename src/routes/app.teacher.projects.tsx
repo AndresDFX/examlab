@@ -366,7 +366,35 @@ function TeacherProjects() {
         arr.push(row.course_id);
         linkMap.set(row.project_id, arr);
       }
-      const enriched = ((ps.data ?? []) as Project[]).map((p) => {
+      const projectsRaw = (ps.data ?? []) as Project[];
+      // Self-heal: si un proyecto tiene `course_id` pero ese vínculo
+      // no aparece en project_courses (bug histórico: el sync borraba
+      // el vínculo y un fallo silencioso del INSERT lo dejaba huérfano),
+      // intentamos crear la fila ahora. Sin esto, ese proyecto NO se
+      // encontraba al filtrar por su curso primario tras el bug.
+      const missingLinks = projectsRaw
+        .filter((p) => p.course_id && !(linkMap.get(p.id) ?? []).includes(p.course_id))
+        .map((p) => ({ project_id: p.id, course_id: p.course_id }));
+      if (missingLinks.length) {
+        console.warn(
+          `[projects] self-healing ${missingLinks.length} missing project_courses link(s)`,
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: healErr } = await (db as any)
+          .from("project_courses")
+          .upsert(missingLinks, { onConflict: "project_id,course_id" });
+        if (healErr) {
+          console.warn("[projects] self-heal insert failed", healErr);
+        } else {
+          // Reflejar en memoria para que el filtro funcione ya en este render.
+          for (const link of missingLinks) {
+            const arr = linkMap.get(link.project_id) ?? [];
+            arr.push(link.course_id);
+            linkMap.set(link.project_id, arr);
+          }
+        }
+      }
+      const enriched = projectsRaw.map((p) => {
         const linked = linkMap.get(p.id) ?? [];
         const set = new Set<string>(linked);
         if (p.course_id) set.add(p.course_id);
@@ -597,10 +625,36 @@ function TeacherProjects() {
     }
 
     if (projectId) {
-      // Sincronizar vínculos a cursos
-      await db.from("project_courses").delete().eq("project_id", projectId);
+      // Sincronizar vínculos a cursos. Antes este bloque no chequeaba
+      // errores: si el DELETE pasaba pero el INSERT fallaba (RLS,
+      // conflict, etc.), el proyecto quedaba SIN vínculos y el filtro
+      // por curso secundario dejaba de encontrarlo. Ahora hacemos
+      // INSERT primero con upsert (idempotente) y solo borramos los
+      // que sobran, así nunca dejamos el proyecto sin vínculos.
       const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
-      if (rows.length) await db.from("project_courses").insert(rows);
+      if (rows.length) {
+        // upsert por la unique (project_id, course_id) — re-ejecutable.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: upErr } = await (db as any)
+          .from("project_courses")
+          .upsert(rows, { onConflict: "project_id,course_id" });
+        if (upErr) {
+          toast.error(`No se pudieron vincular los cursos: ${upErr.message}`);
+        }
+      }
+      // Quitar vínculos a cursos que ya no están en `linked`. Si la
+      // lista quedó vacía no borramos nada (escenario inválido que
+      // bloqueamos al inicio).
+      if (linked.length) {
+        const { error: delErr } = await db
+          .from("project_courses")
+          .delete()
+          .eq("project_id", projectId)
+          .not("course_id", "in", `(${linked.map((c) => `"${c}"`).join(",")})`);
+        if (delErr) {
+          console.warn("[projects] cleanup of stale project_courses failed", delErr);
+        }
+      }
 
       // Al editar: si el conjunto de cursos vinculados cambió, recogemos
       // los matriculados de los cursos vigentes y borramos asignaciones
@@ -1223,7 +1277,10 @@ function TeacherProjects() {
                     <div className="flex flex-col gap-0.5">
                       <span className="truncate max-w-[18rem]">{p.title}</span>
                       <span className="text-xs text-muted-foreground sm:hidden truncate">
-                        {courses.find((c) => c.id === p.course_id)?.name}
+                        {(p.linked_course_ids ?? [p.course_id])
+                          .map((cid) => courses.find((c) => c.id === cid)?.name)
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     </div>
                   </TableCell>
@@ -1232,13 +1289,8 @@ function TeacherProjects() {
                       {(p.linked_course_ids ?? [p.course_id]).map((cid) => {
                         const c = courses.find((cc) => cc.id === cid);
                         if (!c) return null;
-                        const isPrimary = cid === p.course_id;
                         return (
-                          <Badge
-                            key={cid}
-                            variant={isPrimary ? "default" : "outline"}
-                            className="text-[10px]"
-                          >
+                          <Badge key={cid} variant="outline" className="text-[10px]">
                             {c.name}
                             {c.period ? ` · ${c.period}` : ""}
                           </Badge>
@@ -1412,9 +1464,9 @@ function TeacherProjects() {
               <Label required>
                 {t("nav.courses")} (puedes seleccionar varios){" "}
                 <HelpHint>
-                  El curso <strong>primario</strong> define el corte y el idioma usado por la IA.
-                  Los estudiantes matriculados en cualquiera de los cursos seleccionados verán el
-                  proyecto.
+                  El proyecto se publica igual en todos los cursos seleccionados — los estudiantes
+                  matriculados en cualquiera de ellos lo verán. El corte y el idioma de la IA se
+                  toman del curso vinculado al corte que elijas abajo.
                 </HelpHint>
               </Label>
               <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
@@ -1423,7 +1475,6 @@ function TeacherProjects() {
                 )}
                 {courses.map((c) => {
                   const checked = (form.linked_course_ids ?? []).includes(c.id);
-                  const isPrimary = form.course_id === c.id;
                   return (
                     <label
                       key={c.id}
@@ -1434,46 +1485,54 @@ function TeacherProjects() {
                         {c.name}
                         {c.period ? ` · ${c.period}` : ""}
                       </span>
-                      {isPrimary && checked && (
-                        <Badge variant="default" className="text-[9px]">
-                          Primario
-                        </Badge>
-                      )}
-                      {checked && !isPrimary && (
-                        <button
-                          type="button"
-                          className="text-[10px] text-muted-foreground hover:text-foreground underline"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setForm({ ...form, course_id: c.id, cut_id: null });
-                          }}
-                        >
-                          Hacer primario
-                        </button>
-                      )}
                     </label>
                   );
                 })}
               </div>
             </div>
             <div>
-              <Label>Corte</Label>
+              <Label>
+                Corte{" "}
+                <HelpHint>
+                  Solo aparecen cortes de los cursos seleccionados arriba. Al elegir un corte, el
+                  curso al que pertenece queda como referencia para el idioma de la IA y la
+                  validación de pesos.
+                </HelpHint>
+              </Label>
               <Select
                 value={form.cut_id ?? "__none"}
-                onValueChange={(v) => setForm({ ...form, cut_id: v === "__none" ? null : v })}
+                onValueChange={(v) => {
+                  if (v === "__none") {
+                    setForm({ ...form, cut_id: null });
+                    return;
+                  }
+                  // Al elegir un corte, su course_id se vuelve el "primario"
+                  // (referencia interna, no visible al usuario). Mantiene
+                  // los demás cursos vinculados intactos.
+                  const cut = cuts.find((c) => c.id === v);
+                  setForm({
+                    ...form,
+                    cut_id: v,
+                    course_id: cut?.course_id ?? form.course_id,
+                  });
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Sin corte" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">{t("common.none")}</SelectItem>
                   {cuts
-                    .filter((c) => c.course_id === form.course_id)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
+                    .filter((c) => (form.linked_course_ids ?? []).includes(c.course_id))
+                    .map((c) => {
+                      const courseName = courses.find((co) => co.id === c.course_id)?.name;
+                      return (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                          {courseName ? ` · ${courseName}` : ""}
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
             </div>
