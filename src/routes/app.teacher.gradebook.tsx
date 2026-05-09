@@ -70,6 +70,8 @@ type Workshop = {
   course_id: string;
   max_score: number;
   cut_id?: string | null;
+  weight?: number | null;
+  is_external?: boolean | null;
 };
 type Project = {
   id: string;
@@ -77,6 +79,8 @@ type Project = {
   course_id: string;
   max_score: number;
   cut_id: string | null;
+  weight?: number | null;
+  is_external?: boolean | null;
 };
 type Cut = {
   id: string;
