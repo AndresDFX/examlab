@@ -236,6 +236,7 @@ function Gradebook() {
       title: w.title,
       kind: "workshop" as const,
       maxScore: w.max_score,
+      isExternal: !!w.is_external,
     }));
 
     const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
@@ -243,6 +244,7 @@ function Gradebook() {
       title: p.title,
       kind: "project" as const,
       maxScore: p.max_score,
+      isExternal: !!p.is_external,
     }));
 
     setColumns([...examCols, ...wsCols, ...prjCols]);
