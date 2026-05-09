@@ -64,12 +64,13 @@ interface Row {
   hasGrade: boolean;
 }
 
-export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props) {
+export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [maxScore, setMaxScore] = useState<number>(5);
 
   const load = useCallback(async () => {
     setLoading(true);
