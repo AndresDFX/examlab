@@ -467,7 +467,6 @@ function TeacherProjects() {
     setForm({
       title: "",
       description: "",
-      instructions: "",
       external_link: "",
       course_id: first,
       cut_id: null,
@@ -545,7 +544,11 @@ function TeacherProjects() {
       // Para externos: due_date marca cuándo ocurrió, sin start.
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     } else {
-      payload.instructions = form.instructions ?? null;
+      // Antes existía un campo `instructions` separado de `description`.
+      // Lo unificamos: la descripción es el contexto global del proyecto
+      // y reemplaza ambos. `instructions` se omite del payload — la
+      // columna sigue en DB para no romper datos viejos pero ya no se
+      // edita ni se lee desde la UI.
       payload.external_link = form.external_link || null;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
@@ -1386,16 +1389,6 @@ function TeacherProjects() {
                 placeholder="Propósito, alcance y restricciones del proyecto. Esta descripción acompañará la calificación IA de cada pregunta."
               />
             </div>
-            {!(form as any).is_external && (
-              <div>
-                <Label>Instrucciones</Label>
-                <Textarea
-                  rows={4}
-                  value={form.instructions ?? ""}
-                  onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-                />
-              </div>
-            )}
             {!(form as any).is_external && (
               <div>
                 <Label>Link externo (opcional)</Label>

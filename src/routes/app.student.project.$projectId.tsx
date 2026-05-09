@@ -305,12 +305,12 @@ function StudentProjectDetail() {
         </a>
       )}
 
-      {project.instructions && (
+      {project.description && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Instrucciones</CardTitle>
+            <CardTitle className="text-base">Descripción del proyecto</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm whitespace-pre-wrap">{project.instructions}</CardContent>
+          <CardContent className="text-sm whitespace-pre-wrap">{project.description}</CardContent>
         </Card>
       )}
 

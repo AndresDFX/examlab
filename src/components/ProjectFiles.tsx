@@ -242,6 +242,19 @@ export function TeacherProjectFilesEditor({
     }
     setAiLoading(true);
     try {
+      // Trae la descripción del proyecto para inyectarla como CONTEXTO
+      // global al generar preguntas. Sin esto, las preguntas se generan
+      // a partir de los temas sueltos y pueden quedar desconectadas del
+      // alcance/propósito del proyecto. Si la descripción está vacía, la
+      // edge function ignora el campo.
+      const { data: proj } = await db
+        .from("projects")
+        .select("description")
+        .eq("id", projectId)
+        .maybeSingle();
+      const projectDescription =
+        (proj as { description?: string | null } | null)?.description ?? null;
+
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
         body: {
           topics: aiTopics,
@@ -251,6 +264,7 @@ export function TeacherProjectFilesEditor({
           language: aiLanguage,
           courseLanguage,
           targetTable: "project_files",
+          projectDescription,
         },
       });
       if (error) toast.error(error.message ?? "Error generando con IA");

@@ -356,6 +356,13 @@ Idioma obligatorio: ${pfLangName}.`,
     const isWorkshop = targetTable === "workshop_questions";
     const isProject = targetTable === "project_files";
     const targetId = examId;
+    // Solo aplica para proyectos: descripción global del proyecto que
+    // sirve como contexto al modelo. El cliente la trae de
+    // `projects.description`. Si viene vacío, no se inyecta.
+    const projectDescription: string | null =
+      isProject && typeof body.projectDescription === "string" && body.projectDescription.trim()
+        ? body.projectDescription.trim()
+        : null;
     if (!topics || !type || !targetId) {
       return new Response(
         JSON.stringify({ error: "topics, type y (examId|workshopId|projectId) requeridos" }),
@@ -417,7 +424,14 @@ Idioma obligatorio: ${pfLangName}.`,
     const systemPrompt = `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).
 REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${langName}. Todos los enunciados, opciones y rúbricas deben estar en ${langName}.`;
 
-    const userPrompt = `Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
+    // Para proyectos: prepende la descripción del proyecto al user
+    // prompt para que las preguntas generadas estén alineadas con el
+    // alcance/propósito definido por el docente, no como temas sueltos.
+    const projectCtx = projectDescription
+      ? `Contexto global del proyecto (úsalo para que las preguntas generadas tengan sentido dentro de este proyecto, no como temas aislados):\n${projectDescription}\n\n`
+      : "";
+
+    const userPrompt = `${projectCtx}Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
 ${type === "cerrada" ? "Cada pregunta debe tener 4 opciones (A, B, C, D) con UNA correcta." : ""}
 ${type === "codigo" ? `Las preguntas deben pedir escribir código en el lenguaje ${codeLanguage}. Indica claramente en el enunciado que la solución debe implementarse en ${codeLanguage}.` : ""}
 ${type === "codigo_zip" ? `Cada pregunta describe un componente o módulo a implementar. El estudiante entregará UN ARCHIVO .ZIP con todo su código fuente del proyecto (varios archivos), y la IA evaluará ese ZIP contra esta rúbrica. Lenguaje principal sugerido: ${codeLanguage}. Indica en el enunciado el alcance esperado y los archivos/clases que deben formar parte del entregable.` : ""}

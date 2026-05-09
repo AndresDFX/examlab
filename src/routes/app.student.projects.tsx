@@ -396,9 +396,9 @@ function StudentProjects() {
           </DialogHeader>
           {active && (
             <>
-              {active.project.instructions && (
+              {active.project.description && (
                 <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap">
-                  {active.project.instructions}
+                  {active.project.description}
                 </div>
               )}
               <StudentProjectTaker
