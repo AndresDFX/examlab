@@ -137,6 +137,7 @@ type GradeColumn = {
   kind: "exam" | "workshop" | "project";
   parentExamId?: string | null;
   maxScore?: number;
+  isExternal?: boolean;
 };
 
 /** Editable grade cell keyed by `${studentId}::${columnId}` */
@@ -235,6 +236,7 @@ function Gradebook() {
       title: w.title,
       kind: "workshop" as const,
       maxScore: w.max_score,
+      isExternal: !!w.is_external,
     }));
 
     const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
@@ -242,6 +244,7 @@ function Gradebook() {
       title: p.title,
       kind: "project" as const,
       maxScore: p.max_score,
+      isExternal: !!p.is_external,
     }));
 
     setColumns([...examCols, ...wsCols, ...prjCols]);
@@ -1000,12 +1003,25 @@ function renderCutDetailGrouped({
   }
 
   // Subtotal de un bucket = promedio simple de notas de los items de
-  // ese tipo en este corte (todas ya escaladas a 0..grade_scale_max por
-  // getGrade). Items sin nota se omiten (no penalizan); si todos están
-  // sin nota, el subtotal es null y se muestra "—".
+  // ese tipo en este corte, escaladas a la escala del curso
+  // (0..grade_scale_max). Workshops/proyectos no externos vienen en
+  // 0..max_score (típicamente 0..100), así que hay que reescalar antes
+  // de promediar para que un curso con escala 0–5 no muestre 93.00.
+  const courseMax = selectedCourse?.grade_scale_max ?? 100;
+  const courseMin = selectedCourse?.grade_scale_min ?? 0;
+  const scaleToCourse = (col: GradeColumn, raw: number): number => {
+    // Exámenes y externos ya están en escala del curso.
+    if (col.kind === "exam" || col.isExternal) return raw;
+    const rawMax = col.maxScore ?? 100;
+    const pct = rawMax > 0 ? raw / rawMax : 0;
+    return courseMin + pct * (courseMax - courseMin);
+  };
   const bucketAvg = (studentId: string, cols: GradeColumn[]): number | null => {
     const grades = cols
-      .map((c) => getGrade(studentId, c).grade)
+      .map((c) => {
+        const g = getGrade(studentId, c).grade;
+        return g != null ? scaleToCourse(c, g) : null;
+      })
       .filter((g): g is number => g != null);
     if (grades.length === 0) return null;
     return grades.reduce((s, g) => s + g, 0) / grades.length;
