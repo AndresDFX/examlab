@@ -212,6 +212,214 @@ Idioma obligatorio: ${langName}.`,
       });
     }
 
+    // ── Modo: generación AUTOMÁTICA de PREGUNTAS de un proyecto ──
+    // Body: { projectQuestionsAutoGeneration: true, projectId, description,
+    //         courseId?, courseLanguage? }
+    // A diferencia de `projectFilesGeneration`, aquí la IA NO recibe un
+    // tema corto sino la DESCRIPCIÓN COMPLETA del proyecto y decide qué
+    // preguntas son útiles para evaluar (con tipo). Restricción dura:
+    // siempre exactamente UNA pregunta de tipo `codigo_zip`; el resto
+    // (entre 2 y 5) son a criterio de la IA con type ∈
+    // {abierta, diagrama, cerrada}.
+    if (body.projectQuestionsAutoGeneration) {
+      const KEY_PQA = Deno.env.get("LOVABLE_API_KEY");
+      if (!KEY_PQA) throw new Error("LOVABLE_API_KEY missing");
+      const {
+        projectId,
+        description,
+        courseId,
+        courseLanguage: pqaLang,
+      } = body as {
+        projectId?: string;
+        description?: string;
+        courseId?: string | null;
+        courseLanguage?: string;
+      };
+      if (!projectId || !description || !description.trim()) {
+        return new Response(JSON.stringify({ error: "projectId y description son requeridos" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const adminPQA = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      // Idioma: explícito del cliente o derivado del curso.
+      let pqaLangCode: "es" | "en" = "es";
+      if (pqaLang === "en" || pqaLang === "es") {
+        pqaLangCode = pqaLang;
+      } else {
+        const { data: pRow } = await adminPQA
+          .from("projects")
+          .select("course:courses(language)")
+          .eq("id", projectId)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const lng = (pRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") pqaLangCode = lng;
+      }
+      const pqaLangName = pqaLangCode === "en" ? "inglés (English)" : "español";
+
+      const fallbackPQA = `Eres un docente experto que diseña la estructura de evaluación de un proyecto. Devuelve EXACTAMENTE 1 pregunta tipo "codigo_zip" (donde el estudiante sube el ZIP del código) y entre 2 y 5 preguntas adicionales con tipo entre "abierta" | "diagrama" | "cerrada" para evaluar análisis y diseño por separado. Cada pregunta debe tener title, description, type y expected_rubric.`;
+      const systemPromptPQA = await resolveSystemPrompt(
+        adminPQA,
+        "project_questions",
+        courseId ?? null,
+        fallbackPQA,
+      );
+
+      const aiResPQA = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${KEY_PQA}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `${systemPromptPQA}\n\nIdioma de salida obligatorio: ${pqaLangName}.`,
+            },
+            {
+              role: "user",
+              content: `Descripción del proyecto:\n${description.trim()}\n\nGenera el set de preguntas evaluativas en ${pqaLangName} respetando las reglas del system prompt.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "build_project_questions",
+                description:
+                  "Devuelve el set de preguntas evaluativas del proyecto. Exactamente una con type='codigo_zip', el resto con type entre 'abierta'|'diagrama'|'cerrada'.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    questions: {
+                      type: "array",
+                      minItems: 3,
+                      maxItems: 6,
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          description: { type: "string" },
+                          type: {
+                            type: "string",
+                            enum: ["codigo_zip", "abierta", "diagrama", "cerrada"],
+                          },
+                          expected_rubric: { type: "string" },
+                        },
+                        required: ["title", "description", "type", "expected_rubric"],
+                      },
+                    },
+                  },
+                  required: ["questions"],
+                },
+              },
+            },
+          ],
+          tool_choice: {
+            type: "function",
+            function: { name: "build_project_questions" },
+          },
+        }),
+      });
+
+      if (aiResPQA.status === 429) {
+        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (aiResPQA.status === 402) {
+        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!aiResPQA.ok) {
+        const err = await aiResPQA.text();
+        console.error("AI error", aiResPQA.status, err);
+        throw new Error("Error en gateway de IA");
+      }
+
+      const aiJsonPQA = await aiResPQA.json();
+      const tcPQA = aiJsonPQA.choices?.[0]?.message?.tool_calls?.[0];
+      const argsPQA = tcPQA ? JSON.parse(tcPQA.function.arguments) : { questions: [] };
+      type PQ = {
+        title: string;
+        description: string;
+        type: "codigo_zip" | "abierta" | "diagrama" | "cerrada";
+        expected_rubric: string;
+      };
+      let questions: PQ[] = (argsPQA.questions ?? []).filter((q: PQ) => q && q.title && q.type);
+
+      // Enforce hard rule: exactamente UN codigo_zip. Si vienen varios,
+      // dejamos solo el primero (los demás los degradamos a `abierta`).
+      // Si no viene ninguno, prependemos uno por defecto. Nunca devolvemos
+      // cero `codigo_zip`.
+      const zipQs = questions.filter((q) => q.type === "codigo_zip");
+      if (zipQs.length === 0) {
+        questions.unshift({
+          title:
+            pqaLangCode === "en" ? "Project source code (ZIP)" : "Código fuente del proyecto (ZIP)",
+          description:
+            pqaLangCode === "en"
+              ? "Upload a ZIP file containing all the source code of your project."
+              : "Sube un archivo ZIP con todo el código fuente de tu proyecto.",
+          type: "codigo_zip",
+          expected_rubric:
+            pqaLangCode === "en"
+              ? "The ZIP must contain compilable/runnable source code that fulfills the scope of the project."
+              : "El ZIP debe contener código fuente compilable/ejecutable que cumpla con el alcance del proyecto.",
+        });
+      } else if (zipQs.length > 1) {
+        let kept = false;
+        questions = questions.map((q) => {
+          if (q.type !== "codigo_zip") return q;
+          if (!kept) {
+            kept = true;
+            return q;
+          }
+          return { ...q, type: "abierta" as const };
+        });
+      }
+      // Cap final por seguridad (máx 6 entregables totales).
+      questions = questions.slice(0, 6);
+
+      // Continuar la posición desde el último existente
+      const { data: existingQ } = await adminPQA
+        .from("project_files")
+        .select("position")
+        .eq("project_id", projectId)
+        .order("position", { ascending: false })
+        .limit(1);
+      let posQ = (existingQ?.[0]?.position ?? -1) as number;
+
+      const toInsertQ = questions.map((q) => ({
+        project_id: projectId,
+        title: q.title,
+        description: q.description ?? null,
+        expected_rubric: q.expected_rubric ?? null,
+        type: q.type,
+        position: ++posQ,
+        points: 1,
+      }));
+
+      const { data: insertedQ, error: insErrQ } = await adminPQA
+        .from("project_files")
+        .insert(toInsertQ)
+        .select();
+      if (insErrQ) throw insErrQ;
+
+      return new Response(JSON.stringify({ ok: true, inserted: insertedQ }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── Modo: generación de ARCHIVOS esperados de un proyecto ──
     // Body: { projectFilesGeneration: true, projectId, topic, count, courseLanguage }
     // Devuelve y persiste N rows en `project_files` con title/description/expected_rubric.

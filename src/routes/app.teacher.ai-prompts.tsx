@@ -35,7 +35,8 @@ type UseCase =
   | "exam_time_evaluation"
   | "plagiarism_detection"
   | "ai_content_detection"
-  | "project_description";
+  | "project_description"
+  | "project_questions";
 
 /** Categorización por módulo (idéntica a AdminPromptsPanel). Solo
  * agrupa visualmente los use_cases en el Select de filtro. */
@@ -112,6 +113,13 @@ const USE_CASES: UseCaseDef[] = [
     label: "Descripción de proyecto (contexto global)",
     description:
       "Genera la descripción del proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto se califique con el alcance/propósito en mente.",
+  },
+  {
+    key: "project_questions",
+    module: "projects",
+    label: "Preguntas del proyecto (auto-generadas desde la descripción)",
+    description:
+      "A partir de la descripción del proyecto, genera el set de preguntas/entregables. Restricción dura: SIEMPRE 1 pregunta tipo 'codigo_zip' + entre 2 y 5 preguntas adicionales (abierta/diagrama/cerrada) para evaluar análisis y diseño por separado.",
   },
 ];
 

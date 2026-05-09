@@ -37,7 +37,8 @@ type UseCase =
   | "exam_time_evaluation"
   | "plagiarism_detection"
   | "ai_content_detection"
-  | "project_description";
+  | "project_description"
+  | "project_questions";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
@@ -137,6 +138,15 @@ const USE_CASES: UseCaseDef[] = [
       "Genera la descripción de un proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto tenga sentido por sí sola y en el conjunto. Disparado por 'Generar con IA' en el campo Descripción del editor de proyectos.",
     defaultPrompt:
       "Eres un docente experto que redacta la descripción de un proyecto académico. Sé concreto y conciso (3-6 oraciones). Indica el propósito, alcance y restricciones. NO listes entregables uno por uno (van en cada pregunta). NO uses encabezados Markdown — texto plano corrido. Devuelve solo la descripción.",
+  },
+  {
+    key: "project_questions",
+    module: "projects",
+    label: "Preguntas del proyecto (auto-generadas desde la descripción)",
+    description:
+      "A partir de la descripción del proyecto, genera el set de preguntas/entregables. Restricción dura: SIEMPRE 1 pregunta tipo 'codigo_zip' (ZIP del código fuente) + entre 2 y 5 preguntas adicionales (abierta/diagrama/cerrada) para evaluar análisis y diseño por separado. Disparado por 'Generar preguntas con IA' en el editor de preguntas del proyecto.",
+    defaultPrompt:
+      'Eres un docente experto que diseña la ESTRUCTURA DE EVALUACIÓN de un proyecto académico de programación. Recibes la descripción del proyecto (propósito, alcance, restricciones) y debes proponer el conjunto de preguntas/entregables que evalúen distintos aspectos del trabajo de forma SEPARADA.\n\nREGLAS OBLIGATORIAS:\n  1. Devuelve EXACTAMENTE UNA pregunta de tipo "codigo_zip" — ahí el estudiante subirá el ZIP con todo el código fuente del proyecto. Su título debe nombrar el entregable (ej: "Código fuente del proyecto") y la descripción debe enunciar el alcance esperado del código (qué módulos/funcionalidades debe incluir, qué lenguaje/stack se asume) sin repetir lo que ya está en la descripción global.\n  2. Genera entre 2 y 5 preguntas adicionales, todas con tipo distinto a "codigo_zip", que evalúen aspectos cualitativos del proyecto por separado. Cada pregunta debe ser INDEPENDIENTE — el estudiante la responde y la IA la califica sin necesidad de leer las demás.\n  3. Tipos permitidos para esas preguntas adicionales:\n       - "abierta": respuesta libre en texto (justificación, análisis, decisiones de diseño, manual de usuario, conclusiones).\n       - "diagrama": entrega de un diagrama (UML, arquitectura, flujo de datos) — el estudiante pega el código fuente del diagrama o adjunta una imagen.\n       - "cerrada": opción múltiple, solo cuando el aspecto a evaluar tiene una respuesta correcta clara y discreta.\n  4. Cada pregunta debe traer:\n       - title: corto (≤ 80 caracteres), descriptivo del entregable.\n       - description: instrucciones claras desde la perspectiva del estudiante (qué se le pide entregar y cómo).\n       - type: uno de "codigo_zip" | "abierta" | "diagrama" | "cerrada".\n       - expected_rubric: criterios objetivos para calificar (qué se considera respuesta completa vs incompleta vs incorrecta).\n  5. NO repitas en las preguntas información que ya esté en la descripción global. Cada pregunta agrega especificidad sobre QUÉ entregar y CÓMO se calificará, no re-explica el proyecto.\n  6. Equilibra los aspectos: incluye al menos una pregunta que pida JUSTIFICAR decisiones de diseño / análisis (tipo "abierta") y, si tiene sentido para el proyecto, una de "diagrama". No sobrecargues con preguntas redundantes.\n  7. Usa el idioma indicado en el mensaje del usuario.\n\nDevuelve solo el conjunto estructurado de preguntas vía la herramienta `build_project_questions`. NO escribas texto fuera de la herramienta.',
   },
 ];
 

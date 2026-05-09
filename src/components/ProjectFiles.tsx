@@ -118,6 +118,12 @@ export function TeacherProjectFilesEditor({
   const [aiType, setAiType] = useState<ProjectFile["type"]>("abierta");
   const [aiLanguage, setAiLanguage] = useState("java");
   const [aiLoading, setAiLoading] = useState(false);
+  // Modo auto: la IA decide el set completo a partir de la descripción del
+  // proyecto. SIEMPRE incluye 1 pregunta tipo `codigo_zip` + 2-5 adicionales
+  // de tipo abierta/diagrama/cerrada.
+  const [autoDescription, setAutoDescription] = useState<string>("");
+  const [autoCourseId, setAutoCourseId] = useState<string | null>(null);
+  const [autoLoading, setAutoLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -133,6 +139,29 @@ export function TeacherProjectFilesEditor({
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Carga descripción y course_id del proyecto para alimentar el modo
+  // "auto-generar set completo desde la descripción".
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await db
+        .from("projects")
+        .select("description, course_id")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (cancelled) return;
+      const row = (data ?? null) as {
+        description?: string | null;
+        course_id?: string | null;
+      } | null;
+      setAutoDescription(row?.description ?? "");
+      setAutoCourseId(row?.course_id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   const submitManual = async () => {
@@ -233,6 +262,46 @@ export function TeacherProjectFilesEditor({
     }
     toast.success("Pregunta eliminada");
     void load();
+  };
+
+  // Modo auto: la IA decide el set completo de preguntas a partir de la
+  // descripción del proyecto, respetando la regla "1 codigo_zip + 2-5
+  // adicionales". Sin inputs adicionales — el prompt vive en
+  // ai_prompts(use_case='project_questions').
+  const generateFromDescription = async () => {
+    if (!autoDescription.trim()) {
+      toast.error(
+        "El proyecto no tiene descripción todavía. Escríbela o genérala con IA antes de continuar.",
+      );
+      return;
+    }
+    setAutoLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
+        body: {
+          projectQuestionsAutoGeneration: true,
+          projectId,
+          description: autoDescription,
+          courseId: autoCourseId,
+          courseLanguage,
+        },
+      });
+      if (error) {
+        toast.error(error.message ?? "Error generando con IA");
+      } else if (data?.error) {
+        toast.error(data.error);
+      } else if (data?.inserted) {
+        toast.success(
+          `${data.inserted.length} pregunta(s) generadas — incluye 1 entrega de código (ZIP)`,
+        );
+      }
+      void load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error IA";
+      toast.error(msg);
+    } finally {
+      setAutoLoading(false);
+    }
   };
 
   const generateWithAI = async () => {
@@ -477,7 +546,56 @@ export function TeacherProjectFilesEditor({
           </div>
         </TabsContent>
 
-        <TabsContent value="ai" className="space-y-3">
+        <TabsContent value="ai" className="space-y-4">
+          {/* Modo auto: a partir de la descripción ya escrita en el
+              proyecto, la IA decide el set entero de preguntas. Siempre
+              incluye 1 codigo_zip + 2-5 adicionales (abierta/diagrama/
+              cerrada). El prompt es editable desde Admin/Docente en
+              /app/{admin|teacher}/ai-prompts → use_case
+              `project_questions`. */}
+          <Card className="border-primary/40 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Auto-generar preguntas desde la descripción{" "}
+                <HelpHint>
+                  La IA lee la descripción del proyecto y propone el set completo de preguntas.
+                  Siempre genera <strong>1 pregunta de código (ZIP)</strong> y entre 2 y 5 preguntas
+                  adicionales (abierta, diagrama o cerrada) para evaluar análisis y diseño por
+                  separado. El prompt se edita en Prompts (use_case <code>project_questions</code>).
+                </HelpHint>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {autoDescription.trim() ? (
+                <div className="text-xs text-muted-foreground bg-background/60 rounded p-2 border max-h-32 overflow-y-auto whitespace-pre-wrap">
+                  {autoDescription}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  Este proyecto aún no tiene descripción. Escríbela en el editor del proyecto (o
+                  genérala con IA) antes de usar este modo.
+                </p>
+              )}
+              <Button
+                onClick={generateFromDescription}
+                disabled={autoLoading || !autoDescription.trim()}
+              >
+                {autoLoading ? (
+                  <Spinner size="md" className="mr-1" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                Generar preguntas con IA
+              </Button>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+            <span className="h-px flex-1 bg-border" />o por temas y tipo específico
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <div>
             <Label required>Temas</Label>
             <Textarea
