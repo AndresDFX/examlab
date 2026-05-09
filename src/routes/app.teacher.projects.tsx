@@ -49,6 +49,7 @@ import { Switch } from "@/components/ui/switch";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { ProjectGroupsEditor } from "@/components/ProjectGroupsEditor";
 import { toast } from "sonner";
+import { logEvent } from "@/lib/audit";
 import {
   Plus,
   Pencil,
@@ -179,6 +180,7 @@ function TeacherProjects() {
     const { error } = await (supabase as any).from("projects").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} proyecto(s) eliminado(s) correctamente`);
+    void logEvent({ action: "project.deleted", category: "project", actorRole: roles[0], metadata: { count: ids.length, ids } });
     sel.clear();
     load();
   };
@@ -631,6 +633,7 @@ function TeacherProjects() {
       if (error) return toast.error(error.message);
       projectId = editing.id;
       toast.success("Proyecto actualizado");
+      void logEvent({ action: "project.updated", category: "project", actorRole: roles[0], entityType: "project", entityId: editing.id, entityName: form.title, courseId: form.course_id ?? undefined, courseName: courses.find((c) => c.id === form.course_id)?.name });
     } else {
       const { data: created, error } = await db
         .from("projects")
@@ -640,6 +643,7 @@ function TeacherProjects() {
       if (error || !created) return toast.error(error?.message ?? "Error al crear");
       projectId = created.id;
       toast.success("Proyecto creado");
+      void logEvent({ action: "project.created", category: "project", actorRole: roles[0], entityType: "project", entityId: created.id, entityName: form.title, courseId: form.course_id ?? undefined, courseName: courses.find((c) => c.id === form.course_id)?.name });
     }
 
     if (projectId) {
@@ -792,6 +796,7 @@ function TeacherProjects() {
     const { error } = await db.from("projects").delete().eq("id", p.id);
     if (error) return toast.error(error.message);
     toast.success("Proyecto eliminado");
+    void logEvent({ action: "project.deleted", category: "project", actorRole: roles[0], entityType: "project", entityId: p.id, entityName: p.title, courseId: p.course_id, courseName: courses.find((c) => c.id === p.course_id)?.name });
     await load();
   };
 

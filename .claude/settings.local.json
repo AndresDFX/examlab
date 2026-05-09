@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git commit -m ' *)",
       "Bash(git fetch *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Personal\\\\examlab\\\\src\\\\routes\" -Filter \"*.tsx\" -File)",
+      "Bash(Select-Object Name)",
+      "Bash(Sort-Object Name)"
     ]
   }
 }

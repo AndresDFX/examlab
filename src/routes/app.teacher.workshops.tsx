@@ -42,6 +42,7 @@ import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
+import { logEvent } from "@/lib/audit";
 import {
   Plus,
   Pencil,
@@ -205,6 +206,7 @@ function TeacherWorkshops() {
     const { error } = await supabase.from("workshops").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} taller(es) eliminado(s) correctamente`);
+    void logEvent({ action: "workshop.deleted", category: "workshop", actorRole: roles[0], metadata: { count: ids.length, ids } });
     sel.clear();
     load();
   };
@@ -583,6 +585,7 @@ function TeacherWorkshops() {
         });
       }
       toast.success("Taller actualizado correctamente");
+      void logEvent({ action: "workshop.updated", category: "workshop", actorRole: roles[0], entityType: "workshop", entityId: form.id, entityName: form.title, courseId: form.course_id ?? undefined, courseName: courses.find((c) => c.id === form.course_id)?.name });
     } else {
       for (const cid of courseIds) {
         const perCourse: Record<string, any> = { ...basePayload, course_id: cid };
@@ -621,6 +624,9 @@ function TeacherWorkshops() {
           ? `Taller creado en ${courseIds.length} cursos correctamente`
           : "Taller creado correctamente",
       );
+      for (const cid of courseIds) {
+        void logEvent({ action: "workshop.created", category: "workshop", actorRole: roles[0], entityType: "workshop", entityName: form.title, courseId: cid, courseName: courses.find((c) => c.id === cid)?.name });
+      }
     }
     setOpen(false);
     load();
@@ -665,9 +671,11 @@ function TeacherWorkshops() {
       tone: "destructive",
     });
     if (!ok) return;
+    const ws = workshops.find((w) => w.id === id);
     const { error } = await supabase.from("workshops").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Taller eliminado correctamente");
+    void logEvent({ action: "workshop.deleted", category: "workshop", actorRole: roles[0], entityType: "workshop", entityId: id, entityName: ws?.title, courseId: ws?.course_id, courseName: courses.find((c) => c.id === ws?.course_id)?.name });
     load();
   };
 
@@ -1081,6 +1089,7 @@ function TeacherWorkshops() {
       return;
     }
     toast.success("Calificación guardada correctamente");
+    void logEvent({ action: "grading.manual_save", category: "grading", actorRole: roles[0], entityType: "workshop_submission", entityId: subId, entityName: gradingWs?.title, courseId: gradingWs?.course_id, courseName: courses.find((c) => c.id === gradingWs?.course_id)?.name, metadata: { grade } });
     setWsSubs((prev) =>
       prev.map((s) =>
         s.id === subId

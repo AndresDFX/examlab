@@ -1,0 +1,615 @@
+/**
+ * AuditLogsView — vista compartida Admin/Docente del registro de auditoría.
+ * mode='admin'   → carga todos los eventos, muestra filtro por curso.
+ * mode='teacher' → RLS filtra automáticamente a los cursos del docente.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TableEmpty } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { PageHeader } from "@/components/ui/page-header";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Shield,
+  AlertTriangle,
+  AlertCircle,
+  ShieldAlert,
+  Info,
+  Search,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Download,
+} from "lucide-react";
+import { formatDateTime } from "@/lib/format";
+import { toCSV } from "@/lib/csv";
+import { toast } from "sonner";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
+type AuditLog = {
+  id: string;
+  created_at: string;
+  actor_id: string | null;
+  actor_email: string | null;
+  actor_role: string | null;
+  action: string;
+  category: string;
+  severity: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  entity_name: string | null;
+  course_id: string | null;
+  course_name: string | null;
+  metadata: Record<string, unknown>;
+};
+
+// ─── Catálogos de etiquetas ────────────────────────────────────────────────────
+
+const ACTION_LABELS: Record<string, string> = {
+  "exam.created":                       "Examen creado",
+  "exam.updated":                       "Examen actualizado",
+  "exam.deleted":                       "Examen eliminado",
+  "exam.bulk_deleted":                  "Exámenes eliminados (masivo)",
+  "exam.published":                     "Examen publicado",
+  "exam.closed":                        "Examen cerrado",
+  "exam.duplicated":                    "Examen duplicado",
+  "submission.exam.started":            "Examen iniciado",
+  "submission.exam.submitted":          "Examen entregado",
+  "submission.exam.graded":             "Examen calificado",
+  "submission.exam.grade_updated":      "Nota de examen actualizada",
+  "submission.exam.flagged_suspicious": "Examen marcado sospechoso",
+  "workshop.created":                   "Taller creado",
+  "workshop.updated":                   "Taller actualizado",
+  "workshop.deleted":                   "Taller eliminado",
+  "workshop.bulk_deleted":              "Talleres eliminados (masivo)",
+  "submission.workshop.submitted":      "Taller entregado",
+  "submission.workshop.graded":         "Taller calificado",
+  "project.created":                    "Proyecto creado",
+  "project.updated":                    "Proyecto actualizado",
+  "project.deleted":                    "Proyecto eliminado",
+  "project.bulk_deleted":               "Proyectos eliminados (masivo)",
+  "submission.project.submitted":       "Proyecto entregado",
+  "submission.project.graded":          "Proyecto calificado",
+  "course.created":                     "Curso creado",
+  "course.updated":                     "Curso actualizado",
+  "course.deleted":                     "Curso eliminado",
+  "enrollment.added":                   "Estudiante matriculado",
+  "enrollment.removed":                 "Estudiante desmatriculado",
+  "enrollment.bulk_added":              "Matriculación masiva",
+  "user.created":                       "Usuario creado",
+  "user.deleted":                       "Usuario eliminado",
+  "user.bulk_deleted":                  "Usuarios eliminados (masivo)",
+  "user.role_added":                    "Rol asignado",
+  "user.role_removed":                  "Rol removido",
+  "grading.ai_triggered":               "Calificación IA iniciada",
+  "grading.grade_override":             "Nota manual guardada",
+  "grading.defense_saved":              "Sustentación guardada",
+  "fraud.plagiarism_run":               "Análisis de plagio ejecutado",
+  "fraud.manual_flag":                  "Marcado como fraude manualmente",
+};
+
+const CATEGORY_CONFIG: Record<string, { label: string; cls: string }> = {
+  exam:     { label: "Examen",       cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
+  workshop: { label: "Taller",       cls: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
+  project:  { label: "Proyecto",     cls: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300" },
+  course:   { label: "Curso",        cls: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300" },
+  user:     { label: "Usuario",      cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300" },
+  grading:  { label: "Calificación", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  fraud:    { label: "Fraude",       cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  system:   { label: "Sistema",      cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300" },
+};
+
+const SEVERITY_CONFIG: Record<string, { label: string; iconCls: string; rowCls: string }> = {
+  info:     { label: "Info",         iconCls: "text-muted-foreground",                       rowCls: "" },
+  warning:  { label: "Advertencia",  iconCls: "text-amber-600 dark:text-amber-400",          rowCls: "bg-amber-50/50 dark:bg-amber-950/20" },
+  error:    { label: "Error",        iconCls: "text-red-600 dark:text-red-400",              rowCls: "bg-red-50/50 dark:bg-red-950/20" },
+  critical: { label: "Crítico",      iconCls: "text-red-700 dark:text-red-300 font-bold",    rowCls: "bg-red-100/70 dark:bg-red-900/30" },
+};
+
+const SEVERITY_ICONS: Record<string, React.ReactNode> = {
+  info:     <Info className="h-3.5 w-3.5" />,
+  warning:  <AlertTriangle className="h-3.5 w-3.5" />,
+  error:    <AlertCircle className="h-3.5 w-3.5" />,
+  critical: <ShieldAlert className="h-3.5 w-3.5" />,
+};
+
+const ROLE_CLS: Record<string, string> = {
+  Admin:      "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+  Docente:    "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  Estudiante: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  sistema:    "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+};
+
+const PAGE_SIZE = 100;
+
+// ─── Componente principal ──────────────────────────────────────────────────────
+
+export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
+  const offsetRef = useRef(0);
+
+  // Filtros
+  const [search, setSearch]       = useState("");
+  const [category, setCategory]   = useState("all");
+  const [severity, setSeverity]   = useState("all");
+  const [courseFilter, setCourseFilter] = useState("all");
+  const [dateFrom, setDateFrom]   = useState("");
+  const [dateTo, setDateTo]       = useState("");
+
+  // Datos de soporte
+  const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
+
+  // Dialog detalle
+  const [detail, setDetail] = useState<AuditLog | null>(null);
+  const [detailJsonOpen, setDetailJsonOpen] = useState(false);
+
+  // ── Carga cursos (solo admin necesita el selector) ────────────────────────
+  useEffect(() => {
+    if (mode !== "admin") return;
+    supabase
+      .from("courses")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setCourses(data ?? []));
+  }, [mode]);
+
+  // ── Función de carga principal ────────────────────────────────────────────
+  const load = useCallback(async (reset: boolean) => {
+    if (reset) {
+      setLoading(true);
+      offsetRef.current = 0;
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      let q = db
+        .from("audit_logs")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
+
+      if (category !== "all") q = q.eq("category", category);
+      if (severity !== "all") q = q.eq("severity", severity);
+      if (mode === "admin" && courseFilter !== "all") q = q.eq("course_id", courseFilter);
+      if (dateFrom) q = q.gte("created_at", new Date(dateFrom).toISOString());
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setDate(to.getDate() + 1);
+        q = q.lt("created_at", to.toISOString());
+      }
+
+      const { data, error, count } = await q;
+      if (error) throw error;
+
+      const rows = (data ?? []) as AuditLog[];
+      if (reset) {
+        setLogs(rows);
+      } else {
+        setLogs((prev) => [...prev, ...rows]);
+      }
+      setTotal(count ?? null);
+      setHasMore(rows.length === PAGE_SIZE);
+      offsetRef.current += rows.length;
+    } catch (err: any) {
+      toast.error("Error cargando auditoría: " + (err?.message ?? err));
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [category, severity, courseFilter, dateFrom, dateTo, mode]); // search es client-side
+
+  // Reload cuando cambian filtros de servidor
+  useEffect(() => { void load(true); }, [load]);
+
+  // ── Filtro de búsqueda client-side ────────────────────────────────────────
+  const filtered = useMemo(() => {
+    if (!search.trim()) return logs;
+    const q = search.toLowerCase();
+    return logs.filter(
+      (l) =>
+        l.actor_email?.toLowerCase().includes(q) ||
+        l.entity_name?.toLowerCase().includes(q) ||
+        l.course_name?.toLowerCase().includes(q) ||
+        ACTION_LABELS[l.action]?.toLowerCase().includes(q) ||
+        l.action.toLowerCase().includes(q),
+    );
+  }, [logs, search]);
+
+  // ── Filtros activos ───────────────────────────────────────────────────────
+  const hasFilters = search || category !== "all" || severity !== "all" ||
+    (mode === "admin" && courseFilter !== "all") || dateFrom || dateTo;
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategory("all");
+    setSeverity("all");
+    setCourseFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  // ── Export CSV ────────────────────────────────────────────────────────────
+  const exportCsv = () => {
+    if (!filtered.length) return;
+    const csv = toCSV(
+      filtered.map((l) => ({
+        fecha: formatDateTime(l.created_at),
+        actor: l.actor_email ?? "",
+        rol: l.actor_role ?? "",
+        accion: ACTION_LABELS[l.action] ?? l.action,
+        categoria: CATEGORY_CONFIG[l.category]?.label ?? l.category,
+        nivel: SEVERITY_CONFIG[l.severity]?.label ?? l.severity,
+        entidad: l.entity_name ?? "",
+        tipo_entidad: l.entity_type ?? "",
+        curso: l.course_name ?? "",
+        detalles: JSON.stringify(l.metadata),
+      })),
+    );
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="p-4 sm:p-6 max-w-screen-xl mx-auto space-y-4">
+      <PageHeader
+        title="Registro de auditoría"
+        subtitle={
+          mode === "admin"
+            ? "Historial completo de eventos del sistema"
+            : "Eventos de tus cursos y tus propias acciones"
+        }
+        icon={<Shield className="h-6 w-6" />}
+        actions={
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!filtered.length}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+        }
+      />
+
+      {/* ── Filtros ── */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-2 items-end">
+            {/* Búsqueda */}
+            <div className="relative flex-1 min-w-48">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Buscar actor, entidad, acción…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-9"
+              />
+            </div>
+
+            {/* Categoría */}
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-40 h-9">
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las categorías</SelectItem>
+                {Object.entries(CATEGORY_CONFIG).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Nivel */}
+            <Select value={severity} onValueChange={setSeverity}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue placeholder="Nivel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los niveles</SelectItem>
+                {Object.entries(SEVERITY_CONFIG).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Curso (solo admin) */}
+            {mode === "admin" && (
+              <Select value={courseFilter} onValueChange={setCourseFilter}>
+                <SelectTrigger className="w-44 h-9">
+                  <SelectValue placeholder="Curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los cursos</SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Rango de fechas */}
+            <div className="flex items-center gap-1">
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-9 w-36 text-sm"
+                title="Desde"
+              />
+              <span className="text-muted-foreground text-xs">–</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-9 w-36 text-sm"
+                title="Hasta"
+              />
+            </div>
+
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-muted-foreground">
+                <X className="h-3.5 w-3.5 mr-1" />
+                Limpiar
+              </Button>
+            )}
+          </div>
+
+          {total !== null && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {total.toLocaleString()} evento{total !== 1 ? "s" : ""} en total
+              {filtered.length !== logs.length && ` · ${filtered.length} visibles con búsqueda actual`}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Tabla ── */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-36">Fecha</TableHead>
+                  <TableHead className="w-48">Actor</TableHead>
+                  <TableHead>Acción</TableHead>
+                  <TableHead className="w-32">Categoría</TableHead>
+                  <TableHead className="w-40">Entidad</TableHead>
+                  {mode === "admin" && <TableHead className="w-40">Curso</TableHead>}
+                  <TableHead className="w-28">Nivel</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableSkeleton cols={mode === "admin" ? 8 : 7} rows={10} />
+                ) : filtered.length === 0 ? (
+                  <TableEmpty colSpan={mode === "admin" ? 8 : 7} text="Sin eventos que mostrar" />
+                ) : (
+                  filtered.map((log) => {
+                    const sev = SEVERITY_CONFIG[log.severity] ?? SEVERITY_CONFIG.info;
+                    const cat = CATEGORY_CONFIG[log.category];
+                    return (
+                      <TableRow
+                        key={log.id}
+                        className={`cursor-pointer hover:bg-muted/40 ${sev.rowCls}`}
+                        onClick={() => { setDetail(log); setDetailJsonOpen(false); }}
+                      >
+                        {/* Fecha */}
+                        <TableCell className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                          {formatDateTime(log.created_at)}
+                        </TableCell>
+
+                        {/* Actor */}
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="text-sm truncate max-w-44" title={log.actor_email ?? "sistema"}>
+                              {log.actor_email ?? <span className="italic text-muted-foreground">sistema</span>}
+                            </span>
+                            {log.actor_role && (
+                              <span className={`inline-flex items-center self-start text-xs font-medium px-1.5 py-0 rounded-full ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}>
+                                {log.actor_role}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {/* Acción */}
+                        <TableCell className="text-sm">
+                          {ACTION_LABELS[log.action] ?? log.action}
+                        </TableCell>
+
+                        {/* Categoría */}
+                        <TableCell>
+                          {cat && (
+                            <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${cat.cls}`}>
+                              {cat.label}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        {/* Entidad */}
+                        <TableCell>
+                          <span className="text-sm truncate block max-w-36" title={log.entity_name ?? ""}>
+                            {log.entity_name ?? "—"}
+                          </span>
+                        </TableCell>
+
+                        {/* Curso (admin only) */}
+                        {mode === "admin" && (
+                          <TableCell>
+                            <span className="text-sm truncate block max-w-36 text-muted-foreground" title={log.course_name ?? ""}>
+                              {log.course_name ?? "—"}
+                            </span>
+                          </TableCell>
+                        )}
+
+                        {/* Nivel */}
+                        <TableCell>
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium ${sev.iconCls}`}>
+                            {SEVERITY_ICONS[log.severity]}
+                            {sev.label}
+                          </span>
+                        </TableCell>
+
+                        {/* Detalle icon */}
+                        <TableCell>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Cargar más */}
+          {hasMore && !loading && (
+            <div className="p-4 border-t flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => load(false)}
+                disabled={loadingMore}
+              >
+                {loadingMore ? <Spinner size="xs" className="mr-2" /> : null}
+                Cargar {PAGE_SIZE} más
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Dialog de detalle ── */}
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {detail && SEVERITY_ICONS[detail.severity]}
+              <span>{detail ? (ACTION_LABELS[detail.action] ?? detail.action) : ""}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {detail && (
+            <div className="space-y-4 text-sm">
+              {/* Cabecera del evento */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Fecha</p>
+                  <p className="tabular-nums">{formatDateTime(detail.created_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Nivel</p>
+                  <span className={`inline-flex items-center gap-1 font-medium ${SEVERITY_CONFIG[detail.severity]?.iconCls}`}>
+                    {SEVERITY_ICONS[detail.severity]}
+                    {SEVERITY_CONFIG[detail.severity]?.label ?? detail.severity}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Actor</p>
+                  <p>{detail.actor_email ?? <span className="italic text-muted-foreground">sistema</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Rol</p>
+                  {detail.actor_role ? (
+                    <span className={`inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded-full ${ROLE_CLS[detail.actor_role] ?? ROLE_CLS.sistema}`}>
+                      {detail.actor_role}
+                    </span>
+                  ) : "—"}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Categoría</p>
+                  {CATEGORY_CONFIG[detail.category] ? (
+                    <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_CONFIG[detail.category].cls}`}>
+                      {CATEGORY_CONFIG[detail.category].label}
+                    </span>
+                  ) : detail.category}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Acción (raw)</p>
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">{detail.action}</code>
+                </div>
+                {detail.entity_name && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Entidad</p>
+                    <p>{detail.entity_name}</p>
+                  </div>
+                )}
+                {detail.entity_id && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">ID entidad</p>
+                    <code className="text-xs text-muted-foreground break-all">{detail.entity_id}</code>
+                  </div>
+                )}
+                {detail.course_name && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Curso</p>
+                    <p>{detail.course_name}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* JSON detalles */}
+              {Object.keys(detail.metadata ?? {}).length > 0 && (
+                <div className="border rounded-md overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+                    onClick={() => setDetailJsonOpen((o) => !o)}
+                  >
+                    <span>Detalles adicionales</span>
+                    {detailJsonOpen
+                      ? <ChevronDown className="h-3.5 w-3.5" />
+                      : <ChevronRight className="h-3.5 w-3.5" />}
+                  </button>
+                  {detailJsonOpen && (
+                    <pre className="text-xs bg-muted/30 p-3 overflow-auto max-h-48 whitespace-pre-wrap break-all border-t">
+                      {JSON.stringify(detail.metadata, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

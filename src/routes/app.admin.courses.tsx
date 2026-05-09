@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -124,6 +125,7 @@ export function AdminCourses() {
     const { error } = await supabase.from("courses").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} curso(s) eliminado(s) correctamente`);
+    void logEvent({ action: "course.deleted", category: "course", actorRole: roles[0], severity: "warning", metadata: { count: ids.length, ids } });
     sel.clear();
     load();
   };
@@ -461,6 +463,7 @@ export function AdminCourses() {
     }
 
     toast.success("Curso guardado correctamente");
+    void logEvent({ action: editing?.id ? "course.updated" : "course.created", category: "course", actorRole: roles[0], entityType: "course", entityId: editing?.id, entityName: editing?.name });
     setOpen(false);
     setEditing(null);
     setEditingCuts([]);
@@ -477,9 +480,11 @@ export function AdminCourses() {
       tone: "destructive",
     });
     if (!ok) return;
+    const course = courses.find((c) => c.id === id);
     const { error } = await supabase.from("courses").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Curso eliminado correctamente");
+    void logEvent({ action: "course.deleted", category: "course", actorRole: roles[0], severity: "warning", entityType: "course", entityId: id, entityName: course?.name });
     load();
   };
 

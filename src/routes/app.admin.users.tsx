@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -79,6 +80,7 @@ function AdminUsers() {
     if (rolesErr) throw new Error(rolesErr.message);
     const { error } = await supabase.from("profiles").delete().in("id", ids);
     if (error) throw new Error(error.message);
+    void logEvent({ action: "user.bulk_deleted", category: "user", severity: "warning", metadata: { count: ids.length, ids } });
     toast.success(`${ids.length} usuario(s) eliminado(s) correctamente`);
     sel.clear();
     load();
@@ -219,6 +221,7 @@ function AdminUsers() {
             ? "Usuario actualizado correctamente (contraseña incluida)"
             : "Usuario actualizado correctamente",
         );
+        void logEvent({ action: "user.updated", category: "user", actorRole: roles[0], entityType: "user", entityId: editing.id, entityName: editing.full_name, metadata: { roles: editing.roles } });
       } else {
         // Create via bulk-import (single row)
         if (!password || password.length < 8) {
@@ -254,6 +257,7 @@ function AdminUsers() {
           return;
         }
         toast.success("Usuario creado correctamente");
+        void logEvent({ action: "user.created", category: "user", actorRole: roles[0], entityType: "user", entityName: editing.full_name, metadata: { roles: editing.roles, email: editing.institutional_email } });
       }
       setDialogOpen(false);
       setEditing(null);
@@ -283,6 +287,7 @@ function AdminUsers() {
       return;
     }
     toast.success("Usuario eliminado correctamente");
+    void logEvent({ action: "user.deleted", category: "user", actorRole: roles[0], severity: "warning", entityType: "user", entityId: r.id, entityName: r.full_name, metadata: { email: r.institutional_email } });
     load();
   };
 

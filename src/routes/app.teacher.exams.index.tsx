@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +112,7 @@ function TeacherExams() {
     const { error } = await supabase.from("exams").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} examen(es) eliminado(s) correctamente`);
+    void logEvent({ action: "exam.deleted", category: "exam", actorRole: roles[0], metadata: { count: ids.length, ids } });
     sel.clear();
     load();
   };
@@ -146,6 +148,7 @@ function TeacherExams() {
     const { error } = await supabase.from("exams").delete().eq("id", exam.id);
     if (error) return toast.error(error.message);
     toast.success(t("exam.deleted", { defaultValue: "Examen eliminado" }));
+    void logEvent({ action: "exam.deleted", category: "exam", actorRole: roles[0], entityType: "exam", entityId: exam.id, entityName: exam.title, courseId: exam.course_id, courseName: courses.find((c) => c.id === exam.course_id)?.name });
     load();
   };
 
@@ -405,6 +408,9 @@ function TeacherExams() {
         ? t("exam.createdIn", { count: courseIds.length })
         : t("exam.createdOne"),
     );
+    for (const cid of courseIds) {
+      void logEvent({ action: "exam.created", category: "exam", actorRole: roles[0], entityType: "exam", entityId: firstId ?? undefined, entityName: form.title, courseId: cid, courseName: courses.find((c) => c.id === cid)?.name, metadata: { is_external: !!(form as any).is_external } });
+    }
     setOpen(false);
     if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };

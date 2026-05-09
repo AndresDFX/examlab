@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -474,6 +475,7 @@ function TeacherAttendance() {
           ? `${checkInConfigSession.session_date} · ${checkInConfigSession.title}`
           : checkInConfigSession.session_date,
       });
+      void logEvent({ action: "attendance.checkin_opened", category: "attendance", actorRole: roles[0], entityType: "attendance_session", entityId: checkInConfigSession.id, courseId: checkInConfigSession.course_id, metadata: { duration_minutes: checkInDuration, rotation_seconds: checkInRotation } });
       setCheckInConfigSession(null);
       // Refresca listado para reflejar check_in_open=true
       loadCourse();
@@ -531,6 +533,9 @@ function TeacherAttendance() {
   /** Llamado por el proyector cuando se cierra (manual o por expiración). */
   const closeProjector = async () => {
     const closedSessionId = projector?.sessionId;
+    if (closedSessionId) {
+      void logEvent({ action: "attendance.checkin_closed", category: "attendance", actorRole: roles[0], entityType: "attendance_session", entityId: closedSessionId, courseId: courseId || undefined });
+    }
     setProjector(null);
     loadCourse();
     if (!closedSessionId) return;

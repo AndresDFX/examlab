@@ -31,6 +31,8 @@ import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
+import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
+import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
@@ -150,6 +152,16 @@ const AppAdminAiPromptsRoute = AppAdminAiPromptsRouteImport.update({
   path: '/admin/ai-prompts',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminAuditLogsRoute = AppAdminAuditLogsRouteImport.update({
+  id: '/admin/audit-logs',
+  path: '/admin/audit-logs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherAuditLogsRoute = AppTeacherAuditLogsRouteImport.update({
+  id: '/teacher/audit-logs',
+  path: '/teacher/audit-logs',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   id: '/teacher/exams/',
   path: '/teacher/exams/',
@@ -201,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
+  '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/users': typeof AppAdminUsersRoute
@@ -211,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
+  '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
@@ -232,6 +246,7 @@ export interface FileRoutesByTo {
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app': typeof AppIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
+  '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/users': typeof AppAdminUsersRoute
@@ -242,6 +257,7 @@ export interface FileRoutesByTo {
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
+  '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
@@ -265,6 +281,7 @@ export interface FileRoutesById {
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
+  '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/users': typeof AppAdminUsersRoute
@@ -275,6 +292,7 @@ export interface FileRoutesById {
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
+  '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
@@ -299,6 +317,7 @@ export interface FileRouteTypes {
     | '/app/unauthorized'
     | '/app/'
     | '/app/admin/ai-prompts'
+    | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/statistics'
     | '/app/admin/users'
@@ -309,6 +328,7 @@ export interface FileRouteTypes {
     | '/app/student/projects'
     | '/app/student/workshops'
     | '/app/teacher/ai-prompts'
+    | '/app/teacher/audit-logs'
     | '/app/teacher/attendance'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
@@ -330,6 +350,7 @@ export interface FileRouteTypes {
     | '/app/unauthorized'
     | '/app'
     | '/app/admin/ai-prompts'
+    | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/statistics'
     | '/app/admin/users'
@@ -340,6 +361,7 @@ export interface FileRouteTypes {
     | '/app/student/projects'
     | '/app/student/workshops'
     | '/app/teacher/ai-prompts'
+    | '/app/teacher/audit-logs'
     | '/app/teacher/attendance'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
@@ -362,6 +384,7 @@ export interface FileRouteTypes {
     | '/app/unauthorized'
     | '/app/'
     | '/app/admin/ai-prompts'
+    | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/statistics'
     | '/app/admin/users'
@@ -372,6 +395,7 @@ export interface FileRouteTypes {
     | '/app/student/projects'
     | '/app/student/workshops'
     | '/app/teacher/ai-prompts'
+    | '/app/teacher/audit-logs'
     | '/app/teacher/attendance'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
@@ -550,6 +574,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAiPromptsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/audit-logs': {
+      id: '/app/admin/audit-logs'
+      path: '/admin/audit-logs'
+      fullPath: '/app/admin/audit-logs'
+      preLoaderRoute: typeof AppAdminAuditLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/audit-logs': {
+      id: '/app/teacher/audit-logs'
+      path: '/teacher/audit-logs'
+      fullPath: '/app/teacher/audit-logs'
+      preLoaderRoute: typeof AppTeacherAuditLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/exams/': {
       id: '/app/teacher/exams/'
       path: '/teacher/exams'
@@ -613,6 +651,7 @@ interface AppRouteChildren {
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
+  AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
@@ -623,6 +662,7 @@ interface AppRouteChildren {
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
+  AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
@@ -643,6 +683,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppIndexRoute: AppIndexRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
+  AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
@@ -653,6 +694,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentProjectsRoute: AppStudentProjectsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
+  AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,

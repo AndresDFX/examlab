@@ -29,6 +29,8 @@ import {
   CalendarCheck,
   Sparkles,
   BarChart3,
+  ScrollText,
+  ShieldEllipsis,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -133,6 +135,9 @@ const NAV: NavItem[] = [
   // cuando cambia de rol.
   { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
   { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
+  // Auditoría: Admin ve todo, Docente ve su alcance.
+  { to: "/app/teacher/audit-logs", labelKey: "nav.auditLogs", icon: ShieldEllipsis, roles: ["Docente"] },
+  { to: "/app/admin/audit-logs",   labelKey: "nav.auditLogs", icon: ShieldEllipsis, roles: ["Admin"] },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
 ];
@@ -185,6 +190,8 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/teacher/attendance": "text-cyan-300",
   "/app/teacher/statistics": "text-blue-300",
   "/app/admin/statistics": "text-blue-300",
+  "/app/teacher/audit-logs": "text-teal-300",
+  "/app/admin/audit-logs": "text-teal-300",
   "/app/student/exams": "text-amber-300",
   "/app/student/workshops": "text-orange-300",
   "/app/student/projects": "text-rose-300",

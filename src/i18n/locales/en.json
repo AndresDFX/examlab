@@ -68,6 +68,7 @@
     "projects": "Projects",
     "aiPrompts": "Prompts",
     "statistics": "Statistics",
+    "auditLogs": "Audit Log",
     "signOut": "Sign out",
     "changePassword": "Change password",
     "theme": "Theme"
