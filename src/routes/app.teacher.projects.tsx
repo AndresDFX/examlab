@@ -1208,8 +1208,8 @@ function TeacherProjects() {
                 <TableHead className="hidden md:table-cell">Corte</TableHead>
                 <TableHead className="hidden lg:table-cell text-right">Peso</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="hidden md:table-cell">Fecha inicio</TableHead>
-                <TableHead className="hidden sm:table-cell">Fecha fin</TableHead>
+                <TableHead className="hidden md:table-cell">Inicio</TableHead>
+                <TableHead className="hidden sm:table-cell">Fin</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>

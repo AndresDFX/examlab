@@ -213,8 +213,8 @@
       "title": "Título",
       "course": "Curso",
       "cut": "Corte",
-      "start": "Fecha inicio",
-      "end": "Fecha fin",
+      "start": "Inicio",
+      "end": "Fin",
       "duration": "Duración",
       "type": "Tipo",
       "navigation": "Navegación"

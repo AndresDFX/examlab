@@ -845,8 +845,8 @@ export function AdminCourses() {
                 <TableHead>Nombre</TableHead>
                 <TableHead className="hidden sm:table-cell">Periodo</TableHead>
                 <TableHead className="hidden sm:table-cell">Escala</TableHead>
-                <TableHead className="hidden md:table-cell">Fecha inicio</TableHead>
-                <TableHead className="hidden md:table-cell">Fecha fin</TableHead>
+                <TableHead className="hidden md:table-cell">Inicio</TableHead>
+                <TableHead className="hidden md:table-cell">Fin</TableHead>
                 <TableHead className="hidden lg:table-cell">Descripción</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>

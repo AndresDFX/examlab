@@ -1239,8 +1239,8 @@ function TeacherWorkshops() {
                 <TableHead className="hidden sm:table-cell">Curso</TableHead>
                 <TableHead className="hidden md:table-cell">Corte</TableHead>
                 <TableHead className="hidden lg:table-cell text-right">Peso</TableHead>
-                <TableHead className="hidden md:table-cell">Fecha inicio</TableHead>
-                <TableHead className="hidden sm:table-cell">Fecha fin</TableHead>
+                <TableHead className="hidden md:table-cell">Inicio</TableHead>
+                <TableHead className="hidden sm:table-cell">Fin</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>

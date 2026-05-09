@@ -226,8 +226,8 @@ export function CutsEditor({ courseId }: Readonly<{ courseId: string }>) {
           <div className="hidden md:grid items-center gap-2 px-2 md:grid-cols-[auto_2fr_1fr_1fr_1fr_auto] text-[11px] text-muted-foreground">
             <div />
             <div>Nombre del corte</div>
-            <div>Fecha inicio</div>
-            <div>Fecha fin</div>
+            <div>Inicio</div>
+            <div>Fin</div>
             <div>% de la nota final</div>
             <div />
           </div>

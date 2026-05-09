@@ -213,8 +213,8 @@
       "title": "Title",
       "course": "Course",
       "cut": "Period",
-      "start": "Start date",
-      "end": "End date",
+      "start": "Start",
+      "end": "End",
       "duration": "Duration",
       "type": "Type",
       "navigation": "Navigation"

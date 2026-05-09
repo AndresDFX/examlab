@@ -10,9 +10,10 @@ import { formatDate, formatDateOnly, formatDateTime, formatDateShort } from "@/l
  *  - el estado vacío ("—" tenue) cuando la fecha es null,
  *  - el estilo tabular (tabular-nums) para alineación entre filas.
  *
- * Para los headers de columna usar literalmente "Fecha inicio" / "Fecha
- * fin" (no "Inicio"/"Fin"/"Fecha límite") en cursos, exámenes, talleres
- * y proyectos. Esto mantiene los grids docentes consistentes.
+ * Para los headers de columna en grids usar literalmente "Inicio" /
+ * "Fin" (no "Fecha límite") en cursos, exámenes, talleres y proyectos.
+ * Forms / Labels mantienen "Fecha inicio" / "Fecha fin" porque ahí el
+ * contexto explícito ayuda; en grids el header corto evita saturar.
  *
  * Variantes de formato:
  *  - "auto" (default): si el value es "YYYY-MM-DD" usa formatDateOnly
