@@ -208,11 +208,17 @@ function Gradebook() {
       .eq("course_id", courseId)
       .order("position");
 
-    // Proyectos
-    const { data: projectsData } = await db
-      .from("projects")
-      .select("id, title, course_id, max_score, cut_id, weight, is_external")
+    // Proyectos: query via project_courses para incluir secundarios y usar
+    // cut_id/weight por curso en vez del global de projects.
+    const { data: pcData } = await db
+      .from("project_courses")
+      .select("cut_id, weight, project:projects(id, title, course_id, max_score, is_external)")
       .eq("course_id", courseId);
+    const projectsData = (pcData ?? []).map((pc: any) => ({
+      ...pc.project,
+      cut_id: pc.cut_id,
+      weight: pc.weight,
+    }));
 
     // Sesiones de asistencia. cut_id es el FK explícito al corte
     // (migración 20260509020000). Si llega null, la sesión no aporta a

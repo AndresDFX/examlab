@@ -937,20 +937,26 @@ export type Database = {
         Row: {
           course_id: string
           created_at: string
+          cut_id: string | null
           id: string
           project_id: string
+          weight: number
         }
         Insert: {
           course_id: string
           created_at?: string
+          cut_id?: string | null
           id?: string
           project_id: string
+          weight?: number
         }
         Update: {
           course_id?: string
           created_at?: string
+          cut_id?: string | null
           id?: string
           project_id?: string
+          weight?: number
         }
         Relationships: [
           {

@@ -148,6 +148,9 @@ function TeacherProjects() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  // Per-course cut+weight for the project being created/edited.
+  // Record<courseId, { cut_id, weight }>
+  const [courseCuts, setCourseCuts] = useState<Record<string, { cut_id: string | null; weight: number }>>({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
@@ -336,11 +339,11 @@ function TeacherProjects() {
       // No mostramos toast aquí: cuts es opcional para listar.
     }
 
-    let pcsRows: { project_id: string; course_id: string }[] = [];
+    let pcsRows: { project_id: string; course_id: string; cut_id: string | null; weight: number }[] = [];
     try {
-      const pcs = await db.from("project_courses").select("project_id, course_id");
+      const pcs = await db.from("project_courses").select("project_id, course_id, cut_id, weight");
       if (pcs.error) throw new Error(`project_courses: ${pcs.error.message}`);
-      pcsRows = (pcs.data ?? []) as { project_id: string; course_id: string }[];
+      pcsRows = (pcs.data ?? []) as { project_id: string; course_id: string; cut_id: string | null; weight: number }[];
     } catch (e) {
       console.error("[projects] project_courses load failed", e);
       toast.error(e instanceof Error ? e.message : "Error cargando vínculos de cursos");
@@ -361,10 +364,15 @@ function TeacherProjects() {
       if (ps.error) throw new Error(`projects: ${ps.error.message}`);
 
       const linkMap = new Map<string, string[]>();
+      // Per-project map: courseId → { cut_id, weight } from project_courses
+      const cutsMapByProject = new Map<string, Record<string, { cut_id: string | null; weight: number }>>();
       for (const row of pcsRows) {
         const arr = linkMap.get(row.project_id) ?? [];
         arr.push(row.course_id);
         linkMap.set(row.project_id, arr);
+        const cutsMap = cutsMapByProject.get(row.project_id) ?? {};
+        cutsMap[row.course_id] = { cut_id: row.cut_id ?? null, weight: row.weight ?? 1 };
+        cutsMapByProject.set(row.project_id, cutsMap);
       }
       const projectsRaw = (ps.data ?? []) as Project[];
       // Self-heal: si un proyecto tiene `course_id` pero ese vínculo
@@ -398,7 +406,11 @@ function TeacherProjects() {
         const linked = linkMap.get(p.id) ?? [];
         const set = new Set<string>(linked);
         if (p.course_id) set.add(p.course_id);
-        return { ...p, linked_course_ids: Array.from(set) };
+        return {
+          ...p,
+          linked_course_ids: Array.from(set),
+          _course_cuts: cutsMapByProject.get(p.id) ?? {},
+        };
       });
       setProjects(enriched);
       console.info(`[projects] loaded ${enriched.length} project(s)`);
@@ -503,19 +515,33 @@ function TeacherProjects() {
       status: "draft",
       linked_course_ids: first ? [first] : [],
     });
+    setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
     setOpen(true);
   };
 
   const openEdit = (p: Project) => {
     setEditing(p);
-    setForm({
-      ...p,
-      linked_course_ids: p.linked_course_ids?.length
-        ? p.linked_course_ids
-        : p.course_id
-          ? [p.course_id]
-          : [],
-    });
+    const linked = p.linked_course_ids?.length
+      ? p.linked_course_ids
+      : p.course_id
+        ? [p.course_id]
+        : [];
+    setForm({ ...p, linked_course_ids: linked });
+    // Init per-course cut+weight from stored project_courses data.
+    // Falls back to projects.cut_id/weight for the primary course for
+    // rows that predate the migration.
+    const stored = (p as any)._course_cuts as Record<string, { cut_id: string | null; weight: number }> | undefined;
+    const cc: Record<string, { cut_id: string | null; weight: number }> = {};
+    for (const cid of linked) {
+      if (stored?.[cid]) {
+        cc[cid] = stored[cid];
+      } else if (cid === p.course_id && p.cut_id) {
+        cc[cid] = { cut_id: p.cut_id, weight: Number((p as any).weight ?? 1) };
+      } else {
+        cc[cid] = { cut_id: null, weight: 1 };
+      }
+    }
+    setCourseCuts(cc);
     setOpen(true);
   };
 
@@ -527,17 +553,14 @@ function TeacherProjects() {
       current.add(courseId);
     }
     const next = Array.from(current);
-    // El curso primario es el primero seleccionado
     const primary = next.includes(form.course_id ?? "") ? form.course_id : next[0];
-    setForm({
-      ...form,
-      linked_course_ids: next,
-      course_id: primary,
-      // Si el corte ya no pertenece al curso primario, resetear
-      cut_id:
-        primary && cuts.find((c) => c.id === form.cut_id)?.course_id === primary
-          ? form.cut_id
-          : null,
+    setForm({ ...form, linked_course_ids: next, course_id: primary });
+    setCourseCuts((prev) => {
+      const updated: Record<string, { cut_id: string | null; weight: number }> = {};
+      for (const cid of next) {
+        updated[cid] = prev[cid] ?? { cut_id: null, weight: 1 };
+      }
+      return updated;
     });
   };
 
@@ -560,9 +583,11 @@ function TeacherProjects() {
     // migración), mandar is_external=false rompía el insert con
     // "Could not find the 'is_external' column". El default de la
     // tabla ya es false, así que omitirlo es seguro.
+    // Primary course's cut+weight (synced to projects.cut_id/weight for backwards compat)
+    const primaryCC = courseCuts[primaryCourse] ?? { cut_id: null, weight: 1 };
     const payload: Record<string, any> = {
       course_id: primaryCourse,
-      cut_id: form.cut_id || null,
+      cut_id: primaryCC.cut_id || null,
       title: form.title,
       description: form.description ?? null,
       max_score: Number(form.max_score) || 100,
@@ -573,38 +598,31 @@ function TeacherProjects() {
       // Para externos: due_date marca cuándo ocurrió, sin start.
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     } else {
-      // Antes existía un campo `instructions` separado de `description`.
-      // Lo unificamos: la descripción es el contexto global del proyecto
-      // y reemplaza ambos. `instructions` se omite del payload — la
-      // columna sigue en DB para no romper datos viejos pero ya no se
-      // edita ni se lee desde la UI.
       payload.external_link = form.external_link || null;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     }
-    // weight solo aplica con corte; si no, dejamos que el DEFAULT 1 se mantenga.
-    // Validación dura del bucket: si el peso supera lo disponible en el
-    // bucket de proyectos del corte (project_weight - sum(otros)), no
-    // dejamos guardar. Antes el input capeaba on-change pero la lógica
-    // server-side no validaba; ahora bloqueamos con error claro.
-    if (form.cut_id && (form as any).weight != null) {
-      const requested = Math.max(0, Number((form as any).weight));
-      const cut = cuts.find((c) => c.id === form.cut_id);
-      const bucket = Number((cut as any)?.project_weight ?? 0);
-      const editingId = editing?.id;
+    // Validate weight per course and collect into payload for the primary course.
+    const editingId = editing?.id;
+    for (const cid of linked) {
+      const cc = courseCuts[cid];
+      if (!cc?.cut_id) continue;
+      const requested = Math.max(0, Number(cc.weight ?? 1));
+      const cut = cuts.find((c) => c.id === cc.cut_id);
+      const bucket = Number(cut?.project_weight ?? 0);
       const otherProjectsSum = projects
-        .filter((p) => p.cut_id === form.cut_id && p.id !== editingId)
+        .filter((p) => p.cut_id === cc.cut_id && p.id !== editingId)
         .reduce((s, p) => s + Number((p as any).weight ?? 0), 0);
       const available = Math.max(0, bucket - otherProjectsSum);
-      // Tolerancia 0.01 para evitar falsos negativos por flotante.
       if (requested > available + 0.01) {
+        const cName = courses.find((c) => c.id === cid)?.name ?? cid;
         toast.error(
-          `El peso del proyecto (${requested}%) supera el bucket disponible del corte ` +
+          `${cName}: El peso del proyecto (${requested}%) supera el bucket disponible del corte ` +
             `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás proyectos del corte.`,
         );
         return;
       }
-      payload.weight = requested;
+      if (cid === primaryCourse) payload.weight = requested;
     }
 
     let projectId: string | null = null;
@@ -631,7 +649,12 @@ function TeacherProjects() {
       // por curso secundario dejaba de encontrarlo. Ahora hacemos
       // INSERT primero con upsert (idempotente) y solo borramos los
       // que sobran, así nunca dejamos el proyecto sin vínculos.
-      const rows = linked.map((cid) => ({ project_id: projectId, course_id: cid }));
+      const rows = linked.map((cid) => ({
+        project_id: projectId,
+        course_id: cid,
+        cut_id: courseCuts[cid]?.cut_id || null,
+        weight: courseCuts[cid]?.weight ?? 1,
+      }));
       if (rows.length) {
         // upsert por la unique (project_id, course_id) — re-ejecutable.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1490,106 +1513,99 @@ function TeacherProjects() {
                 })}
               </div>
             </div>
-            <div>
-              <Label>
-                Corte{" "}
-                <HelpHint>
-                  Solo aparecen cortes de los cursos seleccionados arriba. Al elegir un corte, el
-                  curso al que pertenece queda como referencia para el idioma de la IA y la
-                  validación de pesos.
-                </HelpHint>
-              </Label>
-              <Select
-                value={form.cut_id ?? "__none"}
-                onValueChange={(v) => {
-                  if (v === "__none") {
-                    setForm({ ...form, cut_id: null });
-                    return;
-                  }
-                  // Al elegir un corte, su course_id se vuelve el "primario"
-                  // (referencia interna, no visible al usuario). Mantiene
-                  // los demás cursos vinculados intactos.
-                  const cut = cuts.find((c) => c.id === v);
-                  setForm({
-                    ...form,
-                    cut_id: v,
-                    course_id: cut?.course_id ?? form.course_id,
-                  });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sin corte" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">{t("common.none")}</SelectItem>
-                  {cuts
-                    .filter((c) => (form.linked_course_ids ?? []).includes(c.course_id))
-                    .map((c) => {
-                      const courseName = courses.find((co) => co.id === c.course_id)?.name;
-                      return (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                          {courseName ? ` · ${courseName}` : ""}
-                        </SelectItem>
-                      );
-                    })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              {(() => {
-                const selectedCut = form.cut_id ? cuts.find((c) => c.id === form.cut_id) : null;
-                const pjBucket = Number(selectedCut?.project_weight ?? 0);
-                const editingId = (form as any).id as string | undefined;
-                const otherProjectsSum = projects
-                  .filter((p) => p.cut_id === form.cut_id && p.id !== editingId)
-                  .reduce((s, p) => s + Number((p as any).weight ?? 0), 0);
-                const pjMax = Math.max(0, pjBucket - otherProjectsSum);
-                const currentWeight = Number((form as any).weight ?? 1) || 0;
-                const overBucket = currentWeight > pjMax + 0.01;
-                return (
-                  <>
-                    <Label>Peso del proyecto (% del bucket de proyectos del corte)</Label>
-                    <div className="relative w-32">
-                      <DecimalInput
-                        min={0}
-                        max={pjMax || undefined}
-                        placeholder="1,0"
-                        className="pr-7"
-                        disabled={!selectedCut}
-                        value={(form as any).weight ?? 1}
-                        onChange={(v) => {
-                          const raw = v == null ? 1 : v;
-                          const capped = pjMax > 0 ? Math.min(raw, pjMax) : raw;
-                          setForm({ ...form, weight: capped } as any);
-                        }}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                        %
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {selectedCut ? (
-                        <>
-                          Bucket proyectos del corte{" "}
-                          <span className="font-medium">{selectedCut.name}</span>: {pjBucket}%.
-                          Otros proyectos del corte suman {otherProjectsSum.toFixed(1)}%, te queda{" "}
-                          <strong>{pjMax.toFixed(1)}%</strong> disponible.
-                          {overBucket && (
-                            <span className="block text-destructive mt-1">
-                              El peso actual ({currentWeight.toFixed(1)}%) excede el bucket. Reduce
-                              este o ajusta el bucket en el editor de cortes.
-                            </span>
+            {(form.linked_course_ids ?? []).length > 0 && (
+              <div className="space-y-2">
+                <Label>
+                  Corte y peso por curso{" "}
+                  <HelpHint>
+                    Asigna cada curso vinculado a un corte y configura el peso (% de la nota final).
+                    El presupuesto disponible se valida independientemente por cada corte.
+                  </HelpHint>
+                </Label>
+                {(form.linked_course_ids ?? []).map((cid) => {
+                  const course = courses.find((c) => c.id === cid);
+                  const cc = courseCuts[cid] ?? { cut_id: null, weight: 1 };
+                  const cutsForCourse = cuts.filter((c) => c.course_id === cid);
+                  const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
+                  const pjBucket = Number(selectedCut?.project_weight ?? 0);
+                  const fmEditingId = editing?.id;
+                  const otherSum = projects
+                    .filter((p) => p.cut_id === cc.cut_id && p.id !== fmEditingId)
+                    .reduce((s, p) => s + Number((p as any).weight ?? 0), 0);
+                  const pjMax = Math.max(0, pjBucket - otherSum);
+                  const overBucket = !!cc.cut_id && Number(cc.weight) > pjMax + 0.01;
+                  return (
+                    <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
+                      <p className="text-sm font-medium">{course?.name ?? cid}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Corte</Label>
+                          <Select
+                            value={cc.cut_id ?? "__none"}
+                            onValueChange={(v) =>
+                              setCourseCuts((prev) => ({
+                                ...prev,
+                                [cid]: { ...(prev[cid] ?? { weight: 1 }), cut_id: v === "__none" ? null : v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="mt-1 h-8 text-sm">
+                              <SelectValue placeholder="Sin corte" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none">Sin corte</SelectItem>
+                              {cutsForCourse.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {cutsForCourse.length === 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">Sin cortes definidos</p>
                           )}
-                        </>
-                      ) : (
-                        "Asigna primero un corte para poder configurar el peso."
-                      )}
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Peso (%)</Label>
+                          <div className="relative mt-1">
+                            <DecimalInput
+                              min={0}
+                              max={pjMax > 0 ? pjMax : undefined}
+                              placeholder="1,0"
+                              className="pr-7 h-8 text-sm"
+                              disabled={!cc.cut_id}
+                              value={cc.weight}
+                              onChange={(v) =>
+                                setCourseCuts((prev) => ({
+                                  ...prev,
+                                  [cid]: { ...(prev[cid] ?? { cut_id: null }), weight: v ?? 1 },
+                                }))
+                              }
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                              %
+                            </span>
+                          </div>
+                          {selectedCut && (
+                            <p className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}>
+                              Disponible:{" "}
+                              <strong>{pjMax.toFixed(1)}%</strong>
+                              {" "}(bucket {pjBucket}% − otros {otherSum.toFixed(1)}%)
+                              {overBucket && <span className="block">Excede el bucket disponible.</span>}
+                            </p>
+                          )}
+                          {!cc.cut_id && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Asigna un corte para configurar el peso.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div>
               <Label required>Puntaje máximo</Label>
               <Input

@@ -280,6 +280,8 @@ function TeacherWorkshops() {
   const [students, setStudents] = useState<Student[]>([]);
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
+  // Per-course cut+weight used only during multi-course creation (not editing).
+  const [courseCuts, setCourseCuts] = useState<Record<string, { cut_id: string | null; weight: number }>>({});
 
   // Questions editor
   const [questionsWs, setQuestionsWs] = useState<Workshop | null>(null);
@@ -436,9 +438,10 @@ function TeacherWorkshops() {
 
   const openNew = () => {
     const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const first = courses[0]?.id;
     setForm({
       title: "",
-      course_id: courses[0]?.id,
+      course_id: first,
       cut_id: null,
       description: "",
       instructions: "",
@@ -449,7 +452,8 @@ function TeacherWorkshops() {
       rubric: null,
     });
     setOriginalCourseId(null);
-    setSelectedCourseIds(new Set(courses[0] ? [courses[0].id] : []));
+    setSelectedCourseIds(new Set(first ? [first] : []));
+    setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
     setOpen(true);
   };
 
@@ -460,6 +464,13 @@ function TeacherWorkshops() {
       else next.add(id);
       const first = [...next][0];
       if (first) setForm((f) => ({ ...f, course_id: first }));
+      setCourseCuts((prevCuts) => {
+        const updated: Record<string, { cut_id: string | null; weight: number }> = {};
+        for (const cid of next) {
+          updated[cid] = prevCuts[cid] ?? { cut_id: null, weight: 1 };
+        }
+        return updated;
+      });
       return next;
     });
   };
@@ -480,6 +491,7 @@ function TeacherWorkshops() {
     const groupMode: string = isExternal
       ? "individual"
       : ((form as any).group_mode ?? "individual");
+    const isMultiCourse = !form.id && courseIds.length > 1;
     const basePayload: Record<string, any> = {
       title: form.title,
       description: form.description ?? null,
@@ -493,21 +505,15 @@ function TeacherWorkshops() {
       status: isExternal ? "closed" : (form.status ?? "draft"),
       rubric: form.rubric ?? null,
       created_by: user.id,
-      cut_id: form.cut_id || null,
+      // Multi-course: cut_id+weight are set per-course in the loop below.
+      cut_id: isMultiCourse ? null : (form.cut_id || null),
       is_external: isExternal,
       group_mode: groupMode,
     };
-    // weight solo tiene sentido cuando hay corte; lo enviamos solo si
-    // el form lo incluye. Validación dura: si el peso supera el bucket
-    // disponible (workshop_weight - sum(otros del corte)), bloqueamos el
-    // save con un error claro en vez de silenciosamente capearlo. Antes
-    // se hacía Math.min() y la pérdida de intención del docente pasaba
-    // desapercibida.
-    if (form.cut_id && (form as any).weight != null) {
+    if (!isMultiCourse && form.cut_id && (form as any).weight != null) {
+      // Single course (create or edit): validate against the pre-computed cap.
       const requested = Math.max(0, Number((form as any).weight));
       const cap = workshopWeightMax ?? 0;
-      // Tolerancia de 0.01 para evitar falsos negativos por floating-point
-      // (ej. 33,33 + 33,33 + 33,34 = 100 exacto pero JS dice 99,99999...).
       if (requested > cap + 0.01) {
         toast.error(
           `El peso del taller (${requested}%) supera el bucket disponible del corte ` +
@@ -516,6 +522,28 @@ function TeacherWorkshops() {
         return;
       }
       basePayload.weight = requested;
+    }
+    if (isMultiCourse) {
+      // Validate bucket for each course independently.
+      for (const cid of courseIds) {
+        const cc = courseCuts[cid];
+        if (!cc?.cut_id) continue;
+        const requested = Math.max(0, Number(cc.weight ?? 1));
+        const cut = cuts.find((c) => c.id === cc.cut_id);
+        const bucket = Number(cut?.workshop_weight ?? 0);
+        const sumOthers = workshops
+          .filter((w) => (w as any).cut_id === cc.cut_id)
+          .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+        const available = Math.max(0, bucket - sumOthers);
+        if (requested > available + 0.01) {
+          const cName = courses.find((c) => c.id === cid)?.name ?? cid;
+          toast.error(
+            `${cName}: El peso del taller (${requested}%) supera el bucket disponible del corte ` +
+              `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás talleres del corte.`,
+          );
+          return;
+        }
+      }
     }
 
     if (form.id) {
@@ -557,9 +585,17 @@ function TeacherWorkshops() {
       toast.success("Taller actualizado correctamente");
     } else {
       for (const cid of courseIds) {
+        const perCourse: Record<string, any> = { ...basePayload, course_id: cid };
+        if (isMultiCourse) {
+          const cc = courseCuts[cid];
+          perCourse.cut_id = cc?.cut_id || null;
+          if (cc?.cut_id && cc?.weight != null) {
+            perCourse.weight = Math.max(0, Number(cc.weight));
+          }
+        }
         const { data: newWs, error } = await supabase
           .from("workshops")
-          .insert({ ...basePayload, course_id: cid } as any)
+          .insert(perCourse as any)
           .select()
           .single();
         if (error) {
@@ -1475,6 +1511,97 @@ function TeacherWorkshops() {
                 </p>
               )}
             </div>
+            {/* Corte y peso: tabla per-curso cuando hay múltiples cursos en creación */}
+            {!form.id && selectedCourseIds.size > 1 ? (
+              <div className="space-y-2">
+                <Label>
+                  Corte y peso por curso{" "}
+                  <HelpHint>
+                    Asigna cada curso a un corte y configura el peso del taller. El presupuesto
+                    disponible se valida independientemente por corte.
+                  </HelpHint>
+                </Label>
+                {[...selectedCourseIds].map((cid) => {
+                  const course = courses.find((c) => c.id === cid);
+                  const cc = courseCuts[cid] ?? { cut_id: null, weight: 1 };
+                  const cutsForCourse = cuts.filter((c) => c.course_id === cid);
+                  const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
+                  const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
+                  const sumOthers = workshops
+                    .filter((w) => (w as any).cut_id === cc.cut_id)
+                    .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+                  const wsMax = Math.max(0, wsBucket - sumOthers);
+                  const overBucket = !!cc.cut_id && Number(cc.weight) > wsMax + 0.01;
+                  return (
+                    <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
+                      <p className="text-sm font-medium">{course?.name ?? cid}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Corte</Label>
+                          <Select
+                            value={cc.cut_id ?? "__none__"}
+                            onValueChange={(v) =>
+                              setCourseCuts((prev) => ({
+                                ...prev,
+                                [cid]: { ...(prev[cid] ?? { weight: 1 }), cut_id: v === "__none__" ? null : v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="mt-1 h-8 text-sm">
+                              <SelectValue placeholder="Sin corte" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Sin corte</SelectItem>
+                              {cutsForCourse.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {cutsForCourse.length === 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">Sin cortes definidos</p>
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Peso (%)</Label>
+                          <div className="relative mt-1">
+                            <DecimalInput
+                              min={0}
+                              max={wsMax > 0 ? wsMax : undefined}
+                              placeholder="1,0"
+                              className="pr-7 h-8 text-sm"
+                              disabled={!cc.cut_id}
+                              value={cc.weight}
+                              onChange={(v) =>
+                                setCourseCuts((prev) => ({
+                                  ...prev,
+                                  [cid]: { ...(prev[cid] ?? { cut_id: null }), weight: v ?? 1 },
+                                }))
+                              }
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                              %
+                            </span>
+                          </div>
+                          {selectedCut && (
+                            <p className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}>
+                              Disponible: <strong>{wsMax.toFixed(1)}%</strong>
+                              {" "}(bucket {wsBucket}% − otros {sumOthers.toFixed(1)}%)
+                              {overBucket && <span className="block">Excede el bucket disponible.</span>}
+                            </p>
+                          )}
+                          {!cc.cut_id && (
+                            <p className="text-xs text-muted-foreground mt-1">Asigna un corte para configurar el peso.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <>
             <div>
               <Label>
                 Corte de evaluación{" "}
@@ -1490,19 +1617,17 @@ function TeacherWorkshops() {
                     : []
                   : [...selectedCourseIds];
                 const availableCuts = cuts.filter((c) => targetCourseIds.includes(c.course_id));
-                const showCuts = form.id || selectedCourseIds.size === 1 ? availableCuts : [];
                 return (
                   <Select
                     value={form.cut_id ?? "__none__"}
                     onValueChange={(v) => setForm({ ...form, cut_id: v === "__none__" ? null : v })}
-                    disabled={!form.id && selectedCourseIds.size !== 1}
                   >
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Sin corte asignado" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Sin corte asignado</SelectItem>
-                      {showCuts.map((c) => (
+                      {availableCuts.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
                         </SelectItem>
@@ -1511,11 +1636,6 @@ function TeacherWorkshops() {
                   </Select>
                 );
               })()}
-              {!form.id && selectedCourseIds.size > 1 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Selecciona un único curso para asignar un corte.
-                </p>
-              )}
               {(form.id || selectedCourseIds.size === 1) &&
                 cuts.filter((c) =>
                   form.id ? c.course_id === form.course_id : selectedCourseIds.has(c.course_id),
@@ -1537,8 +1657,6 @@ function TeacherWorkshops() {
                 const otherWorkshopsSum = workshops
                   .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId)
                   .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
-                // Reusa el max ya calculado en el useMemo de arriba; el
-                // useEffect garantiza que form.weight nunca lo exceda.
                 const wsMax = workshopWeightMax ?? 0;
                 const currentWeight = Number((form as any).weight ?? 1) || 0;
                 const bucketFull = wsMax === 0 && wsBucket > 0;
@@ -1589,6 +1707,8 @@ function TeacherWorkshops() {
                 );
               })()}
             </div>
+              </>
+            )}
             <div>
               <Label>Descripción</Label>
               <Textarea

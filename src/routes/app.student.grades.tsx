@@ -161,9 +161,11 @@ function StudentGrades() {
             .from("workshops")
             .select("id, title, max_score, cut_id, weight, is_external")
             .eq("course_id", courseId),
+          // Proyectos via project_courses para incluir secundarios y usar
+          // cut_id/weight por curso.
           db
-            .from("projects")
-            .select("id, title, max_score, cut_id, weight, is_external")
+            .from("project_courses")
+            .select("cut_id, weight, project:projects(id, title, max_score, is_external)")
             .eq("course_id", courseId),
           db
             .from("attendance_sessions")
@@ -174,7 +176,13 @@ function StudentGrades() {
         const cuts = (cutsData ?? []) as Cut[];
         const examIds = (exams ?? []).map((e: { id: string }) => e.id);
         const wsIds = (workshops ?? []).map((w: { id: string }) => w.id);
-        const prjIds = ((projects ?? []) as { id: string }[]).map((p) => p.id);
+        // Flatten project_courses rows → per-course cut_id/weight override
+        const flatProjects = (projects ?? []).map((pc: any) => ({
+          ...(pc.project ?? pc),
+          cut_id: pc.cut_id ?? null,
+          weight: pc.weight ?? 1,
+        }));
+        const prjIds = flatProjects.map((p: { id: string }) => p.id);
         const sessIds = ((sessions ?? []) as { id: string }[]).map((s) => s.id);
 
         const [{ data: examSubs }, { data: wsSubs }, { data: prjSubs }, { data: attRecords }] =
@@ -277,7 +285,7 @@ function StudentGrades() {
         }
 
         // Proyectos — misma regla: external = ya en escala del curso.
-        for (const p of (projects ?? []) as any[]) {
+        for (const p of flatProjects as any[]) {
           const sub = (prjSubs ?? []).find((s: any) => s.project_id === p.id);
           const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
           const pMax = p.is_external ? course.grade_scale_max : (p.max_score ?? 100);
