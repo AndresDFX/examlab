@@ -137,6 +137,7 @@ type GradeColumn = {
   kind: "exam" | "workshop" | "project";
   parentExamId?: string | null;
   maxScore?: number;
+  isExternal?: boolean;
 };
 
 /** Editable grade cell keyed by `${studentId}::${columnId}` */
