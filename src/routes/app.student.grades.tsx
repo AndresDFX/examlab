@@ -159,9 +159,12 @@ function StudentGrades() {
             .eq("course_id", courseId),
           supabase
             .from("workshops")
-            .select("id, title, max_score, cut_id")
+            .select("id, title, max_score, cut_id, weight, is_external")
             .eq("course_id", courseId),
-          db.from("projects").select("id, title, max_score, cut_id").eq("course_id", courseId),
+          db
+            .from("projects")
+            .select("id, title, max_score, cut_id, weight, is_external")
+            .eq("course_id", courseId),
           db.from("attendance_sessions").select("id, session_date").eq("course_id", courseId),
         ]);
 
