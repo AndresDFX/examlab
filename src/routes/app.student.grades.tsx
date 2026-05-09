@@ -161,14 +161,8 @@ function StudentGrades() {
             .from("workshops")
             .select("id, title, max_score, cut_id")
             .eq("course_id", courseId),
-          db
-            .from("projects")
-            .select("id, title, max_score, cut_id")
-            .eq("course_id", courseId),
-          db
-            .from("attendance_sessions")
-            .select("id, session_date")
-            .eq("course_id", courseId),
+          db.from("projects").select("id, title, max_score, cut_id").eq("course_id", courseId),
+          db.from("attendance_sessions").select("id, session_date").eq("course_id", courseId),
         ]);
 
         const cuts = (cutsData ?? []) as Cut[];
@@ -304,20 +298,29 @@ function StudentGrades() {
           // Asistencia del corte: filtra sesiones por fecha, calcula %
           // presente y escala. Se modela como un ItemRow más con peso =
           // cut.attendance_weight para entrar al weighted avg uniforme.
+          //
+          // Renderizamos SIEMPRE la fila de asistencia cuando el bucket
+          // attendance_weight > 0, aunque no haya sesiones registradas o
+          // el corte no tenga fechas. Así el estudiante ve "0/0 sesiones"
+          // o "sin sesiones registradas" en lugar de que la asistencia
+          // simplemente desaparezca y dé la sensación de que su nota
+          // final ignora ese componente.
           let attItem: ItemRow | null = null;
-          if (cut.start_date && cut.end_date) {
-            const sessionsInCut = allSessions.filter(
-              (s) =>
-                s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
-            );
+          const attWeight = Number(cut.attendance_weight ?? 0);
+          if (attWeight > 0) {
+            const hasDates = !!cut.start_date && !!cut.end_date;
+            const sessionsInCut = hasDates
+              ? allSessions.filter(
+                  (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
+                )
+              : [];
             if (sessionsInCut.length > 0) {
               const present = sessionsInCut.filter(
                 (s) => recordsBySession.get(s.id) === "presente",
               ).length;
               const pct = present / sessionsInCut.length;
               const attendanceAvg =
-                course.grade_scale_min +
-                pct * (course.grade_scale_max - course.grade_scale_min);
+                course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
               attItem = {
                 id: `attendance-${cut.id}`,
                 title: `Asistencia (${present}/${sessionsInCut.length} sesiones)`,
@@ -327,7 +330,26 @@ function StudentGrades() {
                 rawMax: sessionsInCut.length,
                 grade: attendanceAvg,
                 status: "calculado",
-                weight: Number(cut.attendance_weight ?? 0),
+                weight: attWeight,
+              };
+            } else {
+              // Bucket de asistencia con peso > 0 pero sin sesiones: lo
+              // mostramos como pendiente con grade=null. computeWeightedGrade
+              // ignora null sin reescalar pesos vecinos, así que la nota
+              // del corte refleja el "déficit" de manera consistente con
+              // las demás actividades sin entregar.
+              attItem = {
+                id: `attendance-${cut.id}`,
+                title: hasDates
+                  ? "Asistencia (sin sesiones registradas)"
+                  : "Asistencia (sin fechas configuradas en el corte)",
+                kind: "attendance",
+                cut_id: cut.id,
+                rawGrade: null,
+                rawMax: 0,
+                grade: null,
+                status: "pendiente",
+                weight: attWeight,
               };
             }
           }
@@ -423,7 +445,8 @@ function StudentGrades() {
                   </div>
                   <div className="text-2xl font-semibold tabular-nums">{fmt(cb.grade)}</div>
                   <div className="text-[11px] text-muted-foreground">
-                    {cb.items.filter((i) => i.grade != null).length}/{cb.items.length} item(s) calificado(s)
+                    {cb.items.filter((i) => i.grade != null).length}/{cb.items.length} item(s)
+                    calificado(s)
                   </div>
                 </CardContent>
               </Card>
@@ -472,14 +495,13 @@ function StudentGrades() {
               </span>
             </div>
             <div className="text-muted-foreground">
-              Aprobar ≥{" "}
-              <span className="font-medium tabular-nums">{course.passing_grade}</span>
+              Aprobar ≥ <span className="font-medium tabular-nums">{course.passing_grade}</span>
             </div>
             <div className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Puntaje</span> = lo que sacaste sobre el
-              total de la actividad ·{" "}
-              <span className="font-medium text-foreground">Nota</span> = ese puntaje convertido a
-              la escala del curso, que es la que cuenta para tu calificación final.
+              total de la actividad · <span className="font-medium text-foreground">Nota</span> =
+              ese puntaje convertido a la escala del curso, que es la que cuenta para tu
+              calificación final.
             </div>
           </div>
 
@@ -511,63 +533,40 @@ function StudentGrades() {
                     </Badge>
                   )}
                 </CardHeader>
-                <CardContent className="p-0 overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Actividad</TableHead>
-                        <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                        <TableHead className="text-right">Puntaje</TableHead>
-                        <TableHead className="text-right">
-                          Nota ({course.grade_scale_min}–{course.grade_scale_max})
-                        </TableHead>
-                        <TableHead className="hidden md:table-cell">Estado</TableHead>
-                        <TableHead className="text-right w-[1%]">Detalle</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cb.items.length === 0 ? (
-                        <TableEmpty colSpan={6} text="Sin actividades en este corte." />
-                      ) : (
-                        cb.items.map((it) => (
-                          <TableRow key={`${it.kind}-${it.id}`}>
-                            <TableCell className="font-medium">{it.title}</TableCell>
-                            <TableCell className="hidden sm:table-cell">
-                              <KindBadge kind={it.kind} />
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {it.rawGrade != null ? `${it.rawGrade} / ${it.rawMax}` : "—"}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">
-                              {fmt(it.grade)}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <StatusBadge status={it.status} />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {it.kind === "exam" && it.reviewExamId ? (
-                                <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
-                                  <Link
-                                    to="/app/student/review/$examId"
-                                    params={{ examId: it.reviewExamId }}
-                                  />
-                                </RowAction>
-                              ) : it.kind === "workshop" && it.reviewWorkshopId ? (
-                                <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
-                                  <Link
-                                    to="/app/student/workshop/$workshopId"
-                                    params={{ workshopId: it.reviewWorkshopId }}
-                                  />
-                                </RowAction>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                <CardContent className="p-3 space-y-3">
+                  {cb.items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Sin actividades en este corte.
+                    </p>
+                  ) : (
+                    (["workshop", "exam", "project", "attendance"] as const).map((kind) => {
+                      const items = cb.items.filter((i) => i.kind === kind);
+                      if (items.length === 0) return null;
+                      // Subtotal = nota ponderada SOLO de los items de este
+                      // tipo dentro del corte. Útil para que el alumno
+                      // entienda "cuánto va aportando talleres" antes de
+                      // ver la nota global del corte.
+                      const subtotal = computeWeightedGrade(
+                        items.map((i) => ({ score: i.grade, weight: i.weight ?? 1 })),
+                      );
+                      const bucketWeight = items.reduce((s, i) => s + (i.weight ?? 0), 0);
+                      const graded = items.filter((i) => i.grade != null).length;
+                      return (
+                        <KindGroup
+                          key={kind}
+                          kind={kind}
+                          items={items}
+                          subtotal={subtotal}
+                          bucketWeight={bucketWeight}
+                          gradedCount={graded}
+                          totalCount={items.length}
+                          fmt={fmt}
+                          gradeScaleMin={course.grade_scale_min}
+                          gradeScaleMax={course.grade_scale_max}
+                        />
+                      );
+                    })
+                  )}
                 </CardContent>
               </Card>
             ))
@@ -579,7 +578,8 @@ function StudentGrades() {
               <CardHeader>
                 <CardTitle className="text-base">Sin corte asignado</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Estas actividades aún no están asociadas a un corte y no afectan tu calificación final.
+                  Estas actividades aún no están asociadas a un corte y no afectan tu calificación
+                  final.
                 </p>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
@@ -614,12 +614,120 @@ function StudentGrades() {
           )}
 
           <p className="text-xs text-muted-foreground">
-            La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada corte
-            promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el
+            La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada
+            corte promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el
             docente. Componentes sin datos no penalizan: sus pesos se reparten entre los demás.
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Sub-sección por tipo dentro del detalle de un corte. Renderiza el
+ * encabezado del bucket (Talleres / Exámenes / etc) con el subtotal
+ * y peso, seguido de una mini-tabla con cada item.
+ *
+ * Diseño consciente: subtotal y peso son por tipo dentro del corte —
+ * NO la nota acumulada del corte (que vive en el header de la card).
+ * Sirve para que el alumno entienda "cuánto va aportando cada bucket".
+ */
+function KindGroup({
+  kind,
+  items,
+  subtotal,
+  bucketWeight,
+  gradedCount,
+  totalCount,
+  fmt,
+  gradeScaleMin,
+  gradeScaleMax,
+}: {
+  kind: ItemRow["kind"];
+  items: ItemRow[];
+  subtotal: number | null;
+  bucketWeight: number;
+  gradedCount: number;
+  totalCount: number;
+  fmt: (n: number | null) => string;
+  gradeScaleMin: number;
+  gradeScaleMax: number;
+}) {
+  const label =
+    kind === "workshop"
+      ? "Talleres"
+      : kind === "exam"
+        ? "Exámenes"
+        : kind === "project"
+          ? "Proyectos"
+          : "Asistencia";
+  return (
+    <div className="rounded-md border overflow-hidden">
+      <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
+        <div className="flex items-center gap-2">
+          <KindBadge kind={kind} />
+          <span className="text-sm font-medium">{label}</span>
+          <span className="text-[11px] text-muted-foreground">
+            {gradedCount}/{totalCount} con nota
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground inline-flex items-center gap-2 tabular-nums">
+          <span>Peso bucket: {bucketWeight.toFixed(1)}%</span>
+          <span>·</span>
+          <span>
+            Subtotal:{" "}
+            <span className="font-semibold text-foreground tabular-nums">{fmt(subtotal)}</span>
+          </span>
+        </div>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Actividad</TableHead>
+            <TableHead className="text-right w-32">Peso</TableHead>
+            <TableHead className="text-right">Puntaje</TableHead>
+            <TableHead className="text-right">
+              Nota ({gradeScaleMin}–{gradeScaleMax})
+            </TableHead>
+            <TableHead className="hidden md:table-cell">Estado</TableHead>
+            <TableHead className="text-right w-[1%]">Detalle</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((it) => (
+            <TableRow key={`${it.kind}-${it.id}`}>
+              <TableCell className="font-medium">{it.title}</TableCell>
+              <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                {it.weight != null ? `${Number(it.weight).toFixed(1)}%` : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {it.rawGrade != null ? `${it.rawGrade} / ${it.rawMax}` : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-medium">{fmt(it.grade)}</TableCell>
+              <TableCell className="hidden md:table-cell">
+                <StatusBadge status={it.status} />
+              </TableCell>
+              <TableCell className="text-right">
+                {it.kind === "exam" && it.reviewExamId ? (
+                  <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
+                    <Link to="/app/student/review/$examId" params={{ examId: it.reviewExamId }} />
+                  </RowAction>
+                ) : it.kind === "workshop" && it.reviewWorkshopId ? (
+                  <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
+                    <Link
+                      to="/app/student/workshop/$workshopId"
+                      params={{ workshopId: it.reviewWorkshopId }}
+                    />
+                  </RowAction>
+                ) : (
+                  <span className="text-muted-foreground text-xs">—</span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

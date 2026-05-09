@@ -28,7 +28,8 @@ type UseCase =
   | "exam_question"
   | "exam_time_evaluation"
   | "plagiarism_detection"
-  | "ai_content_detection";
+  | "ai_content_detection"
+  | "project_description";
 
 type UseCaseDef = {
   key: UseCase;
@@ -98,6 +99,14 @@ const USE_CASES: UseCaseDef[] = [
       "Reglas que se anexan a los prompts de calificación (talleres, proyectos, exámenes) para que el modelo estime la probabilidad de que la respuesta haya sido generada por IA y devuelva ai_likelihood + ai_reasons.",
     defaultPrompt:
       "Estima la probabilidad (0..1) de que la respuesta haya sido generada por IA. Considera prosa demasiado pulida, estructura genérica, terminología fuera de la rúbrica, ausencia de voz personal, repetición del enunciado y respuestas exhaustivas para preguntas cortas. En ai_reasons cita marcadores concretos de la respuesta. Si no hay señales fuertes, retorna probabilidad baja y explica brevemente por qué parece humana.",
+  },
+  {
+    key: "project_description",
+    label: "Descripción de proyecto (contexto global)",
+    description:
+      "Genera la descripción de un proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto tenga sentido por sí sola y en el conjunto. Disparado por 'Generar con IA' en el campo Descripción del editor de proyectos.",
+    defaultPrompt:
+      "Eres un docente experto que redacta la descripción de un proyecto académico. Sé concreto y conciso (3-6 oraciones). Indica el propósito, alcance y restricciones. NO listes entregables uno por uno (van en cada pregunta). NO uses encabezados Markdown — texto plano corrido. Devuelve solo la descripción.",
   },
 ];
 

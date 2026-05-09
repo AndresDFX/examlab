@@ -6,10 +6,124 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resuelve el system prompt para un use_case dado, considerando override
+ * por curso si existe. Mismo patrón que `ai-grade-submission` —
+ * duplicado intencionalmente para no acoplar las dos edge functions.
+ *
+ *   1. Si `courseId` es UUID válido → busca course override + global.
+ *   2. Sin courseId → solo global (course_id IS NULL).
+ *   3. Sin filas en BD → fallback hardcoded.
+ *
+ * Course override gana sobre global cuando ambos existen.
+ */
+async function resolveSystemPrompt(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  useCase: string,
+  courseId: string | null | undefined,
+  fallback: string,
+): Promise<string> {
+  try {
+    let q = admin.from("ai_prompts").select("system_prompt, course_id").eq("use_case", useCase);
+    if (courseId && UUID_RE.test(courseId)) {
+      q = q.or(`course_id.eq.${courseId},course_id.is.null`);
+    } else {
+      q = q.is("course_id", null);
+    }
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) return fallback;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sorted = [...data].sort((a: any, b: any) => {
+      if (a.course_id && !b.course_id) return -1;
+      if (!a.course_id && b.course_id) return 1;
+      return 0;
+    });
+    return sorted[0]?.system_prompt || fallback;
+  } catch (e) {
+    console.warn("[ai_prompts] resolve failed, using fallback:", e);
+    return fallback;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
+
+    // ── Modo: generación de DESCRIPCIÓN de proyecto (contexto global) ──
+    // Body: { projectDescriptionGeneration: true, topic, courseId?, courseLanguage? }
+    // Devuelve { ok, description } — un texto plano corto que sirve como
+    // contexto para todas las preguntas del proyecto. La descripción se
+    // inyecta en cada llamada de calificación de `ai-grade-submission`
+    // para que cada pregunta se evalúe sin perder de vista el alcance.
+    if (body.projectDescriptionGeneration) {
+      const KEYD = Deno.env.get("LOVABLE_API_KEY");
+      if (!KEYD) throw new Error("LOVABLE_API_KEY missing");
+      const { topic, courseId, courseLanguage } = body;
+      if (!topic || typeof topic !== "string" || !topic.trim()) {
+        return new Response(JSON.stringify({ error: "topic requerido" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const lang: "es" | "en" =
+        courseLanguage === "en" || courseLanguage === "es" ? courseLanguage : "es";
+      const langName = lang === "en" ? "inglés (English)" : "español";
+      const adminPD = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const fallback = `Eres un docente experto que redacta la descripción de un proyecto académico. Sé concreto y conciso (3-6 oraciones). Indica el propósito, alcance y restricciones. NO listes entregables uno por uno (van en cada pregunta). NO uses encabezados Markdown — texto plano corrido. Devuelve solo la descripción.`;
+      const systemPrompt = await resolveSystemPrompt(
+        adminPD,
+        "project_description",
+        courseId,
+        fallback,
+      );
+
+      const aiResD = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEYD}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `${systemPrompt}\n\nIdioma de salida obligatorio: ${langName}.`,
+            },
+            {
+              role: "user",
+              content: `Tema del proyecto: ${topic.trim()}\n\nDevuelve solo la descripción en ${langName}.`,
+            },
+          ],
+        }),
+      });
+      if (aiResD.status === 429) {
+        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (aiResD.status === 402) {
+        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!aiResD.ok) {
+        const err = await aiResD.text();
+        console.error("AI error", aiResD.status, err);
+        throw new Error("Error en gateway de IA");
+      }
+      const aiJsonD = await aiResD.json();
+      const description: string = aiJsonD.choices?.[0]?.message?.content?.toString().trim() ?? "";
+      return new Response(JSON.stringify({ ok: true, description }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // ── Modo: generación de enunciado de PROYECTO ──
     if (body.projectStatement) {

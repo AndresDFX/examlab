@@ -556,6 +556,11 @@ export function StudentProjectTaker({
   const [submitting, setSubmitting] = useState(false);
   const [graded, setGraded] = useState<{ grade: number } | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState<string>("");
+  // projects.description — contexto global que viaja a la edge function
+  // de calificación junto con cada pregunta (workshopQuestionGrading +
+  // projectCodeZipGrading) para que la IA evalúe con el alcance del
+  // proyecto en mente, no solo la pregunta aislada.
+  const [projectDescription, setProjectDescription] = useState<string>("");
   const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -566,13 +571,13 @@ export function StudentProjectTaker({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data: qs } = await db
-        .from("project_files")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("position");
+      const [{ data: qs }, { data: proj }] = await Promise.all([
+        db.from("project_files").select("*").eq("project_id", projectId).order("position"),
+        db.from("projects").select("description").eq("id", projectId).maybeSingle(),
+      ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
+      setProjectDescription((proj as { description?: string | null } | null)?.description ?? "");
 
       // Si hay grupo, la submission pertenece al grupo (cualquier
       // miembro la ve y edita). Si no, comportamiento individual normal.
@@ -775,6 +780,7 @@ export function StudentProjectTaker({
                     maxPoints: q.points,
                     courseLanguage,
                     courseId: undefined,
+                    projectDescription,
                   },
                 },
               );
@@ -810,6 +816,7 @@ export function StudentProjectTaker({
                 studentAnswer: String(raw),
                 language: q.type === "java_gui" ? "java" : q.language,
                 courseLanguage,
+                projectDescription,
               },
             },
           );

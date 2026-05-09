@@ -312,6 +312,10 @@ Deno.serve(async (req) => {
         studentContent,
         courseLanguage,
         courseId,
+        // Contexto global del proyecto. Inyectado por el cliente desde
+        // projects.description para que cada pregunta se evalúe sin
+        // perder de vista el alcance/propósito del proyecto.
+        projectDescription,
       } = body;
       if (!studentContent || !fileTitle) {
         throw new Error("fileTitle y studentContent requeridos");
@@ -325,6 +329,10 @@ Deno.serve(async (req) => {
         "Eres un evaluador académico imparcial. Calificas el contenido textual de UN archivo del proyecto de un estudiante. Das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.",
       );
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
+      const projectCtx =
+        projectDescription && String(projectDescription).trim()
+          ? `Contexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}\n\n`
+          : "";
 
       const aiRes = await aiChatCompletion({
         messages: [
@@ -334,7 +342,7 @@ Deno.serve(async (req) => {
           },
           {
             role: "user",
-            content: `Archivo: ${fileTitle}
+            content: `${projectCtx}Pregunta: ${fileTitle}
 Descripción esperada: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa corrección, completitud y claridad."}
 Puntaje máximo: ${maxPoints}
@@ -430,6 +438,10 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         maxPoints = 1,
         courseLanguage,
         courseId,
+        // Contexto global del proyecto (projects.description) — se
+        // inyecta para que la IA califique este componente teniendo
+        // claro el alcance del proyecto entero, no solo el slot.
+        projectDescription,
       } = body;
       if (!zipPath || !fileTitle) {
         throw new Error("zipPath y fileTitle requeridos");
@@ -568,6 +580,10 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
       const fileSection = codeFiles.map((f) => `─── ${f.path} ───\n${f.content}\n`).join("\n");
+      const projectCtx =
+        projectDescription && String(projectDescription).trim()
+          ? `Contexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}\n\n`
+          : "";
 
       const aiRes = await aiChatCompletion({
         messages: [
@@ -577,7 +593,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           },
           {
             role: "user",
-            content: `Pregunta del proyecto: ${fileTitle}
+            content: `${projectCtx}Pregunta del proyecto: ${fileTitle}
 Descripción: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa diseño, corrección y completitud del código."}
 Puntaje máximo: ${maxPoints}
@@ -664,6 +680,12 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         language,
         courseLanguage,
         courseId,
+        // Contexto opcional del proyecto: cuando este modo se reusa
+        // desde el StudentProjectTaker para preguntas no-ZIP del
+        // proyecto (abierta/cerrada/diagrama), inyectamos
+        // projects.description para que la IA evalúe con el alcance
+        // global y no como una pregunta aislada.
+        projectDescription,
       } = body;
       if (!studentAnswer || !questionType) {
         throw new Error("questionType y studentAnswer requeridos");
@@ -686,6 +708,10 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         "Eres un evaluador académico imparcial. Calificas la respuesta de un estudiante a UNA pregunta de taller. Das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que la respuesta haya sido generada por IA.",
       );
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${wqLangName}.\n${extraInstructions}`;
+      const projectCtx =
+        projectDescription && String(projectDescription).trim()
+          ? `Contexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}\n\n`
+          : "";
 
       const aiRes = await aiChatCompletion({
         messages: [
@@ -695,7 +721,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           },
           {
             role: "user",
-            content: `Tipo de pregunta: ${questionType}\n\nEnunciado: ${questionContent ?? ""}\n\nRúbrica esperada: ${expectedRubric ?? "Evalúa corrección y completitud."}\n\nPuntaje máximo: ${maxPoints}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wqLangName}.`,
+            content: `${projectCtx}Tipo de pregunta: ${questionType}\n\nEnunciado: ${questionContent ?? ""}\n\nRúbrica esperada: ${expectedRubric ?? "Evalúa corrección y completitud."}\n\nPuntaje máximo: ${maxPoints}\n\nRespuesta del estudiante:\n${studentAnswer}\n\nIdioma de salida obligatorio: ${wqLangName}.`,
           },
         ],
         tools: [

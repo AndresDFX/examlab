@@ -34,7 +34,8 @@ type UseCase =
   | "exam_question"
   | "exam_time_evaluation"
   | "plagiarism_detection"
-  | "ai_content_detection";
+  | "ai_content_detection"
+  | "project_description";
 
 type UseCaseDef = {
   key: UseCase;
@@ -84,6 +85,12 @@ const USE_CASES: UseCaseDef[] = [
     label: "Detección de respuestas generadas por IA",
     description:
       "Reglas que se anexan al prompt de calificación cuando el modelo debe estimar la probabilidad de que la respuesta haya sido generada por IA.",
+  },
+  {
+    key: "project_description",
+    label: "Descripción de proyecto (contexto global)",
+    description:
+      "Genera la descripción del proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto se califique con el alcance/propósito en mente.",
   },
 ];
 

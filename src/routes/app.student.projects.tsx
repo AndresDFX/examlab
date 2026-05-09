@@ -22,7 +22,6 @@ import {
   MessageSquare,
   MessageSquareText,
   ListChecks,
-  FileText,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -313,10 +312,6 @@ function StudentProjects() {
                       {t("dashboard.dueLabel")}: {formatDateTime(project.due_date)}
                     </div>
                   )}
-                  <div className="flex items-center gap-1.5">
-                    <FileText className="h-3 w-3" />
-                    {project.max_files} archivos esperados
-                  </div>
                 </div>
 
                 {(submission?.teacher_feedback || submission?.ai_feedback) && (

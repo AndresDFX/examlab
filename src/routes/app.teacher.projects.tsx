@@ -190,6 +190,13 @@ function TeacherProjects() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState<Partial<Project>>({});
   const projectDirty = useDirtyDialog(open, form);
+  // Generación de descripción con IA: dialog modal con input "tema" +
+  // botón que invoca la edge function `ai-generate-questions` modo
+  // `projectDescriptionGeneration`. La descripción resultante reemplaza
+  // el textarea actual del form (el docente puede editarla después).
+  const [aiDescOpen, setAiDescOpen] = useState(false);
+  const [aiDescTopic, setAiDescTopic] = useState("");
+  const [aiDescLoading, setAiDescLoading] = useState(false);
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [filesProject, setFilesProject] = useState<Project | null>(null);
@@ -464,7 +471,6 @@ function TeacherProjects() {
       external_link: "",
       course_id: first,
       cut_id: null,
-      max_files: 3,
       max_score: 100,
       status: "draft",
       linked_course_ids: first ? [first] : [],
@@ -515,11 +521,11 @@ function TeacherProjects() {
     }
     const primaryCourse =
       form.course_id && linked.includes(form.course_id) ? form.course_id : linked[0];
-    const maxFiles = Math.max(1, Math.min(20, Number(form.max_files) || 3));
     const isExternal = !!(form as any).is_external;
     // Patrón "campos desactivados": cuando is_external=true, omitir
-    // campos sin sentido (instrucciones, link, archivos esperados) del
-    // payload para no insertar dummies.
+    // campos sin sentido (instrucciones, link) del payload para no
+    // insertar dummies. `max_files` se omite SIEMPRE — la cantidad real
+    // de preguntas/entregables sale de `project_files`, no de un input.
     //
     // is_external solo se envía cuando es true. Si el column todavía no
     // está en el schema cache de PostgREST (Lovable aún no aplicó la
@@ -536,12 +542,11 @@ function TeacherProjects() {
     };
     if (isExternal) {
       payload.is_external = true;
-      // Para externos: due_date marca cuándo ocurrió, sin start ni files.
+      // Para externos: due_date marca cuándo ocurrió, sin start.
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     } else {
       payload.instructions = form.instructions ?? null;
       payload.external_link = form.external_link || null;
-      payload.max_files = maxFiles;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     }
@@ -648,6 +653,50 @@ function TeacherProjects() {
 
     setOpen(false);
     await load();
+  };
+
+  /**
+   * Genera la descripción del proyecto a partir de un tema usando la
+   * edge function `ai-generate-questions` (modo
+   * `projectDescriptionGeneration`). El system prompt vive en
+   * `ai_prompts.use_case='project_description'` (override por curso si
+   * existe). El resultado reemplaza el textarea — el docente puede
+   * editarlo después.
+   */
+  const generateDescription = async () => {
+    const topic = aiDescTopic.trim();
+    if (!topic) {
+      toast.error("Indica un tema para generar la descripción");
+      return;
+    }
+    setAiDescLoading(true);
+    try {
+      const courseId = form.course_id ?? null;
+      const courseLanguage =
+        courses.find((c) => c.id === courseId)?.language === "en" ? "en" : "es";
+      const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
+        body: {
+          projectDescriptionGeneration: true,
+          topic,
+          courseId,
+          courseLanguage,
+        },
+      });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = data as any;
+      if (res?.error) throw new Error(res.error);
+      const description = String(res?.description ?? "").trim();
+      if (!description) throw new Error("La IA no devolvió descripción");
+      setForm((prev) => ({ ...prev, description }));
+      toast.success("Descripción generada — puedes editarla antes de guardar");
+      setAiDescOpen(false);
+      setAiDescTopic("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al generar la descripción");
+    } finally {
+      setAiDescLoading(false);
+    }
   };
 
   const remove = async (p: Project) => {
@@ -1154,7 +1203,6 @@ function TeacherProjects() {
                 <TableHead>Curso</TableHead>
                 <TableHead>Corte</TableHead>
                 <TableHead className="text-right">Peso</TableHead>
-                <TableHead>Archivos</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Entrega</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
@@ -1195,12 +1243,6 @@ function TeacherProjects() {
                       : "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px]">
-                      <FileText className="h-3 w-3 mr-1" />
-                      {p.max_files}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
                     <StatusBadge status={p.status} />
                   </TableCell>
                   <TableCell className="text-xs tabular-nums">
@@ -1209,7 +1251,7 @@ function TeacherProjects() {
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
                       <RowAction
-                        label="Archivos esperados"
+                        label="Preguntas del proyecto"
                         icon={FileText}
                         onClick={() => openFilesDialog(p)}
                       />
@@ -1251,10 +1293,10 @@ function TeacherProjects() {
               ))}
               {projects.length === 0 ? (
                 <TableEmpty
-                  colSpan={9}
+                  colSpan={8}
                   icon={FolderKanban}
                   text="Aún no has creado ningún proyecto."
-                  hint="Define los archivos esperados y asígnalo a uno o varios cursos."
+                  hint="Define las preguntas del proyecto y asígnalo a uno o varios cursos."
                   action={
                     <Button size="sm" onClick={openNew}>
                       <Plus className="h-4 w-4 mr-1" />
@@ -1264,7 +1306,7 @@ function TeacherProjects() {
                 />
               ) : filteredProjects.length === 0 ? (
                 <TableEmpty
-                  colSpan={9}
+                  colSpan={8}
                   icon={FolderKanban}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los proyectos."
@@ -1312,11 +1354,36 @@ function TeacherProjects() {
               />
             </div>
             <div>
-              <Label>{t("common.description")}</Label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <Label className="m-0">
+                  {t("common.description")}{" "}
+                  <HelpHint>
+                    <strong>Importante:</strong> esta descripción es el{" "}
+                    <strong>contexto global</strong> del proyecto. La IA la usa al calificar{" "}
+                    <em>cada</em> pregunta para que las notas tengan sentido en el conjunto y no
+                    como preguntas aisladas. Define el propósito, alcance y restricciones del
+                    proyecto en 3-6 oraciones; los entregables van en cada pregunta, no aquí.
+                  </HelpHint>
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => {
+                    setAiDescTopic(form.title ?? "");
+                    setAiDescOpen(true);
+                  }}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Generar con IA
+                </Button>
+              </div>
               <Textarea
-                rows={2}
+                rows={4}
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Propósito, alcance y restricciones del proyecto. Esta descripción acompañará la calificación IA de cada pregunta."
               />
             </div>
             {!(form as any).is_external && (
@@ -1462,44 +1529,19 @@ function TeacherProjects() {
                 );
               })()}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {!(form as any).is_external && (
-                <div>
-                  <Label required>
-                    Número de archivos{" "}
-                    <HelpHint>
-                      Cuántas cajas de texto se mostrarán al estudiante (una por archivo). La IA
-                      calificará cada caja por separado.
-                    </HelpHint>
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={form.max_files ?? 3}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        max_files: e.target.value === "" ? 1 : Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-              )}
-              <div>
-                <Label required>Puntaje máximo</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={form.max_score ?? 100}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      max_score: e.target.value === "" ? 0 : Number(e.target.value),
-                    })
-                  }
-                />
-              </div>
+            <div>
+              <Label required>Puntaje máximo</Label>
+              <Input
+                type="number"
+                min={1}
+                value={form.max_score ?? 100}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    max_score: e.target.value === "" ? 0 : Number(e.target.value),
+                  })
+                }
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               {!(form as any).is_external && (
@@ -1549,6 +1591,53 @@ function TeacherProjects() {
         </DialogContent>
       </Dialog>
 
+      {/* AI description generator dialog. El docente escribe un tema y
+          la IA devuelve la descripción global del proyecto, que reemplaza
+          el textarea del form principal. */}
+      <Dialog open={aiDescOpen} onOpenChange={(o) => !aiDescLoading && setAiDescOpen(o)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Generar descripción con IA
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label required>Tema o título del proyecto</Label>
+              <Input
+                value={aiDescTopic}
+                onChange={(e) => setAiDescTopic(e.target.value)}
+                placeholder="Ej: Sistema de inventario para una librería"
+                disabled={aiDescLoading}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                La descripción se usará como contexto global al calificar cada pregunta del
+                proyecto. Podrás editarla después.
+              </p>
+            </div>
+            {form.description && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                ⚠ Reemplazará la descripción actual.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiDescOpen(false)} disabled={aiDescLoading}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={generateDescription} disabled={aiDescLoading || !aiDescTopic.trim()}>
+              {aiDescLoading ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 mr-1" />
+              )}
+              Generar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Project groups editor dialog */}
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1574,7 +1663,7 @@ function TeacherProjects() {
       <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Archivos esperados — {filesProject?.title}</DialogTitle>
+            <DialogTitle>Preguntas — {filesProject?.title}</DialogTitle>
           </DialogHeader>
           {filesProject && (
             <TeacherProjectFilesEditor
@@ -1888,7 +1977,7 @@ function TeacherProjects() {
         items={selectedProjectItems}
         entityNameSingular="proyecto"
         entityNamePlural="proyectos"
-        extraWarning="Se eliminarán también las asignaciones, archivos esperados y entregas de los proyectos seleccionados."
+        extraWarning="Se eliminarán también las asignaciones, preguntas y entregas de los proyectos seleccionados."
         onConfirm={handleBulkDelete}
       />
     </div>
