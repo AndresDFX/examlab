@@ -34,6 +34,8 @@ import {
   AlertTriangle,
   Eye,
   Inbox,
+  FolderKanban,
+  CalendarCheck,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { downloadCSV, toCSV } from "@/lib/csv";
@@ -127,11 +129,11 @@ type WsSub = {
   status: string;
 };
 
-/** A column in the grid — either an exam or a workshop */
+/** A column in the grid — examen, taller o proyecto */
 type GradeColumn = {
   id: string;
   title: string;
-  kind: "exam" | "workshop";
+  kind: "exam" | "workshop" | "project";
   parentExamId?: string | null;
   maxScore?: number;
 };
@@ -219,7 +221,7 @@ function Gradebook() {
     setProjects((projectsData ?? []) as Project[]);
     setAttSessions((sessions ?? []) as AttSession[]);
 
-    // Build columns: original exams (no parent) + workshops
+    // Build columns: original exams (no parent) + workshops + projects
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
       .filter((e) => !e.parent_exam_id)
       .map((e) => ({ id: e.id, title: e.title, kind: "exam" as const, parentExamId: null }));
@@ -231,7 +233,14 @@ function Gradebook() {
       maxScore: w.max_score,
     }));
 
-    setColumns([...examCols, ...wsCols]);
+    const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
+      id: p.id,
+      title: p.title,
+      kind: "project" as const,
+      maxScore: p.max_score,
+    }));
+
+    setColumns([...examCols, ...wsCols, ...prjCols]);
 
     // Students
     const { data: enr } = await supabase
@@ -344,7 +353,7 @@ function Gradebook() {
         }
       }
       return { grade: null, isMakeup: false };
-    } else {
+    } else if (col.kind === "workshop") {
       const sub = wsSubs.find((s) => s.user_id === studentId && s.workshop_id === col.id);
       if (sub)
         return {
@@ -352,6 +361,20 @@ function Gradebook() {
           isMakeup: false,
           status: sub.status,
           subId: sub.id,
+        };
+      return { grade: null, isMakeup: false };
+    } else {
+      // project
+      const sub = projectSubs.find((s) => s.user_id === studentId && s.project_id === col.id);
+      if (sub)
+        return {
+          grade: sub.final_grade ?? sub.ai_grade,
+          isMakeup: false,
+          status: sub.status,
+          // project_submissions no expone `id` en la query actual; sin
+          // subId no podemos editar inline. Se considera follow-up
+          // separado si se quiere editar proyectos desde aquí.
+          subId: undefined,
         };
       return { grade: null, isMakeup: false };
     }
@@ -399,7 +422,7 @@ function Gradebook() {
         } else {
           errors++; // No submission to update
         }
-      } else {
+      } else if (col.kind === "workshop") {
         const g = getGrade(studentId, col);
         if (g.subId) {
           const { error } = await supabase
@@ -411,6 +434,11 @@ function Gradebook() {
         } else {
           errors++; // No submission to update
         }
+      } else {
+        // project — la cell muestra read-only en la grilla porque
+        // projectSubs no carga `id`; saltamos. Si se quiere editar
+        // desde aquí, hay que extender projectSubs select y getGrade.
+        errors++;
       }
     }
 
@@ -495,16 +523,19 @@ function Gradebook() {
       if (col.kind === "exam") {
         const exam = allExams.find((e) => e.id === col.id);
         cutId = exam?.cut_id ?? null;
-      } else {
+      } else if (col.kind === "workshop") {
         const ws = allWorkshops.find((w) => w.id === col.id);
         cutId = ws?.cut_id ?? null;
+      } else {
+        const pr = projects.find((p) => p.id === col.id);
+        cutId = pr?.cut_id ?? null;
       }
       const arr = map.get(cutId) ?? [];
       arr.push(col);
       map.set(cutId, arr);
     }
     return map;
-  }, [columns, allExams, allWorkshops]);
+  }, [columns, allExams, allWorkshops, projects]);
 
   const uncutColumns = columnsByCut.get(null) ?? [];
   const detailCutColumns = detailCutId ? (columnsByCut.get(detailCutId) ?? []) : [];
@@ -816,9 +847,11 @@ function Gradebook() {
       )}
 
       {/* Modal de detalle por corte — abre con "Ver detalle" en el header
-          del consolidado. Muestra exámenes y talleres pertenecientes al
-          corte y los hace editables; las ediciones comparten el state
-          `edits` y se guardan con el botón global "Guardar cambios". */}
+          del consolidado. Muestra una sub-tabla por tipo (Talleres /
+          Exámenes / Proyectos) + una sub-tabla de Asistencia per-student
+          calculada desde attendance_sessions/records dentro del rango de
+          fechas del corte. Las ediciones comparten el state `edits` y se
+          guardan con el botón global "Guardar cambios". */}
       <Dialog
         open={detailCutId != null}
         onOpenChange={(o) => {
@@ -836,12 +869,9 @@ function Gradebook() {
               )}
             </DialogTitle>
           </DialogHeader>
-          {detailCutColumns.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              Este corte no tiene exámenes ni talleres asignados todavía.
-            </p>
-          ) : (
-            renderEditableGrid({
+          {detailCut &&
+            renderCutDetailGrouped({
+              cut: detailCut,
               columns: detailCutColumns,
               students,
               getGrade,
@@ -849,10 +879,226 @@ function Gradebook() {
               handleEdit,
               cellKey,
               selectedCourse,
-            })
-          )}
+              attSessions,
+              attRecords,
+            })}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ───────────────────────── Detalle de corte (agrupado) ─────────────────────────
+// Vista dentro del modal "Ver detalle del corte X". Separa las columnas
+// del corte en sub-secciones por tipo (Talleres / Exámenes / Proyectos)
+// y agrega una sub-tabla de Asistencia per-student calculada desde
+// attendance_sessions/records que caen dentro del rango de fechas del
+// corte. La asistencia es read-only desde aquí — la edición está en
+// /app/teacher/attendance.
+function renderCutDetailGrouped({
+  cut,
+  columns,
+  students,
+  getGrade,
+  edits,
+  handleEdit,
+  cellKey,
+  selectedCourse,
+  attSessions,
+  attRecords,
+}: {
+  cut: Cut;
+  columns: GradeColumn[];
+  students: Student[];
+  getGrade: (
+    studentId: string,
+    col: GradeColumn,
+  ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
+  edits: EditMap;
+  handleEdit: (studentId: string, colId: string, value: string) => void;
+  cellKey: (studentId: string, colId: string) => string;
+  selectedCourse: Course | undefined;
+  attSessions: AttSession[];
+  attRecords: AttRecord[];
+}) {
+  // Sesiones de este corte (entre start_date y end_date). Si no hay
+  // fechas configuradas en el corte, no podemos asociar sesiones.
+  const sessionsInCut = (() => {
+    if (!cut.start_date || !cut.end_date) return [];
+    return attSessions.filter(
+      (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
+    );
+  })();
+  const sessionIdsInCut = new Set(sessionsInCut.map((s) => s.id));
+  // Para lookup rápido (sessionId, userId) → status.
+  const recordsBySessionUser = new Map<string, string>();
+  for (const r of attRecords) {
+    if (sessionIdsInCut.has(r.session_id)) {
+      recordsBySessionUser.set(`${r.session_id}::${r.user_id}`, r.status);
+    }
+  }
+
+  const workshopCols = columns.filter((c) => c.kind === "workshop");
+  const examCols = columns.filter((c) => c.kind === "exam");
+  const projectCols = columns.filter((c) => c.kind === "project");
+  const showAttendance = Number(cut.attendance_weight ?? 0) > 0;
+
+  if (
+    workshopCols.length === 0 &&
+    examCols.length === 0 &&
+    projectCols.length === 0 &&
+    !showAttendance
+  ) {
+    return (
+      <p className="text-sm text-muted-foreground py-6 text-center">
+        Este corte no tiene actividades ni asistencia configuradas todavía.
+      </p>
+    );
+  }
+
+  const sectionDef: Array<{
+    key: "workshop" | "exam" | "project";
+    label: string;
+    icon: typeof FileText;
+    cols: GradeColumn[];
+    bucketWeight: number;
+  }> = [
+    {
+      key: "workshop",
+      label: "Talleres",
+      icon: Hammer,
+      cols: workshopCols,
+      bucketWeight: Number(cut.workshop_weight ?? 0) || 0,
+    },
+    {
+      key: "exam",
+      label: "Exámenes",
+      icon: FileText,
+      cols: examCols,
+      bucketWeight: Number(cut.exam_weight ?? 0) || 0,
+    },
+    {
+      key: "project",
+      label: "Proyectos",
+      icon: FolderKanban,
+      cols: projectCols,
+      bucketWeight: Number(cut.project_weight ?? 0) || 0,
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {sectionDef.map((sec) => {
+        if (sec.cols.length === 0) return null;
+        return (
+          <div key={sec.key} className="rounded-md border overflow-hidden">
+            <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
+              <div className="flex items-center gap-2">
+                <sec.icon className="h-3.5 w-3.5 text-primary" />
+                <span className="text-sm font-medium">{sec.label}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {sec.cols.length} {sec.cols.length === 1 ? "actividad" : "actividades"}
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                Peso bucket: {sec.bucketWeight.toFixed(1)}%
+              </span>
+            </div>
+            {renderEditableGrid({
+              columns: sec.cols,
+              students,
+              getGrade,
+              edits,
+              handleEdit,
+              cellKey,
+              selectedCourse,
+            })}
+          </div>
+        );
+      })}
+
+      {showAttendance && (
+        <div className="rounded-md border overflow-hidden">
+          <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
+            <div className="flex items-center gap-2">
+              <CalendarCheck className="h-3.5 w-3.5 text-primary" />
+              <span className="text-sm font-medium">Asistencia</span>
+              <span className="text-[11px] text-muted-foreground">
+                {sessionsInCut.length} {sessionsInCut.length === 1 ? "sesión" : "sesiones"} en el
+                rango del corte
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              Peso bucket: {Number(cut.attendance_weight ?? 0).toFixed(1)}%
+            </span>
+          </div>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+                  <TableHead className="text-right">Sesiones presente</TableHead>
+                  <TableHead className="text-right">Total sesiones</TableHead>
+                  <TableHead className="text-right">% asistencia</TableHead>
+                  {selectedCourse && (
+                    <TableHead className="text-right">
+                      Nota ({selectedCourse.grade_scale_min}–{selectedCourse.grade_scale_max})
+                    </TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessionsInCut.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={selectedCourse ? 5 : 4}
+                      className="text-center text-muted-foreground py-6 text-sm"
+                    >
+                      {cut.start_date && cut.end_date
+                        ? "No hay sesiones de asistencia registradas en el rango de fechas del corte."
+                        : "El corte no tiene fechas configuradas — la asistencia no se puede asociar."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  students.map((s) => {
+                    const present = sessionsInCut.filter(
+                      (ses) => recordsBySessionUser.get(`${ses.id}::${s.id}`) === "presente",
+                    ).length;
+                    const total = sessionsInCut.length;
+                    const pct = total > 0 ? present / total : 0;
+                    const nota = selectedCourse
+                      ? selectedCourse.grade_scale_min +
+                        pct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
+                      : null;
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell className="sticky left-0 z-10 bg-card">
+                          <div className="font-medium text-sm">{s.full_name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {s.institutional_email}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{present}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {total}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {Math.round(pct * 100)}%
+                        </TableCell>
+                        {selectedCourse && (
+                          <TableCell className="text-right tabular-nums font-medium">
+                            {nota != null ? nota.toFixed(2) : "—"}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </div>
+      )}
     </div>
   );
 }
@@ -892,15 +1138,21 @@ function renderEditableGrid({
                   <div className="flex items-center gap-1">
                     {col.kind === "exam" ? (
                       <FileText className="h-3 w-3 text-primary shrink-0" />
-                    ) : (
+                    ) : col.kind === "workshop" ? (
                       <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                    ) : (
+                      <FolderKanban className="h-3 w-3 text-indigo-500 dark:text-indigo-400 shrink-0" />
                     )}
                     <span className="truncate max-w-24" title={col.title}>
                       {col.title}
                     </span>
                   </div>
                   <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                    {col.kind === "exam" ? "Examen" : `Taller (/${col.maxScore ?? 100})`}
+                    {col.kind === "exam"
+                      ? "Examen"
+                      : col.kind === "workshop"
+                        ? `Taller (/${col.maxScore ?? 100})`
+                        : `Proyecto (/${col.maxScore ?? 100})`}
                   </Badge>
                 </div>
               </TableHead>
