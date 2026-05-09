@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Input } from "@/components/ui/input";
@@ -908,18 +908,21 @@ export function AdminCourses() {
                     {c.description ?? "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <RowAction label="Estudiantes" icon={Users} onClick={() => openEnroll(c)} />
-                      <RowAction label="Docentes" icon={UserCog} onClick={() => openTeachers(c)} />
-                      <RowAction label="Duplicar" icon={Copy} onClick={() => openDuplicate(c)} />
-                      <RowAction label="Editar" icon={Pencil} onClick={() => openEdit(c)} />
-                      <RowAction
-                        label="Eliminar"
-                        icon={Trash2}
-                        tone="destructive"
-                        onClick={() => remove(c.id)}
-                      />
-                    </div>
+                    <RowActionsMenu
+                      actions={[
+                        { label: "Estudiantes", icon: Users, onClick: () => openEnroll(c) },
+                        { label: "Docentes", icon: UserCog, onClick: () => openTeachers(c) },
+                        { label: "Duplicar", icon: Copy, onClick: () => openDuplicate(c) },
+                        { label: "Editar", icon: Pencil, onClick: () => openEdit(c) },
+                        {
+                          label: "Eliminar",
+                          icon: Trash2,
+                          tone: "destructive",
+                          separatorBefore: true,
+                          onClick: () => remove(c.id),
+                        },
+                      ]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

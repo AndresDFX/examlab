@@ -76,7 +76,7 @@ import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { FraudPanel } from "@/components/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
-import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
@@ -1264,45 +1264,42 @@ function TeacherProjects() {
                     <DateCell value={p.due_date} variant="datetime" />
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <RowAction
-                        label="Preguntas del proyecto"
-                        icon={FileText}
-                        onClick={() => openFilesDialog(p)}
-                      />
-                      <RowAction
-                        label="Asignar estudiantes"
-                        icon={Users}
-                        onClick={() => openAssignDialog(p)}
-                      />
-                      {!p.is_external && (
-                        <RowAction
-                          label={
+                    <RowActionsMenu
+                      actions={[
+                        {
+                          label: "Preguntas del proyecto",
+                          icon: FileText,
+                          onClick: () => openFilesDialog(p),
+                        },
+                        {
+                          label: "Asignar estudiantes",
+                          icon: Users,
+                          onClick: () => openAssignDialog(p),
+                        },
+                        !p.is_external && {
+                          label:
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             (p as any).group_mode && (p as any).group_mode !== "individual"
                               ? "Grupos"
-                              : "Activar grupos"
-                          }
-                          icon={UsersRound}
-                          onClick={() => openGroupsForProject(p)}
-                        />
-                      )}
-                      <RowAction
-                        label="Entregas y calificación"
-                        icon={ClipboardList}
-                        onClick={() => openGradingDialog(p)}
-                      />
-                      <RowAction
-                        label={t("common.edit")}
-                        icon={Pencil}
-                        onClick={() => openEdit(p)}
-                      />
-                      <RowAction
-                        label={t("common.delete")}
-                        icon={Trash2}
-                        tone="destructive"
-                        onClick={() => remove(p)}
-                      />
-                    </div>
+                              : "Activar grupos",
+                          icon: UsersRound,
+                          onClick: () => openGroupsForProject(p),
+                        },
+                        {
+                          label: "Entregas y calificación",
+                          icon: ClipboardList,
+                          onClick: () => openGradingDialog(p),
+                        },
+                        { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(p) },
+                        {
+                          label: t("common.delete"),
+                          icon: Trash2,
+                          tone: "destructive",
+                          separatorBefore: true,
+                          onClick: () => remove(p),
+                        },
+                      ]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

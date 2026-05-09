@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
-import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateTime, formatDuration, formatPercent } from "@/lib/format";
@@ -596,21 +596,30 @@ function TeacherExams() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <RowAction asChild label={t("exam.liveMonitor")} icon={Monitor}>
-                        <Link to="/app/teacher/monitor/$examId" params={{ examId: e.id }} />
-                      </RowAction>
-                      <RowAction asChild label={t("common.edit")} icon={Pencil}>
-                        <Link to="/app/teacher/exams/$examId" params={{ examId: e.id }} />
-                      </RowAction>
-                      <RowAction label="Duplicar" icon={Copy} onClick={() => duplicate(e)} />
-                      <RowAction
-                        label={t("common.delete", { defaultValue: "Eliminar" })}
-                        icon={Trash2}
-                        tone="destructive"
-                        onClick={() => remove(e)}
-                      />
-                    </div>
+                    <RowActionsMenu
+                      actions={[
+                        {
+                          label: t("exam.liveMonitor"),
+                          icon: Monitor,
+                          to: "/app/teacher/monitor/$examId",
+                          params: { examId: e.id },
+                        },
+                        {
+                          label: t("common.edit"),
+                          icon: Pencil,
+                          to: "/app/teacher/exams/$examId",
+                          params: { examId: e.id },
+                        },
+                        { label: "Duplicar", icon: Copy, onClick: () => duplicate(e) },
+                        {
+                          label: t("common.delete", { defaultValue: "Eliminar" }),
+                          icon: Trash2,
+                          tone: "destructive",
+                          separatorBefore: true,
+                          onClick: () => remove(e),
+                        },
+                      ]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

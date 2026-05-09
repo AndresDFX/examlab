@@ -34,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
@@ -122,6 +123,7 @@ type Workshop = {
   rubric: any;
   max_score: number;
   status: string;
+  is_external?: boolean | null;
   group_mode?: "individual" | "teacher_assigned" | "self_signup";
   course?: { name: string; period: string | null };
 };
@@ -1306,61 +1308,54 @@ function TeacherWorkshops() {
                     <StatusBadge status={ws.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <RowAction
-                        label="Asignación / excluir estudiantes"
-                        icon={Users}
-                        onClick={() => openAssign(ws)}
-                      />
-                      {!(ws as any).is_external && (
-                        <RowAction
-                          label={
-                            (ws as any).group_mode && (ws as any).group_mode !== "individual"
+                    <RowActionsMenu
+                      actions={[
+                        {
+                          label: "Asignación / excluir estudiantes",
+                          icon: Users,
+                          onClick: () => openAssign(ws),
+                        },
+                        !ws.is_external && {
+                          label:
+                            ws.group_mode && ws.group_mode !== "individual"
                               ? "Grupos"
-                              : "Activar grupos"
-                          }
-                          icon={UsersRound}
-                          onClick={() => openGroupsForWorkshop(ws)}
-                        />
-                      )}
-                      <RowAction
-                        label="Preguntas del taller"
-                        icon={ListChecks}
-                        onClick={() => {
-                          setQuestionsWs(ws);
-                          setQuestionsOpen(true);
-                        }}
-                      />
-                      <RowAction
-                        label="Calificar"
-                        icon={CheckCircle2}
-                        onClick={() => openGrading(ws)}
-                      />
-                      <RowAction
-                        label="Editar"
-                        icon={Pencil}
-                        onClick={() => {
-                          setForm({
-                            ...ws,
-                            due_date: ws.due_date ? toLocalDatetime(ws.due_date) : "",
-                            start_date: ws.start_date ? toLocalDatetime(ws.start_date) : "",
-                          } as any);
-                          setOriginalCourseId(ws.course_id ?? null);
-                          setOpen(true);
-                        }}
-                      />
-                      <RowAction
-                        label="Duplicar"
-                        icon={Copy}
-                        onClick={() => duplicateWorkshop(ws)}
-                      />
-                      <RowAction
-                        label="Eliminar"
-                        icon={Trash2}
-                        tone="destructive"
-                        onClick={() => remove(ws.id)}
-                      />
-                    </div>
+                              : "Activar grupos",
+                          icon: UsersRound,
+                          onClick: () => openGroupsForWorkshop(ws),
+                        },
+                        {
+                          label: "Preguntas del taller",
+                          icon: ListChecks,
+                          onClick: () => {
+                            setQuestionsWs(ws);
+                            setQuestionsOpen(true);
+                          },
+                        },
+                        { label: "Calificar", icon: CheckCircle2, onClick: () => openGrading(ws) },
+                        {
+                          label: "Editar",
+                          icon: Pencil,
+                          onClick: () => {
+                            setForm({
+                              ...ws,
+                              due_date: ws.due_date ? toLocalDatetime(ws.due_date) : "",
+                              start_date: ws.start_date ? toLocalDatetime(ws.start_date) : "",
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            } as any);
+                            setOriginalCourseId(ws.course_id ?? null);
+                            setOpen(true);
+                          },
+                        },
+                        { label: "Duplicar", icon: Copy, onClick: () => duplicateWorkshop(ws) },
+                        {
+                          label: "Eliminar",
+                          icon: Trash2,
+                          tone: "destructive",
+                          separatorBefore: true,
+                          onClick: () => remove(ws.id),
+                        },
+                      ]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
