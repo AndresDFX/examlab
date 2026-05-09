@@ -28,6 +28,7 @@ import {
   FolderKanban,
   CalendarCheck,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -40,10 +41,14 @@ interface NavItem {
   roles: AppRole[];
 }
 
-// Orden uniforme entre roles: Dashboard → Cursos → Exámenes → Talleres
-// → Proyectos → Calificaciones → Asistencia. Cada rol ve solo sus
-// items pero el ORDEN visible es el mismo. "Usuarios" (admin-only)
-// queda al final por ser de gestión de plataforma, no académico.
+// Orden canónico del nav, igual entre roles. Un rol que no tiene una
+// ruta simplemente no la ve, pero la posición relativa de las que sí
+// ve es siempre la misma:
+//   Dashboard → Cursos → Exámenes → Talleres → Proyectos →
+//   Calificaciones → Asistencia → Estadísticas → Prompts → Usuarios.
+// Esto evita que Docente y Admin tengan "Prompts" en posiciones
+// distintas (antes Docente lo veía después de Calificaciones y Admin
+// al final, lo cual rompía la mental map al cambiar de rol).
 const NAV: NavItem[] = [
   {
     to: "/app",
@@ -97,19 +102,39 @@ const NAV: NavItem[] = [
     icon: ClipboardList,
     roles: ["Estudiante"],
   },
-  // Prompts IA (override por curso)
-  { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
   // Asistencia
-  { to: "/app/teacher/attendance", labelKey: "nav.attendance", icon: CalendarCheck, roles: ["Docente"] },
+  {
+    to: "/app/teacher/attendance",
+    labelKey: "nav.attendance",
+    icon: CalendarCheck,
+    roles: ["Docente"],
+  },
   {
     to: "/app/student/attendance",
     labelKey: "nav.studentAttendance",
     icon: CalendarCheck,
     roles: ["Estudiante"],
   },
+  // Estadísticas — vista por curso (Docente) y agregada (Admin).
+  {
+    to: "/app/teacher/statistics",
+    labelKey: "nav.statistics",
+    icon: BarChart3,
+    roles: ["Docente"],
+  },
+  {
+    to: "/app/admin/statistics",
+    labelKey: "nav.statistics",
+    icon: BarChart3,
+    roles: ["Admin"],
+  },
+  // Prompts (config de IA): override por curso para Docente, globales
+  // para Admin. Misma posición visual para no descolocar al usuario
+  // cuando cambia de rol.
+  { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
+  { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
-  { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
 ];
 
 const ROLE_CONFIG: Record<
@@ -158,6 +183,8 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/teacher/workshops": "text-orange-300",
   "/app/teacher/projects": "text-rose-300",
   "/app/teacher/attendance": "text-cyan-300",
+  "/app/teacher/statistics": "text-blue-300",
+  "/app/admin/statistics": "text-blue-300",
   "/app/student/exams": "text-amber-300",
   "/app/student/workshops": "text-orange-300",
   "/app/student/projects": "text-rose-300",
@@ -309,7 +336,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-3 py-3 border-b border-sidebar-border">
             <Select
               value={activeRole ?? undefined}
-              onValueChange={(v) => { setActiveRole(v as AppRole); navigate({ to: "/app" }); }}
+              onValueChange={(v) => {
+                setActiveRole(v as AppRole);
+                navigate({ to: "/app" });
+              }}
             >
               <SelectTrigger className="w-full h-9 bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent text-sm gap-2 [&>svg:last-child]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -372,11 +402,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               );
             }
             return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={navClassName}
-              >
+              <Link key={item.to} to={item.to} className={navClassName}>
                 <Icon className={cn("h-4 w-4 transition-colors", iconColor)} />
                 {t(item.labelKey)}
               </Link>
@@ -474,7 +500,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="px-3 py-3 border-b border-sidebar-border">
                   <Select
                     value={activeRole ?? undefined}
-                    onValueChange={(v) => { setActiveRole(v as AppRole); navigate({ to: "/app" }); }}
+                    onValueChange={(v) => {
+                      setActiveRole(v as AppRole);
+                      navigate({ to: "/app" });
+                    }}
                   >
                     <SelectTrigger className="w-full bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent gap-2 [&>svg:last-child]:hidden">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -538,11 +567,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     );
                   }
                   return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={navClassName}
-                    >
+                    <Link key={item.to} to={item.to} className={navClassName}>
                       <Icon className={cn("h-5 w-5 transition-colors", iconColor)} />
                       {t(item.labelKey)}
                     </Link>
