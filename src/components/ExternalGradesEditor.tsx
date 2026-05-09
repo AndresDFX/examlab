@@ -104,12 +104,12 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                 .from("project_submissions")
                 .select("id, user_id, final_grade, teacher_feedback")
                 .eq("project_id", refId);
-      const [{ data: enr, error: enrErr }, { data: subs, error: subsErr }] = await Promise.all([
-        enrPromise,
-        subsPromise,
-      ]);
+      const [{ data: course }, { data: enr, error: enrErr }, { data: subs, error: subsErr }] =
+        await Promise.all([coursePromise, enrPromise, subsPromise]);
       if (enrErr) throw enrErr;
       if (subsErr) throw subsErr;
+      const courseMax = Number((course as { grade_scale_max?: number } | null)?.grade_scale_max);
+      setMaxScore(Number.isFinite(courseMax) && courseMax > 0 ? courseMax : 5);
       const userIds = (enr ?? []).map((e: any) => e.user_id);
       if (userIds.length === 0) {
         setRows([]);
