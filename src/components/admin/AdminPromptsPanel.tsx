@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { HelpHint } from "@/components/ui/help-hint";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -31,17 +39,31 @@ type UseCase =
   | "ai_content_detection"
   | "project_description";
 
+/** Categorización por módulo para el filtro de la UI. NO se persiste —
+ * solo agrupa visualmente los prompts en el Select de filtro. Si se
+ * agrega un nuevo use_case, hay que asignarle module aquí. */
+type PromptModule = "exams" | "workshops" | "projects" | "fraud";
+
 type UseCaseDef = {
   key: UseCase;
+  module: PromptModule;
   label: string;
   description: string;
   defaultPrompt: string;
+};
+
+const MODULE_LABELS: Record<PromptModule, string> = {
+  exams: "Exámenes",
+  workshops: "Talleres",
+  projects: "Proyectos",
+  fraud: "Detección de fraude",
 };
 
 // Sincronizado con seeds de la migración 20260508100000_ai_prompts.sql.
 const USE_CASES: UseCaseDef[] = [
   {
     key: "workshop_full",
+    module: "workshops",
     label: "Taller completo",
     description:
       "Calificación de un taller entero (todas las respuestas del estudiante en bloque).",
@@ -50,6 +72,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "workshop_question",
+    module: "workshops",
     label: "Pregunta de taller",
     description: "Calificación pregunta por pregunta dentro de un taller.",
     defaultPrompt:
@@ -57,6 +80,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "project_file",
+    module: "projects",
     label: "Archivo de proyecto",
     description: "Calificación de un archivo individual del proyecto (texto extraído).",
     defaultPrompt:
@@ -64,6 +88,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "project_full",
+    module: "projects",
     label: "Proyecto completo",
     description: "Calificación holística del proyecto considerando todos los archivos.",
     defaultPrompt:
@@ -71,6 +96,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "exam_question",
+    module: "exams",
     label: "Pregunta de examen",
     description: "Calificación de una pregunta abierta de examen (rúbrica + respuesta).",
     defaultPrompt:
@@ -78,6 +104,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "exam_time_evaluation",
+    module: "exams",
     label: "Evaluación de duración de examen",
     description:
       "Sugiere si la duración asignada a un examen es razonable dadas las preguntas (botón 'Evaluar tiempo con IA' en el editor del examen).",
@@ -86,6 +113,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "plagiarism_detection",
+    module: "fraud",
     label: "Detección de copia entre estudiantes",
     description:
       "Prompt que usa el botón 'Detectar copias' (FraudPanel) para comparar respuestas de la misma pregunta y reportar pares sospechosos.",
@@ -94,6 +122,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "ai_content_detection",
+    module: "fraud",
     label: "Detección de respuestas generadas por IA",
     description:
       "Reglas que se anexan a los prompts de calificación (talleres, proyectos, exámenes) para que el modelo estime la probabilidad de que la respuesta haya sido generada por IA y devuelva ai_likelihood + ai_reasons.",
@@ -102,6 +131,7 @@ const USE_CASES: UseCaseDef[] = [
   },
   {
     key: "project_description",
+    module: "projects",
     label: "Descripción de proyecto (contexto global)",
     description:
       "Genera la descripción de un proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto tenga sentido por sí sola y en el conjunto. Disparado por 'Generar con IA' en el campo Descripción del editor de proyectos.",
@@ -133,6 +163,13 @@ export function AdminPromptsPanel() {
   );
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<UseCase | null>(null);
+  // Filtro por módulo. "all" muestra todos los prompts; otros valores
+  // filtran a una sola categoría (Exámenes / Talleres / Proyectos /
+  // Detección de fraude). Solo visual — no afecta la BD.
+  const [moduleFilter, setModuleFilter] = useState<PromptModule | "all">("all");
+  const filteredUseCases = USE_CASES.filter(
+    (uc) => moduleFilter === "all" || uc.module === moduleFilter,
+  );
 
   const load = async () => {
     setLoading(true);
@@ -262,79 +299,116 @@ export function AdminPromptsPanel() {
   }
 
   return (
-    <div className="grid gap-4">
-      {USE_CASES.map((uc) => {
-        const dirty = drafts[uc.key] !== saved[uc.key];
-        const isDefault = saved[uc.key] === uc.defaultPrompt;
-        return (
-          <Card key={uc.key}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                {uc.label}
-                {isDefault ? (
-                  <Badge variant="secondary" className="text-[10px]">
-                    Default
-                  </Badge>
-                ) : (
-                  <Badge className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
-                    Personalizado
-                  </Badge>
-                )}
-                <HelpHint>
-                  {uc.description}
-                  <br />
-                  <br />
-                  Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta
-                  del estudiante, idioma, puntaje máximo) se inyectan automáticamente por la función
-                  — no necesitas placeholders.
-                </HelpHint>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Textarea
-                rows={6}
-                value={drafts[uc.key]}
-                onChange={(e) => setDrafts((d) => ({ ...d, [uc.key]: e.target.value }))}
-                placeholder={uc.defaultPrompt}
-                className="font-mono text-xs leading-relaxed"
-              />
-              <div className="flex flex-wrap gap-2 justify-end">
-                {dirty && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDrafts((d) => ({ ...d, [uc.key]: saved[uc.key] }))}
-                    disabled={savingKey === uc.key}
-                  >
-                    Cancelar
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRestoreDefault(uc)}
-                  disabled={savingKey === uc.key || isDefault}
-                >
-                  <RotateCcw className="h-4 w-4 mr-1" />
-                  Restaurar default
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => handleSave(uc)}
-                  disabled={savingKey === uc.key || !dirty}
-                >
-                  {savingKey === uc.key ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-1" />
-                  )}
-                  Guardar
-                </Button>
-              </div>
+    <div className="space-y-4">
+      {/* Filtro por módulo: agrupa visualmente los use_cases por área de
+          la app (Exámenes / Talleres / Proyectos / Detección de fraude).
+          Solo afecta el render — no toca la BD. */}
+      <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
+        <div className="flex-1 min-w-48">
+          <Label className="text-xs">Módulo</Label>
+          <Select
+            value={moduleFilter}
+            onValueChange={(v) => setModuleFilter(v as PromptModule | "all")}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los módulos</SelectItem>
+              {(["exams", "workshops", "projects", "fraud"] as const).map((m) => (
+                <SelectItem key={m} value={m}>
+                  {MODULE_LABELS[m]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Badge variant="outline" className="text-[11px] tabular-nums h-6">
+          {filteredUseCases.length} de {USE_CASES.length} prompt(s)
+        </Badge>
+      </div>
+
+      <div className="grid gap-4">
+        {filteredUseCases.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-sm text-muted-foreground text-center">
+              No hay prompts en este módulo.
             </CardContent>
           </Card>
-        );
-      })}
+        ) : null}
+        {filteredUseCases.map((uc) => {
+          const dirty = drafts[uc.key] !== saved[uc.key];
+          const isDefault = saved[uc.key] === uc.defaultPrompt;
+          return (
+            <Card key={uc.key}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                  {uc.label}
+                  {isDefault ? (
+                    <Badge variant="secondary" className="text-[10px]">
+                      Default
+                    </Badge>
+                  ) : (
+                    <Badge className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
+                      Personalizado
+                    </Badge>
+                  )}
+                  <HelpHint>
+                    {uc.description}
+                    <br />
+                    <br />
+                    Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta
+                    del estudiante, idioma, puntaje máximo) se inyectan automáticamente por la
+                    función — no necesitas placeholders.
+                  </HelpHint>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  rows={6}
+                  value={drafts[uc.key]}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [uc.key]: e.target.value }))}
+                  placeholder={uc.defaultPrompt}
+                  className="font-mono text-xs leading-relaxed"
+                />
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {dirty && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDrafts((d) => ({ ...d, [uc.key]: saved[uc.key] }))}
+                      disabled={savingKey === uc.key}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRestoreDefault(uc)}
+                    disabled={savingKey === uc.key || isDefault}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Restaurar default
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleSave(uc)}
+                    disabled={savingKey === uc.key || !dirty}
+                  >
+                    {savingKey === uc.key ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-1" />
+                    )}
+                    Guardar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

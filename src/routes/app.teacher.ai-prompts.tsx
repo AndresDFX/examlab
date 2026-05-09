@@ -37,8 +37,20 @@ type UseCase =
   | "ai_content_detection"
   | "project_description";
 
+/** Categorización por módulo (idéntica a AdminPromptsPanel). Solo
+ * agrupa visualmente los use_cases en el Select de filtro. */
+type PromptModule = "exams" | "workshops" | "projects" | "fraud";
+
+const MODULE_LABELS: Record<PromptModule, string> = {
+  exams: "Exámenes",
+  workshops: "Talleres",
+  projects: "Proyectos",
+  fraud: "Detección de fraude",
+};
+
 type UseCaseDef = {
   key: UseCase;
+  module: PromptModule;
   label: string;
   description: string;
 };
@@ -46,48 +58,57 @@ type UseCaseDef = {
 const USE_CASES: UseCaseDef[] = [
   {
     key: "workshop_full",
+    module: "workshops",
     label: "Taller completo",
     description: "Calificación de un taller entero (todas las respuestas en bloque).",
   },
   {
     key: "workshop_question",
+    module: "workshops",
     label: "Pregunta de taller",
     description: "Calificación pregunta por pregunta dentro de un taller.",
   },
   {
     key: "project_file",
+    module: "projects",
     label: "Archivo de proyecto",
     description: "Calificación de un archivo individual del proyecto.",
   },
   {
     key: "project_full",
+    module: "projects",
     label: "Proyecto completo",
     description: "Calificación holística del proyecto completo.",
   },
   {
     key: "exam_question",
+    module: "exams",
     label: "Pregunta de examen",
     description: "Calificación de una pregunta abierta de examen.",
   },
   {
     key: "exam_time_evaluation",
+    module: "exams",
     label: "Evaluación de duración de examen",
     description: "Sugerencia de IA sobre cuántos minutos debería durar el examen.",
   },
   {
     key: "plagiarism_detection",
+    module: "fraud",
     label: "Detección de copia entre estudiantes",
     description:
       "Prompt que usa el botón 'Detectar copias' para comparar respuestas a la misma pregunta y reportar pares sospechosos.",
   },
   {
     key: "ai_content_detection",
+    module: "fraud",
     label: "Detección de respuestas generadas por IA",
     description:
       "Reglas que se anexan al prompt de calificación cuando el modelo debe estimar la probabilidad de que la respuesta haya sido generada por IA.",
   },
   {
     key: "project_description",
+    module: "projects",
     label: "Descripción de proyecto (contexto global)",
     description:
       "Genera la descripción del proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto se califique con el alcance/propósito en mente.",
@@ -123,6 +144,12 @@ function TeacherAIPrompts() {
   );
   const [loadingPrompts, setLoadingPrompts] = useState(false);
   const [savingKey, setSavingKey] = useState<UseCase | null>(null);
+  // Filtro por módulo (Exámenes / Talleres / Proyectos / Detección).
+  // Solo afecta el render — la query de prompts es la misma.
+  const [moduleFilter, setModuleFilter] = useState<PromptModule | "all">("all");
+  const filteredUseCases = USE_CASES.filter(
+    (uc) => moduleFilter === "all" || uc.module === moduleFilter,
+  );
 
   // Cursos donde el docente está asignado. Para Admin, RLS retorna todos.
   // Para Docente, courses solo retorna donde está en course_teachers.
@@ -340,6 +367,36 @@ function TeacherAIPrompts() {
         </Alert>
       )}
 
+      {/* Filtro por módulo: Exámenes / Talleres / Proyectos / Detección
+          de fraude. Solo afecta el render — comparte el mismo state de
+          drafts/overrides que el panel completo. */}
+      {courseId && (
+        <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
+          <div className="flex-1 min-w-48">
+            <Label className="text-xs">Módulo</Label>
+            <Select
+              value={moduleFilter}
+              onValueChange={(v) => setModuleFilter(v as PromptModule | "all")}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los módulos</SelectItem>
+                {(["exams", "workshops", "projects", "fraud"] as const).map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {MODULE_LABELS[m]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Badge variant="outline" className="text-[11px] tabular-nums h-6">
+            {filteredUseCases.length} de {USE_CASES.length} prompt(s)
+          </Badge>
+        </div>
+      )}
+
       {courseId && loadingPrompts ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
@@ -348,7 +405,14 @@ function TeacherAIPrompts() {
         </Card>
       ) : courseId && selectedCourse ? (
         <div className="grid gap-4">
-          {USE_CASES.map((uc) => {
+          {filteredUseCases.length === 0 && (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground text-center">
+                No hay prompts en este módulo.
+              </CardContent>
+            </Card>
+          )}
+          {filteredUseCases.map((uc) => {
             const override = overrides[uc.key];
             const draft = drafts[uc.key];
             const dirty = override ? draft !== override.system_prompt : draft !== globals[uc.key];

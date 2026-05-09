@@ -25,6 +25,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { toast } from "sonner";
 import {
   Clock,
@@ -1438,76 +1444,106 @@ function ExamMonitor() {
               if (!hasSignal) return null;
               return (
                 <div className="border-t pt-3 px-1">
-                  <div className="rounded-md border border-amber-400/50 bg-amber-400/5 dark:border-amber-300/40 dark:bg-amber-400/10 p-3 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300">
-                      <AlertTriangle className="h-4 w-4" />
-                      Señales de integridad académica
-                    </div>
-                    <ul className="text-xs text-muted-foreground space-y-1 ml-1">
-                      {aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD && (
-                        <li>
-                          <strong className="text-foreground">
-                            IA: {Math.round(aiScore * 100)}%
-                          </strong>{" "}
-                          de probabilidad de respuesta generada por IA.
-                          {viewingSub.ai_detected_reasons && (
-                            <span className="block text-[11px] mt-0.5 opacity-80 whitespace-pre-wrap">
-                              {viewingSub.ai_detected_reasons}
-                            </span>
+                  <Accordion
+                    type="single"
+                    collapsible
+                    className="rounded-md border border-amber-400/50 bg-amber-400/5 dark:border-amber-300/40 dark:bg-amber-400/10"
+                  >
+                    <AccordionItem value="integrity" className="border-b-0">
+                      <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                        {/* Header siempre visible: ícono + título + badges
+                            con los signals + sugerencia. Permite al docente
+                            saber de un vistazo qué hay sin expandir, y deja
+                            el área de respuestas del estudiante intacta. */}
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300 flex-1">
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          <span>Señales de integridad académica</span>
+                          {aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              IA {Math.round(aiScore * 100)}%
+                            </Badge>
                           )}
-                        </li>
-                      )}
-                      {plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD && (
-                        <li>
-                          <strong className="text-foreground">
-                            Copia: {Math.round(plagiarismMax * 100)}%
-                          </strong>{" "}
-                          de similitud máxima con{" "}
-                          {peerNames.length > 0 ? peerNames.join(", ") : "otra(s) entrega(s)"} (
-                          {myPairs.length} pregunta{myPairs.length === 1 ? "" : "s"}).
-                        </li>
-                      )}
-                    </ul>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-400/30">
-                      <div className="text-xs">
-                        Nota actual:{" "}
-                        <span className="font-medium tabular-nums">
-                          {currentGrade != null ? currentGrade.toFixed(2) : "—"}
-                        </span>{" "}
-                        <span className="mx-1 text-muted-foreground">→</span> Sugerida:{" "}
-                        <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-300">
-                          {suggestion!.suggested.toFixed(2)}
-                        </span>
-                        <HelpHint>
-                          Sugerencia = nota actual × {(1 - suggestion!.severity).toFixed(2)}{" "}
-                          (severidad {Math.round(suggestion!.severity * 100)}%).
-                          {suggestion!.source === "ai" && " Penaliza por IA."}
-                          {suggestion!.source === "plagio" && " Penaliza por copia."}
-                          {suggestion!.source === "ambas" &&
-                            " Penaliza por la señal más fuerte (IA o copia)."}{" "}
-                          Carga la nota en el input — puedes ajustarla antes de guardar.
-                        </HelpHint>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => setOverrideValue(suggestion!.suggested)}
-                        >
-                          Cargar sugerencia
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => setOverrideValue(0)}
-                        >
-                          Anular (0)
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                          {plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Copia {Math.round(plagiarismMax * 100)}%
+                            </Badge>
+                          )}
+                          <span className="text-[11px] text-muted-foreground tabular-nums ml-auto mr-2">
+                            {currentGrade != null ? currentGrade.toFixed(2) : "—"} →{" "}
+                            <span className="font-semibold text-amber-700 dark:text-amber-300">
+                              {suggestion!.suggested.toFixed(2)}
+                            </span>
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-3 pb-3 pt-0 space-y-2">
+                        <ul className="text-xs text-muted-foreground space-y-1 ml-1">
+                          {aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD && (
+                            <li>
+                              <strong className="text-foreground">
+                                IA: {Math.round(aiScore * 100)}%
+                              </strong>{" "}
+                              de probabilidad de respuesta generada por IA.
+                              {viewingSub.ai_detected_reasons && (
+                                <span className="block text-[11px] mt-0.5 opacity-80 whitespace-pre-wrap">
+                                  {viewingSub.ai_detected_reasons}
+                                </span>
+                              )}
+                            </li>
+                          )}
+                          {plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD && (
+                            <li>
+                              <strong className="text-foreground">
+                                Copia: {Math.round(plagiarismMax * 100)}%
+                              </strong>{" "}
+                              de similitud máxima con{" "}
+                              {peerNames.length > 0 ? peerNames.join(", ") : "otra(s) entrega(s)"} (
+                              {myPairs.length} pregunta{myPairs.length === 1 ? "" : "s"}).
+                            </li>
+                          )}
+                        </ul>
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-400/30">
+                          <div className="text-xs">
+                            Nota actual:{" "}
+                            <span className="font-medium tabular-nums">
+                              {currentGrade != null ? currentGrade.toFixed(2) : "—"}
+                            </span>{" "}
+                            <span className="mx-1 text-muted-foreground">→</span> Sugerida:{" "}
+                            <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+                              {suggestion!.suggested.toFixed(2)}
+                            </span>
+                            <HelpHint>
+                              Sugerencia = nota actual × {(1 - suggestion!.severity).toFixed(2)}{" "}
+                              (severidad {Math.round(suggestion!.severity * 100)}%).
+                              {suggestion!.source === "ai" && " Penaliza por IA."}
+                              {suggestion!.source === "plagio" && " Penaliza por copia."}
+                              {suggestion!.source === "ambas" &&
+                                " Penaliza por la señal más fuerte (IA o copia)."}{" "}
+                              Carga la nota en el input — puedes ajustarla antes de guardar.
+                            </HelpHint>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => setOverrideValue(suggestion!.suggested)}
+                            >
+                              Cargar sugerencia
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => setOverrideValue(0)}
+                            >
+                              Anular (0)
+                            </Button>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               );
             })()}

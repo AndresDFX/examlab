@@ -938,17 +938,17 @@ function renderCutDetailGrouped({
     }
   }
 
-  const workshopCols = columns.filter((c) => c.kind === "workshop");
-  const examCols = columns.filter((c) => c.kind === "exam");
-  const projectCols = columns.filter((c) => c.kind === "project");
+  // Orden estable de columnas: talleres → exámenes → proyectos. Los
+  // proyectos se renderizan read-only porque getGrade no expone subId
+  // para project_submissions (ver comentario en getGrade).
+  const orderedCols: GradeColumn[] = [
+    ...columns.filter((c) => c.kind === "workshop"),
+    ...columns.filter((c) => c.kind === "exam"),
+    ...columns.filter((c) => c.kind === "project"),
+  ];
   const showAttendance = Number(cut.attendance_weight ?? 0) > 0;
 
-  if (
-    workshopCols.length === 0 &&
-    examCols.length === 0 &&
-    projectCols.length === 0 &&
-    !showAttendance
-  ) {
+  if (orderedCols.length === 0 && !showAttendance) {
     return (
       <p className="text-sm text-muted-foreground py-6 text-center">
         Este corte no tiene actividades ni asistencia configuradas todavía.
@@ -956,148 +956,217 @@ function renderCutDetailGrouped({
     );
   }
 
-  const sectionDef: Array<{
-    key: "workshop" | "exam" | "project";
-    label: string;
-    icon: typeof FileText;
-    cols: GradeColumn[];
-    bucketWeight: number;
-  }> = [
+  // Pre-cómputo de asistencia por estudiante: cuenta presentes vs total
+  // de sesiones del corte. El render usa este map para llenar la celda
+  // "Asistencia" sin recalcular por fila.
+  const attendanceByUser = new Map<
+    string,
+    { present: number; total: number; nota: number | null }
+  >();
+  for (const s of students) {
+    const present = sessionsInCut.filter(
+      (ses) => recordsBySessionUser.get(`${ses.id}::${s.id}`) === "presente",
+    ).length;
+    const total = sessionsInCut.length;
+    const pct = total > 0 ? present / total : 0;
+    const nota =
+      selectedCourse && total > 0
+        ? selectedCourse.grade_scale_min +
+          pct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
+        : null;
+    attendanceByUser.set(s.id, { present, total, nota });
+  }
+
+  // Resumen de pesos por bucket — se muestra arriba del grid en lugar
+  // de una sub-tabla por bucket. Da contexto sin segmentar la grilla.
+  const bucketSummary = [
+    { label: "Talleres", icon: Hammer, weight: Number(cut.workshop_weight ?? 0) || 0 },
+    { label: "Exámenes", icon: FileText, weight: Number(cut.exam_weight ?? 0) || 0 },
+    { label: "Proyectos", icon: FolderKanban, weight: Number(cut.project_weight ?? 0) || 0 },
     {
-      key: "workshop",
-      label: "Talleres",
-      icon: Hammer,
-      cols: workshopCols,
-      bucketWeight: Number(cut.workshop_weight ?? 0) || 0,
+      label: "Asistencia",
+      icon: CalendarCheck,
+      weight: Number(cut.attendance_weight ?? 0) || 0,
     },
-    {
-      key: "exam",
-      label: "Exámenes",
-      icon: FileText,
-      cols: examCols,
-      bucketWeight: Number(cut.exam_weight ?? 0) || 0,
-    },
-    {
-      key: "project",
-      label: "Proyectos",
-      icon: FolderKanban,
-      cols: projectCols,
-      bucketWeight: Number(cut.project_weight ?? 0) || 0,
-    },
-  ];
+  ].filter((b) => b.weight > 0);
 
   return (
-    <div className="space-y-5">
-      {sectionDef.map((sec) => {
-        if (sec.cols.length === 0) return null;
-        return (
-          <div key={sec.key} className="rounded-md border overflow-hidden">
-            <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
-              <div className="flex items-center gap-2">
-                <sec.icon className="h-3.5 w-3.5 text-primary" />
-                <span className="text-sm font-medium">{sec.label}</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {sec.cols.length} {sec.cols.length === 1 ? "actividad" : "actividades"}
-                </span>
-              </div>
-              <span className="text-[11px] text-muted-foreground tabular-nums">
-                Peso bucket: {sec.bucketWeight.toFixed(1)}%
-              </span>
-            </div>
-            {renderEditableGrid({
-              columns: sec.cols,
-              students,
-              getGrade,
-              edits,
-              handleEdit,
-              cellKey,
-              selectedCourse,
-            })}
-          </div>
-        );
-      })}
-
-      {showAttendance && (
-        <div className="rounded-md border overflow-hidden">
-          <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
-            <div className="flex items-center gap-2">
-              <CalendarCheck className="h-3.5 w-3.5 text-primary" />
-              <span className="text-sm font-medium">Asistencia</span>
-              <span className="text-[11px] text-muted-foreground">
-                {sessionsInCut.length} {sessionsInCut.length === 1 ? "sesión" : "sesiones"} en el
-                rango del corte
-              </span>
-            </div>
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              Peso bucket: {Number(cut.attendance_weight ?? 0).toFixed(1)}%
-            </span>
-          </div>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
-                  <TableHead className="text-right">Sesiones presente</TableHead>
-                  <TableHead className="text-right">Total sesiones</TableHead>
-                  <TableHead className="text-right">% asistencia</TableHead>
-                  {selectedCourse && (
-                    <TableHead className="text-right">
-                      Nota ({selectedCourse.grade_scale_min}–{selectedCourse.grade_scale_max})
-                    </TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessionsInCut.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={selectedCourse ? 5 : 4}
-                      className="text-center text-muted-foreground py-6 text-sm"
-                    >
-                      {cut.start_date && cut.end_date
-                        ? "No hay sesiones de asistencia registradas en el rango de fechas del corte."
-                        : "El corte no tiene fechas configuradas — la asistencia no se puede asociar."}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  students.map((s) => {
-                    const present = sessionsInCut.filter(
-                      (ses) => recordsBySessionUser.get(`${ses.id}::${s.id}`) === "presente",
-                    ).length;
-                    const total = sessionsInCut.length;
-                    const pct = total > 0 ? present / total : 0;
-                    const nota = selectedCourse
-                      ? selectedCourse.grade_scale_min +
-                        pct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
-                      : null;
-                    return (
-                      <TableRow key={s.id}>
-                        <TableCell className="sticky left-0 z-10 bg-card">
-                          <div className="font-medium text-sm">{s.full_name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {s.institutional_email}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{present}</TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {total}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {Math.round(pct * 100)}%
-                        </TableCell>
-                        {selectedCourse && (
-                          <TableCell className="text-right tabular-nums font-medium">
-                            {nota != null ? nota.toFixed(2) : "—"}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
+    <div className="space-y-3">
+      {/* Resumen de pesos por bucket en una sola línea de chips. */}
+      {bucketSummary.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
+          <span className="text-[11px] text-muted-foreground">Buckets del corte:</span>
+          {bucketSummary.map((b) => (
+            <Badge key={b.label} variant="outline" className="text-[10px] gap-1 py-0 h-5">
+              <b.icon className="h-3 w-3" />
+              {b.label}: {b.weight.toFixed(1)}%
+            </Badge>
+          ))}
         </div>
+      )}
+
+      {/* Grid único: estudiantes × actividades + columna asistencia.
+          Sticky en estudiante para que la fila completa siga visible al
+          desplazarse horizontalmente. */}
+      <div className="rounded-md border overflow-hidden">
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+                {orderedCols.map((col) => (
+                  <TableHead key={col.id} className="text-center min-w-28">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        {col.kind === "exam" ? (
+                          <FileText className="h-3 w-3 text-primary shrink-0" />
+                        ) : col.kind === "workshop" ? (
+                          <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                        ) : (
+                          <FolderKanban className="h-3 w-3 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                        )}
+                        <span className="truncate max-w-24" title={col.title}>
+                          {col.title}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                        {col.kind === "exam"
+                          ? "Examen"
+                          : col.kind === "workshop"
+                            ? `Taller (/${col.maxScore ?? 100})`
+                            : `Proyecto (/${col.maxScore ?? 100})`}
+                      </Badge>
+                    </div>
+                  </TableHead>
+                ))}
+                {showAttendance && (
+                  <TableHead className="text-center min-w-32 bg-amber-400/5">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <CalendarCheck className="h-3 w-3 text-primary shrink-0" />
+                        <span>Asistencia</span>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                        {sessionsInCut.length} {sessionsInCut.length === 1 ? "sesión" : "sesiones"}
+                      </Badge>
+                    </div>
+                  </TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {students.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={orderedCols.length + 1 + (showAttendance ? 1 : 0)}
+                    className="text-center text-muted-foreground py-8"
+                  >
+                    No hay estudiantes matriculados en este curso.
+                  </TableCell>
+                </TableRow>
+              )}
+              {students.map((s) => {
+                const att = attendanceByUser.get(s.id);
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell className="sticky left-0 z-10 bg-card">
+                      <div className="font-medium text-sm">{s.full_name}</div>
+                      <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+                    </TableCell>
+                    {orderedCols.map((col) => {
+                      const g = getGrade(s.id, col);
+                      const key = cellKey(s.id, col.id);
+                      const isEditing = key in edits;
+                      const displayGrade = isEditing
+                        ? edits[key]
+                        : g.grade != null
+                          ? String(g.grade)
+                          : "";
+                      return (
+                        <TableCell key={col.id} className="text-center p-1">
+                          {g.subId ? (
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                step="0.1"
+                                min={selectedCourse?.grade_scale_min ?? 0}
+                                max={
+                                  col.kind === "exam"
+                                    ? (selectedCourse?.grade_scale_max ?? 100)
+                                    : (col.maxScore ?? 100)
+                                }
+                                value={displayGrade}
+                                onChange={(e) => handleEdit(s.id, col.id, e.target.value)}
+                                className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
+                                placeholder="—"
+                              />
+                              <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
+                                {g.isMakeup && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5"
+                                  >
+                                    <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
+                                  </Badge>
+                                )}
+                                {g.status === "sospechoso" && (
+                                  <span
+                                    title="Intento marcado como sospechoso (alertas de integridad)"
+                                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
+                                  >
+                                    <AlertTriangle
+                                      className="h-3 w-3"
+                                      strokeWidth={2}
+                                      aria-hidden
+                                    />
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ) : g.grade != null ? (
+                            // Proyectos sin subId editable: mostramos la nota
+                            // calculada como texto (read-only) en vez del input.
+                            <span className="text-sm tabular-nums font-medium">
+                              {Number(g.grade).toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                    {showAttendance && (
+                      <TableCell className="text-center bg-amber-400/5">
+                        {att && att.total > 0 ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-sm tabular-nums font-medium">
+                              {att.nota != null ? att.nota.toFixed(2) : "—"}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                              {att.present}/{att.total}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </div>
+
+      {/* Sin sesiones / sin fechas: nota informativa al pie en vez de
+          ocupar todo el grid con un empty state. */}
+      {showAttendance && sessionsInCut.length === 0 && (
+        <p className="text-[11px] text-muted-foreground italic">
+          {cut.start_date && cut.end_date
+            ? "No hay sesiones de asistencia registradas en el rango de fechas del corte — la columna Asistencia queda en —."
+            : "El corte no tiene fechas configuradas; la asistencia no se puede asociar al corte."}
+        </p>
       )}
     </div>
   );
