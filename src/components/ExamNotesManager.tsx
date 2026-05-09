@@ -298,7 +298,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       toast.error(error.message);
       return;
     }
-    if (!updated || (updated as { id: string }[]).length === 0) {
+    if (!updated || (updated as unknown as { id: string }[]).length === 0) {
       toast.error(
         "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
       );
