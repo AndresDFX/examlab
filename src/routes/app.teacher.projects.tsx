@@ -1204,12 +1204,12 @@ function TeacherProjects() {
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
                 <TableHead>Título</TableHead>
-                <TableHead>Curso</TableHead>
-                <TableHead>Corte</TableHead>
-                <TableHead className="text-right">Peso</TableHead>
+                <TableHead className="hidden sm:table-cell">Curso</TableHead>
+                <TableHead className="hidden md:table-cell">Corte</TableHead>
+                <TableHead className="hidden lg:table-cell text-right">Peso</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Fecha inicio</TableHead>
-                <TableHead>Fecha fin</TableHead>
+                <TableHead className="hidden md:table-cell">Fecha inicio</TableHead>
+                <TableHead className="hidden sm:table-cell">Fecha fin</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1219,8 +1219,15 @@ function TeacherProjects() {
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={p.id} state={sel} />
                   </TableCell>
-                  <TableCell className="font-medium">{p.title}</TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="truncate max-w-[18rem]">{p.title}</span>
+                      <span className="text-xs text-muted-foreground sm:hidden truncate">
+                        {courses.find((c) => c.id === p.course_id)?.name}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground hidden sm:table-cell max-w-[14rem]">
                     <div className="flex flex-wrap gap-1 items-center">
                       {(p.linked_course_ids ?? [p.course_id]).map((cid) => {
                         const c = courses.find((cc) => cc.id === cid);
@@ -1239,10 +1246,10 @@ function TeacherProjects() {
                       })}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">
+                  <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
                     {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums text-right">
+                  <TableCell className="text-sm tabular-nums text-right hidden lg:table-cell">
                     {p.cut_id != null && (p as any).weight != null
                       ? `${formatPercent(Number((p as any).weight))}%`
                       : "—"}
@@ -1250,10 +1257,10 @@ function TeacherProjects() {
                   <TableCell>
                     <StatusBadge status={p.status} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <DateCell value={p.start_date} variant="datetime" />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <DateCell value={p.due_date} variant="datetime" />
                   </TableCell>
                   <TableCell className="text-right">

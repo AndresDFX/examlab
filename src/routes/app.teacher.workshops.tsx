@@ -1236,11 +1236,11 @@ function TeacherWorkshops() {
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
                 <TableHead>Título</TableHead>
-                <TableHead>Curso</TableHead>
-                <TableHead>Corte</TableHead>
-                <TableHead className="text-right">Peso</TableHead>
-                <TableHead>Fecha inicio</TableHead>
-                <TableHead>Fecha fin</TableHead>
+                <TableHead className="hidden sm:table-cell">Curso</TableHead>
+                <TableHead className="hidden md:table-cell">Corte</TableHead>
+                <TableHead className="hidden lg:table-cell text-right">Peso</TableHead>
+                <TableHead className="hidden md:table-cell">Fecha inicio</TableHead>
+                <TableHead className="hidden sm:table-cell">Fecha fin</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -1273,24 +1273,33 @@ function TeacherWorkshops() {
                     <MultiSelectCheckbox id={ws.id} state={sel} />
                   </TableCell>
                   <TableCell className="font-medium">
-                    {ws.title}
-                    {ws.external_link && (
-                      <ExternalLink className="inline h-3 w-3 ml-1 text-muted-foreground" />
-                    )}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="truncate max-w-[18rem]">
+                        {ws.title}
+                        {ws.external_link && (
+                          <ExternalLink className="inline h-3 w-3 ml-1 text-muted-foreground" />
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground sm:hidden truncate">
+                        {ws.course?.name}
+                      </span>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{ws.course?.name}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs">
+                  <TableCell className="text-muted-foreground hidden sm:table-cell max-w-[12rem] truncate">
+                    {ws.course?.name}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
                     {cuts.find((c) => c.id === (ws as any).cut_id)?.name ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums text-right">
+                  <TableCell className="text-sm tabular-nums text-right hidden lg:table-cell">
                     {(ws as any).cut_id != null && (ws as any).weight != null
                       ? `${formatPercent(Number((ws as any).weight))}%`
                       : "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <DateCell value={ws.start_date} variant="datetime" />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <DateCell value={ws.due_date} variant="datetime" />
                   </TableCell>
                   <TableCell>
