@@ -251,36 +251,41 @@ function StudentGrades() {
           });
         }
 
-        // Talleres
+        // Talleres — para is_external la nota ya está en la escala del
+        // curso (la ingresa el docente en ExternalGradesEditor con cap =
+        // course.grade_scale_max). Para AI, w.max_score es la escala 0..100
+        // del prompt y hay que reescalar.
         for (const w of (workshops ?? []) as any[]) {
           const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === w.id);
           const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          const wMax = w.is_external ? course.grade_scale_max : (w.max_score ?? 100);
           rows.push({
             id: w.id,
             title: w.title,
             kind: "workshop",
             cut_id: w.cut_id ?? null,
             rawGrade: raw,
-            rawMax: w.max_score ?? 100,
-            grade: raw != null ? toScale(raw, w.max_score ?? 100) : null,
+            rawMax: wMax,
+            grade: raw != null ? toScale(raw, wMax) : null,
             status: sub?.status ?? "pendiente",
             weight: Number(w.weight ?? 1),
             reviewWorkshopId: sub ? w.id : null,
           });
         }
 
-        // Proyectos
+        // Proyectos — misma regla: external = ya en escala del curso.
         for (const p of (projects ?? []) as any[]) {
           const sub = (prjSubs ?? []).find((s: any) => s.project_id === p.id);
           const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          const pMax = p.is_external ? course.grade_scale_max : (p.max_score ?? 100);
           rows.push({
             id: p.id,
             title: p.title,
             kind: "project",
             cut_id: p.cut_id ?? null,
             rawGrade: raw,
-            rawMax: p.max_score ?? 100,
-            grade: raw != null ? toScale(raw, p.max_score ?? 100) : null,
+            rawMax: pMax,
+            grade: raw != null ? toScale(raw, pMax) : null,
             status: sub?.status ?? "pendiente",
             weight: Number(p.weight ?? 1),
           });
