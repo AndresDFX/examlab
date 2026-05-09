@@ -74,6 +74,12 @@ type Submission = {
   answers: any;
   ai_grade: number | null;
   final_override_grade: number | null;
+  /** Probabilidad 0..1 estimada por la IA de que la entrega sea generada
+   * por IA. Se llena al calificar y se usa para sugerir penalizaciones
+   * en el modal "Respuestas". */
+  ai_detected_score: number | null;
+  ai_detected_reasons: string | null;
+  ai_detected: boolean | null;
   created_at: string;
   started_at: string | null;
   submitted_at: string | null;
@@ -81,6 +87,18 @@ type Submission = {
    * agregado. Se suma a la fecha fin teórica del intento. */
   extra_seconds: number;
   profile?: { full_name: string; institutional_email: string };
+};
+
+/** Par de copia detectado entre dos estudiantes para una pregunta del
+ * examen. El monitor lo carga una vez por examen y lo cruza por user_id
+ * para sugerir penalización por plagio en el modal "Respuestas". */
+type SimilarityPair = {
+  id: string;
+  question_id: string | null;
+  user_a: string;
+  user_b: string;
+  score: number;
+  reasons: string | null;
 };
 
 type Question = {
@@ -105,6 +123,41 @@ type BreakdownItem = {
 type ManualOverride = { score: number; feedback?: string };
 
 const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
+
+/** Umbral por debajo del cual una señal de IA o copia se considera ruido
+ * y no entra en la sugerencia. Mismo umbral que usa la edge function
+ * detect-plagiarism y la calificación con IA para `ai_detected=true`. */
+const INTEGRITY_ALERT_THRESHOLD = 0.6;
+
+/**
+ * Sugerencia de calificación por integridad académica. Toma la nota
+ * actual (override > IA) y la multiplica por (1 - severidad), donde
+ * severidad = max(prob IA, max similitud con otro estudiante). Solo
+ * entra al cálculo cuando alguna señal supera el umbral 0.6.
+ *
+ * Ejemplos sobre nota actual = 4,5:
+ *   IA 60%  → 4,5 × (1 - 0,60) = 1,8
+ *   IA 85%  → 4,5 × (1 - 0,85) = 0,675
+ *   IA 100% → 4,5 × (1 - 1,00) = 0
+ *
+ * El docente siempre puede ignorar la sugerencia y poner el valor que
+ * quiera; este cálculo solo CARGA el input para que sea un click.
+ */
+function computeIntegritySuggestion(
+  currentGrade: number | null,
+  aiScore: number | null,
+  plagiarismMax: number | null,
+): { severity: number; suggested: number; source: "ai" | "plagio" | "ambas" } | null {
+  const ai = aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD ? aiScore : 0;
+  const pl =
+    plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD ? plagiarismMax : 0;
+  if (ai === 0 && pl === 0) return null;
+  if (currentGrade == null) return null;
+  const severity = Math.max(ai, pl);
+  const suggested = Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)));
+  const source = ai > 0 && pl > 0 ? "ambas" : ai > 0 ? "ai" : "plagio";
+  return { severity, suggested, source };
+}
 
 /**
  * Calcula la fecha fin de un intento. Para intentos terminados es
@@ -134,6 +187,10 @@ function ExamMonitor() {
   const [exam, setExam] = useState<any>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  // Pares de copia detectados (similarity_pairs) cruzados por user_id
+  // para sugerir penalización por plagio en el modal "Respuestas". Se
+  // recarga junto con las submissions.
+  const [similarityPairs, setSimilarityPairs] = useState<SimilarityPair[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingQid, setAiGradingQid] = useState<string | null>(null);
@@ -165,11 +222,12 @@ function ExamMonitor() {
 
     // extra_seconds aún no está en types.ts auto-generados; casteamos
     // a any para que el cliente lo selecte sin que el typing lo bloquee.
+    // ai_detected_* habilita la sugerencia de nota por integridad.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: subs } = await (supabase as any)
       .from("submissions")
       .select(
-        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, created_at, started_at, submitted_at, extra_seconds",
+        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, created_at, started_at, submitted_at, extra_seconds",
       )
       .eq("exam_id", examId)
       .order("created_at", { ascending: true });
@@ -191,6 +249,17 @@ function ExamMonitor() {
     } else {
       setSubmissions([]);
     }
+
+    // Pares de copia detectados para este examen. RLS deja ver solo a
+    // docente/admin del curso. Si nunca se corrió "Detectar copias"
+    // viene vacío y la sugerencia se basa solo en el flag de IA.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pairs } = await (supabase as any)
+      .from("similarity_pairs")
+      .select("id, question_id, user_a, user_b, score, reasons")
+      .eq("kind", "exam")
+      .eq("ref_id", examId);
+    setSimilarityPairs((pairs ?? []) as SimilarityPair[]);
   }, [examId]);
 
   const loadQuestions = useCallback(async () => {
@@ -1339,6 +1408,109 @@ function ExamMonitor() {
               </div>
             </ScrollArea>
           )}
+
+          {viewingSub &&
+            (() => {
+              // Sugerencia por integridad: cruza ai_detected_score con
+              // el max similarity_pairs.score del estudiante en este
+              // examen y propone una nota penalizada. El docente la
+              // aplica con un click; igual puede editar el input.
+              const aiScore = viewingSub.ai_detected_score;
+              const myPairs = similarityPairs.filter(
+                (p) => p.user_a === viewingSub.user_id || p.user_b === viewingSub.user_id,
+              );
+              const plagiarismMax = myPairs.length
+                ? Math.max(...myPairs.map((p) => p.score))
+                : null;
+              const peerNames = Array.from(
+                new Set(
+                  myPairs.map((p) => (p.user_a === viewingSub.user_id ? p.user_b : p.user_a)),
+                ),
+              )
+                .map((uid) => {
+                  const sub = submissions.find((s) => s.user_id === uid);
+                  return sub?.profile?.full_name ?? uid.slice(0, 8);
+                })
+                .slice(0, 3);
+              const currentGrade = viewingSub.final_override_grade ?? viewingSub.ai_grade ?? null;
+              const suggestion = computeIntegritySuggestion(currentGrade, aiScore, plagiarismMax);
+              const hasSignal = suggestion != null;
+              if (!hasSignal) return null;
+              return (
+                <div className="border-t pt-3 px-1">
+                  <div className="rounded-md border border-amber-400/50 bg-amber-400/5 dark:border-amber-300/40 dark:bg-amber-400/10 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="h-4 w-4" />
+                      Señales de integridad académica
+                    </div>
+                    <ul className="text-xs text-muted-foreground space-y-1 ml-1">
+                      {aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD && (
+                        <li>
+                          <strong className="text-foreground">
+                            IA: {Math.round(aiScore * 100)}%
+                          </strong>{" "}
+                          de probabilidad de respuesta generada por IA.
+                          {viewingSub.ai_detected_reasons && (
+                            <span className="block text-[11px] mt-0.5 opacity-80 whitespace-pre-wrap">
+                              {viewingSub.ai_detected_reasons}
+                            </span>
+                          )}
+                        </li>
+                      )}
+                      {plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD && (
+                        <li>
+                          <strong className="text-foreground">
+                            Copia: {Math.round(plagiarismMax * 100)}%
+                          </strong>{" "}
+                          de similitud máxima con{" "}
+                          {peerNames.length > 0 ? peerNames.join(", ") : "otra(s) entrega(s)"} (
+                          {myPairs.length} pregunta{myPairs.length === 1 ? "" : "s"}).
+                        </li>
+                      )}
+                    </ul>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-400/30">
+                      <div className="text-xs">
+                        Nota actual:{" "}
+                        <span className="font-medium tabular-nums">
+                          {currentGrade != null ? currentGrade.toFixed(2) : "—"}
+                        </span>{" "}
+                        <span className="mx-1 text-muted-foreground">→</span> Sugerida:{" "}
+                        <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+                          {suggestion!.suggested.toFixed(2)}
+                        </span>
+                        <HelpHint>
+                          Sugerencia = nota actual × {(1 - suggestion!.severity).toFixed(2)}{" "}
+                          (severidad {Math.round(suggestion!.severity * 100)}%).
+                          {suggestion!.source === "ai" && " Penaliza por IA."}
+                          {suggestion!.source === "plagio" && " Penaliza por copia."}
+                          {suggestion!.source === "ambas" &&
+                            " Penaliza por la señal más fuerte (IA o copia)."}{" "}
+                          Carga la nota en el input — puedes ajustarla antes de guardar.
+                        </HelpHint>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setOverrideValue(suggestion!.suggested)}
+                        >
+                          Cargar sugerencia
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setOverrideValue(0)}
+                        >
+                          Anular (0)
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
           <DialogFooter className="flex-col sm:flex-row sm:items-center gap-2 border-t pt-3">
             {viewingSub && (
