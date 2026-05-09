@@ -46,10 +46,14 @@ import {
   ATTENDANCE_CODE_ROTATION_DEFAULT,
 } from "@/lib/attendance-code";
 
-const SESSIONS_TEMPLATE = `session_date,title
-2025-08-01,Clase introductoria
-2025-08-03,Laboratorio 1
-2025-08-08,`;
+// Columna `cut_name` es OPCIONAL: si está vacía, la sesión queda sin
+// corte (no aporta a la nota de asistencia hasta que el docente la
+// reasigne en la UI). Si tiene texto, se hace match case-insensitive
+// contra `grade_cuts.name` del curso seleccionado.
+const SESSIONS_TEMPLATE = `session_date,title,cut_name
+2025-08-01,Clase introductoria,Corte 1
+2025-08-03,Laboratorio 1,Corte 1
+2025-08-08,,`;
 
 const ATTENDANCE_TEMPLATE = `email,session_date,status,note
 estudiante1@uni.edu,2025-08-01,presente,
@@ -66,6 +70,10 @@ type Session = {
   title: string | null;
   created_by: string;
   check_in_open?: boolean;
+  /** FK al corte al que pertenece la sesión. Lo elige el docente al
+   * crear la sesión. Cuando es null, la sesión no aporta a la nota
+   * de asistencia de ningún corte (ya no se infiere por fecha). */
+  cut_id?: string | null;
 };
 type Cut = {
   id: string;
@@ -106,6 +114,9 @@ function TeacherAttendance() {
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
   const [newTitle, setNewTitle] = useState("");
+  // Corte explícito al que pertenece la sesión nueva. "" = sin corte
+  // (la sesión queda visible pero no aporta a la nota de asistencia).
+  const [newCutId, setNewCutId] = useState<string>("");
 
   // Check-in self-service: configuración + estado del proyector activo
   const [checkInConfigSession, setCheckInConfigSession] = useState<Session | null>(null);
@@ -187,11 +198,15 @@ function TeacherAttendance() {
       toast.error("Fecha requerida");
       return;
     }
-    const { error } = await supabase.from("attendance_sessions").insert({
+    // cut_id va sólo si el docente eligió uno. Sin corte la sesión es
+    // visible pero no entra en el cálculo de la nota de asistencia.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("attendance_sessions").insert({
       course_id: courseId,
       session_date: newDate,
       title: newTitle || null,
       created_by: user.id,
+      cut_id: newCutId || null,
     });
     if (error) {
       toast.error(error.message);
@@ -200,7 +215,24 @@ function TeacherAttendance() {
     toast.success("Sesión creada correctamente");
     setNewSessionOpen(false);
     setNewTitle("");
+    setNewCutId("");
     loadCourse();
+  };
+
+  // Reasignar el corte de una sesión existente (la fecha NO cambia).
+  // Útil cuando se crea un corte nuevo y se quieren mover sesiones
+  // huérfanas, o cuando el docente cambia de criterio.
+  const updateSessionCut = async (sessionId: string, cutId: string | null) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("attendance_sessions")
+      .update({ cut_id: cutId })
+      .eq("id", sessionId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, cut_id: cutId } : s)));
   };
 
   // Toggle attendance ("none" = eliminar registro para esa celda)
@@ -310,27 +342,48 @@ function TeacherAttendance() {
     return toCSV(csvRows);
   };
 
-  // Build CSV de exportación de sesiones/clases
+  // Build CSV de exportación de sesiones/clases. Incluye `cut_name`
+  // para que el round-trip (export → import) preserve la asignación.
   const buildSessionsCsv = (): string => {
     if (!sessions.length) return "";
-    return toCSV(sessions.map((s) => ({ session_date: s.session_date, title: s.title ?? "" })));
+    const cutNameById = new Map(cuts.map((c) => [c.id, c.name]));
+    return toCSV(
+      sessions.map((s) => ({
+        session_date: s.session_date,
+        title: s.title ?? "",
+        cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
+      })),
+    );
   };
 
-  // Importar sesiones desde CSV
+  // Importar sesiones desde CSV. Soporta columna opcional `cut_name`
+  // que matchea contra `grade_cuts.name` del curso (case-insensitive).
+  // Si no hay match (o la columna está vacía), la sesión queda sin
+  // corte y el docente la reasigna desde la UI.
   const importSessions = async (rows: Record<string, string>[]) => {
     if (!courseId || !user) throw new Error("Selecciona un curso");
     const valid = rows.filter((r) => r.session_date && /^\d{4}-\d{2}-\d{2}$/.test(r.session_date));
     if (!valid.length) throw new Error("No hay filas con session_date válido (YYYY-MM-DD)");
-    const payload = valid.map((r) => ({
-      course_id: courseId,
-      session_date: r.session_date,
-      title: r.title || null,
-      created_by: user.id,
-    }));
-    const { error } = await supabase.from("attendance_sessions").insert(payload);
+    const cutByName = new Map(cuts.map((c) => [c.name.trim().toLowerCase(), c.id]));
+    let unmatched = 0;
+    const payload = valid.map((r) => {
+      const cutKey = (r.cut_name || "").trim().toLowerCase();
+      const cutId = cutKey ? (cutByName.get(cutKey) ?? null) : null;
+      if (cutKey && !cutId) unmatched++;
+      return {
+        course_id: courseId,
+        session_date: r.session_date,
+        title: r.title || null,
+        created_by: user.id,
+        cut_id: cutId,
+      };
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
     if (error) throw new Error(error.message);
     await loadCourse();
-    return `${payload.length} clase(s) importada(s) correctamente`;
+    const suffix = unmatched > 0 ? ` · ${unmatched} sin corte (nombre no coincide)` : "";
+    return `${payload.length} clase(s) importada(s) correctamente${suffix}`;
   };
 
   // Importar registros de asistencia desde CSV
@@ -534,26 +587,22 @@ function TeacherAttendance() {
     loadCourse();
   };
 
-  // Agrupa las sesiones por corte, derivando la pertenencia por fechas
-  // (idéntico a gradebook): la sesión cae en el corte si
-  // cut.start_date <= session_date <= cut.end_date. Las que no caen en
-  // ningún corte (o cuando no hay cuts definidos) van al grupo "Sin corte".
-  // Mantiene el orden por session_date dentro de cada grupo.
+  // Agrupa las sesiones por corte usando el FK explícito
+  // attendance_sessions.cut_id. Antes la pertenencia se infería por
+  // rango de fechas (cut.start_date <= session_date <= cut.end_date),
+  // pero ahora el docente la elige al crear la sesión y la puede
+  // cambiar desde el selector "Corte" en el header de cada columna.
+  // Las sesiones sin cut_id (legacy o intencionales) caen al grupo
+  // "Sin corte" y no aportan a la nota de asistencia.
   type CutGroup = { cut: Cut | null; sessions: Session[] };
   const cutGroups: CutGroup[] = (() => {
     if (sessions.length === 0) return [];
     const groups: CutGroup[] = cuts.map((c) => ({ cut: c, sessions: [] }));
     const orphan: CutGroup = { cut: null, sessions: [] };
     for (const sess of sessions) {
-      const match = cuts.find(
-        (c) =>
-          c.start_date != null &&
-          c.end_date != null &&
-          sess.session_date >= c.start_date &&
-          sess.session_date <= c.end_date,
-      );
-      if (match) {
-        groups.find((g) => g.cut?.id === match.id)!.sessions.push(sess);
+      const target = sess.cut_id ? groups.find((g) => g.cut?.id === sess.cut_id) : null;
+      if (target) {
+        target.sessions.push(sess);
       } else {
         orphan.sessions.push(sess);
       }
@@ -745,6 +794,26 @@ function TeacherAttendance() {
                             {sess.title}
                           </span>
                         )}
+                        {/* Selector de corte por sesión: permite mover una
+                            sesión existente a otro corte sin re-crearla. */}
+                        <Select
+                          value={sess.cut_id ?? "__none"}
+                          onValueChange={(v) =>
+                            updateSessionCut(sess.id, v === "__none" ? null : v)
+                          }
+                        >
+                          <SelectTrigger className="h-6 px-1.5 text-[9px] mt-0.5 w-full max-w-[6.5rem]">
+                            <SelectValue placeholder="Sin corte" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Sin corte</SelectItem>
+                            {cuts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </TableHead>
@@ -846,6 +915,37 @@ function TeacherAttendance() {
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="Ej: Clase 5, Laboratorio 2"
               />
+            </div>
+            <div>
+              <Label>
+                Corte{" "}
+                <HelpHint>
+                  La sesión aporta a la nota de asistencia del corte que elijas. Si la dejas en "Sin
+                  corte", quedará visible pero no contará para la nota. Puedes reasignarla después
+                  desde la columna "Corte" de la tabla.
+                </HelpHint>
+              </Label>
+              <Select
+                value={newCutId || "__none"}
+                onValueChange={(v) => setNewCutId(v === "__none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin corte" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Sin corte</SelectItem>
+                  {cuts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {cuts.length === 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Este curso aún no tiene cortes definidos.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>

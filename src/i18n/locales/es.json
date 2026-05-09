@@ -93,9 +93,6 @@
     "featureAI": "Generación y calificación con IA",
     "instructions": "Ingresa con las credenciales proporcionadas por tu administrador.",
     "contactAdmin": "¿No tienes cuenta? Contacta a tu administrador para que te registre en la plataforma.",
-    "firstTime": "¿Primera vez configurando? Carga datos de prueba:",
-    "seedDemo": "Inicializar datos demo",
-    "seedDone": "Datos iniciales cargados ✓",
     "backToHome": "← Volver al inicio"
   },
   "dashboard": {
@@ -215,8 +212,8 @@
       "title": "Título",
       "course": "Curso",
       "cut": "Corte",
-      "start": "Inicio",
-      "end": "Fin",
+      "start": "Fecha inicio",
+      "end": "Fecha fin",
       "duration": "Duración",
       "type": "Tipo",
       "navigation": "Navegación"

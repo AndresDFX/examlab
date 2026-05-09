@@ -256,6 +256,12 @@ function StudentWorkshops() {
                 )}
 
                 <div className="text-xs text-muted-foreground space-y-0.5">
+                  {workshop.start_date && isUpcoming && (
+                    <div className="flex items-center gap-1.5 tabular-nums">
+                      <Clock className="h-3 w-3" />
+                      Disponible desde: {formatDateTime(workshop.start_date)}
+                    </div>
+                  )}
                   {workshop.due_date && (
                     <div className="flex items-center gap-1.5 tabular-nums">
                       <Clock className="h-3 w-3" />

@@ -93,9 +93,6 @@
     "featureAI": "AI-powered generation and grading",
     "instructions": "Sign in with the credentials provided by your administrator.",
     "contactAdmin": "No account? Contact your administrator to register you on the platform.",
-    "firstTime": "First-time setup? Load sample data:",
-    "seedDemo": "Seed demo data",
-    "seedDone": "Sample data loaded ✓",
     "backToHome": "← Back to home"
   },
   "dashboard": {
@@ -215,8 +212,8 @@
       "title": "Title",
       "course": "Course",
       "cut": "Period",
-      "start": "Start",
-      "end": "End",
+      "start": "Start date",
+      "end": "End date",
       "duration": "Duration",
       "type": "Type",
       "navigation": "Navigation"

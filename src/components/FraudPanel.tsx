@@ -23,6 +23,7 @@ import { AlertTriangle, Bot, Check, Eye, Search, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { HelpHint } from "@/components/ui/help-hint";
 
 /**
  * Panel reutilizable para docente: análisis de fraude (IA) y detección
@@ -489,7 +490,15 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                   <TableHead className="w-28">Probabilidad</TableHead>
                   <TableHead>Razones</TableHead>
                   <TableHead className="w-24 text-right">Nota actual</TableHead>
-                  <TableHead className="w-24 text-right">Sugerida</TableHead>
+                  <TableHead className="w-24 text-right">
+                    <span className="inline-flex items-center gap-1 justify-end">
+                      Sugerida
+                      <HelpHint>
+                        La nota se ingresa en la escala del item (0 al puntaje máximo del
+                        examen/taller/proyecto). Decimales con coma (ej. 4,5).
+                      </HelpHint>
+                    </span>
+                  </TableHead>
                   <TableHead className="w-28 text-right">Aplicar</TableHead>
                 </TableRow>
               </TableHeader>
@@ -623,7 +632,15 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                       <TableHead className="w-28">Similitud máx</TableHead>
                       <TableHead>Coincide con</TableHead>
                       <TableHead className="w-24 text-right">Nota actual</TableHead>
-                      <TableHead className="w-24 text-right">Sugerida</TableHead>
+                      <TableHead className="w-24 text-right">
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          Sugerida
+                          <HelpHint>
+                            La nota se ingresa en la escala del item (0 al puntaje máximo del
+                            examen/taller/proyecto). Decimales con coma (ej. 4,5).
+                          </HelpHint>
+                        </span>
+                      </TableHead>
                       <TableHead className="w-28 text-right">Aplicar</TableHead>
                     </TableRow>
                   </TableHeader>

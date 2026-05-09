@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { RowAction } from "@/components/ui/row-action";
-import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   Select,
   SelectContent,
@@ -97,7 +97,7 @@ type Cut = {
   project_weight: number;
   attendance_weight: number;
 };
-type AttSession = { id: string; session_date: string };
+type AttSession = { id: string; session_date: string; cut_id?: string | null };
 type AttRecord = { session_id: string; user_id: string; status: string };
 type ProjectSub = {
   project_id: string;
@@ -213,10 +213,12 @@ function Gradebook() {
       .select("id, title, course_id, max_score, cut_id, weight, is_external")
       .eq("course_id", courseId);
 
-    // Sesiones de asistencia
+    // Sesiones de asistencia. cut_id es el FK explícito al corte
+    // (migración 20260509020000). Si llega null, la sesión no aporta a
+    // ningún corte — comportamiento intencional del docente.
     const { data: sessions } = await db
       .from("attendance_sessions")
-      .select("id, session_date")
+      .select("id, session_date, cut_id")
       .eq("course_id", courseId);
 
     setAllExams((exams ?? []) as Exam[]);
@@ -615,10 +617,10 @@ function Gradebook() {
       // estudiante en app.student.grades.tsx).
       const attEntries = cuts
         .map((cut) => {
-          if (!cut.start_date || !cut.end_date) return null;
-          const sessionsInCut = attSessions.filter(
-            (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
-          );
+          // Filtramos sesiones por cut_id explícito (migración
+          // 20260509020000). Antes se inferiía por rango de fechas; ahora
+          // el docente la asigna al crear la sesión.
+          const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
           if (sessionsInCut.length === 0) return null;
           const present = sessionsInCut.filter(
             (s) => recordsBySessionUser.get(`${s.id}::${stu.id}`) === "presente",
@@ -963,13 +965,9 @@ function renderCutDetailGrouped({
   attRecords: AttRecord[];
   onOpenStudent: (studentId: string) => void;
 }) {
-  // Sesiones de este corte (entre start_date y end_date).
-  const sessionsInCut = (() => {
-    if (!cut.start_date || !cut.end_date) return [];
-    return attSessions.filter(
-      (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
-    );
-  })();
+  // Sesiones de este corte usando el FK explícito attendance_sessions.cut_id
+  // (migración 20260509020000). Antes se inferiía por rango de fechas.
+  const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
   const sessionIdsInCut = new Set(sessionsInCut.map((s) => s.id));
   const recordsBySessionUser = new Map<string, string>();
   for (const r of attRecords) {
@@ -1170,9 +1168,8 @@ function renderCutDetailGrouped({
 
       {showAttendance && sessionsInCut.length === 0 && (
         <p className="text-[11px] text-muted-foreground italic">
-          {cut.start_date && cut.end_date
-            ? "No hay sesiones de asistencia registradas en el rango de fechas del corte — la columna Asistencia queda en —."
-            : "El corte no tiene fechas configuradas; la asistencia no se puede asociar al corte."}
+          No hay sesiones de asistencia asignadas a este corte — la columna Asistencia queda en —.
+          Asígnalas desde /app/teacher/attendance.
         </p>
       )}
     </div>
@@ -1210,12 +1207,8 @@ function renderStudentCutDetail({
   attSessions: AttSession[];
   attRecords: AttRecord[];
 }) {
-  const sessionsInCut =
-    cut.start_date && cut.end_date
-      ? attSessions.filter(
-          (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
-        )
-      : [];
+  // Filtro por cut_id explícito (migración 20260509020000).
+  const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
   const presentCount = sessionsInCut.filter(
     (ses) =>
       attRecords.find((r) => r.session_id === ses.id && r.user_id === studentId)?.status ===
@@ -1282,10 +1275,18 @@ function renderStudentCutDetail({
                 <TableRow>
                   <TableHead>Actividad</TableHead>
                   <TableHead className="text-right w-32">
-                    Nota{" "}
-                    {selectedCourse
-                      ? `(${selectedCourse.grade_scale_min}–${selectedCourse.grade_scale_max})`
-                      : ""}
+                    <span className="inline-flex items-center justify-end gap-1">
+                      Nota
+                      <HelpHint side="top">
+                        Escala del curso:{" "}
+                        <strong>
+                          {selectedCourse?.grade_scale_min ?? 0}–
+                          {selectedCourse?.grade_scale_max ?? "—"}
+                        </strong>
+                        . Para Talleres y Proyectos el tope es el <em>puntaje máximo del item</em>{" "}
+                        (mostrado al lado del título). Decimales con coma (ej. 4,5).
+                      </HelpHint>
+                    </span>
                   </TableHead>
                   <TableHead className="w-24 text-center">Estado</TableHead>
                 </TableRow>
@@ -1312,19 +1313,21 @@ function renderStudentCutDetail({
                       </TableCell>
                       <TableCell className="text-right">
                         {g.subId ? (
-                          <Input
-                            type="number"
-                            step="0.1"
+                          <DecimalInput
                             min={selectedCourse?.grade_scale_min ?? 0}
                             max={
                               col.kind === "exam"
                                 ? (selectedCourse?.grade_scale_max ?? 100)
                                 : (col.maxScore ?? 100)
                             }
-                            value={displayGrade}
-                            onChange={(e) => handleEdit(studentId, col.id, e.target.value)}
-                            className="h-8 w-24 ml-auto text-right text-sm tabular-nums"
+                            value={
+                              displayGrade === "" ? null : Number(displayGrade.replace(",", "."))
+                            }
+                            onChange={(v) =>
+                              handleEdit(studentId, col.id, v == null ? "" : String(v))
+                            }
                             placeholder="—"
+                            className="h-8 w-24 ml-auto text-right text-sm tabular-nums"
                           />
                         ) : g.grade != null ? (
                           <span className="text-sm tabular-nums font-medium">
@@ -1397,9 +1400,7 @@ function renderStudentCutDetail({
                     colSpan={selectedCourse ? 4 : 3}
                     className="text-center text-muted-foreground py-4 text-xs italic"
                   >
-                    {cut.start_date && cut.end_date
-                      ? "No hay sesiones registradas en el rango."
-                      : "El corte no tiene fechas configuradas."}
+                    No hay sesiones de asistencia asignadas a este corte.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1459,7 +1460,18 @@ function renderEditableGrid({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+            <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+              <span className="inline-flex items-center gap-1.5">
+                Estudiante
+                <HelpHint side="bottom" align="start">
+                  <strong>Escala del curso:</strong> {selectedCourse?.grade_scale_min ?? 0}–
+                  {selectedCourse?.grade_scale_max ?? "—"}. Para <strong>Exámenes</strong> ingresa
+                  la nota directamente en esa escala. Para <strong>Talleres</strong> y{" "}
+                  <strong>Proyectos</strong>, el tope es el <em>puntaje máximo del item</em>{" "}
+                  (mostrado al lado del título). Decimales con coma (ej. 4,5).
+                </HelpHint>
+              </span>
+            </TableHead>
             {columns.map((col) => (
               <TableHead key={col.id} className="text-center min-w-28">
                 <div className="flex flex-col items-center gap-0.5">
@@ -1477,7 +1489,7 @@ function renderEditableGrid({
                   </div>
                   <Badge variant="outline" className="text-[9px] py-0 h-3.5">
                     {col.kind === "exam"
-                      ? "Examen"
+                      ? `Examen (/${selectedCourse?.grade_scale_max ?? 5})`
                       : col.kind === "workshop"
                         ? `Taller (/${col.maxScore ?? 100})`
                         : `Proyecto (/${col.maxScore ?? 100})`}
@@ -1518,19 +1530,19 @@ function renderEditableGrid({
                   <TableCell key={col.id} className="text-center p-1">
                     {g.subId ? (
                       <div className="relative">
-                        <Input
-                          type="number"
-                          step="0.1"
+                        <DecimalInput
                           min={selectedCourse?.grade_scale_min ?? 0}
                           max={
                             col.kind === "workshop"
                               ? (col.maxScore ?? 100)
                               : (selectedCourse?.grade_scale_max ?? 100)
                           }
-                          value={displayGrade}
-                          onChange={(e) => handleEdit(s.id, col.id, e.target.value)}
-                          className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
+                          value={
+                            displayGrade === "" ? null : Number(displayGrade.replace(",", "."))
+                          }
+                          onChange={(v) => handleEdit(s.id, col.id, v == null ? "" : String(v))}
                           placeholder="—"
+                          className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
                         />
                         <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
                           {g.isMakeup && (

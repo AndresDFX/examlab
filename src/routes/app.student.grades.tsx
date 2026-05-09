@@ -165,7 +165,10 @@ function StudentGrades() {
             .from("projects")
             .select("id, title, max_score, cut_id, weight, is_external")
             .eq("course_id", courseId),
-          db.from("attendance_sessions").select("id, session_date").eq("course_id", courseId),
+          db
+            .from("attendance_sessions")
+            .select("id, session_date, cut_id")
+            .eq("course_id", courseId),
         ]);
 
         const cuts = (cutsData ?? []) as Cut[];
@@ -291,9 +294,15 @@ function StudentGrades() {
           });
         }
 
-        // Asistencia: agrupa por corte usando session_date entre fechas del corte.
-        // Cuenta sesiones del rango y cuántas registró el estudiante como "presente".
-        const allSessions = (sessions ?? []) as { id: string; session_date: string }[];
+        // Asistencia: agrupa por corte usando el FK explícito
+        // attendance_sessions.cut_id (migración 20260509020000). Antes
+        // se inferiía por rango de fechas. Cuenta sesiones del corte y
+        // cuántas registró el estudiante como "presente".
+        const allSessions = (sessions ?? []) as {
+          id: string;
+          session_date: string;
+          cut_id?: string | null;
+        }[];
         const allRecords = (attRecords ?? []) as { session_id: string; status: string }[];
         const recordsBySession = new Map(allRecords.map((r) => [r.session_id, r.status]));
 
@@ -316,12 +325,9 @@ function StudentGrades() {
           let attItem: ItemRow | null = null;
           const attWeight = Number(cut.attendance_weight ?? 0);
           if (attWeight > 0) {
-            const hasDates = !!cut.start_date && !!cut.end_date;
-            const sessionsInCut = hasDates
-              ? allSessions.filter(
-                  (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
-                )
-              : [];
+            // Filtro por cut_id explícito (migración 20260509020000):
+            // el docente asigna el corte al crear la sesión.
+            const sessionsInCut = allSessions.filter((s) => s.cut_id === cut.id);
             if (sessionsInCut.length > 0) {
               const present = sessionsInCut.filter(
                 (s) => recordsBySession.get(s.id) === "presente",
@@ -341,16 +347,12 @@ function StudentGrades() {
                 weight: attWeight,
               };
             } else {
-              // Bucket de asistencia con peso > 0 pero sin sesiones: lo
-              // mostramos como pendiente con grade=null. computeWeightedGrade
-              // ignora null sin reescalar pesos vecinos, así que la nota
-              // del corte refleja el "déficit" de manera consistente con
-              // las demás actividades sin entregar.
+              // Bucket de asistencia con peso > 0 pero sin sesiones
+              // asignadas a este corte: grade=null. computeWeightedGrade
+              // ignora null sin reescalar pesos vecinos.
               attItem = {
                 id: `attendance-${cut.id}`,
-                title: hasDates
-                  ? "Asistencia (sin sesiones registradas)"
-                  : "Asistencia (sin fechas configuradas en el corte)",
+                title: "Asistencia (sin sesiones asignadas a este corte)",
                 kind: "attendance",
                 cut_id: cut.id,
                 rawGrade: null,

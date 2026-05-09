@@ -30,34 +30,35 @@ Ej: estoy por agregar una nueva tabla → en el empty state usar `<TableEmpty>`,
 
 Vive en `src/components/ui/`. Componentes propios (encima de shadcn):
 
-| Componente | Para qué |
-|---|---|
-| `Label` (con prop `required`) | Forms con asterisco rojo en campos obligatorios |
-| `DecimalInput` | Inputs numéricos con coma como separador (siempre). Bloquea el punto, lo auto-convierte a coma. Emite `number \| null` con punto al padre. |
-| `RowAction` | Botones de acción icon-only en grids/listas. Tooltip + aria-label automáticos. Soporta `tone="destructive"` y `asChild` (para Link). |
-| `StatusBadge` | Estados de exam/workshop/project/submission con variant + ícono unificado. `sospechoso/requiere_revision` → destructive con AlertTriangle, etc. |
-| `EmptyState` / `TableEmpty` | "Sin datos" con padding y tono consistente. `TableEmpty` se usa como fila dentro de `<TableBody>` con `colSpan`. Soporta prop `action` para CTA tipo "Crear primer X". |
-| `Spinner` | Wrapper sobre `Loader2` con tamaños semánticos (`xs`/`sm`/`md`/`lg`/`xl`). Reemplazo de `<Loader2 className="h-4 w-4 animate-spin" />` directo. |
-| `SectionLoader` / `PageLoader` | Placeholders "Cargando…" para secciones / páginas completas. |
-| `TableSkeleton` / `ListSkeleton` | Placeholders pulsantes para grids/listas mientras cargan datos. Mejor UX que "Cargando…" sobre tabla vacía. |
-| `PageHeader` | Header de páginas de detalle: breadcrumb "← Volver" arriba (no compite con el título), `title` h1, `subtitle`, slot `actions` opcional, slot `icon` opcional. |
-| `ErrorBoundary` | React error boundary global, montado en `__root.tsx`. Captura errores fuera de rutas. Errores DENTRO de rutas los maneja `defaultErrorComponent` del router. |
-| `useMultiSelect` + `MultiSelectHeaderCheckbox` / `MultiSelectCheckbox` / `MultiSelectToolbar` / `BulkDeleteDialog` ([multi-select.tsx](src/components/ui/multi-select.tsx)) | Multi-selección + bulk delete para grids/tablas. Hook devuelve `{ selectedIds, toggle, toggleAll, isSelected, allSelected, indeterminate, count, clear }`. Toolbar aparece arriba cuando `count > 0`. BulkDeleteDialog muestra conteo + lista expandible (preview 5, expansible al resto) y ejecuta `.delete().in('id', ids)` atómico. Aplicado en grids de Usuarios, Cursos, Exámenes, Talleres y Proyectos. |
-| `ListFilters` ([list-filters.tsx](src/components/ui/list-filters.tsx)) | Barra estándar de búsqueda + filtro por curso para grids docente (talleres, proyectos, exámenes). Search input con ícono lupa + Select con "Todos los cursos" como default + botón "Limpiar" cuando hay filtros activos. Presentacional: el padre arma `filteredItems = useMemo(...)` y los pasa a `useMultiSelect` para que "seleccionar todo" abarque solo lo visible. |
-| `HelpHint` ([help-hint.tsx](src/components/ui/help-hint.tsx)) | Icono `?` con tooltip para texto de ayuda inline. Uso: `<Label>Campo <HelpHint>explicación detallada</HelpHint></Label>`. Reemplaza el patrón anterior `<span className="text-xs text-muted-foreground font-normal">(explicación)</span>`. Self-contained con su propio TooltipProvider. Soporta `side` y `align`. |
+| Componente                                                                                                                                                                  | Para qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Label` (con prop `required`)                                                                                                                                               | Forms con asterisco rojo en campos obligatorios                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `DecimalInput`                                                                                                                                                              | Inputs numéricos con coma como separador (siempre). Bloquea el punto, lo auto-convierte a coma. Emite `number \| null` con punto al padre.                                                                                                                                                                                                                                                                                                                                                      |
+| `RowAction`                                                                                                                                                                 | Botones de acción icon-only en grids/listas. Tooltip + aria-label automáticos. Soporta `tone="destructive"` y `asChild` (para Link).                                                                                                                                                                                                                                                                                                                                                            |
+| `StatusBadge`                                                                                                                                                               | Estados de exam/workshop/project/submission con variant + ícono unificado. `sospechoso/requiere_revision` → destructive con AlertTriangle, etc.                                                                                                                                                                                                                                                                                                                                                 |
+| `EmptyState` / `TableEmpty`                                                                                                                                                 | "Sin datos" con padding y tono consistente. `TableEmpty` se usa como fila dentro de `<TableBody>` con `colSpan`. Soporta prop `action` para CTA tipo "Crear primer X".                                                                                                                                                                                                                                                                                                                          |
+| `Spinner`                                                                                                                                                                   | Wrapper sobre `Loader2` con tamaños semánticos (`xs`/`sm`/`md`/`lg`/`xl`). Reemplazo de `<Loader2 className="h-4 w-4 animate-spin" />` directo.                                                                                                                                                                                                                                                                                                                                                 |
+| `SectionLoader` / `PageLoader`                                                                                                                                              | Placeholders "Cargando…" para secciones / páginas completas.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `TableSkeleton` / `ListSkeleton`                                                                                                                                            | Placeholders pulsantes para grids/listas mientras cargan datos. Mejor UX que "Cargando…" sobre tabla vacía.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `PageHeader`                                                                                                                                                                | Header de páginas de detalle: breadcrumb "← Volver" arriba (no compite con el título), `title` h1, `subtitle`, slot `actions` opcional, slot `icon` opcional.                                                                                                                                                                                                                                                                                                                                   |
+| `ErrorBoundary`                                                                                                                                                             | React error boundary global, montado en `__root.tsx`. Captura errores fuera de rutas. Errores DENTRO de rutas los maneja `defaultErrorComponent` del router.                                                                                                                                                                                                                                                                                                                                    |
+| `useMultiSelect` + `MultiSelectHeaderCheckbox` / `MultiSelectCheckbox` / `MultiSelectToolbar` / `BulkDeleteDialog` ([multi-select.tsx](src/components/ui/multi-select.tsx)) | Multi-selección + bulk delete para grids/tablas. Hook devuelve `{ selectedIds, toggle, toggleAll, isSelected, allSelected, indeterminate, count, clear }`. Toolbar aparece arriba cuando `count > 0`. BulkDeleteDialog muestra conteo + lista expandible (preview 5, expansible al resto) y ejecuta `.delete().in('id', ids)` atómico. Aplicado en grids de Usuarios, Cursos, Exámenes, Talleres y Proyectos.                                                                                   |
+| `ListFilters` ([list-filters.tsx](src/components/ui/list-filters.tsx))                                                                                                      | Barra estándar de búsqueda + filtro por curso para grids docente (talleres, proyectos, exámenes). Search input con ícono lupa + Select con "Todos los cursos" como default + botón "Limpiar" cuando hay filtros activos. Presentacional: el padre arma `filteredItems = useMemo(...)` y los pasa a `useMultiSelect` para que "seleccionar todo" abarque solo lo visible.                                                                                                                        |
+| `HelpHint` ([help-hint.tsx](src/components/ui/help-hint.tsx))                                                                                                               | Icono `?` con tooltip para texto de ayuda inline. Uso: `<Label>Campo <HelpHint>explicación detallada</HelpHint></Label>`. Reemplaza el patrón anterior `<span className="text-xs text-muted-foreground font-normal">(explicación)</span>`. Self-contained con su propio TooltipProvider. Soporta `side` y `align`.                                                                                                                                                                              |
+| `DateCell` ([date-cell.tsx](src/components/ui/date-cell.tsx))                                                                                                               | Celda estandarizada para mostrar una fecha en grids/tablas. `<DateCell value={...} variant="auto"\|"date"\|"datetime"\|"short" withIcon={false} />`. `auto` detecta `YYYY-MM-DD` y usa `formatDateOnly` (evita el bug UTC -1 día); con hora usa `formatDateTime`. Render `tabular-nums` + estado vacío "—". **Headers de fechas en grids docentes**: usar siempre "Fecha inicio" / "Fecha fin" (no "Inicio"/"Fin"/"Fecha límite"). Aplicado en grids de Cursos, Exámenes, Talleres y Proyectos. |
 
 ### Helpers utilitarios (`src/lib/`)
 
-| Helper | Para qué |
-|---|---|
-| `formatDate(d)` | "30 sep 2026" |
-| `formatDateLong(d)` | "30 de septiembre de 2026" |
-| `formatDateShort(d)` | "30 sep" (sin año, para tiles angostos) |
-| `formatDateTime(d)` | "30 sep 2026, 14:30" |
-| `formatTime(d)` | "14:30" |
-| `formatWeekday(d)` | "lunes, 30 de septiembre" |
+| Helper                         | Para qué                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `formatDate(d)`                | "30 sep 2026"                                                                                  |
+| `formatDateLong(d)`            | "30 de septiembre de 2026"                                                                     |
+| `formatDateShort(d)`           | "30 sep" (sin año, para tiles angostos)                                                        |
+| `formatDateTime(d)`            | "30 sep 2026, 14:30"                                                                           |
+| `formatTime(d)`                | "14:30"                                                                                        |
+| `formatWeekday(d)`             | "lunes, 30 de septiembre"                                                                      |
 | `formatDateOnly("2026-09-30")` | Para columnas DATE sin TZ — ancla a 12:00 local para evitar el bug de descontar un día por UTC |
-| `formatDuration(90)` | "1h 30m" |
+| `formatDuration(90)`           | "1h 30m"                                                                                       |
 
 Locale es-CO hardcodeado en `Intl.DateTimeFormat` para que la app se vea igual independiente del SO/navegador del usuario.
 
@@ -73,22 +74,22 @@ Locale es-CO hardcodeado en `Intl.DateTimeFormat` para que la app se vea igual i
 
 ## Archivos clave
 
-| Archivo | Propósito |
-|---------|-----------|
-| `src/routes/app.student.take.$examId.tsx` | Pantalla de toma de examen (estudiante) |
-| `src/routes/app.student.exams.tsx` | Lista de exámenes del estudiante |
-| `src/routes/app.student.review.$examId.tsx` | Revisión de resultados |
-| `src/routes/app.student.grades.tsx` | Vista de notas por curso del estudiante |
-| `src/routes/app.teacher.gradebook.tsx` | Gradebook docente con consolidado por corte + export CSV |
-| `src/routes/app.teacher.monitor.$examId.tsx` | Monitor en vivo del examen |
-| `src/components/CutsEditor.tsx` | Editor de cortes evaluativos del curso |
-| `src/components/ExternalGradesEditor.tsx` | Notas de actividades externas (presencial / otra plataforma) |
-| `src/components/FraudPanel.tsx` | Análisis IA + detección de copia entre estudiantes |
-| `src/integrations/supabase/types.ts` | Tipos generados de Supabase (no editar a mano) |
-| `src/lib/offline-sync.ts` | IndexedDB sync (`clearLocalAnswers`, `setupOfflineSync`) |
-| `src/lib/format.ts` | Helpers de formato de fechas/duraciones (es-CO) |
-| `src/utils/proctoring.ts` | `MAX_WARNINGS=3`, `warningLabel`, `shouldMarkSuspicious` |
-| `src/utils/grade.ts` | `computeWeightedGrade(items)` — núcleo del cálculo de notas |
+| Archivo                                      | Propósito                                                    |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| `src/routes/app.student.take.$examId.tsx`    | Pantalla de toma de examen (estudiante)                      |
+| `src/routes/app.student.exams.tsx`           | Lista de exámenes del estudiante                             |
+| `src/routes/app.student.review.$examId.tsx`  | Revisión de resultados                                       |
+| `src/routes/app.student.grades.tsx`          | Vista de notas por curso del estudiante                      |
+| `src/routes/app.teacher.gradebook.tsx`       | Gradebook docente con consolidado por corte + export CSV     |
+| `src/routes/app.teacher.monitor.$examId.tsx` | Monitor en vivo del examen                                   |
+| `src/components/CutsEditor.tsx`              | Editor de cortes evaluativos del curso                       |
+| `src/components/ExternalGradesEditor.tsx`    | Notas de actividades externas (presencial / otra plataforma) |
+| `src/components/FraudPanel.tsx`              | Análisis IA + detección de copia entre estudiantes           |
+| `src/integrations/supabase/types.ts`         | Tipos generados de Supabase (no editar a mano)               |
+| `src/lib/offline-sync.ts`                    | IndexedDB sync (`clearLocalAnswers`, `setupOfflineSync`)     |
+| `src/lib/format.ts`                          | Helpers de formato de fechas/duraciones (es-CO)              |
+| `src/utils/proctoring.ts`                    | `MAX_WARNINGS=3`, `warningLabel`, `shouldMarkSuspicious`     |
+| `src/utils/grade.ts`                         | `computeWeightedGrade(items)` — núcleo del cálculo de notas  |
 
 ---
 
@@ -124,6 +125,7 @@ Migración 20260507130000 hizo backfill: para cada cut puso `workshop_weight = s
 ## Módulo de examen estudiantil — decisiones de diseño
 
 ### Session lock (sin migración DB)
+
 Usa `answers.__session_id` (dentro del JSONB existente) + `updated_at` como heartbeat implícito (autosave cada 1.5s). Ventana de expiración: 10s. No se necesitan columnas adicionales.
 
 ```ts
@@ -132,25 +134,31 @@ function getOrCreateLocalSession(examId: string): string { ... }
 ```
 
 ### Proctoring — `recordWarning(type)`
+
 Definida dentro del proctoring `useEffect` con deps `[started, performSubmit]`. Usa `blurLockUntil` (debounce 500ms) para evitar strikes rápidos. Hace fire-and-forget a Supabase + el autosave de 1.5s recoge lo que falle.
 
 **IMPORTANTE:** Para el botón "Atrás" del navegador, el modal de confirmación hace `await supabase.update(...)` antes de `navigate()` — esto es crítico porque el componente se desmonta al navegar y el autosave timer se cancela.
 
 ### Esc bloqueado durante el examen
+
 El listener `onKeyDown` global (capture phase) intercepta Escape con `preventDefault + stopPropagation`. Eso impide que cierre dialogs del SPA o cancele otros defaults del navegador. **NO evita que el navegador salga de fullscreen al pulsar Esc** — esa salida la maneja el SO/browser y JavaScript no puede interceptarla. Cuando ocurre, `fullscreenchange` dispara y `recordWarning("fullscreen_exit")` suma el strike.
 
 ### Navegación secuencial vs libre
+
 - `exam.navigation_type === "secuencial"`: botón "Anterior" siempre deshabilitado; botón "Siguiente" abre modal de confirmación cada vez (warning sobre que no podrá regresar).
 - `libre`: comportamiento normal, "Anterior" disabled solo en `currentIdx === 0`.
 - Siempre se renderiza una sola pregunta a la vez (`const visible = [questions[currentIdx]].filter(Boolean)`).
 
 ### Timer
+
 Solo `computeSecondsLeft(exam?.end_time)`. El hook `useRealtimeTimer` inicializa una sola vez cuando `initialSeconds > 0`. No intentar calcular tiempo efectivo por estudiante.
 
 ### Offline sync
+
 `clearLocalAnswers(examId)` debe llamarse antes de crear una nueva fila de submission, para evitar el toast "X respuesta(s) sincronizada(s)" cuando el docente borra la sesión anterior.
 
 ### Suspensión / entrega — fire-and-forget
+
 `performSubmit` await SOLO el `submissions.update` (la entrega real). La notificación al docente vía RPC y la calificación con IA (`ai-grade-submission` edge function, ~5-15s) se disparan con `void` sin await. El alumno ve "Examen suspendido/entregado" en ~300ms en vez de ~10s. El servidor termina las tareas en background aunque el cliente navegue a otra ruta.
 
 ---
@@ -158,14 +166,17 @@ Solo `computeSecondsLeft(exam?.end_time)`. El hook `useRealtimeTimer` inicializa
 ## Features adicionales
 
 ### Actividades externas (`is_external` en exams, workshops y projects)
+
 Para parciales/talleres/proyectos que ya pasaron fuera de la plataforma (presencial o virtual en otra herramienta) y solo se registran notas. Toggle en el dialog de creación esconde campos sin sentido (duración/navegación/proctoring/preguntas para examen, archivos esperados/instrucciones para proyecto). El editor de notas externas (`ExternalGradesEditor`) lista a los matriculados con columnas Nota + **Observación** (campo libre por estudiante), y guarda en `submissions.{final_override_grade, teacher_feedback}` / `workshop_submissions.{final_grade, teacher_feedback}` / `project_submissions.{final_grade, teacher_feedback}`. La columna `submissions.teacher_feedback` la agregó la migración 20260507130000.
 
 ### Detección de fraude (FraudPanel)
+
 - **Análisis IA por entrega**: cada calificación con IA puebla `submissions.ai_detected_score / ai_detected_reasons` (0..1 + razones). Threshold 0.6 marca `ai_detected = true` y status `sospechoso`.
 - **Plagio entre estudiantes**: edge function `detect-plagiarism` compara entregas pares vía Gemini, persiste en tabla `similarity_pairs (kind, ref_id, score, reasons)`. RLS solo docente/admin.
 - `<FraudPanel kind refId>` reutilizable en monitor de examen, dialog de calificación de taller, dialog de entregas de proyecto.
 
 ### Selección de modelo de IA (tabla `ai_model_settings`)
+
 Una sola configuración global activa a la vez (UNIQUE PARTIAL idx sobre `is_active=true`). Solo Admin escribe.
 
 - Providers V1: `lovable` (Gemini via gateway) y `openai` (gpt-4o, gpt-4o-mini, etc).
@@ -174,6 +185,7 @@ Una sola configuración global activa a la vez (UNIQUE PARTIAL idx sobre `is_act
 - UI Admin en `app.admin.ai-prompts.tsx` con tabs: **Prompts** (editor de los 5 use_cases globales) + **Modelo** (provider + model). El path se mantuvo por compatibilidad.
 
 ### Prompts de IA customizables (tabla `ai_prompts`)
+
 Sistema de overrides de prompts para los modelos de IA, separado por **caso de uso** (no por módulo):
 
 - 5 use cases: `workshop_full`, `workshop_question`, `project_file`, `project_full`, `exam_question`.
@@ -184,6 +196,7 @@ Sistema de overrides de prompts para los modelos de IA, separado por **caso de u
 - RLS: SELECT abierto a authenticated; INSERT/UPDATE/DELETE de globales solo Admin; de overrides solo docente del curso (vía `course_teachers`) o Admin.
 
 ### Asistencia self check-in con QR rotativo (TOTP-like)
+
 Los estudiantes se marcan presentes solos para que el docente no tenga que llamar uno a uno.
 
 - **DB**: `attendance_sessions.check_in_open` (visible a todos) + tabla privada `attendance_check_in_state(session_id, seed, rotation_seconds, opened_at, closes_at)` con RLS Docente/Admin only — la **seed nunca llega al estudiante**.
@@ -195,6 +208,7 @@ Los estudiantes se marcan presentes solos para que el docente no tenga que llama
 - **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
 
 ### Proyectos: sustentación + link al repo obligatorio
+
 La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentación, `final_grade=null` (el estudiante ve "Falta sustentación").
 
 - **DB** (migración 20260507170000): `project_submissions.submission_grade`, `defense_factor` (0..1, CHECK), `defense_notes`, `defense_at`, `repository_url`. Backfill: para entregas ya calificadas pone `submission_grade = final_grade` y `defense_factor = 1` para preservar el comportamiento previo.
@@ -203,6 +217,7 @@ La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentac
 - **Verificación de fechas vs commits**: el sistema solo persiste el link y la fecha de entrega — la comparación contra fechas de modificación del repo es manual del docente. La verificación automática vía API de GitHub/Drive queda como mejora futura (requiere OAuth y casos edge).
 
 ### Proyectos: entrega de código completo en ZIP (`type='codigo_zip'`)
+
 Slot adicional en `project_files` para que el estudiante suba un ZIP con todo su código fuente. Diagramas y documentos siguen entregándose en preguntas separadas (tipo `abierta`/`diagrama`/etc).
 
 - **DB** (migración 20260507160000): bucket `project-files` (100MB max), columna `project_submission_files.zip_path`, nuevo tipo `codigo_zip` permitido en `project_files.type`. RLS de Storage: estudiante sube/lee/borra los suyos; docente/admin lee todos.
@@ -212,6 +227,7 @@ Slot adicional en `project_files` para que el estudiante suba un ZIP con todo su
 - **Caso vacío**: si el ZIP no contiene archivos de código reconocidos, retorna grade=0 con feedback claro al estudiante.
 
 ### Trabajo en grupo en talleres y proyectos (V1: teacher_assigned, modo MIXTO)
+
 Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma nota. Replicado idéntico en talleres y proyectos.
 
 - **DB** (migraciones 20260507150000 talleres y 20260507180000 proyectos): `workshops.group_mode` / `projects.group_mode` (`individual` | `teacher_assigned` | `self_signup` — V1 expone solo individual y teacher_assigned). Tablas `{workshop|project}_groups(id, {workshop|project}_id, name, signup_code)` + `{workshop|project}_group_members(group_id, user_id)` con trigger que evita estar en >1 grupo del mismo taller/proyecto. Columna `{workshop|project}_submissions.group_id` (cuando hay grupo, la submission pertenece al grupo).
@@ -224,6 +240,7 @@ Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma 
 - **Self-signup**: queda para V2. La columna `signup_code` ya está en la tabla para no migrar después.
 
 ### Notificaciones realtime + push
+
 `use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
 
 ---

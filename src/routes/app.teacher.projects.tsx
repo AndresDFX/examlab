@@ -82,6 +82,7 @@ import { DateTimePicker } from "@/components/ui/date-picker";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { DateCell } from "@/components/ui/date-cell";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -1207,7 +1208,8 @@ function TeacherProjects() {
                 <TableHead>Corte</TableHead>
                 <TableHead className="text-right">Peso</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Entrega</TableHead>
+                <TableHead>Fecha inicio</TableHead>
+                <TableHead>Fecha fin</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1248,8 +1250,11 @@ function TeacherProjects() {
                   <TableCell>
                     <StatusBadge status={p.status} />
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums">
-                    {formatDateTime(p.due_date)}
+                  <TableCell>
+                    <DateCell value={p.start_date} variant="datetime" />
+                  </TableCell>
+                  <TableCell>
+                    <DateCell value={p.due_date} variant="datetime" />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
@@ -1296,7 +1301,7 @@ function TeacherProjects() {
               ))}
               {projects.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={FolderKanban}
                   text="Aún no has creado ningún proyecto."
                   hint="Define las preguntas del proyecto y asígnalo a uno o varios cursos."
@@ -1309,7 +1314,7 @@ function TeacherProjects() {
                 />
               ) : filteredProjects.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={FolderKanban}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los proyectos."

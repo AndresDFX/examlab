@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
 import { RowAction } from "@/components/ui/row-action";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { DateCell } from "@/components/ui/date-cell";
 import { formatDateTime, formatDuration, formatPercent } from "@/lib/format";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { toCSV } from "@/lib/csv";
@@ -557,10 +558,10 @@ function TeacherExams() {
                       ? `${formatPercent(Number(e.weight))}%`
                       : "—"}
                   </TableCell>
-                  <TableCell className="text-sm hidden sm:table-cell tabular-nums">
-                    {formatDateTime(e.start_time)}
+                  <TableCell className="hidden sm:table-cell">
+                    <DateCell value={e.start_time} variant="datetime" />
                   </TableCell>
-                  <TableCell className="text-sm hidden sm:table-cell tabular-nums">
+                  <TableCell className="hidden sm:table-cell">
                     {(() => {
                       // Fin = inicio + duración. Para sync con end_time
                       // explícito tomamos el menor (la ventana puede
@@ -572,7 +573,7 @@ function TeacherExams() {
                         ? new Date((e as any).end_time).getTime()
                         : null;
                       const end = explicit ? Math.min(explicit, fromLimit) : fromLimit;
-                      return formatDateTime(new Date(end));
+                      return <DateCell value={new Date(end)} variant="datetime" />;
                     })()}
                   </TableCell>
                   <TableCell className="text-sm hidden lg:table-cell tabular-nums">

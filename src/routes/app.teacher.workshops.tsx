@@ -36,6 +36,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { DateCell } from "@/components/ui/date-cell";
 import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -117,6 +118,7 @@ type Workshop = {
   external_link: string | null;
   ai_generated: boolean;
   due_date: string | null;
+  start_date: string | null;
   rubric: any;
   max_score: number;
   status: string;
@@ -1237,7 +1239,8 @@ function TeacherWorkshops() {
                 <TableHead>Curso</TableHead>
                 <TableHead>Corte</TableHead>
                 <TableHead className="text-right">Peso</TableHead>
-                <TableHead>Fecha límite</TableHead>
+                <TableHead>Fecha inicio</TableHead>
+                <TableHead>Fecha fin</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -1245,7 +1248,7 @@ function TeacherWorkshops() {
             <TableBody>
               {workshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={Hammer}
                   text="Aún no has creado ningún taller."
                   hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
@@ -1258,7 +1261,7 @@ function TeacherWorkshops() {
                 />
               ) : filteredWorkshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={Hammer}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los talleres."
@@ -1284,7 +1287,12 @@ function TeacherWorkshops() {
                       ? `${formatPercent(Number((ws as any).weight))}%`
                       : "—"}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums">{formatDate(ws.due_date)}</TableCell>
+                  <TableCell>
+                    <DateCell value={ws.start_date} variant="datetime" />
+                  </TableCell>
+                  <TableCell>
+                    <DateCell value={ws.due_date} variant="datetime" />
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={ws.status} />
                   </TableCell>
@@ -1326,9 +1334,7 @@ function TeacherWorkshops() {
                           setForm({
                             ...ws,
                             due_date: ws.due_date ? toLocalDatetime(ws.due_date) : "",
-                            start_date: (ws as any).start_date
-                              ? toLocalDatetime((ws as any).start_date)
-                              : "",
+                            start_date: ws.start_date ? toLocalDatetime(ws.start_date) : "",
                           } as any);
                           setOriginalCourseId(ws.course_id ?? null);
                           setOpen(true);

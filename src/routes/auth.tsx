@@ -25,7 +25,6 @@ function AuthPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [seedingLoading, setSeedingLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -46,20 +45,6 @@ function AuthPage() {
     }
     toast.success(t("auth.welcome"));
     navigate({ to: "/app" });
-  };
-
-  const runSeed = async () => {
-    setSeedingLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("seed-data", { body: {} });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error ?? "Error");
-      toast.success(t("auth.seedDone"));
-    } catch (e: any) {
-      toast.error(e.message ?? "Error");
-    } finally {
-      setSeedingLoading(false);
-    }
   };
 
   return (
@@ -143,18 +128,6 @@ function AuthPage() {
             <p className="text-xs text-muted-foreground mt-4 text-center">
               {t("auth.contactAdmin")}
             </p>
-            <div className="pt-4 border-t mt-4">
-              <p className="text-xs text-muted-foreground mb-2">{t("auth.firstTime")}</p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={runSeed}
-                disabled={seedingLoading}
-              >
-                {seedingLoading && <Spinner size="md" className="mr-2" />}
-                {t("auth.seedDemo")}
-              </Button>
-            </div>
             <div className="mt-4 text-center">
               <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
                 {t("auth.backToHome")}

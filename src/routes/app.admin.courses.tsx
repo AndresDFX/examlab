@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { formatDateOnly } from "@/lib/format";
+import { DateCell } from "@/components/ui/date-cell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -845,7 +845,8 @@ export function AdminCourses() {
                 <TableHead>Nombre</TableHead>
                 <TableHead className="hidden sm:table-cell">Periodo</TableHead>
                 <TableHead className="hidden sm:table-cell">Escala</TableHead>
-                <TableHead className="hidden md:table-cell">Fechas</TableHead>
+                <TableHead className="hidden md:table-cell">Fecha inicio</TableHead>
+                <TableHead className="hidden md:table-cell">Fecha fin</TableHead>
                 <TableHead className="hidden lg:table-cell">Descripción</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -853,7 +854,7 @@ export function AdminCourses() {
             <TableBody>
               {courses.length === 0 && (
                 <TableEmpty
-                  colSpan={7}
+                  colSpan={8}
                   icon={BookOpen}
                   text="Aún no hay cursos creados."
                   hint="Crea el primer curso y asigna estudiantes y docentes."
@@ -897,12 +898,11 @@ export function AdminCourses() {
                       <span className="text-muted-foreground ml-1">(≥{c.passing_grade})</span>
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground tabular-nums">
-                    {c.start_date && c.end_date
-                      ? `${formatDateOnly(c.start_date)} → ${formatDateOnly(c.end_date)}`
-                      : c.start_date
-                        ? `Desde ${formatDateOnly(c.start_date)}`
-                        : "—"}
+                  <TableCell className="hidden md:table-cell">
+                    <DateCell value={c.start_date} variant="auto" />
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <DateCell value={c.end_date} variant="auto" />
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden lg:table-cell max-w-48 truncate">
                     {c.description ?? "—"}
