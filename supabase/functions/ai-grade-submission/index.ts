@@ -1253,16 +1253,24 @@ Idioma de salida: ${langName}.`,
       .join("\n");
     const reasonsWithSpeed = speedNote ? `${speedNote}\n${topReasons}`.trim() : topReasons;
     const aiDetected = finalAiLikelihood >= 0.6;
-    // Si el docente ya forzó "sospechoso" (proctoring), respetamos ese
-    // estado. Si la IA detecta fraude, también marcamos sospechoso para
-    // que entre en la cola de revisión manual.
-    const newStatus = sub.status === "sospechoso" || aiDetected ? "sospechoso" : "completado";
+    // Si el docente ya marcó la sospecha IA como REVISADA (ai_review_at
+    // IS NOT NULL), no volvemos a flagear ni a cambiar el estado por
+    // IA — su decisión queda congelada hasta que él la desmarque.
+    // Solo respeta "sospechoso" forzado por proctoring si NO hay review.
+    const aiAlreadyReviewed = (sub as { ai_review_at?: string | null }).ai_review_at != null;
+    const newStatus = aiAlreadyReviewed
+      ? sub.status // congelado: no tocar
+      : sub.status === "sospechoso" || aiDetected
+        ? "sospechoso"
+        : "completado";
 
     await admin
       .from("submissions")
       .update({
         ai_grade: grade,
-        ai_detected: aiDetected,
+        // Si la sospecha IA ya fue revisada, no la re-marcamos: dejamos
+        // ai_detected en false aunque la likelihood haya subido.
+        ai_detected: aiAlreadyReviewed ? false : aiDetected,
         ai_detected_score: finalAiLikelihood,
         ai_detected_reasons: reasonsWithSpeed || null,
         status: newStatus,

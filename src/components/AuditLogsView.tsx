@@ -16,12 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -34,6 +29,7 @@ import { TableEmpty } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
+import { DateCell } from "@/components/ui/date-cell";
 import {
   Shield,
   AlertTriangle,
@@ -75,78 +71,111 @@ type AuditLog = {
 // ─── Catálogos de etiquetas ────────────────────────────────────────────────────
 
 const ACTION_LABELS: Record<string, string> = {
-  "exam.created":                       "Examen creado",
-  "exam.updated":                       "Examen actualizado",
-  "exam.deleted":                       "Examen eliminado",
-  "exam.bulk_deleted":                  "Exámenes eliminados (masivo)",
-  "exam.published":                     "Examen publicado",
-  "exam.closed":                        "Examen cerrado",
-  "exam.duplicated":                    "Examen duplicado",
-  "submission.exam.started":            "Examen iniciado",
-  "submission.exam.submitted":          "Examen entregado",
-  "submission.exam.graded":             "Examen calificado",
-  "submission.exam.grade_updated":      "Nota de examen actualizada",
+  "exam.created": "Examen creado",
+  "exam.updated": "Examen actualizado",
+  "exam.deleted": "Examen eliminado",
+  "exam.bulk_deleted": "Exámenes eliminados (masivo)",
+  "exam.published": "Examen publicado",
+  "exam.closed": "Examen cerrado",
+  "exam.duplicated": "Examen duplicado",
+  "submission.exam.started": "Examen iniciado",
+  "submission.exam.submitted": "Examen entregado",
+  "submission.exam.graded": "Examen calificado",
+  "submission.exam.grade_updated": "Nota de examen actualizada",
   "submission.exam.flagged_suspicious": "Examen marcado sospechoso",
-  "workshop.created":                   "Taller creado",
-  "workshop.updated":                   "Taller actualizado",
-  "workshop.deleted":                   "Taller eliminado",
-  "workshop.bulk_deleted":              "Talleres eliminados (masivo)",
-  "submission.workshop.submitted":      "Taller entregado",
-  "submission.workshop.graded":         "Taller calificado",
-  "project.created":                    "Proyecto creado",
-  "project.updated":                    "Proyecto actualizado",
-  "project.deleted":                    "Proyecto eliminado",
-  "project.bulk_deleted":               "Proyectos eliminados (masivo)",
-  "submission.project.submitted":       "Proyecto entregado",
-  "submission.project.graded":          "Proyecto calificado",
-  "course.created":                     "Curso creado",
-  "course.updated":                     "Curso actualizado",
-  "course.deleted":                     "Curso eliminado",
-  "enrollment.added":                   "Estudiante matriculado",
-  "enrollment.removed":                 "Estudiante desmatriculado",
-  "enrollment.bulk_added":              "Matriculación masiva",
-  "user.created":                       "Usuario creado",
-  "user.deleted":                       "Usuario eliminado",
-  "user.bulk_deleted":                  "Usuarios eliminados (masivo)",
-  "user.role_added":                    "Rol asignado",
-  "user.role_removed":                  "Rol removido",
-  "grading.ai_triggered":               "Calificación IA iniciada",
-  "grading.grade_override":             "Nota manual guardada",
-  "grading.defense_saved":              "Sustentación guardada",
-  "fraud.plagiarism_run":               "Análisis de plagio ejecutado",
-  "fraud.manual_flag":                  "Marcado como fraude manualmente",
+  "workshop.created": "Taller creado",
+  "workshop.updated": "Taller actualizado",
+  "workshop.deleted": "Taller eliminado",
+  "workshop.bulk_deleted": "Talleres eliminados (masivo)",
+  "submission.workshop.submitted": "Taller entregado",
+  "submission.workshop.graded": "Taller calificado",
+  "project.created": "Proyecto creado",
+  "project.updated": "Proyecto actualizado",
+  "project.deleted": "Proyecto eliminado",
+  "project.bulk_deleted": "Proyectos eliminados (masivo)",
+  "submission.project.submitted": "Proyecto entregado",
+  "submission.project.graded": "Proyecto calificado",
+  "course.created": "Curso creado",
+  "course.updated": "Curso actualizado",
+  "course.deleted": "Curso eliminado",
+  "enrollment.added": "Estudiante matriculado",
+  "enrollment.removed": "Estudiante desmatriculado",
+  "enrollment.bulk_added": "Matriculación masiva",
+  "user.created": "Usuario creado",
+  "user.deleted": "Usuario eliminado",
+  "user.bulk_deleted": "Usuarios eliminados (masivo)",
+  "user.role_added": "Rol asignado",
+  "user.role_removed": "Rol removido",
+  "grading.ai_triggered": "Calificación IA iniciada",
+  "grading.grade_override": "Nota manual guardada",
+  "grading.defense_saved": "Sustentación guardada",
+  "fraud.plagiarism_run": "Análisis de plagio ejecutado",
+  "fraud.manual_flag": "Marcado como fraude manualmente",
 };
 
 const CATEGORY_CONFIG: Record<string, { label: string; cls: string }> = {
-  exam:     { label: "Examen",       cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
-  workshop: { label: "Taller",       cls: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
-  project:  { label: "Proyecto",     cls: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300" },
-  course:   { label: "Curso",        cls: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300" },
-  user:     { label: "Usuario",      cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300" },
-  grading:  { label: "Calificación", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" },
-  fraud:    { label: "Fraude",       cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
-  system:   { label: "Sistema",      cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300" },
+  exam: {
+    label: "Examen",
+    cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  },
+  workshop: {
+    label: "Taller",
+    cls: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  },
+  project: {
+    label: "Proyecto",
+    cls: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
+  },
+  course: {
+    label: "Curso",
+    cls: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
+  },
+  user: {
+    label: "Usuario",
+    cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+  },
+  grading: {
+    label: "Calificación",
+    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  },
+  fraud: { label: "Fraude", cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  system: {
+    label: "Sistema",
+    cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
+  },
 };
 
 const SEVERITY_CONFIG: Record<string, { label: string; iconCls: string; rowCls: string }> = {
-  info:     { label: "Info",         iconCls: "text-muted-foreground",                       rowCls: "" },
-  warning:  { label: "Advertencia",  iconCls: "text-amber-600 dark:text-amber-400",          rowCls: "bg-amber-50/50 dark:bg-amber-950/20" },
-  error:    { label: "Error",        iconCls: "text-red-600 dark:text-red-400",              rowCls: "bg-red-50/50 dark:bg-red-950/20" },
-  critical: { label: "Crítico",      iconCls: "text-red-700 dark:text-red-300 font-bold",    rowCls: "bg-red-100/70 dark:bg-red-900/30" },
+  info: { label: "Info", iconCls: "text-muted-foreground", rowCls: "" },
+  warning: {
+    label: "Advertencia",
+    iconCls: "text-amber-600 dark:text-amber-400",
+    rowCls: "bg-amber-50/50 dark:bg-amber-950/20",
+  },
+  error: {
+    label: "Error",
+    iconCls: "text-red-600 dark:text-red-400",
+    rowCls: "bg-red-50/50 dark:bg-red-950/20",
+  },
+  critical: {
+    label: "Crítico",
+    iconCls: "text-red-700 dark:text-red-300 font-bold",
+    rowCls: "bg-red-100/70 dark:bg-red-900/30",
+  },
 };
 
 const SEVERITY_ICONS: Record<string, React.ReactNode> = {
-  info:     <Info className="h-3.5 w-3.5" />,
-  warning:  <AlertTriangle className="h-3.5 w-3.5" />,
-  error:    <AlertCircle className="h-3.5 w-3.5" />,
+  info: <Info className="h-3.5 w-3.5" />,
+  warning: <AlertTriangle className="h-3.5 w-3.5" />,
+  error: <AlertCircle className="h-3.5 w-3.5" />,
   critical: <ShieldAlert className="h-3.5 w-3.5" />,
 };
 
 const ROLE_CLS: Record<string, string> = {
-  Admin:      "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
-  Docente:    "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  Admin: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+  Docente: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   Estudiante: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
-  sistema:    "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+  sistema: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
 };
 
 const PAGE_SIZE = 100;
@@ -162,12 +191,12 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   const offsetRef = useRef(0);
 
   // Filtros
-  const [search, setSearch]       = useState("");
-  const [category, setCategory]   = useState("all");
-  const [severity, setSeverity]   = useState("all");
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [severity, setSeverity] = useState("all");
   const [courseFilter, setCourseFilter] = useState("all");
-  const [dateFrom, setDateFrom]   = useState("");
-  const [dateTo, setDateTo]       = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Datos de soporte
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
@@ -187,53 +216,58 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   }, [mode]);
 
   // ── Función de carga principal ────────────────────────────────────────────
-  const load = useCallback(async (reset: boolean) => {
-    if (reset) {
-      setLoading(true);
-      offsetRef.current = 0;
-    } else {
-      setLoadingMore(true);
-    }
-
-    try {
-      let q = db
-        .from("audit_logs")
-        .select("*", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
-
-      if (category !== "all") q = q.eq("category", category);
-      if (severity !== "all") q = q.eq("severity", severity);
-      if (mode === "admin" && courseFilter !== "all") q = q.eq("course_id", courseFilter);
-      if (dateFrom) q = q.gte("created_at", new Date(dateFrom).toISOString());
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setDate(to.getDate() + 1);
-        q = q.lt("created_at", to.toISOString());
-      }
-
-      const { data, error, count } = await q;
-      if (error) throw error;
-
-      const rows = (data ?? []) as AuditLog[];
+  const load = useCallback(
+    async (reset: boolean) => {
       if (reset) {
-        setLogs(rows);
+        setLoading(true);
+        offsetRef.current = 0;
       } else {
-        setLogs((prev) => [...prev, ...rows]);
+        setLoadingMore(true);
       }
-      setTotal(count ?? null);
-      setHasMore(rows.length === PAGE_SIZE);
-      offsetRef.current += rows.length;
-    } catch (err: any) {
-      toast.error("Error cargando auditoría: " + (err?.message ?? err));
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [category, severity, courseFilter, dateFrom, dateTo, mode]); // search es client-side
+
+      try {
+        let q = db
+          .from("audit_logs")
+          .select("*", { count: "exact" })
+          .order("created_at", { ascending: false })
+          .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
+
+        if (category !== "all") q = q.eq("category", category);
+        if (severity !== "all") q = q.eq("severity", severity);
+        if (mode === "admin" && courseFilter !== "all") q = q.eq("course_id", courseFilter);
+        if (dateFrom) q = q.gte("created_at", new Date(dateFrom).toISOString());
+        if (dateTo) {
+          const to = new Date(dateTo);
+          to.setDate(to.getDate() + 1);
+          q = q.lt("created_at", to.toISOString());
+        }
+
+        const { data, error, count } = await q;
+        if (error) throw error;
+
+        const rows = (data ?? []) as AuditLog[];
+        if (reset) {
+          setLogs(rows);
+        } else {
+          setLogs((prev) => [...prev, ...rows]);
+        }
+        setTotal(count ?? null);
+        setHasMore(rows.length === PAGE_SIZE);
+        offsetRef.current += rows.length;
+      } catch (err: any) {
+        toast.error("Error cargando auditoría: " + (err?.message ?? err));
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [category, severity, courseFilter, dateFrom, dateTo, mode],
+  ); // search es client-side
 
   // Reload cuando cambian filtros de servidor
-  useEffect(() => { void load(true); }, [load]);
+  useEffect(() => {
+    void load(true);
+  }, [load]);
 
   // ── Filtro de búsqueda client-side ────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -250,8 +284,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   }, [logs, search]);
 
   // ── Filtros activos ───────────────────────────────────────────────────────
-  const hasFilters = search || category !== "all" || severity !== "all" ||
-    (mode === "admin" && courseFilter !== "all") || dateFrom || dateTo;
+  const hasFilters =
+    search ||
+    category !== "all" ||
+    severity !== "all" ||
+    (mode === "admin" && courseFilter !== "all") ||
+    dateFrom ||
+    dateTo;
 
   const clearFilters = () => {
     setSearch("");
@@ -331,7 +370,9 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               <SelectContent>
                 <SelectItem value="all">Todas las categorías</SelectItem>
                 {Object.entries(CATEGORY_CONFIG).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                  <SelectItem key={k} value={k}>
+                    {v.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -344,7 +385,9 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               <SelectContent>
                 <SelectItem value="all">Todos los niveles</SelectItem>
                 {Object.entries(SEVERITY_CONFIG).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                  <SelectItem key={k} value={k}>
+                    {v.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -358,7 +401,9 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 <SelectContent>
                   <SelectItem value="all">Todos los cursos</SelectItem>
                   {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -384,7 +429,12 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             </div>
 
             {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-9 text-muted-foreground"
+              >
                 <X className="h-3.5 w-3.5 mr-1" />
                 Limpiar
               </Button>
@@ -394,7 +444,8 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
           {total !== null && (
             <p className="text-xs text-muted-foreground mt-2">
               {total.toLocaleString()} evento{total !== 1 ? "s" : ""} en total
-              {filtered.length !== logs.length && ` · ${filtered.length} visibles con búsqueda actual`}
+              {filtered.length !== logs.length &&
+                ` · ${filtered.length} visibles con búsqueda actual`}
             </p>
           )}
         </CardContent>
@@ -430,23 +481,34 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                       <TableRow
                         key={log.id}
                         className={`cursor-pointer hover:bg-muted/40 ${sev.rowCls}`}
-                        onClick={() => { setDetail(log); setDetailJsonOpen(false); }}
+                        onClick={() => {
+                          setDetail(log);
+                          setDetailJsonOpen(false);
+                        }}
                       >
                         {/* Fecha */}
-                        <TableCell className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(log.created_at)}
+                        <TableCell className="whitespace-nowrap">
+                          <DateCell value={log.created_at} variant="datetime" />
                         </TableCell>
 
                         {/* Actor */}
                         <TableCell>
                           <div className="flex flex-col gap-0.5 min-w-0">
-                            <span className="text-sm truncate max-w-44" title={log.actor_email ?? "sistema"}>
-                              {log.actor_email ?? <span className="italic text-muted-foreground">sistema</span>}
+                            <span
+                              className="text-sm truncate max-w-44"
+                              title={log.actor_email ?? "sistema"}
+                            >
+                              {log.actor_email ?? (
+                                <span className="italic text-muted-foreground">sistema</span>
+                              )}
                             </span>
                             {log.actor_role && (
-                              <span className={`inline-flex items-center self-start text-xs font-medium px-1.5 py-0 rounded-full ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}>
+                              <Badge
+                                variant="outline"
+                                className={`self-start text-[10px] py-0 ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}
+                              >
                                 {log.actor_role}
-                              </span>
+                              </Badge>
                             )}
                           </div>
                         </TableCell>
@@ -459,15 +521,18 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                         {/* Categoría */}
                         <TableCell>
                           {cat && (
-                            <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${cat.cls}`}>
+                            <Badge variant="outline" className={`text-[10px] ${cat.cls}`}>
                               {cat.label}
-                            </span>
+                            </Badge>
                           )}
                         </TableCell>
 
                         {/* Entidad */}
                         <TableCell>
-                          <span className="text-sm truncate block max-w-36" title={log.entity_name ?? ""}>
+                          <span
+                            className="text-sm truncate block max-w-36"
+                            title={log.entity_name ?? ""}
+                          >
                             {log.entity_name ?? "—"}
                           </span>
                         </TableCell>
@@ -475,7 +540,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                         {/* Curso (admin only) */}
                         {mode === "admin" && (
                           <TableCell>
-                            <span className="text-sm truncate block max-w-36 text-muted-foreground" title={log.course_name ?? ""}>
+                            <span
+                              className="text-sm truncate block max-w-36 text-muted-foreground"
+                              title={log.course_name ?? ""}
+                            >
                               {log.course_name ?? "—"}
                             </span>
                           </TableCell>
@@ -483,7 +551,9 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
 
                         {/* Nivel */}
                         <TableCell>
-                          <span className={`inline-flex items-center gap-1 text-xs font-medium ${sev.iconCls}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-medium ${sev.iconCls}`}
+                          >
                             {SEVERITY_ICONS[log.severity]}
                             {sev.label}
                           </span>
@@ -534,34 +604,50 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Fecha</p>
-                  <p className="tabular-nums">{formatDateTime(detail.created_at)}</p>
+                  <DateCell value={detail.created_at} variant="datetime" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Nivel</p>
-                  <span className={`inline-flex items-center gap-1 font-medium ${SEVERITY_CONFIG[detail.severity]?.iconCls}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 font-medium ${SEVERITY_CONFIG[detail.severity]?.iconCls}`}
+                  >
                     {SEVERITY_ICONS[detail.severity]}
                     {SEVERITY_CONFIG[detail.severity]?.label ?? detail.severity}
                   </span>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Actor</p>
-                  <p>{detail.actor_email ?? <span className="italic text-muted-foreground">sistema</span>}</p>
+                  <p>
+                    {detail.actor_email ?? (
+                      <span className="italic text-muted-foreground">sistema</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Rol</p>
                   {detail.actor_role ? (
-                    <span className={`inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded-full ${ROLE_CLS[detail.actor_role] ?? ROLE_CLS.sistema}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${ROLE_CLS[detail.actor_role] ?? ROLE_CLS.sistema}`}
+                    >
                       {detail.actor_role}
-                    </span>
-                  ) : "—"}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Categoría</p>
                   {CATEGORY_CONFIG[detail.category] ? (
-                    <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_CONFIG[detail.category].cls}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${CATEGORY_CONFIG[detail.category].cls}`}
+                    >
                       {CATEGORY_CONFIG[detail.category].label}
-                    </span>
-                  ) : detail.category}
+                    </Badge>
+                  ) : (
+                    detail.category
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Acción (raw)</p>
@@ -576,7 +662,9 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 {detail.entity_id && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">ID entidad</p>
-                    <code className="text-xs text-muted-foreground break-all">{detail.entity_id}</code>
+                    <code className="text-xs text-muted-foreground break-all">
+                      {detail.entity_id}
+                    </code>
                   </div>
                 )}
                 {detail.course_name && (
@@ -595,9 +683,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                     onClick={() => setDetailJsonOpen((o) => !o)}
                   >
                     <span>Detalles adicionales</span>
-                    {detailJsonOpen
-                      ? <ChevronDown className="h-3.5 w-3.5" />
-                      : <ChevronRight className="h-3.5 w-3.5" />}
+                    {detailJsonOpen ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )}
                   </button>
                   {detailJsonOpen && (
                     <pre className="text-xs bg-muted/30 p-3 overflow-auto max-h-48 whitespace-pre-wrap break-all border-t">

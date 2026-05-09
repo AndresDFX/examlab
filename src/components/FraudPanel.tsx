@@ -56,6 +56,10 @@ interface AiSignalRow {
   userId: string;
   score: number;
   reasons: string | null;
+  /** Marca de revisión: si está poblada, el docente ya inspeccionó la
+   *  alerta IA y la consideramos cerrada — no entra en el conteo de
+   *  "sospechoso" del estudiante. */
+  reviewedAt: string | null;
 }
 
 interface SimilarityRow {
@@ -66,6 +70,8 @@ interface SimilarityRow {
   score: number;
   reasons: string | null;
   created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 }
 
 /** Estado de calificación por usuario para este examen/taller/proyecto.
@@ -168,8 +174,8 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       // (override > IA) en las tablas de sugerencia.
       const allSubmissionsSelect =
         kind === "exam"
-          ? "id, user_id, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons"
-          : "id, user_id, ai_grade, final_grade, ai_detected, ai_detected_score, ai_detected_reasons";
+          ? "id, user_id, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at"
+          : "id, user_id, ai_grade, final_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at";
 
       // Tope (maxScore) por entrega — para validar y mostrar contexto
       // al aplicar. Para examen el max es la escala del curso del exam;
@@ -198,7 +204,9 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           .eq(refColumn, refId),
         supabase
           .from("similarity_pairs" as any)
-          .select("id, question_id, user_a, user_b, score, reasons, created_at")
+          .select(
+            "id, question_id, user_a, user_b, score, reasons, created_at, reviewed_at, reviewed_by",
+          )
           .eq("kind", kind)
           .eq("ref_id", refId)
           .order("score", { ascending: false }),
@@ -225,14 +233,18 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       }
       setGradesByUser(snapshot);
 
-      // AI signals = subset con ai_detected=true, ordenado por score desc.
+      // AI signals = subset con ai_detected=true O con ai_review_at
+      // poblado (alertas previas que el docente cerró). Las cerradas se
+      // muestran de forma separada para que el docente sepa que están
+      // archivadas, pero NO entran al conteo de "sospechoso".
       const aiRows = ((allSubs ?? []) as any[])
-        .filter((s) => s.ai_detected === true)
+        .filter((s) => s.ai_detected === true || s.ai_review_at != null)
         .map((s) => ({
           submissionId: s.id,
           userId: s.user_id,
           score: Number(s.ai_detected_score) || 0,
           reasons: s.ai_detected_reasons ?? null,
+          reviewedAt: s.ai_review_at ?? null,
         }))
         .sort((a, b) => b.score - a.score);
       setAiSignals(aiRows);
@@ -277,6 +289,62 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Marca un par de plagio como revisado (o lo desmarca si ya estaba).
+   * Llama la RPC `mark_similarity_pair_reviewed` que fuerza
+   * `reviewed_by = auth.uid()` server-side. Después actualiza el row
+   * en memoria y deja el toast.
+   */
+  const togglePairReviewed = async (pairId: string, currentlyReviewed: boolean) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("mark_similarity_pair_reviewed", {
+      p_pair_id: pairId,
+      p_unmark: currentlyReviewed,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setPairs((prev) =>
+      prev.map((p) =>
+        p.id === pairId
+          ? {
+              ...p,
+              reviewed_at: currentlyReviewed ? null : new Date().toISOString(),
+              reviewed_by: currentlyReviewed ? null : null,
+            }
+          : p,
+      ),
+    );
+    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+  };
+
+  /**
+   * Marca la sospecha IA de una submission como revisada (o desmarca).
+   * Cambia el flag a nivel submission — la pregunta queda fuera del
+   * conteo de "sospechoso" del estudiante.
+   */
+  const toggleAiReviewed = async (submissionId: string, currentlyReviewed: boolean) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("mark_ai_suspicion_reviewed", {
+      p_kind: kind,
+      p_submission_id: submissionId,
+      p_unmark: currentlyReviewed,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setAiSignals((prev) =>
+      prev.map((row) =>
+        row.submissionId === submissionId
+          ? { ...row, reviewedAt: currentlyReviewed ? null : new Date().toISOString() }
+          : row,
+      ),
+    );
+    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+  };
 
   const runDetection = async () => {
     setDetecting(true);
@@ -500,6 +568,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                     </span>
                   </TableHead>
                   <TableHead className="w-28 text-right">Aplicar</TableHead>
+                  <TableHead className="w-32 text-right">Revisión</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -561,6 +630,36 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                           Aplicar
                         </Button>
                       </TableCell>
+                      <TableCell className="text-right">
+                        {row.reviewedAt ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Revisada
+                            </Badge>
+                            <button
+                              type="button"
+                              className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                              onClick={() => toggleAiReviewed(row.submissionId, true)}
+                            >
+                              Reabrir
+                            </button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => toggleAiReviewed(row.submissionId, false)}
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Marcar revisada
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -594,27 +693,88 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                     <TableHead>Estudiante B</TableHead>
                     <TableHead className="w-32">Similitud máx</TableHead>
                     <TableHead className="w-24">Preguntas</TableHead>
+                    <TableHead className="w-32 text-right">Revisión</TableHead>
                     <TableHead className="text-right">Detalle</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedPairs.map((g) => (
-                    <TableRow key={`${g.userA}::${g.userB}`}>
-                      <TableCell className="font-medium">{shortName(g.userA, userNames)}</TableCell>
-                      <TableCell className="font-medium">{shortName(g.userB, userNames)}</TableCell>
-                      <TableCell>
-                        <Badge variant={scoreVariant(g.maxScore)}>{formatScore(g.maxScore)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs tabular-nums">{g.questionCount}</TableCell>
-                      <TableCell className="text-right">
-                        <RowAction
-                          label="Ver preguntas con posible copia"
-                          icon={Eye}
-                          onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {groupedPairs.map((g) => {
+                    const reviewedCount = g.pairs.filter((p) => p.reviewed_at != null).length;
+                    const allReviewed = reviewedCount === g.pairs.length;
+                    const someReviewed = reviewedCount > 0;
+                    const markAll = async () => {
+                      // Marca/desmarca todos los pares del grupo según el
+                      // estado actual: si TODOS están revisados → desmarca
+                      // todos; en cualquier otro caso → marca todos.
+                      const targetUnmark = allReviewed;
+                      for (const p of g.pairs) {
+                        const isReviewed = p.reviewed_at != null;
+                        if (targetUnmark && !isReviewed) continue;
+                        if (!targetUnmark && isReviewed) continue;
+                        await togglePairReviewed(p.id, isReviewed);
+                      }
+                    };
+                    return (
+                      <TableRow key={`${g.userA}::${g.userB}`}>
+                        <TableCell className="font-medium">
+                          {shortName(g.userA, userNames)}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {shortName(g.userB, userNames)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={scoreVariant(g.maxScore)}>
+                            {formatScore(g.maxScore)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs tabular-nums">{g.questionCount}</TableCell>
+                        <TableCell className="text-right">
+                          {allReviewed ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                Revisada
+                              </Badge>
+                              <button
+                                type="button"
+                                className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                onClick={markAll}
+                              >
+                                Reabrir
+                              </button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={markAll}
+                              title={
+                                someReviewed
+                                  ? `${reviewedCount}/${g.pairs.length} ya revisado(s) — marcar el resto`
+                                  : "Marca todos los pares como revisados"
+                              }
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              {someReviewed
+                                ? `Revisar resto (${g.pairs.length - reviewedCount})`
+                                : "Marcar revisada"}
+                            </Button>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <RowAction
+                            label="Ver preguntas con posible copia"
+                            icon={Eye}
+                            onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
 

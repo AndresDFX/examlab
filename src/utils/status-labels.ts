@@ -19,6 +19,9 @@ const STATUS_MAP: Record<string, { es: string; en: string }> = {
   calificado: { es: "Calificado", en: "Graded" },
   ai_revisado: { es: "Revisado por IA", en: "AI reviewed" },
   sospechoso: { es: "Sospechoso", en: "Suspicious" },
+  // Estado derivado: la submission fue marcada como sospechosa pero
+  // todas las alertas (IA y plagio) fueron revisadas por el docente.
+  chequeado: { es: "Chequeado", en: "Reviewed" },
   pending: { es: "Pendiente", en: "Pending" },
 };
 

@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Clock,
   type LucideIcon,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,8 @@ const STATUS_META: Record<string, { variant: StatusVariant; icon?: LucideIcon }>
   calificado: { variant: "secondary", icon: CheckCircle2 },
   ai_revisado: { variant: "secondary", icon: Sparkles },
   sospechoso: { variant: "destructive", icon: AlertTriangle },
+  // Sospechoso revisado: alertas IA y plagio cerradas por el docente.
+  chequeado: { variant: "secondary", icon: ShieldCheck },
   requiere_revision: { variant: "destructive", icon: AlertTriangle },
   pending: { variant: "outline" },
   pendiente: { variant: "outline" },
@@ -61,7 +64,9 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className, hideIcon }: Readonly<StatusBadgeProps>) {
-  const meta = (status ? STATUS_META[status] : undefined) ?? { variant: "outline" as StatusVariant };
+  const meta = (status ? STATUS_META[status] : undefined) ?? {
+    variant: "outline" as StatusVariant,
+  };
   const Icon = hideIcon ? undefined : meta.icon;
   return (
     <Badge variant={meta.variant} className={cn("text-[10px]", className)}>

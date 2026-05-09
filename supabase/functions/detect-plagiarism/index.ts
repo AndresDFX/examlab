@@ -307,8 +307,37 @@ Deno.serve(async (req) => {
     const refCourseId = (refRow as { course_id?: string } | null)?.course_id ?? null;
     const systemPrompt = await resolvePlagiarismPrompt(admin, refCourseId);
 
-    // Borrado idempotente: cualquier corrida re-genera los pares.
-    await admin.from("similarity_pairs").delete().eq("kind", kind).eq("ref_id", refId);
+    // Borrado idempotente: cualquier corrida re-genera los pares
+    // PENDIENTES de revisar. Los pares ya marcados como revisados
+    // por el docente (reviewed_at IS NOT NULL) sobreviven la corrida
+    // — la idea es que la detección no re-marque algo que el docente
+    // ya analizó. Los reviews quedan congelados hasta que él los
+    // desmarque manualmente.
+    await admin
+      .from("similarity_pairs")
+      .delete()
+      .eq("kind", kind)
+      .eq("ref_id", refId)
+      .is("reviewed_at", null);
+
+    // Pares revisados existentes: usados más abajo para NO reinsertar
+    // duplicados (no podemos confiar en una UNIQUE porque la tabla
+    // no la tiene; matcheamos por la tupla canónica).
+    const { data: reviewedRows } = await admin
+      .from("similarity_pairs")
+      .select("submission_a, submission_b, question_id")
+      .eq("kind", kind)
+      .eq("ref_id", refId)
+      .not("reviewed_at", "is", null);
+    const reviewedKeys = new Set(
+      (
+        (reviewedRows ?? []) as Array<{
+          submission_a: string;
+          submission_b: string;
+          question_id: string | null;
+        }>
+      ).map((r) => `${r.submission_a}::${r.submission_b}::${r.question_id ?? ""}`),
+    );
 
     const inserted: any[] = [];
     for (const group of groups) {
@@ -411,6 +440,10 @@ Deno.serve(async (req) => {
           [subA, subB] = [subB, subA];
           [userA, userB] = [userB, userA];
         }
+        // Skip si este par ya quedó revisado por el docente — no
+        // sobrescribimos el review.
+        const key = `${subA}::${subB}::${group.questionId ?? ""}`;
+        if (reviewedKeys.has(key)) continue;
         rowsToInsert.push({
           kind,
           ref_id: refId,

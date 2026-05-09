@@ -86,6 +86,10 @@ type Submission = {
   ai_detected_score: number | null;
   ai_detected_reasons: string | null;
   ai_detected: boolean | null;
+  /** Marca de revisión de la sospecha IA por el docente. Si está
+   *  poblada, la submission ya no se considera sospechosa por IA aunque
+   *  ai_detected_score >= 0.6. */
+  ai_review_at?: string | null;
   created_at: string;
   started_at: string | null;
   submitted_at: string | null;
@@ -105,6 +109,7 @@ type SimilarityPair = {
   user_b: string;
   score: number;
   reasons: string | null;
+  reviewed_at?: string | null;
 };
 
 type Question = {
@@ -233,7 +238,7 @@ function ExamMonitor() {
     const { data: subs } = await (supabase as any)
       .from("submissions")
       .select(
-        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, created_at, started_at, submitted_at, extra_seconds",
+        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at, created_at, started_at, submitted_at, extra_seconds",
       )
       .eq("exam_id", examId)
       .order("created_at", { ascending: true });
@@ -262,7 +267,7 @@ function ExamMonitor() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: pairs } = await (supabase as any)
       .from("similarity_pairs")
-      .select("id, question_id, user_a, user_b, score, reasons")
+      .select("id, question_id, user_a, user_b, score, reasons, reviewed_at")
       .eq("kind", "exam")
       .eq("ref_id", examId);
     setSimilarityPairs((pairs ?? []) as SimilarityPair[]);
@@ -912,7 +917,33 @@ function ExamMonitor() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={inProg ? "en_progreso" : latest.status} />
+                      {(() => {
+                        // Estado derivado "chequeado": si el estudiante
+                        // está sospechoso pero el docente revisó la
+                        // sospecha IA y todos los pares de copia donde
+                        // aparece, mostramos un badge verde en vez del
+                        // rojo de "sospechoso". El status crudo en DB
+                        // sigue siendo "sospechoso" — esto es solo UI.
+                        if (inProg) return <StatusBadge status="en_progreso" />;
+                        if (latest.status === "sospechoso") {
+                          const aiReviewed = latest.ai_review_at != null;
+                          const myPairs = similarityPairs.filter(
+                            (p) => p.user_a === row.userId || p.user_b === row.userId,
+                          );
+                          const allPairsReviewed =
+                            myPairs.length === 0
+                              ? true
+                              : myPairs.every((p) => p.reviewed_at != null);
+                          // Si hay sospecha IA (score >= 0.6), exige
+                          // ai_review_at; si nunca hubo IA flagged, no.
+                          const aiSuspected = (latest.ai_detected_score ?? 0) >= 0.6;
+                          const aiOk = !aiSuspected || aiReviewed;
+                          if (aiOk && allPairsReviewed) {
+                            return <StatusBadge status="chequeado" />;
+                          }
+                        }
+                        return <StatusBadge status={latest.status} />;
+                      })()}
                     </TableCell>
                     <TableCell className="text-sm tabular-nums hidden md:table-cell">
                       {inProg && currentIdx != null && questions.length > 0 ? (
