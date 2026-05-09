@@ -75,6 +75,14 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Fija el tope = grade_scale_max del curso. Las notas externas se
+      // guardan en submissions.final_override_grade / *_submissions.final_grade
+      // y al consolidar el corte se escalan asumiendo esa escala.
+      const coursePromise = supabase
+        .from("courses")
+        .select("grade_scale_max")
+        .eq("id", courseId)
+        .maybeSingle();
       const enrPromise = supabase
         .from("course_enrollments")
         .select("user_id")
