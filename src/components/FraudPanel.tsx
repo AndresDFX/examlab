@@ -19,9 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Bot, Eye, Search, Users } from "lucide-react";
+import { AlertTriangle, Bot, Check, Eye, Search, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { RowAction } from "@/components/ui/row-action";
+import { DecimalInput } from "@/components/ui/decimal-input";
 
 /**
  * Panel reutilizable para docente: análisis de fraude (IA) y detección
@@ -66,6 +67,15 @@ interface SimilarityRow {
   created_at: string;
 }
 
+/** Estado de calificación por usuario para este examen/taller/proyecto.
+ * `currentGrade` es la nota efectiva (override > IA), `maxScore` es el
+ * tope para escalar y limitar el input al guardar la sugerencia. */
+interface GradeSnapshot {
+  submissionId: string;
+  currentGrade: number | null;
+  maxScore: number;
+}
+
 const TABLES: Record<FraudKind, string> = {
   exam: "submissions",
   workshop: "workshop_submissions",
@@ -77,6 +87,26 @@ const REF_COLUMN: Record<FraudKind, string> = {
   workshop: "workshop_id",
   project: "project_id",
 };
+
+/** Columna que el docente edita al "Aplicar sugerencia": override en
+ * exámenes, nota final en talleres/proyectos. */
+const OVERRIDE_COLUMN: Record<FraudKind, string> = {
+  exam: "final_override_grade",
+  workshop: "final_grade",
+  project: "final_grade",
+};
+
+/** Severidad mínima para activar la sugerencia (mismo umbral que el
+ * monitor de exámenes y la edge function de plagio). */
+const INTEGRITY_ALERT_THRESHOLD = 0.6;
+
+/** Devuelve la nota sugerida = nota actual × (1 - severidad), redondeada
+ * a 2 decimales y nunca menor que 0. Si no hay nota actual, retorna null
+ * y el botón "Aplicar" se desactiva. */
+function suggestedFromCurrent(currentGrade: number | null, severity: number): number | null {
+  if (currentGrade == null) return null;
+  return Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)));
+}
 
 function shortName(userId: string, names?: Record<string, string>): string {
   return names?.[userId] ?? userId.slice(0, 8);
@@ -96,40 +126,116 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   const [aiSignals, setAiSignals] = useState<AiSignalRow[]>([]);
   const [pairs, setPairs] = useState<SimilarityRow[]>([]);
   const [questionLabels, setQuestionLabels] = useState<Record<string, string>>({});
+  // Mapa userId → snapshot de su entrega (id + nota actual + tope). Lo
+  // usamos para calcular sugerencias y persistir penalizaciones desde
+  // las dos sub-tablas (IA y copia) sin volver a consultar la BD por
+  // cada click.
+  const [gradesByUser, setGradesByUser] = useState<Record<string, GradeSnapshot>>({});
   const [loading, setLoading] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [detailOpen, setDetailOpen] = useState<{ a: string; b: string } | null>(null);
+  // userId → busy state para mostrar spinner por fila al aplicar.
+  const [applying, setApplying] = useState<Record<string, boolean>>({});
+  // Override editable de la sugerencia. Las claves son "ai-${userId}" y
+  // "pl-${userId}" para que el docente pueda llevar valores distintos
+  // por sub-tabla (IA vs copia) sin pisarse mutuamente. Si no hay
+  // entrada en este map, se usa el valor calculado automáticamente
+  // (currentGrade × (1 - severity)).
+  const [editedSuggestion, setEditedSuggestion] = useState<Record<string, number | null>>({});
 
   const table = TABLES[kind];
   const refColumn = REF_COLUMN[kind];
+  const overrideColumn = OVERRIDE_COLUMN[kind];
+
+  /** Devuelve el valor visible en la celda "Sugerida" para una fila:
+   * el override del docente si existe, o el calculado por defecto. */
+  const getSuggestedValue = (
+    rowKey: string,
+    currentGrade: number | null,
+    severity: number,
+  ): number | null => {
+    if (rowKey in editedSuggestion) return editedSuggestion[rowKey];
+    return suggestedFromCurrent(currentGrade, severity);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: subs, error: sErr }, { data: pairsData, error: pErr }] = await Promise.all([
+      // Para examen el override vive en `final_override_grade`; para
+      // taller/proyecto en `final_grade`. El campo IA es siempre
+      // `ai_grade`. Cargamos AMBOS para poder mostrar la nota efectiva
+      // (override > IA) en las tablas de sugerencia.
+      const allSubmissionsSelect =
+        kind === "exam"
+          ? "id, user_id, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons"
+          : "id, user_id, ai_grade, final_grade, ai_detected, ai_detected_score, ai_detected_reasons";
+
+      // Tope (maxScore) por entrega — para validar y mostrar contexto
+      // al aplicar. Para examen el max es la escala del curso del exam;
+      // para taller/proyecto el max está en la propia tabla padre.
+      const maxScorePromise =
+        kind === "exam"
+          ? supabase
+              .from("exams" as any)
+              .select("course:courses(grade_scale_max)")
+              .eq("id", refId)
+              .maybeSingle()
+          : supabase
+              .from((kind === "workshop" ? "workshops" : "projects") as any)
+              .select("max_score")
+              .eq("id", refId)
+              .maybeSingle();
+
+      const [
+        { data: allSubs, error: sErr },
+        { data: pairsData, error: pErr },
+        { data: parentRow },
+      ] = await Promise.all([
         supabase
           .from(table as any)
-          .select("id, user_id, ai_detected, ai_detected_score, ai_detected_reasons")
-          .eq(refColumn, refId)
-          .eq("ai_detected", true)
-          .order("ai_detected_score", { ascending: false }),
+          .select(allSubmissionsSelect)
+          .eq(refColumn, refId),
         supabase
           .from("similarity_pairs" as any)
           .select("id, question_id, user_a, user_b, score, reasons, created_at")
           .eq("kind", kind)
           .eq("ref_id", refId)
           .order("score", { ascending: false }),
+        maxScorePromise,
       ]);
-      if (sErr) console.warn("[fraud] ai signals", sErr);
+      if (sErr) console.warn("[fraud] submissions", sErr);
       if (pErr) console.warn("[fraud] pairs", pErr);
-      setAiSignals(
-        ((subs ?? []) as any[]).map((s) => ({
+
+      // Resuelve el tope una sola vez para todas las entregas del refId.
+      const maxScore =
+        kind === "exam"
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            Number((parentRow as any)?.course?.grade_scale_max ?? 5) || 5
+          : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            Number((parentRow as any)?.max_score ?? 100) || 100;
+
+      const snapshot: Record<string, GradeSnapshot> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const s of (allSubs ?? []) as any[]) {
+        const override = kind === "exam" ? s.final_override_grade : s.final_grade;
+        const current =
+          override != null ? Number(override) : s.ai_grade != null ? Number(s.ai_grade) : null;
+        snapshot[s.user_id] = { submissionId: s.id, currentGrade: current, maxScore };
+      }
+      setGradesByUser(snapshot);
+
+      // AI signals = subset con ai_detected=true, ordenado por score desc.
+      const aiRows = ((allSubs ?? []) as any[])
+        .filter((s) => s.ai_detected === true)
+        .map((s) => ({
           submissionId: s.id,
           userId: s.user_id,
           score: Number(s.ai_detected_score) || 0,
           reasons: s.ai_detected_reasons ?? null,
-        })),
-      );
+        }))
+        .sort((a, b) => b.score - a.score);
+      setAiSignals(aiRows);
+
       const pairsArr = ((pairsData ?? []) as any[]).map((p) => p as SimilarityRow);
       setPairs(pairsArr);
 
@@ -246,6 +352,96 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
     return `${aiSignals.length} entrega${aiSignals.length === 1 ? "" : "s"} marcada${aiSignals.length === 1 ? "" : "s"}${high ? ` · ${high} con alta probabilidad` : ""}`;
   }, [aiSignals, hasAi]);
 
+  /**
+   * Vista por estudiante de la sección de copia: cada usuario que
+   * aparezca en algún par recibe una fila con su MAX similitud y los
+   * compañeros con quienes coincidió. Es el equivalente al "AI signals"
+   * pero para plagio — permite aplicar la sugerencia 1 click por
+   * estudiante en vez de tener que abrir el detalle del par.
+   */
+  type PlagiarismPerStudent = {
+    userId: string;
+    maxScore: number;
+    peerIds: string[];
+    questionCount: number;
+  };
+  const plagiarismByStudent = useMemo<PlagiarismPerStudent[]>(() => {
+    const map = new Map<string, PlagiarismPerStudent>();
+    for (const p of pairs) {
+      for (const [u, peer] of [
+        [p.user_a, p.user_b],
+        [p.user_b, p.user_a],
+      ] as const) {
+        const existing = map.get(u);
+        if (existing) {
+          existing.maxScore = Math.max(existing.maxScore, p.score);
+          if (!existing.peerIds.includes(peer)) existing.peerIds.push(peer);
+          existing.questionCount += 1;
+        } else {
+          map.set(u, { userId: u, maxScore: p.score, peerIds: [peer], questionCount: 1 });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((x, y) => y.maxScore - x.maxScore);
+  }, [pairs]);
+
+  /**
+   * Persiste la sugerencia (currentGrade × (1 − severidad)) en la
+   * columna correspondiente al kind: `final_override_grade` para
+   * exámenes, `final_grade` para talleres/proyectos. Optimista: mete
+   * el spinner por fila, espera la respuesta + .select() para
+   * detectar deny silencioso de RLS, luego actualiza el snapshot
+   * local para que la columna "Nota actual" refleje el cambio.
+   */
+  const applyPenalty = useCallback(
+    async (userId: string, gradeToApply: number | null) => {
+      const snap = gradesByUser[userId];
+      if (!snap) {
+        toast.error("No se encontró la entrega del estudiante");
+        return;
+      }
+      if (gradeToApply == null || Number.isNaN(gradeToApply)) {
+        toast.error("Ingresa un valor numérico para la nota");
+        return;
+      }
+      // Validación dura: nota dentro del rango permitido por la entrega
+      // (0 a maxScore). El docente puede haber editado el input a un
+      // valor fuera de rango — preferimos rechazar antes de persistir.
+      if (gradeToApply < 0 || gradeToApply > snap.maxScore) {
+        toast.error(`La nota debe estar entre 0 y ${snap.maxScore}`);
+        return;
+      }
+      setApplying((p) => ({ ...p, [userId]: true }));
+      try {
+        const { data, error } = await supabase
+          .from(table as any)
+          .update({ [overrideColumn]: gradeToApply })
+          .eq("id", snap.submissionId)
+          .select("id");
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        if (!data || (data as { id: string }[]).length === 0) {
+          toast.error(
+            "No se pudo aplicar (sin permisos o la entrega ya no existe). Recarga e intenta de nuevo.",
+          );
+          return;
+        }
+        setGradesByUser((prev) => ({
+          ...prev,
+          [userId]: { ...snap, currentGrade: gradeToApply },
+        }));
+        toast.success(
+          `Nota de ${shortName(userId, userNames)} actualizada a ${gradeToApply.toFixed(2)}`,
+        );
+      } finally {
+        setApplying((p) => ({ ...p, [userId]: false }));
+      }
+    },
+    [gradesByUser, overrideColumn, table, userNames],
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -290,24 +486,75 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Estudiante</TableHead>
-                  <TableHead className="w-32">Probabilidad</TableHead>
+                  <TableHead className="w-28">Probabilidad</TableHead>
                   <TableHead>Razones</TableHead>
+                  <TableHead className="w-24 text-right">Nota actual</TableHead>
+                  <TableHead className="w-24 text-right">Sugerida</TableHead>
+                  <TableHead className="w-28 text-right">Aplicar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {aiSignals.map((row) => (
-                  <TableRow key={row.submissionId}>
-                    <TableCell className="font-medium">
-                      {shortName(row.userId, userNames)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={scoreVariant(row.score)}>{formatScore(row.score)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-pre-wrap">
-                      {row.reasons ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {aiSignals.map((row) => {
+                  const snap = gradesByUser[row.userId];
+                  const current = snap?.currentGrade ?? null;
+                  const rowKey = `ai-${row.userId}`;
+                  const suggested = getSuggestedValue(rowKey, current, row.score);
+                  const canApply =
+                    suggested != null &&
+                    !Number.isNaN(suggested) &&
+                    row.score >= INTEGRITY_ALERT_THRESHOLD;
+                  const busy = !!applying[row.userId];
+                  return (
+                    <TableRow key={row.submissionId}>
+                      <TableCell className="font-medium">
+                        {shortName(row.userId, userNames)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={scoreVariant(row.score)}>{formatScore(row.score)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {row.reasons ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">
+                        {current != null ? current.toFixed(2) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DecimalInput
+                          min={0}
+                          max={snap?.maxScore}
+                          value={suggested}
+                          onChange={(v) =>
+                            setEditedSuggestion((prev) => ({ ...prev, [rowKey]: v }))
+                          }
+                          placeholder="—"
+                          className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
+                          aria-label="Nota sugerida editable"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={!canApply || busy}
+                          onClick={() => applyPenalty(row.userId, suggested)}
+                          title={
+                            canApply
+                              ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
+                              : "Sin nota previa, severidad < 60%, o nota inválida"
+                          }
+                        >
+                          {busy ? (
+                            <Spinner size="sm" className="mr-1" />
+                          ) : (
+                            <Check className="h-3 w-3 mr-1" />
+                          )}
+                          Aplicar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -330,36 +577,129 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
               pares con similitud ≥ 60%.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Estudiante A</TableHead>
-                  <TableHead>Estudiante B</TableHead>
-                  <TableHead className="w-32">Similitud máx</TableHead>
-                  <TableHead className="w-24">Preguntas</TableHead>
-                  <TableHead className="text-right">Detalle</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groupedPairs.map((g) => (
-                  <TableRow key={`${g.userA}::${g.userB}`}>
-                    <TableCell className="font-medium">{shortName(g.userA, userNames)}</TableCell>
-                    <TableCell className="font-medium">{shortName(g.userB, userNames)}</TableCell>
-                    <TableCell>
-                      <Badge variant={scoreVariant(g.maxScore)}>{formatScore(g.maxScore)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs tabular-nums">{g.questionCount}</TableCell>
-                    <TableCell className="text-right">
-                      <RowAction
-                        label="Ver preguntas con posible copia"
-                        icon={Eye}
-                        onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
-                      />
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Estudiante A</TableHead>
+                    <TableHead>Estudiante B</TableHead>
+                    <TableHead className="w-32">Similitud máx</TableHead>
+                    <TableHead className="w-24">Preguntas</TableHead>
+                    <TableHead className="text-right">Detalle</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {groupedPairs.map((g) => (
+                    <TableRow key={`${g.userA}::${g.userB}`}>
+                      <TableCell className="font-medium">{shortName(g.userA, userNames)}</TableCell>
+                      <TableCell className="font-medium">{shortName(g.userB, userNames)}</TableCell>
+                      <TableCell>
+                        <Badge variant={scoreVariant(g.maxScore)}>{formatScore(g.maxScore)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs tabular-nums">{g.questionCount}</TableCell>
+                      <TableCell className="text-right">
+                        <RowAction
+                          label="Ver preguntas con posible copia"
+                          icon={Eye}
+                          onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Vista por estudiante: aplica la sugerencia 1 click por
+                  alumno. Severidad = max similarity con cualquier
+                  compañero en el examen/taller/proyecto. */}
+              <div className="pt-3 border-t">
+                <div className="text-xs font-medium text-muted-foreground mb-2">
+                  Penalización sugerida por estudiante (severidad = similitud máxima)
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Estudiante</TableHead>
+                      <TableHead className="w-28">Similitud máx</TableHead>
+                      <TableHead>Coincide con</TableHead>
+                      <TableHead className="w-24 text-right">Nota actual</TableHead>
+                      <TableHead className="w-24 text-right">Sugerida</TableHead>
+                      <TableHead className="w-28 text-right">Aplicar</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {plagiarismByStudent.map((s) => {
+                      const snap = gradesByUser[s.userId];
+                      const current = snap?.currentGrade ?? null;
+                      const rowKey = `pl-${s.userId}`;
+                      const suggested = getSuggestedValue(rowKey, current, s.maxScore);
+                      const canApply =
+                        suggested != null &&
+                        !Number.isNaN(suggested) &&
+                        s.maxScore >= INTEGRITY_ALERT_THRESHOLD;
+                      const busy = !!applying[s.userId];
+                      const peerLabel = s.peerIds
+                        .slice(0, 3)
+                        .map((p) => shortName(p, userNames))
+                        .join(", ");
+                      return (
+                        <TableRow key={s.userId}>
+                          <TableCell className="font-medium">
+                            {shortName(s.userId, userNames)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={scoreVariant(s.maxScore)}>
+                              {formatScore(s.maxScore)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {peerLabel}
+                            {s.peerIds.length > 3 && ` +${s.peerIds.length - 3}`}
+                          </TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">
+                            {current != null ? current.toFixed(2) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DecimalInput
+                              min={0}
+                              max={snap?.maxScore}
+                              value={suggested}
+                              onChange={(v) =>
+                                setEditedSuggestion((prev) => ({ ...prev, [rowKey]: v }))
+                              }
+                              placeholder="—"
+                              className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
+                              aria-label="Nota sugerida editable"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              disabled={!canApply || busy}
+                              onClick={() => applyPenalty(s.userId, suggested)}
+                              title={
+                                canApply
+                                  ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
+                                  : "Sin nota previa, severidad < 60%, o nota inválida"
+                              }
+                            >
+                              {busy ? (
+                                <Spinner size="sm" className="mr-1" />
+                              ) : (
+                                <Check className="h-3 w-3 mr-1" />
+                              )}
+                              Aplicar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </div>
       </CardContent>
