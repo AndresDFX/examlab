@@ -549,25 +549,28 @@ function Gradebook() {
         });
       }
 
-      // Workshops
+      // Workshops — para is_external la nota está en escala del curso
+      // (la captura ExternalGradesEditor con cap = grade_scale_max).
       for (const w of allWorkshops) {
         const sub = wsSubs.find((s) => s.user_id === stu.id && s.workshop_id === w.id);
         const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+        const wMax = w.is_external ? max : (w.max_score ?? 100);
         allItems.push({
           cutId: w.cut_id ?? null,
           weight: Math.max(0, Number((w as any).weight ?? 1) || 0),
-          score: raw != null ? toScale(Number(raw), w.max_score ?? 100) : null,
+          score: raw != null ? toScale(Number(raw), wMax) : null,
         });
       }
 
-      // Projects
+      // Projects — misma regla que workshops para is_external.
       for (const p of projects) {
         const sub = projectSubs.find((s) => s.user_id === stu.id && s.project_id === p.id);
         const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+        const pMax = p.is_external ? max : (p.max_score ?? 100);
         allItems.push({
           cutId: p.cut_id ?? null,
           weight: Math.max(0, Number((p as any).weight ?? 1) || 0),
-          score: raw != null ? toScale(Number(raw), p.max_score ?? 100) : null,
+          score: raw != null ? toScale(Number(raw), pMax) : null,
         });
       }
 
