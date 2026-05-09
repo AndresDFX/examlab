@@ -85,7 +85,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
         .eq("id", note.id)
         .select("id");
       if (error) toast.error(error.message);
-      else if (!updated || (updated as { id: string }[]).length === 0)
+      else if (!updated || (updated as unknown as { id: string }[]).length === 0)
         toast.error("No se pudo enviar la nota. Recarga e intenta de nuevo.");
       else toast.success("Notas enviadas para revisión");
     } else {
