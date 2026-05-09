@@ -14,9 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
-import { Loader2, RotateCcw, Save, Sparkles, Info } from "lucide-react";
+import { Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/teacher/ai-prompts")({
@@ -317,6 +317,11 @@ function TeacherAIPrompts() {
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-amber-500" />
             Prompts de IA por curso
+            <HelpHint side="bottom" align="start">
+              Solo edita el <strong>rol/criterios</strong> del modelo. Los datos dinámicos (rúbrica,
+              respuesta del estudiante, idioma, puntaje máximo) se inyectan automáticamente al
+              ejecutar la calificación — <strong>no necesitas placeholders</strong>.
+            </HelpHint>
           </h1>
           <p className="text-sm text-muted-foreground">
             Personaliza el rol y criterios del modelo para cada caso de uso dentro de un curso
@@ -355,17 +360,6 @@ function TeacherAIPrompts() {
           </div>
         </CardContent>
       </Card>
-
-      {courseId && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-xs">
-            Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta del
-            estudiante, idioma, puntaje máximo) se inyectan automáticamente — no necesitas
-            placeholders.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Filtro por módulo: Exámenes / Talleres / Proyectos / Detección
           de fraude. Solo afecta el render — comparte el mismo state de
