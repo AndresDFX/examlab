@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
+import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
@@ -27,10 +28,9 @@ import { Route as AppStudentExamsRouteImport } from './routes/app.student.exams'
 import { Route as AppStudentCoursesRouteImport } from './routes/app.student.courses'
 import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.attendance'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
+import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
-import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
-import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
@@ -70,6 +70,11 @@ const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
   path: '/teacher/workshops',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherStatisticsRoute = AppTeacherStatisticsRouteImport.update({
+  id: '/teacher/statistics',
+  path: '/teacher/statistics',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherProjectsRoute = AppTeacherProjectsRouteImport.update({
   id: '/teacher/projects',
   path: '/teacher/projects',
@@ -88,16 +93,6 @@ const AppTeacherCoursesRoute = AppTeacherCoursesRouteImport.update({
 const AppTeacherAttendanceRoute = AppTeacherAttendanceRouteImport.update({
   id: '/teacher/attendance',
   path: '/teacher/attendance',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppTeacherStatisticsRoute = AppTeacherStatisticsRouteImport.update({
-  id: '/teacher/statistics',
-  path: '/teacher/statistics',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAdminStatisticsRoute = AppAdminStatisticsRouteImport.update({
-  id: '/admin/statistics',
-  path: '/admin/statistics',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherAiPromptsRoute = AppTeacherAiPromptsRouteImport.update({
@@ -138,6 +133,11 @@ const AppStudentAttendanceRoute = AppStudentAttendanceRouteImport.update({
 const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminStatisticsRoute = AppAdminStatisticsRouteImport.update({
+  id: '/admin/statistics',
+  path: '/admin/statistics',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAdminCoursesRoute = AppAdminCoursesRouteImport.update({
@@ -438,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherWorkshopsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/statistics': {
+      id: '/app/teacher/statistics'
+      path: '/teacher/statistics'
+      fullPath: '/app/teacher/statistics'
+      preLoaderRoute: typeof AppTeacherStatisticsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/projects': {
       id: '/app/teacher/projects'
       path: '/teacher/projects'
@@ -464,20 +471,6 @@ declare module '@tanstack/react-router' {
       path: '/teacher/attendance'
       fullPath: '/app/teacher/attendance'
       preLoaderRoute: typeof AppTeacherAttendanceRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/teacher/statistics': {
-      id: '/app/teacher/statistics'
-      path: '/teacher/statistics'
-      fullPath: '/app/teacher/statistics'
-      preLoaderRoute: typeof AppTeacherStatisticsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/admin/statistics': {
-      id: '/app/admin/statistics'
-      path: '/admin/statistics'
-      fullPath: '/app/admin/statistics'
-      preLoaderRoute: typeof AppAdminStatisticsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/ai-prompts': {
@@ -534,6 +527,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/users'
       fullPath: '/app/admin/users'
       preLoaderRoute: typeof AppAdminUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/admin/statistics': {
+      id: '/app/admin/statistics'
+      path: '/admin/statistics'
+      fullPath: '/app/admin/statistics'
+      preLoaderRoute: typeof AppAdminStatisticsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/admin/courses': {
