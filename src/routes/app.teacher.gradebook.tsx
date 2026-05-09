@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
+import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -160,6 +161,9 @@ function Gradebook() {
   const [saving, setSaving] = useState(false);
   // Cuál corte tiene abierto el modal de "Ver detalle"
   const [detailCutId, setDetailCutId] = useState<string | null>(null);
+  // Cuál estudiante tiene abierto el modal anidado "detalle por estudiante"
+  // (se abre desde el ojo en cada fila del modal de corte).
+  const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   // Load courses
@@ -875,6 +879,49 @@ function Gradebook() {
               columns: detailCutColumns,
               students,
               getGrade,
+              selectedCourse,
+              attSessions,
+              attRecords,
+              onOpenStudent: setDetailStudentId,
+            })}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal anidado: detalle por estudiante DENTRO de un corte. Se
+          abre desde el ojo "Ver detalle" en cada fila del modal del corte.
+          Muestra cada item del corte para ESE estudiante (workshops,
+          exámenes, proyectos editables; asistencia read-only). */}
+      <Dialog
+        open={detailStudentId != null && detailCutId != null}
+        onOpenChange={(o) => {
+          if (!o) setDetailStudentId(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {(() => {
+                const stu = students.find((x) => x.id === detailStudentId);
+                return (
+                  <>
+                    Detalle: {stu?.full_name ?? "—"}
+                    {detailCut && (
+                      <span className="text-muted-foreground text-sm font-normal ml-2">
+                        · {detailCut.name}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
+            </DialogTitle>
+          </DialogHeader>
+          {detailCut &&
+            detailStudentId &&
+            renderStudentCutDetail({
+              cut: detailCut,
+              columns: detailCutColumns,
+              studentId: detailStudentId,
+              getGrade,
               edits,
               handleEdit,
               cellKey,
@@ -888,24 +935,21 @@ function Gradebook() {
   );
 }
 
-// ───────────────────────── Detalle de corte (agrupado) ─────────────────────────
-// Vista dentro del modal "Ver detalle del corte X". Separa las columnas
-// del corte en sub-secciones por tipo (Talleres / Exámenes / Proyectos)
-// y agrega una sub-tabla de Asistencia per-student calculada desde
-// attendance_sessions/records que caen dentro del rango de fechas del
-// corte. La asistencia es read-only desde aquí — la edición está en
-// /app/teacher/attendance.
+// ───────────────────────── Detalle de corte (resumen por bucket) ─────────────────────────
+// Vista dentro del modal "Ver detalle del corte X". Resumen de 4 columnas
+// (Talleres / Exámenes / Proyectos / Asistencia) por estudiante: cada
+// celda es la nota PONDERADA del bucket dentro del corte (en escala del
+// curso). Eye button por fila abre un segundo modal con el desglose
+// completo (cada item + asistencia) para ese estudiante en el corte.
 function renderCutDetailGrouped({
   cut,
   columns,
   students,
   getGrade,
-  edits,
-  handleEdit,
-  cellKey,
   selectedCourse,
   attSessions,
   attRecords,
+  onOpenStudent,
 }: {
   cut: Cut;
   columns: GradeColumn[];
@@ -914,15 +958,12 @@ function renderCutDetailGrouped({
     studentId: string,
     col: GradeColumn,
   ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
-  edits: EditMap;
-  handleEdit: (studentId: string, colId: string, value: string) => void;
-  cellKey: (studentId: string, colId: string) => string;
   selectedCourse: Course | undefined;
   attSessions: AttSession[];
   attRecords: AttRecord[];
+  onOpenStudent: (studentId: string) => void;
 }) {
-  // Sesiones de este corte (entre start_date y end_date). Si no hay
-  // fechas configuradas en el corte, no podemos asociar sesiones.
+  // Sesiones de este corte (entre start_date y end_date).
   const sessionsInCut = (() => {
     if (!cut.start_date || !cut.end_date) return [];
     return attSessions.filter(
@@ -930,7 +971,6 @@ function renderCutDetailGrouped({
     );
   })();
   const sessionIdsInCut = new Set(sessionsInCut.map((s) => s.id));
-  // Para lookup rápido (sessionId, userId) → status.
   const recordsBySessionUser = new Map<string, string>();
   for (const r of attRecords) {
     if (sessionIdsInCut.has(r.session_id)) {
@@ -938,17 +978,20 @@ function renderCutDetailGrouped({
     }
   }
 
-  // Orden estable de columnas: talleres → exámenes → proyectos. Los
-  // proyectos se renderizan read-only porque getGrade no expone subId
-  // para project_submissions (ver comentario en getGrade).
-  const orderedCols: GradeColumn[] = [
-    ...columns.filter((c) => c.kind === "workshop"),
-    ...columns.filter((c) => c.kind === "exam"),
-    ...columns.filter((c) => c.kind === "project"),
-  ];
+  const workshopCols = columns.filter((c) => c.kind === "workshop");
+  const examCols = columns.filter((c) => c.kind === "exam");
+  const projectCols = columns.filter((c) => c.kind === "project");
+  const showWorkshops = workshopCols.length > 0 || Number(cut.workshop_weight ?? 0) > 0;
+  const showExams = examCols.length > 0 || Number(cut.exam_weight ?? 0) > 0;
+  const showProjects = projectCols.length > 0 || Number(cut.project_weight ?? 0) > 0;
   const showAttendance = Number(cut.attendance_weight ?? 0) > 0;
 
-  if (orderedCols.length === 0 && !showAttendance) {
+  if (
+    workshopCols.length === 0 &&
+    examCols.length === 0 &&
+    projectCols.length === 0 &&
+    !showAttendance
+  ) {
     return (
       <p className="text-sm text-muted-foreground py-6 text-center">
         Este corte no tiene actividades ni asistencia configuradas todavía.
@@ -956,16 +999,22 @@ function renderCutDetailGrouped({
     );
   }
 
-  // Pre-cómputo de asistencia por estudiante: cuenta presentes vs total
-  // de sesiones del corte. El render usa este map para llenar la celda
-  // "Asistencia" sin recalcular por fila.
-  const attendanceByUser = new Map<
-    string,
-    { present: number; total: number; nota: number | null }
-  >();
-  for (const s of students) {
+  // Subtotal de un bucket = promedio simple de notas de los items de
+  // ese tipo en este corte (todas ya escaladas a 0..grade_scale_max por
+  // getGrade). Items sin nota se omiten (no penalizan); si todos están
+  // sin nota, el subtotal es null y se muestra "—".
+  const bucketAvg = (studentId: string, cols: GradeColumn[]): number | null => {
+    const grades = cols
+      .map((c) => getGrade(studentId, c).grade)
+      .filter((g): g is number => g != null);
+    if (grades.length === 0) return null;
+    return grades.reduce((s, g) => s + g, 0) / grades.length;
+  };
+
+  // Asistencia por estudiante para este corte.
+  const attendanceFor = (studentId: string) => {
     const present = sessionsInCut.filter(
-      (ses) => recordsBySessionUser.get(`${ses.id}::${s.id}`) === "presente",
+      (ses) => recordsBySessionUser.get(`${ses.id}::${studentId}`) === "presente",
     ).length;
     const total = sessionsInCut.length;
     const pct = total > 0 ? present / total : 0;
@@ -974,11 +1023,10 @@ function renderCutDetailGrouped({
         ? selectedCourse.grade_scale_min +
           pct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
         : null;
-    attendanceByUser.set(s.id, { present, total, nota });
-  }
+    return { present, total, nota };
+  };
 
-  // Resumen de pesos por bucket — se muestra arriba del grid en lugar
-  // de una sub-tabla por bucket. Da contexto sin segmentar la grilla.
+  // Chips de resumen de pesos arriba del grid.
   const bucketSummary = [
     { label: "Talleres", icon: Hammer, weight: Number(cut.workshop_weight ?? 0) || 0 },
     { label: "Exámenes", icon: FileText, weight: Number(cut.exam_weight ?? 0) || 0 },
@@ -992,7 +1040,6 @@ function renderCutDetailGrouped({
 
   return (
     <div className="space-y-3">
-      {/* Resumen de pesos por bucket en una sola línea de chips. */}
       {bucketSummary.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
           <span className="text-[11px] text-muted-foreground">Buckets del corte:</span>
@@ -1005,60 +1052,59 @@ function renderCutDetailGrouped({
         </div>
       )}
 
-      {/* Grid único: estudiantes × actividades + columna asistencia.
-          Sticky en estudiante para que la fila completa siga visible al
-          desplazarse horizontalmente. */}
       <div className="rounded-md border overflow-hidden">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
-                {orderedCols.map((col) => (
-                  <TableHead key={col.id} className="text-center min-w-28">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <div className="flex items-center gap-1">
-                        {col.kind === "exam" ? (
-                          <FileText className="h-3 w-3 text-primary shrink-0" />
-                        ) : col.kind === "workshop" ? (
-                          <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
-                        ) : (
-                          <FolderKanban className="h-3 w-3 text-indigo-500 dark:text-indigo-400 shrink-0" />
-                        )}
-                        <span className="truncate max-w-24" title={col.title}>
-                          {col.title}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                        {col.kind === "exam"
-                          ? "Examen"
-                          : col.kind === "workshop"
-                            ? `Taller (/${col.maxScore ?? 100})`
-                            : `Proyecto (/${col.maxScore ?? 100})`}
-                      </Badge>
-                    </div>
-                  </TableHead>
-                ))}
-                {showAttendance && (
-                  <TableHead className="text-center min-w-32 bg-amber-400/5">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <div className="flex items-center gap-1">
-                        <CalendarCheck className="h-3 w-3 text-primary shrink-0" />
-                        <span>Asistencia</span>
-                      </div>
-                      <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                        {sessionsInCut.length} {sessionsInCut.length === 1 ? "sesión" : "sesiones"}
-                      </Badge>
+                {showWorkshops && (
+                  <TableHead className="text-center min-w-28">
+                    <div className="inline-flex items-center gap-1">
+                      <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                      Talleres
                     </div>
                   </TableHead>
                 )}
+                {showExams && (
+                  <TableHead className="text-center min-w-28">
+                    <div className="inline-flex items-center gap-1">
+                      <FileText className="h-3 w-3 text-primary" />
+                      Exámenes
+                    </div>
+                  </TableHead>
+                )}
+                {showProjects && (
+                  <TableHead className="text-center min-w-28">
+                    <div className="inline-flex items-center gap-1">
+                      <FolderKanban className="h-3 w-3 text-indigo-500 dark:text-indigo-400" />
+                      Proyectos
+                    </div>
+                  </TableHead>
+                )}
+                {showAttendance && (
+                  <TableHead className="text-center min-w-28 bg-amber-400/5">
+                    <div className="inline-flex items-center gap-1">
+                      <CalendarCheck className="h-3 w-3 text-primary" />
+                      Asistencia
+                    </div>
+                  </TableHead>
+                )}
+                <TableHead className="text-right w-[1%]">Detalle</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {students.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={orderedCols.length + 1 + (showAttendance ? 1 : 0)}
+                    colSpan={
+                      1 +
+                      (showWorkshops ? 1 : 0) +
+                      (showExams ? 1 : 0) +
+                      (showProjects ? 1 : 0) +
+                      (showAttendance ? 1 : 0) +
+                      1
+                    }
                     className="text-center text-muted-foreground py-8"
                   >
                     No hay estudiantes matriculados en este curso.
@@ -1066,78 +1112,34 @@ function renderCutDetailGrouped({
                 </TableRow>
               )}
               {students.map((s) => {
-                const att = attendanceByUser.get(s.id);
+                const wAvg = bucketAvg(s.id, workshopCols);
+                const eAvg = bucketAvg(s.id, examCols);
+                const pAvg = bucketAvg(s.id, projectCols);
+                const att = attendanceFor(s.id);
                 return (
                   <TableRow key={s.id}>
                     <TableCell className="sticky left-0 z-10 bg-card">
                       <div className="font-medium text-sm">{s.full_name}</div>
                       <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
                     </TableCell>
-                    {orderedCols.map((col) => {
-                      const g = getGrade(s.id, col);
-                      const key = cellKey(s.id, col.id);
-                      const isEditing = key in edits;
-                      const displayGrade = isEditing
-                        ? edits[key]
-                        : g.grade != null
-                          ? String(g.grade)
-                          : "";
-                      return (
-                        <TableCell key={col.id} className="text-center p-1">
-                          {g.subId ? (
-                            <div className="relative">
-                              <Input
-                                type="number"
-                                step="0.1"
-                                min={selectedCourse?.grade_scale_min ?? 0}
-                                max={
-                                  col.kind === "exam"
-                                    ? (selectedCourse?.grade_scale_max ?? 100)
-                                    : (col.maxScore ?? 100)
-                                }
-                                value={displayGrade}
-                                onChange={(e) => handleEdit(s.id, col.id, e.target.value)}
-                                className="h-8 w-20 mx-auto text-center text-sm tabular-nums"
-                                placeholder="—"
-                              />
-                              <div className="flex min-h-[1.125rem] items-center justify-center gap-1 mt-0.5">
-                                {g.isMakeup && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5"
-                                  >
-                                    <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
-                                  </Badge>
-                                )}
-                                {g.status === "sospechoso" && (
-                                  <span
-                                    title="Intento marcado como sospechoso (alertas de integridad)"
-                                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
-                                  >
-                                    <AlertTriangle
-                                      className="h-3 w-3"
-                                      strokeWidth={2}
-                                      aria-hidden
-                                    />
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ) : g.grade != null ? (
-                            // Proyectos sin subId editable: mostramos la nota
-                            // calculada como texto (read-only) en vez del input.
-                            <span className="text-sm tabular-nums font-medium">
-                              {Number(g.grade).toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                      );
-                    })}
+                    {showWorkshops && (
+                      <TableCell className="text-center text-sm tabular-nums">
+                        {wAvg != null ? wAvg.toFixed(2) : "—"}
+                      </TableCell>
+                    )}
+                    {showExams && (
+                      <TableCell className="text-center text-sm tabular-nums">
+                        {eAvg != null ? eAvg.toFixed(2) : "—"}
+                      </TableCell>
+                    )}
+                    {showProjects && (
+                      <TableCell className="text-center text-sm tabular-nums">
+                        {pAvg != null ? pAvg.toFixed(2) : "—"}
+                      </TableCell>
+                    )}
                     {showAttendance && (
                       <TableCell className="text-center bg-amber-400/5">
-                        {att && att.total > 0 ? (
+                        {att.total > 0 ? (
                           <div className="flex flex-col items-center gap-0.5">
                             <span className="text-sm tabular-nums font-medium">
                               {att.nota != null ? att.nota.toFixed(2) : "—"}
@@ -1151,6 +1153,13 @@ function renderCutDetailGrouped({
                         )}
                       </TableCell>
                     )}
+                    <TableCell className="text-right">
+                      <RowAction
+                        label="Ver detalle del estudiante"
+                        icon={Eye}
+                        onClick={() => onOpenStudent(s.id)}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -1159,8 +1168,6 @@ function renderCutDetailGrouped({
         </CardContent>
       </div>
 
-      {/* Sin sesiones / sin fechas: nota informativa al pie en vez de
-          ocupar todo el grid con un empty state. */}
       {showAttendance && sessionsInCut.length === 0 && (
         <p className="text-[11px] text-muted-foreground italic">
           {cut.start_date && cut.end_date
@@ -1168,6 +1175,258 @@ function renderCutDetailGrouped({
             : "El corte no tiene fechas configuradas; la asistencia no se puede asociar al corte."}
         </p>
       )}
+    </div>
+  );
+}
+
+// ───────────────────────── Detalle por estudiante (modal anidado) ─────────────────────────
+// Render del modal interno que se abre desde el ojo "Ver detalle" en
+// cada fila del modal del corte. Lista CADA item del corte (workshops,
+// exámenes, proyectos) para ESE estudiante con su nota editable, más
+// la fila de asistencia con presentes/total/nota (read-only).
+function renderStudentCutDetail({
+  cut,
+  columns,
+  studentId,
+  getGrade,
+  edits,
+  handleEdit,
+  cellKey,
+  selectedCourse,
+  attSessions,
+  attRecords,
+}: {
+  cut: Cut;
+  columns: GradeColumn[];
+  studentId: string;
+  getGrade: (
+    studentId: string,
+    col: GradeColumn,
+  ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
+  edits: EditMap;
+  handleEdit: (studentId: string, colId: string, value: string) => void;
+  cellKey: (studentId: string, colId: string) => string;
+  selectedCourse: Course | undefined;
+  attSessions: AttSession[];
+  attRecords: AttRecord[];
+}) {
+  const sessionsInCut =
+    cut.start_date && cut.end_date
+      ? attSessions.filter(
+          (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
+        )
+      : [];
+  const presentCount = sessionsInCut.filter(
+    (ses) =>
+      attRecords.find((r) => r.session_id === ses.id && r.user_id === studentId)?.status ===
+      "presente",
+  ).length;
+  const totalSess = sessionsInCut.length;
+  const attPct = totalSess > 0 ? presentCount / totalSess : 0;
+  const attNota =
+    selectedCourse && totalSess > 0
+      ? selectedCourse.grade_scale_min +
+        attPct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
+      : null;
+
+  const sectionDef: Array<{
+    key: "workshop" | "exam" | "project";
+    label: string;
+    icon: typeof FileText;
+    cols: GradeColumn[];
+    bucketWeight: number;
+  }> = [
+    {
+      key: "workshop",
+      label: "Talleres",
+      icon: Hammer,
+      cols: columns.filter((c) => c.kind === "workshop"),
+      bucketWeight: Number(cut.workshop_weight ?? 0) || 0,
+    },
+    {
+      key: "exam",
+      label: "Exámenes",
+      icon: FileText,
+      cols: columns.filter((c) => c.kind === "exam"),
+      bucketWeight: Number(cut.exam_weight ?? 0) || 0,
+    },
+    {
+      key: "project",
+      label: "Proyectos",
+      icon: FolderKanban,
+      cols: columns.filter((c) => c.kind === "project"),
+      bucketWeight: Number(cut.project_weight ?? 0) || 0,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {sectionDef.map((sec) => {
+        if (sec.cols.length === 0) return null;
+        return (
+          <div key={sec.key} className="rounded-md border overflow-hidden">
+            <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
+              <div className="flex items-center gap-2">
+                <sec.icon className="h-3.5 w-3.5 text-primary" />
+                <span className="text-sm font-medium">{sec.label}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {sec.cols.length} {sec.cols.length === 1 ? "actividad" : "actividades"}
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                Peso bucket: {sec.bucketWeight.toFixed(1)}%
+              </span>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Actividad</TableHead>
+                  <TableHead className="text-right w-32">
+                    Nota{" "}
+                    {selectedCourse
+                      ? `(${selectedCourse.grade_scale_min}–${selectedCourse.grade_scale_max})`
+                      : ""}
+                  </TableHead>
+                  <TableHead className="w-24 text-center">Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sec.cols.map((col) => {
+                  const g = getGrade(studentId, col);
+                  const key = cellKey(studentId, col.id);
+                  const isEditing = key in edits;
+                  const displayGrade = isEditing
+                    ? edits[key]
+                    : g.grade != null
+                      ? String(g.grade)
+                      : "";
+                  return (
+                    <TableRow key={col.id}>
+                      <TableCell className="font-medium text-sm">
+                        {col.title}
+                        {col.maxScore != null && (
+                          <span className="text-[10px] text-muted-foreground ml-1">
+                            (/{col.maxScore})
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {g.subId ? (
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min={selectedCourse?.grade_scale_min ?? 0}
+                            max={
+                              col.kind === "exam"
+                                ? (selectedCourse?.grade_scale_max ?? 100)
+                                : (col.maxScore ?? 100)
+                            }
+                            value={displayGrade}
+                            onChange={(e) => handleEdit(studentId, col.id, e.target.value)}
+                            className="h-8 w-24 ml-auto text-right text-sm tabular-nums"
+                            placeholder="—"
+                          />
+                        ) : g.grade != null ? (
+                          <span className="text-sm tabular-nums font-medium">
+                            {Number(g.grade).toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="inline-flex items-center justify-center gap-1">
+                          {g.isMakeup && (
+                            <Badge variant="outline" className="text-[9px] py-0 h-4 px-1">
+                              <GitBranch className="h-2.5 w-2.5 mr-0.5" /> S
+                            </Badge>
+                          )}
+                          {g.status === "sospechoso" && (
+                            <span
+                              title="Sospechoso"
+                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                            </span>
+                          )}
+                          {!g.isMakeup && g.status !== "sospechoso" && (
+                            <span className="text-[10px] text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        );
+      })}
+
+      {Number(cut.attendance_weight ?? 0) > 0 && (
+        <div className="rounded-md border overflow-hidden">
+          <div className="flex items-center justify-between gap-2 bg-amber-400/5 px-3 py-2 border-b">
+            <div className="flex items-center gap-2">
+              <CalendarCheck className="h-3.5 w-3.5 text-primary" />
+              <span className="text-sm font-medium">Asistencia</span>
+              <span className="text-[11px] text-muted-foreground">
+                {totalSess} {totalSess === 1 ? "sesión" : "sesiones"} en el rango del corte
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              Peso bucket: {Number(cut.attendance_weight ?? 0).toFixed(1)}%
+            </span>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-right">Sesiones presente</TableHead>
+                <TableHead className="text-right">Total sesiones</TableHead>
+                <TableHead className="text-right">% asistencia</TableHead>
+                {selectedCourse && (
+                  <TableHead className="text-right">
+                    Nota ({selectedCourse.grade_scale_min}–{selectedCourse.grade_scale_max})
+                  </TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {totalSess === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={selectedCourse ? 4 : 3}
+                    className="text-center text-muted-foreground py-4 text-xs italic"
+                  >
+                    {cut.start_date && cut.end_date
+                      ? "No hay sesiones registradas en el rango."
+                      : "El corte no tiene fechas configuradas."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <TableRow>
+                  <TableCell className="text-right tabular-nums">{presentCount}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {totalSess}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {Math.round(attPct * 100)}%
+                  </TableCell>
+                  {selectedCourse && (
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {attNota != null ? attNota.toFixed(2) : "—"}
+                    </TableCell>
+                  )}
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <p className="text-[11px] text-muted-foreground italic">
+        Las ediciones se acumulan en el botón global "Guardar cambios" del gradebook (afuera del
+        modal).
+      </p>
     </div>
   );
 }
