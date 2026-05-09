@@ -43,6 +43,7 @@ import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { MarkdownInline } from "@/components/MarkdownInline";
+import { HelpHint } from "@/components/ui/help-hint";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -143,7 +144,10 @@ export function TeacherProjectFilesEditor({
       qType === "cerrada"
         ? { choices: qChoices.filter((c) => c.trim()), correct_index: qCorrect }
         : null;
-    const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
+    // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
+    // Solo persistimos 'language' si la pregunta es realmente código —
+    // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
+    const language = qType === "codigo_zip" ? qLanguage : null;
 
     if (editingId) {
       // UPDATE: no tocamos position ni starter_code para no clobberar lo que
@@ -165,6 +169,8 @@ export function TeacherProjectFilesEditor({
       }
       toast.success("Pregunta actualizada");
     } else {
+      // Proyectos no usan starter_code (no es un IDE inline). El ZIP
+      // trae los archivos del estudiante sin plantilla del docente.
       const { error } = await db.from("project_files").insert({
         project_id: projectId,
         type: qType,
@@ -175,7 +181,7 @@ export function TeacherProjectFilesEditor({
         points: qPoints,
         position: questions.length,
         language,
-        starter_code: qType === "java_gui" ? JAVA_GUI_STARTER : null,
+        starter_code: null,
       });
       if (error) {
         toast.error(error.message);
@@ -330,18 +336,24 @@ export function TeacherProjectFilesEditor({
         <TabsContent value="manual" className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label required>Tipo</Label>
+              <Label required>
+                Tipo{" "}
+                <HelpHint>
+                  En proyectos, <strong>Código</strong> significa que el estudiante sube un{" "}
+                  <strong>archivo .zip</strong> con todo su código fuente. La IA descomprime, filtra
+                  archivos por extensión (.java, .py, .ts, .cpp, etc) y los califica con la rúbrica
+                  y los puntos de esta pregunta. Diagramas y documentos van en preguntas separadas.
+                </HelpHint>
+              </Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abierta">Abierta</SelectItem>
-                  <SelectItem value="cerrada">Cerrada (opción múltiple)</SelectItem>
-                  <SelectItem value="codigo">Código (un archivo en textarea)</SelectItem>
-                  <SelectItem value="codigo_zip">Código completo (ZIP)</SelectItem>
+                  <SelectItem value="cerrada">Opción múltiple</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
-                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                  <SelectItem value="codigo_zip">Código (ZIP de archivos)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -386,27 +398,35 @@ export function TeacherProjectFilesEditor({
               ))}
             </div>
           )}
-          {qType === "codigo" && (
-            <div>
-              <Label required>Lenguaje</Label>
-              <Select value={qLanguage} onValueChange={setQLanguage}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="java">Java</SelectItem>
-                  <SelectItem value="python">Python</SelectItem>
-                  <SelectItem value="javascript">JavaScript</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {qType === "codigo_zip" && (
-            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              El estudiante subirá un <strong>archivo .zip</strong> con todo su código fuente. La IA
-              descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc) en
-              conjunto. Diagramas y documentos van en preguntas separadas (tipo Abierta o Diagrama).
-            </div>
+            <>
+              <div>
+                <Label>
+                  Lenguaje principal{" "}
+                  <HelpHint>
+                    Lenguaje esperado del proyecto. La IA puede calificar archivos de cualquier
+                    lenguaje permitido (.java, .py, .ts, .cpp, etc.); este valor solo guía la
+                    generación con IA y los mensajes al estudiante.
+                  </HelpHint>
+                </Label>
+                <Select value={qLanguage} onValueChange={setQLanguage}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="java">Java</SelectItem>
+                    <SelectItem value="python">Python</SelectItem>
+                    <SelectItem value="javascript">JavaScript</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                El estudiante subirá un <strong>archivo .zip</strong> con todo su código fuente. La
+                IA descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc)
+                según la rúbrica y los puntos de esta pregunta. Diagramas y documentos van en
+                preguntas separadas (tipo Abierta o Diagrama).
+              </div>
+            </>
           )}
           <div>
             <Label required>Rúbrica esperada (para IA)</Label>
@@ -462,10 +482,9 @@ export function TeacherProjectFilesEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abierta">Abierta</SelectItem>
-                  <SelectItem value="cerrada">Cerrada</SelectItem>
-                  <SelectItem value="codigo">Código</SelectItem>
+                  <SelectItem value="cerrada">Opción múltiple</SelectItem>
                   <SelectItem value="diagrama">Diagrama</SelectItem>
-                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                  <SelectItem value="codigo_zip">Código (ZIP)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -479,9 +498,9 @@ export function TeacherProjectFilesEditor({
                 onChange={(e) => setAiCount(Number(e.target.value) || 3)}
               />
             </div>
-            {aiType === "codigo" && (
+            {aiType === "codigo_zip" && (
               <div>
-                <Label required>Lenguaje</Label>
+                <Label required>Lenguaje principal</Label>
                 <Select value={aiLanguage} onValueChange={setAiLanguage}>
                   <SelectTrigger>
                     <SelectValue />

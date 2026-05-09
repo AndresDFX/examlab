@@ -253,7 +253,11 @@ Idioma obligatorio: ${pfLangName}.`,
     }
     const allowedLanguages = new Set(["java", "python", "javascript"]);
     let codeLanguage: string | null = null;
-    if (type === "codigo") {
+    // Para `codigo` (textarea de un solo archivo) y `codigo_zip` (ZIP del
+    // proyecto completo) la IA usa el lenguaje sugerido para redactar
+    // el enunciado. En `codigo_zip` solo es una guía — el ZIP puede
+    // traer múltiples lenguajes y la IA igual califica.
+    if (type === "codigo" || type === "codigo_zip") {
       codeLanguage = allowedLanguages.has(language) ? language : "java";
     }
 
@@ -302,6 +306,7 @@ REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${la
     const userPrompt = `Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
 ${type === "cerrada" ? "Cada pregunta debe tener 4 opciones (A, B, C, D) con UNA correcta." : ""}
 ${type === "codigo" ? `Las preguntas deben pedir escribir código en el lenguaje ${codeLanguage}. Indica claramente en el enunciado que la solución debe implementarse en ${codeLanguage}.` : ""}
+${type === "codigo_zip" ? `Cada pregunta describe un componente o módulo a implementar. El estudiante entregará UN ARCHIVO .ZIP con todo su código fuente del proyecto (varios archivos), y la IA evaluará ese ZIP contra esta rúbrica. Lenguaje principal sugerido: ${codeLanguage}. Indica en el enunciado el alcance esperado y los archivos/clases que deben formar parte del entregable.` : ""}
 La rúbrica debe describir los criterios para considerar correcta la respuesta.
 Idioma de salida obligatorio: ${langName}.`;
 
@@ -403,11 +408,7 @@ Idioma de salida obligatorio: ${langName}.`;
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const tableName = isProject
-      ? "project_files"
-      : isWorkshop
-        ? "workshop_questions"
-        : "questions";
+    const tableName = isProject ? "project_files" : isWorkshop ? "workshop_questions" : "questions";
     const fkColumn = isProject ? "project_id" : isWorkshop ? "workshop_id" : "exam_id";
 
     const { data: existing } = await admin
@@ -440,10 +441,7 @@ Idioma de salida obligatorio: ${langName}.`;
       }
       return base;
     });
-    const { data: inserted, error: insErr } = await admin
-      .from(tableName)
-      .insert(toInsert)
-      .select();
+    const { data: inserted, error: insErr } = await admin.from(tableName).insert(toInsert).select();
     if (insErr) {
       console.error("Insert error:", insErr);
       return new Response(
