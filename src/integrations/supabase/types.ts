@@ -155,6 +155,7 @@ export type Database = {
           course_id: string
           created_at: string
           created_by: string
+          cut_id: string | null
           id: string
           session_date: string
           title: string | null
@@ -164,6 +165,7 @@ export type Database = {
           course_id: string
           created_at?: string
           created_by: string
+          cut_id?: string | null
           id?: string
           session_date: string
           title?: string | null
@@ -173,6 +175,7 @@ export type Database = {
           course_id?: string
           created_at?: string
           created_by?: string
+          cut_id?: string | null
           id?: string
           session_date?: string
           title?: string | null
@@ -183,6 +186,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_sessions_cut_id_fkey"
+            columns: ["cut_id"]
+            isOneToOne: false
+            referencedRelation: "grade_cuts"
             referencedColumns: ["id"]
           },
         ]
