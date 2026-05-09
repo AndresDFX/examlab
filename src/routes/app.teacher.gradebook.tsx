@@ -188,7 +188,7 @@ function Gradebook() {
     // Workshops
     const { data: workshops } = await supabase
       .from("workshops")
-      .select("id, title, course_id, max_score, cut_id")
+      .select("id, title, course_id, max_score, cut_id, weight, is_external")
       .eq("course_id", courseId)
       .order("created_at");
 
@@ -204,7 +204,7 @@ function Gradebook() {
     // Proyectos
     const { data: projectsData } = await db
       .from("projects")
-      .select("id, title, course_id, max_score, cut_id")
+      .select("id, title, course_id, max_score, cut_id, weight, is_external")
       .eq("course_id", courseId);
 
     // Sesiones de asistencia
