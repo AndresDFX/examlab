@@ -42,8 +42,16 @@ interface Props {
   refId: string;
   /** id del curso al que pertenece — sirve para listar matriculados */
   courseId: string;
-  /** Tope de nota (course.grade_scale_max para exam, workshop.max_score para workshop) */
-  maxScore: number;
+  /**
+   * Tope de nota. Se IGNORA y se reemplaza por `course.grade_scale_max`
+   * leído internamente: las notas externas siempre se ingresan en la
+   * escala del curso (0..grade_scale_max), no en max_score del item,
+   * porque el docente está transcribiendo manualmente la nota final
+   * que ya tenía en su libreta. Mantener max_score=100 acá producía
+   * que un "5" se interpretara como 5/100=0.25 al consolidar el corte.
+   * Se mantiene la prop por compat con llamadas existentes.
+   */
+  maxScore?: number;
 }
 
 interface Row {
@@ -56,16 +64,25 @@ interface Row {
   hasGrade: boolean;
 }
 
-export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props) {
+export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [maxScore, setMaxScore] = useState<number>(5);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Fija el tope = grade_scale_max del curso. Las notas externas se
+      // guardan en submissions.final_override_grade / *_submissions.final_grade
+      // y al consolidar el corte se escalan asumiendo esa escala.
+      const coursePromise = supabase
+        .from("courses")
+        .select("grade_scale_max")
+        .eq("id", courseId)
+        .maybeSingle();
       const enrPromise = supabase
         .from("course_enrollments")
         .select("user_id")
@@ -87,12 +104,12 @@ export function ExternalGradesEditor({ kind, refId, courseId, maxScore }: Props)
                 .from("project_submissions")
                 .select("id, user_id, final_grade, teacher_feedback")
                 .eq("project_id", refId);
-      const [{ data: enr, error: enrErr }, { data: subs, error: subsErr }] = await Promise.all([
-        enrPromise,
-        subsPromise,
-      ]);
+      const [{ data: course }, { data: enr, error: enrErr }, { data: subs, error: subsErr }] =
+        await Promise.all([coursePromise, enrPromise, subsPromise]);
       if (enrErr) throw enrErr;
       if (subsErr) throw subsErr;
+      const courseMax = Number((course as { grade_scale_max?: number } | null)?.grade_scale_max);
+      setMaxScore(Number.isFinite(courseMax) && courseMax > 0 ? courseMax : 5);
       const userIds = (enr ?? []).map((e: any) => e.user_id);
       if (userIds.length === 0) {
         setRows([]);
