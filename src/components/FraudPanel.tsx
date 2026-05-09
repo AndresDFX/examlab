@@ -423,7 +423,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           toast.error(error.message);
           return;
         }
-        if (!data || (data as { id: string }[]).length === 0) {
+        if (!data || (data as unknown as { id: string }[]).length === 0) {
           toast.error(
             "No se pudo aplicar (sin permisos o la entrega ya no existe). Recarga e intenta de nuevo.",
           );
