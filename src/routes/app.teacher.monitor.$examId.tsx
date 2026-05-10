@@ -46,6 +46,7 @@ import {
   Bot,
   Users,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
@@ -203,6 +204,75 @@ function computeAttemptEnd(
   return new Date(naturalEnd + (sub.extra_seconds ?? 0) * 1000);
 }
 
+/**
+ * Sección colapsable de "Conversación con el estudiante" por pregunta.
+ * Default cerrada — la modal de respuestas tiene N preguntas y mantener
+ * todos los hilos abiertos es ruido visual + N requests innecesarias.
+ * El trigger muestra un badge con el conteo de hilos abiertos para
+ * esta pregunta y un badge "Esperando respuesta" si el último mensaje
+ * lo escribió el alumno (lo calculamos una sola vez en el load del
+ * monitor — no requiere fetch por componente). El `<FeedbackThread>`
+ * se renderiza solo cuando está abierto: así no dispara su propio
+ * useEffect de carga hasta que el docente decide expandir.
+ */
+function ConversationSection({
+  questionId,
+  submissionId,
+  summary,
+  conversationLabel,
+  pendingLabel,
+}: {
+  questionId: string;
+  submissionId: string;
+  summary?: { count: number; pending: boolean };
+  conversationLabel: string;
+  pendingLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasPending = summary?.pending === true;
+  const count = summary?.count ?? 0;
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div
+        className={`rounded-md border p-2 space-y-2 ${
+          hasPending ? "border-destructive/40 bg-destructive/5" : "border-border/60 bg-muted/20"
+        }`}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="w-full flex items-center gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground group"
+          >
+            <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+            <MessageSquareText className="h-3 w-3" />
+            <span>{conversationLabel}</span>
+            {count > 0 && (
+              <Badge variant="outline" className="ml-auto text-[10px] tabular-nums">
+                {count}
+              </Badge>
+            )}
+            {hasPending && (
+              <Badge variant="destructive" className={`text-[10px] ${count > 0 ? "" : "ml-auto"}`}>
+                {pendingLabel}
+              </Badge>
+            )}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          {open && (
+            <FeedbackThread
+              parentKind="exam"
+              questionId={questionId}
+              submissionId={submissionId}
+              isTeacher
+            />
+          )}
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
 function ExamMonitor() {
   const { examId } = Route.useParams();
   const { user } = useAuth();
@@ -322,10 +392,19 @@ function ExamMonitor() {
   // el flujo de revisión).
   const [openThreadsByUser, setOpenThreadsByUser] = useState<Record<string, number>>({});
   const [pendingReplyByUser, setPendingReplyByUser] = useState<Record<string, number>>({});
+  // Resumen de hilos por (submissionId, questionId). Se usa en el modal
+  // "Respuestas" para que cada question Card muestre en el trigger de
+  // "Conversación" un badge con cuántos hilos abiertos hay y si alguno
+  // espera respuesta del docente — sin tener que expandirla. La key es
+  // `${submissionId}:${questionId}`.
+  const [threadsByQ, setThreadsByQ] = useState<Record<string, { count: number; pending: boolean }>>(
+    {},
+  );
   useEffect(() => {
     if (!submissions.length) {
       setOpenThreadsByUser({});
       setPendingReplyByUser({});
+      setThreadsByQ({});
       return;
     }
     const subUserById = new Map(submissions.map((s) => [s.id, s.user_id]));
@@ -335,19 +414,30 @@ function ExamMonitor() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: threads } = await (supabase as any)
         .from("feedback_threads")
-        .select("id, submission_id")
+        .select("id, submission_id, question_id")
         .eq("parent_kind", "exam")
         .eq("closed", false)
         .in("submission_id", subIds);
       if (cancelled) return;
-      const threadsArr = (threads ?? []) as { id: string; submission_id: string }[];
+      const threadsArr = (threads ?? []) as {
+        id: string;
+        submission_id: string;
+        question_id: string;
+      }[];
       const openCounts: Record<string, number> = {};
       const threadOwner = new Map<string, string>();
+      // Agrupado por (submissionId, questionId) para el resumen en cada
+      // question Card del modal.
+      const threadsByQKey = new Map<string, { id: string }[]>();
       for (const t of threadsArr) {
         const uid = subUserById.get(t.submission_id);
         if (!uid) continue;
         openCounts[uid] = (openCounts[uid] ?? 0) + 1;
         threadOwner.set(t.id, uid);
+        const key = `${t.submission_id}:${t.question_id}`;
+        const arr = threadsByQKey.get(key) ?? [];
+        arr.push({ id: t.id });
+        threadsByQKey.set(key, arr);
       }
       setOpenThreadsByUser(openCounts);
 
@@ -355,6 +445,7 @@ function ExamMonitor() {
       const threadIds = threadsArr.map((t) => t.id);
       if (threadIds.length === 0) {
         setPendingReplyByUser({});
+        setThreadsByQ({});
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -373,6 +464,7 @@ function ExamMonitor() {
         if (!lastByThread.has(c.thread_id)) lastByThread.set(c.thread_id, c.user_id);
       }
       const pendingCounts: Record<string, number> = {};
+      const pendingByThread = new Set<string>();
       for (const [threadId, ownerUid] of threadOwner.entries()) {
         const lastAuthor = lastByThread.get(threadId);
         // Pendiente si el último comentario lo escribió el ALUMNO
@@ -381,9 +473,20 @@ function ExamMonitor() {
         // ser ruido o un placeholder.
         if (lastAuthor && lastAuthor === ownerUid) {
           pendingCounts[ownerUid] = (pendingCounts[ownerUid] ?? 0) + 1;
+          pendingByThread.add(threadId);
         }
       }
       setPendingReplyByUser(pendingCounts);
+
+      // Aggregar a la forma final por (sub, q): count + has-pending.
+      const byQ: Record<string, { count: number; pending: boolean }> = {};
+      for (const [key, ths] of threadsByQKey.entries()) {
+        byQ[key] = {
+          count: ths.length,
+          pending: ths.some((tt) => pendingByThread.has(tt.id)),
+        };
+      }
+      setThreadsByQ(byQ);
     })();
     return () => {
       cancelled = true;
@@ -1629,7 +1732,7 @@ function ExamMonitor() {
                         >
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-                              <span>Pregunta {idx + 1}</span>
+                              <span className="font-semibold">Pregunta {idx + 1}</span>
                               <Badge variant="outline" className="text-[10px]">
                                 {q.type}
                               </Badge>
@@ -1638,14 +1741,34 @@ function ExamMonitor() {
                                   {q.language}
                                 </Badge>
                               )}
-                              <span className="text-xs text-muted-foreground ml-auto">
-                                {bd ? `${bd.earned}` : "—"} / {q.points}
-                                {override && (
-                                  <span className="ml-1 text-primary">
-                                    (manual: {override.score})
-                                  </span>
+                              {/* Score badge a la derecha. Si hay override
+                                  manual, lo mostramos en color primary
+                                  con ícono de lápiz para que sea claro
+                                  que la nota fue ajustada por el docente
+                                  y no la propuesta por IA. Antes era un
+                                  span de texto plano y "manual: X" se
+                                  perdía visualmente al lado del marcador. */}
+                              <div className="ml-auto flex items-center gap-1.5 tabular-nums">
+                                {override != null ? (
+                                  <>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] text-muted-foreground line-through decoration-muted-foreground/60"
+                                      title="Nota original de la IA — reemplazada por la manual"
+                                    >
+                                      {bd?.earned ?? "—"} / {q.points}
+                                    </Badge>
+                                    <Badge className="text-[10px] bg-primary/15 text-primary border border-primary/30 hover:bg-primary/20">
+                                      <Pencil className="h-2.5 w-2.5 mr-1" />
+                                      {override.score} / {q.points}
+                                    </Badge>
+                                  </>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {bd?.earned ?? "—"} / {q.points}
+                                  </Badge>
                                 )}
-                              </span>
+                              </div>
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-2 text-sm">
@@ -1734,19 +1857,32 @@ function ExamMonitor() {
                               />
                             )}
 
+                            {/* Retroalimentación de la IA. Antes era un border-l
+                                fino sobre fondo neutro — se confundía con el
+                                texto de la respuesta. Ahora una card con tinte
+                                azul + ícono Sparkles para que sea claro a primer
+                                vistazo que es OUTPUT del modelo, no parte de la
+                                respuesta del alumno. */}
                             {bd?.feedback && (
-                              <div className="text-xs text-muted-foreground border-l-2 border-primary/40 pl-2">
-                                <span className="font-medium text-foreground">IA:</span>{" "}
-                                {bd.feedback}
+                              <div className="rounded-md border border-blue-300/60 bg-blue-50/40 dark:bg-blue-500/5 dark:border-blue-500/25 p-2 space-y-1">
+                                <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-300">
+                                  <Sparkles className="h-3 w-3" />
+                                  <span>{t("integrity.aiFeedbackLabel")}</span>
+                                </div>
+                                <div className="text-xs whitespace-pre-wrap text-foreground/90">
+                                  {bd.feedback}
+                                </div>
                               </div>
                             )}
 
                             {q.expected_rubric && (
-                              <details className="text-xs">
-                                <summary className="cursor-pointer text-muted-foreground">
-                                  Rúbrica
+                              <details className="text-xs rounded-md border border-border/60 bg-muted/20 p-2">
+                                <summary className="cursor-pointer text-muted-foreground font-medium">
+                                  {t("integrity.rubricLabel")}
                                 </summary>
-                                <p className="mt-1 whitespace-pre-wrap">{q.expected_rubric}</p>
+                                <p className="mt-2 whitespace-pre-wrap text-foreground/80">
+                                  {q.expected_rubric}
+                                </p>
                               </details>
                             )}
 
@@ -2097,6 +2233,16 @@ function ExamMonitor() {
                             })()}
 
                             <div className="border-t pt-2 space-y-2">
+                              {/* Header de sección. Antes el bloque de
+                                  calificación manual venía pegado al
+                                  contenido sin etiqueta — el docente
+                                  tenía que adivinar que ese input era
+                                  donde va la nota final. Ahora un label
+                                  pequeño de sección lo deja explícito. */}
+                              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                <Pencil className="h-3 w-3" />
+                                <span>{t("integrity.gradingSection")}</span>
+                              </div>
                               <div className="flex items-center gap-2">
                                 <DecimalInput
                                   min={0}
@@ -2159,11 +2305,12 @@ function ExamMonitor() {
                                 className="text-xs min-h-[50px]"
                               />
                               {viewingSub && (
-                                <FeedbackThread
-                                  parentKind="exam"
+                                <ConversationSection
                                   questionId={q.id}
                                   submissionId={viewingSub.id}
-                                  isTeacher
+                                  summary={threadsByQ[`${viewingSub.id}:${q.id}`]}
+                                  conversationLabel={t("integrity.conversation")}
+                                  pendingLabel={t("integrity.conversationPending")}
                                 />
                               )}
                             </div>
