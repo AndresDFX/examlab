@@ -50,6 +50,7 @@ import {
   CalendarRange,
   CalendarPlus,
   AlertCircle,
+  Wand2,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -176,6 +177,11 @@ function TeacherContents() {
   // las sesiones del curso creadas todavía y no quería crearlas a
   // mano una por una en el módulo de Asistencia.
   const [generateFor, setGenerateFor] = useState<GeneratedContent | null>(null);
+  // "Materializar curso": wizard que crea en lote las evaluaciones por
+  // cada corte del curso (1 taller + 1 examen por corte; 1 proyecto en
+  // el último corte). Acelera el flujo "abrir CreateAssessment N veces"
+  // cuando el curso tiene varios cortes.
+  const [materializeFor, setMaterializeFor] = useState<GeneratedContent | null>(null);
 
   // Form
   const [topic, setTopic] = useState("");
@@ -650,6 +656,18 @@ function TeacherContents() {
                                 onClick: () => setGenerateFor(it),
                               }
                             : null,
+                          // "Materializar curso": batch de evaluaciones
+                          // por corte. Solo disponible para curso_completo
+                          // con course_id — para material_individual no
+                          // tiene sentido, porque la idea es repartir
+                          // clases entre cortes y solo hay 1 sesión.
+                          it.status === "done" && it.course_id && it.mode === "curso_completo"
+                            ? {
+                                label: t("contents.materializeAction"),
+                                icon: Wand2,
+                                onClick: () => setMaterializeFor(it),
+                              }
+                            : null,
                           it.status === "done" && it.course_id
                             ? {
                                 label: t("contents.assignToSessions"),
@@ -932,6 +950,23 @@ function TeacherContents() {
         onCreated={() => {
           setGenerateFor(null);
           void load();
+        }}
+      />
+
+      <MaterializeCourseDialog
+        content={materializeFor}
+        onClose={() => setMaterializeFor(null)}
+        onCreated={() => {
+          setMaterializeFor(null);
+          void load();
+        }}
+        // El wizard puede detectar que faltan sesiones programadas; en
+        // ese caso ofrece un botón que cierra este dialog y abre
+        // GenerateSessionsDialog sobre el mismo contenido. Usamos el
+        // ref pasado como callback para encadenar los flujos sin que
+        // el docente tenga que cerrar y reabrir el menú.
+        onOpenSessionsDialog={() => {
+          if (materializeFor) setGenerateFor(materializeFor);
         }}
       />
 
@@ -1311,6 +1346,450 @@ function CreateAssessmentDialog({
               <BookOpenCheck className="h-4 w-4 mr-1" />
             )}
             {creating ? t("contents.creatingAssessment") : t("contents.createAssessmentSubmit")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// MaterializeCourseDialog
+// Wizard que crea en lote las evaluaciones derivadas del contenido
+// para CADA corte del curso. Acelera el flujo "abrir CreateAssessment
+// 12 veces" cuando el curso tiene 4 cortes y se quiere taller+examen
+// por cada uno + proyecto final.
+//
+// Reglas de propuesta:
+//   - Pre-requisito: el curso tiene cortes Y las sesiones del contenido
+//     ya están programadas. Si no, banner bloqueante con CTA al dialog
+//     correspondiente.
+//   - Para cada corte (orden por position):
+//       * workshop_weight > 0 → propone 1 taller
+//       * exam_weight     > 0 → propone 1 examen
+//   - Para el ÚLTIMO corte (mayor position) con project_weight > 0:
+//       * propone 1 proyecto
+//   - Cada propuesta carga su rango de clases desde las sesiones
+//     asignadas a este contenido cuya `session_date` cae en el rango
+//     [cut.start_date, cut.end_date] del corte. Si el corte no tiene
+//     sesiones en su rango, la propuesta se omite con nota visible.
+//
+// El docente ve cada propuesta como una fila con checkbox + título
+// editable + chip con el rango de clases. Al confirmar, todas las
+// marcadas se INSERT en una pasada y se setea `source_content_id`
+// para que aparezcan en los conteos derivados del grid.
+// ──────────────────────────────────────────────────────────────────────
+
+interface CutRow {
+  id: string;
+  course_id: string;
+  name: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+  weight: number;
+  workshop_weight: number;
+  exam_weight: number;
+  project_weight: number;
+  attendance_weight: number;
+}
+
+type ProposalType = "workshop" | "exam" | "project";
+
+interface Proposal {
+  key: string;
+  cutId: string;
+  cutName: string;
+  type: ProposalType;
+  title: string;
+  weight: number;
+  classNumbers: number[];
+  /** Si true, la propuesta NO se puede activar (no hay clases en el
+   *  rango del corte). El check queda fijo en off y se muestra una
+   *  nota explicando por qué. */
+  disabled: boolean;
+}
+
+function MaterializeCourseDialog({
+  content,
+  onClose,
+  onCreated,
+  onOpenSessionsDialog,
+}: {
+  content: GeneratedContent | null;
+  onClose: () => void;
+  onCreated: () => void;
+  onOpenSessionsDialog: () => void;
+}) {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [cuts, setCuts] = useState<CutRow[]>([]);
+  const [contentSessions, setContentSessions] = useState<
+    { session_date: string; content_class_index: number | null }[]
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  /** key → checked. Default ON para no-disabled, OFF para disabled. */
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  /** key → title editable por el docente. */
+  const [titles, setTitles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!content?.course_id) {
+      setCuts([]);
+      setContentSessions([]);
+      return;
+    }
+    setLoading(true);
+    void (async () => {
+      const [{ data: cs }, { data: ss }] = await Promise.all([
+        db
+          .from("grade_cuts")
+          .select(
+            "id, course_id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+          )
+          .eq("course_id", content.course_id)
+          .order("position", { ascending: true }),
+        db
+          .from("attendance_sessions")
+          .select("session_date, content_class_index")
+          .eq("course_id", content.course_id)
+          .eq("content_id", content.id),
+      ]);
+      setCuts((cs ?? []) as CutRow[]);
+      setContentSessions(
+        (ss ?? []) as { session_date: string; content_class_index: number | null }[],
+      );
+      setLoading(false);
+    })();
+  }, [content]);
+
+  // Construye las propuestas a partir de cuts + sessions.
+  const proposals = useMemo<Proposal[]>(() => {
+    if (!content || cuts.length === 0) return [];
+    const out: Proposal[] = [];
+    const lastCutPos = Math.max(...cuts.map((c) => c.position));
+    for (const cut of cuts) {
+      // Clases que caen en [cut.start_date, cut.end_date]. Si el corte
+      // no tiene fechas configuradas, no podemos filtrar — saltamos.
+      let classNumbers: number[] = [];
+      if (cut.start_date && cut.end_date) {
+        const inRange = contentSessions.filter(
+          (s) => s.session_date >= cut.start_date! && s.session_date <= cut.end_date!,
+        );
+        const setNs = new Set<number>();
+        for (const s of inRange) {
+          if (s.content_class_index && s.content_class_index > 0) {
+            setNs.add(s.content_class_index);
+          }
+        }
+        classNumbers = Array.from(setNs).sort((a, b) => a - b);
+      }
+      const disabled = classNumbers.length === 0;
+
+      // Taller — bucket > 0.
+      if (cut.workshop_weight > 0) {
+        out.push({
+          key: `${cut.id}:workshop`,
+          cutId: cut.id,
+          cutName: cut.name,
+          type: "workshop",
+          title: `${t("contents.assessmentWorkshop")} ${cut.name} — ${content.topic}`,
+          weight: Number(cut.workshop_weight),
+          classNumbers,
+          disabled,
+        });
+      }
+      // Examen — bucket > 0.
+      if (cut.exam_weight > 0) {
+        out.push({
+          key: `${cut.id}:exam`,
+          cutId: cut.id,
+          cutName: cut.name,
+          type: "exam",
+          title: `${t("contents.assessmentExam")} ${cut.name} — ${content.topic}`,
+          weight: Number(cut.exam_weight),
+          classNumbers,
+          disabled,
+        });
+      }
+      // Proyecto — solo en el último corte con bucket > 0.
+      if (cut.position === lastCutPos && cut.project_weight > 0) {
+        out.push({
+          key: `${cut.id}:project`,
+          cutId: cut.id,
+          cutName: cut.name,
+          type: "project",
+          title: `${t("contents.assessmentProject")} — ${content.topic}`,
+          weight: Number(cut.project_weight),
+          classNumbers,
+          disabled,
+        });
+      }
+    }
+    return out;
+  }, [content, cuts, contentSessions, t]);
+
+  // Inicializa checked + titles cuando cambian las propuestas.
+  useEffect(() => {
+    const c: Record<string, boolean> = {};
+    const ts: Record<string, string> = {};
+    for (const p of proposals) {
+      c[p.key] = !p.disabled;
+      ts[p.key] = p.title;
+    }
+    setChecked(c);
+    setTitles(ts);
+  }, [proposals]);
+
+  if (!content) return null;
+
+  const hasSessions = contentSessions.length > 0;
+  const hasCuts = cuts.length > 0;
+  const checkedCount = proposals.filter((p) => checked[p.key] && !p.disabled).length;
+
+  const submit = async () => {
+    if (!user || !content.course_id) return;
+    setCreating(true);
+    try {
+      const files = (content.files as ContentFile[]) ?? [];
+      // Una sola pasada — los INSERTs van secuenciales para mantener
+      // mensajes de error claros si alguno falla a mitad. La cantidad
+      // típica (4 cortes × 2-3 evaluaciones = 8-12) no justifica
+      // batchear en una sola query.
+      let createdCount = 0;
+      let firstId: { kind: ProposalType; id: string } | null = null;
+
+      for (const p of proposals) {
+        if (!checked[p.key] || p.disabled) continue;
+        const desc = extractContentText(files, { classNumbers: p.classNumbers });
+        const finalTitle = (titles[p.key] ?? p.title).trim() || p.title;
+
+        if (p.type === "exam") {
+          const start = new Date();
+          const end = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+          const { data, error } = await db
+            .from("exams")
+            .insert({
+              course_id: content.course_id,
+              title: finalTitle,
+              description: desc,
+              start_time: start.toISOString(),
+              end_time: end.toISOString(),
+              time_limit_minutes: content.duration_minutes ?? 60,
+              navigation_type: "libre",
+              shuffle_enabled: false,
+              created_by: user.id,
+              source_content_id: content.id,
+              cut_id: p.cutId,
+              weight: p.weight,
+            })
+            .select("id")
+            .single();
+          if (error || !data) throw new Error(error?.message ?? "exam insert failed");
+          createdCount += 1;
+          if (!firstId) firstId = { kind: "exam", id: data.id };
+        } else if (p.type === "workshop") {
+          const due = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+          const { data, error } = await db
+            .from("workshops")
+            .insert({
+              course_id: content.course_id,
+              title: finalTitle,
+              description: desc,
+              instructions: null,
+              due_date: due.toISOString(),
+              max_score: 100,
+              status: "draft",
+              created_by: user.id,
+              source_content_id: content.id,
+              cut_id: p.cutId,
+              weight: p.weight,
+            })
+            .select("id")
+            .single();
+          if (error || !data) throw new Error(error?.message ?? "workshop insert failed");
+          createdCount += 1;
+          if (!firstId) firstId = { kind: "workshop", id: data.id };
+        } else {
+          const { data, error } = await db
+            .from("projects")
+            .insert({
+              course_id: content.course_id,
+              title: finalTitle,
+              description: desc,
+              max_score: 100,
+              status: "draft",
+              created_by: user.id,
+              source_content_id: content.id,
+              cut_id: p.cutId,
+              weight: p.weight,
+            })
+            .select("id")
+            .single();
+          if (error || !data) throw new Error(error?.message ?? "project insert failed");
+          createdCount += 1;
+          if (!firstId) firstId = { kind: "project", id: data.id };
+        }
+      }
+
+      toast.success(t("contents.materializeCreatedToast", { count: createdCount }));
+      onCreated();
+      // Si solo se creó UNA evaluación, llevamos al docente a su editor
+      // (mismo comportamiento que CreateAssessmentDialog). Si se crearon
+      // varias, lo dejamos en el grid de Contenidos para que vea los
+      // conteos derivados actualizados — abrir N pestañas sería ruido.
+      if (createdCount === 1 && firstId) {
+        if (firstId.kind === "exam") {
+          void navigate({ to: `/app/teacher/exams/${firstId.id}` });
+        } else if (firstId.kind === "workshop") {
+          void navigate({ to: "/app/teacher/workshops", search: { edit: firstId.id } });
+        } else {
+          void navigate({ to: "/app/teacher/projects", search: { edit: firstId.id } });
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BookOpenCheck className="h-5 w-5 text-primary" />
+            {t("contents.materializeTitle")}
+          </DialogTitle>
+          <DialogDescription>{t("contents.materializeSubtitle")}</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Spinner size="lg" />
+          </div>
+        ) : !hasCuts ? (
+          // Pre-requisito 1: el curso tiene cortes. Sin ellos no
+          // sabemos cómo dividir las evaluaciones.
+          <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-4 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-300">
+              <AlertCircle className="h-4 w-4" />
+              {t("contents.materializeNoCutsTitle")}
+            </div>
+            <p className="text-muted-foreground">{t("contents.materializeNoCutsBody")}</p>
+          </div>
+        ) : !hasSessions ? (
+          // Pre-requisito 2: las sesiones del contenido están programadas.
+          // Sin ellas no podemos derivar los rangos de clases por corte.
+          <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-4 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-300">
+              <AlertCircle className="h-4 w-4" />
+              {t("contents.materializeNoSessionsTitle")}
+            </div>
+            <p className="text-muted-foreground">{t("contents.materializeNoSessionsBody")}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                onClose();
+                onOpenSessionsDialog();
+              }}
+            >
+              <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+              {t("contents.generateSessions")}
+            </Button>
+          </div>
+        ) : proposals.length === 0 ? (
+          <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
+            {t("contents.materializeNoProposals")}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[55vh] overflow-y-auto">
+            {proposals.map((p) => {
+              const isChecked = !!checked[p.key];
+              return (
+                <div
+                  key={p.key}
+                  className={`rounded-md border p-3 space-y-2 ${
+                    p.disabled
+                      ? "opacity-60 bg-muted/20"
+                      : isChecked
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-border"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={p.disabled}
+                      onChange={(e) =>
+                        setChecked((prev) => ({ ...prev, [p.key]: e.target.checked }))
+                      }
+                      className="mt-1 h-4 w-4 accent-primary"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-[10px]">
+                          {p.type === "workshop"
+                            ? t("contents.assessmentWorkshop")
+                            : p.type === "exam"
+                              ? t("contents.assessmentExam")
+                              : t("contents.assessmentProject")}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground">{p.cutName}</span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {t("contents.materializeWeight", { weight: p.weight })}
+                        </Badge>
+                        {p.classNumbers.length > 0 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {t("contents.materializeClasses", {
+                              classes: p.classNumbers.join(", "),
+                            })}
+                          </Badge>
+                        )}
+                      </div>
+                      <Input
+                        value={titles[p.key] ?? ""}
+                        onChange={(e) =>
+                          setTitles((prev) => ({ ...prev, [p.key]: e.target.value }))
+                        }
+                        disabled={p.disabled || !isChecked}
+                        className="h-8 text-xs"
+                        placeholder={p.title}
+                      />
+                      {p.disabled && (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                          {t("contents.materializeNoClassesInRange")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            onClick={submit}
+            disabled={creating || !hasCuts || !hasSessions || checkedCount === 0}
+          >
+            {creating ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <BookOpenCheck className="h-4 w-4 mr-1" />
+            )}
+            {creating
+              ? t("contents.materializeCreating")
+              : t("contents.materializeSubmit", { count: checkedCount })}
           </Button>
         </DialogFooter>
       </DialogContent>
