@@ -679,6 +679,7 @@
     "scope_plagio": "Copy",
     "scope_ambas": "AI + Copy",
     "openPeer": "View {{name}}'s submission",
+    "openPeerShort": "View submission",
     "closeCompare": "Close comparison",
     "compareTitle": "Comparison: {{name}}",
     "compareSubtitle": "Peer's answer to the same question. Marking as reviewed in either side syncs with the other student."

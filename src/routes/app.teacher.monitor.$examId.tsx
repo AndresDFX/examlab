@@ -1799,12 +1799,17 @@ function ExamMonitor() {
                                     </CollapsibleTrigger>
                                     <CollapsibleContent className="space-y-2">
                                       <CollapsibleReasons text={sig.reasons} />
-                                      <div className="flex justify-end">
+                                      {/* Botón con outline + fondo del bg
+                                          contrarestando el card amber, así
+                                          se ve claro en dark + light. Antes
+                                          era `variant="ghost"` y desaparecía
+                                          contra el fondo ámbar de la sección. */}
+                                      <div className="flex justify-end pt-1 border-t border-amber-300/30">
                                         {reviewed ? (
                                           <Button
                                             size="sm"
-                                            variant="ghost"
-                                            className="h-6 text-[10px]"
+                                            variant="outline"
+                                            className="h-7 text-[11px] bg-background"
                                             onClick={() =>
                                               toggleQuestionAiReviewedHandler(
                                                 sig.submissionId,
@@ -1818,8 +1823,8 @@ function ExamMonitor() {
                                         ) : (
                                           <Button
                                             size="sm"
-                                            variant="ghost"
-                                            className="h-6 text-[10px]"
+                                            variant="outline"
+                                            className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                                             onClick={() =>
                                               toggleQuestionAiReviewedHandler(
                                                 sig.submissionId,
@@ -1939,7 +1944,7 @@ function ExamMonitor() {
                                                   <Button
                                                     size="sm"
                                                     variant={isActive ? "secondary" : "outline"}
-                                                    className="h-6 text-[10px]"
+                                                    className="h-7 text-[11px]"
                                                     onClick={() =>
                                                       setComparisonForCopy(
                                                         isActive
@@ -1952,6 +1957,10 @@ function ExamMonitor() {
                                                             },
                                                       )
                                                     }
+                                                    // Tooltip mantiene el nombre completo,
+                                                    // pero el label visible es corto para
+                                                    // que no empuje al botón "Marcar
+                                                    // revisada" fuera de la pantalla.
                                                     title={t("integrity.openPeer", {
                                                       name:
                                                         userNamesLocal[p.peerId] ??
@@ -1961,11 +1970,7 @@ function ExamMonitor() {
                                                     <Eye className="h-3 w-3 mr-1" />
                                                     {isActive
                                                       ? t("integrity.closeCompare")
-                                                      : t("integrity.openPeer", {
-                                                          name:
-                                                            userNamesLocal[p.peerId] ??
-                                                            p.peerId.slice(0, 8),
-                                                        })}
+                                                      : t("integrity.openPeerShort")}
                                                   </Button>
                                                 );
                                               })()}
@@ -1973,13 +1978,13 @@ function ExamMonitor() {
                                                 {p.reviewedAt ? (
                                                   <Badge
                                                     variant="outline"
-                                                    className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                    className="text-[11px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300 h-7 px-2"
                                                   >
                                                     <Check className="h-3 w-3 mr-1" />
                                                     {t("integrity.reviewed")}
                                                     <button
                                                       type="button"
-                                                      className="ml-1 underline text-muted-foreground"
+                                                      className="ml-2 underline text-muted-foreground hover:text-foreground"
                                                       onClick={() =>
                                                         toggleCopyReviewedHandler(p.id, true)
                                                       }
@@ -1988,10 +1993,13 @@ function ExamMonitor() {
                                                     </button>
                                                   </Badge>
                                                 ) : (
+                                                  // Mismo tratamiento que el botón AI: outline
+                                                  // con fondo emerald translúcido — antes era
+                                                  // ghost y se perdía contra el card ámbar.
                                                   <Button
                                                     size="sm"
-                                                    variant="ghost"
-                                                    className="h-6 text-[10px]"
+                                                    variant="outline"
+                                                    className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                                                     onClick={() =>
                                                       toggleCopyReviewedHandler(p.id, false)
                                                     }

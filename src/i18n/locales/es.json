@@ -679,6 +679,7 @@
     "scope_plagio": "Copia",
     "scope_ambas": "IA + Copia",
     "openPeer": "Ver entrega de {{name}}",
+    "openPeerShort": "Ver entrega",
     "closeCompare": "Cerrar comparación",
     "compareTitle": "Comparación: {{name}}",
     "compareSubtitle": "Respuesta del compañero a la misma pregunta. Marcar como revisada en cualquiera de los dos modos sincroniza con el otro estudiante."
