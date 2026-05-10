@@ -59,6 +59,7 @@ import {
   classNumberFromFilename,
   extractClassTitle,
   extractContentText,
+  groupFilesByClass,
   type ContentFile,
 } from "@/lib/contents-extract";
 import { Textarea } from "@/components/ui/textarea";
