@@ -29,6 +29,7 @@ import {
   Menu,
   FolderKanban,
   CalendarCheck,
+  CalendarDays,
   Sparkles,
   BarChart3,
   ScrollText,
