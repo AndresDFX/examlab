@@ -43,7 +43,6 @@ import {
   MessageSquareText,
   Search,
   Check,
-  ShieldAlert,
   Bot,
   Users,
 } from "lucide-react";
@@ -63,10 +62,10 @@ import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exa
 import { useConfirm } from "@/components/ConfirmDialog";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import {
-  IntegrityReviewDialog,
   countPendingByUser,
   rpcMarkAiReviewed,
   rpcMarkCopyReviewed,
+  CollapsibleReasons,
   type IntegrityCopyPair,
   type IntegrityAiSignal,
 } from "@/components/IntegrityReviewDialog";
@@ -234,7 +233,6 @@ function ExamMonitor() {
     Record<string, { score: number | null; feedback: string }>
   >({});
   const [savingQid, setSavingQid] = useState<string | null>(null);
-  const [integrityForUser, setIntegrityForUser] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
 
   const load = useCallback(async () => {
@@ -1252,14 +1250,6 @@ function ExamMonitor() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {(aiSignalByUser.has(row.userId) ||
-                          (copyPairsByUser.get(row.userId)?.length ?? 0) > 0) && (
-                          <RowAction
-                            label={t("integrity.openReview")}
-                            icon={ShieldAlert}
-                            onClick={() => setIntegrityForUser(row.userId)}
-                          />
-                        )}
                         {inProg && (
                           <Button
                             variant="ghost"
@@ -1302,51 +1292,6 @@ function ExamMonitor() {
           </Table>
         </CardContent>
       </Card>
-
-      {(() => {
-        if (!integrityForUser) return null;
-        const row = studentRows.find((r) => r.userId === integrityForUser);
-        if (!row) return null;
-        const userNames = Object.fromEntries(
-          studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
-        );
-        const aiSig = aiSignalByUser.get(integrityForUser) ?? null;
-        const copies = copyPairsByUser.get(integrityForUser) ?? [];
-        return (
-          <IntegrityReviewDialog
-            open
-            onOpenChange={(o) => !o && setIntegrityForUser(null)}
-            kind="exam"
-            userId={row.userId}
-            userName={row.profile?.full_name ?? "—"}
-            submissionId={row.latest.id}
-            currentGrade={row.effectiveGrade}
-            maxScore={gradeMax}
-            aiSignal={aiSig}
-            copyPairs={copies}
-            questionLabels={questionLabelsForIntegrity}
-            userNames={userNames}
-            onApplyGrade={async (gradeToApply) => {
-              const { data, error } = await supabase
-                .from("submissions")
-                .update({ final_override_grade: gradeToApply })
-                .eq("id", row.latest.id)
-                .select("id");
-              if (error) return { ok: false, error: error.message };
-              if (!data || data.length === 0)
-                return { ok: false, error: t("integrity.applyError") };
-              setSubmissions((prev) =>
-                prev.map((s) =>
-                  s.id === row.latest.id ? { ...s, final_override_grade: gradeToApply } : s,
-                ),
-              );
-              return { ok: true };
-            }}
-            onToggleAiReviewed={toggleAiReviewedHandler}
-            onToggleCopyReviewed={toggleCopyReviewedHandler}
-          />
-        );
-      })()}
 
       {/* Dialog: lista de intentos del estudiante */}
       <Dialog open={attemptsForUser != null} onOpenChange={(o) => !o && setAttemptsForUser(null)}>
@@ -1505,6 +1450,191 @@ function ExamMonitor() {
                   );
                 })()}
 
+                {(() => {
+                  // Resumen de integridad: la sospecha IA es a nivel
+                  // submission (no por pregunta), pero las copias se
+                  // muestran inline en cada pregunta (más abajo). Aquí
+                  // mostramos AI + sugerencia combinada con la copia
+                  // máxima detectada para este estudiante.
+                  const aiSig = aiSignalByUser.get(viewingSub.user_id);
+                  const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
+                  const copyMax = userPairs.reduce((m, p) => Math.max(m, p.score), 0);
+                  const aiScore = aiSig?.score ?? 0;
+                  const hasSignal = aiSig != null || userPairs.length > 0;
+                  if (!hasSignal) return null;
+                  const severity = Math.max(
+                    aiScore >= 0.6 ? aiScore : 0,
+                    copyMax >= 0.6 ? copyMax : 0,
+                  );
+                  const currentGrade =
+                    viewingSub.final_override_grade != null
+                      ? Number(viewingSub.final_override_grade)
+                      : viewingSub.ai_grade != null
+                        ? Number(viewingSub.ai_grade)
+                        : null;
+                  const suggested =
+                    severity > 0 && currentGrade != null
+                      ? Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)))
+                      : null;
+                  const sourceKey =
+                    aiScore >= 0.6 && copyMax >= 0.6
+                      ? "ambas"
+                      : aiScore >= 0.6
+                        ? "ai"
+                        : copyMax >= 0.6
+                          ? "plagio"
+                          : null;
+                  const applySuggestion = async () => {
+                    if (suggested == null) return;
+                    const { data, error } = await supabase
+                      .from("submissions")
+                      .update({ final_override_grade: suggested })
+                      .eq("id", viewingSub.id)
+                      .select("id");
+                    if (error) return toast.error(error.message);
+                    if (!data || data.length === 0) return toast.error(t("integrity.applyError"));
+                    setSubmissions((prev) =>
+                      prev.map((s) =>
+                        s.id === viewingSub.id ? { ...s, final_override_grade: suggested } : s,
+                      ),
+                    );
+                    setOverrideValue(suggested);
+                    toast.success(t("integrity.applySuccess", { value: suggested.toFixed(2) }));
+                  };
+                  return (
+                    <Card className="border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/5">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          {t("integrity.title")}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3 text-xs">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
+                              <Bot className="h-3 w-3" /> {t("integrity.aiProbability")}
+                            </div>
+                            <div>
+                              {aiScore > 0 ? (
+                                <Badge
+                                  variant={
+                                    aiScore >= 0.85
+                                      ? "destructive"
+                                      : aiScore >= 0.7
+                                        ? "default"
+                                        : "secondary"
+                                  }
+                                >
+                                  {Math.round(aiScore * 100)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
+                              <Users className="h-3 w-3" /> {t("integrity.copyScore")}
+                            </div>
+                            <div>
+                              {copyMax > 0 ? (
+                                <Badge
+                                  variant={
+                                    copyMax >= 0.85
+                                      ? "destructive"
+                                      : copyMax >= 0.7
+                                        ? "default"
+                                        : "secondary"
+                                  }
+                                >
+                                  {Math.round(copyMax * 100)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                              {t("integrity.currentGrade")}
+                            </div>
+                            <div className="font-semibold tabular-nums">
+                              {currentGrade != null
+                                ? `${currentGrade.toFixed(2)} / ${gradeMax}`
+                                : t("integrity.noCurrentGrade")}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Sospecha IA: razones colapsables + marcar revisada */}
+                        {aiSig && (
+                          <div className="rounded-md border bg-background p-2 space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-foreground">
+                                {t("integrity.aiSection")}
+                              </span>
+                              {aiSig.reviewedAt ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                >
+                                  <Check className="h-3 w-3 mr-1" />
+                                  {t("integrity.reviewed")}
+                                  <button
+                                    type="button"
+                                    className="ml-2 underline text-muted-foreground"
+                                    onClick={() =>
+                                      toggleAiReviewedHandler(aiSig.submissionId, true)
+                                    }
+                                  >
+                                    {t("integrity.reopen")}
+                                  </button>
+                                </Badge>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-[11px]"
+                                  onClick={() => toggleAiReviewedHandler(aiSig.submissionId, false)}
+                                >
+                                  <Check className="h-3 w-3 mr-1" />
+                                  {t("integrity.markReviewed")}
+                                </Button>
+                              )}
+                            </div>
+                            <CollapsibleReasons text={aiSig.reasons} />
+                          </div>
+                        )}
+                        {/* Sugerencia combinada con un solo "Aplicar" */}
+                        {suggested != null && currentGrade != null && (
+                          <div className="rounded-md border border-amber-300 bg-amber-100/50 dark:bg-amber-500/10 dark:border-amber-500/30 p-2 flex items-center gap-2">
+                            <div className="flex-1">
+                              <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                {t("integrity.suggestedGrade")}
+                                {sourceKey && (
+                                  <span className="ml-2 text-muted-foreground normal-case tracking-normal">
+                                    {t(`integrity.scope_${sourceKey}`)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-muted-foreground">
+                                {currentGrade.toFixed(2)} × (1 − {Math.round(severity * 100)}%) ={" "}
+                                <span className="font-semibold text-amber-700 dark:text-amber-300">
+                                  {suggested.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <Button size="sm" onClick={applySuggestion} className="h-7 text-xs">
+                              <Check className="h-3 w-3 mr-1" />
+                              {t("integrity.applySuggestion")}
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+
                 {questions.length === 0 && (
                   <p className="text-sm text-muted-foreground">Este examen no tiene preguntas.</p>
                 )}
@@ -1651,6 +1781,88 @@ function ExamMonitor() {
                               <p className="mt-1 whitespace-pre-wrap">{q.expected_rubric}</p>
                             </details>
                           )}
+
+                          {/* Posibles copias detectadas en ESTA pregunta. Se filtra
+                              por question_id; no incluye los pares "overall" (sin
+                              question_id), que se muestran en el resumen del modal. */}
+                          {(() => {
+                            const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
+                            const qPairs = userPairs.filter((p) => p.questionId === q.id);
+                            if (qPairs.length === 0) return null;
+                            const userNamesLocal = Object.fromEntries(
+                              studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
+                            );
+                            return (
+                              <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                <div className="text-[11px] font-medium flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                                  <Users className="h-3 w-3" />
+                                  {t("integrity.copySection")}
+                                </div>
+                                <div className="space-y-1.5">
+                                  {qPairs
+                                    .slice()
+                                    .sort((a, b) => b.score - a.score)
+                                    .map((p) => (
+                                      <div
+                                        key={p.id}
+                                        className="rounded border bg-background p-1.5 text-xs space-y-1"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium">
+                                            {userNamesLocal[p.peerId] ?? p.peerId.slice(0, 8)}
+                                          </span>
+                                          <Badge
+                                            variant={
+                                              p.score >= 0.85
+                                                ? "destructive"
+                                                : p.score >= 0.7
+                                                  ? "default"
+                                                  : "secondary"
+                                            }
+                                            className="text-[10px]"
+                                          >
+                                            {Math.round(p.score * 100)}%
+                                          </Badge>
+                                          <div className="ml-auto">
+                                            {p.reviewedAt ? (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                              >
+                                                <Check className="h-3 w-3 mr-1" />
+                                                {t("integrity.reviewed")}
+                                                <button
+                                                  type="button"
+                                                  className="ml-1 underline text-muted-foreground"
+                                                  onClick={() =>
+                                                    toggleCopyReviewedHandler(p.id, true)
+                                                  }
+                                                >
+                                                  {t("integrity.reopen")}
+                                                </button>
+                                              </Badge>
+                                            ) : (
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 text-[10px]"
+                                                onClick={() =>
+                                                  toggleCopyReviewedHandler(p.id, false)
+                                                }
+                                              >
+                                                <Check className="h-3 w-3 mr-1" />
+                                                {t("integrity.markReviewed")}
+                                              </Button>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <CollapsibleReasons text={p.reasons} />
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           <div className="border-t pt-2 space-y-2">
                             <div className="flex items-center gap-2">

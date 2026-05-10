@@ -98,7 +98,7 @@ function shortName(userId: string, names: Record<string, string>): string {
 
 /** Texto largo con toggle "Ver más"/"Ver menos". Útil para razones de IA
  *  que pueden ser de varios párrafos y rompían el grid. */
-function CollapsibleReasons({ text }: { text: string | null }) {
+export function CollapsibleReasons({ text }: { text: string | null }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   if (!text) return <span className="text-xs text-muted-foreground">—</span>;
