@@ -9,6 +9,7 @@ import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/lib/rbac";
 import { logEvent } from "@/lib/audit";
+import { ensurePushSubscription } from "@/lib/push-subscription";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -308,6 +309,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // recargarían la misma "página").
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, user?.id]);
+
+  // Web Push: una vez tenemos user, intentamos suscribir el browser.
+  // Idempotente — si ya hay suscripción registrada, no hace nada. Si
+  // falta permiso, la pide. Si VAPID no está configurado, sale sin
+  // ruido. Esto es lo que habilita notificaciones cuando la PWA está
+  // CERRADA en móvil; antes solo había realtime + postMessage que solo
+  // funcionaba con la pestaña abierta.
+  useEffect(() => {
+    if (!user?.id) return;
+    void ensurePushSubscription(user.id);
+  }, [user?.id]);
 
   useEffect(() => {
     // Don't redirect mid-exam: TakeExam's submit/exit logic handles navigation.
