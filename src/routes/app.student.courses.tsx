@@ -242,7 +242,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
           sessRows.map((s) => s.id),
         );
       const attMap = new Map<string, AttendanceStatus>();
-      for (const r of ((att ?? []) as AttendanceRecord[]) ?? []) attMap.set(r.session_id, r.status);
+      for (const r of (att ?? []) as AttendanceRecord[]) attMap.set(r.session_id, r.status);
       setAttendance(attMap);
 
       // 5. Tareas calendarizadas: exámenes, talleres, proyectos del
