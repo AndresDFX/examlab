@@ -234,6 +234,20 @@ function ExamMonitor() {
   >({});
   const [savingQid, setSavingQid] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
+  // Comparación de copia entre dos estudiantes para una pregunta concreta.
+  // Cuando está poblado, el modal "Respuestas" se ensancha y muestra un
+  // panel lateral con la entrega del compañero a esa misma pregunta —
+  // así el docente compara las dos respuestas lado a lado sin perder el
+  // contexto de la calificación. La marca de revisión usa `pairId` y se
+  // sincroniza con la fila de `similarity_pairs` (un único registro
+  // compartido por ambos estudiantes), por lo que marcarla en cualquiera
+  // de los dos modos refleja al otro al instante.
+  const [comparisonForCopy, setComparisonForCopy] = useState<{
+    peerUserId: string;
+    peerSubmissionId: string;
+    questionId: string;
+    pairId: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     const { data: e } = await (supabase as any)
@@ -721,32 +735,86 @@ function ExamMonitor() {
   // Sospechas IA por usuario: tomamos el intento con mayor score; la
   // señal IA es a nivel submission (no por pregunta). Hooks declarados
   // ANTES del early return de loading para no romper el orden de hooks.
-  const aiSignalsList = useMemo(() => {
-    return submissions
-      .filter((s) => s.ai_detected === true || s.ai_review_at != null)
-      .map((s): IntegrityAiSignal & { userId: string } => ({
-        userId: s.user_id,
-        submissionId: s.id,
-        score: Number(s.ai_detected_score) || 0,
-        reasons: s.ai_detected_reasons ?? null,
-        reviewedAt: s.ai_review_at ?? null,
-      }));
+  // Sospechas IA por pregunta. La edge function `ai-grade-submission`
+  // guarda `ai_likelihood` y `ai_reasons` en cada entrada del
+  // `__breakdown` del submission. Aquí los aplanamos a una lista por
+  // submission/pregunta para poder filtrar por umbral, contar pendientes
+  // y mostrarlos por pregunta en el modal de respuestas. La columna
+  // `submissions.ai_review_at` (legacy) sigue actuando como "marcar TODO
+  // como revisado" — si está poblada todas las preguntas se consideran
+  // revisadas.
+  type QuestionAiSignal = {
+    submissionId: string;
+    userId: string;
+    questionId: string;
+    score: number;
+    reasons: string | null;
+    /** Marca de revisión por pregunta. Vive dentro del breakdown JSON
+     *  en `__breakdown[i].ai_review_at`. Si está null y el submission
+     *  tampoco tiene `ai_review_at`, la pregunta cuenta como pendiente. */
+    reviewedAt: string | null;
+  };
+  const aiSignalsByQuestion = useMemo<QuestionAiSignal[]>(() => {
+    const out: QuestionAiSignal[] = [];
+    for (const s of submissions) {
+      const submissionReviewedAt = s.ai_review_at ?? null;
+      const breakdown = Array.isArray(s.answers?.__breakdown)
+        ? (s.answers.__breakdown as Array<{
+            qid: string;
+            ai_likelihood?: number;
+            ai_reasons?: string;
+            ai_review_at?: string | null;
+          }>)
+        : [];
+      for (const b of breakdown) {
+        const score = Number(b.ai_likelihood) || 0;
+        if (score <= 0) continue;
+        out.push({
+          submissionId: s.id,
+          userId: s.user_id,
+          questionId: b.qid,
+          score,
+          reasons: b.ai_reasons ?? null,
+          reviewedAt: submissionReviewedAt ?? b.ai_review_at ?? null,
+        });
+      }
+    }
+    return out;
   }, [submissions]);
+  // Mapa: userId → questionId → señal IA para esa pregunta. Se usa en
+  // el modal "Respuestas" para mostrar la sospecha al lado de cada
+  // pregunta del estudiante.
+  const aiSignalsByUserQuestion = useMemo(() => {
+    const map = new Map<string, Map<string, QuestionAiSignal>>();
+    for (const sig of aiSignalsByQuestion) {
+      let inner = map.get(sig.userId);
+      if (!inner) {
+        inner = new Map();
+        map.set(sig.userId, inner);
+      }
+      const prev = inner.get(sig.questionId);
+      if (!prev || sig.score > prev.score) inner.set(sig.questionId, sig);
+    }
+    return map;
+  }, [aiSignalsByQuestion]);
+  // Para el resumen del top del modal: la "señal global" del estudiante
+  // es el MAX de las preguntas. Conserva el shape de IntegrityAiSignal
+  // por compatibilidad con `countPendingByUser`.
   const aiSignalByUser = useMemo(() => {
     const map = new Map<string, IntegrityAiSignal>();
-    for (const s of aiSignalsList) {
-      const prev = map.get(s.userId);
-      if (!prev || s.score > prev.score) {
-        map.set(s.userId, {
-          submissionId: s.submissionId,
-          score: s.score,
-          reasons: s.reasons,
-          reviewedAt: s.reviewedAt,
+    for (const sig of aiSignalsByQuestion) {
+      const prev = map.get(sig.userId);
+      if (!prev || sig.score > prev.score) {
+        map.set(sig.userId, {
+          submissionId: sig.submissionId,
+          score: sig.score,
+          reasons: sig.reasons,
+          reviewedAt: sig.reviewedAt,
         });
       }
     }
     return map;
-  }, [aiSignalsList]);
+  }, [aiSignalsByQuestion]);
   const copyPairsByUser = useMemo(() => {
     const map = new Map<string, IntegrityCopyPair[]>();
     for (const p of similarityPairs) {
@@ -771,7 +839,11 @@ function ExamMonitor() {
   const { aiByUser: pendingAiByUser, copyByUser: pendingCopyByUser } = useMemo(
     () =>
       countPendingByUser(
-        aiSignalsList.map((s) => ({
+        // Cuenta una entrada por (estudiante, pregunta) — así "Pendientes
+        // IA" en el grid del monitor refleja preguntas con sospecha sin
+        // revisar y no submissions. Si una submission tiene 3 preguntas
+        // sospechosas, suma 3.
+        aiSignalsByQuestion.map((s) => ({
           userId: s.userId,
           reviewedAt: s.reviewedAt,
           score: s.score,
@@ -783,7 +855,7 @@ function ExamMonitor() {
           score: Number(p.score) || 0,
         })),
       ),
-    [aiSignalsList, similarityPairs],
+    [aiSignalsByQuestion, similarityPairs],
   );
   const questionLabelsForIntegrity = useMemo(() => {
     const map: Record<string, string> = {};
@@ -841,6 +913,44 @@ function ExamMonitor() {
       toast.success(currentlyReviewed ? t("monitor.deleteConfirmed") : t("integrity.reviewed"));
     }
     return ok;
+  };
+
+  /**
+   * Marca/desmarca como revisada la sospecha IA de UNA pregunta dentro
+   * de una submission. La marca vive dentro del JSON `answers.__breakdown`
+   * (campo `ai_review_at` por entry). No usamos la columna submission-level
+   * `ai_review_at` para evitar borrar/forzar el estado de TODAS las
+   * preguntas de la submission al marcar solo una.
+   */
+  const toggleQuestionAiReviewedHandler = async (
+    submissionId: string,
+    questionId: string,
+    currentlyReviewed: boolean,
+  ) => {
+    const sub = submissions.find((s) => s.id === submissionId);
+    if (!sub) return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const answers: Record<string, any> = { ...((sub.answers as Record<string, any>) ?? {}) };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const breakdown: Array<Record<string, any>> = Array.isArray(answers.__breakdown)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [...(answers.__breakdown as Array<Record<string, any>>)]
+      : [];
+    const idx = breakdown.findIndex((b) => b.qid === questionId);
+    if (idx < 0) return false;
+    breakdown[idx] = {
+      ...breakdown[idx],
+      ai_review_at: currentlyReviewed ? null : new Date().toISOString(),
+    };
+    answers.__breakdown = breakdown;
+    const { error } = await supabase.from("submissions").update({ answers }).eq("id", submissionId);
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? { ...s, answers } : s)));
+    toast.success(currentlyReviewed ? t("monitor.deleteConfirmed") : t("integrity.reviewed"));
+    return true;
   };
 
   const toggleCopyReviewedHandler = async (pairId: string, currentlyReviewed: boolean) => {
@@ -975,14 +1085,14 @@ function ExamMonitor() {
               <p className="text-xs text-muted-foreground">{t("integrity.subtitle")}</p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {(() => {
-                  const aiCount = aiSignalsList.filter(
+                  const aiCount = aiSignalsByQuestion.filter(
                     (s) => s.score >= 0.6 && !s.reviewedAt,
                   ).length;
                   const copyPairsCount = similarityPairs.filter(
                     (p) => Number(p.score) >= 0.6 && !p.reviewed_at,
                   ).length;
                   const totalPending = aiCount + copyPairsCount;
-                  const hasAny = aiSignalsList.length > 0 || similarityPairs.length > 0;
+                  const hasAny = aiSignalsByQuestion.length > 0 || similarityPairs.length > 0;
                   if (!hasAny)
                     return (
                       <span className="text-xs text-muted-foreground">
@@ -992,7 +1102,7 @@ function ExamMonitor() {
                   return (
                     <>
                       <Badge variant="outline" className="text-[11px]">
-                        {t("integrity.summaryAi_other", { count: aiSignalsList.length })}
+                        {t("integrity.summaryAi_other", { count: aiSignalsByQuestion.length })}
                       </Badge>
                       <Badge variant="outline" className="text-[11px]">
                         {t("integrity.summaryCopy_other", { count: similarityPairs.length })}
@@ -1386,8 +1496,19 @@ function ExamMonitor() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={viewingId != null} onOpenChange={(o) => !o && setViewingId(null)}>
-        <DialogContent className="max-w-3xl">
+      <Dialog
+        open={viewingId != null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setViewingId(null);
+            // Cerramos también el panel de comparación: si el docente
+            // cierra el modal principal, no tiene sentido conservar el
+            // contexto del compañero en memoria.
+            setComparisonForCopy(null);
+          }
+        }}
+      >
+        <DialogContent className={comparisonForCopy ? "max-w-6xl" : "max-w-3xl"}>
           <DialogHeader>
             <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
@@ -1398,550 +1519,821 @@ function ExamMonitor() {
           </DialogHeader>
 
           {viewingSub && (
-            <ScrollArea className="max-h-[55vh] pr-4">
-              <div className="space-y-4">
-                {(() => {
-                  const events = (viewingSub.answers?.__warning_events ?? []) as WarningEvent[];
-                  if (!events.length) return null;
-                  return (
-                    <Card className="border-destructive/40 bg-destructive/5">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-destructive" />
-                            Eventos de advertencia ({events.length})
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => clearAllWarnings(viewingSub)}
-                            title="Limpiar todas las advertencias del intento"
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Limpiar todas
-                          </Button>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="text-xs space-y-1">
-                        {events.map((ev, i) => {
-                          const ts = warningEventTimestamp(ev);
-                          return (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="text-muted-foreground tabular-nums">
-                                {formatDateTime(ts)}
-                              </span>
-                              <span className="font-medium">{warningLabel(ev.type)}</span>
-                              {typeof ev.questionIdx === "number" && (
-                                <span className="text-muted-foreground">
-                                  · pregunta {ev.questionIdx + 1}
-                                </span>
-                              )}
-                              <RowAction
-                                label="Eliminar esta advertencia"
-                                icon={Trash2}
-                                tone="destructive"
-                                onClick={() => clearOneWarning(viewingSub, i)}
-                              />
-                            </div>
-                          );
-                        })}
-                      </CardContent>
-                    </Card>
-                  );
-                })()}
-
-                {(() => {
-                  // Resumen de integridad: la sospecha IA es a nivel
-                  // submission (no por pregunta), pero las copias se
-                  // muestran inline en cada pregunta (más abajo). Aquí
-                  // mostramos AI + sugerencia combinada con la copia
-                  // máxima detectada para este estudiante.
-                  const aiSig = aiSignalByUser.get(viewingSub.user_id);
-                  const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
-                  const copyMax = userPairs.reduce((m, p) => Math.max(m, p.score), 0);
-                  const aiScore = aiSig?.score ?? 0;
-                  const hasSignal = aiSig != null || userPairs.length > 0;
-                  if (!hasSignal) return null;
-                  const severity = Math.max(
-                    aiScore >= 0.6 ? aiScore : 0,
-                    copyMax >= 0.6 ? copyMax : 0,
-                  );
-                  const currentGrade =
-                    viewingSub.final_override_grade != null
-                      ? Number(viewingSub.final_override_grade)
-                      : viewingSub.ai_grade != null
-                        ? Number(viewingSub.ai_grade)
-                        : null;
-                  const suggested =
-                    severity > 0 && currentGrade != null
-                      ? Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)))
-                      : null;
-                  const sourceKey =
-                    aiScore >= 0.6 && copyMax >= 0.6
-                      ? "ambas"
-                      : aiScore >= 0.6
-                        ? "ai"
-                        : copyMax >= 0.6
-                          ? "plagio"
-                          : null;
-                  const applySuggestion = async () => {
-                    if (suggested == null) return;
-                    const { data, error } = await supabase
-                      .from("submissions")
-                      .update({ final_override_grade: suggested })
-                      .eq("id", viewingSub.id)
-                      .select("id");
-                    if (error) return toast.error(error.message);
-                    if (!data || data.length === 0) return toast.error(t("integrity.applyError"));
-                    setSubmissions((prev) =>
-                      prev.map((s) =>
-                        s.id === viewingSub.id ? { ...s, final_override_grade: suggested } : s,
-                      ),
-                    );
-                    setOverrideValue(suggested);
-                    toast.success(t("integrity.applySuccess", { value: suggested.toFixed(2) }));
-                  };
-                  return (
-                    <Card className="border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/5">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-amber-600" />
-                          {t("integrity.title")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3 text-xs">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <div>
-                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
-                              <Bot className="h-3 w-3" /> {t("integrity.aiProbability")}
-                            </div>
-                            <div>
-                              {aiScore > 0 ? (
-                                <Badge
-                                  variant={
-                                    aiScore >= 0.85
-                                      ? "destructive"
-                                      : aiScore >= 0.7
-                                        ? "default"
-                                        : "secondary"
-                                  }
-                                >
-                                  {Math.round(aiScore * 100)}%
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
-                              <Users className="h-3 w-3" /> {t("integrity.copyScore")}
-                            </div>
-                            <div>
-                              {copyMax > 0 ? (
-                                <Badge
-                                  variant={
-                                    copyMax >= 0.85
-                                      ? "destructive"
-                                      : copyMax >= 0.7
-                                        ? "default"
-                                        : "secondary"
-                                  }
-                                >
-                                  {Math.round(copyMax * 100)}%
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
-                              {t("integrity.currentGrade")}
-                            </div>
-                            <div className="font-semibold tabular-nums">
-                              {currentGrade != null
-                                ? `${currentGrade.toFixed(2)} / ${gradeMax}`
-                                : t("integrity.noCurrentGrade")}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Sospecha IA: razones colapsables + marcar revisada */}
-                        {aiSig && (
-                          <div className="rounded-md border bg-background p-2 space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium text-foreground">
-                                {t("integrity.aiSection")}
-                              </span>
-                              {aiSig.reviewedAt ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                                >
-                                  <Check className="h-3 w-3 mr-1" />
-                                  {t("integrity.reviewed")}
-                                  <button
-                                    type="button"
-                                    className="ml-2 underline text-muted-foreground"
-                                    onClick={() =>
-                                      toggleAiReviewedHandler(aiSig.submissionId, true)
-                                    }
-                                  >
-                                    {t("integrity.reopen")}
-                                  </button>
-                                </Badge>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 text-[11px]"
-                                  onClick={() => toggleAiReviewedHandler(aiSig.submissionId, false)}
-                                >
-                                  <Check className="h-3 w-3 mr-1" />
-                                  {t("integrity.markReviewed")}
-                                </Button>
-                              )}
-                            </div>
-                            <CollapsibleReasons text={aiSig.reasons} />
-                          </div>
-                        )}
-                        {/* Sugerencia combinada con un solo "Aplicar" */}
-                        {suggested != null && currentGrade != null && (
-                          <div className="rounded-md border border-amber-300 bg-amber-100/50 dark:bg-amber-500/10 dark:border-amber-500/30 p-2 flex items-center gap-2">
-                            <div className="flex-1">
-                              <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                                {t("integrity.suggestedGrade")}
-                                {sourceKey && (
-                                  <span className="ml-2 text-muted-foreground normal-case tracking-normal">
-                                    {t(`integrity.scope_${sourceKey}`)}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-muted-foreground">
-                                {currentGrade.toFixed(2)} × (1 − {Math.round(severity * 100)}%) ={" "}
-                                <span className="font-semibold text-amber-700 dark:text-amber-300">
-                                  {suggested.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                            <Button size="sm" onClick={applySuggestion} className="h-7 text-xs">
-                              <Check className="h-3 w-3 mr-1" />
-                              {t("integrity.applySuggestion")}
-                            </Button>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })()}
-
-                {questions.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Este examen no tiene preguntas.</p>
-                )}
-                {(() => {
-                  const breakdown: BreakdownItem[] = Array.isArray(viewingSub.answers?.__breakdown)
-                    ? viewingSub.answers.__breakdown
-                    : [];
-                  const byId = new Map(breakdown.map((b) => [b.qid, b]));
-                  const manual: Record<string, ManualOverride> =
-                    viewingSub.answers?.__manual_overrides ?? {};
-                  return questions.map((q, idx) => {
-                    const ans = viewingSub.answers?.[q.id];
-                    const correctIdx = q.options?.correct_index;
-                    const choices = q.options?.choices as string[] | undefined;
-                    const bd = byId.get(q.id);
-                    const override = manual[q.id];
-                    const qEntry = qOverrides[q.id] ?? { score: null, feedback: "" };
+            <div className={comparisonForCopy ? "flex gap-3" : ""}>
+              <ScrollArea
+                className={
+                  comparisonForCopy
+                    ? "max-h-[55vh] pr-4 flex-1 min-w-0 basis-1/2"
+                    : "max-h-[55vh] pr-4"
+                }
+              >
+                <div className="space-y-4">
+                  {(() => {
+                    const events = (viewingSub.answers?.__warning_events ?? []) as WarningEvent[];
+                    if (!events.length) return null;
                     return (
-                      <Card
-                        key={q.id}
-                        id={`exam-q-${q.id}`}
-                        className={
-                          highlightQuestionId === q.id ? "ring-2 ring-primary/60" : undefined
-                        }
-                      >
+                      <Card className="border-destructive/40 bg-destructive/5">
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-                            <span>Pregunta {idx + 1}</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {q.type}
-                            </Badge>
-                            {q.language && (
-                              <Badge variant="secondary" className="text-[10px]">
-                                {q.language}
-                              </Badge>
-                            )}
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {bd ? `${bd.earned}` : "—"} / {q.points}
-                              {override && (
-                                <span className="ml-1 text-primary">
-                                  (manual: {override.score})
-                                </span>
-                              )}
+                          <CardTitle className="text-sm flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-destructive" />
+                              Eventos de advertencia ({events.length})
                             </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => clearAllWarnings(viewingSub)}
+                              title="Limpiar todas las advertencias del intento"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Limpiar todas
+                            </Button>
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
-                          <div className="text-foreground whitespace-pre-wrap">{q.content}</div>
+                        <CardContent className="text-xs space-y-1">
+                          {events.map((ev, i) => {
+                            const ts = warningEventTimestamp(ev);
+                            return (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="text-muted-foreground tabular-nums">
+                                  {formatDateTime(ts)}
+                                </span>
+                                <span className="font-medium">{warningLabel(ev.type)}</span>
+                                {typeof ev.questionIdx === "number" && (
+                                  <span className="text-muted-foreground">
+                                    · pregunta {ev.questionIdx + 1}
+                                  </span>
+                                )}
+                                <RowAction
+                                  label="Eliminar esta advertencia"
+                                  icon={Trash2}
+                                  tone="destructive"
+                                  onClick={() => clearOneWarning(viewingSub, i)}
+                                />
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
 
-                          {q.type === "cerrada" && choices && (
-                            <div className="space-y-1">
-                              {choices.map((c, i) => {
-                                const isStudent = ans === i;
-                                const isCorrect = correctIdx === i;
-                                return (
-                                  <div
-                                    key={i}
-                                    className={`text-xs p-1.5 rounded border ${
-                                      isCorrect ? "border-success bg-success/10" : "border-border"
-                                    } ${isStudent ? "ring-1 ring-primary" : ""}`}
+                  {(() => {
+                    // Resumen de integridad: la sospecha IA es a nivel
+                    // submission (no por pregunta), pero las copias se
+                    // muestran inline en cada pregunta (más abajo). Aquí
+                    // mostramos AI + sugerencia combinada con la copia
+                    // máxima detectada para este estudiante.
+                    const aiSig = aiSignalByUser.get(viewingSub.user_id);
+                    const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
+                    const copyMax = userPairs.reduce((m, p) => Math.max(m, p.score), 0);
+                    const aiScore = aiSig?.score ?? 0;
+                    const hasSignal = aiSig != null || userPairs.length > 0;
+                    if (!hasSignal) return null;
+                    const severity = Math.max(
+                      aiScore >= 0.6 ? aiScore : 0,
+                      copyMax >= 0.6 ? copyMax : 0,
+                    );
+                    const currentGrade =
+                      viewingSub.final_override_grade != null
+                        ? Number(viewingSub.final_override_grade)
+                        : viewingSub.ai_grade != null
+                          ? Number(viewingSub.ai_grade)
+                          : null;
+                    const suggested =
+                      severity > 0 && currentGrade != null
+                        ? Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)))
+                        : null;
+                    const sourceKey =
+                      aiScore >= 0.6 && copyMax >= 0.6
+                        ? "ambas"
+                        : aiScore >= 0.6
+                          ? "ai"
+                          : copyMax >= 0.6
+                            ? "plagio"
+                            : null;
+                    const applySuggestion = async () => {
+                      if (suggested == null) return;
+                      const { data, error } = await supabase
+                        .from("submissions")
+                        .update({ final_override_grade: suggested })
+                        .eq("id", viewingSub.id)
+                        .select("id");
+                      if (error) return toast.error(error.message);
+                      if (!data || data.length === 0) return toast.error(t("integrity.applyError"));
+                      setSubmissions((prev) =>
+                        prev.map((s) =>
+                          s.id === viewingSub.id ? { ...s, final_override_grade: suggested } : s,
+                        ),
+                      );
+                      setOverrideValue(suggested);
+                      toast.success(t("integrity.applySuccess", { value: suggested.toFixed(2) }));
+                    };
+                    return (
+                      <Card className="border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/5">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            {t("integrity.title")}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-xs">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div>
+                              <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
+                                <Bot className="h-3 w-3" /> {t("integrity.aiProbability")}
+                              </div>
+                              <div>
+                                {aiScore > 0 ? (
+                                  <Badge
+                                    variant={
+                                      aiScore >= 0.85
+                                        ? "destructive"
+                                        : aiScore >= 0.7
+                                          ? "default"
+                                          : "secondary"
+                                    }
                                   >
-                                    <span className="font-mono mr-2">
-                                      {String.fromCharCode(65 + i)}.
+                                    {Math.round(aiScore * 100)}%
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
+                                <Users className="h-3 w-3" /> {t("integrity.copyScore")}
+                              </div>
+                              <div>
+                                {copyMax > 0 ? (
+                                  <Badge
+                                    variant={
+                                      copyMax >= 0.85
+                                        ? "destructive"
+                                        : copyMax >= 0.7
+                                          ? "default"
+                                          : "secondary"
+                                    }
+                                  >
+                                    {Math.round(copyMax * 100)}%
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                                {t("integrity.currentGrade")}
+                              </div>
+                              <div className="font-semibold tabular-nums">
+                                {currentGrade != null
+                                  ? `${currentGrade.toFixed(2)} / ${gradeMax}`
+                                  : t("integrity.noCurrentGrade")}
+                              </div>
+                            </div>
+                          </div>
+                          {/* La sospecha IA y las razones se muestran AHORA por
+                            pregunta dentro de su Card más abajo. Aquí solo
+                            mantenemos los KPIs (probabilidad máxima + similitud
+                            máxima + nota actual) y la sugerencia combinada. */}
+                          {/* Sugerencia combinada con un solo "Aplicar" */}
+                          {suggested != null && currentGrade != null && (
+                            <div className="rounded-md border border-amber-300 bg-amber-100/50 dark:bg-amber-500/10 dark:border-amber-500/30 p-2 flex items-center gap-2">
+                              <div className="flex-1">
+                                <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                  {t("integrity.suggestedGrade")}
+                                  {sourceKey && (
+                                    <span className="ml-2 text-muted-foreground normal-case tracking-normal">
+                                      {t(`integrity.scope_${sourceKey}`)}
                                     </span>
-                                    {c}
-                                    {isStudent && (
-                                      <Badge variant="outline" className="ml-2 text-[9px]">
-                                        elegida
-                                      </Badge>
-                                    )}
-                                    {isCorrect && (
-                                      <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
-                                        correcta
-                                      </Badge>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                  )}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {currentGrade.toFixed(2)} × (1 − {Math.round(severity * 100)}%) ={" "}
+                                  <span className="font-semibold text-amber-700 dark:text-amber-300">
+                                    {suggested.toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button size="sm" onClick={applySuggestion} className="h-7 text-xs">
+                                <Check className="h-3 w-3 mr-1" />
+                                {t("integrity.applySuggestion")}
+                              </Button>
                             </div>
                           )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
 
-                          {/* Respuesta del estudiante:
+                  {questions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Este examen no tiene preguntas.</p>
+                  )}
+                  {(() => {
+                    const breakdown: BreakdownItem[] = Array.isArray(
+                      viewingSub.answers?.__breakdown,
+                    )
+                      ? viewingSub.answers.__breakdown
+                      : [];
+                    const byId = new Map(breakdown.map((b) => [b.qid, b]));
+                    const manual: Record<string, ManualOverride> =
+                      viewingSub.answers?.__manual_overrides ?? {};
+                    return questions.map((q, idx) => {
+                      const ans = viewingSub.answers?.[q.id];
+                      const correctIdx = q.options?.correct_index;
+                      const choices = q.options?.choices as string[] | undefined;
+                      const bd = byId.get(q.id);
+                      const override = manual[q.id];
+                      const qEntry = qOverrides[q.id] ?? { score: null, feedback: "" };
+                      return (
+                        <Card
+                          key={q.id}
+                          id={`exam-q-${q.id}`}
+                          className={
+                            highlightQuestionId === q.id ? "ring-2 ring-primary/60" : undefined
+                          }
+                        >
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
+                              <span>Pregunta {idx + 1}</span>
+                              <Badge variant="outline" className="text-[10px]">
+                                {q.type}
+                              </Badge>
+                              {q.language && (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {q.language}
+                                </Badge>
+                              )}
+                              <span className="text-xs text-muted-foreground ml-auto">
+                                {bd ? `${bd.earned}` : "—"} / {q.points}
+                                {override && (
+                                  <span className="ml-1 text-primary">
+                                    (manual: {override.score})
+                                  </span>
+                                )}
+                              </span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-2 text-sm">
+                            <div className="text-foreground whitespace-pre-wrap">{q.content}</div>
+
+                            {q.type === "cerrada" && choices && (
+                              <div className="space-y-1">
+                                {choices.map((c, i) => {
+                                  const isStudent = ans === i;
+                                  const isCorrect = correctIdx === i;
+                                  return (
+                                    <div
+                                      key={i}
+                                      className={`text-xs p-1.5 rounded border ${
+                                        isCorrect ? "border-success bg-success/10" : "border-border"
+                                      } ${isStudent ? "ring-1 ring-primary" : ""}`}
+                                    >
+                                      <span className="font-mono mr-2">
+                                        {String.fromCharCode(65 + i)}.
+                                      </span>
+                                      {c}
+                                      {isStudent && (
+                                        <Badge variant="outline" className="ml-2 text-[9px]">
+                                          elegida
+                                        </Badge>
+                                      )}
+                                      {isCorrect && (
+                                        <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                          correcta
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Respuesta del estudiante:
                               - codigo / java_gui → editor Monaco read-only
                                 (numeración de líneas + syntax highlighting),
                                 igual a lo que el alumno tenía en pantalla.
                               - resto → bloque pre con texto plano. */}
-                          {q.type === "codigo" || q.type === "java_gui" ? (
-                            <CodeEditor
-                              value={
-                                ans == null || ans === ""
-                                  ? "// Sin responder"
-                                  : typeof ans === "string"
-                                    ? ans
-                                    : JSON.stringify(ans, null, 2)
-                              }
-                              onChange={() => {}}
-                              language={(q.language as CodeLanguage) ?? "java"}
-                              readOnly
-                              showLanguageSelector={false}
-                              showRunButton={false}
-                              hideHints
-                              height="220px"
-                            />
-                          ) : (
-                            q.type !== "cerrada" && (
-                              <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
-                                {ans == null || ans === "" ? (
-                                  <span className="text-muted-foreground italic">
-                                    Sin responder
-                                  </span>
-                                ) : typeof ans === "string" ? (
-                                  ans
-                                ) : (
-                                  JSON.stringify(ans, null, 2)
-                                )}
-                              </div>
-                            )
-                          )}
+                            {q.type === "codigo" || q.type === "java_gui" ? (
+                              <CodeEditor
+                                value={
+                                  ans == null || ans === ""
+                                    ? "// Sin responder"
+                                    : typeof ans === "string"
+                                      ? ans
+                                      : JSON.stringify(ans, null, 2)
+                                }
+                                onChange={() => {}}
+                                language={(q.language as CodeLanguage) ?? "java"}
+                                readOnly
+                                showLanguageSelector={false}
+                                showRunButton={false}
+                                hideHints
+                                height="220px"
+                              />
+                            ) : (
+                              q.type !== "cerrada" && (
+                                <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
+                                  {ans == null || ans === "" ? (
+                                    <span className="text-muted-foreground italic">
+                                      Sin responder
+                                    </span>
+                                  ) : typeof ans === "string" ? (
+                                    ans
+                                  ) : (
+                                    JSON.stringify(ans, null, 2)
+                                  )}
+                                </div>
+                              )
+                            )}
 
-                          {/* Líneas del compilador / consola: para preguntas de
+                            {/* Líneas del compilador / consola: para preguntas de
                               código mostramos la última ejecución registrada
                               en code_executions del estudiante. Permite al
                               docente ver qué imprimió el programa sin tener
                               que correrlo a mano. */}
-                          {(q.type === "codigo" || q.type === "java_gui") && (
-                            <CodeRunOutput
-                              submissionId={viewingSub.id}
-                              questionId={q.id}
-                              userId={viewingSub.user_id}
-                            />
-                          )}
+                            {(q.type === "codigo" || q.type === "java_gui") && (
+                              <CodeRunOutput
+                                submissionId={viewingSub.id}
+                                questionId={q.id}
+                                userId={viewingSub.user_id}
+                              />
+                            )}
 
-                          {bd?.feedback && (
-                            <div className="text-xs text-muted-foreground border-l-2 border-primary/40 pl-2">
-                              <span className="font-medium text-foreground">IA:</span> {bd.feedback}
-                            </div>
-                          )}
+                            {bd?.feedback && (
+                              <div className="text-xs text-muted-foreground border-l-2 border-primary/40 pl-2">
+                                <span className="font-medium text-foreground">IA:</span>{" "}
+                                {bd.feedback}
+                              </div>
+                            )}
 
-                          {q.expected_rubric && (
-                            <details className="text-xs">
-                              <summary className="cursor-pointer text-muted-foreground">
-                                Rúbrica
-                              </summary>
-                              <p className="mt-1 whitespace-pre-wrap">{q.expected_rubric}</p>
-                            </details>
-                          )}
+                            {q.expected_rubric && (
+                              <details className="text-xs">
+                                <summary className="cursor-pointer text-muted-foreground">
+                                  Rúbrica
+                                </summary>
+                                <p className="mt-1 whitespace-pre-wrap">{q.expected_rubric}</p>
+                              </details>
+                            )}
 
-                          {/* Posibles copias detectadas en ESTA pregunta. Se filtra
+                            {/* Sospecha IA detectada para ESTA pregunta. La edge
+                              function `ai-grade-submission` guarda
+                              `ai_likelihood` y `ai_reasons` por entry del
+                              breakdown; también persistimos `ai_review_at`
+                              dentro del breakdown cuando el docente marca la
+                              pregunta como revisada. Solo mostramos cuando
+                              ai_likelihood >= 0.6 (mismo umbral que el resto). */}
+                            {(() => {
+                              const sig = aiSignalsByUserQuestion
+                                .get(viewingSub.user_id)
+                                ?.get(q.id);
+                              if (!sig || sig.score < 0.6) return null;
+                              return (
+                                <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="text-[11px] font-medium flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                                      <Bot className="h-3 w-3" />
+                                      {t("integrity.aiSection")}
+                                      <Badge
+                                        variant={
+                                          sig.score >= 0.85
+                                            ? "destructive"
+                                            : sig.score >= 0.7
+                                              ? "default"
+                                              : "secondary"
+                                        }
+                                        className="text-[10px] ml-1"
+                                      >
+                                        {Math.round(sig.score * 100)}%
+                                      </Badge>
+                                    </div>
+                                    <div>
+                                      {sig.reviewedAt ? (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                        >
+                                          <Check className="h-3 w-3 mr-1" />
+                                          {t("integrity.reviewed")}
+                                          <button
+                                            type="button"
+                                            className="ml-1 underline text-muted-foreground"
+                                            onClick={() =>
+                                              toggleQuestionAiReviewedHandler(
+                                                sig.submissionId,
+                                                q.id,
+                                                true,
+                                              )
+                                            }
+                                          >
+                                            {t("integrity.reopen")}
+                                          </button>
+                                        </Badge>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 text-[10px]"
+                                          onClick={() =>
+                                            toggleQuestionAiReviewedHandler(
+                                              sig.submissionId,
+                                              q.id,
+                                              false,
+                                            )
+                                          }
+                                        >
+                                          <Check className="h-3 w-3 mr-1" />
+                                          {t("integrity.markReviewed")}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <CollapsibleReasons text={sig.reasons} />
+                                </div>
+                              );
+                            })()}
+
+                            {/* Posibles copias detectadas en ESTA pregunta. Se filtra
                               por question_id; no incluye los pares "overall" (sin
                               question_id), que se muestran en el resumen del modal. */}
-                          {(() => {
-                            const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
-                            const qPairs = userPairs.filter((p) => p.questionId === q.id);
-                            if (qPairs.length === 0) return null;
-                            const userNamesLocal = Object.fromEntries(
-                              studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
-                            );
-                            return (
-                              <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
-                                <div className="text-[11px] font-medium flex items-center gap-1 text-amber-700 dark:text-amber-300">
-                                  <Users className="h-3 w-3" />
-                                  {t("integrity.copySection")}
-                                </div>
-                                <div className="space-y-1.5">
-                                  {qPairs
-                                    .slice()
-                                    .sort((a, b) => b.score - a.score)
-                                    .map((p) => (
-                                      <div
-                                        key={p.id}
-                                        className="rounded border bg-background p-1.5 text-xs space-y-1"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-medium">
-                                            {userNamesLocal[p.peerId] ?? p.peerId.slice(0, 8)}
-                                          </span>
-                                          <Badge
-                                            variant={
-                                              p.score >= 0.85
-                                                ? "destructive"
-                                                : p.score >= 0.7
-                                                  ? "default"
-                                                  : "secondary"
-                                            }
-                                            className="text-[10px]"
-                                          >
-                                            {Math.round(p.score * 100)}%
-                                          </Badge>
-                                          <div className="ml-auto">
-                                            {p.reviewedAt ? (
-                                              <Badge
-                                                variant="outline"
-                                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                                              >
-                                                <Check className="h-3 w-3 mr-1" />
-                                                {t("integrity.reviewed")}
-                                                <button
-                                                  type="button"
-                                                  className="ml-1 underline text-muted-foreground"
+                            {(() => {
+                              const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
+                              const qPairs = userPairs.filter((p) => p.questionId === q.id);
+                              if (qPairs.length === 0) return null;
+                              const userNamesLocal = Object.fromEntries(
+                                studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
+                              );
+                              return (
+                                <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                  <div className="text-[11px] font-medium flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                                    <Users className="h-3 w-3" />
+                                    {t("integrity.copySection")}
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {qPairs
+                                      .slice()
+                                      .sort((a, b) => b.score - a.score)
+                                      .map((p) => (
+                                        <div
+                                          key={p.id}
+                                          className="rounded border bg-background p-1.5 text-xs space-y-1"
+                                        >
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium">
+                                              {userNamesLocal[p.peerId] ?? p.peerId.slice(0, 8)}
+                                            </span>
+                                            <Badge
+                                              variant={
+                                                p.score >= 0.85
+                                                  ? "destructive"
+                                                  : p.score >= 0.7
+                                                    ? "default"
+                                                    : "secondary"
+                                              }
+                                              className="text-[10px]"
+                                            >
+                                              {Math.round(p.score * 100)}%
+                                            </Badge>
+                                            {/* "Ver entrega de [peer]" — abre un panel lateral
+                                              en el mismo modal con la respuesta del compañero
+                                              a esta pregunta. Solo aparece si tenemos su
+                                              submission cargada (presente en studentRows). */}
+                                            {(() => {
+                                              const peerRow = studentRows.find(
+                                                (r) => r.userId === p.peerId,
+                                              );
+                                              if (!peerRow) return null;
+                                              const isActive =
+                                                comparisonForCopy?.peerUserId === p.peerId &&
+                                                comparisonForCopy?.questionId === q.id;
+                                              return (
+                                                <Button
+                                                  size="sm"
+                                                  variant={isActive ? "secondary" : "outline"}
+                                                  className="h-6 text-[10px]"
                                                   onClick={() =>
-                                                    toggleCopyReviewedHandler(p.id, true)
+                                                    setComparisonForCopy(
+                                                      isActive
+                                                        ? null
+                                                        : {
+                                                            peerUserId: p.peerId,
+                                                            peerSubmissionId: peerRow.latest.id,
+                                                            questionId: q.id,
+                                                            pairId: p.id,
+                                                          },
+                                                    )
+                                                  }
+                                                  title={t("integrity.openPeer", {
+                                                    name:
+                                                      userNamesLocal[p.peerId] ??
+                                                      p.peerId.slice(0, 8),
+                                                  })}
+                                                >
+                                                  <Eye className="h-3 w-3 mr-1" />
+                                                  {isActive
+                                                    ? t("integrity.closeCompare")
+                                                    : t("integrity.openPeer", {
+                                                        name:
+                                                          userNamesLocal[p.peerId] ??
+                                                          p.peerId.slice(0, 8),
+                                                      })}
+                                                </Button>
+                                              );
+                                            })()}
+                                            <div className="ml-auto">
+                                              {p.reviewedAt ? (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                >
+                                                  <Check className="h-3 w-3 mr-1" />
+                                                  {t("integrity.reviewed")}
+                                                  <button
+                                                    type="button"
+                                                    className="ml-1 underline text-muted-foreground"
+                                                    onClick={() =>
+                                                      toggleCopyReviewedHandler(p.id, true)
+                                                    }
+                                                  >
+                                                    {t("integrity.reopen")}
+                                                  </button>
+                                                </Badge>
+                                              ) : (
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-6 text-[10px]"
+                                                  onClick={() =>
+                                                    toggleCopyReviewedHandler(p.id, false)
                                                   }
                                                 >
-                                                  {t("integrity.reopen")}
-                                                </button>
-                                              </Badge>
-                                            ) : (
-                                              <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-6 text-[10px]"
-                                                onClick={() =>
-                                                  toggleCopyReviewedHandler(p.id, false)
-                                                }
-                                              >
-                                                <Check className="h-3 w-3 mr-1" />
-                                                {t("integrity.markReviewed")}
-                                              </Button>
-                                            )}
+                                                  <Check className="h-3 w-3 mr-1" />
+                                                  {t("integrity.markReviewed")}
+                                                </Button>
+                                              )}
+                                            </div>
                                           </div>
+                                          <CollapsibleReasons text={p.reasons} />
                                         </div>
-                                        <CollapsibleReasons text={p.reasons} />
-                                      </div>
-                                    ))}
+                                      ))}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })()}
+                              );
+                            })()}
 
-                          <div className="border-t pt-2 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <DecimalInput
-                                min={0}
-                                max={q.points}
-                                placeholder={`Calificación manual 0-${q.points}`}
-                                value={qEntry.score}
-                                onChange={(v) =>
+                            <div className="border-t pt-2 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <DecimalInput
+                                  min={0}
+                                  max={q.points}
+                                  placeholder={`Calificación manual 0-${q.points}`}
+                                  value={qEntry.score}
+                                  onChange={(v) =>
+                                    setQOverrides((prev) => ({
+                                      ...prev,
+                                      [q.id]: {
+                                        ...(prev[q.id] ?? { score: null, feedback: "" }),
+                                        score: v,
+                                      },
+                                    }))
+                                  }
+                                  className="w-28 h-8 text-xs"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => saveQuestionOverride(viewingSub, q)}
+                                  disabled={savingQid === q.id}
+                                  className="h-8"
+                                >
+                                  {savingQid === q.id ? (
+                                    <Spinner size="sm" className="mr-1" />
+                                  ) : (
+                                    <Save className="h-3.5 w-3.5 mr-1" />
+                                  )}
+                                  Guardar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => reGradeWithAI(viewingSub, q.id)}
+                                  disabled={aiGradingQid === q.id || aiGradingId === viewingSub.id}
+                                  className="h-8"
+                                  title="Calificar esta pregunta con IA"
+                                >
+                                  {aiGradingQid === q.id ? (
+                                    <Spinner size="sm" className="mr-1" />
+                                  ) : (
+                                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                  )}
+                                  IA
+                                </Button>
+                              </div>
+                              <Textarea
+                                placeholder="Retroalimentación manual (opcional)"
+                                value={qEntry.feedback}
+                                onChange={(e) =>
                                   setQOverrides((prev) => ({
                                     ...prev,
                                     [q.id]: {
                                       ...(prev[q.id] ?? { score: null, feedback: "" }),
-                                      score: v,
+                                      feedback: e.target.value,
                                     },
                                   }))
                                 }
-                                className="w-28 h-8 text-xs"
+                                className="text-xs min-h-[50px]"
                               />
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => saveQuestionOverride(viewingSub, q)}
-                                disabled={savingQid === q.id}
-                                className="h-8"
+                              {viewingSub && (
+                                <FeedbackThread
+                                  parentKind="exam"
+                                  questionId={q.id}
+                                  submissionId={viewingSub.id}
+                                  isTeacher
+                                />
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    });
+                  })()}
+                </div>
+              </ScrollArea>
+              {comparisonForCopy &&
+                viewingSub &&
+                (() => {
+                  // Panel lateral de comparación: muestra la respuesta del
+                  // compañero a LA MISMA pregunta + sus señales IA + el botón
+                  // "Marcar revisada" sobre el MISMO `pair.id` que el panel
+                  // izquierdo. Como `similarity_pairs.id` es compartido, el
+                  // toggle se sincroniza automáticamente para ambos lados via
+                  // el `setSimilarityPairs` que hace `toggleCopyReviewedHandler`.
+                  const peerSub = submissions.find(
+                    (s) => s.id === comparisonForCopy.peerSubmissionId,
+                  );
+                  const peerName =
+                    studentRows.find((r) => r.userId === comparisonForCopy.peerUserId)?.profile
+                      ?.full_name ?? "—";
+                  const q = questions.find((qq) => qq.id === comparisonForCopy.questionId);
+                  if (!peerSub || !q) return null;
+                  const peerAns = (peerSub.answers as Record<string, unknown>)?.[q.id];
+                  const peerAiSig = aiSignalsByUserQuestion
+                    .get(comparisonForCopy.peerUserId)
+                    ?.get(q.id);
+                  const pair = similarityPairs.find((p) => p.id === comparisonForCopy.pairId);
+                  return (
+                    <div className="basis-1/2 flex-1 min-w-0 border-l pl-3 max-h-[55vh] overflow-y-auto">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2 pb-2 border-b">
+                          <div>
+                            <div className="text-sm font-semibold flex items-center gap-2">
+                              <Eye className="h-4 w-4 text-primary" />
+                              {t("integrity.compareTitle", { name: peerName })}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              {t("integrity.compareSubtitle")}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => setComparisonForCopy(null)}
+                          >
+                            {t("integrity.closeCompare")}
+                          </Button>
+                        </div>
+
+                        <div className="text-sm whitespace-pre-wrap text-foreground">
+                          {q.content}
+                        </div>
+
+                        {/* Respuesta del compañero, mismo render que el panel izquierdo
+                        según el tipo de pregunta. Read-only siempre. */}
+                        {q.type === "cerrada" && Array.isArray(q.options?.choices) ? (
+                          <div className="space-y-1">
+                            {(q.options.choices as string[]).map((c, i) => {
+                              const isStudent = peerAns === i;
+                              const isCorrect = q.options?.correct_index === i;
+                              return (
+                                <div
+                                  key={i}
+                                  className={`text-xs p-1.5 rounded border ${
+                                    isCorrect ? "border-success bg-success/10" : "border-border"
+                                  } ${isStudent ? "ring-1 ring-primary" : ""}`}
+                                >
+                                  <span className="font-mono mr-2">
+                                    {String.fromCharCode(65 + i)}.
+                                  </span>
+                                  {c}
+                                  {isStudent && (
+                                    <Badge variant="outline" className="ml-2 text-[9px]">
+                                      elegida
+                                    </Badge>
+                                  )}
+                                  {isCorrect && (
+                                    <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                      correcta
+                                    </Badge>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : q.type === "codigo" || q.type === "java_gui" ? (
+                          <CodeEditor
+                            value={
+                              peerAns == null || peerAns === ""
+                                ? "// Sin responder"
+                                : typeof peerAns === "string"
+                                  ? peerAns
+                                  : JSON.stringify(peerAns, null, 2)
+                            }
+                            onChange={() => {}}
+                            language={(q.language as CodeLanguage) ?? "java"}
+                            readOnly
+                            showLanguageSelector={false}
+                            showRunButton={false}
+                            hideHints
+                            height="220px"
+                          />
+                        ) : (
+                          <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
+                            {peerAns == null || peerAns === "" ? (
+                              <span className="text-muted-foreground italic">Sin responder</span>
+                            ) : typeof peerAns === "string" ? (
+                              peerAns
+                            ) : (
+                              JSON.stringify(peerAns, null, 2)
+                            )}
+                          </div>
+                        )}
+
+                        {/* Sospecha IA del COMPAÑERO para esta pregunta. */}
+                        {peerAiSig && peerAiSig.score >= 0.6 && (
+                          <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-1">
+                            <div className="flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                              <Bot className="h-3 w-3" />
+                              {t("integrity.aiSection")}
+                              <Badge
+                                variant={
+                                  peerAiSig.score >= 0.85
+                                    ? "destructive"
+                                    : peerAiSig.score >= 0.7
+                                      ? "default"
+                                      : "secondary"
+                                }
+                                className="text-[10px] ml-1"
                               >
-                                {savingQid === q.id ? (
-                                  <Spinner size="sm" className="mr-1" />
-                                ) : (
-                                  <Save className="h-3.5 w-3.5 mr-1" />
-                                )}
-                                Guardar
-                              </Button>
+                                {Math.round(peerAiSig.score * 100)}%
+                              </Badge>
+                            </div>
+                            <CollapsibleReasons text={peerAiSig.reasons} />
+                          </div>
+                        )}
+
+                        {/* Marca de revisión del MISMO pair.id (compartido). */}
+                        {pair && (
+                          <div className="rounded-md border bg-background p-2 flex items-center justify-between gap-2">
+                            <div className="text-[11px] text-muted-foreground">
+                              <Users className="h-3 w-3 inline mr-1" />
+                              {Math.round(Number(pair.score) * 100)}%
+                            </div>
+                            {pair.reviewed_at ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                {t("integrity.reviewed")}
+                                <button
+                                  type="button"
+                                  className="ml-1 underline text-muted-foreground"
+                                  onClick={() => toggleCopyReviewedHandler(pair.id, true)}
+                                >
+                                  {t("integrity.reopen")}
+                                </button>
+                              </Badge>
+                            ) : (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => reGradeWithAI(viewingSub, q.id)}
-                                disabled={aiGradingQid === q.id || aiGradingId === viewingSub.id}
-                                className="h-8"
-                                title="Calificar esta pregunta con IA"
+                                className="h-7 text-[11px]"
+                                onClick={() => toggleCopyReviewedHandler(pair.id, false)}
                               >
-                                {aiGradingQid === q.id ? (
-                                  <Spinner size="sm" className="mr-1" />
-                                ) : (
-                                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                                )}
-                                IA
+                                <Check className="h-3 w-3 mr-1" />
+                                {t("integrity.markReviewed")}
                               </Button>
-                            </div>
-                            <Textarea
-                              placeholder="Retroalimentación manual (opcional)"
-                              value={qEntry.feedback}
-                              onChange={(e) =>
-                                setQOverrides((prev) => ({
-                                  ...prev,
-                                  [q.id]: {
-                                    ...(prev[q.id] ?? { score: null, feedback: "" }),
-                                    feedback: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="text-xs min-h-[50px]"
-                            />
-                            {viewingSub && (
-                              <FeedbackThread
-                                parentKind="exam"
-                                questionId={q.id}
-                                submissionId={viewingSub.id}
-                                isTeacher
-                              />
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  });
+                        )}
+                      </div>
+                    </div>
+                  );
                 })()}
-              </div>
-            </ScrollArea>
+            </div>
           )}
 
           {viewingSub &&

@@ -537,7 +537,11 @@
     "detectError": "No se pudo ejecutar la detección: {{error}}",
     "scope_ai": "IA",
     "scope_plagio": "Copia",
-    "scope_ambas": "IA + Copia"
+    "scope_ambas": "IA + Copia",
+    "openPeer": "Ver entrega de {{name}}",
+    "closeCompare": "Cerrar comparación",
+    "compareTitle": "Comparación: {{name}}",
+    "compareSubtitle": "Respuesta del compañero a la misma pregunta. Marcar como revisada en cualquiera de los dos modos sincroniza con el otro estudiante."
   },
   "workshop": {
     "startSubmission": "Iniciar entrega",
