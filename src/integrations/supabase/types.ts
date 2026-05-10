@@ -158,6 +158,7 @@ export type Database = {
           cut_id: string | null
           google_event_id: string | null
           id: string
+          meeting_url: string | null
           session_date: string
           title: string | null
         }
@@ -169,6 +170,7 @@ export type Database = {
           cut_id?: string | null
           google_event_id?: string | null
           id?: string
+          meeting_url?: string | null
           session_date: string
           title?: string | null
         }
@@ -180,6 +182,7 @@ export type Database = {
           cut_id?: string | null
           google_event_id?: string | null
           id?: string
+          meeting_url?: string | null
           session_date?: string
           title?: string | null
         }
