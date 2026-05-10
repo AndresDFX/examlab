@@ -53,6 +53,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import {
   availableClassNumbers,
+  classNumberFromFilename,
   extractContentText,
   type ContentFile,
 } from "@/lib/contents-extract";
@@ -144,6 +145,11 @@ function TeacherContents() {
   // dialog para que el docente pueda copiar el texto y diagnosticar
   // (timeouts del gateway, VAPID/keys faltantes, prompts inválidos, etc.).
   const [errorForId, setErrorForId] = useState<string | null>(null);
+  // Modal "Ver archivos por clase". Cuando una generación es
+  // `curso_completo` con N clases, los archivos vienen con sufijo
+  // `_CLASE_<N>` y los agrupamos por clase para que el docente pueda
+  // navegar el material por sesión sin scrollear 24 botones.
+  const [filesViewerFor, setFilesViewerFor] = useState<GeneratedContent | null>(null);
   // Estado del dialog "Crear evaluación con este contenido". Cuando
   // está poblado con un GeneratedContent, abrimos el formulario que
   // permite materializar Talleres/Exámenes/Proyectos con el contenido
@@ -475,6 +481,17 @@ function TeacherContents() {
                     <TableCell className="text-right">
                       <RowActionsMenu
                         actions={[
+                          // Ver archivos por clase — primer item del menú
+                          // porque es la acción más usada cuando hay >3
+                          // archivos. Para curso_completo agrupa por
+                          // CLASE_N; para material_individual lista plano.
+                          it.status === "done" && (it.files?.length ?? 0) > 0
+                            ? {
+                                label: t("contents.viewFilesByClass"),
+                                icon: FileText,
+                                onClick: () => setFilesViewerFor(it),
+                              }
+                            : null,
                           // "Crear evaluación" solo cuando el contenido
                           // está listo y tiene archivos extraíbles —
                           // sin eso no hay nada que pasar como contexto.
@@ -760,6 +777,14 @@ function TeacherContents() {
       </Dialog>
 
       <AssignToSessionsDialog content={assignFor} onClose={() => setAssignFor(null)} />
+
+      <FilesByClassDialog
+        content={filesViewerFor}
+        brand={brand}
+        downloadingPath={downloadingId}
+        onDownload={(file) => filesViewerFor && void download(filesViewerFor, file)}
+        onClose={() => setFilesViewerFor(null)}
+      />
 
       <CreateAssessmentDialog
         content={assessmentFor}
@@ -1260,6 +1285,151 @@ function AssignToSessionsDialog({
               <CalendarRange className="h-4 w-4 mr-1" />
             )}
             {saving ? t("contents.assignSaving") : t("contents.assignSave")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// FilesByClassDialog
+// Modal que organiza los archivos generados por clase para que el
+// docente pueda navegar curso_completo sin scrollear 24 botones planos.
+// Para material_individual cae a una lista plana — no hay nada que
+// agrupar.
+// ──────────────────────────────────────────────────────────────────────
+
+/** Etiqueta humana corta para mostrar en cada botón. Replica la del
+ *  tablero del estudiante para mantener vocabulario consistente. */
+function humanLabelForFile(f: FileEntry): string {
+  if (f.kind === "pptx-source") return "Presentación";
+  if (f.kind === "md") {
+    const u = f.name.toUpperCase();
+    if (u.includes("GUIA")) return "Guía docente";
+    if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
+    if (u.includes("INTRO")) return "Introducción";
+    return "Material";
+  }
+  return f.name;
+}
+
+function FilesByClassDialog({
+  content,
+  brand,
+  downloadingPath,
+  onDownload,
+  onClose,
+}: {
+  content: GeneratedContent | null;
+  brand: BrandConfig | null;
+  downloadingPath: string | null;
+  onDownload: (file: FileEntry) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  if (!content) return null;
+  // brand actualmente no se usa en este componente (la marca se aplica
+  // al construir el .pptx en el caller). Lo recibimos por si en futuro
+  // queremos previsualizar logos por sección.
+  void brand;
+
+  const files = (content.files ?? []) as FileEntry[];
+  const isCourse = content.mode === "curso_completo";
+
+  // Particiona archivos en intro + por clase. Intro = los que NO tienen
+  // sufijo `_CLASE_<N>` reconocible (típicamente INTRO_CURSO.PPTX).
+  const intro: FileEntry[] = [];
+  const byClass = new Map<number, FileEntry[]>();
+  for (const f of files) {
+    const n = isCourse ? classNumberFromFilename(f.name) : null;
+    if (n == null) {
+      intro.push(f);
+    } else {
+      const arr = byClass.get(n) ?? [];
+      arr.push(f);
+      byClass.set(n, arr);
+    }
+  }
+  const classNumbers = Array.from(byClass.keys()).sort((a, b) => a - b);
+
+  /** Render reutilizable para una sección (Intro o Clase N). */
+  const renderSection = (title: string, sectionFiles: FileEntry[]) => (
+    <Card key={title}>
+      <CardContent className="p-3 space-y-2">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="flex flex-wrap gap-2">
+          {sectionFiles.map((f) => {
+            const path = `${content.id}:${f.path}`;
+            const busy = downloadingPath === path;
+            return (
+              <Button
+                key={f.path}
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                disabled={busy}
+                onClick={() => onDownload(f)}
+              >
+                {busy ? (
+                  <Spinner size="xs" className="mr-1" />
+                ) : f.kind === "pptx-source" ? (
+                  <Presentation className="h-3.5 w-3.5 mr-1" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                )}
+                {humanLabelForFile(f)}
+                <Download className="h-3 w-3 ml-1.5 opacity-60" />
+              </Button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary" />
+            {content.topic}
+          </DialogTitle>
+          <DialogDescription>
+            {isCourse
+              ? t("contents.viewFilesByClassSubtitleCourse", {
+                  count: classNumbers.length,
+                })
+              : t("contents.viewFilesByClassSubtitleSingle")}
+          </DialogDescription>
+        </DialogHeader>
+
+        {files.length === 0 ? (
+          <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
+            {t("contents.viewFilesByClassEmpty")}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Introducción al inicio si la hay. Para material_individual
+                todo cae en `intro` (no hay class numbers). */}
+            {intro.length > 0 &&
+              renderSection(
+                isCourse
+                  ? t("contents.viewFilesByClassIntro")
+                  : t("contents.viewFilesByClassMaterials"),
+                intro,
+              )}
+            {/* Una card por clase numerada, con todos sus archivos. */}
+            {classNumbers.map((n) =>
+              renderSection(`${t("contents.classNumber")} ${n}`, byClass.get(n) ?? []),
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.close")}
           </Button>
         </DialogFooter>
       </DialogContent>
