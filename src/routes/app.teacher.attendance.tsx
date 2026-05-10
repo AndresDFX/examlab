@@ -76,6 +76,22 @@ type Session = {
    * crear la sesión. Cuando es null, la sesión no aporta a la nota
    * de asistencia de ningún corte (ya no se infiere por fecha). */
   cut_id?: string | null;
+  /** FK al GeneratedContent asignado a la sesión. Define qué material
+   *  ve el estudiante en el tablero del curso para esta fecha. */
+  content_id?: string | null;
+  /** Índice de clase (1-indexed) cuando el contenido es curso_completo
+   *  con varios CLASE_N. Para material_individual queda null. */
+  content_class_index?: number | null;
+};
+/** Contenido generado disponible para asignar a una sesión. Solo
+ *  status='done' y solo del docente actual (RLS lo asegura igual,
+ *  pero filtramos para no traer ruido). */
+type AvailableContent = {
+  id: string;
+  topic: string;
+  mode: "curso_completo" | "material_individual";
+  course_id: string | null;
+  classes: number[]; // CLASE_N detectados; vacío para material_individual
 };
 type Cut = {
   id: string;
@@ -112,6 +128,10 @@ function TeacherAttendance() {
   const [courseId, setCourseId] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
+  // Contenidos generados disponibles para asignar (filtrados al curso
+  // actual cuando aplica). Se carga junto con sessions/students en
+  // loadCourse — no añade un round-trip extra perceptible.
+  const [availableContents, setAvailableContents] = useState<AvailableContent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<Record_[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
@@ -148,7 +168,7 @@ function TeacherAttendance() {
   const loadCourse = useCallback(async () => {
     if (!courseId) return;
 
-    const [{ data: sess }, { data: enr }, { data: cs }] = await Promise.all([
+    const [{ data: sess }, { data: enr }, { data: cs }, { data: gens }] = await Promise.all([
       supabase
         .from("attendance_sessions")
         .select("*")
@@ -162,9 +182,38 @@ function TeacherAttendance() {
         .select("id, name, position, start_date, end_date")
         .eq("course_id", courseId)
         .order("position"),
+      // generated_contents disponibles: status='done' del docente.
+      // Filtramos a contenidos que sean del propio curso O sin curso
+      // asociado (material reutilizable). RLS ya restringe al teacher_id.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("generated_contents")
+        .select("id, topic, mode, course_id, files")
+        .eq("status", "done")
+        .or(`course_id.eq.${courseId},course_id.is.null`),
     ]);
     setSessions((sess ?? []) as Session[]);
     setCuts((cs ?? []) as Cut[]);
+    // Aplana files[] → classes[] para no recalcular en cada Select.
+    setAvailableContents(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((gens ?? []) as any[]).map((g) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const files = (g.files ?? []) as Array<{ name: string }>;
+        const set = new Set<number>();
+        for (const f of files) {
+          const m = f.name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+          if (m) set.add(Number(m[1]));
+        }
+        return {
+          id: g.id,
+          topic: g.topic,
+          mode: g.mode,
+          course_id: g.course_id,
+          classes: Array.from(set).sort((a, b) => a - b),
+        };
+      }),
+    );
 
     const userIds = (enr ?? []).map((e: any) => e.user_id);
     if (userIds.length) {
@@ -236,6 +285,36 @@ function TeacherAttendance() {
       return;
     }
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, cut_id: cutId } : s)));
+  };
+
+  /**
+   * Actualiza la asignación de contenido de UNA sesión. El value que
+   * recibe el Select se codifica como `"<contentId>:<classIndex>"`
+   * (classIndex puede ser "0" para material_individual completo) o
+   * `"__none"` para limpiar. Lo decodificamos aquí y persistimos los
+   * dos campos en attendance_sessions.
+   */
+  const updateSessionContent = async (sessionId: string, raw: string) => {
+    let content_id: string | null = null;
+    let content_class_index: number | null = null;
+    if (raw !== "__none") {
+      const [cid, idx] = raw.split(":");
+      content_id = cid;
+      const n = Number(idx);
+      content_class_index = Number.isFinite(n) && n > 0 ? n : null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("attendance_sessions")
+      .update({ content_id, content_class_index })
+      .eq("id", sessionId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, content_id, content_class_index } : s)),
+    );
   };
 
   // Toggle attendance ("none" = eliminar registro para esa celda)
@@ -476,7 +555,15 @@ function TeacherAttendance() {
           ? `${checkInConfigSession.session_date} · ${checkInConfigSession.title}`
           : checkInConfigSession.session_date,
       });
-      void logEvent({ action: "attendance.checkin_opened", category: "attendance", actorRole: roles[0], entityType: "attendance_session", entityId: checkInConfigSession.id, courseId: checkInConfigSession.course_id, metadata: { duration_minutes: checkInDuration, rotation_seconds: checkInRotation } });
+      void logEvent({
+        action: "attendance.checkin_opened",
+        category: "attendance",
+        actorRole: roles[0],
+        entityType: "attendance_session",
+        entityId: checkInConfigSession.id,
+        courseId: checkInConfigSession.course_id,
+        metadata: { duration_minutes: checkInDuration, rotation_seconds: checkInRotation },
+      });
       setCheckInConfigSession(null);
       // Refresca listado para reflejar check_in_open=true
       loadCourse();
@@ -535,7 +622,14 @@ function TeacherAttendance() {
   const closeProjector = async () => {
     const closedSessionId = projector?.sessionId;
     if (closedSessionId) {
-      void logEvent({ action: "attendance.checkin_closed", category: "attendance", actorRole: roles[0], entityType: "attendance_session", entityId: closedSessionId, courseId: courseId || undefined });
+      void logEvent({
+        action: "attendance.checkin_closed",
+        category: "attendance",
+        actorRole: roles[0],
+        entityType: "attendance_session",
+        entityId: closedSessionId,
+        courseId: courseId || undefined,
+      });
     }
     setProjector(null);
     loadCourse();
@@ -816,6 +910,39 @@ function TeacherAttendance() {
                                 {c.name}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                        {/* Selector de contenido por sesión: el docente
+                            puede asociar UN GeneratedContent (o una
+                            CLASE_N específica de un curso_completo) a
+                            esta sesión. Aparece en el tablero del
+                            estudiante en la fecha de la sesión. */}
+                        <Select
+                          value={
+                            sess.content_id
+                              ? `${sess.content_id}:${sess.content_class_index ?? 0}`
+                              : "__none"
+                          }
+                          onValueChange={(v) => updateSessionContent(sess.id, v)}
+                        >
+                          <SelectTrigger className="h-6 px-1.5 text-[9px] mt-0.5 w-full max-w-[6.5rem]">
+                            <SelectValue placeholder="Sin contenido" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Sin contenido</SelectItem>
+                            {availableContents.map((c) =>
+                              c.classes.length > 0 ? (
+                                c.classes.map((n) => (
+                                  <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
+                                    {c.topic} · Clase {n}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
+                                  {c.topic}
+                                </SelectItem>
+                              ),
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

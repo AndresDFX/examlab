@@ -1,14 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, BookOpen, Clock, FileText, Hammer, UserCog, Scale } from "lucide-react";
-import { formatDateOnly } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import {
+  Calendar,
+  ChevronLeft,
+  Clock,
+  Download,
+  FileText,
+  Hammer,
+  FolderKanban,
+  Presentation,
+  CheckCircle2,
+  XCircle,
+  Clock3,
+  Sparkles,
+} from "lucide-react";
+import { formatDateOnly, formatWeekday } from "@/lib/format";
+import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { extractContentText, type ContentFile } from "@/lib/contents-extract";
+import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
+
+// Tipos de Supabase no reflejan generated_contents/attendance_sessions
+// (migraciones recién creadas). Cliente sin tipar para query nuevas.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 type CourseRow = {
   id: string;
@@ -17,303 +41,551 @@ type CourseRow = {
   period: string | null;
   start_date: string | null;
   end_date: string | null;
-  grade_scale_min: number;
-  grade_scale_max: number;
-  exam_weight: number;
-  workshop_weight: number;
-  attendance_weight: number;
-  passing_grade: number;
+  language: string | null;
 };
 
-type CourseDetail = {
-  examsCount: number;
-  workshopsCount: number;
-  teachers: { full_name: string; institutional_email: string }[];
-  studentsCount: number;
+type SessionRow = {
+  id: string;
+  course_id: string;
+  session_date: string;
+  title: string | null;
+  content_id: string | null;
+  content_class_index: number | null;
+};
+
+type ContentFileEntry = {
+  name: string;
+  path: string;
+  kind: "pptx-source" | "md" | "txt";
+  body?: string;
+};
+
+type ContentRow = {
+  id: string;
+  topic: string;
+  mode: "curso_completo" | "material_individual";
+  duration_minutes: number | null;
+  modality: "teorica" | "practica" | "teorico_practica" | null;
+  files: ContentFileEntry[];
+};
+
+type BrandRow = {
+  university_name: string;
+  primary_color: string;
+  secondary_color: string;
+  logo_url: string | null;
+  author_default: string | null;
+};
+
+type AttendanceStatus = "present" | "absent" | "late" | "justified";
+
+type AttendanceRecord = {
+  session_id: string;
+  status: AttendanceStatus;
+};
+
+type ScheduledItem = {
+  kind: "exam" | "workshop" | "project";
+  id: string;
+  title: string;
+  due: string; // ISO date or datetime
 };
 
 function StudentCourses() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [courses, setCourses] = useState<CourseRow[]>([]);
-  const [selected, setSelected] = useState<CourseRow | null>(null);
-  const [detail, setDetail] = useState<CourseDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
-    (async () => {
+    void (async () => {
+      setLoading(true);
       const { data: enr } = await supabase
         .from("course_enrollments")
         .select("course_id")
         .eq("user_id", user.id);
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const courseIds = (enr ?? []).map((e: any) => e.course_id);
       if (!courseIds.length) {
         setCourses([]);
+        setLoading(false);
         return;
       }
-
       const { data } = await supabase
         .from("courses")
-        .select(
-          "id, name, description, period, start_date, end_date, grade_scale_min, grade_scale_max, exam_weight, workshop_weight, attendance_weight, passing_grade",
-        )
+        .select("id, name, description, period, start_date, end_date, language")
         .in("id", courseIds)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
-
-      setCourses((data ?? []) as CourseRow[]);
+      setCourses((data as CourseRow[]) ?? []);
+      setLoading(false);
     })();
   }, [user]);
 
-  const openCourse = async (c: CourseRow) => {
-    setSelected(c);
-    setLoadingDetail(true);
-    setDetail(null);
-    try {
-      const [exRes, wsRes, ctRes, enrRes] = await Promise.all([
-        supabase.from("exams").select("id", { count: "exact", head: true }).eq("course_id", c.id),
-        supabase
-          .from("workshops")
-          .select("id", { count: "exact", head: true })
-          .eq("course_id", c.id),
-        supabase.from("course_teachers").select("user_id").eq("course_id", c.id),
-        supabase
-          .from("course_enrollments")
-          .select("user_id", { count: "exact", head: true })
-          .eq("course_id", c.id),
-      ]);
+  const selected = courses.find((c) => c.id === selectedId) ?? null;
 
-      const teacherIds = (ctRes.data ?? []).map((t: any) => t.user_id);
-      let teachers: CourseDetail["teachers"] = [];
-      if (teacherIds.length) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("full_name, institutional_email")
-          .in("id", teacherIds);
-        teachers = (profs ?? []) as CourseDetail["teachers"];
-      }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-10">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
-      setDetail({
-        examsCount: exRes.count ?? 0,
-        workshopsCount: wsRes.count ?? 0,
-        teachers,
-        studentsCount: enrRes.count ?? 0,
-      });
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  const now = new Date();
+  if (selected) {
+    return <CourseBoard course={selected} onBack={() => setSelectedId(null)} />;
+  }
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Cursos</h1>
-        <p className="text-sm text-muted-foreground">
-          {courses.length} cursos matriculados · clic para ver detalles
-        </p>
+        <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-primary" />
+          {t("nav.studentCourses")}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t("courseBoard.indexSubtitle")}</p>
       </div>
 
       {courses.length === 0 ? (
-        <Card>
-          <CardContent className="p-10 text-center text-muted-foreground text-sm">
-            No estás matriculado en ningún curso.
-          </CardContent>
-        </Card>
+        <EmptyState text={t("courseBoard.noEnrollments")} icon={Calendar} />
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((c) => {
-            const isActive =
-              c.start_date && c.end_date
-                ? now >= new Date(c.start_date + "T00:00") && now <= new Date(c.end_date + "T23:59")
-                : true;
-            const isPast = c.end_date ? now > new Date(c.end_date + "T23:59") : false;
-
-            return (
-              <Card
-                key={c.id}
-                className={`cursor-pointer transition hover:border-primary/50 hover:shadow-md ${isPast ? "opacity-60" : ""}`}
-                onClick={() => openCourse(c)}
-              >
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <BookOpen className="h-4.5 w-4.5 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-semibold truncate">{c.name}</h3>
-                        {c.period && (
-                          <Badge variant="outline" className="text-[10px] mt-0.5">
-                            {c.period}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    {isPast ? (
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
-                        Finalizado
-                      </Badge>
-                    ) : isActive ? (
-                      <Badge className="bg-success text-success-foreground text-[10px] shrink-0">
-                        Activo
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] shrink-0">
-                        Próximo
-                      </Badge>
-                    )}
-                  </div>
-
-                  {c.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">{c.description}</p>
-                  )}
-
-                  {(c.start_date || c.end_date) && (
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      {c.start_date && (
-                        <div className="flex items-center gap-1 tabular-nums">
-                          <Calendar className="h-3 w-3" />
-                          {formatDateOnly(c.start_date)}
-                        </div>
-                      )}
-                      {c.end_date && (
-                        <div className="flex items-center gap-1 tabular-nums">
-                          <Clock className="h-3 w-3" />
-                          {formatDateOnly(c.end_date)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      <Dialog
-        open={!!selected}
-        onOpenChange={(v) => {
-          if (!v) {
-            setSelected(null);
-            setDetail(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" />
-              {selected?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-1.5">
-                {selected.period && <Badge variant="outline">{selected.period}</Badge>}
-                {selected.start_date && selected.end_date && (
-                  <Badge variant="secondary" className="text-[10px] tabular-nums">
-                    {formatDateOnly(selected.start_date)} → {formatDateOnly(selected.end_date)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {courses.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setSelectedId(c.id)}
+              className="text-left rounded-lg border bg-card hover:bg-muted/40 transition-colors p-4 space-y-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-base leading-tight">{c.name}</h3>
+                {c.period && (
+                  <Badge variant="outline" className="text-[11px]">
+                    {c.period}
                   </Badge>
                 )}
               </div>
-
-              {selected.description && (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {selected.description}
-                </p>
+              {c.description && (
+                <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
               )}
-
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Scale className="h-4 w-4 text-primary" /> Escala de calificación
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <div className="text-muted-foreground">Rango</div>
-                    <div className="font-medium tabular-nums">
-                      {selected.grade_scale_min} – {selected.grade_scale_max}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Aprobar</div>
-                    <div className="font-medium tabular-nums">≥ {selected.passing_grade}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Pesos</div>
-                    <div className="font-medium tabular-nums">
-                      Exámenes {selected.exam_weight}% · Talleres {selected.workshop_weight}% ·
-                      Asistencia {selected.attendance_weight}%
-                    </div>
-                  </div>
-                </div>
+              <div className="text-[11px] text-muted-foreground tabular-nums">
+                {c.start_date ? formatDateOnly(c.start_date) : "—"}
+                {" → "}
+                {c.end_date ? formatDateOnly(c.end_date) : "—"}
               </div>
-
-              {loadingDetail ? (
-                <p className="text-sm text-muted-foreground">Cargando…</p>
-              ) : (
-                detail && (
-                  <>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-md border p-3 text-center">
-                        <FileText className="h-4 w-4 mx-auto text-primary mb-1" />
-                        <div className="text-lg font-semibold tabular-nums">
-                          {detail.examsCount}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                          Exámenes
-                        </div>
-                      </div>
-                      <div className="rounded-md border p-3 text-center">
-                        <Hammer className="h-4 w-4 mx-auto text-amber-500 dark:text-amber-400 mb-1" />
-                        <div className="text-lg font-semibold tabular-nums">
-                          {detail.workshopsCount}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                          Talleres
-                        </div>
-                      </div>
-                      <div className="rounded-md border p-3 text-center">
-                        <UserCog className="h-4 w-4 mx-auto text-emerald-500 dark:text-emerald-400 mb-1" />
-                        <div className="text-lg font-semibold tabular-nums">
-                          {detail.studentsCount}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                          Estudiantes
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-sm font-medium mb-1.5">Docentes</div>
-                      {detail.teachers.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Sin docentes asignados.</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {detail.teachers.map((t, i) => (
-                            <li
-                              key={i}
-                              className="text-sm flex justify-between gap-2 border-b last:border-b-0 pb-1"
-                            >
-                              <span className="font-medium truncate">{t.full_name}</span>
-                              <span className="text-xs text-muted-foreground truncate">
-                                {t.institutional_email}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </>
-                )
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+/**
+ * Tablero del curso estilo Moodle. Lista cronológica de sesiones con
+ * fecha + título + estado de asistencia + descargas del contenido
+ * asignado + tareas vinculadas (exams/workshops/projects con fecha
+ * cercana a la sesión). El contenido se descarga al click — el .pptx
+ * se construye en cliente con pptxgenjs a partir del bloque texto.
+ */
+function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void }) {
+  const { user } = useAuth();
+  const { t } = useTranslation();
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [contents, setContents] = useState<Record<string, ContentRow>>({});
+  const [brand, setBrand] = useState<BrandRow | null>(null);
+  const [attendance, setAttendance] = useState<Map<string, AttendanceStatus>>(new Map());
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    void (async () => {
+      setLoading(true);
+      // 1. Sesiones del curso (incluye content_id + class_index)
+      const { data: ses } = await db
+        .from("attendance_sessions")
+        .select("id, course_id, session_date, title, content_id, content_class_index")
+        .eq("course_id", course.id)
+        .order("session_date", { ascending: true });
+      const sessRows = (ses ?? []) as SessionRow[];
+      setSessions(sessRows);
+
+      // 2. Contenidos asignados — RLS abre lectura via session-link
+      const contentIds = Array.from(
+        new Set(sessRows.map((s) => s.content_id).filter((x): x is string => !!x)),
+      );
+      if (contentIds.length > 0) {
+        const { data: cs } = await db
+          .from("generated_contents")
+          .select("id, topic, mode, duration_minutes, modality, files")
+          .in("id", contentIds);
+        const map: Record<string, ContentRow> = {};
+        for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
+        setContents(map);
+      }
+
+      // 3. Marca institucional para construir el .pptx en cliente
+      const { data: br } = await db.from("content_brand_config").select("*").maybeSingle();
+      setBrand((br as BrandRow) ?? null);
+
+      // 4. Asistencia del estudiante en este curso
+      const { data: att } = await supabase
+        .from("attendance_records")
+        .select("session_id, status")
+        .eq("user_id", user.id)
+        .in(
+          "session_id",
+          sessRows.map((s) => s.id),
+        );
+      const attMap = new Map<string, AttendanceStatus>();
+      for (const r of ((att ?? []) as AttendanceRecord[]) ?? []) attMap.set(r.session_id, r.status);
+      setAttendance(attMap);
+
+      // 5. Tareas calendarizadas: exámenes, talleres, proyectos del
+      // curso que tengan fecha. Las cruzamos con cada sesión por
+      // proximidad temporal (±3 días) en el render — aquí solo
+      // recolectamos.
+      const [examsRes, wsRes, projRes] = await Promise.all([
+        supabase.from("exams").select("id, title, end_time").eq("course_id", course.id),
+        supabase.from("workshops").select("id, title, due_date").eq("course_id", course.id),
+        supabase.from("projects").select("id, title, due_date").eq("course_id", course.id),
+      ]);
+      const items: ScheduledItem[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const e of (examsRes.data ?? []) as any[]) {
+        if (e.end_time) items.push({ kind: "exam", id: e.id, title: e.title, due: e.end_time });
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const w of (wsRes.data ?? []) as any[]) {
+        if (w.due_date) items.push({ kind: "workshop", id: w.id, title: w.title, due: w.due_date });
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const p of (projRes.data ?? []) as any[]) {
+        if (p.due_date) items.push({ kind: "project", id: p.id, title: p.title, due: p.due_date });
+      }
+      setScheduled(items);
+      setLoading(false);
+    })();
+  }, [user, course.id]);
+
+  /** Devuelve los archivos relevantes para una sesión. Si el contenido
+   *  es curso_completo y la sesión tiene class_index N, filtra a
+   *  archivos cuyo nombre contenga `_CLASE_N`. */
+  const filesForSession = (s: SessionRow): ContentFileEntry[] => {
+    const c = s.content_id ? contents[s.content_id] : null;
+    if (!c) return [];
+    if (s.content_class_index == null) return c.files;
+    const re = new RegExp(`(?:CLASE|CLASS|SESION|SESSION)[_\\s-]*${s.content_class_index}\\b`, "i");
+    const filtered = c.files.filter((f) => re.test(f.name));
+    return filtered.length > 0 ? filtered : c.files;
+  };
+
+  /** Items "vinculados" a una sesión: due dentro de ±3 días de la fecha
+   *  de la sesión. Heurística simple pero suficiente para que el
+   *  estudiante vea qué se entrega cerca de esa clase. */
+  const itemsForSession = (s: SessionRow): ScheduledItem[] => {
+    const sessTs = new Date(s.session_date + "T12:00:00").getTime();
+    return scheduled.filter((it) => {
+      const dueTs = new Date(it.due).getTime();
+      const diff = Math.abs(dueTs - sessTs);
+      return diff <= 3 * 24 * 60 * 60 * 1000;
+    });
+  };
+
+  const downloadFile = async (file: ContentFileEntry, topic: string) => {
+    setDownloadingPath(file.path);
+    try {
+      const { data: blob, error } = await supabase.storage
+        .from("generated-contents")
+        .download(file.path);
+      if (error || !blob) throw new Error(error?.message ?? "download failed");
+
+      if (file.kind === "pptx-source") {
+        const raw = await blob.text();
+        const pptxBrand: PptxBrand = {
+          universityName: brand?.university_name ?? "",
+          primaryColor: brand?.primary_color ?? "#1e40af",
+          secondaryColor: brand?.secondary_color ?? "#64748b",
+          logoUrl: brand?.logo_url ?? null,
+          author: brand?.author_default ?? null,
+        };
+        const pptx = await buildPptxBlob(raw, pptxBrand, topic);
+        triggerDownload(pptx, file.name.replace(/\.txt$/i, ""));
+      } else {
+        triggerDownload(blob, file.name);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloadingPath(null);
+    }
+  };
+
+  const upcomingSessions = useMemo(
+    () => sessions.filter((s) => new Date(s.session_date + "T23:59:59").getTime() >= Date.now()),
+    [sessions],
+  );
+  const pastSessions = useMemo(
+    () => sessions.filter((s) => new Date(s.session_date + "T23:59:59").getTime() < Date.now()),
+    [sessions],
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-10">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ChevronLeft className="h-4 w-4 mr-1" />
+        {t("courseBoard.back")}
+      </Button>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{course.name}</CardTitle>
+          {course.description && (
+            <p className="text-sm text-muted-foreground">{course.description}</p>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {course.period && (
+              <Badge variant="outline" className="text-[11px]">
+                {course.period}
+              </Badge>
+            )}
+            <Badge variant="outline" className="text-[11px] tabular-nums">
+              {course.start_date ? formatDateOnly(course.start_date) : "—"}
+              {" → "}
+              {course.end_date ? formatDateOnly(course.end_date) : "—"}
+            </Badge>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {sessions.length === 0 ? (
+        <EmptyState text={t("courseBoard.noSessions")} icon={Calendar} />
+      ) : (
+        <>
+          {upcomingSessions.length > 0 && (
+            <SessionGroup
+              title={t("courseBoard.upcoming")}
+              sessions={upcomingSessions}
+              attendance={attendance}
+              filesForSession={filesForSession}
+              itemsForSession={itemsForSession}
+              contents={contents}
+              onDownload={downloadFile}
+              downloadingPath={downloadingPath}
+            />
+          )}
+          {pastSessions.length > 0 && (
+            <SessionGroup
+              title={t("courseBoard.past")}
+              sessions={pastSessions}
+              attendance={attendance}
+              filesForSession={filesForSession}
+              itemsForSession={itemsForSession}
+              contents={contents}
+              onDownload={downloadFile}
+              downloadingPath={downloadingPath}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function SessionGroup({
+  title,
+  sessions,
+  attendance,
+  filesForSession,
+  itemsForSession,
+  contents,
+  onDownload,
+  downloadingPath,
+}: {
+  title: string;
+  sessions: SessionRow[];
+  attendance: Map<string, AttendanceStatus>;
+  filesForSession: (s: SessionRow) => ContentFileEntry[];
+  itemsForSession: (s: SessionRow) => ScheduledItem[];
+  contents: Record<string, ContentRow>;
+  onDownload: (file: ContentFileEntry, topic: string) => Promise<void>;
+  downloadingPath: string | null;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h2>
+      <div className="space-y-3">
+        {sessions.map((s) => {
+          const files = filesForSession(s);
+          const items = itemsForSession(s);
+          const att = attendance.get(s.id);
+          const content = s.content_id ? contents[s.content_id] : null;
+          return (
+            <Card key={s.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="text-[11px] tabular-nums">
+                        {formatDateOnly(s.session_date)}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground capitalize">
+                        {formatWeekday(s.session_date)}
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-base">
+                      {s.title || t("contents.assignSessionUntitled")}
+                    </h3>
+                    {content && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        {content.topic}
+                        {s.content_class_index != null && (
+                          <span className="font-medium">
+                            {" "}
+                            · {t("contents.classNumber")} {s.content_class_index}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <AttendanceBadge status={att} />
+                </div>
+
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2 border-t">
+                    {files.map((f) => (
+                      <Button
+                        key={f.path}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        disabled={downloadingPath === f.path}
+                        onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                      >
+                        {downloadingPath === f.path ? (
+                          <Spinner size="xs" className="mr-1" />
+                        ) : f.kind === "pptx-source" ? (
+                          <Presentation className="h-3.5 w-3.5 mr-1" />
+                        ) : (
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        {humanLabelForFile(f)}
+                        <Download className="h-3 w-3 ml-1.5 opacity-60" />
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                {items.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2 border-t">
+                    {items.map((it) => (
+                      <Badge
+                        key={`${it.kind}-${it.id}`}
+                        variant="outline"
+                        className="text-[11px] flex items-center gap-1"
+                      >
+                        {it.kind === "exam" ? (
+                          <FileText className="h-3 w-3" />
+                        ) : it.kind === "workshop" ? (
+                          <Hammer className="h-3 w-3" />
+                        ) : (
+                          <FolderKanban className="h-3 w-3" />
+                        )}
+                        {it.title}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
+  const { t } = useTranslation();
+  if (!status) {
+    return (
+      <Badge variant="outline" className="text-[10px]">
+        <Clock className="h-3 w-3 mr-1" />
+        {t("courseBoard.attendancePending")}
+      </Badge>
+    );
+  }
+  if (status === "present") {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+      >
+        <CheckCircle2 className="h-3 w-3 mr-1" />
+        {t("courseBoard.attendancePresent")}
+      </Badge>
+    );
+  }
+  if (status === "absent") {
+    return (
+      <Badge variant="destructive" className="text-[10px]">
+        <XCircle className="h-3 w-3 mr-1" />
+        {t("courseBoard.attendanceAbsent")}
+      </Badge>
+    );
+  }
+  if (status === "late") {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+      >
+        <Clock3 className="h-3 w-3 mr-1" />
+        {t("courseBoard.attendanceLate")}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="text-[10px]">
+      {t("courseBoard.attendanceJustified")}
+    </Badge>
+  );
+}
+
+function humanLabelForFile(f: ContentFileEntry): string {
+  if (f.kind === "pptx-source") return "Presentación";
+  if (f.kind === "md") {
+    const u = f.name.toUpperCase();
+    if (u.includes("GUIA")) return "Guía docente";
+    if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller";
+    return "Material";
+  }
+  return f.name;
 }

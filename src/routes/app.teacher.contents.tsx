@@ -47,6 +47,7 @@ import {
   Trash2,
   Eye,
   BookOpenCheck,
+  CalendarRange,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -141,6 +142,11 @@ function TeacherContents() {
   // permite materializar Talleres/Exámenes/Proyectos con el contenido
   // como contexto de descripción.
   const [assessmentFor, setAssessmentFor] = useState<GeneratedContent | null>(null);
+  // "Asignar a sesiones" abre un dialog con la lista de attendance_sessions
+  // del curso donde el contenido vive, y deja al docente mapear cada
+  // CLASE_N → sesión específica. Requiere que el contenido esté
+  // asociado a un curso y que el curso tenga sesiones programadas.
+  const [assignFor, setAssignFor] = useState<GeneratedContent | null>(null);
 
   // Form
   const [topic, setTopic] = useState("");
@@ -465,6 +471,13 @@ function TeacherContents() {
                                 onClick: () => setAssessmentFor(it),
                               }
                             : null,
+                          it.status === "done" && it.course_id
+                            ? {
+                                label: t("contents.assignToSessions"),
+                                icon: CalendarRange,
+                                onClick: () => setAssignFor(it),
+                              }
+                            : null,
                           it.raw_output
                             ? {
                                 label: t("contents.viewRaw"),
@@ -669,6 +682,8 @@ function TeacherContents() {
           </pre>
         </DialogContent>
       </Dialog>
+
+      <AssignToSessionsDialog content={assignFor} onClose={() => setAssignFor(null)} />
 
       <CreateAssessmentDialog
         content={assessmentFor}
@@ -971,6 +986,204 @@ function CreateAssessmentDialog({
               <BookOpenCheck className="h-4 w-4 mr-1" />
             )}
             {creating ? t("contents.creatingAssessment") : t("contents.createAssessmentSubmit")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface AttendanceSessionRow {
+  id: string;
+  session_date: string;
+  title: string | null;
+  content_id: string | null;
+  content_class_index: number | null;
+}
+
+/**
+ * Dialog "Asignar a sesiones": el docente mapea CADA clase del
+ * contenido (curso_completo) o el contenido entero (material_individual)
+ * a una sesión de asistencia del curso. La asignación persiste en
+ * `attendance_sessions.content_id` + `content_class_index` y aparece
+ * en el tablero del estudiante.
+ *
+ * Estrategia de UI:
+ *   - Lista de sesiones del curso (ordenadas por session_date).
+ *   - Por cada sesión, un Select con opciones:
+ *       * "Sin contenido"
+ *       * Para curso_completo: "Clase 1", "Clase 2", … (números de
+ *         CLASE_N detectados en files[]).
+ *       * Para material_individual: "Asignar este contenido"
+ *   - Save persiste todos los cambios en una transacción lógica
+ *     (loop de updates; bastante con el INSERT-or-UPDATE flow).
+ *
+ * Multi-asignación: una clase puede usarse en una sola sesión a la
+ * vez (1:1). Si el docente asigna Clase 3 a Sesión X y la sesión Y
+ * ya tenía Clase 3, NO bloqueamos — preferimos "última edición gana".
+ * El estudiante puede tener material duplicado en dos sesiones, lo
+ * cual es válido (clase de repaso, sesión adelantada, etc.).
+ */
+function AssignToSessionsDialog({
+  content,
+  onClose,
+}: {
+  content: GeneratedContent | null;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [sessions, setSessions] = useState<AttendanceSessionRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Map sesiónId → seleccionado: -1 = sin contenido / N = clase N.
+  // Para material_individual, 0 = "asignado al contenido completo".
+  const [draft, setDraft] = useState<Record<string, number>>({});
+
+  const classes = useMemo(
+    () => (content ? availableClassNumbers((content.files as ContentFile[]) ?? []) : []),
+    [content],
+  );
+  const isCursoCompleto = content?.mode === "curso_completo";
+
+  useEffect(() => {
+    if (!content?.course_id) {
+      setSessions([]);
+      setDraft({});
+      return;
+    }
+    setLoading(true);
+    void (async () => {
+      const { data } = await db
+        .from("attendance_sessions")
+        .select("id, session_date, title, content_id, content_class_index")
+        .eq("course_id", content.course_id)
+        .order("session_date", { ascending: true });
+      const rows = (data ?? []) as AttendanceSessionRow[];
+      setSessions(rows);
+      // Pre-rellena el draft con la asignación actual: si la sesión
+      // YA apunta a este contenido, conservamos su class_index. Si
+      // apunta a otro contenido o a nada, queda en "sin contenido".
+      const next: Record<string, number> = {};
+      for (const s of rows) {
+        if (s.content_id === content.id) {
+          next[s.id] = s.content_class_index ?? 0;
+        } else {
+          next[s.id] = -1;
+        }
+      }
+      setDraft(next);
+      setLoading(false);
+    })();
+  }, [content]);
+
+  if (!content) return null;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      // Recorre las sesiones y aplica solo los cambios respecto del
+      // estado original. Esto evita escrituras innecesarias y reduce
+      // el ruido en triggers/audit logs.
+      const ops = sessions
+        .map((s) => {
+          const target = draft[s.id] ?? -1;
+          const wasAssigned = s.content_id === content.id;
+          const wasIndex = s.content_class_index ?? (wasAssigned ? 0 : -1);
+          if (wasAssigned && target === wasIndex) return null;
+          // -1 = limpiar asignación SOLO si actualmente apunta a este content
+          if (target === -1 && !wasAssigned) return null;
+          return {
+            id: s.id,
+            content_id: target === -1 ? null : content.id,
+            content_class_index: target > 0 ? target : null,
+          };
+        })
+        .filter(
+          (x): x is { id: string; content_id: string | null; content_class_index: number | null } =>
+            x != null,
+        );
+
+      for (const op of ops) {
+        const { error } = await db
+          .from("attendance_sessions")
+          .update({ content_id: op.content_id, content_class_index: op.content_class_index })
+          .eq("id", op.id);
+        if (error) throw new Error(error.message);
+      }
+      toast.success(t("contents.assignSavedToast", { count: ops.length }));
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t("contents.assignDialogTitle")}</DialogTitle>
+          <DialogDescription>{t("contents.assignDialogSubtitle")}</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Spinner size="lg" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
+            {t("contents.assignNoSessions")}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-2">
+            {sessions.map((s) => {
+              const value = draft[s.id] ?? -1;
+              return (
+                <div key={s.id} className="flex items-center gap-3 rounded-md border p-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium tabular-nums">{s.session_date}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {s.title || t("contents.assignSessionUntitled")}
+                    </div>
+                  </div>
+                  <Select
+                    value={String(value)}
+                    onValueChange={(v) => setDraft((prev) => ({ ...prev, [s.id]: Number(v) }))}
+                  >
+                    <SelectTrigger className="w-44 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="-1">{t("contents.assignNone")}</SelectItem>
+                      {isCursoCompleto && classes.length > 0 ? (
+                        classes.map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {t("contents.classNumber")} {n}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="0">{t("contents.assignWhole")}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={save} disabled={saving || loading || sessions.length === 0}>
+            {saving ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <CalendarRange className="h-4 w-4 mr-1" />
+            )}
+            {saving ? t("contents.assignSaving") : t("contents.assignSave")}
           </Button>
         </DialogFooter>
       </DialogContent>

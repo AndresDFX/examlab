@@ -571,7 +571,31 @@
     "courseRequired": "Select a course",
     "createAssessmentSubmit": "Create and open editor",
     "creatingAssessment": "Creating…",
-    "assessmentCreatedToast": "Assessment created — opening editor so you can generate questions with AI"
+    "assessmentCreatedToast": "Assessment created — opening editor so you can generate questions with AI",
+    "assignToSessions": "Assign to course sessions",
+    "assignDialogTitle": "Assign content to sessions",
+    "assignDialogSubtitle": "Map each content class to an attendance session. Students will see the material on the course board, on the session date.",
+    "assignNone": "No content",
+    "assignWhole": "Assign this content",
+    "assignNoSessions": "The course has no sessions scheduled yet. Create sessions from Attendance to assign content.",
+    "assignSessionUntitled": "(no title)",
+    "assignSave": "Save assignment",
+    "assignSaving": "Saving…",
+    "assignSavedToast": "{{count}} session(s) updated",
+    "sessionContentColumn": "Content"
+  },
+  "courseBoard": {
+    "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
+    "noEnrollments": "You are not enrolled in any course yet.",
+    "noSessions": "This course has no sessions scheduled yet.",
+    "back": "Back to my courses",
+    "upcoming": "Upcoming sessions",
+    "past": "Past sessions",
+    "attendancePending": "Not recorded",
+    "attendancePresent": "Present",
+    "attendanceAbsent": "Absent",
+    "attendanceLate": "Late",
+    "attendanceJustified": "Justified"
   },
   "contentsConfig": {
     "title": "Contents configuration",

@@ -571,7 +571,31 @@
     "courseRequired": "Selecciona un curso",
     "createAssessmentSubmit": "Crear y abrir editor",
     "creatingAssessment": "Creando…",
-    "assessmentCreatedToast": "Evaluación creada — abriendo el editor para que generes las preguntas con IA"
+    "assessmentCreatedToast": "Evaluación creada — abriendo el editor para que generes las preguntas con IA",
+    "assignToSessions": "Asignar a sesiones del curso",
+    "assignDialogTitle": "Asignar contenido a sesiones",
+    "assignDialogSubtitle": "Mapea cada clase del contenido a una sesión de asistencia. El estudiante verá el material en el tablero del curso, en la fecha de la sesión.",
+    "assignNone": "Sin contenido",
+    "assignWhole": "Asignar este contenido",
+    "assignNoSessions": "El curso aún no tiene sesiones programadas. Crea sesiones desde Asistencia para poder asignar contenido.",
+    "assignSessionUntitled": "(sin título)",
+    "assignSave": "Guardar asignación",
+    "assignSaving": "Guardando…",
+    "assignSavedToast": "{{count}} sesión(es) actualizadas",
+    "sessionContentColumn": "Contenido"
+  },
+  "courseBoard": {
+    "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",
+    "noEnrollments": "Aún no estás matriculado en ningún curso.",
+    "noSessions": "El curso no tiene sesiones programadas todavía.",
+    "back": "Volver a mis cursos",
+    "upcoming": "Próximas sesiones",
+    "past": "Sesiones pasadas",
+    "attendancePending": "Sin registro",
+    "attendancePresent": "Presente",
+    "attendanceAbsent": "Ausente",
+    "attendanceLate": "Tarde",
+    "attendanceJustified": "Justificado"
   },
   "contentsConfig": {
     "title": "Configuración de Contenidos",
