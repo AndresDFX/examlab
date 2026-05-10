@@ -41,6 +41,11 @@ import {
   Save,
   TimerReset,
   MessageSquareText,
+  Search,
+  Check,
+  ShieldAlert,
+  Bot,
+  Users,
 } from "lucide-react";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import { statusLabel } from "@/utils/status-labels";
@@ -57,7 +62,14 @@ import {
 import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { FeedbackThread } from "@/components/FeedbackThread";
-import { FraudPanel } from "@/components/FraudPanel";
+import {
+  IntegrityReviewDialog,
+  countPendingByUser,
+  rpcMarkAiReviewed,
+  rpcMarkCopyReviewed,
+  type IntegrityCopyPair,
+  type IntegrityAiSignal,
+} from "@/components/IntegrityReviewDialog";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/components/CodeRunOutput";
@@ -222,6 +234,8 @@ function ExamMonitor() {
     Record<string, { score: number | null; feedback: string }>
   >({});
   const [savingQid, setSavingQid] = useState<string | null>(null);
+  const [integrityForUser, setIntegrityForUser] = useState<string | null>(null);
+  const [detecting, setDetecting] = useState(false);
 
   const load = useCallback(async () => {
     const { data: e } = await (supabase as any)
@@ -705,6 +719,85 @@ function ExamMonitor() {
     [submissions, viewingId],
   );
 
+  // ─── Datos de integridad académica (IA + Copia) ───
+  // Sospechas IA por usuario: tomamos el intento con mayor score; la
+  // señal IA es a nivel submission (no por pregunta). Hooks declarados
+  // ANTES del early return de loading para no romper el orden de hooks.
+  const aiSignalsList = useMemo(() => {
+    return submissions
+      .filter((s) => s.ai_detected === true || s.ai_review_at != null)
+      .map((s): IntegrityAiSignal & { userId: string } => ({
+        userId: s.user_id,
+        submissionId: s.id,
+        score: Number(s.ai_detected_score) || 0,
+        reasons: s.ai_detected_reasons ?? null,
+        reviewedAt: s.ai_review_at ?? null,
+      }));
+  }, [submissions]);
+  const aiSignalByUser = useMemo(() => {
+    const map = new Map<string, IntegrityAiSignal>();
+    for (const s of aiSignalsList) {
+      const prev = map.get(s.userId);
+      if (!prev || s.score > prev.score) {
+        map.set(s.userId, {
+          submissionId: s.submissionId,
+          score: s.score,
+          reasons: s.reasons,
+          reviewedAt: s.reviewedAt,
+        });
+      }
+    }
+    return map;
+  }, [aiSignalsList]);
+  const copyPairsByUser = useMemo(() => {
+    const map = new Map<string, IntegrityCopyPair[]>();
+    for (const p of similarityPairs) {
+      for (const [u, peer] of [
+        [p.user_a, p.user_b],
+        [p.user_b, p.user_a],
+      ] as const) {
+        const arr = map.get(u) ?? [];
+        arr.push({
+          id: p.id,
+          questionId: p.question_id,
+          peerId: peer,
+          score: Number(p.score) || 0,
+          reasons: p.reasons,
+          reviewedAt: p.reviewed_at ?? null,
+        });
+        map.set(u, arr);
+      }
+    }
+    return map;
+  }, [similarityPairs]);
+  const { aiByUser: pendingAiByUser, copyByUser: pendingCopyByUser } = useMemo(
+    () =>
+      countPendingByUser(
+        aiSignalsList.map((s) => ({
+          userId: s.userId,
+          reviewedAt: s.reviewedAt,
+          score: s.score,
+        })),
+        similarityPairs.map((p) => ({
+          user_a: p.user_a,
+          user_b: p.user_b,
+          reviewed_at: p.reviewed_at ?? null,
+          score: Number(p.score) || 0,
+        })),
+      ),
+    [aiSignalsList, similarityPairs],
+  );
+  const questionLabelsForIntegrity = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const q of questions) {
+      const label =
+        `${t("exam.question")} ${q.position + 1}` +
+        (q.content ? `: ${String(q.content).slice(0, 80)}` : "");
+      map[q.id] = label;
+    }
+    return map;
+  }, [questions, t]);
+
   if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
 
   const retryMode: RetryMode = ((exam as any).retry_mode as RetryMode) ?? "last";
@@ -712,6 +805,60 @@ function ExamMonitor() {
     1,
     Number((exam as any).max_attempts ?? exam.course?.max_exam_attempts ?? 1) || 1,
   );
+  const gradeMax = Number(exam.course?.grade_scale_max ?? 5) || 5;
+
+  const runDetectFraud = async () => {
+    setDetecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
+        body: { kind: "exam", refId: examId },
+      });
+      if (error) throw error;
+      const summary = data as { pairs?: unknown[]; message?: string };
+      const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
+      if (found > 0) {
+        toast.success(t("integrity.detectSuccess_other", { count: found }));
+      } else {
+        toast.message(t("integrity.detectNone"));
+      }
+      await load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(t("integrity.detectError", { error: msg }));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const toggleAiReviewedHandler = async (subId: string, currentlyReviewed: boolean) => {
+    const ok = await rpcMarkAiReviewed("exam", subId, currentlyReviewed);
+    if (ok) {
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.id === subId
+            ? { ...s, ai_review_at: currentlyReviewed ? null : new Date().toISOString() }
+            : s,
+        ),
+      );
+      toast.success(currentlyReviewed ? t("monitor.deleteConfirmed") : t("integrity.reviewed"));
+    }
+    return ok;
+  };
+
+  const toggleCopyReviewedHandler = async (pairId: string, currentlyReviewed: boolean) => {
+    const ok = await rpcMarkCopyReviewed(pairId, currentlyReviewed);
+    if (ok) {
+      setSimilarityPairs((prev) =>
+        prev.map((p) =>
+          p.id === pairId
+            ? { ...p, reviewed_at: currentlyReviewed ? null : new Date().toISOString() }
+            : p,
+        ),
+      );
+      toast.success(currentlyReviewed ? t("monitor.deleteConfirmed") : t("integrity.reviewed"));
+    }
+    return ok;
+  };
 
   // Agrupar submissions por estudiante (un estudiante = N intentos)
   type StudentRow = {
@@ -818,6 +965,79 @@ function ExamMonitor() {
         }
       />
 
+      {/* Integrity / Fraud detection top card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-primary" />
+                {t("integrity.title")}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">{t("integrity.subtitle")}</p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {(() => {
+                  const aiCount = aiSignalsList.filter(
+                    (s) => s.score >= 0.6 && !s.reviewedAt,
+                  ).length;
+                  const copyPairsCount = similarityPairs.filter(
+                    (p) => Number(p.score) >= 0.6 && !p.reviewed_at,
+                  ).length;
+                  const totalPending = aiCount + copyPairsCount;
+                  const hasAny = aiSignalsList.length > 0 || similarityPairs.length > 0;
+                  if (!hasAny)
+                    return (
+                      <span className="text-xs text-muted-foreground">
+                        {t("integrity.summaryEmpty")}
+                      </span>
+                    );
+                  return (
+                    <>
+                      <Badge variant="outline" className="text-[11px]">
+                        {t("integrity.summaryAi_other", { count: aiSignalsList.length })}
+                      </Badge>
+                      <Badge variant="outline" className="text-[11px]">
+                        {t("integrity.summaryCopy_other", { count: similarityPairs.length })}
+                      </Badge>
+                      {totalPending > 0 ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[11px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                        >
+                          {t("integrity.summaryPending_other", { count: totalPending })}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[11px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          {t("integrity.summaryAllReviewed")}
+                        </Badge>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={runDetectFraud}
+              disabled={detecting}
+              className="shrink-0"
+            >
+              {detecting ? (
+                <Spinner size="sm" className="mr-1.5" />
+              ) : (
+                <Search className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {detecting ? t("integrity.detecting") : t("integrity.detectButton")}
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
       {/* Live submissions */}
       <Card>
         <CardHeader>
@@ -861,12 +1081,22 @@ function ExamMonitor() {
                     <HelpHint>{t("monitor.columns.dialogHint")}</HelpHint>
                   </span>
                 </TableHead>
+                <TableHead className="hidden lg:table-cell text-center">
+                  <span className="inline-flex items-center gap-1 justify-center">
+                    {t("integrity.pendingAi")}
+                  </span>
+                </TableHead>
+                <TableHead className="hidden lg:table-cell text-center">
+                  <span className="inline-flex items-center gap-1 justify-center">
+                    {t("integrity.pendingCopy")}
+                  </span>
+                </TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={8} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty colSpan={10} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.map((row) => {
                 const latest = row.latest;
@@ -988,8 +1218,48 @@ function ExamMonitor() {
                         );
                       })()}
                     </TableCell>
+                    <TableCell className="hidden lg:table-cell text-center">
+                      {(() => {
+                        const n = pendingAiByUser.get(row.userId) ?? 0;
+                        if (n === 0)
+                          return <span className="text-xs text-muted-foreground">—</span>;
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[11px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                          >
+                            <Bot className="h-3 w-3 mr-1" />
+                            {n}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-center">
+                      {(() => {
+                        const n = pendingCopyByUser.get(row.userId) ?? 0;
+                        if (n === 0)
+                          return <span className="text-xs text-muted-foreground">—</span>;
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[11px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                          >
+                            <Users className="h-3 w-3 mr-1" />
+                            {n}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {(aiSignalByUser.has(row.userId) ||
+                          (copyPairsByUser.get(row.userId)?.length ?? 0) > 0) && (
+                          <RowAction
+                            label={t("integrity.openReview")}
+                            icon={ShieldAlert}
+                            onClick={() => setIntegrityForUser(row.userId)}
+                          />
+                        )}
                         {inProg && (
                           <Button
                             variant="ghost"
@@ -1033,13 +1303,50 @@ function ExamMonitor() {
         </CardContent>
       </Card>
 
-      <FraudPanel
-        kind="exam"
-        refId={exam.id}
-        userNames={Object.fromEntries(
+      {(() => {
+        if (!integrityForUser) return null;
+        const row = studentRows.find((r) => r.userId === integrityForUser);
+        if (!row) return null;
+        const userNames = Object.fromEntries(
           studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
-        )}
-      />
+        );
+        const aiSig = aiSignalByUser.get(integrityForUser) ?? null;
+        const copies = copyPairsByUser.get(integrityForUser) ?? [];
+        return (
+          <IntegrityReviewDialog
+            open
+            onOpenChange={(o) => !o && setIntegrityForUser(null)}
+            kind="exam"
+            userId={row.userId}
+            userName={row.profile?.full_name ?? "—"}
+            submissionId={row.latest.id}
+            currentGrade={row.effectiveGrade}
+            maxScore={gradeMax}
+            aiSignal={aiSig}
+            copyPairs={copies}
+            questionLabels={questionLabelsForIntegrity}
+            userNames={userNames}
+            onApplyGrade={async (gradeToApply) => {
+              const { data, error } = await supabase
+                .from("submissions")
+                .update({ final_override_grade: gradeToApply })
+                .eq("id", row.latest.id)
+                .select("id");
+              if (error) return { ok: false, error: error.message };
+              if (!data || data.length === 0)
+                return { ok: false, error: t("integrity.applyError") };
+              setSubmissions((prev) =>
+                prev.map((s) =>
+                  s.id === row.latest.id ? { ...s, final_override_grade: gradeToApply } : s,
+                ),
+              );
+              return { ok: true };
+            }}
+            onToggleAiReviewed={toggleAiReviewedHandler}
+            onToggleCopyReviewed={toggleCopyReviewedHandler}
+          />
+        );
+      })()}
 
       {/* Dialog: lista de intentos del estudiante */}
       <Dialog open={attemptsForUser != null} onOpenChange={(o) => !o && setAttemptsForUser(null)}>
