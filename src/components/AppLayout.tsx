@@ -29,6 +29,7 @@ import {
   Menu,
   FolderKanban,
   CalendarCheck,
+  CalendarDays,
   Sparkles,
   BarChart3,
   ScrollText,
@@ -133,6 +134,12 @@ const NAV: NavItem[] = [
     labelKey: "nav.studentAttendance",
     icon: CalendarCheck,
     roles: ["Estudiante"],
+  },
+  {
+    to: "/app/teacher/google-calendar",
+    labelKey: "nav.googleCalendar",
+    icon: CalendarDays,
+    roles: ["Docente"],
   },
   // Estadísticas — vista por curso (Docente) y agregada (Admin).
   {
