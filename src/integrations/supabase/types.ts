@@ -197,6 +197,65 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_role: string | null
+          category: string
+          course_id: string | null
+          course_name: string | null
+          created_at: string
+          entity_id: string | null
+          entity_name: string | null
+          entity_type: string | null
+          id: string
+          metadata: Json
+          severity: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: string | null
+          category: string
+          course_id?: string | null
+          course_name?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+          severity?: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: string | null
+          category?: string
+          course_id?: string | null
+          course_name?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       code_executions: {
         Row: {
           created_at: string
@@ -977,6 +1036,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "project_courses_cut_id_fkey"
+            columns: ["cut_id"]
+            isOneToOne: false
+            referencedRelation: "grade_cuts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "project_courses_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -1231,6 +1297,8 @@ export type Database = {
           ai_detected_score: number | null
           ai_feedback: string | null
           ai_grade: number | null
+          ai_review_at: string | null
+          ai_review_by: string | null
           created_at: string
           defense_at: string | null
           defense_factor: number | null
@@ -1254,6 +1322,8 @@ export type Database = {
           ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
+          ai_review_at?: string | null
+          ai_review_by?: string | null
           created_at?: string
           defense_at?: string | null
           defense_factor?: number | null
@@ -1277,6 +1347,8 @@ export type Database = {
           ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
+          ai_review_at?: string | null
+          ai_review_by?: string | null
           created_at?: string
           defense_at?: string | null
           defense_factor?: number | null
@@ -1449,6 +1521,9 @@ export type Database = {
           question_id: string | null
           reasons: string | null
           ref_id: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           score: number
           submission_a: string
           submission_b: string
@@ -1463,6 +1538,9 @@ export type Database = {
           question_id?: string | null
           reasons?: string | null
           ref_id: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           score: number
           submission_a: string
           submission_b: string
@@ -1477,6 +1555,9 @@ export type Database = {
           question_id?: string | null
           reasons?: string | null
           ref_id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           score?: number
           submission_a?: string
           submission_b?: string
@@ -1491,6 +1572,8 @@ export type Database = {
           ai_detected_reasons: string | null
           ai_detected_score: number | null
           ai_grade: number | null
+          ai_review_at: string | null
+          ai_review_by: string | null
           answers: Json
           created_at: string
           exam_id: string
@@ -1510,6 +1593,8 @@ export type Database = {
           ai_detected_reasons?: string | null
           ai_detected_score?: number | null
           ai_grade?: number | null
+          ai_review_at?: string | null
+          ai_review_by?: string | null
           answers?: Json
           created_at?: string
           exam_id: string
@@ -1529,6 +1614,8 @@ export type Database = {
           ai_detected_reasons?: string | null
           ai_detected_score?: number | null
           ai_grade?: number | null
+          ai_review_at?: string | null
+          ai_review_by?: string | null
           answers?: Json
           created_at?: string
           exam_id?: string
@@ -1775,6 +1862,8 @@ export type Database = {
           ai_detected_score: number | null
           ai_feedback: string | null
           ai_grade: number | null
+          ai_review_at: string | null
+          ai_review_by: string | null
           content: string | null
           created_at: string
           external_link: string | null
@@ -1795,6 +1884,8 @@ export type Database = {
           ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
+          ai_review_at?: string | null
+          ai_review_by?: string | null
           content?: string | null
           created_at?: string
           external_link?: string | null
@@ -1815,6 +1906,8 @@ export type Database = {
           ai_detected_score?: number | null
           ai_feedback?: string | null
           ai_grade?: number | null
+          ai_review_at?: string | null
+          ai_review_by?: string | null
           content?: string | null
           created_at?: string
           external_link?: string | null
@@ -1938,6 +2031,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _audit_jwt_uid: { Args: never; Returns: string }
       compute_attendance_code: {
         Args: { p_period: number; p_seed: string }
         Returns: string
@@ -1956,6 +2050,28 @@ export type Database = {
       is_submission_owner: {
         Args: { p_kind: string; p_submission_id: string; p_user_id: string }
         Returns: boolean
+      }
+      log_audit_event: {
+        Args: {
+          p_action: string
+          p_category: string
+          p_course_id?: string
+          p_course_name?: string
+          p_entity_id?: string
+          p_entity_name?: string
+          p_entity_type?: string
+          p_metadata?: Json
+          p_severity?: string
+        }
+        Returns: undefined
+      }
+      mark_ai_suspicion_reviewed: {
+        Args: { p_kind: string; p_submission_id: string; p_unmark?: boolean }
+        Returns: undefined
+      }
+      mark_similarity_pair_reviewed: {
+        Args: { p_notes?: string; p_pair_id: string; p_unmark?: boolean }
+        Returns: undefined
       }
       notify_course_students: {
         Args: {
