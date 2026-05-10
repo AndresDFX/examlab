@@ -56,7 +56,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
 import {
   availableClassNumbers,
-  classNumberFromFilename,
   extractClassTitle,
   extractContentText,
   groupFilesByClass,
