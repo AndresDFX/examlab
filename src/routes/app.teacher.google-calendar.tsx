@@ -178,7 +178,7 @@ function GoogleCalendarPage() {
                   if (await confirm({
                     title: "Desconectar Google Calendar",
                     description: "Vas a borrar el acceso a tu calendario. Podés reconectar cuando quieras.",
-                    confirmText: "Desconectar",
+                    confirmLabel: "Desconectar",
                     tone: "warning",
                   })) disc.mutate();
                 }}
