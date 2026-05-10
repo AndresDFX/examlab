@@ -18,6 +18,7 @@ import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.wo
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
+import { Route as AppTeacherGoogleCalendarRouteImport } from './routes/app.teacher.google-calendar'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
 import { Route as AppTeacherContentsRouteImport } from './routes/app.teacher.contents'
 import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
@@ -89,6 +90,12 @@ const AppTeacherGradebookRoute = AppTeacherGradebookRouteImport.update({
   path: '/teacher/gradebook',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherGoogleCalendarRoute =
+  AppTeacherGoogleCalendarRouteImport.update({
+    id: '/teacher/google-calendar',
+    path: '/teacher/google-calendar',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppTeacherCoursesRoute = AppTeacherCoursesRouteImport.update({
   id: '/teacher/courses',
   path: '/teacher/courses',
@@ -242,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
+  '/app/teacher/google-calendar': typeof AppTeacherGoogleCalendarRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
@@ -277,6 +285,7 @@ export interface FileRoutesByTo {
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
+  '/app/teacher/google-calendar': typeof AppTeacherGoogleCalendarRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
@@ -314,6 +323,7 @@ export interface FileRoutesById {
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
+  '/app/teacher/google-calendar': typeof AppTeacherGoogleCalendarRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
@@ -352,6 +362,7 @@ export interface FileRouteTypes {
     | '/app/teacher/audit-logs'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
+    | '/app/teacher/google-calendar'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/statistics'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
     | '/app/teacher/audit-logs'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
+    | '/app/teacher/google-calendar'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/statistics'
@@ -423,6 +435,7 @@ export interface FileRouteTypes {
     | '/app/teacher/audit-logs'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
+    | '/app/teacher/google-calendar'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/statistics'
@@ -507,6 +520,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/gradebook'
       fullPath: '/app/teacher/gradebook'
       preLoaderRoute: typeof AppTeacherGradebookRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/google-calendar': {
+      id: '/app/teacher/google-calendar'
+      path: '/teacher/google-calendar'
+      fullPath: '/app/teacher/google-calendar'
+      preLoaderRoute: typeof AppTeacherGoogleCalendarRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/courses': {
@@ -706,6 +726,7 @@ interface AppRouteChildren {
   AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
   AppTeacherContentsRoute: typeof AppTeacherContentsRoute
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
+  AppTeacherGoogleCalendarRoute: typeof AppTeacherGoogleCalendarRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
   AppTeacherProjectsRoute: typeof AppTeacherProjectsRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
@@ -739,6 +760,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
   AppTeacherContentsRoute: AppTeacherContentsRoute,
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
+  AppTeacherGoogleCalendarRoute: AppTeacherGoogleCalendarRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
   AppTeacherProjectsRoute: AppTeacherProjectsRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
