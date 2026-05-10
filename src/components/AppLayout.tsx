@@ -135,6 +135,12 @@ const NAV: NavItem[] = [
     icon: CalendarCheck,
     roles: ["Estudiante"],
   },
+  {
+    to: "/app/teacher/google-calendar",
+    labelKey: "nav.googleCalendar",
+    icon: CalendarDays,
+    roles: ["Docente"],
+  },
   // Estadísticas — vista por curso (Docente) y agregada (Admin).
   {
     to: "/app/teacher/statistics",
