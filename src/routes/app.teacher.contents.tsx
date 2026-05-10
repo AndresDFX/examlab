@@ -171,6 +171,10 @@ function TeacherContents() {
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [courseId, setCourseId] = useState<string>("");
   const [author, setAuthor] = useState("");
+  // Instrucciones libres del docente que se apilan al user message del
+  // edge function. NO modifican el system prompt — solo se inyectan
+  // como bloque etiquetado al final del mensaje del usuario.
+  const [instructions, setInstructions] = useState("");
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -229,6 +233,7 @@ function TeacherContents() {
         modality,
         course_id: courseId || null,
         author: author.trim() || null,
+        instructions: instructions.trim() || null,
         status: "queued",
       };
       const { data: created, error: insErr } = await db
@@ -247,6 +252,7 @@ function TeacherContents() {
       // Reset form
       setTopic("");
       setAuthor("");
+      setInstructions("");
       void load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -686,6 +692,19 @@ function TeacherContents() {
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
                 placeholder={t("contents.authorPlaceholder")}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                {t("contents.instructions")}
+                <HelpHint>{t("contents.instructionsHint")}</HelpHint>
+              </Label>
+              <Textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder={t("contents.instructionsPlaceholder")}
+                className="min-h-[100px] text-xs"
               />
             </div>
           </div>

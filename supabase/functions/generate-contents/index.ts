@@ -214,12 +214,21 @@ Deno.serve(async (req: Request) => {
 
     // El user message le indica al modelo qué modo se eligió y refuerza
     // los parámetros concretos. Mantener este texto corto y declarativo
-    // — el grueso del prompt vive en el system.
+    // — el grueso del prompt vive en el system. Si el docente añadió
+    // instrucciones libres al crear la generación, las apilamos al
+    // final del user message como un bloque etiquetado para que el
+    // modelo las trate con prioridad sobre los defaults del system
+    // prompt sin que necesitemos editarlo cada vez.
     const commonContext = `Tema: ${gen.topic}\nDuración por clase: ${vars.duration_minutes} minutos\nModalidad: ${modalityLabel}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}`;
-    const userMessage =
+    const baseMessage =
       gen.mode === "curso_completo"
         ? `Modo seleccionado: CURSO COMPLETO.\n\n${commonContext}\nCantidad de clases: ${gen.n_classes}\n\nGenera la introducción del curso y luego el material por cada una de las ${gen.n_classes} sesiones, respetando duración y modalidad.`
         : `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\nGenera el material completo de UNA sola sesión sobre el tema, respetando la duración y la modalidad indicada.`;
+    const teacherInstructions =
+      typeof gen.instructions === "string" && gen.instructions.trim().length > 0
+        ? `\n\n### INSTRUCCIONES ADICIONALES DEL DOCENTE (PRIORIDAD ALTA)\n${gen.instructions.trim()}`
+        : "";
+    const userMessage = baseMessage + teacherInstructions;
 
     const aiRes = await aiChat([
       { role: "system", content: systemPrompt },
