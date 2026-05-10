@@ -2269,17 +2269,37 @@ function ExamMonitor() {
           <DialogFooter className="flex-col sm:flex-row sm:items-center gap-2 border-t pt-3">
             {viewingSub && (
               <>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground sm:mr-auto">
-                  <span>
-                    IA:{" "}
-                    <span className="font-medium text-foreground">
+                {/* Resumen compacto de notas del intento. La distinción
+                    "IA" vs "Final" no era clara — ahora cada uno tiene
+                    su HelpHint, label largo y color para diferenciarlo:
+                      - IA (azul):    nota propuesta por el modelo en
+                                      automatic grading. Es el baseline.
+                      - Final (verde):override del docente — si está
+                                      poblado pisa la de IA en gradebook,
+                                      reportes y nota efectiva del curso.
+                    Cuando no hay override, Final refleja la IA. */}
+                <div className="flex flex-wrap items-center gap-3 text-xs sm:mr-auto">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300">
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                    <span className="font-medium">Nota IA</span>
+                    <HelpHint side="top">
+                      Nota propuesta automáticamente por la IA al calificar el intento. Es el
+                      baseline del modelo — sirve como referencia pero NO se usa para el
+                      gradebook si el docente puso una nota Final manual.
+                    </HelpHint>
+                    <span className="font-semibold tabular-nums">
                       {viewingSub.ai_grade ?? "—"}
                     </span>
                   </span>
-                  <span>·</span>
-                  <span>
-                    Final:{" "}
-                    <span className="font-medium text-foreground">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">
+                    <Check className="h-3 w-3" aria-hidden />
+                    <span className="font-medium">Nota Final</span>
+                    <HelpHint side="top">
+                      Nota efectiva del intento — la que aparece en gradebook, reportes y nota
+                      del curso. Si pones un valor manual abajo (override) toma ese; si no, hereda
+                      la nota de IA. Cambiarla aquí pisa la calificación automática.
+                    </HelpHint>
+                    <span className="font-semibold tabular-nums">
                       {viewingSub.final_override_grade ?? viewingSub.ai_grade ?? "—"}
                     </span>
                   </span>
