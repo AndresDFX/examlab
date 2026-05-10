@@ -444,36 +444,32 @@ function TeacherContents() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {(it.files ?? []).slice(0, 3).map((f) => (
-                          <Button
-                            key={f.path}
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-[11px]"
-                            onClick={() => download(it, f)}
-                            disabled={downloadingId === `${it.id}:${f.path}`}
+                      {/* Antes mostrábamos hasta 3 botones de descarga
+                          inline + "+X archivos más" — saturaba la fila
+                          en cursos completos (15-25 archivos). Ahora un
+                          único botón ojo abre el modal "Ver archivos
+                          por clase" donde el docente ve todo agrupado.
+                          El conteo va en el badge para que se sepa
+                          cuántos archivos hay sin necesidad de abrir. */}
+                      {(it.files?.length ?? 0) === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => setFilesViewerFor(it)}
+                          title={t("contents.viewFilesByClass")}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          <Badge
+                            variant="secondary"
+                            className="h-5 px-1.5 text-[10px] tabular-nums"
                           >
-                            {downloadingId === `${it.id}:${f.path}` ? (
-                              <Spinner size="xs" className="mr-1" />
-                            ) : f.kind === "pptx-source" ? (
-                              <Presentation className="h-3 w-3 mr-1" />
-                            ) : (
-                              <FileText className="h-3 w-3 mr-1" />
-                            )}
-                            {f.kind === "pptx-source"
-                              ? t("contents.filesPpt")
-                              : f.kind === "md"
-                                ? t("contents.filesMd")
-                                : t("contents.filesTxt")}
-                          </Button>
-                        ))}
-                        {(it.files?.length ?? 0) > 3 && (
-                          <span className="text-[11px] text-muted-foreground self-center">
-                            {t("contents.fileTooManyHint", { count: it.files.length - 3 })}
-                          </span>
-                        )}
-                      </div>
+                            {it.files.length}
+                          </Badge>
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       <DateCell value={it.created_at} variant="datetime" />
