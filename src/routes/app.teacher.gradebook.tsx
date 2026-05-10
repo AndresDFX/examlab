@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import i18next from "i18next";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -144,6 +146,8 @@ type GradeColumn = {
 type EditMap = Record<string, string>;
 
 function Gradebook() {
+  const { t } = useTranslation();
+
   const { roles } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
@@ -763,7 +767,9 @@ function Gradebook() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+                    {t("gradebook.studentColumn")}
+                  </TableHead>
                   {cuts.map((c) => {
                     const itemCount = (columnsByCut.get(c.id) ?? []).length;
                     return (
@@ -794,7 +800,9 @@ function Gradebook() {
                       </TableHead>
                     );
                   })}
-                  <TableHead className="text-center min-w-24 bg-muted/40">Final</TableHead>
+                  <TableHead className="text-center min-w-24 bg-muted/40">
+                    {t("gradebook.finalColumn")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1077,7 +1085,9 @@ function renderCutDetailGrouped({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+                  {i18next.t("gradebook.studentColumn")}
+                </TableHead>
                 {showWorkshops && (
                   <TableHead className="text-center min-w-28">
                     <div className="inline-flex items-center gap-1">
@@ -1110,7 +1120,9 @@ function renderCutDetailGrouped({
                     </div>
                   </TableHead>
                 )}
-                <TableHead className="text-right w-[1%]">Detalle</TableHead>
+                <TableHead className="text-right w-[1%]">
+                  {i18next.t("gradebook.detailColumn")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1295,7 +1307,7 @@ function renderStudentCutDetail({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Actividad</TableHead>
+                  <TableHead>{i18next.t("gradebook.activityColumn")}</TableHead>
                   <TableHead className="text-right w-32">
                     <span className="inline-flex items-center justify-end gap-1">
                       Nota

@@ -80,11 +80,11 @@ function StudentProjects() {
    *  En modo grupal afecta a la entrega del grupo. */
   const deleteSubmission = async (projectTitle: string, submissionId: string, isGroup: boolean) => {
     const ok = await confirm({
-      title: "Eliminar mi entrega",
+      title: t("project.deleteMySubmissionTitle"),
       description: isGroup
-        ? `Vas a eliminar la entrega del grupo en "${projectTitle}". Esto borra todos los archivos y afecta a todos los miembros del grupo. Podrán volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`
-        : `Vas a eliminar tu entrega en "${projectTitle}". Podrás volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`,
-      confirmLabel: "Eliminar",
+        ? t("project.deleteMySubmissionBodyGroup", { title: projectTitle })
+        : t("project.deleteMySubmissionBodyIndividual", { title: projectTitle }),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;

@@ -34,6 +34,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,7 @@ function ExamEditor() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const { t } = useTranslation();
   const [exam, setExam] = useState<Exam | null>(null);
   const [cuts, setCuts] = useState<
     Array<{
@@ -324,10 +326,9 @@ function ExamEditor() {
     const courseChanged = !!originalCourseId && newCourseId !== originalCourseId;
     if (courseChanged) {
       const ok = await confirm({
-        title: "Cambiar curso del examen",
-        description:
-          "El examen se moverá al nuevo curso: las asignaciones actuales (estudiantes del curso anterior) se borran y se re-asignan automáticamente todos los matriculados del nuevo curso. Las entregas existentes se mantienen, pero solo los alumnos del nuevo curso podrán ver el examen.",
-        confirmLabel: "Cambiar curso",
+        title: t("exam.changeCourseTitle"),
+        description: t("exam.changeCourseBody"),
+        confirmLabel: t("exam.changeCourseConfirm"),
         tone: "warning",
       });
       if (!ok) return;
@@ -460,9 +461,9 @@ function ExamEditor() {
 
   const removeQuestion = async (id: string) => {
     const ok = await confirm({
-      title: "Eliminar pregunta",
-      description: "Esta pregunta se eliminará permanentemente del examen.",
-      confirmLabel: "Eliminar",
+      title: t("exam.deleteQuestionTitle"),
+      description: t("exam.deleteQuestionBody"),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;

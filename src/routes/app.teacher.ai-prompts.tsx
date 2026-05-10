@@ -18,6 +18,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/teacher/ai-prompts")({
   component: TeacherAIPrompts,
@@ -135,6 +136,7 @@ type CourseLite = { id: string; name: string; period: string | null };
 function TeacherAIPrompts() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
+  const { t } = useTranslation();
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
   const [courses, setCourses] = useState<CourseLite[]>([]);
@@ -293,10 +295,9 @@ function TeacherAIPrompts() {
     const existing = overrides[uc.key];
     if (!existing) return;
     const ok = await confirm({
-      title: `Quitar override de "${uc.label}"`,
-      description:
-        "Este curso volverá a usar el prompt global. Podrás crear otro override más adelante si lo necesitas.",
-      confirmLabel: "Quitar override",
+      title: t("prompts.removeOverrideTitle", { label: uc.label }),
+      description: t("prompts.removeOverrideBody"),
+      confirmLabel: t("prompts.removeOverrideConfirm"),
       tone: "warning",
     });
     if (!ok) return;

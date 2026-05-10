@@ -170,9 +170,8 @@ function GradingConfigPage() {
 
   const removeCut = async (cut: Cut) => {
     const ok = await confirm({
-      title: `Eliminar ${cut.name}`,
-      description:
-        "Se eliminarán también todos sus items. Esta acción no se puede deshacer.",
+      title: t("grading.deleteCutTitle", { name: cut.name }),
+      description: t("grading.deleteCutDescription"),
       confirmLabel: t("common.delete"),
       tone: "destructive",
     });
@@ -215,8 +214,8 @@ function GradingConfigPage() {
 
   const removeItem = async (item: CutItem) => {
     const ok = await confirm({
-      title: "Eliminar item del corte",
-      description: "Se eliminará este item del corte. La acción no se puede deshacer.",
+      title: t("grading.deleteItemTitle"),
+      description: t("grading.deleteItemDescription"),
       confirmLabel: t("common.delete"),
       tone: "destructive",
     });

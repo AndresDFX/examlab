@@ -151,7 +151,9 @@ function TeacherProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
   // Per-course cut+weight for the project being created/edited.
   // Record<courseId, { cut_id, weight }>
-  const [courseCuts, setCourseCuts] = useState<Record<string, { cut_id: string | null; weight: number }>>({});
+  const [courseCuts, setCourseCuts] = useState<
+    Record<string, { cut_id: string | null; weight: number }>
+  >({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
@@ -180,7 +182,12 @@ function TeacherProjects() {
     const { error } = await (supabase as any).from("projects").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} proyecto(s) eliminado(s) correctamente`);
-    void logEvent({ action: "project.deleted", category: "project", actorRole: roles[0], metadata: { count: ids.length, ids } });
+    void logEvent({
+      action: "project.deleted",
+      category: "project",
+      actorRole: roles[0],
+      metadata: { count: ids.length, ids },
+    });
     sel.clear();
     load();
   };
@@ -229,7 +236,7 @@ function TeacherProjects() {
       }
       updated = { ...p, group_mode: "teacher_assigned" } as Project;
       setProjects((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
-      toast.success("Trabajo en grupo activado");
+      toast.success(t("project.groupActivated"));
     }
     setGroupsProject(updated);
     setGroupsOpen(true);
@@ -341,11 +348,21 @@ function TeacherProjects() {
       // No mostramos toast aquí: cuts es opcional para listar.
     }
 
-    let pcsRows: { project_id: string; course_id: string; cut_id: string | null; weight: number }[] = [];
+    let pcsRows: {
+      project_id: string;
+      course_id: string;
+      cut_id: string | null;
+      weight: number;
+    }[] = [];
     try {
       const pcs = await db.from("project_courses").select("project_id, course_id, cut_id, weight");
       if (pcs.error) throw new Error(`project_courses: ${pcs.error.message}`);
-      pcsRows = (pcs.data ?? []) as { project_id: string; course_id: string; cut_id: string | null; weight: number }[];
+      pcsRows = (pcs.data ?? []) as {
+        project_id: string;
+        course_id: string;
+        cut_id: string | null;
+        weight: number;
+      }[];
     } catch (e) {
       console.error("[projects] project_courses load failed", e);
       toast.error(e instanceof Error ? e.message : "Error cargando vínculos de cursos");
@@ -367,7 +384,10 @@ function TeacherProjects() {
 
       const linkMap = new Map<string, string[]>();
       // Per-project map: courseId → { cut_id, weight } from project_courses
-      const cutsMapByProject = new Map<string, Record<string, { cut_id: string | null; weight: number }>>();
+      const cutsMapByProject = new Map<
+        string,
+        Record<string, { cut_id: string | null; weight: number }>
+      >();
       for (const row of pcsRows) {
         const arr = linkMap.get(row.project_id) ?? [];
         arr.push(row.course_id);
@@ -532,7 +552,9 @@ function TeacherProjects() {
     // Init per-course cut+weight from stored project_courses data.
     // Falls back to projects.cut_id/weight for the primary course for
     // rows that predate the migration.
-    const stored = (p as any)._course_cuts as Record<string, { cut_id: string | null; weight: number }> | undefined;
+    const stored = (p as any)._course_cuts as
+      | Record<string, { cut_id: string | null; weight: number }>
+      | undefined;
     const cc: Record<string, { cut_id: string | null; weight: number }> = {};
     for (const cid of linked) {
       if (stored?.[cid]) {
@@ -632,8 +654,17 @@ function TeacherProjects() {
       const { error } = await db.from("projects").update(payload).eq("id", editing.id);
       if (error) return toast.error(error.message);
       projectId = editing.id;
-      toast.success("Proyecto actualizado");
-      void logEvent({ action: "project.updated", category: "project", actorRole: roles[0], entityType: "project", entityId: editing.id, entityName: form.title, courseId: form.course_id ?? undefined, courseName: courses.find((c) => c.id === form.course_id)?.name });
+      toast.success(t("project.savedToast"));
+      void logEvent({
+        action: "project.updated",
+        category: "project",
+        actorRole: roles[0],
+        entityType: "project",
+        entityId: editing.id,
+        entityName: form.title,
+        courseId: form.course_id ?? undefined,
+        courseName: courses.find((c) => c.id === form.course_id)?.name,
+      });
     } else {
       const { data: created, error } = await db
         .from("projects")
@@ -642,8 +673,17 @@ function TeacherProjects() {
         .single();
       if (error || !created) return toast.error(error?.message ?? "Error al crear");
       projectId = created.id;
-      toast.success("Proyecto creado");
-      void logEvent({ action: "project.created", category: "project", actorRole: roles[0], entityType: "project", entityId: created.id, entityName: form.title, courseId: form.course_id ?? undefined, courseName: courses.find((c) => c.id === form.course_id)?.name });
+      toast.success(t("project.createdToast"));
+      void logEvent({
+        action: "project.created",
+        category: "project",
+        actorRole: roles[0],
+        entityType: "project",
+        entityId: created.id,
+        entityName: form.title,
+        courseId: form.course_id ?? undefined,
+        courseName: courses.find((c) => c.id === form.course_id)?.name,
+      });
     }
 
     if (projectId) {
@@ -786,17 +826,25 @@ function TeacherProjects() {
 
   const remove = async (p: Project) => {
     const ok = await confirm({
-      title: `Eliminar ${p.title}`,
-      description:
-        "Se eliminará el proyecto y todas sus entregas. Esta acción no se puede deshacer.",
+      title: t("project.deleteTitle", { title: p.title }),
+      description: t("project.deleteBody"),
       confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
     const { error } = await db.from("projects").delete().eq("id", p.id);
     if (error) return toast.error(error.message);
-    toast.success("Proyecto eliminado");
-    void logEvent({ action: "project.deleted", category: "project", actorRole: roles[0], entityType: "project", entityId: p.id, entityName: p.title, courseId: p.course_id, courseName: courses.find((c) => c.id === p.course_id)?.name });
+    toast.success(t("project.deletedToast"));
+    void logEvent({
+      action: "project.deleted",
+      category: "project",
+      actorRole: roles[0],
+      entityType: "project",
+      entityId: p.id,
+      entityName: p.title,
+      courseId: p.course_id,
+      courseName: courses.find((c) => c.id === p.course_id)?.name,
+    });
     await load();
   };
 
@@ -1181,11 +1229,11 @@ function TeacherProjects() {
   };
 
   const deleteSubmission = async (sub: Submission) => {
-    const name = sub.profile?.full_name ?? "estudiante";
+    const name = sub.profile?.full_name ?? t("common.empty");
     const ok = await confirm({
-      title: `Eliminar entrega de ${name}`,
-      description: "Se eliminará la entrega y todos sus archivos de forma permanente.",
-      confirmLabel: "Eliminar entrega",
+      title: t("project.deleteSubmissionTitle", { name }),
+      description: t("project.deleteSubmissionBody"),
+      confirmLabel: t("project.deleteSubmissionConfirm"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -1197,7 +1245,7 @@ function TeacherProjects() {
       delete next[sub.id];
       return next;
     });
-    toast.success("Entrega eliminada");
+    toast.success(t("project.submissionDeleted"));
   };
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
@@ -1285,13 +1333,15 @@ function TeacherProjects() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead className="hidden sm:table-cell">Curso</TableHead>
-                <TableHead className="hidden md:table-cell">Corte</TableHead>
-                <TableHead className="hidden lg:table-cell text-right">Peso</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="hidden md:table-cell">Inicio</TableHead>
-                <TableHead className="hidden sm:table-cell">Fin</TableHead>
+                <TableHead>{t("common.title")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("common.course")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("exam.columns.cut")}</TableHead>
+                <TableHead className="hidden lg:table-cell text-right">
+                  {t("common.weight")}
+                </TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("common.start")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("common.end")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1550,7 +1600,10 @@ function TeacherProjects() {
                             onValueChange={(v) =>
                               setCourseCuts((prev) => ({
                                 ...prev,
-                                [cid]: { ...(prev[cid] ?? { weight: 1 }), cut_id: v === "__none" ? null : v },
+                                [cid]: {
+                                  ...(prev[cid] ?? { weight: 1 }),
+                                  cut_id: v === "__none" ? null : v,
+                                },
                               }))
                             }
                           >
@@ -1567,7 +1620,9 @@ function TeacherProjects() {
                             </SelectContent>
                           </Select>
                           {cutsForCourse.length === 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">Sin cortes definidos</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Sin cortes definidos
+                            </p>
                           )}
                         </div>
                         <div>
@@ -1592,11 +1647,14 @@ function TeacherProjects() {
                             </span>
                           </div>
                           {selectedCut && (
-                            <p className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}>
-                              Disponible:{" "}
-                              <strong>{pjMax.toFixed(1)}%</strong>
-                              {" "}(bucket {pjBucket}% − otros {otherSum.toFixed(1)}%)
-                              {overBucket && <span className="block">Excede el bucket disponible.</span>}
+                            <p
+                              className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
+                            >
+                              Disponible: <strong>{pjMax.toFixed(1)}%</strong> (bucket {pjBucket}% −
+                              otros {otherSum.toFixed(1)}%)
+                              {overBucket && (
+                                <span className="block">Excede el bucket disponible.</span>
+                              )}
                             </p>
                           )}
                           {!cc.cut_id && (

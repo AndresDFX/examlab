@@ -589,14 +589,9 @@ function ExamMonitor() {
   // se setea precisamente cuando supera el umbral de strikes).
   const clearAllWarnings = async (sub: Submission) => {
     const ok = await confirm({
-      title: "Limpiar advertencias",
-      description:
-        "Se eliminarán todas las advertencias de este intento. " +
-        (sub.status === "sospechoso"
-          ? "Como el intento está marcado como sospechoso, se regresará a estado 'completado'. "
-          : "") +
-        "Esta acción no se puede deshacer.",
-      confirmLabel: "Limpiar",
+      title: t("monitor.clearWarningsTitle"),
+      description: t("monitor.clearWarningsBody"),
+      confirmLabel: t("monitor.clearWarningsConfirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -773,24 +768,23 @@ function ExamMonitor() {
 
   const deleteOneAttempt = async (sub: Submission) => {
     const ok = await confirm({
-      title: `Eliminar intento del ${formatDateTime(sub.created_at)}`,
-      description:
-        "Se eliminará este intento de forma permanente. La calificación efectiva del examen se recalculará según el modo de reintento.",
-      confirmLabel: "Eliminar intento",
+      title: t("monitor.deleteAttemptTitle", { date: formatDateTime(sub.created_at) }),
+      description: t("monitor.deleteAttemptBody"),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
     const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
     if (error) return toast.error(error.message);
-    toast.success("Intento eliminado");
+    toast.success(t("monitor.deleteConfirmed"));
     void load();
   };
 
   const deleteAllAttempts = async (row: StudentRow) => {
     const ok = await confirm({
-      title: `Eliminar todos los intentos de ${row.profile?.full_name ?? "este estudiante"}`,
-      description: `Se eliminarán ${row.attempts.length} intento(s) de forma permanente. El estudiante podrá iniciar un nuevo intento.`,
-      confirmLabel: "Eliminar todos",
+      title: t("monitor.deleteAllAttemptsTitle", { name: row.profile?.full_name ?? "" }),
+      description: t("monitor.deleteAllAttemptsBody_other", { count: row.attempts.length }),
+      confirmLabel: t("monitor.deleteAllAttemptsConfirm"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -800,7 +794,7 @@ function ExamMonitor() {
       .eq("exam_id", examId)
       .eq("user_id", row.userId);
     if (error) return toast.error(error.message);
-    toast.success("Intentos eliminados");
+    toast.success(t("monitor.deleteConfirmed"));
     setAttemptsForUser(null);
     void load();
   };
@@ -843,43 +837,28 @@ function ExamMonitor() {
                 <TableHead>{t("roles.Estudiante")}</TableHead>
                 <TableHead className="hidden sm:table-cell">
                   <span className="inline-flex items-center gap-1">
-                    Intentos
-                    <HelpHint>
-                      Intento actual / máximo permitido por examen. Click para gestionar los
-                      intentos del estudiante.
-                    </HelpHint>
+                    {t("monitor.columns.attempts")}
+                    <HelpHint>{t("monitor.columns.attemptsHint")}</HelpHint>
                   </span>
                 </TableHead>
                 <TableHead>{t("common.status")}</TableHead>
                 <TableHead className="hidden md:table-cell">
                   <span className="inline-flex items-center gap-1">
-                    Pregunta
-                    <HelpHint>
-                      Pregunta actual del intento en curso (índice / total). Se actualiza con cada
-                      autosave del estudiante.
-                    </HelpHint>
+                    {t("monitor.columns.question")}
+                    <HelpHint>{t("monitor.columns.questionHint")}</HelpHint>
                   </span>
                 </TableHead>
-                <TableHead>Nota</TableHead>
+                <TableHead>{t("monitor.columns.grade")}</TableHead>
                 <TableHead className="hidden lg:table-cell">
                   <span className="inline-flex items-center gap-1">
-                    Strikes
-                    <HelpHint>
-                      Advertencias acumuladas (cambio de pestaña, copiar/pegar, salir de pantalla
-                      completa, etc.). Al llegar al máximo del examen el intento se marca como
-                      sospechoso.
-                    </HelpHint>
+                    {t("monitor.columns.strikes")}
+                    <HelpHint>{t("monitor.columns.strikesHint")}</HelpHint>
                   </span>
                 </TableHead>
                 <TableHead>
                   <span className="inline-flex items-center gap-1">
-                    Diálogo
-                    <HelpHint>
-                      <strong className="text-amber-600 dark:text-amber-400">Ámbar</strong>:
-                      conversaciones abiertas con el estudiante.{" "}
-                      <strong className="text-destructive">Rojo</strong>: conversaciones esperando
-                      tu respuesta. Click para abrir el panel de comentarios.
-                    </HelpHint>
+                    {t("monitor.columns.dialog")}
+                    <HelpHint>{t("monitor.columns.dialogHint")}</HelpHint>
                   </span>
                 </TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>

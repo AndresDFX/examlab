@@ -30,6 +30,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { DateCell } from "@/components/ui/date-cell";
+import { useTranslation } from "react-i18next";
 import {
   Shield,
   AlertTriangle,
@@ -113,52 +114,44 @@ const ACTION_LABELS: Record<string, string> = {
   "fraud.manual_flag": "Marcado como fraude manualmente",
 };
 
-const CATEGORY_CONFIG: Record<string, { label: string; cls: string }> = {
+// Solo guardamos las clases CSS; el label se resuelve con t("audit.categories.<key>").
+const CATEGORY_CONFIG: Record<string, { cls: string }> = {
   exam: {
-    label: "Examen",
     cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   },
   workshop: {
-    label: "Taller",
     cls: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   },
   project: {
-    label: "Proyecto",
     cls: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
   },
   course: {
-    label: "Curso",
     cls: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
   },
   user: {
-    label: "Usuario",
     cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   },
   grading: {
-    label: "Calificación",
     cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   },
-  fraud: { label: "Fraude", cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  fraud: { cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
   system: {
-    label: "Sistema",
     cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
   },
 };
 
-const SEVERITY_CONFIG: Record<string, { label: string; iconCls: string; rowCls: string }> = {
-  info: { label: "Info", iconCls: "text-muted-foreground", rowCls: "" },
+// Solo guardamos clases CSS; los labels se resuelven con t("audit.severities.<key>").
+const SEVERITY_CONFIG: Record<string, { iconCls: string; rowCls: string }> = {
+  info: { iconCls: "text-muted-foreground", rowCls: "" },
   warning: {
-    label: "Advertencia",
     iconCls: "text-amber-600 dark:text-amber-400",
     rowCls: "bg-amber-50/50 dark:bg-amber-950/20",
   },
   error: {
-    label: "Error",
     iconCls: "text-red-600 dark:text-red-400",
     rowCls: "bg-red-50/50 dark:bg-red-950/20",
   },
   critical: {
-    label: "Crítico",
     iconCls: "text-red-700 dark:text-red-300 font-bold",
     rowCls: "bg-red-100/70 dark:bg-red-900/30",
   },
@@ -183,6 +176,7 @@ const PAGE_SIZE = 100;
 // ─── Componente principal ──────────────────────────────────────────────────────
 
 export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -310,8 +304,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         actor: l.actor_email ?? "",
         rol: l.actor_role ?? "",
         accion: ACTION_LABELS[l.action] ?? l.action,
-        categoria: CATEGORY_CONFIG[l.category]?.label ?? l.category,
-        nivel: SEVERITY_CONFIG[l.severity]?.label ?? l.severity,
+        categoria: CATEGORY_CONFIG[l.category]
+          ? t(`audit.categories.${l.category}`)
+          : l.category,
+        nivel: SEVERITY_CONFIG[l.severity] ? t(`audit.severities.${l.severity}`) : l.severity,
         entidad: l.entity_name ?? "",
         tipo_entidad: l.entity_type ?? "",
         curso: l.course_name ?? "",
@@ -332,17 +328,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   return (
     <div className="p-4 sm:p-6 max-w-screen-xl mx-auto space-y-4">
       <PageHeader
-        title="Registro de auditoría"
-        subtitle={
-          mode === "admin"
-            ? "Historial completo de eventos del sistema"
-            : "Eventos de tus cursos y tus propias acciones"
-        }
+        title={t("audit.title")}
+        subtitle={mode === "admin" ? t("audit.subtitleAdmin") : t("audit.subtitleTeacher")}
         icon={<Shield className="h-6 w-6" />}
         actions={
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!filtered.length}>
             <Download className="h-4 w-4 mr-2" />
-            Exportar CSV
+            {t("audit.exportCsv")}
           </Button>
         }
       />
@@ -355,7 +347,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Buscar actor, entidad, acción…"
+                placeholder={t("audit.filters.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9"
@@ -365,13 +357,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             {/* Categoría */}
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-40 h-9">
-                <SelectValue placeholder="Categoría" />
+                <SelectValue placeholder={t("audit.filters.categoryPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las categorías</SelectItem>
-                {Object.entries(CATEGORY_CONFIG).map(([k, v]) => (
+                <SelectItem value="all">{t("audit.filters.categoryAll")}</SelectItem>
+                {Object.keys(CATEGORY_CONFIG).map((k) => (
                   <SelectItem key={k} value={k}>
-                    {v.label}
+                    {t(`audit.categories.${k}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -380,13 +372,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             {/* Nivel */}
             <Select value={severity} onValueChange={setSeverity}>
               <SelectTrigger className="w-36 h-9">
-                <SelectValue placeholder="Nivel" />
+                <SelectValue placeholder={t("audit.filters.severityPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los niveles</SelectItem>
-                {Object.entries(SEVERITY_CONFIG).map(([k, v]) => (
+                <SelectItem value="all">{t("audit.filters.severityAll")}</SelectItem>
+                {Object.keys(SEVERITY_CONFIG).map((k) => (
                   <SelectItem key={k} value={k}>
-                    {v.label}
+                    {t(`audit.severities.${k}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -396,10 +388,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             {mode === "admin" && (
               <Select value={courseFilter} onValueChange={setCourseFilter}>
                 <SelectTrigger className="w-44 h-9">
-                  <SelectValue placeholder="Curso" />
+                  <SelectValue placeholder={t("audit.filters.coursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los cursos</SelectItem>
+                  <SelectItem value="all">{t("audit.filters.courseAll")}</SelectItem>
                   {courses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -416,7 +408,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="h-9 w-36 text-sm"
-                title="Desde"
+                title={t("audit.filters.from")}
               />
               <span className="text-muted-foreground text-xs">–</span>
               <Input
@@ -424,7 +416,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="h-9 w-36 text-sm"
-                title="Hasta"
+                title={t("audit.filters.to")}
               />
             </div>
 
@@ -436,16 +428,16 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 className="h-9 text-muted-foreground"
               >
                 <X className="h-3.5 w-3.5 mr-1" />
-                Limpiar
+                {t("audit.filters.clear")}
               </Button>
             )}
           </div>
 
           {total !== null && (
             <p className="text-xs text-muted-foreground mt-2">
-              {total.toLocaleString()} evento{total !== 1 ? "s" : ""} en total
+              {t("audit.totalEvents", { count: total })}
               {filtered.length !== logs.length &&
-                ` · ${filtered.length} visibles con búsqueda actual`}
+                ` · ${t("audit.visibleWithSearch", { count: filtered.length })}`}
             </p>
           )}
         </CardContent>
@@ -458,13 +450,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-36">Fecha</TableHead>
-                  <TableHead className="w-48">Actor</TableHead>
-                  <TableHead>Acción</TableHead>
-                  <TableHead className="w-32">Categoría</TableHead>
-                  <TableHead className="w-40">Entidad</TableHead>
-                  {mode === "admin" && <TableHead className="w-40">Curso</TableHead>}
-                  <TableHead className="w-28">Nivel</TableHead>
+                  <TableHead className="w-36">{t("common.date")}</TableHead>
+                  <TableHead className="w-48">{t("common.actor")}</TableHead>
+                  <TableHead>{t("common.action")}</TableHead>
+                  <TableHead className="w-32">{t("common.category")}</TableHead>
+                  <TableHead className="w-40">{t("common.entity")}</TableHead>
+                  {mode === "admin" && <TableHead className="w-40">{t("common.course")}</TableHead>}
+                  <TableHead className="w-28">{t("common.level")}</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -472,7 +464,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 {loading ? (
                   <TableSkeleton cols={mode === "admin" ? 8 : 7} rows={10} />
                 ) : filtered.length === 0 ? (
-                  <TableEmpty colSpan={mode === "admin" ? 8 : 7} text="Sin eventos que mostrar" />
+                  <TableEmpty colSpan={mode === "admin" ? 8 : 7} text={t("audit.noEvents")} />
                 ) : (
                   filtered.map((log) => {
                     const sev = SEVERITY_CONFIG[log.severity] ?? SEVERITY_CONFIG.info;
@@ -496,10 +488,12 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                           <div className="flex flex-col gap-0.5 min-w-0">
                             <span
                               className="text-sm truncate max-w-44"
-                              title={log.actor_email ?? "sistema"}
+                              title={log.actor_email ?? t("audit.system")}
                             >
                               {log.actor_email ?? (
-                                <span className="italic text-muted-foreground">sistema</span>
+                                <span className="italic text-muted-foreground">
+                                  {t("audit.system")}
+                                </span>
                               )}
                             </span>
                             {log.actor_role && (
@@ -522,7 +516,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                         <TableCell>
                           {cat && (
                             <Badge variant="outline" className={`text-[10px] ${cat.cls}`}>
-                              {cat.label}
+                              {t(`audit.categories.${log.category}`)}
                             </Badge>
                           )}
                         </TableCell>
@@ -555,7 +549,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                             className={`inline-flex items-center gap-1 text-xs font-medium ${sev.iconCls}`}
                           >
                             {SEVERITY_ICONS[log.severity]}
-                            {sev.label}
+                            {t(`audit.severities.${log.severity}`, { defaultValue: log.severity })}
                           </span>
                         </TableCell>
 
@@ -581,7 +575,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 disabled={loadingMore}
               >
                 {loadingMore ? <Spinner size="xs" className="mr-2" /> : null}
-                Cargar {PAGE_SIZE} más
+                {t("audit.loadMore", { count: PAGE_SIZE })}
               </Button>
             </div>
           )}
@@ -603,28 +597,28 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               {/* Cabecera del evento */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Fecha</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("common.date")}</p>
                   <DateCell value={detail.created_at} variant="datetime" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Nivel</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("common.level")}</p>
                   <span
                     className={`inline-flex items-center gap-1 font-medium ${SEVERITY_CONFIG[detail.severity]?.iconCls}`}
                   >
                     {SEVERITY_ICONS[detail.severity]}
-                    {SEVERITY_CONFIG[detail.severity]?.label ?? detail.severity}
+                    {t(`audit.severities.${detail.severity}`, { defaultValue: detail.severity })}
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Actor</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("common.actor")}</p>
                   <p>
                     {detail.actor_email ?? (
-                      <span className="italic text-muted-foreground">sistema</span>
+                      <span className="italic text-muted-foreground">{t("audit.system")}</span>
                     )}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Rol</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("common.role")}</p>
                   {detail.actor_role ? (
                     <Badge
                       variant="outline"
@@ -637,31 +631,31 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Categoría</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("common.category")}</p>
                   {CATEGORY_CONFIG[detail.category] ? (
                     <Badge
                       variant="outline"
                       className={`text-[10px] ${CATEGORY_CONFIG[detail.category].cls}`}
                     >
-                      {CATEGORY_CONFIG[detail.category].label}
+                      {t(`audit.categories.${detail.category}`)}
                     </Badge>
                   ) : (
                     detail.category
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Acción (raw)</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("audit.rawAction")}</p>
                   <code className="text-xs bg-muted px-1 py-0.5 rounded">{detail.action}</code>
                 </div>
                 {detail.entity_name && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Entidad</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">{t("common.entity")}</p>
                     <p>{detail.entity_name}</p>
                   </div>
                 )}
                 {detail.entity_id && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">ID entidad</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">{t("audit.entityId")}</p>
                     <code className="text-xs text-muted-foreground break-all">
                       {detail.entity_id}
                     </code>
@@ -669,7 +663,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 )}
                 {detail.course_name && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Curso</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">{t("common.course")}</p>
                     <p>{detail.course_name}</p>
                   </div>
                 )}
@@ -682,7 +676,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                     className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
                     onClick={() => setDetailJsonOpen((o) => !o)}
                   >
-                    <span>Detalles adicionales</span>
+                    <span>{t("audit.moreDetails")}</span>
                     {detailJsonOpen ? (
                       <ChevronDown className="h-3.5 w-3.5" />
                     ) : (

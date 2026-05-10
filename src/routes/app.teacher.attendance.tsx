@@ -36,6 +36,7 @@ import { Plus, CheckCircle2, X, Eraser, QrCode, Loader2, Trash2 } from "lucide-r
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useTranslation } from "react-i18next";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -106,6 +107,7 @@ const STATUS_OPTIONS = [
 function TeacherAttendance() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
+  const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -307,10 +309,9 @@ function TeacherAttendance() {
   // Quitar todo registro de asistencia de la sesión
   const clearSessionAttendance = async (sessionId: string) => {
     const ok = await confirm({
-      title: "Reiniciar asistencia",
-      description:
-        "Se eliminarán los registros de asistencia de todos los estudiantes en esta sesión.",
-      confirmLabel: "Reiniciar",
+      title: t("attendance.resetTitle"),
+      description: t("attendance.resetBody"),
+      confirmLabel: t("common.confirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -541,11 +542,9 @@ function TeacherAttendance() {
     if (!closedSessionId) return;
     // Ofrecer marcar pendientes como ausentes
     const ok = await confirm({
-      title: "¿Marcar pendientes como ausentes?",
-      description:
-        "Los estudiantes matriculados que no se registraron quedarán como ausentes. Puedes ajustar manualmente después.",
-      confirmLabel: "Marcar ausentes",
-      cancelLabel: "Dejar pendientes",
+      title: t("attendance.markAbsentsTitle"),
+      description: t("attendance.markAbsentsBody"),
+      confirmLabel: t("attendance.markAbsentsConfirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -574,12 +573,12 @@ function TeacherAttendance() {
       ? `${sess.session_date}${sess.title ? ` · ${sess.title}` : ""}`
       : "esta sesión";
     const ok = await confirm({
-      title: "Eliminar sesión",
-      description:
-        `Se eliminará la sesión "${dateLabel}" y sus ${recordsForSession} registro(s) de asistencia. ` +
-        (sess?.check_in_open ? "El check-in activo se cerrará. " : "") +
-        "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("attendance.deleteSessionTitle"),
+      description: t("attendance.deleteSessionBody", {
+        session: dateLabel,
+        count: recordsForSession,
+      }),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -588,7 +587,7 @@ function TeacherAttendance() {
       toast.error(error.message);
       return;
     }
-    toast.success("Sesión eliminada correctamente");
+    toast.success(t("attendance.sessionDeleted"));
     loadCourse();
   };
 

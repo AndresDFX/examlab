@@ -58,6 +58,7 @@ import {
 import { AssignSelector } from "@/components/AssignSelector";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { useTranslation } from "react-i18next";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,6 +113,7 @@ function formatPercent(n: number): string {
 type Profile = { id: string; full_name: string; institutional_email: string };
 
 export function AdminCourses() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -125,7 +127,13 @@ export function AdminCourses() {
     const { error } = await supabase.from("courses").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} curso(s) eliminado(s) correctamente`);
-    void logEvent({ action: "course.deleted", category: "course", actorRole: roles[0], severity: "warning", metadata: { count: ids.length, ids } });
+    void logEvent({
+      action: "course.deleted",
+      category: "course",
+      actorRole: roles[0],
+      severity: "warning",
+      metadata: { count: ids.length, ids },
+    });
     sel.clear();
     load();
   };
@@ -288,12 +296,12 @@ export function AdminCourses() {
       itemsCount = count ?? 0;
     }
     const ok = await confirm({
-      title: `Reducir cortes a ${target}`,
+      title: t("course.reduceCutsTitle", { target }),
       description:
         itemsCount > 0
-          ? `Se eliminarán ${toRemove.length} corte(s) y ${itemsCount} item(s) asociado(s). Esta acción se aplica al guardar y no se puede deshacer.`
-          : `Se eliminarán ${toRemove.length} corte(s). Esta acción se aplica al guardar.`,
-      confirmLabel: "Reducir",
+          ? t("course.reduceCutsBodyItems", { cuts: toRemove.length, items: itemsCount })
+          : t("course.reduceCutsBody", { cuts: toRemove.length }),
+      confirmLabel: t("course.reduceCutsConfirm"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -463,7 +471,14 @@ export function AdminCourses() {
     }
 
     toast.success("Curso guardado correctamente");
-    void logEvent({ action: editing?.id ? "course.updated" : "course.created", category: "course", actorRole: roles[0], entityType: "course", entityId: editing?.id, entityName: editing?.name });
+    void logEvent({
+      action: editing?.id ? "course.updated" : "course.created",
+      category: "course",
+      actorRole: roles[0],
+      entityType: "course",
+      entityId: editing?.id,
+      entityName: editing?.name,
+    });
     setOpen(false);
     setEditing(null);
     setEditingCuts([]);
@@ -473,18 +488,25 @@ export function AdminCourses() {
 
   const remove = async (id: string) => {
     const ok = await confirm({
-      title: "Eliminar curso",
-      description:
-        "Se eliminarán también las matrículas, exámenes y talleres asociados. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar curso",
+      title: t("course.deleteTitle"),
+      description: t("course.deleteBody"),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
     const course = courses.find((c) => c.id === id);
     const { error } = await supabase.from("courses").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Curso eliminado correctamente");
-    void logEvent({ action: "course.deleted", category: "course", actorRole: roles[0], severity: "warning", entityType: "course", entityId: id, entityName: course?.name });
+    toast.success(t("course.deletedToast"));
+    void logEvent({
+      action: "course.deleted",
+      category: "course",
+      actorRole: roles[0],
+      severity: "warning",
+      entityType: "course",
+      entityId: id,
+      entityName: course?.name,
+    });
     load();
   };
 
@@ -847,13 +869,13 @@ export function AdminCourses() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead className="hidden sm:table-cell">Periodo</TableHead>
-                <TableHead className="hidden sm:table-cell">Escala</TableHead>
-                <TableHead className="hidden md:table-cell">Inicio</TableHead>
-                <TableHead className="hidden md:table-cell">Fin</TableHead>
-                <TableHead className="hidden lg:table-cell">Descripción</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>{t("common.name")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("common.period")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("common.scale")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("common.start")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("common.end")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("common.description")}</TableHead>
+                <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -861,12 +883,12 @@ export function AdminCourses() {
                 <TableEmpty
                   colSpan={8}
                   icon={BookOpen}
-                  text="Aún no hay cursos creados."
-                  hint="Crea el primer curso y asigna estudiantes y docentes."
+                  text={t("course.emptyTitle")}
+                  hint={t("course.emptyHint")}
                   action={
                     <Button size="sm" onClick={openNew}>
                       <Plus className="h-4 w-4 mr-1" />
-                      Crear primer curso
+                      {t("course.createFirst")}
                     </Button>
                   }
                 />
@@ -915,12 +937,24 @@ export function AdminCourses() {
                   <TableCell className="text-right">
                     <RowActionsMenu
                       actions={[
-                        { label: "Estudiantes", icon: Users, onClick: () => openEnroll(c) },
-                        { label: "Docentes", icon: UserCog, onClick: () => openTeachers(c) },
-                        { label: "Duplicar", icon: Copy, onClick: () => openDuplicate(c) },
-                        { label: "Editar", icon: Pencil, onClick: () => openEdit(c) },
                         {
-                          label: "Eliminar",
+                          label: t("course.students"),
+                          icon: Users,
+                          onClick: () => openEnroll(c),
+                        },
+                        {
+                          label: t("course.teachers"),
+                          icon: UserCog,
+                          onClick: () => openTeachers(c),
+                        },
+                        {
+                          label: t("common.duplicate"),
+                          icon: Copy,
+                          onClick: () => openDuplicate(c),
+                        },
+                        { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
+                        {
+                          label: t("common.delete"),
                           icon: Trash2,
                           tone: "destructive",
                           separatorBefore: true,

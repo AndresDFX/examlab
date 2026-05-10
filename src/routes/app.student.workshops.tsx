@@ -87,11 +87,11 @@ function StudentWorkshops() {
     isGroup: boolean,
   ) => {
     const ok = await confirm({
-      title: "Eliminar mi entrega",
+      title: t("workshop.deleteMySubmissionTitle"),
       description: isGroup
-        ? `Vas a eliminar la entrega del grupo en "${workshopTitle}". Esto borra todas las respuestas y afecta a todos los miembros del grupo. Podrán volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`
-        : `Vas a eliminar tu entrega en "${workshopTitle}". Podrás volver a entregar mientras esté abierto el plazo. Esta acción no se puede deshacer.`,
-      confirmLabel: "Eliminar",
+        ? t("workshop.deleteMySubmissionBodyGroup", { title: workshopTitle })
+        : t("workshop.deleteMySubmissionBodyIndividual", { title: workshopTitle }),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;

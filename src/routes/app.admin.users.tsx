@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { Plus, Upload, Download, Trash2, Pencil, Loader2, Users as UsersIcon } from "lucide-react";
 import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useTranslation } from "react-i18next";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -60,6 +61,7 @@ const EMPTY_NEW: Row = {
 };
 
 function AdminUsers() {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,12 @@ function AdminUsers() {
     if (rolesErr) throw new Error(rolesErr.message);
     const { error } = await supabase.from("profiles").delete().in("id", ids);
     if (error) throw new Error(error.message);
-    void logEvent({ action: "user.bulk_deleted", category: "user", severity: "warning", metadata: { count: ids.length, ids } });
+    void logEvent({
+      action: "user.bulk_deleted",
+      category: "user",
+      severity: "warning",
+      metadata: { count: ids.length, ids },
+    });
     toast.success(`${ids.length} usuario(s) eliminado(s) correctamente`);
     sel.clear();
     load();
@@ -221,7 +228,15 @@ function AdminUsers() {
             ? "Usuario actualizado correctamente (contraseña incluida)"
             : "Usuario actualizado correctamente",
         );
-        void logEvent({ action: "user.updated", category: "user", actorRole: roles[0], entityType: "user", entityId: editing.id, entityName: editing.full_name, metadata: { roles: editing.roles } });
+        void logEvent({
+          action: "user.updated",
+          category: "user",
+          actorRole: roles[0],
+          entityType: "user",
+          entityId: editing.id,
+          entityName: editing.full_name,
+          metadata: { roles: editing.roles },
+        });
       } else {
         // Create via bulk-import (single row)
         if (!password || password.length < 8) {
@@ -257,7 +272,14 @@ function AdminUsers() {
           return;
         }
         toast.success("Usuario creado correctamente");
-        void logEvent({ action: "user.created", category: "user", actorRole: roles[0], entityType: "user", entityName: editing.full_name, metadata: { roles: editing.roles, email: editing.institutional_email } });
+        void logEvent({
+          action: "user.created",
+          category: "user",
+          actorRole: roles[0],
+          entityType: "user",
+          entityName: editing.full_name,
+          metadata: { roles: editing.roles, email: editing.institutional_email },
+        });
       }
       setDialogOpen(false);
       setEditing(null);
@@ -269,10 +291,9 @@ function AdminUsers() {
 
   const remove = async (r: Row) => {
     const ok = await confirm({
-      title: `Eliminar a ${r.full_name}`,
-      description:
-        "Se eliminará el perfil y todos sus roles. La cuenta de autenticación no se borra.",
-      confirmLabel: "Eliminar usuario",
+      title: t("users.deleteTitle", { name: r.full_name }),
+      description: t("users.deleteBody"),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -286,8 +307,17 @@ function AdminUsers() {
       toast.error(error.message);
       return;
     }
-    toast.success("Usuario eliminado correctamente");
-    void logEvent({ action: "user.deleted", category: "user", actorRole: roles[0], severity: "warning", entityType: "user", entityId: r.id, entityName: r.full_name, metadata: { email: r.institutional_email } });
+    toast.success(t("users.deletedToast"));
+    void logEvent({
+      action: "user.deleted",
+      category: "user",
+      actorRole: roles[0],
+      severity: "warning",
+      entityType: "user",
+      entityId: r.id,
+      entityName: r.full_name,
+      metadata: { email: r.institutional_email },
+    });
     load();
   };
 
@@ -439,11 +469,15 @@ function AdminUsers() {
                     <TableHead className="w-10">
                       <MultiSelectHeaderCheckbox state={sel} />
                     </TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead className="hidden sm:table-cell">Email institucional</TableHead>
-                    <TableHead className="hidden md:table-cell">Email personal</TableHead>
-                    <TableHead className="hidden xs:table-cell">Roles</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead>{t("users.fullName")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      {t("users.institutionalEmail")}
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      {t("users.personalEmail")}
+                    </TableHead>
+                    <TableHead className="hidden xs:table-cell">{t("common.roles")}</TableHead>
+                    <TableHead className="text-right">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -451,12 +485,12 @@ function AdminUsers() {
                     <TableEmpty
                       colSpan={6}
                       icon={UsersIcon}
-                      text="Aún no hay usuarios registrados."
-                      hint="Crea el primero o importa un CSV con varios a la vez."
+                      text={t("users.emptyTitle")}
+                      hint={t("users.emptyHint")}
                       action={
                         <Button size="sm" onClick={openNew}>
                           <Plus className="h-4 w-4 mr-1" />
-                          Crear primer usuario
+                          {t("users.newUser")}
                         </Button>
                       }
                     />
@@ -502,9 +536,13 @@ function AdminUsers() {
                       <TableCell className="text-right">
                         <RowActionsMenu
                           actions={[
-                            { label: "Editar", icon: Pencil, onClick: () => openEdit(r) },
                             {
-                              label: "Eliminar",
+                              label: t("common.edit"),
+                              icon: Pencil,
+                              onClick: () => openEdit(r),
+                            },
+                            {
+                              label: t("common.delete"),
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
