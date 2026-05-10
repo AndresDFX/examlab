@@ -1564,10 +1564,20 @@ type ScheduledItem = {
 
 function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose: () => void }) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const confirm = useConfirm();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [contents, setContents] = useState<AvailableContent[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(false);
+  // Borrador para creación + edición inline. Cuando `editingId` es
+  // null el form de la card-borrador crea una sesión nueva; cuando es
+  // un id, edita esa fila. La fila editada queda con un anillo
+  // primary para señalizar el modo edición.
+  const [draftDate, setDraftDate] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!course) {
@@ -1671,6 +1681,113 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     );
   };
 
+  /** Crea una sesión nueva. Inserta en attendance_sessions con
+   *  course_id + session_date + title (opcional) + created_by. */
+  const createSession = async () => {
+    if (!course || !user) return;
+    if (!draftDate) {
+      toast.error(t("course.boardDateRequired"));
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error } = await db
+        .from("attendance_sessions")
+        .insert({
+          course_id: course.id,
+          session_date: draftDate,
+          title: draftTitle.trim() || null,
+          created_by: user.id,
+        })
+        .select("id, course_id, session_date, title, content_id, content_class_index")
+        .single();
+      if (error || !data) {
+        toast.error(error?.message ?? "insert failed");
+        return;
+      }
+      // Insertamos manteniendo el orden por session_date asc.
+      setSessions((prev) =>
+        [...prev, data as SessionRow].sort((a, b) =>
+          a.session_date.localeCompare(b.session_date),
+        ),
+      );
+      setDraftDate("");
+      setDraftTitle("");
+      toast.success(t("course.boardSessionCreated"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Activa el modo edición de una sesión. Carga sus valores actuales
+   *  en el borrador para que el docente los modifique. */
+  const startEdit = (s: SessionRow) => {
+    setEditingId(s.id);
+    setDraftDate(s.session_date);
+    setDraftTitle(s.title ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraftDate("");
+    setDraftTitle("");
+  };
+
+  /** Persiste cambios de fecha/título de la sesión en edición. */
+  const saveEdit = async () => {
+    if (!editingId || !draftDate) return;
+    setSaving(true);
+    try {
+      const { error } = await db
+        .from("attendance_sessions")
+        .update({
+          session_date: draftDate,
+          title: draftTitle.trim() || null,
+        })
+        .eq("id", editingId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setSessions((prev) =>
+        prev
+          .map((s) =>
+            s.id === editingId
+              ? { ...s, session_date: draftDate, title: draftTitle.trim() || null }
+              : s,
+          )
+          .sort((a, b) => a.session_date.localeCompare(b.session_date)),
+      );
+      cancelEdit();
+      toast.success(t("course.boardSessionSaved"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Elimina una sesión. Cascade en BD también borra los registros
+   *  de asistencia (FK con ON DELETE CASCADE). El docente acepta
+   *  esto en el confirm dialog. */
+  const removeSession = async (s: SessionRow) => {
+    const ok = await confirm({
+      title: t("course.boardSessionDeleteTitle"),
+      description: t("course.boardSessionDeleteBody", {
+        date: s.session_date,
+        title: s.title || t("contents.assignSessionUntitled"),
+      }),
+      confirmLabel: t("common.delete"),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.from("attendance_sessions").delete().eq("id", s.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSessions((prev) => prev.filter((x) => x.id !== s.id));
+    toast.success(t("course.boardSessionDeleted"));
+  };
+
   if (!course) return null;
 
   return (
@@ -1683,6 +1800,55 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           </DialogTitle>
           <p className="text-xs text-muted-foreground">{t("course.boardSubtitle")}</p>
         </DialogHeader>
+
+        {/* Form de creación rápida — siempre visible arriba del listado.
+            Una sola fecha + título permite al docente programar sesiones
+            sin saltar a /teacher/attendance. La validación dura en
+            createSession exige fecha. */}
+        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            {t("course.boardNewSession")}
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-[11px]">{t("common.date")}</Label>
+              <Input
+                type="date"
+                value={editingId ? "" : draftDate}
+                onChange={(e) => {
+                  if (editingId) setEditingId(null);
+                  setDraftDate(e.target.value);
+                }}
+                className="h-8 text-xs w-44"
+              />
+            </div>
+            <div className="space-y-1 flex-1 min-w-48">
+              <Label className="text-[11px]">{t("common.title")}</Label>
+              <Input
+                value={editingId ? "" : draftTitle}
+                onChange={(e) => {
+                  if (editingId) setEditingId(null);
+                  setDraftTitle(e.target.value);
+                }}
+                placeholder={t("course.boardSessionTitlePlaceholder")}
+                className="h-8 text-xs"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={createSession}
+              disabled={!draftDate || saving || !!editingId}
+              className="h-8"
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5 mr-1" />
+              )}
+              {t("course.boardCreateSession")}
+            </Button>
+          </div>
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
@@ -1699,45 +1865,122 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
               const value = s.content_id
                 ? `${s.content_id}:${s.content_class_index ?? 0}`
                 : "__none";
+              const isEditing = editingId === s.id;
               return (
-                <Card key={s.id}>
+                <Card
+                  key={s.id}
+                  className={isEditing ? "ring-2 ring-primary/60" : undefined}
+                >
                   <CardContent className="p-3 space-y-2">
-                    <div className="flex flex-wrap items-start gap-3">
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="text-[11px] tabular-nums">
-                            {s.session_date}
-                          </Badge>
-                          {s.title && <span className="text-sm font-medium">{s.title}</span>}
+                    {isEditing ? (
+                      // Modo edición inline: reemplaza la fila de display por
+                      // dos inputs (fecha + título) + Save/Cancel. La asignación
+                      // de contenido y los items vinculados se ocultan en este
+                      // modo para que el docente se concentre en metadata.
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">{t("common.date")}</Label>
+                          <Input
+                            type="date"
+                            value={draftDate}
+                            onChange={(e) => setDraftDate(e.target.value)}
+                            className="h-8 text-xs w-44"
+                          />
+                        </div>
+                        <div className="space-y-1 flex-1 min-w-48">
+                          <Label className="text-[11px]">{t("common.title")}</Label>
+                          <Input
+                            value={draftTitle}
+                            onChange={(e) => setDraftTitle(e.target.value)}
+                            placeholder={t("course.boardSessionTitlePlaceholder")}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={saveEdit}
+                          disabled={!draftDate || saving}
+                          className="h-8"
+                        >
+                          {saving ? (
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                          ) : (
+                            <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          {t("common.save")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={cancelEdit}
+                          disabled={saving}
+                          className="h-8"
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-start gap-3">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="text-[11px] tabular-nums">
+                              {s.session_date}
+                            </Badge>
+                            {s.title && <span className="text-sm font-medium">{s.title}</span>}
+                          </div>
+                        </div>
+                        {/* Asignación de contenido inline — reusa el mismo
+                            formato value `<contentId>:<classIndex>` que el
+                            inline column de attendance, así ambos caminos
+                            escriben lo mismo en la BD. */}
+                        <Select value={value} onValueChange={(v) => updateAssignment(s.id, v)}>
+                          <SelectTrigger className="w-56 h-8 text-xs">
+                            <SelectValue placeholder={t("contents.assignNone")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">{t("contents.assignNone")}</SelectItem>
+                            {contents.flatMap((c) =>
+                              c.classes.length > 0
+                                ? c.classes.map((n) => (
+                                    <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
+                                      {c.topic} · {t("contents.classNumber")} {n}
+                                    </SelectItem>
+                                  ))
+                                : [
+                                    <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
+                                      {c.topic}
+                                    </SelectItem>,
+                                  ],
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {/* Acciones de la sesión: editar metadata + eliminar.
+                            Iconos discretos pero accesibles — el menú "tres
+                            puntos" no aplica acá porque la fila ya tiene
+                            varios controles inline (Select de contenido). */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => startEdit(s)}
+                            title={t("common.edit")}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => removeSession(s)}
+                            title={t("common.delete")}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
-                      {/* Asignación de contenido inline — reusa el mismo
-                          formato value `<contentId>:<classIndex>` que el
-                          inline column de attendance, así ambos caminos
-                          escriben lo mismo en la BD. */}
-                      <Select value={value} onValueChange={(v) => updateAssignment(s.id, v)}>
-                        <SelectTrigger className="w-56 h-8 text-xs">
-                          <SelectValue placeholder={t("contents.assignNone")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">{t("contents.assignNone")}</SelectItem>
-                          {contents.flatMap((c) =>
-                            c.classes.length > 0
-                              ? c.classes.map((n) => (
-                                  <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
-                                    {c.topic} · {t("contents.classNumber")} {n}
-                                  </SelectItem>
-                                ))
-                              : [
-                                  <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
-                                    {c.topic}
-                                  </SelectItem>,
-                                ],
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {items.length > 0 && (
+                    )}
+                    {!isEditing && items.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1.5 border-t">
                         {items.map((it) => (
                           <Badge
