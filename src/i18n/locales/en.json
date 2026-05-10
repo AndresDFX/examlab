@@ -170,6 +170,9 @@
     "boardJoinMeeting": "Join",
     "boardImportCsv": "Import CSV",
     "boardImportTooltip": "Import sessions from a CSV with columns: session_date,title,meeting_url. Only session_date is required.",
+    "boardTemplate": "CSV template",
+    "boardTemplateTooltip": "Download a sample CSV with the columns the importer expects (session_date,title,meeting_url) and example rows.",
+    "boardTemplateDoneToast": "Template downloaded — open it, edit the rows, and upload it back with \"Import CSV\".",
     "boardImportEmpty": "The file is empty.",
     "boardImportNoDate": "CSV must have a 'session_date' column.",
     "boardImportNoValid": "No valid rows. {{skipped}} rows skipped due to invalid date or URL.",
@@ -678,7 +681,9 @@
     "derivedWorkshopsHint": "Workshops created with this content as context (via \"Create assessment\").",
     "derivedProjects_one": "{{count}} project",
     "derivedProjects_other": "{{count}} projects",
-    "derivedProjectsHint": "Projects created with this content as context (via \"Create assessment\")."
+    "derivedProjectsHint": "Projects created with this content as context (via \"Create assessment\").",
+    "previewNoBody": "This file has no extracted body to render inline. Download it to view.",
+    "downloadHint": "Download file"
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
@@ -698,7 +703,8 @@
     "calendarUrlCopiedShort": "Copied",
     "calendarUrlHint": "Paste this URL into Google Calendar (Other calendars → Add → From URL) or iOS/Outlook as a subscribed calendar. Sessions refresh automatically every ~12h.",
     "calendarUrlManualCopy": "Copy this URL manually:",
-    "calendarUrlError": "Could not build calendar URL. Try logging out and back in."
+    "calendarUrlError": "Could not build calendar URL. Try logging out and back in.",
+    "attendanceSummary": "Attendance: {{attended}}/{{total}} sessions ({{pct}}%)"
   },
   "integrity": {
     "title": "Fraud analysis",

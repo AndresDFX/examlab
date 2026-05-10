@@ -14,17 +14,45 @@ export interface ContentFile {
 /**
  * Extrae el número de clase del nombre del archivo. La migración
  * 20260509210000 fuerza al modelo a usar el sufijo `_CLASE_<N>` en
- * curso_completo. Esta regex también acepta variantes laxas como
- * `CLASE 3`, `CLASE-3`, `CLASS_3` por si una versión anterior del
- * prompt produjo nombres diferentes — falla limpia (return null) si
- * no detecta nada.
+ * curso_completo. Esta función acepta varias variantes porque, en la
+ * práctica, los modelos a veces ignoran el contrato y devuelven
+ * filenames como `PRESENTACION_3.PPTX` sin el infix `CLASE_`. Sin un
+ * fallback, el modal "Ver archivos por clase" termina mostrando todos
+ * los archivos en "Introducción" (Bug reportado al regenerar un curso
+ * de Python con 8 clases — todos los archivos quedaban sin agrupar).
+ *
+ * Orden de patrones (de más específico a más laxo):
+ *   1) `CLASE_3` / `CLASS_3` / `SESION_3` / `SESSION_3` (contrato oficial)
+ *   2) Trailing `_3.EXT` o `_3` al final  (e.g. PRESENTACION_3.PPTX)
+ *   3) Leading `3_` al inicio              (e.g. 3_PRESENTACION.PPTX)
+ *
+ * Restringimos N a 1..100 para no confundir versiones (`v2.0`), años
+ * (`2024`) o IDs largos con números de clase. Falla limpia (null) si
+ * no detecta nada — el caller cae al grupo "intro" / "materiales".
  */
 export function classNumberFromFilename(name: string): number | null {
-  const m = name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
-  if (!m) return null;
-  const n = Number(m[1]);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
+  // Pattern 1: contrato oficial (CLASE/CLASS/SESION/SESSION + N).
+  const m1 = name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+  if (m1) {
+    const n = Number(m1[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  // Pattern 2: trailing `_N` o `_N.<ext>` — el caso típico cuando el
+  // modelo abrevia y solo deja el número al final.
+  const m2 = name.match(/[_-](\d{1,3})(?:\.[A-Za-z0-9]+)?$/);
+  if (m2) {
+    const n = Number(m2[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  // Pattern 3: leading `N_` — algunos modelos prefieren ordenar por
+  // número al inicio (e.g. 03_PRESENTACION.PPTX). Aceptamos hasta 3
+  // dígitos por si zerorelleno.
+  const m3 = name.match(/^(\d{1,3})[_-]/);
+  if (m3) {
+    const n = Number(m3[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  return null;
 }
 
 /**

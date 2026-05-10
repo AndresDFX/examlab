@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/lib/audit";
+import { toCSV, downloadCSV } from "@/lib/csv";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -51,6 +52,7 @@ import {
   Presentation,
   Link2,
   Upload,
+  Download,
 } from "lucide-react";
 import {
   Select,
@@ -1758,6 +1760,52 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
    * batch entero por una fila mala. Insertamos en una sola pasada con
    * `.insert(rows[])` para reducir round-trips.
    */
+  /**
+   * Descarga un template CSV con filas de ejemplo para el bulk-import
+   * de sesiones. Reusa los helpers `toCSV` + `downloadCSV` de
+   * `@/lib/csv` (mismo patrón que el template de Usuarios). Solo
+   * `session_date` es obligatoria; `title` y `meeting_url` quedan
+   * vacíos en algunas filas para mostrar que son opcionales.
+   *
+   * Las fechas de ejemplo son relativas a hoy (próximos miércoles y
+   * viernes a una semana) — no hardcodeadas — para que el docente
+   * vea fechas válidas sin tener que editar el template antes de
+   * personalizarlo.
+   */
+  const downloadTemplate = () => {
+    const today = new Date();
+    const fmt = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${dd}`;
+    };
+    const next = (offsetDays: number) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + offsetDays);
+      return fmt(d);
+    };
+    const csv = toCSV([
+      {
+        session_date: next(7),
+        title: "Clase 1 — Introducción",
+        meeting_url: "https://meet.google.com/abc-defg-hij",
+      },
+      {
+        session_date: next(9),
+        title: "Clase 2 — Variables y tipos",
+        meeting_url: "",
+      },
+      {
+        session_date: next(14),
+        title: "",
+        meeting_url: "https://teams.microsoft.com/l/meetup-join/...",
+      },
+    ]);
+    downloadCSV("template-sesiones.csv", csv);
+    toast.success(t("course.boardTemplateDoneToast"));
+  };
+
   const importCsv = async (file: File) => {
     if (!course || !user) return;
     setImporting(true);
@@ -1926,32 +1974,48 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
               </DialogTitle>
               <p className="text-xs text-muted-foreground">{t("course.boardSubtitle")}</p>
             </div>
-            {/* Importar CSV: usamos el patrón de un input file oculto +
-                Label como botón. Esto evita necesitar un Dialog adicional
-                y usa el file picker nativo del browser. */}
-            <Label
-              className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md border border-input bg-background hover:bg-muted/40 cursor-pointer shrink-0"
-              title={t("course.boardImportTooltip")}
-            >
-              {importing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              {t("course.boardImportCsv")}
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void importCsv(f);
-                  // Reset para permitir importar el mismo file dos veces.
-                  e.target.value = "";
-                }}
-                disabled={importing}
-              />
-            </Label>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Plantilla CSV: descarga un archivo con encabezados +
+                  3 filas de ejemplo para que el docente sepa qué
+                  formato usar antes de subir el suyo. Mismo patrón que
+                  Admin → Usuarios → "Template CSV". */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadTemplate}
+                title={t("course.boardTemplateTooltip")}
+                className="h-8 text-xs"
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                {t("course.boardTemplate")}
+              </Button>
+              {/* Importar CSV: usamos el patrón de un input file oculto +
+                  Label como botón. Esto evita necesitar un Dialog adicional
+                  y usa el file picker nativo del browser. */}
+              <Label
+                className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md border border-input bg-background hover:bg-muted/40 cursor-pointer"
+                title={t("course.boardImportTooltip")}
+              >
+                {importing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                {t("course.boardImportCsv")}
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void importCsv(f);
+                    // Reset para permitir importar el mismo file dos veces.
+                    e.target.value = "";
+                  }}
+                  disabled={importing}
+                />
+              </Label>
+            </div>
           </div>
         </DialogHeader>
 

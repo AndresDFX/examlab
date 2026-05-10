@@ -170,6 +170,9 @@
     "boardJoinMeeting": "Unirse",
     "boardImportCsv": "Importar CSV",
     "boardImportTooltip": "Importar sesiones desde un CSV con columnas: session_date,title,meeting_url. Solo session_date es obligatoria.",
+    "boardTemplate": "Plantilla CSV",
+    "boardTemplateTooltip": "Descargar un CSV de ejemplo con las columnas que espera el importador (session_date,title,meeting_url) y filas de muestra.",
+    "boardTemplateDoneToast": "Plantilla descargada — ábrela, edita las filas y vuelve a subirla con \"Importar CSV\".",
     "boardImportEmpty": "El archivo está vacío.",
     "boardImportNoDate": "El CSV debe tener una columna 'session_date'.",
     "boardImportNoValid": "Sin filas válidas. {{skipped}} filas se omitieron por fecha o URL inválida.",
@@ -678,7 +681,9 @@
     "derivedWorkshopsHint": "Talleres creados con este contenido como contexto (vía \"Crear evaluación\").",
     "derivedProjects_one": "{{count}} proyecto",
     "derivedProjects_other": "{{count}} proyectos",
-    "derivedProjectsHint": "Proyectos creados con este contenido como contexto (vía \"Crear evaluación\")."
+    "derivedProjectsHint": "Proyectos creados con este contenido como contexto (vía \"Crear evaluación\").",
+    "previewNoBody": "Este archivo no tiene contenido extraído para mostrar inline. Descárgalo para verlo.",
+    "downloadHint": "Descargar archivo"
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",
@@ -698,7 +703,8 @@
     "calendarUrlCopiedShort": "Copiado",
     "calendarUrlHint": "Pega este URL en Google Calendar (Otros calendarios → Añadir → Desde URL) o en iOS/Outlook como calendario suscrito. Las sesiones se refrescan automáticamente cada ~12h.",
     "calendarUrlManualCopy": "Copia este URL manualmente:",
-    "calendarUrlError": "No se pudo generar el URL del calendario. Intenta cerrar sesión y volver a entrar."
+    "calendarUrlError": "No se pudo generar el URL del calendario. Intenta cerrar sesión y volver a entrar.",
+    "attendanceSummary": "Asistencia: {{attended}}/{{total}} sesiones ({{pct}}%)"
   },
   "integrity": {
     "title": "Análisis de fraude",

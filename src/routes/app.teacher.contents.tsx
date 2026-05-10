@@ -53,6 +53,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { MarkdownViewer } from "@/components/MarkdownViewer";
 import {
   availableClassNumbers,
   classNumberFromFilename,
@@ -2401,6 +2402,9 @@ function FilesByClassDialog({
   const [sessionsByClass, setSessionsByClass] = useState<
     Record<number, { date: string; title: string | null }>
   >({});
+  // Archivo .md seleccionado para previsualizar inline (sin descargar).
+  // El body viene del JSONB almacenado en generated_contents.files.
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   useEffect(() => {
     if (!content || !content.course_id) {
@@ -2510,6 +2514,37 @@ function FilesByClassDialog({
             {sectionFiles.map((f) => {
               const path = `${content.id}:${f.path}`;
               const busy = downloadingPath === path;
+              const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+              if (canPreview) {
+                return (
+                  <div
+                    key={f.path}
+                    className="inline-flex rounded-md border overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFile(f)}
+                      className="flex items-center gap-1 px-2.5 h-8 text-xs hover:bg-muted/60 transition-colors"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      {humanLabelForFile(f)}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onDownload(f)}
+                      className="flex items-center px-2 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+                      title={t("contents.downloadHint")}
+                    >
+                      {busy ? (
+                        <Spinner size="xs" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <Button
                   key={f.path}
@@ -2538,6 +2573,7 @@ function FilesByClassDialog({
   };
 
   return (
+    <>
     <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -2584,5 +2620,34 @@ function FilesByClassDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Preview dialog para archivos .md/.txt — muestra el body inline
+        con react-markdown, sin necesidad de descargar. */}
+    <Dialog open={previewFile != null} onOpenChange={(o) => !o && setPreviewFile(null)}>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+            <FileText className="h-4 w-4 text-primary" />
+            {previewFile ? humanLabelForFile(previewFile) : ""}
+          </DialogTitle>
+          <DialogDescription className="text-[11px] font-mono truncate">
+            {previewFile?.name}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto text-sm pr-1">
+          {previewFile?.body ? (
+            <MarkdownViewer>{previewFile.body}</MarkdownViewer>
+          ) : (
+            <p className="text-muted-foreground text-xs">{t("contents.previewNoBody")}</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={() => setPreviewFile(null)}>
+            {t("common.close")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

@@ -141,10 +141,27 @@ interface RequestBody {
  *  helper del cliente — duplicada acá porque Deno edge functions no
  *  comparten src/lib con el bundle del browser. */
 function classFromName(name: string): number | null {
-  const m = name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  // Mantenemos el mismo orden de patrones que el cliente (ver
+  // src/lib/contents-extract.ts → classNumberFromFilename). Sin esto,
+  // un regen parcial del modelo que devuelva `PRESENTACION_3.PPTX`
+  // (sin el infix `CLASE_`) NO matchearía el filtro de borrado de
+  // archivos previos y dejaríamos huérfanos al hacer el merge.
+  const m1 = name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+  if (m1) {
+    const n = Number(m1[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  const m2 = name.match(/[_-](\d{1,3})(?:\.[A-Za-z0-9]+)?$/);
+  if (m2) {
+    const n = Number(m2[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  const m3 = name.match(/^(\d{1,3})[_-]/);
+  if (m3) {
+    const n = Number(m3[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  return null;
 }
 
 interface FileEntry {

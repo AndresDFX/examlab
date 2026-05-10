@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,7 +27,21 @@ import {
 import { formatDateOnly, formatWeekday } from "@/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { extractContentText, type ContentFile } from "@/lib/contents-extract";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Eye } from "lucide-react";
+import { MarkdownViewer } from "@/components/MarkdownViewer";
+import {
+  classNumberFromFilename,
+  extractContentText,
+  type ContentFile,
+} from "@/lib/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
@@ -204,6 +218,8 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
+  // Archivo .md/.txt seleccionado para preview inline (sin descargar).
+  const [previewFile, setPreviewFile] = useState<ContentFileEntry | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -283,8 +299,9 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
     const c = s.content_id ? contents[s.content_id] : null;
     if (!c) return [];
     if (s.content_class_index == null) return c.files;
-    const re = new RegExp(`(?:CLASE|CLASS|SESION|SESSION)[_\\s-]*${s.content_class_index}\\b`, "i");
-    const filtered = c.files.filter((f) => re.test(f.name));
+    const filtered = c.files.filter(
+      (f) => classNumberFromFilename(f.name) === s.content_class_index,
+    );
     return filtered.length > 0 ? filtered : c.files;
   };
 
@@ -338,6 +355,25 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
     [sessions],
   );
 
+  const attendanceStats = useMemo(() => {
+    const total = pastSessions.length;
+    if (total === 0) return null;
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let justified = 0;
+    for (const s of pastSessions) {
+      const st = attendance.get(s.id);
+      if (st === "present") present++;
+      else if (st === "absent") absent++;
+      else if (st === "late") late++;
+      else if (st === "justified") justified++;
+    }
+    const attended = present + late + justified;
+    const pct = Math.round((attended / total) * 100);
+    return { total, present, absent, late, justified, attended, pct };
+  }, [pastSessions, attendance]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-10">
@@ -373,6 +409,35 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                   {course.end_date ? formatDateOnly(course.end_date) : "—"}
                 </Badge>
               </div>
+              {attendanceStats && (
+                <div className="flex flex-wrap items-center gap-3 pt-2 text-[11px]">
+                  <span className="text-muted-foreground">
+                    {t("courseBoard.attendanceSummary", {
+                      attended: attendanceStats.attended,
+                      total: attendanceStats.total,
+                      pct: attendanceStats.pct,
+                    })}
+                  </span>
+                  {attendanceStats.present > 0 && (
+                    <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {attendanceStats.present}
+                    </span>
+                  )}
+                  {attendanceStats.late > 0 && (
+                    <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                      <Clock3 className="h-3 w-3" />
+                      {attendanceStats.late}
+                    </span>
+                  )}
+                  {attendanceStats.absent > 0 && (
+                    <span className="flex items-center gap-1 text-destructive">
+                      <XCircle className="h-3 w-3" />
+                      {attendanceStats.absent}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {/* Botón "Suscribir mi calendario" — copia al portapapeles
                 el URL del feed ICS de la edge function `calendar-ics`.
@@ -398,6 +463,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               itemsForSession={itemsForSession}
               contents={contents}
               onDownload={downloadFile}
+              onPreview={setPreviewFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -410,11 +476,50 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               itemsForSession={itemsForSession}
               contents={contents}
               onDownload={downloadFile}
+              onPreview={setPreviewFile}
               downloadingPath={downloadingPath}
             />
           )}
         </>
       )}
+
+      {/* Preview inline de archivos .md/.txt — usa el body que viaja en
+          generated_contents.files (JSONB), evita un round-trip a Storage. */}
+      <Dialog open={previewFile != null} onOpenChange={(o) => !o && setPreviewFile(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <FileText className="h-4 w-4 text-primary" />
+              {previewFile ? humanLabelForFile(previewFile) : ""}
+            </DialogTitle>
+            <DialogDescription className="text-[11px] font-mono truncate">
+              {previewFile?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto text-sm pr-1">
+            {previewFile?.body ? (
+              <MarkdownViewer>{previewFile.body}</MarkdownViewer>
+            ) : (
+              <p className="text-muted-foreground text-xs">{t("contents.previewNoBody")}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (previewFile) void downloadFile(previewFile, previewFile.name);
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" />
+              {t("contents.downloadHint")}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setPreviewFile(null)}>
+              {t("common.close")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -438,6 +543,7 @@ function SessionGroup({
   itemsForSession,
   contents,
   onDownload,
+  onPreview,
   downloadingPath,
 }: {
   title: string;
@@ -447,6 +553,7 @@ function SessionGroup({
   itemsForSession: (s: SessionRow) => ScheduledItem[];
   contents: Record<string, ContentRow>;
   onDownload: (file: ContentFileEntry, topic: string) => Promise<void>;
+  onPreview: (file: ContentFileEntry) => void;
   downloadingPath: string | null;
 }) {
   const { t } = useTranslation();
@@ -506,47 +613,93 @@ function SessionGroup({
 
                 {files.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2 border-t">
-                    {files.map((f) => (
-                      <Button
-                        key={f.path}
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        disabled={downloadingPath === f.path}
-                        onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                      >
-                        {downloadingPath === f.path ? (
-                          <Spinner size="xs" className="mr-1" />
-                        ) : f.kind === "pptx-source" ? (
-                          <Presentation className="h-3.5 w-3.5 mr-1" />
-                        ) : (
-                          <FileText className="h-3.5 w-3.5 mr-1" />
-                        )}
-                        {humanLabelForFile(f)}
-                        <Download className="h-3 w-3 ml-1.5 opacity-60" />
-                      </Button>
-                    ))}
+                    {files.map((f) => {
+                      const busy = downloadingPath === f.path;
+                      const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+                      if (canPreview) {
+                        return (
+                          <div
+                            key={f.path}
+                            className="inline-flex rounded-md border overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => onPreview(f)}
+                              className="flex items-center gap-1 px-2.5 h-8 text-xs hover:bg-muted/60 transition-colors"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              {humanLabelForFile(f)}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                              className="flex items-center px-2 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+                              title={t("contents.downloadHint")}
+                            >
+                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <Button
+                          key={f.path}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          disabled={busy}
+                          onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                        >
+                          {busy ? (
+                            <Spinner size="xs" className="mr-1" />
+                          ) : f.kind === "pptx-source" ? (
+                            <Presentation className="h-3.5 w-3.5 mr-1" />
+                          ) : (
+                            <FileText className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          {humanLabelForFile(f)}
+                          <Download className="h-3 w-3 ml-1.5 opacity-60" />
+                        </Button>
+                      );
+                    })}
                   </div>
                 )}
 
                 {items.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2 border-t">
-                    {items.map((it) => (
-                      <Badge
-                        key={`${it.kind}-${it.id}`}
-                        variant="outline"
-                        className="text-[11px] flex items-center gap-1"
-                      >
-                        {it.kind === "exam" ? (
+                    {items.map((it) => {
+                      const isPastDue = new Date(it.due).getTime() < Date.now();
+                      const icon =
+                        it.kind === "exam" ? (
                           <FileText className="h-3 w-3" />
                         ) : it.kind === "workshop" ? (
                           <Hammer className="h-3 w-3" />
                         ) : (
                           <FolderKanban className="h-3 w-3" />
-                        )}
-                        {it.title}
-                      </Badge>
-                    ))}
+                        );
+                      const href =
+                        it.kind === "workshop"
+                          ? `/app/student/workshop/${it.id}`
+                          : it.kind === "project"
+                            ? `/app/student/project/${it.id}`
+                            : `/app/student/exams`;
+                      return (
+                        <Link key={`${it.kind}-${it.id}`} to={href}>
+                          <Badge
+                            variant="outline"
+                            className={`text-[11px] flex items-center gap-1 cursor-pointer hover:bg-muted/60 transition-colors ${
+                              isPastDue
+                                ? "border-amber-400/60 bg-amber-50/40 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+                                : ""
+                            }`}
+                          >
+                            {icon}
+                            {it.title}
+                          </Badge>
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -610,7 +763,8 @@ function humanLabelForFile(f: ContentFileEntry): string {
   if (f.kind === "md") {
     const u = f.name.toUpperCase();
     if (u.includes("GUIA")) return "Guía docente";
-    if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller";
+    if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
+    if (u.includes("INTRO")) return "Introducción";
     return "Material";
   }
   return f.name;
