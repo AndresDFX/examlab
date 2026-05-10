@@ -3,29 +3,52 @@
 -- IA produce: una clase de 90 minutos teórico/práctica genera más slides
 -- + una guía con taller paso-a-paso, mientras que una de 30 minutos
 -- teórica produce material más compacto y sin sección práctica.
+--
+-- Guard: si `generated_contents` no existe (la 190000 no se publicó
+-- todavía), salimos sin error con un NOTICE.
 
-ALTER TABLE public.generated_contents
-  ADD COLUMN IF NOT EXISTS duration_minutes INT,
-  ADD COLUMN IF NOT EXISTS modality TEXT;
+-- Todo lo que toca `generated_contents` va dentro del DO block — si la
+-- tabla no existe (190000 no se publicó), el block emite NOTICE y RETURN
+-- sin error. La UPDATE final sobre `ai_prompts` (que sí existe siempre)
+-- queda fuera.
 
--- duration_minutes: rango razonable (10 min a un día académico de 480).
--- Lo dejamos NULLABLE para que las filas previas no se rompan; las
--- nuevas siempre lo poblan desde el form.
-ALTER TABLE public.generated_contents
-  DROP CONSTRAINT IF EXISTS generated_contents_duration_check;
-ALTER TABLE public.generated_contents
-  ADD CONSTRAINT generated_contents_duration_check CHECK (
-    duration_minutes IS NULL OR (duration_minutes >= 10 AND duration_minutes <= 480)
-  );
+DO $guard$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'generated_contents'
+  ) THEN
+    RAISE NOTICE
+      'Skipping 20260509200000: public.generated_contents no existe. ' ||
+      'Aplica primero 20260509190000_contents_module.sql.';
+    RETURN;
+  END IF;
 
--- modality: enum en string (no enum tipo Postgres porque preferimos no
--- reciclar nombres entre módulos). Valores fijos en CHECK.
-ALTER TABLE public.generated_contents
-  DROP CONSTRAINT IF EXISTS generated_contents_modality_check;
-ALTER TABLE public.generated_contents
-  ADD CONSTRAINT generated_contents_modality_check CHECK (
-    modality IS NULL OR modality IN ('teorica', 'practica', 'teorico_practica')
-  );
+  EXECUTE 'ALTER TABLE public.generated_contents
+             ADD COLUMN IF NOT EXISTS duration_minutes INT,
+             ADD COLUMN IF NOT EXISTS modality TEXT';
+
+  -- duration_minutes: rango razonable (10 min a 480). Nullable para
+  -- conservar filas previas; las nuevas siempre vienen pobladas.
+  EXECUTE 'ALTER TABLE public.generated_contents
+             DROP CONSTRAINT IF EXISTS generated_contents_duration_check';
+  EXECUTE 'ALTER TABLE public.generated_contents
+             ADD CONSTRAINT generated_contents_duration_check CHECK (
+               duration_minutes IS NULL OR (duration_minutes >= 10 AND duration_minutes <= 480)
+             )';
+
+  -- modality: enum en string (no tipo Postgres para no reciclar nombres
+  -- entre módulos). Valores fijos en CHECK.
+  EXECUTE 'ALTER TABLE public.generated_contents
+             DROP CONSTRAINT IF EXISTS generated_contents_modality_check';
+  EXECUTE $sql$
+    ALTER TABLE public.generated_contents
+      ADD CONSTRAINT generated_contents_modality_check CHECK (
+        modality IS NULL OR modality IN ('teorica', 'practica', 'teorico_practica')
+      )
+  $sql$;
+END
+$guard$;
 
 -- Actualizar el prompt seed para que incluya las nuevas variables —
 -- solo si todavía está en su versión inicial (sin tocar overrides
