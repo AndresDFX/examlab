@@ -31,6 +31,8 @@ import {
   BarChart3,
   ScrollText,
   ShieldEllipsis,
+  Presentation,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -130,14 +132,39 @@ const NAV: NavItem[] = [
     icon: BarChart3,
     roles: ["Admin"],
   },
+  // Contenidos: generación de material académico (.pptx + .md) con IA.
+  // Solo Docente; Admin configura marca + prompt en su propia página.
+  {
+    to: "/app/teacher/contents",
+    labelKey: "nav.contents",
+    icon: Presentation,
+    roles: ["Docente"],
+  },
   // Prompts (config de IA): override por curso para Docente, globales
   // para Admin. Misma posición visual para no descolocar al usuario
   // cuando cambia de rol.
   { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
   { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
+  // Marca y prompt de Contenidos — solo Admin.
+  {
+    to: "/app/admin/contenidos-config",
+    labelKey: "nav.contentsConfig",
+    icon: Palette,
+    roles: ["Admin"],
+  },
   // Auditoría: Admin ve todo, Docente ve su alcance.
-  { to: "/app/teacher/audit-logs", labelKey: "nav.auditLogs", icon: ShieldEllipsis, roles: ["Docente"] },
-  { to: "/app/admin/audit-logs",   labelKey: "nav.auditLogs", icon: ShieldEllipsis, roles: ["Admin"] },
+  {
+    to: "/app/teacher/audit-logs",
+    labelKey: "nav.auditLogs",
+    icon: ShieldEllipsis,
+    roles: ["Docente"],
+  },
+  {
+    to: "/app/admin/audit-logs",
+    labelKey: "nav.auditLogs",
+    icon: ShieldEllipsis,
+    roles: ["Admin"],
+  },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
 ];
@@ -181,6 +208,8 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/admin/users": "text-indigo-300",
   "/app/admin/ai-prompts": "text-violet-300",
   "/app/teacher/ai-prompts": "text-violet-300",
+  "/app/teacher/contents": "text-pink-300",
+  "/app/admin/contenidos-config": "text-pink-300",
   "/app/admin/courses": "text-fuchsia-300",
   "/app/teacher/courses": "text-fuchsia-300",
   "/app/teacher/exams": "text-amber-300",
