@@ -45,7 +45,9 @@ import {
   Check,
   Bot,
   Users,
+  ChevronRight,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -1506,20 +1508,24 @@ function ExamMonitor() {
           </DialogHeader>
 
           {viewingSub && (
-            // Cuando NO hay comparación, ScrollArea va directo bajo el
-            // DialogContent (flex column) — esto le permite respetar
-            // `max-h-[65vh]` y mostrar barra de scroll. Si envuelves en
-            // un <div> sin altura, la ScrollArea no recibe constraint
-            // y el contenido se desborda fuera del modal sin scrollbar
-            // visible (regresión que vimos al activar la comparación).
-            // Cuando hay comparación, sí usamos un flex row para
-            // ponerla lado a lado con el panel del compañero.
-            <div
-              className={comparisonForCopy ? "flex gap-3 max-h-[65vh] overflow-hidden" : "contents"}
-            >
+            // Layout único: flex row con altura fija (h-[65vh]) +
+            // overflow-hidden — esto ata la ScrollArea a una altura
+            // concreta para que muestre scrollbar interno cuando el
+            // contenido (advertencias + por-pregunta) excede la
+            // ventana. Cuando no hay comparación, ScrollArea ocupa el
+            // ancho completo (basis-full); cuando sí, toma media y el
+            // peer panel ocupa la otra mitad.
+            //
+            // Antes usábamos `display: contents` para "desaparecer" el
+            // wrapper sin comparación, pero eso dejaba a ScrollArea
+            // sin un padre con altura concreta y radix no pintaba la
+            // barra. Mismo layout en ambos casos resuelve el problema.
+            <div className="flex gap-3 h-[65vh] overflow-hidden">
               <ScrollArea
                 className={
-                  comparisonForCopy ? "h-[65vh] pr-4 flex-1 min-w-0 basis-1/2" : "max-h-[65vh] pr-4"
+                  comparisonForCopy
+                    ? "h-[65vh] pr-4 flex-1 min-w-0 basis-1/2"
+                    : "h-[65vh] pr-4 flex-1 min-w-0"
                 }
               >
                 <div className="space-y-4">
@@ -1806,7 +1812,12 @@ function ExamMonitor() {
 
                             {/* Posibles copias detectadas en ESTA pregunta. Se filtra
                               por question_id; no incluye los pares "overall" (sin
-                              question_id), que se muestran en el resumen del modal. */}
+                              question_id), que se muestran en el resumen del modal.
+                              Va dentro de un Collapsible porque puede haber varios
+                              peers (3-4 en grupos copy-prone) y ocupaba demasiado
+                              espacio expandido por defecto. Mostramos el count +
+                              similitud máxima en el trigger para que el docente
+                              decida si valía la pena abrir. */}
                             {(() => {
                               const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
                               const qPairs = userPairs.filter((p) => p.questionId === q.id);
@@ -1814,121 +1825,156 @@ function ExamMonitor() {
                               const userNamesLocal = Object.fromEntries(
                                 studentRows.map((r) => [r.userId, r.profile?.full_name ?? "—"]),
                               );
+                              const maxScore = qPairs.reduce((m, p) => Math.max(m, p.score), 0);
+                              const pendingCount = qPairs.filter((p) => !p.reviewedAt).length;
                               return (
-                                <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
-                                  <div className="text-[11px] font-medium flex items-center gap-1 text-amber-700 dark:text-amber-300">
-                                    <Users className="h-3 w-3" />
-                                    {t("integrity.copySection")}
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    {qPairs
-                                      .slice()
-                                      .sort((a, b) => b.score - a.score)
-                                      .map((p) => (
-                                        <div
-                                          key={p.id}
-                                          className="rounded border bg-background p-1.5 text-xs space-y-1"
+                                <Collapsible
+                                  // Default expanded SOLO si hay pendientes — los
+                                  // ya-revisados arrancan colapsados para reducir
+                                  // ruido visual en intentos sin alertas activas.
+                                  defaultOpen={pendingCount > 0}
+                                >
+                                  <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                    <CollapsibleTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                      >
+                                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                                        <Users className="h-3 w-3" />
+                                        <span>{t("integrity.copySection")}</span>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[10px] ml-auto"
+                                          title={t("integrity.copyScore")}
                                         >
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium">
-                                              {userNamesLocal[p.peerId] ?? p.peerId.slice(0, 8)}
-                                            </span>
-                                            <Badge
-                                              variant={
-                                                p.score >= 0.85
-                                                  ? "destructive"
-                                                  : p.score >= 0.7
-                                                    ? "default"
-                                                    : "secondary"
-                                              }
-                                              className="text-[10px]"
-                                            >
-                                              {Math.round(p.score * 100)}%
-                                            </Badge>
-                                            {/* "Ver entrega de [peer]" — abre un panel lateral
+                                          {qPairs.length} · {Math.round(maxScore * 100)}%
+                                        </Badge>
+                                        {pendingCount > 0 && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
+                                          >
+                                            {pendingCount}{" "}
+                                            {t("integrity.summaryPending_other", {
+                                              count: pendingCount,
+                                            })
+                                              .replace(`${pendingCount} `, "")
+                                              .toLowerCase()}
+                                          </Badge>
+                                        )}
+                                      </button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="space-y-1.5">
+                                      {qPairs
+                                        .slice()
+                                        .sort((a, b) => b.score - a.score)
+                                        .map((p) => (
+                                          <div
+                                            key={p.id}
+                                            className="rounded border bg-background p-1.5 text-xs space-y-1"
+                                          >
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="font-medium">
+                                                {userNamesLocal[p.peerId] ?? p.peerId.slice(0, 8)}
+                                              </span>
+                                              <Badge
+                                                variant={
+                                                  p.score >= 0.85
+                                                    ? "destructive"
+                                                    : p.score >= 0.7
+                                                      ? "default"
+                                                      : "secondary"
+                                                }
+                                                className="text-[10px]"
+                                              >
+                                                {Math.round(p.score * 100)}%
+                                              </Badge>
+                                              {/* "Ver entrega de [peer]" — abre un panel lateral
                                               en el mismo modal con la respuesta del compañero
                                               a esta pregunta. Solo aparece si tenemos su
                                               submission cargada (presente en studentRows). */}
-                                            {(() => {
-                                              const peerRow = studentRows.find(
-                                                (r) => r.userId === p.peerId,
-                                              );
-                                              if (!peerRow) return null;
-                                              const isActive =
-                                                comparisonForCopy?.peerUserId === p.peerId &&
-                                                comparisonForCopy?.questionId === q.id;
-                                              return (
-                                                <Button
-                                                  size="sm"
-                                                  variant={isActive ? "secondary" : "outline"}
-                                                  className="h-6 text-[10px]"
-                                                  onClick={() =>
-                                                    setComparisonForCopy(
-                                                      isActive
-                                                        ? null
-                                                        : {
-                                                            peerUserId: p.peerId,
-                                                            peerSubmissionId: peerRow.latest.id,
-                                                            questionId: q.id,
-                                                            pairId: p.id,
-                                                          },
-                                                    )
-                                                  }
-                                                  title={t("integrity.openPeer", {
-                                                    name:
-                                                      userNamesLocal[p.peerId] ??
-                                                      p.peerId.slice(0, 8),
-                                                  })}
-                                                >
-                                                  <Eye className="h-3 w-3 mr-1" />
-                                                  {isActive
-                                                    ? t("integrity.closeCompare")
-                                                    : t("integrity.openPeer", {
-                                                        name:
-                                                          userNamesLocal[p.peerId] ??
-                                                          p.peerId.slice(0, 8),
-                                                      })}
-                                                </Button>
-                                              );
-                                            })()}
-                                            <div className="ml-auto">
-                                              {p.reviewedAt ? (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                                                >
-                                                  <Check className="h-3 w-3 mr-1" />
-                                                  {t("integrity.reviewed")}
-                                                  <button
-                                                    type="button"
-                                                    className="ml-1 underline text-muted-foreground"
+                                              {(() => {
+                                                const peerRow = studentRows.find(
+                                                  (r) => r.userId === p.peerId,
+                                                );
+                                                if (!peerRow) return null;
+                                                const isActive =
+                                                  comparisonForCopy?.peerUserId === p.peerId &&
+                                                  comparisonForCopy?.questionId === q.id;
+                                                return (
+                                                  <Button
+                                                    size="sm"
+                                                    variant={isActive ? "secondary" : "outline"}
+                                                    className="h-6 text-[10px]"
                                                     onClick={() =>
-                                                      toggleCopyReviewedHandler(p.id, true)
+                                                      setComparisonForCopy(
+                                                        isActive
+                                                          ? null
+                                                          : {
+                                                              peerUserId: p.peerId,
+                                                              peerSubmissionId: peerRow.latest.id,
+                                                              questionId: q.id,
+                                                              pairId: p.id,
+                                                            },
+                                                      )
+                                                    }
+                                                    title={t("integrity.openPeer", {
+                                                      name:
+                                                        userNamesLocal[p.peerId] ??
+                                                        p.peerId.slice(0, 8),
+                                                    })}
+                                                  >
+                                                    <Eye className="h-3 w-3 mr-1" />
+                                                    {isActive
+                                                      ? t("integrity.closeCompare")
+                                                      : t("integrity.openPeer", {
+                                                          name:
+                                                            userNamesLocal[p.peerId] ??
+                                                            p.peerId.slice(0, 8),
+                                                        })}
+                                                  </Button>
+                                                );
+                                              })()}
+                                              <div className="ml-auto">
+                                                {p.reviewedAt ? (
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                  >
+                                                    <Check className="h-3 w-3 mr-1" />
+                                                    {t("integrity.reviewed")}
+                                                    <button
+                                                      type="button"
+                                                      className="ml-1 underline text-muted-foreground"
+                                                      onClick={() =>
+                                                        toggleCopyReviewedHandler(p.id, true)
+                                                      }
+                                                    >
+                                                      {t("integrity.reopen")}
+                                                    </button>
+                                                  </Badge>
+                                                ) : (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-6 text-[10px]"
+                                                    onClick={() =>
+                                                      toggleCopyReviewedHandler(p.id, false)
                                                     }
                                                   >
-                                                    {t("integrity.reopen")}
-                                                  </button>
-                                                </Badge>
-                                              ) : (
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  className="h-6 text-[10px]"
-                                                  onClick={() =>
-                                                    toggleCopyReviewedHandler(p.id, false)
-                                                  }
-                                                >
-                                                  <Check className="h-3 w-3 mr-1" />
-                                                  {t("integrity.markReviewed")}
-                                                </Button>
-                                              )}
+                                                    <Check className="h-3 w-3 mr-1" />
+                                                    {t("integrity.markReviewed")}
+                                                  </Button>
+                                                )}
+                                              </div>
                                             </div>
+                                            <CollapsibleReasons text={p.reasons} />
                                           </div>
-                                          <CollapsibleReasons text={p.reasons} />
-                                        </div>
-                                      ))}
+                                        ))}
+                                    </CollapsibleContent>
                                   </div>
-                                </div>
+                                </Collapsible>
                               );
                             })()}
 
@@ -2186,139 +2232,6 @@ function ExamMonitor() {
                 })()}
             </div>
           )}
-
-          {viewingSub &&
-            (() => {
-              // Sugerencia por integridad: cruza ai_detected_score con
-              // el max similarity_pairs.score del estudiante en este
-              // examen y propone una nota penalizada. El docente la
-              // aplica con un click; igual puede editar el input.
-              const aiScore = viewingSub.ai_detected_score;
-              const myPairs = similarityPairs.filter(
-                (p) => p.user_a === viewingSub.user_id || p.user_b === viewingSub.user_id,
-              );
-              const plagiarismMax = myPairs.length
-                ? Math.max(...myPairs.map((p) => p.score))
-                : null;
-              const peerNames = Array.from(
-                new Set(
-                  myPairs.map((p) => (p.user_a === viewingSub.user_id ? p.user_b : p.user_a)),
-                ),
-              )
-                .map((uid) => {
-                  const sub = submissions.find((s) => s.user_id === uid);
-                  return sub?.profile?.full_name ?? uid.slice(0, 8);
-                })
-                .slice(0, 3);
-              const currentGrade = viewingSub.final_override_grade ?? viewingSub.ai_grade ?? null;
-              const suggestion = computeIntegritySuggestion(currentGrade, aiScore, plagiarismMax);
-              const hasSignal = suggestion != null;
-              if (!hasSignal) return null;
-              return (
-                <div className="border-t pt-3 px-1">
-                  <Accordion
-                    type="single"
-                    collapsible
-                    className="rounded-md border border-amber-400/50 bg-amber-400/5 dark:border-amber-300/40 dark:bg-amber-400/10"
-                  >
-                    <AccordionItem value="integrity" className="border-b-0">
-                      <AccordionTrigger className="px-3 py-2 hover:no-underline">
-                        {/* Header siempre visible: ícono + título + badges
-                            con los signals + sugerencia. Permite al docente
-                            saber de un vistazo qué hay sin expandir, y deja
-                            el área de respuestas del estudiante intacta. */}
-                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300 flex-1">
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                          <span>Señales de integridad académica</span>
-                          {aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD && (
-                            <Badge variant="destructive" className="text-[10px]">
-                              IA {Math.round(aiScore * 100)}%
-                            </Badge>
-                          )}
-                          {plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD && (
-                            <Badge variant="destructive" className="text-[10px]">
-                              Copia {Math.round(plagiarismMax * 100)}%
-                            </Badge>
-                          )}
-                          <span className="text-[11px] text-muted-foreground tabular-nums ml-auto mr-2">
-                            {currentGrade != null ? currentGrade.toFixed(2) : "—"} →{" "}
-                            <span className="font-semibold text-amber-700 dark:text-amber-300">
-                              {suggestion!.suggested.toFixed(2)}
-                            </span>
-                          </span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-3 pb-3 pt-0 space-y-2">
-                        <ul className="text-xs text-muted-foreground space-y-1 ml-1">
-                          {aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD && (
-                            <li>
-                              <strong className="text-foreground">
-                                IA: {Math.round(aiScore * 100)}%
-                              </strong>{" "}
-                              de probabilidad de respuesta generada por IA.
-                              {viewingSub.ai_detected_reasons && (
-                                <span className="block text-[11px] mt-0.5 opacity-80 whitespace-pre-wrap">
-                                  {viewingSub.ai_detected_reasons}
-                                </span>
-                              )}
-                            </li>
-                          )}
-                          {plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD && (
-                            <li>
-                              <strong className="text-foreground">
-                                Copia: {Math.round(plagiarismMax * 100)}%
-                              </strong>{" "}
-                              de similitud máxima con{" "}
-                              {peerNames.length > 0 ? peerNames.join(", ") : "otra(s) entrega(s)"} (
-                              {myPairs.length} pregunta{myPairs.length === 1 ? "" : "s"}).
-                            </li>
-                          )}
-                        </ul>
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-400/30">
-                          <div className="text-xs">
-                            Nota actual:{" "}
-                            <span className="font-medium tabular-nums">
-                              {currentGrade != null ? currentGrade.toFixed(2) : "—"}
-                            </span>{" "}
-                            <span className="mx-1 text-muted-foreground">→</span> Sugerida:{" "}
-                            <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-300">
-                              {suggestion!.suggested.toFixed(2)}
-                            </span>
-                            <HelpHint>
-                              Sugerencia = nota actual × {(1 - suggestion!.severity).toFixed(2)}{" "}
-                              (severidad {Math.round(suggestion!.severity * 100)}%).
-                              {suggestion!.source === "ai" && " Penaliza por IA."}
-                              {suggestion!.source === "plagio" && " Penaliza por copia."}
-                              {suggestion!.source === "ambas" &&
-                                " Penaliza por la señal más fuerte (IA o copia)."}{" "}
-                              Carga la nota en el input — puedes ajustarla antes de guardar.
-                            </HelpHint>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => setOverrideValue(suggestion!.suggested)}
-                            >
-                              Cargar sugerencia
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => setOverrideValue(0)}
-                            >
-                              Anular (0)
-                            </Button>
-                          </div>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              );
-            })()}
 
           <DialogFooter className="flex-col sm:flex-row sm:items-center gap-2 border-t pt-3">
             {viewingSub && (
