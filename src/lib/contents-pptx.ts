@@ -100,7 +100,6 @@ export async function buildPptxBlob(
   documentTitle: string,
 ): Promise<Blob> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // @ts-expect-error — pptxgenjs ships without bundled type defs.
   const PptxGen = ((await import(/* @vite-ignore */ "pptxgenjs")) as any).default;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pres: any = new PptxGen();
