@@ -100,6 +100,10 @@ export const Route = createFileRoute("/app/teacher/workshops")({
     id: typeof s.id === "string" ? s.id : undefined,
     submission: typeof s.submission === "string" ? s.submission : undefined,
     question: typeof s.question === "string" ? s.question : undefined,
+    // `edit=<id>` viene de Contenidos al crear un taller desde un
+    // contenido generado: abre el dialog de edición en lugar del de
+    // calificación.
+    edit: typeof s.edit === "string" ? s.edit : undefined,
   }),
 });
 
@@ -388,6 +392,35 @@ function TeacherWorkshops() {
     const wsParam = params.get("workshop") ?? params.get("id");
     const subParam = params.get("submission");
     const qParam = params.get("question");
+    // `?edit=<ID>` viene de Contenidos cuando el docente acaba de
+    // crear un taller desde el contenido generado. Abre directamente
+    // el dialog de edición en lugar del de calificación, para que
+    // continúe ajustando título, fechas, peso, rúbrica y luego active
+    // el botón "Generar preguntas con IA" del editor — sin tener que
+    // buscar el taller recién creado en el grid.
+    const editParam = params.get("edit");
+    if (editParam) {
+      const ws = workshops.find((w) => w.id === editParam);
+      if (ws) {
+        setForm({
+          ...ws,
+          due_date: ws.due_date ? toLocalDatetime(ws.due_date) : "",
+          start_date: ws.start_date ? toLocalDatetime(ws.start_date) : "",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
+        setOriginalCourseId(ws.course_id ?? null);
+        setOpen(true);
+      } else {
+        toast.info(
+          "El taller referenciado en la URL ya no existe o no tienes acceso a él.",
+        );
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("edit");
+      window.history.replaceState({}, "", url.toString());
+      setAutoOpenedFromUrl(true);
+      return;
+    }
     if (wsParam) {
       const ws = workshops.find((w) => w.id === wsParam);
       if (ws) {

@@ -48,6 +48,7 @@ import {
   Eye,
   BookOpenCheck,
   CalendarRange,
+  CalendarPlus,
   AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -161,6 +162,12 @@ function TeacherContents() {
   // CLASE_N → sesión específica. Requiere que el contenido esté
   // asociado a un curso y que el curso tenga sesiones programadas.
   const [assignFor, setAssignFor] = useState<GeneratedContent | null>(null);
+  // "Programar sesiones del curso": genera N sesiones de attendance
+  // a partir de fecha-inicio + días-de-la-semana, y les asigna cada
+  // clase del contenido. Resuelve el caso del docente que no tiene
+  // las sesiones del curso creadas todavía y no quería crearlas a
+  // mano una por una en el módulo de Asistencia.
+  const [generateFor, setGenerateFor] = useState<GeneratedContent | null>(null);
 
   // Form
   const [topic, setTopic] = useState("");
@@ -528,6 +535,19 @@ function TeacherContents() {
                                 onClick: () => setAssessmentFor(it),
                               }
                             : null,
+                          // "Programar sesiones del curso": cuando el
+                          // contenido tiene course_id, ofrecemos generar
+                          // N sesiones de asistencia (con fecha calculada
+                          // desde inicio + días de semana) y asignarles
+                          // cada clase. Si el curso ya tenía sesiones,
+                          // el dialog ofrece reusar o crear nuevas.
+                          it.status === "done" && it.course_id
+                            ? {
+                                label: t("contents.generateSessions"),
+                                icon: CalendarPlus,
+                                onClick: () => setGenerateFor(it),
+                              }
+                            : null,
                           it.status === "done" && it.course_id
                             ? {
                                 label: t("contents.assignToSessions"),
@@ -804,6 +824,15 @@ function TeacherContents() {
 
       <AssignToSessionsDialog content={assignFor} onClose={() => setAssignFor(null)} />
 
+      <GenerateSessionsDialog
+        content={generateFor}
+        onClose={() => setGenerateFor(null)}
+        onCreated={() => {
+          setGenerateFor(null);
+          void load();
+        }}
+      />
+
       <FilesByClassDialog
         content={filesViewerFor}
         brand={brand}
@@ -821,13 +850,15 @@ function TeacherContents() {
         onClose={() => setAssessmentFor(null)}
         onCreated={(target, id) => {
           setAssessmentFor(null);
-          // Navega al editor de la nueva evaluación. Para Workshop y
-          // Project no existe ruta dedicada por id (los editores son
-          // dialogs dentro de la lista), así que llevamos al docente
-          // a la lista — el row creado aparece arriba por created_at.
+          // Navega al editor de la nueva evaluación. Para Exam hay
+          // ruta dedicada por id; para Workshop y Project, el editor
+          // vive como dialog dentro de la lista — pasamos `?edit=<id>`
+          // y la ruta lo abre automáticamente, igual al pattern que
+          // ya usaba `?workshop=<id>`/`?project=<id>` para grading.
           if (target === "exam") void navigate({ to: `/app/teacher/exams/${id}` });
-          else if (target === "workshop") void navigate({ to: "/app/teacher/workshops" });
-          else void navigate({ to: "/app/teacher/projects" });
+          else if (target === "workshop")
+            void navigate({ to: "/app/teacher/workshops", search: { edit: id } });
+          else void navigate({ to: "/app/teacher/projects", search: { edit: id } });
           toast.success(t("contents.assessmentCreatedToast"));
         }}
       />
@@ -1394,6 +1425,361 @@ function humanLabelForFile(f: FileEntry): string {
     return "Material";
   }
   return f.name;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// GenerateSessionsDialog
+// Genera N sesiones de attendance_sessions a partir del contenido
+// (curso_completo o material_individual). El docente elige fecha de
+// inicio + días de la semana; el dialog calcula las N fechas, muestra
+// la vista previa con los títulos extraídos por clase, y al guardar:
+//   - Si NO hay sesiones existentes en el curso: crea las N nuevas.
+//   - Si SÍ hay: pregunta "Reusar las N primeras existentes" o "Crear
+//     N nuevas igual" (con botones radio inline).
+// La asignación de clase a sesión es 1:1 por orden cronológico:
+// Clase 1 → primera sesión, Clase 2 → segunda, etc.
+// ──────────────────────────────────────────────────────────────────────
+
+/** Día de la semana en es-CO. Index = JS Date.getDay() (0=Dom..6=Sáb).
+ *  Reordenamos visualmente para arrancar en Lun (índice 1) que es lo
+ *  que esperaría un docente latinoamericano. */
+const WEEKDAYS_ES: { idx: number; short: string; long: string }[] = [
+  { idx: 1, short: "Lun", long: "Lunes" },
+  { idx: 2, short: "Mar", long: "Martes" },
+  { idx: 3, short: "Mié", long: "Miércoles" },
+  { idx: 4, short: "Jue", long: "Jueves" },
+  { idx: 5, short: "Vie", long: "Viernes" },
+  { idx: 6, short: "Sáb", long: "Sábado" },
+  { idx: 0, short: "Dom", long: "Domingo" },
+];
+
+/** Calcula N fechas a partir de `start` avanzando día a día y aceptando
+ *  solo aquellos cuyo getDay() esté en `days`. El cap MAX_ITER previene
+ *  loops infinitos cuando `days` es vacío (ya validado upstream). */
+function computeSessionDates(start: Date, days: Set<number>, n: number): Date[] {
+  if (n <= 0 || days.size === 0) return [];
+  const dates: Date[] = [];
+  const cur = new Date(start);
+  const MAX_ITER = 365 * 5;
+  for (let i = 0; i < MAX_ITER && dates.length < n; i++) {
+    if (days.has(cur.getDay())) {
+      dates.push(new Date(cur));
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+/** Convierte Date a ISO date-only (YYYY-MM-DD) usando el calendario
+ *  local del navegador. Esto evita el bug de toISOString() que aplica
+ *  UTC y puede correr la fecha un día en zonas horarias negativas. */
+function toLocalIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+interface ExistingSessionRow {
+  id: string;
+  session_date: string;
+  title: string | null;
+  content_id: string | null;
+}
+
+function GenerateSessionsDialog({
+  content,
+  onClose,
+  onCreated,
+}: {
+  content: GeneratedContent | null;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const [startDate, setStartDate] = useState<string>("");
+  // Default: Lun + Mié (un patrón común de cursos universitarios). El
+  // docente puede destildar y elegir otros.
+  const [days, setDays] = useState<Set<number>>(new Set([1, 3]));
+  // Cuando hay sesiones existentes en el curso, el docente elige entre
+  // reusar las primeras N o crear N nuevas.
+  const [conflictMode, setConflictMode] = useState<"reuse" | "create">("reuse");
+  const [existingSessions, setExistingSessions] = useState<ExistingSessionRow[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const classNumbers = useMemo(
+    () => (content ? availableClassNumbers((content.files as ContentFile[]) ?? []) : []),
+    [content],
+  );
+  // N = número de clases detectadas (para curso_completo) o 1 (para
+  // material_individual). El docente no edita N — viene del contenido.
+  const isCursoCompleto = content?.mode === "curso_completo";
+  const sessionCount = isCursoCompleto ? classNumbers.length : 1;
+
+  // Carga sesiones existentes del curso al abrir, para mostrar el
+  // conflict-prompt.
+  useEffect(() => {
+    if (!content?.course_id) {
+      setExistingSessions([]);
+      return;
+    }
+    setStartDate(toLocalIsoDate(new Date()));
+    void (async () => {
+      const { data } = await db
+        .from("attendance_sessions")
+        .select("id, session_date, title, content_id")
+        .eq("course_id", content.course_id)
+        .order("session_date", { ascending: true });
+      setExistingSessions((data ?? []) as ExistingSessionRow[]);
+    })();
+  }, [content]);
+
+  if (!content) return null;
+
+  const previewDates = startDate
+    ? computeSessionDates(
+        // Parseamos como local para evitar el TZ-offset de `new Date("YYYY-MM-DD")`.
+        (() => {
+          const [y, m, dd] = startDate.split("-").map(Number);
+          return new Date(y, (m ?? 1) - 1, dd ?? 1);
+        })(),
+        days,
+        sessionCount,
+      )
+    : [];
+
+  const toggleDay = (idx: number) => {
+    setDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    if (!user || !content.course_id) return;
+    if (!startDate) {
+      toast.error(t("contents.generateSessionsErrStart"));
+      return;
+    }
+    if (days.size === 0) {
+      toast.error(t("contents.generateSessionsErrDays"));
+      return;
+    }
+    if (previewDates.length < sessionCount) {
+      toast.error(t("contents.generateSessionsErrCount"));
+      return;
+    }
+    setSaving(true);
+    try {
+      const files = (content.files as ContentFile[]) ?? [];
+
+      // RAMA "REUSAR": no crea sesiones, asigna content+class_index a
+      // las primeras `sessionCount` existentes (orden cronológico).
+      // No tocamos session_date — el docente tendría que sincronizar
+      // a mano si quiere las fechas calculadas.
+      if (conflictMode === "reuse" && existingSessions.length > 0) {
+        const target = existingSessions.slice(0, sessionCount);
+        for (let i = 0; i < target.length; i++) {
+          const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
+          const { error } = await db
+            .from("attendance_sessions")
+            .update({
+              content_id: content.id,
+              content_class_index: cls ?? 0,
+            })
+            .eq("id", target[i].id);
+          if (error) throw new Error(error.message);
+        }
+        toast.success(t("contents.generateSessionsReusedToast", { count: target.length }));
+        onCreated();
+        return;
+      }
+
+      // RAMA "CREAR": insert N sesiones nuevas con las fechas
+      // calculadas + título sugerido. Title cae al topic del contenido
+      // si no se detecta heading por clase.
+      const rows = previewDates.map((d, i) => {
+        const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
+        const extracted = cls != null ? extractClassTitle(files, cls) : null;
+        const title = extracted ?? (cls != null ? `Clase ${cls}` : content.topic);
+        return {
+          course_id: content.course_id,
+          session_date: toLocalIsoDate(d),
+          title,
+          content_id: content.id,
+          content_class_index: cls ?? 0,
+          created_by: user.id,
+        };
+      });
+      const { error } = await db.from("attendance_sessions").insert(rows);
+      if (error) throw new Error(error.message);
+      toast.success(t("contents.generateSessionsCreatedToast", { count: rows.length }));
+      onCreated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarPlus className="h-5 w-5 text-primary" />
+            {t("contents.generateSessionsTitle")}
+          </DialogTitle>
+          <DialogDescription>
+            {t("contents.generateSessionsSubtitle", { count: sessionCount })}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label required>
+                {t("contents.generateSessionsStart")}
+                <HelpHint>{t("contents.generateSessionsStartHint")}</HelpHint>
+              </Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label required>
+                {t("contents.generateSessionsDays")}
+                <HelpHint>{t("contents.generateSessionsDaysHint")}</HelpHint>
+              </Label>
+              <div className="flex flex-wrap gap-1">
+                {WEEKDAYS_ES.map((d) => {
+                  const checked = days.has(d.idx);
+                  return (
+                    <button
+                      key={d.idx}
+                      type="button"
+                      onClick={() => toggleDay(d.idx)}
+                      className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                        checked
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:bg-muted/40"
+                      }`}
+                      title={d.long}
+                    >
+                      {d.short}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Vista previa: lista de fechas calculadas con título extraído. */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">
+              {t("contents.generateSessionsPreview")}
+            </Label>
+            {previewDates.length === 0 ? (
+              <div className="rounded-md border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+                {t("contents.generateSessionsPreviewEmpty")}
+              </div>
+            ) : (
+              <div className="rounded-md border max-h-[200px] overflow-y-auto divide-y">
+                {previewDates.map((d, i) => {
+                  const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
+                  const extracted =
+                    cls != null
+                      ? extractClassTitle((content.files as ContentFile[]) ?? [], cls)
+                      : null;
+                  const dayShort = WEEKDAYS_ES.find((x) => x.idx === d.getDay())?.short ?? "";
+                  return (
+                    <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
+                      <span className="tabular-nums text-foreground/80 w-32 shrink-0">
+                        {toLocalIsoDate(d)} ({dayShort})
+                      </span>
+                      <span className="font-medium">
+                        {cls != null ? `Clase ${cls}` : content.topic}
+                      </span>
+                      {extracted && (
+                        <span className="text-muted-foreground truncate">— {extracted}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Conflict prompt: si el curso ya tiene sesiones, ofrecemos
+              reusar las primeras N o crear nuevas. Default "reuse" para
+              evitar duplicar. */}
+          {existingSessions.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-3 space-y-2">
+              <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                {t("contents.generateSessionsConflictTitle", {
+                  count: existingSessions.length,
+                })}
+              </div>
+              <div className="space-y-1.5">
+                <label className="flex items-start gap-2 text-[11px] cursor-pointer">
+                  <input
+                    type="radio"
+                    name="conflict-mode"
+                    checked={conflictMode === "reuse"}
+                    onChange={() => setConflictMode("reuse")}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">{t("contents.generateSessionsReuseLabel")}</span>
+                    <span className="block text-muted-foreground">
+                      {t("contents.generateSessionsReuseHint", { count: sessionCount })}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-[11px] cursor-pointer">
+                  <input
+                    type="radio"
+                    name="conflict-mode"
+                    checked={conflictMode === "create"}
+                    onChange={() => setConflictMode("create")}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">{t("contents.generateSessionsCreateLabel")}</span>
+                    <span className="block text-muted-foreground">
+                      {t("contents.generateSessionsCreateHint")}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            onClick={submit}
+            disabled={saving || !startDate || days.size === 0 || previewDates.length < sessionCount}
+          >
+            {saving ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <CalendarPlus className="h-4 w-4 mr-1" />
+            )}
+            {saving
+              ? t("contents.generateSessionsSaving")
+              : conflictMode === "reuse" && existingSessions.length > 0
+                ? t("contents.generateSessionsReuseSubmit")
+                : t("contents.generateSessionsCreateSubmit")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function FilesByClassDialog({

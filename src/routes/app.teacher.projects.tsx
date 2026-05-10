@@ -104,6 +104,9 @@ export const Route = createFileRoute("/app/teacher/projects")({
     project: typeof s.project === "string" ? s.project : undefined,
     submission: typeof s.submission === "string" ? s.submission : undefined,
     file: typeof s.file === "string" ? s.file : undefined,
+    // `edit=<id>` lo manda Contenidos al crear un proyecto desde un
+    // contenido generado: abre el dialog de edición directamente.
+    edit: typeof s.edit === "string" ? s.edit : undefined,
   }),
 });
 
@@ -461,6 +464,27 @@ function TeacherProjects() {
     const projectParam = params.get("project") ?? params.get("id");
     const subParam = params.get("submission");
     const fileParam = params.get("file");
+    // `?edit=<ID>` lo manda Contenidos al recién crear un proyecto:
+    // abre directamente el dialog de edición para que el docente
+    // ajuste título/fechas/peso/rúbrica y luego dispare "Generar
+    // preguntas con IA" del editor — sin tener que buscar el row
+    // recién creado en el grid.
+    const editParam = params.get("edit");
+    if (editParam) {
+      const p = projects.find((pr) => pr.id === editParam);
+      if (p) {
+        openEdit(p);
+      } else {
+        toast.info(
+          "El proyecto referenciado en la URL ya no existe o no tienes acceso a él.",
+        );
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("edit");
+      window.history.replaceState({}, "", url.toString());
+      setAutoOpenedFromUrl(true);
+      return;
+    }
     if (projectParam) {
       const p = projects.find((pr) => pr.id === projectParam);
       if (p) {
