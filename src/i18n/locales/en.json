@@ -683,7 +683,13 @@
     "derivedProjects_other": "{{count}} projects",
     "derivedProjectsHint": "Projects created with this content as context (via \"Create assessment\").",
     "previewNoBody": "This file has no extracted body to render inline. Download it to view.",
-    "downloadHint": "Download file"
+    "downloadHint": "Download file",
+    "previewHint": "View inline",
+    "classSessionCol": "Session",
+    "classMaterialsCol": "Materials",
+    "classActionsCol": "Actions",
+    "classNoSession": "Not scheduled",
+    "classNoSessionHint": "This class is not assigned to a course session yet. Use \"Assign to sessions\" or \"Generate sessions\" from the content menu."
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",

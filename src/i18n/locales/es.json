@@ -683,7 +683,13 @@
     "derivedProjects_other": "{{count}} proyectos",
     "derivedProjectsHint": "Proyectos creados con este contenido como contexto (vía \"Crear evaluación\").",
     "previewNoBody": "Este archivo no tiene contenido extraído para mostrar inline. Descárgalo para verlo.",
-    "downloadHint": "Descargar archivo"
+    "downloadHint": "Descargar archivo",
+    "previewHint": "Ver inline",
+    "classSessionCol": "Sesión",
+    "classMaterialsCol": "Materiales",
+    "classActionsCol": "Acciones",
+    "classNoSession": "Sin sesión",
+    "classNoSessionHint": "Esta clase aún no está asignada a una sesión del curso. Usa \"Asignar a sesiones\" o \"Programar sesiones\" desde el menú del contenido."
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",

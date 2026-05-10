@@ -36,6 +36,7 @@ import { TableEmpty } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
@@ -57,6 +58,7 @@ import { MarkdownViewer } from "@/components/MarkdownViewer";
 import {
   availableClassNumbers,
   extractClassTitle,
+  extractClassTitleFromBucket,
   extractContentText,
   groupFilesByClass,
   type ContentFile,
@@ -932,9 +934,7 @@ function TeacherContents() {
               <AlertCircle className="h-5 w-5" />
               {t("contents.errorDialogTitle")}
             </DialogTitle>
-            <DialogDescription>
-              {items.find((i) => i.id === errorForId)?.topic}
-            </DialogDescription>
+            <DialogDescription>{items.find((i) => i.id === errorForId)?.topic}</DialogDescription>
           </DialogHeader>
           <pre className="text-[11px] whitespace-pre-wrap max-h-[60vh] overflow-y-auto bg-destructive/5 border border-destructive/30 p-3 rounded text-destructive-foreground/90 select-text">
             {items.find((i) => i.id === errorForId)?.error ?? ""}
@@ -2459,7 +2459,7 @@ function FilesByClassDialog({
             type="button"
             onClick={() => setPreviewFile(f)}
             className="flex items-center gap-1 px-2 h-7 text-[11px] hover:bg-muted/60 transition-colors"
-            title={t("contents.previewHint" as never, { defaultValue: "Vista previa" }) as string}
+            title={t("contents.previewHint")}
           >
             <Eye className="h-3 w-3" />
             {humanLabelForFile(f)}
@@ -2485,11 +2485,7 @@ function FilesByClassDialog({
         disabled={busy}
         onClick={() => onDownload(f)}
       >
-        {busy ? (
-          <Spinner size="xs" className="mr-1" />
-        ) : (
-          <Icon className="h-3 w-3 mr-1" />
-        )}
+        {busy ? <Spinner size="xs" className="mr-1" /> : <Icon className="h-3 w-3 mr-1" />}
         {humanLabelForFile(f)}
         <Download className="h-3 w-3 ml-1 opacity-60" />
       </Button>
@@ -2498,167 +2494,172 @@ function FilesByClassDialog({
 
   return (
     <>
-    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            {content.topic}
-          </DialogTitle>
-          <DialogDescription>
-            {isCourse
-              ? t("contents.viewFilesByClassSubtitleCourse", {
-                  count: classNumbers.length,
-                })
-              : t("contents.viewFilesByClassSubtitleSingle")}
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              {content.topic}
+            </DialogTitle>
+            <DialogDescription>
+              {isCourse
+                ? t("contents.viewFilesByClassSubtitleCourse", {
+                    count: classNumbers.length,
+                  })
+                : t("contents.viewFilesByClassSubtitleSingle")}
+            </DialogDescription>
+          </DialogHeader>
 
-        {files.length === 0 ? (
-          <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
-            {t("contents.viewFilesByClassEmpty")}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Intro / materiales sueltos arriba (sin grid). */}
-            {intro.length > 0 && (
-              <Card>
-                <CardContent className="p-3 space-y-2">
-                  <div className="text-sm font-medium">
-                    {isCourse
-                      ? t("contents.viewFilesByClassIntro")
-                      : t("contents.viewFilesByClassMaterials")}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">{intro.map(renderFileChip)}</div>
-                </CardContent>
-              </Card>
-            )}
+          {files.length === 0 ? (
+            <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
+              {t("contents.viewFilesByClassEmpty")}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Intro / materiales sueltos arriba (sin grid). */}
+              {intro.length > 0 && (
+                <Card>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="text-sm font-medium">
+                      {isCourse
+                        ? t("contents.viewFilesByClassIntro")
+                        : t("contents.viewFilesByClassMaterials")}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">{intro.map(renderFileChip)}</div>
+                  </CardContent>
+                </Card>
+              )}
 
-            {/* Grid de clases — solo en curso_completo y cuando hay clases. */}
-            {classNumbers.length > 0 && (
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12 text-center">#</TableHead>
-                      <TableHead>{t("contents.classNumber")}</TableHead>
-                      <TableHead className="hidden md:table-cell w-44">
-                        {t("contents.classSessionCol" as never, { defaultValue: "Sesión" }) as string}
-                      </TableHead>
-                      <TableHead>
-                        {t("contents.classMaterialsCol" as never, { defaultValue: "Materiales" }) as string}
-                      </TableHead>
-                      <TableHead className="w-32 text-right">
-                        {t("contents.classActionsCol" as never, { defaultValue: "Acciones" }) as string}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {classNumbers.map((n) => {
-                      const session = sessionsByClass[n];
-                      const title = extractClassTitle(files as ContentFile[], n);
-                      const sectionFiles = byClass.get(n) ?? [];
-                      return (
-                        <TableRow key={n}>
-                          <TableCell className="text-center font-medium tabular-nums">
-                            {n}
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm font-medium">
-                              {t("contents.classNumber")} {n}
-                            </div>
-                            {title && (
-                              <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">
-                                {title}
+              {/* Grid de clases — solo en curso_completo y cuando hay clases. */}
+              {classNumbers.length > 0 && (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12 text-center">#</TableHead>
+                        <TableHead>{t("contents.classNumber")}</TableHead>
+                        <TableHead className="hidden md:table-cell w-56">
+                          {t("contents.classSessionCol")}
+                        </TableHead>
+                        <TableHead>{t("contents.classMaterialsCol")}</TableHead>
+                        <TableHead className="w-12 text-right">
+                          {t("contents.classActionsCol")}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {classNumbers.map((n) => {
+                        const session = sessionsByClass[n];
+                        const sectionFiles = byClass.get(n) ?? [];
+                        // Preferimos el título extraído desde el bucket (funciona
+                        // aún cuando los filenames no tienen sufijo CLASE_N — caso
+                        // típico del fallback de groupFilesByClass).
+                        const title =
+                          extractClassTitleFromBucket(sectionFiles as ContentFile[]) ??
+                          extractClassTitle(files as ContentFile[], n);
+                        return (
+                          <TableRow key={n}>
+                            <TableCell className="text-center font-medium tabular-nums">
+                              {n}
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm font-medium">
+                                {t("contents.classNumber")} {n}
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {session ? (
-                              <div className="text-[11px] flex items-center gap-1 text-muted-foreground">
-                                <CalendarRange className="h-3 w-3 shrink-0" />
-                                <span className="tabular-nums">{session.date}</span>
-                                {session.title && (
-                                  <span className="truncate">— {session.title}</span>
+                              {title && (
+                                <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">
+                                  {title}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {session ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1 text-[11px]">
+                                    <CalendarRange className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                    <DateCell value={session.date} variant="date" />
+                                  </div>
+                                  {session.title && (
+                                    <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">
+                                      {session.title}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-normal text-muted-foreground"
+                                  title={t("contents.classNoSessionHint")}
+                                >
+                                  {t("contents.classNoSession")}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1.5">
+                                {sectionFiles.length > 0 ? (
+                                  sectionFiles.map(renderFileChip)
+                                ) : (
+                                  <span className="text-[11px] text-muted-foreground/60">
+                                    {t("contents.viewFilesByClassEmpty")}
+                                  </span>
                                 )}
                               </div>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground/60">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1.5">
-                              {sectionFiles.length > 0 ? (
-                                sectionFiles.map(renderFileChip)
-                              ) : (
-                                <span className="text-[11px] text-muted-foreground/60">
-                                  {t("contents.viewFilesByClassEmpty")}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px]"
-                              disabled={isProcessing}
-                              onClick={() => onRegenerateClass(n)}
-                              title={t("contents.regenerateClassHint")}
-                            >
-                              {isProcessing ? (
-                                <Spinner size="xs" className="mr-1" />
-                              ) : (
-                                <Wand2 className="h-3 w-3 mr-1" />
-                              )}
-                              {t("contents.regenerateClass")}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <RowAction
+                                label={t("contents.regenerateClass")}
+                                icon={Wand2}
+                                disabled={isProcessing}
+                                loading={isProcessing}
+                                onClick={() => onRegenerateClass(n)}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose}>
+              {t("common.close")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview dialog para archivos .md/.txt — muestra el body inline
+        con react-markdown, sin necesidad de descargar. */}
+      <Dialog open={previewFile != null} onOpenChange={(o) => !o && setPreviewFile(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <FileText className="h-4 w-4 text-primary" />
+              {previewFile ? humanLabelForFile(previewFile) : ""}
+            </DialogTitle>
+            <DialogDescription className="text-[11px] font-mono truncate">
+              {previewFile?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto text-sm pr-1">
+            {previewFile?.body ? (
+              <MarkdownViewer>{previewFile.body}</MarkdownViewer>
+            ) : (
+              <p className="text-muted-foreground text-xs">{t("contents.previewNoBody")}</p>
             )}
           </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            {t("common.close")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    {/* Preview dialog para archivos .md/.txt — muestra el body inline
-        con react-markdown, sin necesidad de descargar. */}
-    <Dialog open={previewFile != null} onOpenChange={(o) => !o && setPreviewFile(null)}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-            <FileText className="h-4 w-4 text-primary" />
-            {previewFile ? humanLabelForFile(previewFile) : ""}
-          </DialogTitle>
-          <DialogDescription className="text-[11px] font-mono truncate">
-            {previewFile?.name}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto text-sm pr-1">
-          {previewFile?.body ? (
-            <MarkdownViewer>{previewFile.body}</MarkdownViewer>
-          ) : (
-            <p className="text-muted-foreground text-xs">{t("contents.previewNoBody")}</p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={() => setPreviewFile(null)}>
-            {t("common.close")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setPreviewFile(null)}>
+              {t("common.close")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

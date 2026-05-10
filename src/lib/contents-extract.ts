@@ -177,6 +177,33 @@ export function extractContentText(
 }
 
 /**
+ * Variante que recibe el bucket de archivos ya agrupados, sin intentar
+ * re-detectar el classNumber desde el filename. Util cuando el
+ * agrupamiento se hizo por orden (fallback) porque los nombres no
+ * tenian sufijo CLASE_N. Misma heuristica que extractClassTitle.
+ */
+export function extractClassTitleFromBucket(files: ContentFile[]): string | null {
+  for (const f of files) {
+    if (!f.body) continue;
+    const lines = f.body.split(/\r?\n/);
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      if (t.startsWith("#")) {
+        const cleaned = t
+          .replace(/^#+\s*/, "")
+          .replace(/^clase\s+\d+\s*[:\-—]\s*/i, "")
+          .trim();
+        if (cleaned) return cleaned.slice(0, 120);
+      }
+      const cleaned = t.replace(/^(t[ií]tulo|title)\s*:\s*/i, "").trim();
+      return cleaned.slice(0, 120);
+    }
+  }
+  return null;
+}
+
+/**
  * Intenta extraer el título/tema de una clase a partir del primer
  * heading o primera línea con sustancia que aparece en el body de
  * cualquier archivo de esa clase. La heurística:
