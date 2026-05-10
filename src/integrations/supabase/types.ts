@@ -820,6 +820,7 @@ export type Database = {
           error: string | null
           files: Json
           id: string
+          instructions: string | null
           language: string
           modality: string | null
           mode: Database["public"]["Enums"]["content_mode"]
@@ -838,6 +839,7 @@ export type Database = {
           error?: string | null
           files?: Json
           id?: string
+          instructions?: string | null
           language?: string
           modality?: string | null
           mode: Database["public"]["Enums"]["content_mode"]
@@ -856,6 +858,7 @@ export type Database = {
           error?: string | null
           files?: Json
           id?: string
+          instructions?: string | null
           language?: string
           modality?: string | null
           mode?: Database["public"]["Enums"]["content_mode"]
