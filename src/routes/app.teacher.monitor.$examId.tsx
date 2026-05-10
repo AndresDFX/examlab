@@ -2019,6 +2019,75 @@ function ExamMonitor() {
                               );
                             })()}
 
+                            {/* Sugerencia de nota por integridad para ESTA pregunta.
+                                Combina la firma IA del breakdown con el max score de
+                                copia entre pares para esta misma pregunta. Si alguna
+                                señal supera 0.6, calcula `bd.earned × (1 − severity)`
+                                y muestra un botón para precargar el input manual.
+                                Antes esta sugerencia solo existía a nivel submission;
+                                el docente tenía que estimar a ojo qué descontar de
+                                cada pregunta. */}
+                            {(() => {
+                              const aiSig = aiSignalsBySubmissionQuestion
+                                .get(viewingSub.id)
+                                ?.get(q.id);
+                              const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
+                              const qPairs = userPairs.filter((p) => p.questionId === q.id);
+                              const plagiarismMax =
+                                qPairs.length > 0
+                                  ? qPairs.reduce((m, p) => Math.max(m, p.score), 0)
+                                  : null;
+                              const currentRaw = bd?.earned != null ? Number(bd.earned) : null;
+                              // Si la nota actual es 0 o no existe, no hay nada que
+                              // penalizar — la sugerencia sería 0 y no aporta valor.
+                              if (currentRaw == null || currentRaw <= 0) return null;
+                              const sug = computeIntegritySuggestion(
+                                currentRaw,
+                                aiSig?.score ?? null,
+                                plagiarismMax,
+                              );
+                              if (!sug) return null;
+                              const aiPct = Math.round((aiSig?.score ?? 0) * 100);
+                              const cpPct = Math.round((plagiarismMax ?? 0) * 100);
+                              return (
+                                <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+                                  <span className="font-medium text-amber-700 dark:text-amber-300">
+                                    {t("integrity.perQuestionSuggestion")}
+                                  </span>
+                                  <span className="font-semibold tabular-nums">
+                                    {sug.suggested.toLocaleString("es-CO")} / {q.points}
+                                  </span>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {sug.source === "ai"
+                                      ? `IA ${aiPct}%`
+                                      : sug.source === "plagio"
+                                        ? `Copia ${cpPct}%`
+                                        : `IA ${aiPct}% + Copia ${cpPct}%`}
+                                  </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                    onClick={() =>
+                                      setQOverrides((prev) => ({
+                                        ...prev,
+                                        [q.id]: {
+                                          ...(prev[q.id] ?? {
+                                            score: null,
+                                            feedback: "",
+                                          }),
+                                          score: sug.suggested,
+                                        },
+                                      }))
+                                    }
+                                  >
+                                    {t("integrity.applySuggestion")}
+                                  </Button>
+                                </div>
+                              );
+                            })()}
+
                             <div className="border-t pt-2 space-y-2">
                               <div className="flex items-center gap-2">
                                 <DecimalInput

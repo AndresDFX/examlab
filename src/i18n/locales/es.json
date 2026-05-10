@@ -664,6 +664,7 @@
     "reviewDialogSubtitle": "Revisa las señales de IA y copia, marca como revisado y aplica una nota ajustada.",
     "currentGrade": "Nota actual",
     "suggestedGrade": "Sugerencia combinada",
+    "perQuestionSuggestion": "Sugerencia por integridad:",
     "applySuggestion": "Aplicar sugerencia",
     "noCurrentGrade": "Sin nota actual",
     "aiSection": "Sospecha de IA en la entrega",

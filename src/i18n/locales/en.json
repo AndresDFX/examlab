@@ -664,6 +664,7 @@
     "reviewDialogSubtitle": "Review AI and copy signals, mark as reviewed and apply an adjusted grade.",
     "currentGrade": "Current grade",
     "suggestedGrade": "Combined suggestion",
+    "perQuestionSuggestion": "Integrity suggestion:",
     "applySuggestion": "Apply suggestion",
     "noCurrentGrade": "No current grade",
     "aiSection": "AI suspicion on submission",
