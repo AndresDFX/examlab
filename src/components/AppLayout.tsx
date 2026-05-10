@@ -47,8 +47,12 @@ interface NavItem {
 // Orden canónico del nav, igual entre roles. Un rol que no tiene una
 // ruta simplemente no la ve, pero la posición relativa de las que sí
 // ve es siempre la misma:
-//   Dashboard → Cursos → Exámenes → Talleres → Proyectos →
-//   Calificaciones → Asistencia → Estadísticas → Prompts → Usuarios.
+//   Dashboard → Cursos → Contenidos → Exámenes → Talleres → Proyectos →
+//   Calificaciones → Asistencia → Estadísticas → Prompts → Auditoría →
+//   Usuarios.
+// "Contenidos" va junto a Cursos porque es la generación pedagógica
+// que el docente usa ANTES de crear evaluaciones — orden mental
+// curso → preparar material → armar evaluaciones.
 // Esto evita que Docente y Admin tengan "Prompts" en posiciones
 // distintas (antes Docente lo veía después de Calificaciones y Admin
 // al final, lo cual rompía la mental map al cambiar de rol).
@@ -67,6 +71,16 @@ const NAV: NavItem[] = [
     labelKey: "nav.studentCourses",
     icon: BookOpen,
     roles: ["Estudiante"],
+  },
+  // Contenidos: generación de material académico (.pptx + .md) con IA.
+  // Va junto a Cursos porque es el insumo pedagógico que el docente
+  // usa ANTES de armar exámenes/talleres/proyectos. Solo Docente —
+  // Admin configura marca + prompt desde el módulo Prompts.
+  {
+    to: "/app/teacher/contents",
+    labelKey: "nav.contents",
+    icon: Presentation,
+    roles: ["Docente"],
   },
   // Exámenes
   { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
@@ -130,14 +144,6 @@ const NAV: NavItem[] = [
     labelKey: "nav.statistics",
     icon: BarChart3,
     roles: ["Admin"],
-  },
-  // Contenidos: generación de material académico (.pptx + .md) con IA.
-  // Solo Docente; Admin configura marca + prompt en su propia página.
-  {
-    to: "/app/teacher/contents",
-    labelKey: "nav.contents",
-    icon: Presentation,
-    roles: ["Docente"],
   },
   // Prompts (config de IA): override por curso para Docente, globales
   // para Admin. Misma posición visual para no descolocar al usuario
