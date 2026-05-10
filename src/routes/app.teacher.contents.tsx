@@ -38,7 +38,23 @@ import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Plus, Download, FileText, Presentation, RefreshCw, Trash2, Eye } from "lucide-react";
+import {
+  Plus,
+  Download,
+  FileText,
+  Presentation,
+  RefreshCw,
+  Trash2,
+  Eye,
+  BookOpenCheck,
+} from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  availableClassNumbers,
+  extractContentText,
+  type ContentFile,
+} from "@/lib/contents-extract";
+import { Textarea } from "@/components/ui/textarea";
 import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
 
 export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
@@ -67,6 +83,8 @@ interface GeneratedContent {
   mode: ContentMode;
   topic: string;
   n_classes: number | null;
+  duration_minutes: number | null;
+  modality: ContentModality | null;
   language: string;
   author: string | null;
   status: ContentStatus;
@@ -108,6 +126,7 @@ function TeacherContents() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const confirm = useConfirm();
+  const navigate = useNavigate();
 
   const [items, setItems] = useState<GeneratedContent[]>([]);
   const [courses, setCourses] = useState<CourseLite[]>([]);
@@ -117,6 +136,11 @@ function TeacherContents() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [rawForId, setRawForId] = useState<string | null>(null);
+  // Estado del dialog "Crear evaluación con este contenido". Cuando
+  // está poblado con un GeneratedContent, abrimos el formulario que
+  // permite materializar Talleres/Exámenes/Proyectos con el contenido
+  // como contexto de descripción.
+  const [assessmentFor, setAssessmentFor] = useState<GeneratedContent | null>(null);
 
   // Form
   const [topic, setTopic] = useState("");
@@ -431,6 +455,16 @@ function TeacherContents() {
                     <TableCell className="text-right">
                       <RowActionsMenu
                         actions={[
+                          // "Crear evaluación" solo cuando el contenido
+                          // está listo y tiene archivos extraíbles —
+                          // sin eso no hay nada que pasar como contexto.
+                          it.status === "done" && (it.files?.length ?? 0) > 0
+                            ? {
+                                label: t("contents.createAssessment"),
+                                icon: BookOpenCheck,
+                                onClick: () => setAssessmentFor(it),
+                              }
+                            : null,
                           it.raw_output
                             ? {
                                 label: t("contents.viewRaw"),
@@ -635,6 +669,311 @@ function TeacherContents() {
           </pre>
         </DialogContent>
       </Dialog>
+
+      <CreateAssessmentDialog
+        content={assessmentFor}
+        courses={courses}
+        onClose={() => setAssessmentFor(null)}
+        onCreated={(target, id) => {
+          setAssessmentFor(null);
+          // Navega al editor de la nueva evaluación. Para Workshop y
+          // Project no existe ruta dedicada por id (los editores son
+          // dialogs dentro de la lista), así que llevamos al docente
+          // a la lista — el row creado aparece arriba por created_at.
+          if (target === "exam") void navigate({ to: `/app/teacher/exams/${id}` });
+          else if (target === "workshop") void navigate({ to: "/app/teacher/workshops" });
+          else void navigate({ to: "/app/teacher/projects" });
+          toast.success(t("contents.assessmentCreatedToast"));
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Dialog que materializa una evaluación (Taller / Examen / Proyecto)
+ * usando el contenido generado como descripción inicial. Después de
+ * crear la fila base, navega al editor para que el docente dispare
+ * los flujos existentes de "Generar preguntas con IA" — esos prompts
+ * ya saben usar la descripción como contexto.
+ */
+type AssessmentTarget = "workshop" | "exam" | "project";
+
+function CreateAssessmentDialog({
+  content,
+  courses,
+  onClose,
+  onCreated,
+}: {
+  content: GeneratedContent | null;
+  courses: CourseLite[];
+  onClose: () => void;
+  onCreated: (target: AssessmentTarget, id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const [target, setTarget] = useState<AssessmentTarget>("exam");
+  const [courseId, setCourseId] = useState<string>("");
+  const [scope, setScope] = useState<"full" | "class">("full");
+  const [classNumber, setClassNumber] = useState<number | null>(null);
+  const [title, setTitle] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Resetea el form cada vez que se abre con un contenido distinto.
+  // Pre-elige el curso del propio contenido si vino con uno.
+  useEffect(() => {
+    if (!content) return;
+    setTarget("exam");
+    setCourseId(content.course_id ?? "");
+    setTitle(content.topic);
+    const classes = availableClassNumbers((content.files as ContentFile[]) ?? []);
+    if (classes.length > 0) {
+      setScope("full");
+      setClassNumber(classes[0]);
+    } else {
+      setScope("full");
+      setClassNumber(null);
+    }
+  }, [content]);
+
+  const classes = useMemo(
+    () => (content ? availableClassNumbers((content.files as ContentFile[]) ?? []) : []),
+    [content],
+  );
+
+  if (!content) return null;
+
+  const submit = async () => {
+    if (!user) return;
+    if (!courseId) {
+      toast.error(t("contents.courseRequired"));
+      return;
+    }
+    setCreating(true);
+    try {
+      const description = extractContentText((content.files as ContentFile[]) ?? [], {
+        classNumber: scope === "class" ? classNumber : null,
+      });
+      const finalTitle =
+        title.trim() ||
+        (scope === "class" && classNumber != null
+          ? `${content.topic} — Clase ${classNumber}`
+          : content.topic);
+
+      // Defaults razonables para cada target: aprovechamos
+      // duration_minutes del contenido como límite del examen, y
+      // ventana de 7 días para start/end. El docente puede ajustar
+      // todo en el editor.
+      if (target === "exam") {
+        const start = new Date();
+        const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const { data, error } = await db
+          .from("exams")
+          .insert({
+            course_id: courseId,
+            title: finalTitle,
+            description,
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            time_limit_minutes: content.duration_minutes ?? 60,
+            navigation_type: "libre",
+            shuffle_enabled: false,
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (error || !data) throw new Error(error?.message ?? "exam insert failed");
+        onCreated("exam", data.id);
+      } else if (target === "workshop") {
+        const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const { data, error } = await db
+          .from("workshops")
+          .insert({
+            course_id: courseId,
+            title: finalTitle,
+            description,
+            instructions: null,
+            due_date: due.toISOString(),
+            max_score: 100,
+            status: "draft",
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (error || !data) throw new Error(error?.message ?? "workshop insert failed");
+        onCreated("workshop", data.id);
+      } else {
+        const { data, error } = await db
+          .from("projects")
+          .insert({
+            course_id: courseId,
+            title: finalTitle,
+            description,
+            max_score: 100,
+            status: "draft",
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (error || !data) throw new Error(error?.message ?? "project insert failed");
+        onCreated("project", data.id);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const previewText = extractContentText((content.files as ContentFile[]) ?? [], {
+    classNumber: scope === "class" ? classNumber : null,
+    maxChars: 600,
+  });
+
+  return (
+    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t("contents.createAssessmentTitle")}</DialogTitle>
+          <DialogDescription>{t("contents.createAssessmentSubtitle")}</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Tipo de evaluación */}
+          <div className="space-y-1.5">
+            <Label required>{t("contents.assessmentType")}</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { key: "workshop", label: t("contents.assessmentWorkshop") },
+                  { key: "exam", label: t("contents.assessmentExam") },
+                  { key: "project", label: t("contents.assessmentProject") },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setTarget(opt.key)}
+                  className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                    target === opt.key
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="font-medium text-sm">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label required>{t("common.course")}</Label>
+              <Select value={courseId} onValueChange={(v) => setCourseId(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t("contents.courseRequired")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("contents.assessmentTitle")}</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Alcance: todo / clase específica */}
+          <div className="space-y-1.5">
+            <Label>{t("contents.assessmentScope")}</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setScope("full")}
+                className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                  scope === "full"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted/40"
+                }`}
+              >
+                <div className="font-medium text-sm">{t("contents.scopeFull")}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t("contents.scopeFullHint")}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => classes.length > 0 && setScope("class")}
+                disabled={classes.length === 0}
+                className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                  scope === "class"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted/40"
+                } ${classes.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <div className="font-medium text-sm">{t("contents.scopeClass")}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t("contents.scopeClassHint")}
+                </div>
+              </button>
+            </div>
+            {classes.length === 0 && (
+              <p className="text-[11px] text-muted-foreground">{t("contents.noClassesDetected")}</p>
+            )}
+            {scope === "class" && classes.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <Label className="text-xs">{t("contents.classNumber")}</Label>
+                <Select
+                  value={classNumber != null ? String(classNumber) : ""}
+                  onValueChange={(v) => setClassNumber(Number(v))}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {t("contents.classNumber")} {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          {/* Preview del texto que se inyectará como descripción.
+              Sirve para que el docente vea el contexto que recibirá la
+              IA al generar las preguntas, sin sorpresas. */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("contents.raw")}</Label>
+            <Textarea
+              value={previewText}
+              readOnly
+              className="font-mono text-[11px] min-h-[120px] max-h-[180px]"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={creating || !courseId}>
+            {creating ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <BookOpenCheck className="h-4 w-4 mr-1" />
+            )}
+            {creating ? t("contents.creatingAssessment") : t("contents.createAssessmentSubmit")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
