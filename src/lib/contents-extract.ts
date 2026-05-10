@@ -70,6 +70,68 @@ export function availableClassNumbers(files: ContentFile[]): number[] {
   return Array.from(set).sort((a, b) => a - b);
 }
 
+/** True si el filename parece intro del curso (no pertenece a ninguna clase). */
+export function isIntroFilename(name: string): boolean {
+  return /INTRO|INTRODUCCION|PORTADA|COVER/i.test(name);
+}
+
+/**
+ * Agrupa archivos por clase. Primero intenta detectar el número de
+ * clase con `classNumberFromFilename`. Si NINGÚN archivo lo trae y el
+ * curso declara `nClasses > 0`, hace fallback: separa los intro
+ * (matchean `isIntroFilename`) y distribuye el resto en orden, en
+ * `nClasses` buckets de tamaño parejo. Esto recupera el caso del modelo
+ * que ignora el contrato `_CLASE_<N>` y devuelve filenames planos
+ * (PRESENTACION.PPTX, GUIA_DOCENTE.MD, TALLER.MD repetidos).
+ *
+ * Devuelve `{ intro, byClass }` donde `byClass` es Map<classN, files[]>.
+ */
+export function groupFilesByClass(
+  files: ContentFile[],
+  nClasses: number | null,
+): { intro: ContentFile[]; byClass: Map<number, ContentFile[]> } {
+  const intro: ContentFile[] = [];
+  const byClass = new Map<number, ContentFile[]>();
+
+  // Intento 1: detección por filename.
+  let detectedAny = false;
+  for (const f of files) {
+    const n = classNumberFromFilename(f.name);
+    if (n != null) {
+      detectedAny = true;
+      const arr = byClass.get(n) ?? [];
+      arr.push(f);
+      byClass.set(n, arr);
+    } else {
+      intro.push(f);
+    }
+  }
+  if (detectedAny) return { intro, byClass };
+
+  // Fallback: el modelo no respetó el sufijo. Si el curso declara N
+  // clases, separamos intro (heurística por nombre) y partimos el
+  // resto en N buckets respetando el orden de llegada.
+  if (!nClasses || nClasses <= 0) return { intro, byClass };
+
+  const introFiles: ContentFile[] = [];
+  const rest: ContentFile[] = [];
+  for (const f of files) {
+    if (isIntroFilename(f.name)) introFiles.push(f);
+    else rest.push(f);
+  }
+  if (rest.length === 0) return { intro: introFiles, byClass };
+
+  const perClass = Math.max(1, Math.round(rest.length / nClasses));
+  const fbByClass = new Map<number, ContentFile[]>();
+  for (let i = 0; i < rest.length; i++) {
+    const cls = Math.min(nClasses, Math.floor(i / perClass) + 1);
+    const arr = fbByClass.get(cls) ?? [];
+    arr.push(rest[i]);
+    fbByClass.set(cls, arr);
+  }
+  return { intro: introFiles, byClass: fbByClass };
+}
+
 /**
  * Concatena los `body` de los archivos relevantes con un encabezado
  * que identifica cada uno (para que el modelo distinga slides vs guía
