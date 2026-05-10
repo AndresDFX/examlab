@@ -56,9 +56,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
 import {
   availableClassNumbers,
-  classNumberFromFilename,
   extractClassTitle,
   extractContentText,
+  groupFilesByClass,
   type ContentFile,
 } from "@/lib/contents-extract";
 import { Textarea } from "@/components/ui/textarea";
@@ -2441,141 +2441,65 @@ function FilesByClassDialog({
   const isCourse = content.mode === "curso_completo";
   const isProcessing = content.status === "processing";
 
-  // Particiona archivos en intro + por clase. Intro = los que NO tienen
-  // sufijo `_CLASE_<N>` reconocible (típicamente INTRO_CURSO.PPTX).
-  const intro: FileEntry[] = [];
-  const byClass = new Map<number, FileEntry[]>();
-  for (const f of files) {
-    const n = isCourse ? classNumberFromFilename(f.name) : null;
-    if (n == null) {
-      intro.push(f);
-    } else {
-      const arr = byClass.get(n) ?? [];
-      arr.push(f);
-      byClass.set(n, arr);
-    }
-  }
+  // Particiona archivos en intro + por clase. Con fallback de orden
+  // cuando el modelo no respetó el sufijo `_CLASE_<N>`.
+  const { intro, byClass } = groupFilesByClass(files as ContentFile[], content.n_classes);
   const classNumbers = Array.from(byClass.keys()).sort((a, b) => a - b);
 
-  /** Render reutilizable para una sección. Si `classNumber` está dado,
-   *  mostramos el título extraído + sesión asignada + botón de regen. */
-  const renderSection = (
-    sectionTitle: string,
-    sectionFiles: FileEntry[],
-    classNumber: number | null,
-  ) => {
-    const session =
-      classNumber != null ? sessionsByClass[classNumber] : (sessionsByClass[0] ?? null);
-    const extractedTitle =
-      classNumber != null ? extractClassTitle(files as ContentFile[], classNumber) : null;
+  /** Render de una "chip" de descarga compacta con preview opcional. */
+  const renderFileChip = (f: FileEntry) => {
+    const path = `${content.id}:${f.path}`;
+    const busy = downloadingPath === path;
+    const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+    const Icon = f.kind === "pptx-source" ? Presentation : FileText;
+    if (canPreview) {
+      return (
+        <div key={f.path} className="inline-flex rounded-md border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setPreviewFile(f)}
+            className="flex items-center gap-1 px-2 h-7 text-[11px] hover:bg-muted/60 transition-colors"
+            title={t("contents.previewHint" as never, { defaultValue: "Vista previa" }) as string}
+          >
+            <Eye className="h-3 w-3" />
+            {humanLabelForFile(f)}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDownload(f)}
+            className="flex items-center px-1.5 h-7 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+            title={t("contents.downloadHint")}
+          >
+            {busy ? <Spinner size="xs" /> : <Download className="h-3 w-3" />}
+          </button>
+        </div>
+      );
+    }
     return (
-      <Card key={sectionTitle}>
-        <CardContent className="p-3 space-y-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium">
-                {sectionTitle}
-                {extractedTitle && (
-                  <span className="text-muted-foreground font-normal"> — {extractedTitle}</span>
-                )}
-              </div>
-              {session && (
-                <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <CalendarRange className="h-3 w-3" />
-                  <span className="tabular-nums">{session.date}</span>
-                  {session.title && (
-                    <>
-                      <span>—</span>
-                      <span className="truncate">{session.title}</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            {classNumber != null && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs shrink-0"
-                disabled={isProcessing}
-                onClick={() => onRegenerateClass(classNumber)}
-                title={t("contents.regenerateClassHint")}
-              >
-                {isProcessing ? (
-                  <Spinner size="xs" className="mr-1" />
-                ) : (
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                )}
-                {t("contents.regenerateClass")}
-              </Button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sectionFiles.map((f) => {
-              const path = `${content.id}:${f.path}`;
-              const busy = downloadingPath === path;
-              const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
-              if (canPreview) {
-                return (
-                  <div
-                    key={f.path}
-                    className="inline-flex rounded-md border overflow-hidden"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setPreviewFile(f)}
-                      className="flex items-center gap-1 px-2.5 h-8 text-xs hover:bg-muted/60 transition-colors"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      {humanLabelForFile(f)}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onDownload(f)}
-                      className="flex items-center px-2 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-                      title={t("contents.downloadHint")}
-                    >
-                      {busy ? (
-                        <Spinner size="xs" />
-                      ) : (
-                        <Download className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  </div>
-                );
-              }
-              return (
-                <Button
-                  key={f.path}
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  disabled={busy}
-                  onClick={() => onDownload(f)}
-                >
-                  {busy ? (
-                    <Spinner size="xs" className="mr-1" />
-                  ) : f.kind === "pptx-source" ? (
-                    <Presentation className="h-3.5 w-3.5 mr-1" />
-                  ) : (
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                  )}
-                  {humanLabelForFile(f)}
-                  <Download className="h-3 w-3 ml-1.5 opacity-60" />
-                </Button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <Button
+        key={f.path}
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-[11px]"
+        disabled={busy}
+        onClick={() => onDownload(f)}
+      >
+        {busy ? (
+          <Spinner size="xs" className="mr-1" />
+        ) : (
+          <Icon className="h-3 w-3 mr-1" />
+        )}
+        {humanLabelForFile(f)}
+        <Download className="h-3 w-3 ml-1 opacity-60" />
+      </Button>
     );
   };
 
   return (
     <>
     <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -2595,20 +2519,107 @@ function FilesByClassDialog({
             {t("contents.viewFilesByClassEmpty")}
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* Introducción al inicio si la hay. Para material_individual
-                todo cae en `intro` (no hay class numbers). */}
-            {intro.length > 0 &&
-              renderSection(
-                isCourse
-                  ? t("contents.viewFilesByClassIntro")
-                  : t("contents.viewFilesByClassMaterials"),
-                intro,
-                null,
-              )}
-            {/* Una card por clase numerada, con todos sus archivos. */}
-            {classNumbers.map((n) =>
-              renderSection(`${t("contents.classNumber")} ${n}`, byClass.get(n) ?? [], n),
+          <div className="space-y-4">
+            {/* Intro / materiales sueltos arriba (sin grid). */}
+            {intro.length > 0 && (
+              <Card>
+                <CardContent className="p-3 space-y-2">
+                  <div className="text-sm font-medium">
+                    {isCourse
+                      ? t("contents.viewFilesByClassIntro")
+                      : t("contents.viewFilesByClassMaterials")}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">{intro.map(renderFileChip)}</div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Grid de clases — solo en curso_completo y cuando hay clases. */}
+            {classNumbers.length > 0 && (
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12 text-center">#</TableHead>
+                      <TableHead>{t("contents.classNumber")}</TableHead>
+                      <TableHead className="hidden md:table-cell w-44">
+                        {t("contents.classSessionCol" as never, { defaultValue: "Sesión" }) as string}
+                      </TableHead>
+                      <TableHead>
+                        {t("contents.classMaterialsCol" as never, { defaultValue: "Materiales" }) as string}
+                      </TableHead>
+                      <TableHead className="w-32 text-right">
+                        {t("contents.classActionsCol" as never, { defaultValue: "Acciones" }) as string}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {classNumbers.map((n) => {
+                      const session = sessionsByClass[n];
+                      const title = extractClassTitle(files as ContentFile[], n);
+                      const sectionFiles = byClass.get(n) ?? [];
+                      return (
+                        <TableRow key={n}>
+                          <TableCell className="text-center font-medium tabular-nums">
+                            {n}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm font-medium">
+                              {t("contents.classNumber")} {n}
+                            </div>
+                            {title && (
+                              <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">
+                                {title}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {session ? (
+                              <div className="text-[11px] flex items-center gap-1 text-muted-foreground">
+                                <CalendarRange className="h-3 w-3 shrink-0" />
+                                <span className="tabular-nums">{session.date}</span>
+                                {session.title && (
+                                  <span className="truncate">— {session.title}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground/60">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1.5">
+                              {sectionFiles.length > 0 ? (
+                                sectionFiles.map(renderFileChip)
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground/60">
+                                  {t("contents.viewFilesByClassEmpty")}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px]"
+                              disabled={isProcessing}
+                              onClick={() => onRegenerateClass(n)}
+                              title={t("contents.regenerateClassHint")}
+                            >
+                              {isProcessing ? (
+                                <Spinner size="xs" className="mr-1" />
+                              ) : (
+                                <Wand2 className="h-3 w-3 mr-1" />
+                              )}
+                              {t("contents.regenerateClass")}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
         )}
