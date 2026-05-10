@@ -29,9 +29,10 @@ BEGIN
   ) INTO has_gc;
 
   IF NOT has_gc THEN
-    RAISE NOTICE
-      'Skipping 20260509220000: public.generated_contents no existe. ' ||
-      'Aplica primero 20260509190000_contents_module.sql y vuelve a publicar.';
+    -- RAISE NOTICE no acepta `||` para concatenar — debe ser un único
+    -- string literal (o usar `%` con argumentos). Mantén el texto
+    -- en una sola línea aunque sea largo.
+    RAISE NOTICE 'Skipping 20260509220000: public.generated_contents no existe. Aplica primero 20260509190000_contents_module.sql y vuelve a publicar.';
     RETURN;
   END IF;
 

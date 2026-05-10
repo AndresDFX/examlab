@@ -18,9 +18,8 @@ BEGIN
     SELECT 1 FROM information_schema.tables
     WHERE table_schema = 'public' AND table_name = 'generated_contents'
   ) THEN
-    RAISE NOTICE
-      'Skipping 20260509200000: public.generated_contents no existe. ' ||
-      'Aplica primero 20260509190000_contents_module.sql.';
+    -- RAISE NOTICE requiere un único string literal — sin `||`.
+    RAISE NOTICE 'Skipping 20260509200000: public.generated_contents no existe. Aplica primero 20260509190000_contents_module.sql.';
     RETURN;
   END IF;
 
