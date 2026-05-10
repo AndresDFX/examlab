@@ -319,6 +319,39 @@ export type Database = {
           },
         ]
       }
+      content_brand_config: {
+        Row: {
+          author_default: string | null
+          id: string
+          logo_url: string | null
+          primary_color: string
+          secondary_color: string
+          university_name: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          author_default?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string
+          secondary_color?: string
+          university_name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          author_default?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string
+          secondary_color?: string
+          university_name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       course_enrollments: {
         Row: {
           course_id: string
@@ -777,6 +810,71 @@ export type Database = {
           submission_id?: string
         }
         Relationships: []
+      }
+      generated_contents: {
+        Row: {
+          author: string | null
+          course_id: string | null
+          created_at: string
+          duration_minutes: number | null
+          error: string | null
+          files: Json
+          id: string
+          language: string
+          modality: string | null
+          mode: Database["public"]["Enums"]["content_mode"]
+          n_classes: number | null
+          raw_output: string | null
+          status: Database["public"]["Enums"]["content_status"]
+          teacher_id: string
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          author?: string | null
+          course_id?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          error?: string | null
+          files?: Json
+          id?: string
+          language?: string
+          modality?: string | null
+          mode: Database["public"]["Enums"]["content_mode"]
+          n_classes?: number | null
+          raw_output?: string | null
+          status?: Database["public"]["Enums"]["content_status"]
+          teacher_id: string
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          author?: string | null
+          course_id?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          error?: string | null
+          files?: Json
+          id?: string
+          language?: string
+          modality?: string | null
+          mode?: Database["public"]["Enums"]["content_mode"]
+          n_classes?: number | null
+          raw_output?: string | null
+          status?: Database["public"]["Enums"]["content_status"]
+          teacher_id?: string
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_contents_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       grade_cut_items: {
         Row: {
@@ -1459,6 +1557,39 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       questions: {
         Row: {
           content: string
@@ -2126,6 +2257,8 @@ export type Database = {
     }
     Enums: {
       app_role: "Admin" | "Docente" | "Estudiante"
+      content_mode: "curso_completo" | "material_individual"
+      content_status: "queued" | "processing" | "done" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2254,6 +2387,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["Admin", "Docente", "Estudiante"],
+      content_mode: ["curso_completo", "material_individual"],
+      content_status: ["queued", "processing", "done", "failed"],
     },
   },
 } as const
