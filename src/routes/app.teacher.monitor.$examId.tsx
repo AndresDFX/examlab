@@ -1534,12 +1534,20 @@ function ExamMonitor() {
             // sin un padre con altura concreta y radix no pintaba la
             // barra. Mismo layout en ambos casos resuelve el problema.
             <div className="flex gap-3 h-[65vh] overflow-hidden">
-              <ScrollArea
-                className={
-                  comparisonForCopy
-                    ? "h-[65vh] pr-4 flex-1 min-w-0 basis-1/2"
-                    : "h-[65vh] pr-4 flex-1 min-w-0"
-                }
+              {/* Antes: <ScrollArea> de radix. Su Viewport interno
+                  envuelve los hijos en un `display: table` con
+                  `min-width: 100%`, lo que hace que un Monaco Editor
+                  (sin `width` explícito) o cualquier hijo "wide" expanda
+                  la celda de tabla. El resultado: el texto del enunciado,
+                  el feedback de IA y las razones de copia se renderizaban
+                  más anchos que el viewport y quedaban cortados a la
+                  derecha sin scrollbar. El panel peer ya usaba este
+                  patrón con div plano + overflow-y-auto y funcionaba
+                  bien — lo replicamos. */}
+              <div
+                className={`overflow-y-auto pr-4 flex-1 min-w-0 ${
+                  comparisonForCopy ? "basis-1/2" : ""
+                }`}
               >
                 <div className="space-y-4">
                   {(() => {
@@ -2165,7 +2173,7 @@ function ExamMonitor() {
                     });
                   })()}
                 </div>
-              </ScrollArea>
+              </div>
               {comparisonForCopy &&
                 viewingSub &&
                 (() => {
