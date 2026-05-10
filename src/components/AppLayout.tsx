@@ -32,7 +32,6 @@ import {
   ScrollText,
   ShieldEllipsis,
   Presentation,
-  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -145,13 +144,6 @@ const NAV: NavItem[] = [
   // cuando cambia de rol.
   { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
   { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
-  // Marca y prompt de Contenidos — solo Admin.
-  {
-    to: "/app/admin/contenidos-config",
-    labelKey: "nav.contentsConfig",
-    icon: Palette,
-    roles: ["Admin"],
-  },
   // Auditoría: Admin ve todo, Docente ve su alcance.
   {
     to: "/app/teacher/audit-logs",
@@ -209,7 +201,6 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/admin/ai-prompts": "text-violet-300",
   "/app/teacher/ai-prompts": "text-violet-300",
   "/app/teacher/contents": "text-pink-300",
-  "/app/admin/contenidos-config": "text-pink-300",
   "/app/admin/courses": "text-fuchsia-300",
   "/app/teacher/courses": "text-fuchsia-300",
   "/app/teacher/exams": "text-amber-300",

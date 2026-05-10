@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, RotateCcw, Save } from "lucide-react";
+import { Loader2, RotateCcw, Save, Palette } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,12 +39,13 @@ type UseCase =
   | "plagiarism_detection"
   | "ai_content_detection"
   | "project_description"
-  | "project_questions";
+  | "project_questions"
+  | "content_generation";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
  * agrega un nuevo use_case, hay que asignarle module aquí. */
-type PromptModule = "exams" | "workshops" | "projects" | "fraud";
+type PromptModule = "exams" | "workshops" | "projects" | "fraud" | "contents";
 
 type UseCaseDef = {
   key: UseCase;
@@ -58,6 +60,7 @@ const MODULE_LABELS: Record<PromptModule, string> = {
   workshops: "Talleres",
   projects: "Proyectos",
   fraud: "Detección de fraude",
+  contents: "Contenidos",
 };
 
 // Sincronizado con seeds de la migración 20260508100000_ai_prompts.sql.
@@ -140,6 +143,15 @@ const USE_CASES: UseCaseDef[] = [
       "Eres un docente experto que redacta la descripción de un proyecto académico. Sé concreto y conciso (3-6 oraciones). Indica el propósito, alcance y restricciones. NO listes entregables uno por uno (van en cada pregunta). NO uses encabezados Markdown — texto plano corrido. Devuelve solo la descripción.",
   },
   {
+    key: "content_generation",
+    module: "contents",
+    label: "Generación de contenidos académicos",
+    description:
+      "Prompt usado por el módulo Contenidos para generar PRESENTACION.PPTX, GUIA_DOCENTE.MD y/o TALLER_PRACTICO.MD según la modalidad y duración indicadas. Acepta placeholders {{topic}}, {{n_classes}}, {{duration_minutes}}, {{modality_label}}, {{university_name}}, {{logo_url}}, {{primary_color}}, {{secondary_color}} y {{rag_context_documents}}.",
+    defaultPrompt:
+      "Eres un Arquitecto de Contenido Educativo. Tu objetivo es generar estructuras de datos pedagógicas y precisas para cualquier disciplina académica, las cuales la plataforma utilizará para crear archivos descargables (.pptx y .md). Devuelve EXCLUSIVAMENTE bloques [INICIO_ARCHIVO: X.PPTX|MD]…[FIN_ARCHIVO: X.PPTX|MD] sin texto fuera de las etiquetas. Respeta la duración (extensión proporcional) y la modalidad (qué archivos generar).",
+  },
+  {
     key: "project_questions",
     module: "projects",
     label: "Preguntas del proyecto (auto-generadas desde la descripción)",
@@ -173,6 +185,26 @@ export function AdminPromptsPanel() {
   );
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<UseCase | null>(null);
+  // Configuración de marca (singleton row de `content_brand_config`).
+  // Vive aquí en vez de en una pantalla separada: como solo se usa para
+  // generar Contenidos, conviene editarla junto al prompt que la
+  // consume. Cuando el filtro de módulo es "Contenidos" o "Todos",
+  // mostramos un Card extra con estos campos antes del prompt.
+  const [brand, setBrand] = useState<{
+    id?: string;
+    university_name: string;
+    logo_url: string | null;
+    primary_color: string;
+    secondary_color: string;
+    author_default: string | null;
+  }>({
+    university_name: "",
+    logo_url: null,
+    primary_color: "#1e40af",
+    secondary_color: "#64748b",
+    author_default: null,
+  });
+  const [savingBrand, setSavingBrand] = useState(false);
   // Filtro por módulo. "all" muestra todos los prompts; otros valores
   // filtran a una sola categoría (Exámenes / Talleres / Proyectos /
   // Detección de fraude). Solo visual — no afecta la BD.
@@ -183,14 +215,27 @@ export function AdminPromptsPanel() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await db
-      .from("ai_prompts")
-      .select("id, use_case, course_id, system_prompt, updated_at")
-      .is("course_id", null);
+    const [{ data, error }, { data: brandRow }] = await Promise.all([
+      db
+        .from("ai_prompts")
+        .select("id, use_case, course_id, system_prompt, updated_at")
+        .is("course_id", null),
+      db.from("content_brand_config").select("*").maybeSingle(),
+    ]);
     if (error) {
       toast.error(error.message);
       setLoading(false);
       return;
+    }
+    if (brandRow) {
+      setBrand({
+        id: brandRow.id,
+        university_name: brandRow.university_name ?? "",
+        logo_url: brandRow.logo_url ?? null,
+        primary_color: brandRow.primary_color ?? "#1e40af",
+        secondary_color: brandRow.secondary_color ?? "#64748b",
+        author_default: brandRow.author_default ?? null,
+      });
     }
     const nextDrafts = { ...drafts };
     const nextSaved = { ...saved };
@@ -217,6 +262,33 @@ export function AdminPromptsPanel() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleSaveBrand = async () => {
+    if (!user) return;
+    setSavingBrand(true);
+    try {
+      const payload = {
+        university_name: brand.university_name,
+        logo_url: brand.logo_url,
+        primary_color: brand.primary_color,
+        secondary_color: brand.secondary_color,
+        author_default: brand.author_default,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      };
+      const { error } = brand.id
+        ? await db.from("content_brand_config").update(payload).eq("id", brand.id)
+        : await db.from("content_brand_config").insert(payload);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Marca institucional actualizada");
+      await load();
+    } finally {
+      setSavingBrand(false);
+    }
+  };
 
   const handleSave = async (uc: UseCaseDef) => {
     if (!user) return;
@@ -325,7 +397,7 @@ export function AdminPromptsPanel() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los módulos</SelectItem>
-              {(["exams", "workshops", "projects", "fraud"] as const).map((m) => (
+              {(["exams", "workshops", "projects", "fraud", "contents"] as const).map((m) => (
                 <SelectItem key={m} value={m}>
                   {MODULE_LABELS[m]}
                 </SelectItem>
@@ -339,6 +411,102 @@ export function AdminPromptsPanel() {
       </div>
 
       <div className="grid gap-4">
+        {/* Campos especiales del módulo Contenidos: marca institucional
+            (logo, colores, autor por defecto). Aparecen cuando el filtro
+            es "all" o "contents" — son los datos que el prompt
+            content_generation interpola en {{university_name}},
+            {{logo_url}}, {{primary_color}}, {{secondary_color}} antes de
+            llamar a la IA. Vivían en una página aparte; ahora están
+            junto al prompt que los consume. */}
+        {(moduleFilter === "all" || moduleFilter === "contents") && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                <Palette className="h-4 w-4 text-primary" />
+                Marca institucional (Contenidos)
+                <Badge variant="outline" className="text-[10px]">
+                  Campos especiales
+                </Badge>
+                <HelpHint>
+                  Estos valores se inyectan al prompt de Generación de contenidos como{" "}
+                  <code>{`{{university_name}}`}</code>, <code>{`{{logo_url}}`}</code>,{" "}
+                  <code>{`{{primary_color}}`}</code> y <code>{`{{secondary_color}}`}</code>.
+                  Aparecen también en la portada del .pptx generado.
+                </HelpHint>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nombre de la institución</Label>
+                  <Input
+                    value={brand.university_name}
+                    onChange={(e) => setBrand({ ...brand, university_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">URL del logo</Label>
+                  <Input
+                    type="url"
+                    placeholder="https://…/logo.png"
+                    value={brand.logo_url ?? ""}
+                    onChange={(e) => setBrand({ ...brand, logo_url: e.target.value || null })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Color primario</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      className="h-9 w-14 p-1"
+                      value={brand.primary_color}
+                      onChange={(e) => setBrand({ ...brand, primary_color: e.target.value })}
+                    />
+                    <Input
+                      value={brand.primary_color}
+                      onChange={(e) => setBrand({ ...brand, primary_color: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Color secundario</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      className="h-9 w-14 p-1"
+                      value={brand.secondary_color}
+                      onChange={(e) => setBrand({ ...brand, secondary_color: e.target.value })}
+                    />
+                    <Input
+                      value={brand.secondary_color}
+                      onChange={(e) => setBrand({ ...brand, secondary_color: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs">Autor por defecto</Label>
+                  <Input
+                    value={brand.author_default ?? ""}
+                    onChange={(e) => setBrand({ ...brand, author_default: e.target.value || null })}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Aparece en la portada cuando el docente no indica autor.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveBrand} disabled={savingBrand}>
+                  {savingBrand ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-1" />
+                  )}
+                  Guardar marca
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {filteredUseCases.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground text-center">

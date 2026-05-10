@@ -187,13 +187,25 @@ Deno.serve(async (req: Request) => {
 
   try {
     const promptTemplate = await resolveContentPrompt();
-    const vars = {
+    // Etiqueta legible para `modality` — el modelo entiende mejor un
+    // string descriptivo que el enum interno. Si no llega, asumimos
+    // teorico_practica (el default histórico).
+    const modalityLabel =
+      gen.modality === "teorica"
+        ? "Teórica (solo presentación + guía docente)"
+        : gen.modality === "practica"
+          ? "Práctica (solo taller práctico, sin presentación)"
+          : "Teórico-práctica (presentación + guía + taller)";
+    const vars: Record<string, string> = {
       university_name: brand?.university_name ?? "",
       logo_url: brand?.logo_url ?? "",
       primary_color: brand?.primary_color ?? "#1e40af",
       secondary_color: brand?.secondary_color ?? "#64748b",
       topic: gen.topic ?? "",
       n_classes: gen.n_classes != null ? String(gen.n_classes) : "",
+      duration_minutes: gen.duration_minutes != null ? String(gen.duration_minutes) : "60",
+      modality: gen.modality ?? "teorico_practica",
+      modality_label: modalityLabel,
       // RAG queda placeholder por ahora. Cuando agreguemos
       // content_rag_documents este string traerá los chunks reseleccionados.
       rag_context_documents: "(sin contexto histórico disponible)",
@@ -203,10 +215,11 @@ Deno.serve(async (req: Request) => {
     // El user message le indica al modelo qué modo se eligió y refuerza
     // los parámetros concretos. Mantener este texto corto y declarativo
     // — el grueso del prompt vive en el system.
+    const commonContext = `Tema: ${gen.topic}\nDuración por clase: ${vars.duration_minutes} minutos\nModalidad: ${modalityLabel}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}`;
     const userMessage =
       gen.mode === "curso_completo"
-        ? `Modo seleccionado: CURSO COMPLETO.\n\nTema del curso: ${gen.topic}\nCantidad de clases: ${gen.n_classes}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}\n\nGenera la introducción del curso y luego el material por cada una de las ${gen.n_classes} sesiones.`
-        : `Modo seleccionado: MATERIAL INDIVIDUAL.\n\nTema: ${gen.topic}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}\n\nGenera el material completo de UNA sola sesión sobre el tema.`;
+        ? `Modo seleccionado: CURSO COMPLETO.\n\n${commonContext}\nCantidad de clases: ${gen.n_classes}\n\nGenera la introducción del curso y luego el material por cada una de las ${gen.n_classes} sesiones, respetando duración y modalidad.`
+        : `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\nGenera el material completo de UNA sola sesión sobre el tema, respetando la duración y la modalidad indicada.`;
 
     const aiRes = await aiChat([
       { role: "system", content: systemPrompt },

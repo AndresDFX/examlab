@@ -781,37 +781,24 @@ function ExamMonitor() {
     }
     return out;
   }, [submissions]);
-  // Mapa: userId → questionId → señal IA para esa pregunta. Se usa en
-  // el modal "Respuestas" para mostrar la sospecha al lado de cada
-  // pregunta del estudiante.
-  const aiSignalsByUserQuestion = useMemo(() => {
+  // Mapa: submissionId → questionId → señal IA para esa pregunta.
+  // Antes lo agrupábamos por userId (max de N intentos), pero eso
+  // ocultaba que cada intento puede tener su propia firma de IA. Al
+  // viewer del modal le importa el intento concreto que abrió, así que
+  // indexamos por submissionId y la lookup pasa a ser
+  // `aiSignalsBySubmissionQuestion.get(viewingSub.id)?.get(q.id)`.
+  // Para el peer en la comparación, usamos `peerSubmissionId`.
+  const aiSignalsBySubmissionQuestion = useMemo(() => {
     const map = new Map<string, Map<string, QuestionAiSignal>>();
     for (const sig of aiSignalsByQuestion) {
-      let inner = map.get(sig.userId);
+      let inner = map.get(sig.submissionId);
       if (!inner) {
         inner = new Map();
-        map.set(sig.userId, inner);
+        map.set(sig.submissionId, inner);
       }
-      const prev = inner.get(sig.questionId);
-      if (!prev || sig.score > prev.score) inner.set(sig.questionId, sig);
-    }
-    return map;
-  }, [aiSignalsByQuestion]);
-  // Para el resumen del top del modal: la "señal global" del estudiante
-  // es el MAX de las preguntas. Conserva el shape de IntegrityAiSignal
-  // por compatibilidad con `countPendingByUser`.
-  const aiSignalByUser = useMemo(() => {
-    const map = new Map<string, IntegrityAiSignal>();
-    for (const sig of aiSignalsByQuestion) {
-      const prev = map.get(sig.userId);
-      if (!prev || sig.score > prev.score) {
-        map.set(sig.userId, {
-          submissionId: sig.submissionId,
-          score: sig.score,
-          reasons: sig.reasons,
-          reviewedAt: sig.reviewedAt,
-        });
-      }
+      // Cada (submissionId, questionId) es único en el breakdown — no
+      // hay colisiones que resolver con MAX. Sobrescribir es seguro.
+      inner.set(sig.questionId, sig);
     }
     return map;
   }, [aiSignalsByQuestion]);
@@ -1519,12 +1506,20 @@ function ExamMonitor() {
           </DialogHeader>
 
           {viewingSub && (
-            <div className={comparisonForCopy ? "flex gap-3" : ""}>
+            // Cuando NO hay comparación, ScrollArea va directo bajo el
+            // DialogContent (flex column) — esto le permite respetar
+            // `max-h-[65vh]` y mostrar barra de scroll. Si envuelves en
+            // un <div> sin altura, la ScrollArea no recibe constraint
+            // y el contenido se desborda fuera del modal sin scrollbar
+            // visible (regresión que vimos al activar la comparación).
+            // Cuando hay comparación, sí usamos un flex row para
+            // ponerla lado a lado con el panel del compañero.
+            <div
+              className={comparisonForCopy ? "flex gap-3 max-h-[65vh] overflow-hidden" : "contents"}
+            >
               <ScrollArea
                 className={
-                  comparisonForCopy
-                    ? "max-h-[55vh] pr-4 flex-1 min-w-0 basis-1/2"
-                    : "max-h-[55vh] pr-4"
+                  comparisonForCopy ? "h-[65vh] pr-4 flex-1 min-w-0 basis-1/2" : "max-h-[65vh] pr-4"
                 }
               >
                 <div className="space-y-4">
@@ -1573,156 +1568,6 @@ function ExamMonitor() {
                               </div>
                             );
                           })}
-                        </CardContent>
-                      </Card>
-                    );
-                  })()}
-
-                  {(() => {
-                    // Resumen de integridad: la sospecha IA es a nivel
-                    // submission (no por pregunta), pero las copias se
-                    // muestran inline en cada pregunta (más abajo). Aquí
-                    // mostramos AI + sugerencia combinada con la copia
-                    // máxima detectada para este estudiante.
-                    const aiSig = aiSignalByUser.get(viewingSub.user_id);
-                    const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
-                    const copyMax = userPairs.reduce((m, p) => Math.max(m, p.score), 0);
-                    const aiScore = aiSig?.score ?? 0;
-                    const hasSignal = aiSig != null || userPairs.length > 0;
-                    if (!hasSignal) return null;
-                    const severity = Math.max(
-                      aiScore >= 0.6 ? aiScore : 0,
-                      copyMax >= 0.6 ? copyMax : 0,
-                    );
-                    const currentGrade =
-                      viewingSub.final_override_grade != null
-                        ? Number(viewingSub.final_override_grade)
-                        : viewingSub.ai_grade != null
-                          ? Number(viewingSub.ai_grade)
-                          : null;
-                    const suggested =
-                      severity > 0 && currentGrade != null
-                        ? Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)))
-                        : null;
-                    const sourceKey =
-                      aiScore >= 0.6 && copyMax >= 0.6
-                        ? "ambas"
-                        : aiScore >= 0.6
-                          ? "ai"
-                          : copyMax >= 0.6
-                            ? "plagio"
-                            : null;
-                    const applySuggestion = async () => {
-                      if (suggested == null) return;
-                      const { data, error } = await supabase
-                        .from("submissions")
-                        .update({ final_override_grade: suggested })
-                        .eq("id", viewingSub.id)
-                        .select("id");
-                      if (error) return toast.error(error.message);
-                      if (!data || data.length === 0) return toast.error(t("integrity.applyError"));
-                      setSubmissions((prev) =>
-                        prev.map((s) =>
-                          s.id === viewingSub.id ? { ...s, final_override_grade: suggested } : s,
-                        ),
-                      );
-                      setOverrideValue(suggested);
-                      toast.success(t("integrity.applySuccess", { value: suggested.toFixed(2) }));
-                    };
-                    return (
-                      <Card className="border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/5">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
-                            {t("integrity.title")}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-xs">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <div>
-                              <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
-                                <Bot className="h-3 w-3" /> {t("integrity.aiProbability")}
-                              </div>
-                              <div>
-                                {aiScore > 0 ? (
-                                  <Badge
-                                    variant={
-                                      aiScore >= 0.85
-                                        ? "destructive"
-                                        : aiScore >= 0.7
-                                          ? "default"
-                                          : "secondary"
-                                    }
-                                  >
-                                    {Math.round(aiScore * 100)}%
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
-                                <Users className="h-3 w-3" /> {t("integrity.copyScore")}
-                              </div>
-                              <div>
-                                {copyMax > 0 ? (
-                                  <Badge
-                                    variant={
-                                      copyMax >= 0.85
-                                        ? "destructive"
-                                        : copyMax >= 0.7
-                                          ? "default"
-                                          : "secondary"
-                                    }
-                                  >
-                                    {Math.round(copyMax * 100)}%
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
-                                {t("integrity.currentGrade")}
-                              </div>
-                              <div className="font-semibold tabular-nums">
-                                {currentGrade != null
-                                  ? `${currentGrade.toFixed(2)} / ${gradeMax}`
-                                  : t("integrity.noCurrentGrade")}
-                              </div>
-                            </div>
-                          </div>
-                          {/* La sospecha IA y las razones se muestran AHORA por
-                            pregunta dentro de su Card más abajo. Aquí solo
-                            mantenemos los KPIs (probabilidad máxima + similitud
-                            máxima + nota actual) y la sugerencia combinada. */}
-                          {/* Sugerencia combinada con un solo "Aplicar" */}
-                          {suggested != null && currentGrade != null && (
-                            <div className="rounded-md border border-amber-300 bg-amber-100/50 dark:bg-amber-500/10 dark:border-amber-500/30 p-2 flex items-center gap-2">
-                              <div className="flex-1">
-                                <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                                  {t("integrity.suggestedGrade")}
-                                  {sourceKey && (
-                                    <span className="ml-2 text-muted-foreground normal-case tracking-normal">
-                                      {t(`integrity.scope_${sourceKey}`)}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-muted-foreground">
-                                  {currentGrade.toFixed(2)} × (1 − {Math.round(severity * 100)}%) ={" "}
-                                  <span className="font-semibold text-amber-700 dark:text-amber-300">
-                                    {suggested.toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
-                              <Button size="sm" onClick={applySuggestion} className="h-7 text-xs">
-                                <Check className="h-3 w-3 mr-1" />
-                                {t("integrity.applySuggestion")}
-                              </Button>
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
                     );
@@ -1886,8 +1731,12 @@ function ExamMonitor() {
                               pregunta como revisada. Solo mostramos cuando
                               ai_likelihood >= 0.6 (mismo umbral que el resto). */}
                             {(() => {
-                              const sig = aiSignalsByUserQuestion
-                                .get(viewingSub.user_id)
+                              // Lookup por submissionId — cada intento del
+                              // estudiante tiene su propia firma de IA por
+                              // pregunta. El docente verá la del intento
+                              // que abrió, no un agregado de todos los intentos.
+                              const sig = aiSignalsBySubmissionQuestion
+                                .get(viewingSub.id)
                                 ?.get(q.id);
                               if (!sig || sig.score < 0.6) return null;
                               return (
@@ -2179,8 +2028,10 @@ function ExamMonitor() {
                   const q = questions.find((qq) => qq.id === comparisonForCopy.questionId);
                   if (!peerSub || !q) return null;
                   const peerAns = (peerSub.answers as Record<string, unknown>)?.[q.id];
-                  const peerAiSig = aiSignalsByUserQuestion
-                    .get(comparisonForCopy.peerUserId)
+                  // Lookup también por submissionId — el peer tiene su
+                  // propio breakdown con firma de IA por pregunta.
+                  const peerAiSig = aiSignalsBySubmissionQuestion
+                    .get(comparisonForCopy.peerSubmissionId)
                     ?.get(q.id);
                   const pair = similarityPairs.find((p) => p.id === comparisonForCopy.pairId);
                   return (

@@ -51,6 +51,7 @@ const db = supabase as any;
 
 type ContentMode = "curso_completo" | "material_individual";
 type ContentStatus = "queued" | "processing" | "done" | "failed";
+type ContentModality = "teorica" | "practica" | "teorico_practica";
 
 interface FileEntry {
   name: string;
@@ -121,6 +122,15 @@ function TeacherContents() {
   const [topic, setTopic] = useState("");
   const [mode, setMode] = useState<ContentMode>("material_individual");
   const [nClasses, setNClasses] = useState<number>(8);
+  // Duración por clase, en minutos. La IA lo usa como criterio de
+  // extensión: <30 → material compacto, >120 → material extenso. Default
+  // 60 (clase universitaria estándar).
+  const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  // Modalidad: define QUÉ archivos genera la IA.
+  //   teorica          → solo presentación + guía
+  //   practica         → solo taller práctico
+  //   teorico_practica → todo (default — el caso más común).
+  const [modality, setModality] = useState<ContentModality>("teorico_practica");
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [courseId, setCourseId] = useState<string>("");
   const [author, setAuthor] = useState("");
@@ -177,6 +187,8 @@ function TeacherContents() {
         mode,
         language,
         n_classes: mode === "curso_completo" ? nClasses : null,
+        duration_minutes: durationMinutes,
+        modality,
         course_id: courseId || null,
         author: author.trim() || null,
         status: "queued",
@@ -493,18 +505,63 @@ function TeacherContents() {
               </div>
             </div>
 
-            {mode === "curso_completo" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {mode === "curso_completo" && (
+                <div className="space-y-1.5">
+                  <Label required>{t("contents.nClasses")}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={40}
+                    value={nClasses}
+                    onChange={(e) => setNClasses(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
-                <Label required>{t("contents.nClasses")}</Label>
+                <Label required>{t("contents.duration")}</Label>
                 <Input
                   type="number"
-                  min={1}
-                  max={40}
-                  value={nClasses}
-                  onChange={(e) => setNClasses(Math.max(1, Number(e.target.value) || 1))}
+                  min={10}
+                  max={480}
+                  step={5}
+                  value={durationMinutes}
+                  onChange={(e) =>
+                    setDurationMinutes(Math.max(10, Math.min(480, Number(e.target.value) || 60)))
+                  }
                 />
+                <p className="text-[11px] text-muted-foreground">{t("contents.durationHelper")}</p>
               </div>
-            )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label required>{t("contents.modality")}</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(
+                  [
+                    { key: "teorica", label: t("contents.modalityTheory") },
+                    { key: "practica", label: t("contents.modalityPractice") },
+                    { key: "teorico_practica", label: t("contents.modalityBoth") },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setModality(opt.key as ContentModality)}
+                    className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                      modality === opt.key
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="font-medium text-sm">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {t(`contents.modality_${opt.key}_desc`)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
