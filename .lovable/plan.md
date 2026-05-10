@@ -1,83 +1,68 @@
-## Objetivo
 
-Alinear el módulo de **Proyectos** con el de Talleres/Exámenes en tres frentes:
+# Plan
 
-1. **Asignación por curso** (auto-asignar a todos los matriculados, no solo uno-por-uno).
-2. **Eliminar entregas** de proyecto desde la UI docente (igual que Talleres y Exámenes/Monitor ya lo permiten).
-3. **Vista docente para calificar entregas** de proyecto (hoy no existe; solo se puede asignar).
+## 1. Limpieza + deploy
 
----
+- Migración `DROP TABLE public.course_grading_weights` (huérfana confirmada por code_deadscan).
+- Desplegar todas las edge functions actuales (`ai-generate-questions`, `ai-grade-submission`, `bulk-import-users`, `detect-plagiarism`, `evaluate-exam-time`, `execute-code`, `generate-contents`, `send-push`, `admin-update-password`, `calendar-ics`).
+- Compilación: TanStack la corre el harness automáticamente al editar — reviso el output.
 
-## 1. Asignación de proyectos por curso
+## 2. Google Calendar — OAuth per-docente
 
-**Hoy**: el diálogo de asignar (`openAssignDialog` en `app.teacher.projects.tsx`) carga los estudiantes matriculados en los cursos vinculados y permite marcar uno por uno. Existe "Seleccionar todo / Quitar todo", pero no hay auto-asignación al publicar (a diferencia de `autoAssignWorkshop` en talleres).
+### Por qué no podemos usar el conector estándar
 
-**Cambios** en `src/routes/app.teacher.projects.tsx`:
-- Añadir `autoAssignProject(projectId, courseIds[])` análogo a `autoAssignWorkshop`: lee `course_enrollments` de los cursos vinculados, calcula deltas contra `project_assignments`, e inserta los faltantes.
-- Llamar a `autoAssignProject` automáticamente cuando el proyecto se guarda con `status = "published"` (en `save()`), usando `linked_course_ids`.
-- En el diálogo de asignación, agregar selector visual de cursos vinculados (chips/checkboxes) para filtrar la lista de estudiantes mostrados; "Seleccionar todo" actuará sobre los visibles. Esto permite asignar masivamente por curso cuando el proyecto está vinculado a varios cursos.
-- Añadir botón **"Asignar a todos los del curso"** por cada curso vinculado, que dispare la auto-asignación solo de ese subgrupo.
+El conector `google_calendar` de Lovable se conecta a UNA cuenta del workspace. Como cada docente debe crear eventos en SU PROPIO calendario, necesitamos OAuth per-usuario con credenciales propias.
 
-## 2. Eliminar entregas de proyecto
+### Lo que necesito de vos (una sola vez)
 
-**Hoy**: Talleres tiene `deleteSubmission` (`workshop_submissions.delete`). Monitor de exámenes tiene `delete` sobre `submissions`. Proyectos no tiene UI de entregas → no hay forma de borrar.
+En [Google Cloud Console](https://console.cloud.google.com/):
+1. Crear un proyecto (o usar uno existente).
+2. Activar **Google Calendar API**.
+3. **OAuth consent screen** → External (o Internal si tenés Workspace) → agregar scopes `calendar.events` y `calendar.readonly`.
+4. **Credentials → Create OAuth Client ID** → tipo Web application.
+5. Authorized redirect URI: `https://examlab.lovable.app/api/public/google-oauth-callback` (y la de preview también si querés probar antes de publicar).
+6. Pegarme el `client_id` y `client_secret` en el formulario que voy a abrir.
 
-**Cambios**: la opción de eliminar entrega vivirá dentro del nuevo diálogo de calificación (sección 3), reusando el patrón de Talleres:
-- Botón papelera por fila de entrega → `confirm` → `db.from("project_submissions").delete().eq("id", subId)`.
-- Las RLS ya permiten DELETE a Docente/Admin (`Docentes/Admins delete project submissions`).
-- El borrado en cascada de `project_submission_files` y `project_submission_attachments` debe estar garantizado: añadir migración solo si las FK no son `ON DELETE CASCADE`. Verificaremos en la migración; si ya están, omitir.
+### Backend
 
-## 3. Vista docente para calificar entregas de proyecto
+- Migración nueva: tabla `teacher_google_tokens (teacher_id PK, refresh_token, access_token, expires_at, calendar_id, calendar_name)`. RLS: solo el dueño + Admin. Agregar columna `google_event_id` y `meeting_url` a `attendance_sessions` (ya existe `meeting_url` en algunas, verifico).
+- Server functions (`src/lib/google-calendar.functions.ts`):
+  - `getGoogleAuthUrl()` — genera URL OAuth con state firmado.
+  - `listMyCalendars()` — refresca token si hace falta, lista calendarios del docente.
+  - `setSelectedCalendar(calendarId, calendarName)` — guarda preferencia.
+  - `syncCourseSessions(courseId)` — para cada `attendance_session` del curso: si no tiene `google_event_id` crea evento (con `conferenceData` para generar Meet, attendees = correos institucionales de matriculados); si lo tiene, hace `events.patch`. Persiste `google_event_id` y `meeting_url` (= Meet link).
+- Server route pública `/api/public/google-oauth-callback` (TanStack server route): recibe `code` + `state`, valida state, intercambia por tokens, guarda en `teacher_google_tokens`, redirige a `/app/teacher/google-calendar?ok=1`.
 
-**Hoy**: el docente puede crear el proyecto, definir archivos esperados y asignarlo, pero no hay pantalla para ver/calificar las entregas. La calificación de cada caja la hace la IA al enviar (en `StudentProjectTaker`), pero el docente no puede revisar, sobreescribir, ni recalificar.
+### Frontend
 
-**Cambios** en `src/routes/app.teacher.projects.tsx`:
-- Nuevo botón **"Entregas"** (icono `ClipboardList`) por fila en la tabla de proyectos.
-- Nuevo diálogo `gradingOpen` que carga:
-  - `project_submissions` del proyecto + perfiles de los estudiantes.
-  - `project_files` (definición de las cajas esperadas).
-  - `project_submission_files` (contenido + `ai_grade` + `ai_feedback` + `ai_likelihood`) por entrega.
-- Por cada entrega, mostrar acordeón con:
-  - Estado, nota final, fecha de envío, % probabilidad IA.
-  - Por cada `project_file`: contenido del estudiante (read-only mono), `ai_grade` editable, `ai_feedback` editable, botón **"Recalificar con IA"** (reusa edge function `ai-grade-submission` con `projectFileGrading: true` ya existente).
-  - Botón **"Guardar nota"**: persiste el override en `project_submission_files`, recalcula `final_grade` sumando puntos / max y normalizando contra `max_score`, actualiza `project_submissions.final_grade` + `status = "calificado"`.
-  - Botón **"Eliminar entrega"** (sección 2).
-- Toda la lógica imita la del módulo de talleres (`openGrading`, `recomputeFinalGrade`, `saveAnswerGrade`, `aiRegradeAnswer`, `deleteSubmission`).
+- Nueva página `src/routes/app.teacher.google-calendar.tsx` accesible desde el sidebar docente (entrada "Google Calendar").
+- Estado vacío: botón "Conectar Google Calendar" → `getGoogleAuthUrl()` → `window.location.href = url`.
+- Conectado: dropdown de calendarios + botón "Guardar calendario" + selector de curso + botón "Sincronizar sesiones" (muestra progreso y conteo: creadas/actualizadas/omitidas).
+- Después de sync, las sesiones del curso quedan con `meeting_url` y aparecen en el feed ICS y donde sea que se rendereen.
 
----
+### Notas técnicas
 
-## Detalles técnicos
+- Refresh token: Google solo lo emite la 1ª vez con `access_type=offline&prompt=consent`. Si el docente revoca y reconecta, mismo flujo.
+- Meet link: `events.insert` con `conferenceData.createRequest` y `conferenceDataVersion=1`. El link queda en `event.hangoutLink`.
+- Attendees: `course_enrollments` → `profiles.institutional_email`. Se incluye también al docente como organizador.
+- `sendUpdates=all` para que Google mande los invites por mail.
 
-**Archivos a modificar**:
-- `src/routes/app.teacher.projects.tsx` — añadir `autoAssignProject`, mejorar diálogo de asignación, añadir diálogo de entregas/calificación, añadir delete.
+## Archivos que tocaré
 
-**Archivos a crear** (opcional, para mantener el archivo manejable):
-- `src/components/ProjectGrading.tsx` — extraer el panel de calificación si crece demasiado.
+- `supabase/migrations/20260510120000_drop_grading_weights.sql` (nueva)
+- `supabase/migrations/20260510120100_google_calendar_tokens.sql` (nueva)
+- `src/lib/google-calendar.functions.ts` (nueva)
+- `src/lib/google-calendar.server.ts` (nueva, helpers OAuth)
+- `src/routes/api/public/google-oauth-callback.ts` (nueva)
+- `src/routes/app.teacher.google-calendar.tsx` (nueva)
+- `src/components/AppLayout.tsx` (entrada en sidebar docente)
 
-**Migración SQL** (`supabase/migrations/<ts>_project_cascade.sql`) — solo si las FK actuales no cascadean:
-```sql
--- Garantizar borrado en cascada al eliminar project_submissions
-ALTER TABLE project_submission_files
-  DROP CONSTRAINT IF EXISTS project_submission_files_submission_id_fkey,
-  ADD CONSTRAINT project_submission_files_submission_id_fkey
-    FOREIGN KEY (submission_id) REFERENCES project_submissions(id) ON DELETE CASCADE;
+## Lo que NO hace V1
 
-ALTER TABLE project_submission_attachments
-  DROP CONSTRAINT IF EXISTS project_submission_attachments_psf_fkey,
-  ADD CONSTRAINT project_submission_attachments_psf_fkey
-    FOREIGN KEY (project_submission_file_id) REFERENCES project_submission_files(id) ON DELETE CASCADE;
-```
+- No re-sincroniza si una sesión cambia DESPUÉS del sync (eso queda para V2; hoy podés re-darle "Sincronizar" y hace `events.patch`).
+- No detecta sesiones eliminadas en la plataforma (no borra el evento de Google).
+- No maneja zonas horarias avanzadas: usa `America/Bogota` por defecto.
 
-**Recálculo de nota final** (igual al de talleres):
-```ts
-const totalPoints = files.reduce((s, f) => s + Number(f.points || 0), 0);
-const earned = files.reduce((s, f) => {
-  const ans = answers.find(a => a.file_id === f.id);
-  return s + Math.min(Number(ans?.ai_grade ?? 0), Number(f.points));
-}, 0);
-const finalGrade = Number(((earned / totalPoints) * project.max_score).toFixed(2));
-```
+## Riesgo / dependencia bloqueante
 
-**RLS**: ya permiten todas las operaciones necesarias (Docentes/Admins manage en `project_assignments`, `project_submissions`, `project_submission_files`).
-
-**Sin cambios** en: rutas de estudiante, edge functions, schema (excepto la migración cascade si aplica).
+Sin `GOOGLE_OAUTH_CLIENT_ID` y `GOOGLE_OAUTH_CLIENT_SECRET` cargados como secrets, no puedo terminar la feature. Apenas aprobés el plan los pido con el formulario seguro.
