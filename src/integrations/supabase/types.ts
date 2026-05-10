@@ -156,6 +156,7 @@ export type Database = {
           created_at: string
           created_by: string
           cut_id: string | null
+          google_event_id: string | null
           id: string
           session_date: string
           title: string | null
@@ -166,6 +167,7 @@ export type Database = {
           created_at?: string
           created_by: string
           cut_id?: string | null
+          google_event_id?: string | null
           id?: string
           session_date: string
           title?: string | null
@@ -176,6 +178,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           cut_id?: string | null
+          google_event_id?: string | null
           id?: string
           session_date?: string
           title?: string | null
@@ -412,38 +415,6 @@ export type Database = {
             foreignKeyName: "course_grading_config_course_id_fkey"
             columns: ["course_id"]
             isOneToOne: true
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_grading_weights: {
-        Row: {
-          component: string
-          course_id: string
-          created_at: string
-          id: string
-          weight: number
-        }
-        Insert: {
-          component: string
-          course_id: string
-          created_at?: string
-          id?: string
-          weight?: number
-        }
-        Update: {
-          component?: string
-          course_id?: string
-          created_at?: string
-          id?: string
-          weight?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_grading_weights_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
             referencedRelation: "courses"
             referencedColumns: ["id"]
           },
@@ -1773,6 +1744,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      teacher_google_tokens: {
+        Row: {
+          access_token: string | null
+          calendar_id: string | null
+          calendar_name: string | null
+          created_at: string
+          expires_at: string | null
+          google_email: string | null
+          refresh_token: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          calendar_id?: string | null
+          calendar_name?: string | null
+          created_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          refresh_token: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          calendar_id?: string | null
+          calendar_name?: string | null
+          created_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          refresh_token?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
