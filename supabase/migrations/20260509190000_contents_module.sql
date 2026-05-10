@@ -200,8 +200,6 @@ INSERT INTO public.ai_prompts (use_case, course_id, system_prompt)
 SELECT
   'content_generation',
   NULL,
-  'content_generation',
-  NULL,
   $PROMPT$Eres un Arquitecto de Contenido Educativo. Tu objetivo es generar estructuras de datos pedagógicas y precisas para cualquier disciplina académica, las cuales la plataforma utilizará para crear archivos descargables (.pptx y .md).
 
 ### 1. CONFIGURACIÓN DE MARCA (PARÁMETROS VISUALES)

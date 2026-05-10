@@ -44,7 +44,19 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
+  CalendarRange,
+  FileText,
+  Hammer,
+  FolderKanban,
+  Presentation,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -119,6 +131,11 @@ export function AdminCourses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
+  // Curso cuyo "Tablero del estudiante" estamos viendo/editando. Cuando
+  // está poblado, mostramos un dialog con la misma vista que verá el
+  // alumno (sesiones por fecha + contenido asignado + items vinculados),
+  // y el docente puede asignar contenido a cada sesión inline.
+  const [boardForCourse, setBoardForCourse] = useState<Course | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const sel = useMultiSelect(courses);
 
@@ -938,6 +955,11 @@ export function AdminCourses() {
                     <RowActionsMenu
                       actions={[
                         {
+                          label: t("course.boardLabel"),
+                          icon: CalendarRange,
+                          onClick: () => setBoardForCourse(c),
+                        },
+                        {
                           label: t("course.students"),
                           icon: Users,
                           onClick: () => openEnroll(c),
@@ -1503,6 +1525,251 @@ export function AdminCourses() {
         extraWarning="Se eliminarán también todos los exámenes, talleres, proyectos, matrículas, cortes y registros de asistencia asociados (cascade)."
         onConfirm={handleBulkDelete}
       />
+
+      <CourseBoardDialog course={boardForCourse} onClose={() => setBoardForCourse(null)} />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// CourseBoardDialog: misma vista que el tablero del estudiante
+// (/app/student/courses → seleccionar curso) + capacidad inline de
+// asignar contenido a cada sesión. Reúne en un solo modal todo lo
+// relevante para el docente: cronograma del curso, qué material verá
+// el alumno cada día, qué entregas vencen cerca de cada clase.
+// ──────────────────────────────────────────────────────────────────────
+
+interface SessionRow {
+  id: string;
+  course_id: string;
+  session_date: string;
+  title: string | null;
+  content_id: string | null;
+  content_class_index: number | null;
+}
+
+interface AvailableContent {
+  id: string;
+  topic: string;
+  mode: "curso_completo" | "material_individual";
+  classes: number[];
+}
+
+type ScheduledItem = {
+  kind: "exam" | "workshop" | "project";
+  id: string;
+  title: string;
+  due: string;
+};
+
+function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [contents, setContents] = useState<AvailableContent[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!course) {
+      setSessions([]);
+      setContents([]);
+      setScheduled([]);
+      return;
+    }
+    setLoading(true);
+    void (async () => {
+      // Sesiones del curso + contenidos del docente disponibles + items
+      // (exams/workshops/projects) calendarizados — en paralelo.
+      const [sesRes, contentsRes, examsRes, wsRes, projRes] = await Promise.all([
+        db
+          .from("attendance_sessions")
+          .select("id, course_id, session_date, title, content_id, content_class_index")
+          .eq("course_id", course.id)
+          .order("session_date", { ascending: true }),
+        // status='done' del propio docente; "available" se filtra por
+        // RLS al teacher_id. Incluimos contenidos del curso O sin curso
+        // asociado (genéricos reutilizables).
+        db
+          .from("generated_contents")
+          .select("id, topic, mode, course_id, files")
+          .eq("status", "done")
+          .or(`course_id.eq.${course.id},course_id.is.null`),
+        supabase.from("exams").select("id, title, end_time").eq("course_id", course.id),
+        supabase.from("workshops").select("id, title, due_date").eq("course_id", course.id),
+        supabase.from("projects").select("id, title, due_date").eq("course_id", course.id),
+      ]);
+
+      setSessions((sesRes.data ?? []) as SessionRow[]);
+      // Aplana files[] → classes[] para no recalcular regex en cada Select.
+      setContents(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ((contentsRes.data ?? []) as any[]).map((g) => {
+          const files = (g.files ?? []) as Array<{ name: string }>;
+          const set = new Set<number>();
+          for (const f of files) {
+            const m = f.name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+            if (m) set.add(Number(m[1]));
+          }
+          return {
+            id: g.id,
+            topic: g.topic,
+            mode: g.mode,
+            classes: Array.from(set).sort((a, b) => a - b),
+          };
+        }),
+      );
+
+      const items: ScheduledItem[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const e of (examsRes.data ?? []) as any[]) {
+        if (e.end_time) items.push({ kind: "exam", id: e.id, title: e.title, due: e.end_time });
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const w of (wsRes.data ?? []) as any[]) {
+        if (w.due_date) items.push({ kind: "workshop", id: w.id, title: w.title, due: w.due_date });
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const p of (projRes.data ?? []) as any[]) {
+        if (p.due_date) items.push({ kind: "project", id: p.id, title: p.title, due: p.due_date });
+      }
+      setScheduled(items);
+      setLoading(false);
+    })();
+  }, [course]);
+
+  /** Items vinculados a una sesión: dentro de ±3 días de la fecha.
+   *  Misma heurística que el tablero del estudiante. */
+  const itemsForSession = (s: SessionRow): ScheduledItem[] => {
+    const sessTs = new Date(s.session_date + "T12:00:00").getTime();
+    return scheduled.filter((it) => {
+      const dueTs = new Date(it.due).getTime();
+      return Math.abs(dueTs - sessTs) <= 3 * 24 * 60 * 60 * 1000;
+    });
+  };
+
+  /** Persiste el cambio de contenido para UNA sesión. Optimista —
+   *  actualiza el state local en cuanto la BD responde OK. */
+  const updateAssignment = async (sessionId: string, raw: string) => {
+    let content_id: string | null = null;
+    let content_class_index: number | null = null;
+    if (raw !== "__none") {
+      const [cid, idx] = raw.split(":");
+      content_id = cid;
+      const n = Number(idx);
+      content_class_index = Number.isFinite(n) && n > 0 ? n : null;
+    }
+    const { error } = await db
+      .from("attendance_sessions")
+      .update({ content_id, content_class_index })
+      .eq("id", sessionId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, content_id, content_class_index } : s)),
+    );
+  };
+
+  if (!course) return null;
+
+  return (
+    <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarRange className="h-5 w-5 text-primary" />
+            {t("course.boardDialogTitle", { name: course.name })}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">{t("course.boardSubtitle")}</p>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
+            {t("course.boardNoSessions")}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sessions.map((s) => {
+              const items = itemsForSession(s);
+              const value = s.content_id
+                ? `${s.content_id}:${s.content_class_index ?? 0}`
+                : "__none";
+              return (
+                <Card key={s.id}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="text-[11px] tabular-nums">
+                            {s.session_date}
+                          </Badge>
+                          {s.title && <span className="text-sm font-medium">{s.title}</span>}
+                        </div>
+                      </div>
+                      {/* Asignación de contenido inline — reusa el mismo
+                          formato value `<contentId>:<classIndex>` que el
+                          inline column de attendance, así ambos caminos
+                          escriben lo mismo en la BD. */}
+                      <Select value={value} onValueChange={(v) => updateAssignment(s.id, v)}>
+                        <SelectTrigger className="w-56 h-8 text-xs">
+                          <SelectValue placeholder={t("contents.assignNone")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">{t("contents.assignNone")}</SelectItem>
+                          {contents.flatMap((c) =>
+                            c.classes.length > 0
+                              ? c.classes.map((n) => (
+                                  <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
+                                    {c.topic} · {t("contents.classNumber")} {n}
+                                  </SelectItem>
+                                ))
+                              : [
+                                  <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
+                                    {c.topic}
+                                  </SelectItem>,
+                                ],
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {items.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1.5 border-t">
+                        {items.map((it) => (
+                          <Badge
+                            key={`${it.kind}-${it.id}`}
+                            variant="outline"
+                            className="text-[10px] flex items-center gap-1"
+                          >
+                            {it.kind === "exam" ? (
+                              <FileText className="h-3 w-3" />
+                            ) : it.kind === "workshop" ? (
+                              <Hammer className="h-3 w-3" />
+                            ) : (
+                              <FolderKanban className="h-3 w-3" />
+                            )}
+                            {it.title}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.close")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

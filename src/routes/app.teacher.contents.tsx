@@ -176,17 +176,18 @@ function TeacherContents() {
         .eq("teacher_id", user.id)
         .order("created_at", { ascending: false }),
       db.from("content_brand_config").select("*").maybeSingle(),
-      // Cursos donde el docente tiene rol — para el selector opcional.
-      db.from("course_teachers").select("course:courses(id, name)").eq("teacher_id", user.id),
+      // Cursos visibles para este usuario. Antes filtrábamos via
+      // `course_teachers`, pero esa tabla no siempre tiene una fila
+      // por docente (en orgs chicas o cuando los cursos los crea Admin
+      // sin asignación explícita queda vacía). Ahora pedimos `courses`
+      // directo y dejamos que la RLS de la tabla recorte: Admin ve
+      // todo, Docente ve sus cursos, Estudiante ve los matriculados.
+      // Mismo patrón que usan workshops/projects para el selector.
+      supabase.from("courses").select("id, name").order("name"),
     ]);
     setItems((gens ?? []) as GeneratedContent[]);
     setBrand((brandRow as BrandConfig) ?? null);
-    // course_teachers viene anidado; aplanamos a {id, name}.
-    setCourses(
-      ((cs ?? []) as Array<{ course: CourseLite | null }>)
-        .map((r) => r.course)
-        .filter((c): c is CourseLite => c != null),
-    );
+    setCourses((cs ?? []) as CourseLite[]);
     setLoading(false);
   }, [user]);
 
