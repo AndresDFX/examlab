@@ -48,6 +48,7 @@ import {
   Eye,
   BookOpenCheck,
   CalendarRange,
+  AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -138,6 +139,11 @@ function TeacherContents() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [rawForId, setRawForId] = useState<string | null>(null);
+  // Cuando una generación queda en `status='failed'`, el campo `error`
+  // de la fila contiene el mensaje completo. Lo abrimos en su propio
+  // dialog para que el docente pueda copiar el texto y diagnosticar
+  // (timeouts del gateway, VAPID/keys faltantes, prompts inválidos, etc.).
+  const [errorForId, setErrorForId] = useState<string | null>(null);
   // Estado del dialog "Crear evaluación con este contenido". Cuando
   // está poblado con un GeneratedContent, abrimos el formulario que
   // permite materializar Talleres/Exámenes/Proyectos con el contenido
@@ -480,6 +486,19 @@ function TeacherContents() {
                                 onClick: () => setAssignFor(it),
                               }
                             : null,
+                          // "Ver error completo" solo aparece cuando la
+                          // generación falló. El campo `error` puede ser
+                          // largo (HTML del gateway, stack trace, etc.)
+                          // y la celda lo trunca; este dialog lo muestra
+                          // íntegro y lo deja seleccionable para copiar.
+                          it.status === "failed" && it.error
+                            ? {
+                                label: t("contents.viewError"),
+                                icon: AlertCircle,
+                                tone: "destructive",
+                                onClick: () => setErrorForId(it.id),
+                              }
+                            : null,
                           it.raw_output
                             ? {
                                 label: t("contents.viewRaw"),
@@ -697,6 +716,27 @@ function TeacherContents() {
           <pre className="text-[11px] whitespace-pre-wrap max-h-[60vh] overflow-y-auto bg-muted/30 p-3 rounded">
             {rawItem?.raw_output ?? ""}
           </pre>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error dialog: muestra el campo `error` íntegro de la fila
+          para que el docente pueda copiarlo y diagnosticar fallos del
+          edge function (timeouts, VAPID/keys faltantes, etc.). */}
+      <Dialog open={errorForId != null} onOpenChange={(o) => !o && setErrorForId(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              {t("contents.errorDialogTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {items.find((i) => i.id === errorForId)?.topic}
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="text-[11px] whitespace-pre-wrap max-h-[60vh] overflow-y-auto bg-destructive/5 border border-destructive/30 p-3 rounded text-destructive-foreground/90 select-text">
+            {items.find((i) => i.id === errorForId)?.error ?? ""}
+          </pre>
+          <p className="text-[11px] text-muted-foreground">{t("contents.errorDialogHint")}</p>
         </DialogContent>
       </Dialog>
 

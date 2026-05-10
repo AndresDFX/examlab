@@ -225,15 +225,40 @@ Deno.serve(async (req: Request) => {
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
     ]);
-    if (!aiRes.ok) {
-      const errText = await aiRes.text().catch(() => "");
-      throw new Error(`AI Gateway ${aiRes.status}: ${errText.slice(0, 400)}`);
+
+    // Capturamos el body como TEXT primero — si es HTML (gateway timeout
+    // 504, página de error del proxy, etc.) un .json() crashearía con
+    // "Unexpected token '<'" y perderíamos el contexto. Con texto crudo
+    // podemos detectar HTML y construir un mensaje útil para el docente
+    // antes de re-intentar el parseo JSON.
+    const rawText = await aiRes.text();
+    const looksHtml = rawText.trimStart().startsWith("<");
+
+    if (!aiRes.ok || looksHtml) {
+      // Acortamos para que el campo `error` no se desborde y el dialog
+      // de "Ver error completo" sea legible. Si es HTML, preferimos un
+      // diagnóstico claro a 400 chars de tags HTML.
+      const reason = looksHtml
+        ? "El AI Gateway devolvió HTML en vez de JSON — típicamente un timeout del proxy (504) o el provider rechazó la solicitud antes de empezar el stream. Reintenta; si persiste, divide el curso en menos clases o usa modalidad teorica/practica para reducir la longitud."
+        : `AI Gateway ${aiRes.status}: ${rawText.slice(0, 400)}`;
+      throw new Error(reason);
     }
-    const aiJson = await aiRes.json();
+
+    let aiJson: Record<string, unknown> = {};
+    try {
+      aiJson = JSON.parse(rawText);
+    } catch (parseErr) {
+      throw new Error(
+        `Respuesta del AI Gateway inválida (no es JSON). Primeros 300 chars: ${rawText.slice(0, 300)}`,
+      );
+    }
+
     const rawOutput: string =
-      aiJson.choices?.[0]?.message?.content ??
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (aiJson as any).choices?.[0]?.message?.content ??
       // Algunos providers ponen el contenido en `output_text` (legacy).
-      aiJson.choices?.[0]?.message?.output_text ??
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (aiJson as any).choices?.[0]?.message?.output_text ??
       "";
 
     if (!rawOutput.trim()) throw new Error("AI returned empty content");
