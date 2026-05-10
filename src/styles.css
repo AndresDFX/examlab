@@ -241,3 +241,61 @@ input[type="week"] {
       no-repeat;
   background-attachment: local, local;
 }
+
+/* ── Scrollbars visibles en light + dark ──
+   En dark mode el browser pinta scrollbars casi invisibles por defecto
+   (gris muy oscuro sobre gris oscuro). Esto rompe la UX en el modal
+   "Ver intento" y en cualquier región con overflow nativo. Definimos
+   colores explícitos para Firefox (scrollbar-color) y WebKit/Blink
+   (::-webkit-scrollbar*) que respetan el tema activo via CSS vars.
+
+   Aplica a TODOS los scrolls nativos (overflow-x-auto/-y-auto). El
+   componente Radix ScrollArea no se ve afectado — ese tiene su propia
+   estilización en src/components/ui/scroll-area.tsx. */
+* {
+  scrollbar-width: thin;
+  /* Firefox: thumb / track. Light mode → gris medio, dark → blanco
+     translúcido. Las CSS vars no funcionan dentro de scrollbar-color,
+     por eso usamos colores literales (con .dark override abajo). */
+  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.05);
+}
+
+/* WebKit / Blink: estilizable con pseudo-elementos. Soportan más
+   detalles (hover, corner) que el property de Firefox. */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 9999px;
+  /* Borde transparente actúa como padding visual: el thumb se ve más
+     delgado que la pista. Sin esto el thumb llena los 10px y se ve
+     pesado. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.75);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  background-clip: content-box;
+}
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.6);
+  background-clip: content-box;
+}
+.dark *::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
