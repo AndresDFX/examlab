@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -32,7 +33,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, CheckCircle2, X, Eraser, QrCode, Loader2, Trash2 } from "lucide-react";
+import {
+  Plus,
+  CheckCircle2,
+  X,
+  Eraser,
+  QrCode,
+  Loader2,
+  Trash2,
+  Settings2,
+  Presentation as PresentationIcon,
+  Scissors,
+} from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -819,136 +831,211 @@ function TeacherAttendance() {
               )}
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
-                {sessions.map((sess) => (
-                  <TableHead
-                    key={sess.id}
-                    className={`text-center min-w-[7.5rem] align-bottom p-2 ${
-                      cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
-                    }`}
-                  >
-                    <div className="flex flex-col items-stretch gap-1.5">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          type="button"
-                          variant={sess.check_in_open ? "default" : "outline"}
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={() =>
-                            sess.check_in_open ? reopenProjector(sess) : openCheckInConfig(sess)
-                          }
-                          title={
-                            sess.check_in_open
-                              ? "Check-in activo — abrir proyección"
-                              : "Iniciar check-in con QR"
-                          }
-                        >
-                          <QrCode className="h-4 w-4" aria-hidden />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={() => markAllPresent(sess.id)}
-                          title="Marcar a todos como presentes"
-                        >
-                          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={() => clearSessionAttendance(sess.id)}
-                          title="Quitar asistencia de todos (reiniciar sesión)"
-                        >
-                          <Eraser className="h-4 w-4 text-muted-foreground" aria-hidden />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 hover:bg-destructive/10 hover:border-destructive/40"
-                          onClick={() => deleteSession(sess.id)}
-                          title="Eliminar sesión completa"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
-                        </Button>
-                      </div>
-                      {sess.check_in_open && (
-                        <Badge variant="default" className="text-[9px] py-0 px-1 self-center">
-                          Check-in activo
-                        </Badge>
-                      )}
-                      <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
-                        <span className="text-[10px] font-medium leading-tight tabular-nums">
-                          {formatDateShort(sess.session_date + "T12:00:00")}
-                        </span>
-                        {sess.title && (
-                          <span
-                            className="text-[9px] text-muted-foreground truncate max-w-[5.5rem]"
-                            title={sess.title ?? undefined}
+                {sessions.map((sess) => {
+                  // Labels compactos para el resumen de "corte · contenido"
+                  // que aparece debajo del header — evita reservar 2
+                  // selects en cada columna del grid (antes ~6 filas de
+                  // alto; ahora ~4). La edición vive en el Popover.
+                  const cutLabel = sess.cut_id
+                    ? (cuts.find((c) => c.id === sess.cut_id)?.name ?? "Corte")
+                    : null;
+                  const contentLabel = (() => {
+                    if (!sess.content_id) return null;
+                    const c = availableContents.find((x) => x.id === sess.content_id);
+                    if (!c) return "Contenido";
+                    return sess.content_class_index && sess.content_class_index > 0
+                      ? `${c.topic} · Clase ${sess.content_class_index}`
+                      : c.topic;
+                  })();
+                  return (
+                    <TableHead
+                      key={sess.id}
+                      className={`text-center min-w-[6.5rem] align-bottom p-2 ${
+                        cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                      }`}
+                    >
+                      <div className="flex flex-col items-stretch gap-1.5">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            type="button"
+                            variant={sess.check_in_open ? "default" : "outline"}
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() =>
+                              sess.check_in_open ? reopenProjector(sess) : openCheckInConfig(sess)
+                            }
+                            title={
+                              sess.check_in_open
+                                ? "Check-in activo — abrir proyección"
+                                : "Iniciar check-in con QR"
+                            }
                           >
-                            {sess.title}
-                          </span>
+                            <QrCode className="h-4 w-4" aria-hidden />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => markAllPresent(sess.id)}
+                            title="Marcar a todos como presentes"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => clearSessionAttendance(sess.id)}
+                            title="Quitar asistencia de todos (reiniciar sesión)"
+                          >
+                            <Eraser className="h-4 w-4 text-muted-foreground" aria-hidden />
+                          </Button>
+                          {/* Configurar sesión: corte + contenido — antes
+                              eran dos Selects inline (max-w-[6.5rem]) que
+                              hacían columnas muy altas y truncaban textos.
+                              Ahora se editan en un Popover y abajo solo
+                              vemos un resumen compacto. */}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                title="Configurar corte y contenido de la sesión"
+                              >
+                                <Settings2 className="h-4 w-4 text-muted-foreground" aria-hidden />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-3 space-y-3" align="end">
+                              <div className="text-xs font-medium">
+                                Sesión{" "}
+                                <span className="tabular-nums text-muted-foreground">
+                                  {formatDateShort(sess.session_date + "T12:00:00")}
+                                </span>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] flex items-center gap-1">
+                                  <Scissors className="h-3 w-3" />
+                                  Corte
+                                </Label>
+                                <Select
+                                  value={sess.cut_id ?? "__none"}
+                                  onValueChange={(v) =>
+                                    updateSessionCut(sess.id, v === "__none" ? null : v)
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Sin corte" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none">Sin corte</SelectItem>
+                                    {cuts.map((c) => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        {c.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] flex items-center gap-1">
+                                  <PresentationIcon className="h-3 w-3" />
+                                  Contenido
+                                </Label>
+                                <Select
+                                  value={
+                                    sess.content_id
+                                      ? `${sess.content_id}:${sess.content_class_index ?? 0}`
+                                      : "__none"
+                                  }
+                                  onValueChange={(v) => updateSessionContent(sess.id, v)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Sin contenido" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none">Sin contenido</SelectItem>
+                                    {availableContents.map((c) =>
+                                      c.classes.length > 0 ? (
+                                        c.classes.map((n) => (
+                                          <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
+                                            {c.topic} · Clase {n}
+                                          </SelectItem>
+                                        ))
+                                      ) : (
+                                        <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
+                                          {c.topic}
+                                        </SelectItem>
+                                      ),
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 hover:bg-destructive/10 hover:border-destructive/40"
+                            onClick={() => deleteSession(sess.id)}
+                            title="Eliminar sesión completa"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
+                          </Button>
+                        </div>
+                        {sess.check_in_open && (
+                          <Badge variant="default" className="text-[9px] py-0 px-1 self-center">
+                            Check-in activo
+                          </Badge>
                         )}
-                        {/* Selector de corte por sesión: permite mover una
-                            sesión existente a otro corte sin re-crearla. */}
-                        <Select
-                          value={sess.cut_id ?? "__none"}
-                          onValueChange={(v) =>
-                            updateSessionCut(sess.id, v === "__none" ? null : v)
-                          }
-                        >
-                          <SelectTrigger className="h-6 px-1.5 text-[9px] mt-0.5 w-full max-w-[6.5rem]">
-                            <SelectValue placeholder="Sin corte" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">Sin corte</SelectItem>
-                            {cuts.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {/* Selector de contenido por sesión: el docente
-                            puede asociar UN GeneratedContent (o una
-                            CLASE_N específica de un curso_completo) a
-                            esta sesión. Aparece en el tablero del
-                            estudiante en la fecha de la sesión. */}
-                        <Select
-                          value={
-                            sess.content_id
-                              ? `${sess.content_id}:${sess.content_class_index ?? 0}`
-                              : "__none"
-                          }
-                          onValueChange={(v) => updateSessionContent(sess.id, v)}
-                        >
-                          <SelectTrigger className="h-6 px-1.5 text-[9px] mt-0.5 w-full max-w-[6.5rem]">
-                            <SelectValue placeholder="Sin contenido" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">Sin contenido</SelectItem>
-                            {availableContents.map((c) =>
-                              c.classes.length > 0 ? (
-                                c.classes.map((n) => (
-                                  <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
-                                    {c.topic} · Clase {n}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
-                                  {c.topic}
-                                </SelectItem>
-                              ),
+                        <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
+                          <span className="text-[10px] font-medium leading-tight tabular-nums">
+                            {formatDateShort(sess.session_date + "T12:00:00")}
+                          </span>
+                          {sess.title && (
+                            <span
+                              className="text-[9px] text-muted-foreground truncate max-w-[5.5rem]"
+                              title={sess.title ?? undefined}
+                            >
+                              {sess.title}
+                            </span>
+                          )}
+                          {/* Resumen compacto del corte y contenido —
+                              indicador read-only; click en el Settings
+                              de arriba para editar. */}
+                          <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
+                            {cutLabel ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                title={`Corte: ${cutLabel}`}
+                              >
+                                <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
+                                {cutLabel}
+                              </Badge>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground/50">sin corte</span>
                             )}
-                          </SelectContent>
-                        </Select>
+                            {contentLabel && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                title={`Contenido: ${contentLabel}`}
+                              >
+                                <PresentationIcon className="h-2.5 w-2.5 mr-0.5 shrink-0" />
+                                {contentLabel}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </TableHead>
-                ))}
+                    </TableHead>
+                  );
+                })}
                 <TableHead className="text-center min-w-16">%</TableHead>
               </TableRow>
             </TableHeader>

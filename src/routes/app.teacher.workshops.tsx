@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/multi-select";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
 import { ListFilters } from "@/components/ui/list-filters";
+import { CourseListCell } from "@/components/ui/course-list-cell";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
@@ -411,9 +412,7 @@ function TeacherWorkshops() {
         setOriginalCourseId(ws.course_id ?? null);
         setOpen(true);
       } else {
-        toast.info(
-          "El taller referenciado en la URL ya no existe o no tienes acceso a él.",
-        );
+        toast.info("El taller referenciado en la URL ya no existe o no tienes acceso a él.");
       }
       const url = new URL(window.location.href);
       url.searchParams.delete("edit");
@@ -1411,8 +1410,20 @@ function TeacherWorkshops() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden sm:table-cell max-w-[12rem] truncate">
-                    {ws.course?.name}
+                  <TableCell className="text-muted-foreground hidden sm:table-cell">
+                    {ws.course ? (
+                      <CourseListCell
+                        courses={[
+                          {
+                            id: ws.course_id,
+                            name: ws.course.name,
+                            period: ws.course.period,
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
                     {cuts.find((c) => c.id === (ws as any).cut_id)?.name ?? "—"}

@@ -53,6 +53,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { CourseListCell } from "@/components/ui/course-list-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { DecimalInput } from "@/components/ui/decimal-input";
 
@@ -112,7 +113,12 @@ function TeacherExams() {
     const { error } = await supabase.from("exams").delete().in("id", ids);
     if (error) throw new Error(error.message);
     toast.success(`${ids.length} examen(es) eliminado(s) correctamente`);
-    void logEvent({ action: "exam.deleted", category: "exam", actorRole: roles[0], metadata: { count: ids.length, ids } });
+    void logEvent({
+      action: "exam.deleted",
+      category: "exam",
+      actorRole: roles[0],
+      metadata: { count: ids.length, ids },
+    });
     sel.clear();
     load();
   };
@@ -129,7 +135,9 @@ function TeacherExams() {
   );
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   // Per-course cut+weight used only during multi-course creation.
-  const [courseCuts, setCourseCuts] = useState<Record<string, { cut_id: string | null; weight: number }>>({});
+  const [courseCuts, setCourseCuts] = useState<
+    Record<string, { cut_id: string | null; weight: number }>
+  >({});
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
   const confirm = useConfirm();
 
@@ -148,7 +156,16 @@ function TeacherExams() {
     const { error } = await supabase.from("exams").delete().eq("id", exam.id);
     if (error) return toast.error(error.message);
     toast.success(t("exam.deleted", { defaultValue: "Examen eliminado" }));
-    void logEvent({ action: "exam.deleted", category: "exam", actorRole: roles[0], entityType: "exam", entityId: exam.id, entityName: exam.title, courseId: exam.course_id, courseName: courses.find((c) => c.id === exam.course_id)?.name });
+    void logEvent({
+      action: "exam.deleted",
+      category: "exam",
+      actorRole: roles[0],
+      entityType: "exam",
+      entityId: exam.id,
+      entityName: exam.title,
+      courseId: exam.course_id,
+      courseName: courses.find((c) => c.id === exam.course_id)?.name,
+    });
     load();
   };
 
@@ -234,7 +251,7 @@ function TeacherExams() {
       .filter((e) => e.cut_id === form.cut_id && !e.parent_exam_id)
       .reduce((s, e) => s + Number(e.weight ?? 0), 0);
     return Math.max(0, bucket - sumOthers);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.cut_id, selectedCourseIds.size, cuts, exams]);
 
   const openNew = () => {
@@ -317,7 +334,7 @@ function TeacherExams() {
       parent_exam_id: form.parent_exam_id || null,
       created_by: user.id,
       // Multi-course: cut_id+weight are set per-course in the loop.
-      cut_id: isMultiCourse ? null : (form.cut_id || null),
+      cut_id: isMultiCourse ? null : form.cut_id || null,
       is_external: isExternal,
     };
     if (!isExternal) {
@@ -409,7 +426,17 @@ function TeacherExams() {
         : t("exam.createdOne"),
     );
     for (const cid of courseIds) {
-      void logEvent({ action: "exam.created", category: "exam", actorRole: roles[0], entityType: "exam", entityId: firstId ?? undefined, entityName: form.title, courseId: cid, courseName: courses.find((c) => c.id === cid)?.name, metadata: { is_external: !!(form as any).is_external } });
+      void logEvent({
+        action: "exam.created",
+        category: "exam",
+        actorRole: roles[0],
+        entityType: "exam",
+        entityId: firstId ?? undefined,
+        entityName: form.title,
+        courseId: cid,
+        courseName: courses.find((c) => c.id === cid)?.name,
+        metadata: { is_external: !!(form as any).is_external },
+      });
     }
     setOpen(false);
     if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
@@ -616,11 +643,18 @@ function TeacherExams() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell">
-                    {e.course?.name}
-                    {e.course?.period && (
-                      <Badge variant="outline" className="ml-1.5 text-[9px]">
-                        {e.course.period}
-                      </Badge>
+                    {e.course ? (
+                      <CourseListCell
+                        courses={[
+                          {
+                            id: e.course_id,
+                            name: e.course.name,
+                            period: e.course.period,
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
@@ -974,7 +1008,10 @@ function TeacherExams() {
                             onValueChange={(v) =>
                               setCourseCuts((prev) => ({
                                 ...prev,
-                                [cid]: { ...(prev[cid] ?? { weight: 1 }), cut_id: v === "__none__" ? null : v },
+                                [cid]: {
+                                  ...(prev[cid] ?? { weight: 1 }),
+                                  cut_id: v === "__none__" ? null : v,
+                                },
                               }))
                             }
                           >
@@ -991,7 +1028,9 @@ function TeacherExams() {
                             </SelectContent>
                           </Select>
                           {cutsForCourse.length === 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">Sin cortes definidos</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Sin cortes definidos
+                            </p>
                           )}
                         </div>
                         <div>
@@ -1016,14 +1055,20 @@ function TeacherExams() {
                             </span>
                           </div>
                           {selectedCut && (
-                            <p className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}>
-                              Disponible: <strong>{exMax.toFixed(1)}%</strong>
-                              {" "}(bucket {exBucket}% − otros {sumOthers.toFixed(1)}%)
-                              {overBucket && <span className="block">Excede el bucket disponible.</span>}
+                            <p
+                              className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
+                            >
+                              Disponible: <strong>{exMax.toFixed(1)}%</strong> (bucket {exBucket}% −
+                              otros {sumOthers.toFixed(1)}%)
+                              {overBucket && (
+                                <span className="block">Excede el bucket disponible.</span>
+                              )}
                             </p>
                           )}
                           {!cc.cut_id && (
-                            <p className="text-xs text-muted-foreground mt-1">Asigna un corte para configurar el peso.</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Asigna un corte para configurar el peso.
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1033,76 +1078,79 @@ function TeacherExams() {
               </div>
             ) : (
               <>
-            <div>
-              <Label>
-                Corte de evaluación{" "}
-                <HelpHint>
-                  Opcional. Asigna el examen a un corte para que su peso cuente en el cálculo de la
-                  nota final del curso.
-                </HelpHint>
-              </Label>
-              {(() => {
-                const targetCourseId = [...selectedCourseIds][0];
-                const availableCuts = cuts.filter((c) => c.course_id === targetCourseId);
-                return (
-                  <Select
-                    value={form.cut_id ?? "__none__"}
-                    onValueChange={(v) => setForm({ ...form, cut_id: v === "__none__" ? null : v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin corte asignado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sin corte asignado</SelectItem>
-                      {availableCuts.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                );
-              })()}
-            </div>
-            {form.cut_id && (() => {
-              const selectedCut = cuts.find((c) => c.id === form.cut_id);
-              const exBucket = Number(selectedCut?.exam_weight ?? 0);
-              const exMax = examWeightMax ?? 0;
-              const sumOthers = exams
-                .filter((e) => e.cut_id === form.cut_id && !e.parent_exam_id)
-                .reduce((s, e) => s + Number(e.weight ?? 0), 0);
-              const currentWeight = Number((form as any).weight ?? 1) || 0;
-              const overBucket = currentWeight > exMax + 0.01;
-              return (
                 <div>
-                  <Label>Peso del examen (% del bucket de exámenes del corte)</Label>
-                  <div className="relative mt-1 w-32">
-                    <DecimalInput
-                      min={0}
-                      max={exMax || undefined}
-                      placeholder="1,0"
-                      className="pr-7"
-                      value={(form as any).weight ?? 1}
-                      onChange={(v) => setForm({ ...form, weight: v ?? 1 } as any)}
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                      %
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Bucket exámenes del corte{" "}
-                    <span className="font-medium">{selectedCut?.name}</span>: {exBucket}%.
-                    Otros exámenes suman {sumOthers.toFixed(1)}%, te queda{" "}
-                    <strong>{exMax.toFixed(1)}%</strong> disponible.
-                    {overBucket && (
-                      <span className="block text-destructive mt-1">
-                        El peso actual ({currentWeight.toFixed(1)}%) excede el bucket.
-                      </span>
-                    )}
-                  </p>
+                  <Label>
+                    Corte de evaluación{" "}
+                    <HelpHint>
+                      Opcional. Asigna el examen a un corte para que su peso cuente en el cálculo de
+                      la nota final del curso.
+                    </HelpHint>
+                  </Label>
+                  {(() => {
+                    const targetCourseId = [...selectedCourseIds][0];
+                    const availableCuts = cuts.filter((c) => c.course_id === targetCourseId);
+                    return (
+                      <Select
+                        value={form.cut_id ?? "__none__"}
+                        onValueChange={(v) =>
+                          setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sin corte asignado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                          {availableCuts.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
                 </div>
-              );
-            })()}
+                {form.cut_id &&
+                  (() => {
+                    const selectedCut = cuts.find((c) => c.id === form.cut_id);
+                    const exBucket = Number(selectedCut?.exam_weight ?? 0);
+                    const exMax = examWeightMax ?? 0;
+                    const sumOthers = exams
+                      .filter((e) => e.cut_id === form.cut_id && !e.parent_exam_id)
+                      .reduce((s, e) => s + Number(e.weight ?? 0), 0);
+                    const currentWeight = Number((form as any).weight ?? 1) || 0;
+                    const overBucket = currentWeight > exMax + 0.01;
+                    return (
+                      <div>
+                        <Label>Peso del examen (% del bucket de exámenes del corte)</Label>
+                        <div className="relative mt-1 w-32">
+                          <DecimalInput
+                            min={0}
+                            max={exMax || undefined}
+                            placeholder="1,0"
+                            className="pr-7"
+                            value={(form as any).weight ?? 1}
+                            onChange={(v) => setForm({ ...form, weight: v ?? 1 } as any)}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                            %
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Bucket exámenes del corte{" "}
+                          <span className="font-medium">{selectedCut?.name}</span>: {exBucket}%.
+                          Otros exámenes suman {sumOthers.toFixed(1)}%, te queda{" "}
+                          <strong>{exMax.toFixed(1)}%</strong> disponible.
+                          {overBucket && (
+                            <span className="block text-destructive mt-1">
+                              El peso actual ({currentWeight.toFixed(1)}%) excede el bucket.
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    );
+                  })()}
               </>
             )}
             {!(form as any).is_external && (

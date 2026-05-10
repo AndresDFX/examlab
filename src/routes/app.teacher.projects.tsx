@@ -72,6 +72,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
 import { AssignSelector } from "@/components/AssignSelector";
 import { FeedbackThread } from "@/components/FeedbackThread";
@@ -475,9 +476,7 @@ function TeacherProjects() {
       if (p) {
         openEdit(p);
       } else {
-        toast.info(
-          "El proyecto referenciado en la URL ya no existe o no tienes acceso a él.",
-        );
+        toast.info("El proyecto referenciado en la URL ya no existe o no tienes acceso a él.");
       }
       const url = new URL(window.location.href);
       url.searchParams.delete("edit");
@@ -1386,19 +1385,14 @@ function TeacherProjects() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden sm:table-cell max-w-[14rem]">
-                    <div className="flex flex-wrap gap-1 items-center">
-                      {(p.linked_course_ids ?? [p.course_id]).map((cid) => {
-                        const c = courses.find((cc) => cc.id === cid);
-                        if (!c) return null;
-                        return (
-                          <Badge key={cid} variant="outline" className="text-[10px]">
-                            {c.name}
-                            {c.period ? ` · ${c.period}` : ""}
-                          </Badge>
-                        );
-                      })}
-                    </div>
+                  <TableCell className="text-muted-foreground hidden sm:table-cell">
+                    <CourseListCell
+                      courses={(p.linked_course_ids ?? [p.course_id])
+                        .map((cid) => courses.find((c) => c.id === cid))
+                        .filter((c): c is NonNullable<typeof c> => !!c)
+                        .map((c) => ({ id: c.id, name: c.name, period: c.period }))}
+                      popoverTitle={`Cursos del proyecto`}
+                    />
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
                     {cuts.find((c) => c.id === p.cut_id)?.name ?? "—"}
