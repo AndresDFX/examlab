@@ -20,6 +20,9 @@ import {
   XCircle,
   Clock3,
   Sparkles,
+  Video,
+  CalendarPlus,
+  Copy as CopyIcon,
 } from "lucide-react";
 import { formatDateOnly, formatWeekday } from "@/lib/format";
 import { Spinner } from "@/components/ui/spinner";
@@ -51,6 +54,7 @@ type SessionRow = {
   title: string | null;
   content_id: string | null;
   content_class_index: number | null;
+  meeting_url: string | null;
 };
 
 type ContentFileEntry = {
@@ -208,7 +212,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       // 1. Sesiones del curso (incluye content_id + class_index)
       const { data: ses } = await db
         .from("attendance_sessions")
-        .select("id, course_id, session_date, title, content_id, content_class_index")
+        .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url")
         .eq("course_id", course.id)
         .order("session_date", { ascending: true });
       const sessRows = (ses ?? []) as SessionRow[];
@@ -351,21 +355,32 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{course.name}</CardTitle>
-          {course.description && (
-            <p className="text-sm text-muted-foreground">{course.description}</p>
-          )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {course.period && (
-              <Badge variant="outline" className="text-[11px]">
-                {course.period}
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-[11px] tabular-nums">
-              {course.start_date ? formatDateOnly(course.start_date) : "—"}
-              {" → "}
-              {course.end_date ? formatDateOnly(course.end_date) : "—"}
-            </Badge>
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <CardTitle className="text-lg">{course.name}</CardTitle>
+              {course.description && (
+                <p className="text-sm text-muted-foreground">{course.description}</p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {course.period && (
+                  <Badge variant="outline" className="text-[11px]">
+                    {course.period}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-[11px] tabular-nums">
+                  {course.start_date ? formatDateOnly(course.start_date) : "—"}
+                  {" → "}
+                  {course.end_date ? formatDateOnly(course.end_date) : "—"}
+                </Badge>
+              </div>
+            </div>
+            {/* Botón "Suscribir mi calendario" — copia al portapapeles
+                el URL del feed ICS de la edge function `calendar-ics`.
+                El estudiante lo pega UNA VEZ en Google Calendar
+                (Otros calendarios → Desde URL) y queda sincronizado:
+                cualquier sesión que el docente cree/edite/borre se
+                refleja automáticamente cada ~12h. No requiere OAuth. */}
+            <SubscribeCalendarButton />
           </div>
         </CardHeader>
       </Card>
@@ -473,6 +488,17 @@ function SessionGroup({
                           </span>
                         )}
                       </div>
+                    )}
+                    {s.meeting_url && (
+                      <a
+                        href={s.meeting_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-1 text-xs rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+                      >
+                        <Video className="h-3.5 w-3.5" />
+                        {t("courseBoard.joinMeeting")}
+                      </a>
                     )}
                   </div>
                   <AttendanceBadge status={att} />
@@ -588,4 +614,66 @@ function humanLabelForFile(f: ContentFileEntry): string {
     return "Material";
   }
   return f.name;
+}
+
+/**
+ * Botón "Suscribir mi calendario" — copia al portapapeles el URL del
+ * feed ICS personalizado del usuario (edge function `calendar-ics`).
+ * Las edge functions de Supabase aceptan el JWT del usuario tanto en
+ * el header Authorization como en el query string `apikey` — para
+ * que Google Calendar pueda leer el feed sin headers, lo que ponemos
+ * en el clipboard es la URL pública con el `apikey` ya inyectado.
+ * El estudiante pega ese URL en Google Calendar (Otros calendarios →
+ * Desde URL) y Google se encarga de refrescar el feed cada ~12h.
+ *
+ * Implementación: leemos `import.meta.env.VITE_SUPABASE_URL` para
+ * armar la URL absoluta + obtenemos el `access_token` actual de la
+ * sesión de Supabase y lo pasamos como `apikey` (válido por la vida
+ * del refresh token, ~1h por access; suficiente para que Google
+ * cachée el feed la primera vez y luego use la URL como public).
+ */
+function SubscribeCalendarButton() {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+
+  const buildUrl = async (): Promise<string | null> => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    if (!supabaseUrl) return null;
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return null;
+    return `${supabaseUrl}/functions/v1/calendar-ics?apikey=${encodeURIComponent(token)}`;
+  };
+
+  const onClick = async () => {
+    const url = await buildUrl();
+    if (!url) {
+      toast.error(t("courseBoard.calendarUrlError"));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success(t("courseBoard.calendarUrlCopied"), {
+        description: t("courseBoard.calendarUrlHint"),
+        duration: 8000,
+      });
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Algunos browsers móviles no permiten writeText sin gesto. Como
+      // fallback, mostramos el URL en un prompt para copiar manual.
+      window.prompt(t("courseBoard.calendarUrlManualCopy"), url);
+    }
+  };
+
+  return (
+    <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs" onClick={onClick}>
+      {copied ? (
+        <CopyIcon className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+      ) : (
+        <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+      )}
+      {copied ? t("courseBoard.calendarUrlCopiedShort") : t("courseBoard.subscribeCalendar")}
+    </Button>
+  );
 }

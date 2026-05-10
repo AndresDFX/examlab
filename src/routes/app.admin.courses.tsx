@@ -49,6 +49,8 @@ import {
   Hammer,
   FolderKanban,
   Presentation,
+  Link2,
+  Upload,
 } from "lucide-react";
 import {
   Select,
@@ -1565,6 +1567,10 @@ interface SessionRow {
   title: string | null;
   content_id: string | null;
   content_class_index: number | null;
+  /** URL de Meet/Teams/Zoom para la sesión. Validado a `https?://`
+   *  por CHECK en BD. Aparece como botón "Unirse" en el tablero del
+   *  estudiante y como ícono link en el tablero del docente. */
+  meeting_url: string | null;
 }
 
 interface AvailableContent {
@@ -1595,6 +1601,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   // primary para señalizar el modo edición.
   const [draftDate, setDraftDate] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
+  const [draftMeetingUrl, setDraftMeetingUrl] = useState("");
+  // CSV import: bandera que muestra spinner mientras procesa, y un
+  // contador de filas insertadas vs omitidas para el toast final.
+  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -1612,7 +1622,9 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       const [sesRes, contentsRes, examsRes, wsRes, projRes] = await Promise.all([
         db
           .from("attendance_sessions")
-          .select("id, course_id, session_date, title, content_id, content_class_index")
+          .select(
+            "id, course_id, session_date, title, content_id, content_class_index, meeting_url",
+          )
           .eq("course_id", course.id)
           .order("session_date", { ascending: true }),
         // status='done' del propio docente; "available" se filtra por
@@ -1716,9 +1728,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           course_id: course.id,
           session_date: draftDate,
           title: draftTitle.trim() || null,
+          meeting_url: draftMeetingUrl.trim() || null,
           created_by: user.id,
         })
-        .select("id, course_id, session_date, title, content_id, content_class_index")
+        .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url")
         .single();
       if (error || !data) {
         toast.error(error?.message ?? "insert failed");
@@ -1730,9 +1743,95 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       );
       setDraftDate("");
       setDraftTitle("");
+      setDraftMeetingUrl("");
       toast.success(t("course.boardSessionCreated"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Importa sesiones desde un CSV. Formato esperado por header:
+   *   session_date,title,meeting_url
+   * Solo session_date es requerido (formato YYYY-MM-DD). Las filas
+   * inválidas se cuentan como "skipped" en el toast — no abortamos el
+   * batch entero por una fila mala. Insertamos en una sola pasada con
+   * `.insert(rows[])` para reducir round-trips.
+   */
+  const importCsv = async (file: File) => {
+    if (!course || !user) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      // Parser simple: split por línea + comma. NO soportamos comillas
+      // anidadas con commas dentro — el caso de uso son títulos cortos
+      // y URLs que no llevan commas. Si llega a ser problema, migramos
+      // a `papaparse`.
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) {
+        toast.error(t("course.boardImportEmpty"));
+        return;
+      }
+      const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+      const idxDate = header.indexOf("session_date");
+      const idxTitle = header.indexOf("title");
+      const idxMeet = header.indexOf("meeting_url");
+      if (idxDate < 0) {
+        toast.error(t("course.boardImportNoDate"));
+        return;
+      }
+
+      type Row = {
+        course_id: string;
+        session_date: string;
+        title: string | null;
+        meeting_url: string | null;
+        created_by: string;
+      };
+      const rows: Row[] = [];
+      let skipped = 0;
+      for (let i = 1; i < lines.length; i += 1) {
+        const cols = lines[i].split(",").map((c) => c.trim());
+        const date = cols[idxDate];
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          skipped += 1;
+          continue;
+        }
+        const url = idxMeet >= 0 ? cols[idxMeet] : "";
+        if (url && !/^https?:\/\//i.test(url)) {
+          skipped += 1;
+          continue;
+        }
+        rows.push({
+          course_id: course.id,
+          session_date: date,
+          title: idxTitle >= 0 && cols[idxTitle] ? cols[idxTitle] : null,
+          meeting_url: url || null,
+          created_by: user.id,
+        });
+      }
+      if (rows.length === 0) {
+        toast.error(t("course.boardImportNoValid", { skipped }));
+        return;
+      }
+      const { data, error } = await db
+        .from("attendance_sessions")
+        .insert(rows)
+        .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setSessions((prev) =>
+        [...prev, ...((data ?? []) as SessionRow[])].sort((a, b) =>
+          a.session_date.localeCompare(b.session_date),
+        ),
+      );
+      toast.success(t("course.boardImportDone", { created: rows.length, skipped }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -1742,12 +1841,14 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     setEditingId(s.id);
     setDraftDate(s.session_date);
     setDraftTitle(s.title ?? "");
+    setDraftMeetingUrl(s.meeting_url ?? "");
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setDraftDate("");
     setDraftTitle("");
+    setDraftMeetingUrl("");
   };
 
   /** Persiste cambios de fecha/título de la sesión en edición. */
@@ -1760,6 +1861,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         .update({
           session_date: draftDate,
           title: draftTitle.trim() || null,
+          meeting_url: draftMeetingUrl.trim() || null,
         })
         .eq("id", editingId);
       if (error) {
@@ -1770,7 +1872,12 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         prev
           .map((s) =>
             s.id === editingId
-              ? { ...s, session_date: draftDate, title: draftTitle.trim() || null }
+              ? {
+                  ...s,
+                  session_date: draftDate,
+                  title: draftTitle.trim() || null,
+                  meeting_url: draftMeetingUrl.trim() || null,
+                }
               : s,
           )
           .sort((a, b) => a.session_date.localeCompare(b.session_date)),
@@ -1811,11 +1918,41 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarRange className="h-5 w-5 text-primary" />
-            {t("course.boardDialogTitle", { name: course.name })}
-          </DialogTitle>
-          <p className="text-xs text-muted-foreground">{t("course.boardSubtitle")}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarRange className="h-5 w-5 text-primary" />
+                {t("course.boardDialogTitle", { name: course.name })}
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground">{t("course.boardSubtitle")}</p>
+            </div>
+            {/* Importar CSV: usamos el patrón de un input file oculto +
+                Label como botón. Esto evita necesitar un Dialog adicional
+                y usa el file picker nativo del browser. */}
+            <Label
+              className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md border border-input bg-background hover:bg-muted/40 cursor-pointer shrink-0"
+              title={t("course.boardImportTooltip")}
+            >
+              {importing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              {t("course.boardImportCsv")}
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void importCsv(f);
+                  // Reset para permitir importar el mismo file dos veces.
+                  e.target.value = "";
+                }}
+                disabled={importing}
+              />
+            </Label>
+          </div>
         </DialogHeader>
 
         {/* Form de creación rápida — siempre visible arriba del listado.
@@ -1848,6 +1985,19 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                   setDraftTitle(e.target.value);
                 }}
                 placeholder={t("course.boardSessionTitlePlaceholder")}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1 flex-1 min-w-48">
+              <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
+              <Input
+                type="url"
+                value={editingId ? "" : draftMeetingUrl}
+                onChange={(e) => {
+                  if (editingId) setEditingId(null);
+                  setDraftMeetingUrl(e.target.value);
+                }}
+                placeholder="https://meet.google.com/…"
                 className="h-8 text-xs"
               />
             </div>
@@ -1910,6 +2060,16 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             className="h-8 text-xs"
                           />
                         </div>
+                        <div className="space-y-1 flex-1 min-w-48">
+                          <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
+                          <Input
+                            type="url"
+                            value={draftMeetingUrl}
+                            onChange={(e) => setDraftMeetingUrl(e.target.value)}
+                            placeholder="https://meet.google.com/…"
+                            className="h-8 text-xs"
+                          />
+                        </div>
                         <Button
                           size="sm"
                           onClick={saveEdit}
@@ -1941,6 +2101,18 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                               {s.session_date}
                             </Badge>
                             {s.title && <span className="text-sm font-medium">{s.title}</span>}
+                            {s.meeting_url && (
+                              <a
+                                href={s.meeting_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+                                title={s.meeting_url}
+                              >
+                                <Link2 className="h-3 w-3" />
+                                {t("course.boardJoinMeeting")}
+                              </a>
+                            )}
                           </div>
                         </div>
                         {/* Asignación de contenido inline — reusa el mismo
