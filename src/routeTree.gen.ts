@@ -19,6 +19,7 @@ import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.s
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
+import { Route as AppTeacherContentsRouteImport } from './routes/app.teacher.contents'
 import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
 import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.attendance'
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
@@ -90,6 +91,11 @@ const AppTeacherGradebookRoute = AppTeacherGradebookRouteImport.update({
 const AppTeacherCoursesRoute = AppTeacherCoursesRouteImport.update({
   id: '/teacher/courses',
   path: '/teacher/courses',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherContentsRoute = AppTeacherContentsRouteImport.update({
+  id: '/teacher/contents',
+  path: '/teacher/contents',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherAuditLogsRoute = AppTeacherAuditLogsRouteImport.update({
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
+  '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
@@ -259,6 +266,7 @@ export interface FileRoutesByTo {
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
+  '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
+  '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
@@ -330,6 +339,7 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
+    | '/app/teacher/contents'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
@@ -363,6 +373,7 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
+    | '/app/teacher/contents'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
@@ -397,6 +408,7 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
+    | '/app/teacher/contents'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
@@ -488,6 +500,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/courses'
       fullPath: '/app/teacher/courses'
       preLoaderRoute: typeof AppTeacherCoursesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/contents': {
+      id: '/app/teacher/contents'
+      path: '/teacher/contents'
+      fullPath: '/app/teacher/contents'
+      preLoaderRoute: typeof AppTeacherContentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/audit-logs': {
@@ -664,6 +683,7 @@ interface AppRouteChildren {
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
   AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
+  AppTeacherContentsRoute: typeof AppTeacherContentsRoute
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
   AppTeacherProjectsRoute: typeof AppTeacherProjectsRoute
@@ -696,6 +716,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
   AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
+  AppTeacherContentsRoute: AppTeacherContentsRoute,
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
   AppTeacherProjectsRoute: AppTeacherProjectsRoute,
