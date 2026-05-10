@@ -1326,7 +1326,7 @@ function TeacherProjects() {
         })()}
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

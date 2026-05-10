@@ -1147,7 +1147,7 @@ function ExamMonitor() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1158,7 +1158,12 @@ function ExamMonitor() {
                     <HelpHint>{t("monitor.columns.attemptsHint")}</HelpHint>
                   </span>
                 </TableHead>
-                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    {t("common.status")}
+                    <HelpHint>{t("monitor.columns.statusHint")}</HelpHint>
+                  </span>
+                </TableHead>
                 <TableHead className="hidden md:table-cell">
                   <span className="inline-flex items-center gap-1">
                     {t("monitor.columns.question")}
@@ -1181,11 +1186,13 @@ function ExamMonitor() {
                 <TableHead className="hidden lg:table-cell text-center">
                   <span className="inline-flex items-center gap-1 justify-center">
                     {t("integrity.pendingAi")}
+                    <HelpHint>{t("integrity.pendingAiHint")}</HelpHint>
                   </span>
                 </TableHead>
                 <TableHead className="hidden lg:table-cell text-center">
                   <span className="inline-flex items-center gap-1 justify-center">
                     {t("integrity.pendingCopy")}
+                    <HelpHint>{t("integrity.pendingCopyHint")}</HelpHint>
                   </span>
                 </TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
@@ -1497,7 +1504,13 @@ function ExamMonitor() {
           }
         }}
       >
-        <DialogContent className={comparisonForCopy ? "max-w-6xl" : "max-w-3xl"}>
+        <DialogContent
+          // max-w-5xl en modo simple para evitar scroll horizontal
+          // (las cards de pregunta + grading inputs + AI/copia colapsados
+          // necesitan más ancho del que daba 3xl). En modo comparación
+          // expandimos a 7xl para acomodar dos columnas cómodamente.
+          className={comparisonForCopy ? "max-w-7xl" : "max-w-5xl"}
+        >
           <DialogHeader>
             <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
@@ -1745,36 +1758,53 @@ function ExamMonitor() {
                                 .get(viewingSub.id)
                                 ?.get(q.id);
                               if (!sig || sig.score < 0.6) return null;
+                              const reviewed = sig.reviewedAt != null;
                               return (
-                                <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="text-[11px] font-medium flex items-center gap-1 text-amber-700 dark:text-amber-300">
-                                      <Bot className="h-3 w-3" />
-                                      {t("integrity.aiSection")}
-                                      <Badge
-                                        variant={
-                                          sig.score >= 0.85
-                                            ? "destructive"
-                                            : sig.score >= 0.7
-                                              ? "default"
-                                              : "secondary"
-                                        }
-                                        className="text-[10px] ml-1"
+                                // Collapsible para uniformidad con la sección
+                                // de copias por pregunta. Default cerrado para
+                                // mantener la card limpia; el docente lo abre
+                                // si quiere leer las razones de la IA.
+                                <Collapsible defaultOpen={false}>
+                                  <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                    <CollapsibleTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
                                       >
-                                        {Math.round(sig.score * 100)}%
-                                      </Badge>
-                                    </div>
-                                    <div>
-                                      {sig.reviewedAt ? (
+                                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                                        <Bot className="h-3 w-3" />
+                                        <span>{t("integrity.aiSection")}</span>
                                         <Badge
-                                          variant="outline"
-                                          className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                          variant={
+                                            sig.score >= 0.85
+                                              ? "destructive"
+                                              : sig.score >= 0.7
+                                                ? "default"
+                                                : "secondary"
+                                          }
+                                          className="text-[10px] ml-auto"
                                         >
-                                          <Check className="h-3 w-3 mr-1" />
-                                          {t("integrity.reviewed")}
-                                          <button
-                                            type="button"
-                                            className="ml-1 underline text-muted-foreground"
+                                          {Math.round(sig.score * 100)}%
+                                        </Badge>
+                                        {reviewed && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                          >
+                                            <Check className="h-3 w-3 mr-1" />
+                                            {t("integrity.reviewed")}
+                                          </Badge>
+                                        )}
+                                      </button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="space-y-2">
+                                      <CollapsibleReasons text={sig.reasons} />
+                                      <div className="flex justify-end">
+                                        {reviewed ? (
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 text-[10px]"
                                             onClick={() =>
                                               toggleQuestionAiReviewedHandler(
                                                 sig.submissionId,
@@ -1784,29 +1814,28 @@ function ExamMonitor() {
                                             }
                                           >
                                             {t("integrity.reopen")}
-                                          </button>
-                                        </Badge>
-                                      ) : (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-6 text-[10px]"
-                                          onClick={() =>
-                                            toggleQuestionAiReviewedHandler(
-                                              sig.submissionId,
-                                              q.id,
-                                              false,
-                                            )
-                                          }
-                                        >
-                                          <Check className="h-3 w-3 mr-1" />
-                                          {t("integrity.markReviewed")}
-                                        </Button>
-                                      )}
-                                    </div>
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 text-[10px]"
+                                            onClick={() =>
+                                              toggleQuestionAiReviewedHandler(
+                                                sig.submissionId,
+                                                q.id,
+                                                false,
+                                              )
+                                            }
+                                          >
+                                            <Check className="h-3 w-3 mr-1" />
+                                            {t("integrity.markReviewed")}
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </CollapsibleContent>
                                   </div>
-                                  <CollapsibleReasons text={sig.reasons} />
-                                </div>
+                                </Collapsible>
                               );
                             })()}
 
@@ -1832,7 +1861,11 @@ function ExamMonitor() {
                                   // Default expanded SOLO si hay pendientes — los
                                   // ya-revisados arrancan colapsados para reducir
                                   // ruido visual en intentos sin alertas activas.
-                                  defaultOpen={pendingCount > 0}
+                                  // Siempre colapsado por defecto: el docente lo
+                                  // abre solo si quiere ver el detalle. Mantiene
+                                  // la pregunta limpia visualmente cuando hay
+                                  // varios peers o muchas preguntas con copia.
+                                  defaultOpen={false}
                                 >
                                   <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
                                     <CollapsibleTrigger asChild>

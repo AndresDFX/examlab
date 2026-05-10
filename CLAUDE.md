@@ -63,6 +63,12 @@ Vive en `src/components/ui/`. Componentes propios (encima de shadcn):
 
 Locale es-CO hardcodeado en `Intl.DateTimeFormat` para que la app se vea igual independiente del SO/navegador del usuario.
 
+### Reglas de layout / scroll
+
+- **Sin scroll horizontal a nivel página**: nunca dejar que un grid o un Card haga overflow horizontal del viewport completo. El patrón estándar es envolver `<Table>` en `<CardContent className="p-0 overflow-x-auto">` (o un `<div className="overflow-x-auto">` interno si la Card tiene padding). Así, cuando una tabla tiene muchas columnas, hace scroll **dentro de su Card** sin empujar la página entera.
+- **Modales con muchas columnas o flex-row**: usar `max-w-5xl`/`max-w-6xl`/`max-w-7xl` según necesidad. NO insistir con `max-w-3xl` cuando el contenido obviamente no cabe — eso es lo que causa scroll horizontal del modal.
+- **Columnas progresivas**: las columnas secundarias del grid deben ir con `hidden sm:table-cell` / `hidden md:table-cell` / `hidden lg:table-cell` para que en pantallas chicas se oculten antes de forzar scroll.
+
 ### Patrones de comportamiento
 
 - **`useConfirm()`** (de `ConfirmDialog`): para confirmaciones destructivas o de cambio importante. Retorna `Promise<boolean>`. NO construir Dialogs custom para esto.

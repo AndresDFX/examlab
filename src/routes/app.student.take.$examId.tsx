@@ -767,10 +767,29 @@ function TakeExam() {
       recordWarning("pestaña");
     };
     const onContext = (e: Event) => e.preventDefault();
-    // Nota: el bloqueo de copiar / pegar / cortar / selección se
-    // removió a propósito. La política de proctoring se queda en:
-    // contextmenu, keyDown (F11/Alt-Tab/Alt-F4/Esc), blur (cambio de
-    // pestaña) y fullscreenchange. Copy/paste son permitidos.
+    // Política de copiar/pegar/cortar:
+    //   - PERMITIDO dentro de editores de código (Monaco) → preguntas
+    //     `codigo` y `java_gui`. Esto es necesario porque los estudiantes
+    //     legítimamente copian fragmentos entre el área de código y
+    //     consola, snippets, etc.
+    //   - BLOQUEADO en cualquier otro input (textarea de respuesta
+    //     abierta, opción múltiple, diagrama). preventDefault evita que
+    //     pegar contenido externo (LLM, otro tab) sea trivial; además
+    //     suma un strike por intento.
+    // Detectamos por DOM: `.monaco-editor` envuelve cualquier instancia
+    // del editor. Si el target del evento está dentro de uno, dejamos
+    // pasar; si no, lo bloqueamos.
+    const isInCodeEditor = (target: EventTarget | null): boolean =>
+      target instanceof HTMLElement && target.closest(".monaco-editor") !== null;
+    const onClipboard = (e: ClipboardEvent) => {
+      if (isInCodeEditor(e.target)) return;
+      e.preventDefault();
+      // Diferenciamos copy vs paste vs cut para que el monitor docente
+      // pueda mostrar la acción exacta. Las claves españolas ya existen
+      // en src/utils/proctoring.ts (copiar/pegar/cortar).
+      const key = e.type === "paste" ? "pegar" : e.type === "cut" ? "cortar" : "copiar";
+      recordWarning(key);
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") e.preventDefault();
       if (e.altKey && (e.key === "Tab" || e.key === "F4")) e.preventDefault();
@@ -800,6 +819,9 @@ function TakeExam() {
     document.addEventListener("contextmenu", onContext);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("copy", onClipboard);
+    document.addEventListener("paste", onClipboard);
+    document.addEventListener("cut", onClipboard);
     return () => {
       window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
@@ -807,6 +829,9 @@ function TakeExam() {
       document.removeEventListener("contextmenu", onContext);
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("copy", onClipboard);
+      document.removeEventListener("paste", onClipboard);
+      document.removeEventListener("cut", onClipboard);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, performSubmit, maxWarnings]);

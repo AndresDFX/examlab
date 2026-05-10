@@ -56,6 +56,7 @@ import {
   type ContentFile,
 } from "@/lib/contents-extract";
 import { Textarea } from "@/components/ui/textarea";
+import { HelpHint } from "@/components/ui/help-hint";
 import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
 
 export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
@@ -519,7 +520,10 @@ function TeacherContents() {
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label required>{t("contents.topic")}</Label>
+              <Label required>
+                {t("contents.topic")}
+                <HelpHint>{t("contents.topicHint")}</HelpHint>
+              </Label>
               <Input
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
@@ -528,7 +532,10 @@ function TeacherContents() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>{t("contents.mode")}</Label>
+              <Label>
+                {t("contents.mode")}
+                <HelpHint>{t("contents.modeHint")}</HelpHint>
+              </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(["material_individual", "curso_completo"] as const).map((m) => (
                   <button
@@ -555,7 +562,10 @@ function TeacherContents() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {mode === "curso_completo" && (
                 <div className="space-y-1.5">
-                  <Label required>{t("contents.nClasses")}</Label>
+                  <Label required>
+                    {t("contents.nClasses")}
+                    <HelpHint>{t("contents.nClassesHint")}</HelpHint>
+                  </Label>
                   <Input
                     type="number"
                     min={1}
@@ -566,7 +576,10 @@ function TeacherContents() {
                 </div>
               )}
               <div className="space-y-1.5">
-                <Label required>{t("contents.duration")}</Label>
+                <Label required>
+                  {t("contents.duration")}
+                  <HelpHint>{t("contents.durationHelper")}</HelpHint>
+                </Label>
                 <Input
                   type="number"
                   min={10}
@@ -582,7 +595,10 @@ function TeacherContents() {
             </div>
 
             <div className="space-y-1.5">
-              <Label required>{t("contents.modality")}</Label>
+              <Label required>
+                {t("contents.modality")}
+                <HelpHint>{t("contents.modalityHint")}</HelpHint>
+              </Label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {(
                   [
