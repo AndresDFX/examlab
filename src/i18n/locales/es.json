@@ -650,7 +650,19 @@
     "assignSave": "Guardar asignación",
     "assignSaving": "Guardando…",
     "assignSavedToast": "{{count}} sesión(es) actualizadas",
-    "sessionContentColumn": "Contenido"
+    "sessionContentColumn": "Contenido",
+    "derivedSessions_one": "{{count}} sesión",
+    "derivedSessions_other": "{{count}} sesiones",
+    "derivedSessionsHint": "Sesiones de asistencia que tienen asignado este contenido (programadas desde \"Programar sesiones del curso\" o \"Asignar a sesiones\").",
+    "derivedExams_one": "{{count}} examen",
+    "derivedExams_other": "{{count}} exámenes",
+    "derivedExamsHint": "Exámenes creados con este contenido como contexto (vía \"Crear evaluación\").",
+    "derivedWorkshops_one": "{{count}} taller",
+    "derivedWorkshops_other": "{{count}} talleres",
+    "derivedWorkshopsHint": "Talleres creados con este contenido como contexto (vía \"Crear evaluación\").",
+    "derivedProjects_one": "{{count}} proyecto",
+    "derivedProjects_other": "{{count}} proyectos",
+    "derivedProjectsHint": "Proyectos creados con este contenido como contexto (vía \"Crear evaluación\")."
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",

@@ -650,7 +650,19 @@
     "assignSave": "Save assignment",
     "assignSaving": "Saving…",
     "assignSavedToast": "{{count}} session(s) updated",
-    "sessionContentColumn": "Content"
+    "sessionContentColumn": "Content",
+    "derivedSessions_one": "{{count}} session",
+    "derivedSessions_other": "{{count}} sessions",
+    "derivedSessionsHint": "Attendance sessions that have this content assigned (scheduled via \"Schedule course sessions\" or \"Assign to sessions\").",
+    "derivedExams_one": "{{count}} exam",
+    "derivedExams_other": "{{count}} exams",
+    "derivedExamsHint": "Exams created with this content as context (via \"Create assessment\").",
+    "derivedWorkshops_one": "{{count}} workshop",
+    "derivedWorkshops_other": "{{count}} workshops",
+    "derivedWorkshopsHint": "Workshops created with this content as context (via \"Create assessment\").",
+    "derivedProjects_one": "{{count}} project",
+    "derivedProjects_other": "{{count}} projects",
+    "derivedProjectsHint": "Projects created with this content as context (via \"Create assessment\")."
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",

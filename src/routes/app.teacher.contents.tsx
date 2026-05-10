@@ -138,6 +138,14 @@ function TeacherContents() {
   const [courses, setCourses] = useState<CourseLite[]>([]);
   const [brand, setBrand] = useState<BrandConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  // Conteos de items derivados por contenido (sesiones programadas +
+  // evaluaciones creadas con source_content_id). Lo poblamos junto al
+  // load() principal y lo mostramos como badges debajo del topic en el
+  // grid — así el docente ve de un vistazo cuánto trabajo derivó de
+  // cada contenido sin abrir nada. Key = contentId.
+  const [derived, setDerived] = useState<
+    Record<string, { sessions: number; exams: number; workshops: number; projects: number }>
+  >({});
   const [creating, setCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -212,6 +220,43 @@ function TeacherContents() {
     setItems((gens ?? []) as GeneratedContent[]);
     setBrand((brandRow as BrandConfig) ?? null);
     setCourses((cs ?? []) as CourseLite[]);
+
+    // Conteos derivados — solo para los contenidos del docente actual.
+    // Hacemos 4 queries en paralelo y agregamos en memoria. Los SELECTs
+    // se filtran por los IDs cargados para evitar traer rows ajenos
+    // (la RLS también lo recorta, pero filtrar reduce payload).
+    const contentIds = (gens ?? []).map((g: { id: string }) => g.id);
+    if (contentIds.length === 0) {
+      setDerived({});
+    } else {
+      const [sess, ex, ws, pj] = await Promise.all([
+        db.from("attendance_sessions").select("content_id").in("content_id", contentIds),
+        db.from("exams").select("source_content_id").in("source_content_id", contentIds),
+        db.from("workshops").select("source_content_id").in("source_content_id", contentIds),
+        db.from("projects").select("source_content_id").in("source_content_id", contentIds),
+      ]);
+      const next: Record<
+        string,
+        { sessions: number; exams: number; workshops: number; projects: number }
+      > = {};
+      const ensure = (id: string) => {
+        if (!next[id]) next[id] = { sessions: 0, exams: 0, workshops: 0, projects: 0 };
+        return next[id];
+      };
+      for (const r of (sess.data ?? []) as { content_id: string | null }[]) {
+        if (r.content_id) ensure(r.content_id).sessions += 1;
+      }
+      for (const r of (ex.data ?? []) as { source_content_id: string | null }[]) {
+        if (r.source_content_id) ensure(r.source_content_id).exams += 1;
+      }
+      for (const r of (ws.data ?? []) as { source_content_id: string | null }[]) {
+        if (r.source_content_id) ensure(r.source_content_id).workshops += 1;
+      }
+      for (const r of (pj.data ?? []) as { source_content_id: string | null }[]) {
+        if (r.source_content_id) ensure(r.source_content_id).projects += 1;
+      }
+      setDerived(next);
+    }
     setLoading(false);
   }, [user]);
 
@@ -449,8 +494,65 @@ function TeacherContents() {
                 )}
                 {items.map((it) => (
                   <TableRow key={it.id}>
-                    <TableCell className="font-medium max-w-xs truncate" title={it.topic}>
-                      {it.topic}
+                    <TableCell className="max-w-xs">
+                      <div className="font-medium truncate" title={it.topic}>
+                        {it.topic}
+                      </div>
+                      {/* Conteos derivados: sesiones programadas +
+                          evaluaciones creadas con este contenido como
+                          source. Solo se muestran badges con count > 0
+                          para no llenar de "0" la fila. Tooltip en cada
+                          uno explica qué representa. */}
+                      {(() => {
+                        const d = derived[it.id];
+                        if (!d) return null;
+                        const total = d.sessions + d.exams + d.workshops + d.projects;
+                        if (total === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {d.sessions > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] gap-1 px-1.5 py-0"
+                                title={t("contents.derivedSessionsHint")}
+                              >
+                                <CalendarRange className="h-2.5 w-2.5" />
+                                {t("contents.derivedSessions", { count: d.sessions })}
+                              </Badge>
+                            )}
+                            {d.exams > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] gap-1 px-1.5 py-0"
+                                title={t("contents.derivedExamsHint")}
+                              >
+                                <BookOpenCheck className="h-2.5 w-2.5" />
+                                {t("contents.derivedExams", { count: d.exams })}
+                              </Badge>
+                            )}
+                            {d.workshops > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] gap-1 px-1.5 py-0"
+                                title={t("contents.derivedWorkshopsHint")}
+                              >
+                                <FileText className="h-2.5 w-2.5" />
+                                {t("contents.derivedWorkshops", { count: d.workshops })}
+                              </Badge>
+                            )}
+                            {d.projects > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] gap-1 px-1.5 py-0"
+                                title={t("contents.derivedProjectsHint")}
+                              >
+                                <Presentation className="h-2.5 w-2.5" />
+                                {t("contents.derivedProjects", { count: d.projects })}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[11px]">
@@ -972,6 +1074,12 @@ function CreateAssessmentDialog({
       // duration_minutes del contenido como límite del examen, y
       // ventana de 7 días para start/end. El docente puede ajustar
       // todo en el editor.
+      // Backlink al contenido de origen — la migración 20260510150000
+      // agregó `source_content_id` a las 3 tablas de evaluación. Lo
+      // setamos en el INSERT para que el grid de Contenidos pueda
+      // mostrar cuántas evaluaciones se derivaron de cada contenido.
+      // ON DELETE SET NULL: si después borran el contenido, la
+      // evaluación queda intacta — solo se pierde el backlink.
       if (target === "exam") {
         const start = new Date();
         const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -987,6 +1095,7 @@ function CreateAssessmentDialog({
             navigation_type: "libre",
             shuffle_enabled: false,
             created_by: user.id,
+            source_content_id: content.id,
           })
           .select("id")
           .single();
@@ -1005,6 +1114,7 @@ function CreateAssessmentDialog({
             max_score: 100,
             status: "draft",
             created_by: user.id,
+            source_content_id: content.id,
           })
           .select("id")
           .single();
@@ -1020,6 +1130,7 @@ function CreateAssessmentDialog({
             max_score: 100,
             status: "draft",
             created_by: user.id,
+            source_content_id: content.id,
           })
           .select("id")
           .single();
