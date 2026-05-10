@@ -54,6 +54,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   availableClassNumbers,
   classNumberFromFilename,
+  extractClassTitle,
   extractContentText,
   type ContentFile,
 } from "@/lib/contents-extract";
@@ -301,6 +302,35 @@ function TeacherContents() {
     void supabase.functions.invoke("generate-contents", { body: { id: item.id } });
     toast.success(t("contents.regeneratedToast"));
     void load();
+  };
+
+  /**
+   * Regenera UNA clase del curso. La edge function preserva el resto
+   * de archivos (intro + otras clases) y mergea los nuevos para esa
+   * clase específica. Awaiteamos la invocación para mostrar feedback
+   * (la generación parcial es más rápida que la completa, ~10-30s).
+   */
+  const regenerateClass = async (item: GeneratedContent, classNumber: number) => {
+    toast.info(t("contents.regeneratingClass", { class: classNumber }));
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-contents", {
+        body: { id: item.id, target_class: classNumber },
+      });
+      if (error) throw new Error(error.message);
+      // El edge devuelve `{ ok: false, partial: true, error }` cuando
+      // falla la regen parcial sin tirar el row entero. Convertimos en
+      // toast para el docente.
+      if (data && typeof data === "object" && (data as { ok?: boolean }).ok === false) {
+        const msg = (data as { error?: string }).error ?? "Falló la regeneración";
+        toast.error(msg);
+      } else {
+        toast.success(t("contents.regeneratedClassToast", { class: classNumber }));
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      void load();
+    }
   };
 
   /**
@@ -779,6 +809,9 @@ function TeacherContents() {
         brand={brand}
         downloadingPath={downloadingId}
         onDownload={(file) => filesViewerFor && void download(filesViewerFor, file)}
+        onRegenerateClass={(classNumber) =>
+          filesViewerFor && void regenerateClass(filesViewerFor, classNumber)
+        }
         onClose={() => setFilesViewerFor(null)}
       />
 
@@ -826,8 +859,12 @@ function CreateAssessmentDialog({
   const { user } = useAuth();
   const [target, setTarget] = useState<AssessmentTarget>("exam");
   const [courseId, setCourseId] = useState<string>("");
-  const [scope, setScope] = useState<"full" | "class">("full");
-  const [classNumber, setClassNumber] = useState<number | null>(null);
+  // Multi-select de clases para curso_completo. `null` = todo el
+  // contenido (full course); `Set<number>` = subconjunto de clases.
+  // Antes solo se podía elegir UNA clase o "todo"; ahora el docente
+  // selecciona N clases para crear, e.g. una evaluación de mitad de
+  // semestre que cubre las clases 1–6.
+  const [selectedClasses, setSelectedClasses] = useState<Set<number> | null>(null);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -838,14 +875,9 @@ function CreateAssessmentDialog({
     setTarget("exam");
     setCourseId(content.course_id ?? "");
     setTitle(content.topic);
-    const classes = availableClassNumbers((content.files as ContentFile[]) ?? []);
-    if (classes.length > 0) {
-      setScope("full");
-      setClassNumber(classes[0]);
-    } else {
-      setScope("full");
-      setClassNumber(null);
-    }
+    // Default: todo el contenido seleccionado. El docente puede
+    // restringir a clases específicas con los checkboxes.
+    setSelectedClasses(null);
   }, [content]);
 
   const classes = useMemo(
@@ -855,22 +887,55 @@ function CreateAssessmentDialog({
 
   if (!content) return null;
 
+  const isFull = selectedClasses == null;
+  const selectedArray = isFull ? [] : Array.from(selectedClasses).sort((a, b) => a - b);
+  const noneSelected = !isFull && selectedArray.length === 0;
+
+  const toggleClass = (n: number) => {
+    setSelectedClasses((prev) => {
+      // En modo "Todas" (prev=null) un click destilda SOLO la clase
+      // tocada; el resto queda seleccionada. Es el comportamiento
+      // intuitivo: si ya estaban todas marcadas, hacer click en una
+      // significa "saca esa", no "deja solo esa".
+      if (prev == null) {
+        const next = new Set(classes);
+        next.delete(n);
+        return next;
+      }
+      const next = new Set(prev);
+      if (next.has(n)) next.delete(n);
+      else next.add(n);
+      return next;
+    });
+  };
+  const selectAll = () => setSelectedClasses(null);
+  const selectNone = () => setSelectedClasses(new Set());
+
   const submit = async () => {
     if (!user) return;
     if (!courseId) {
       toast.error(t("contents.courseRequired"));
       return;
     }
+    if (noneSelected) {
+      toast.error(t("contents.classesRequired"));
+      return;
+    }
     setCreating(true);
     try {
       const description = extractContentText((content.files as ContentFile[]) ?? [], {
-        classNumber: scope === "class" ? classNumber : null,
+        classNumbers: isFull ? undefined : selectedArray,
       });
-      const finalTitle =
-        title.trim() ||
-        (scope === "class" && classNumber != null
-          ? `${content.topic} — Clase ${classNumber}`
-          : content.topic);
+      // Título por defecto: si seleccionó UNA clase y no escribió
+      // título, usamos "Tema — Clase N". Si seleccionó varias, "Tema
+      // — Clases N, M, …". Si full, solo el tema.
+      const fallbackTitle =
+        isFull || selectedArray.length === 0
+          ? content.topic
+          : selectedArray.length === 1
+            ? `${content.topic} — Clase ${selectedArray[0]}`
+            : `${content.topic} — Clases ${selectedArray.join(", ")}`;
+      const finalTitle = title.trim() || fallbackTitle;
 
       // Defaults razonables para cada target: aprovechamos
       // duration_minutes del contenido como límite del examen, y
@@ -938,7 +1003,7 @@ function CreateAssessmentDialog({
   };
 
   const previewText = extractContentText((content.files as ContentFile[]) ?? [], {
-    classNumber: scope === "class" ? classNumber : null,
+    classNumbers: isFull ? undefined : selectedArray,
     maxChars: 600,
   });
 
@@ -1000,64 +1065,85 @@ function CreateAssessmentDialog({
             </div>
           </div>
 
-          {/* Alcance: todo / clase específica */}
-          <div className="space-y-1.5">
-            <Label>{t("contents.assessmentScope")}</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setScope("full")}
-                className={`text-left rounded-md border p-2 text-xs transition-colors ${
-                  scope === "full"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/40"
-                }`}
-              >
-                <div className="font-medium text-sm">{t("contents.scopeFull")}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {t("contents.scopeFullHint")}
+          {/* Alcance: si el contenido es curso_completo, el docente
+              elige una o varias clases (multi-select). El default es
+              "Todas las clases" — si destildea todas o tilda algunas,
+              la descripción inyectada se restringe a esas. Para
+              material_individual no hay clases que filtrar. */}
+          {classes.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">{t("contents.noClassesDetected")}</p>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>{t("contents.assessmentScope")}</Label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[11px]"
+                    onClick={selectAll}
+                  >
+                    {t("contents.selectAllClasses")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[11px]"
+                    onClick={selectNone}
+                  >
+                    {t("contents.selectNoneClasses")}
+                  </Button>
                 </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => classes.length > 0 && setScope("class")}
-                disabled={classes.length === 0}
-                className={`text-left rounded-md border p-2 text-xs transition-colors ${
-                  scope === "class"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/40"
-                } ${classes.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <div className="font-medium text-sm">{t("contents.scopeClass")}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {t("contents.scopeClassHint")}
-                </div>
-              </button>
-            </div>
-            {classes.length === 0 && (
-              <p className="text-[11px] text-muted-foreground">{t("contents.noClassesDetected")}</p>
-            )}
-            {scope === "class" && classes.length > 0 && (
-              <div className="space-y-1.5 pt-2">
-                <Label className="text-xs">{t("contents.classNumber")}</Label>
-                <Select
-                  value={classNumber != null ? String(classNumber) : ""}
-                  onValueChange={(v) => setClassNumber(Number(v))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {t("contents.classNumber")} {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
-            )}
-          </div>
+              <p className="text-[11px] text-muted-foreground">
+                {isFull
+                  ? t("contents.scopeFullHint")
+                  : t("contents.classesSelectedSummary", {
+                      count: selectedArray.length,
+                      total: classes.length,
+                    })}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
+                {classes.map((n) => {
+                  const checked = isFull || (selectedClasses?.has(n) ?? false);
+                  const title = extractClassTitle((content.files as ContentFile[]) ?? [], n);
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleClass(n)}
+                      className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-medium text-[12px]">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          readOnly
+                          className="h-3 w-3 accent-primary pointer-events-none"
+                        />
+                        {t("contents.classNumber")} {n}
+                      </div>
+                      {title && (
+                        <div
+                          className="text-[10px] text-muted-foreground mt-0.5 truncate"
+                          title={title}
+                        >
+                          {title}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {noneSelected && (
+                <p className="text-[11px] text-destructive">{t("contents.classesRequired")}</p>
+              )}
+            </div>
+          )}
 
           {/* Preview del texto que se inyectará como descripción.
               Sirve para que el docente vea el contexto que recibirá la
@@ -1076,7 +1162,7 @@ function CreateAssessmentDialog({
           <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={submit} disabled={creating || !courseId}>
+          <Button onClick={submit} disabled={creating || !courseId || noneSelected}>
             {creating ? (
               <Spinner size="sm" className="mr-1" />
             ) : (
@@ -1315,23 +1401,65 @@ function FilesByClassDialog({
   brand,
   downloadingPath,
   onDownload,
+  onRegenerateClass,
   onClose,
 }: {
   content: GeneratedContent | null;
   brand: BrandConfig | null;
   downloadingPath: string | null;
   onDownload: (file: FileEntry) => void;
+  onRegenerateClass: (classNumber: number) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  if (!content) return null;
   // brand actualmente no se usa en este componente (la marca se aplica
   // al construir el .pptx en el caller). Lo recibimos por si en futuro
   // queremos previsualizar logos por sección.
   void brand;
 
+  // Sesiones de asistencia ya asignadas a este contenido (por
+  // `attendance_sessions.content_id = content.id`). Indexamos por
+  // `content_class_index` para mostrar "Sesión: <fecha> — <título>"
+  // arriba de los archivos de cada clase. Si el contenido no tiene
+  // course_id no consultamos.
+  const [sessionsByClass, setSessionsByClass] = useState<
+    Record<number, { date: string; title: string | null }>
+  >({});
+
+  useEffect(() => {
+    if (!content || !content.course_id) {
+      setSessionsByClass({});
+      return;
+    }
+    void (async () => {
+      const { data } = await db
+        .from("attendance_sessions")
+        .select("session_date, title, content_class_index")
+        .eq("course_id", content.course_id)
+        .eq("content_id", content.id)
+        .order("session_date", { ascending: true });
+      const next: Record<number, { date: string; title: string | null }> = {};
+      for (const r of (data ?? []) as Array<{
+        session_date: string;
+        title: string | null;
+        content_class_index: number | null;
+      }>) {
+        // 0 = "asignación al contenido completo" (modo individual);
+        // null = sin clase específica. En ambos casos guardamos bajo
+        // index=0 para que material_individual también muestre la fecha
+        // de la sesión asignada.
+        const idx = r.content_class_index ?? 0;
+        next[idx] = { date: r.session_date, title: r.title };
+      }
+      setSessionsByClass(next);
+    })();
+  }, [content]);
+
+  if (!content) return null;
+
   const files = (content.files ?? []) as FileEntry[];
   const isCourse = content.mode === "curso_completo";
+  const isProcessing = content.status === "processing";
 
   // Particiona archivos en intro + por clase. Intro = los que NO tienen
   // sufijo `_CLASE_<N>` reconocible (típicamente INTRO_CURSO.PPTX).
@@ -1349,40 +1477,89 @@ function FilesByClassDialog({
   }
   const classNumbers = Array.from(byClass.keys()).sort((a, b) => a - b);
 
-  /** Render reutilizable para una sección (Intro o Clase N). */
-  const renderSection = (title: string, sectionFiles: FileEntry[]) => (
-    <Card key={title}>
-      <CardContent className="p-3 space-y-2">
-        <div className="text-sm font-medium">{title}</div>
-        <div className="flex flex-wrap gap-2">
-          {sectionFiles.map((f) => {
-            const path = `${content.id}:${f.path}`;
-            const busy = downloadingPath === path;
-            return (
+  /** Render reutilizable para una sección. Si `classNumber` está dado,
+   *  mostramos el título extraído + sesión asignada + botón de regen. */
+  const renderSection = (
+    sectionTitle: string,
+    sectionFiles: FileEntry[],
+    classNumber: number | null,
+  ) => {
+    const session =
+      classNumber != null ? sessionsByClass[classNumber] : (sessionsByClass[0] ?? null);
+    const extractedTitle =
+      classNumber != null ? extractClassTitle(files as ContentFile[], classNumber) : null;
+    return (
+      <Card key={sectionTitle}>
+        <CardContent className="p-3 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">
+                {sectionTitle}
+                {extractedTitle && (
+                  <span className="text-muted-foreground font-normal"> — {extractedTitle}</span>
+                )}
+              </div>
+              {session && (
+                <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <CalendarRange className="h-3 w-3" />
+                  <span className="tabular-nums">{session.date}</span>
+                  {session.title && (
+                    <>
+                      <span>—</span>
+                      <span className="truncate">{session.title}</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            {classNumber != null && (
               <Button
-                key={f.path}
                 size="sm"
                 variant="outline"
-                className="h-8 text-xs"
-                disabled={busy}
-                onClick={() => onDownload(f)}
+                className="h-8 text-xs shrink-0"
+                disabled={isProcessing}
+                onClick={() => onRegenerateClass(classNumber)}
+                title={t("contents.regenerateClassHint")}
               >
-                {busy ? (
+                {isProcessing ? (
                   <Spinner size="xs" className="mr-1" />
-                ) : f.kind === "pptx-source" ? (
-                  <Presentation className="h-3.5 w-3.5 mr-1" />
                 ) : (
-                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  <RefreshCw className="h-3 w-3 mr-1" />
                 )}
-                {humanLabelForFile(f)}
-                <Download className="h-3 w-3 ml-1.5 opacity-60" />
+                {t("contents.regenerateClass")}
               </Button>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sectionFiles.map((f) => {
+              const path = `${content.id}:${f.path}`;
+              const busy = downloadingPath === path;
+              return (
+                <Button
+                  key={f.path}
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={busy}
+                  onClick={() => onDownload(f)}
+                >
+                  {busy ? (
+                    <Spinner size="xs" className="mr-1" />
+                  ) : f.kind === "pptx-source" ? (
+                    <Presentation className="h-3.5 w-3.5 mr-1" />
+                  ) : (
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  {humanLabelForFile(f)}
+                  <Download className="h-3 w-3 ml-1.5 opacity-60" />
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
@@ -1415,10 +1592,11 @@ function FilesByClassDialog({
                   ? t("contents.viewFilesByClassIntro")
                   : t("contents.viewFilesByClassMaterials"),
                 intro,
+                null,
               )}
             {/* Una card por clase numerada, con todos sus archivos. */}
             {classNumbers.map((n) =>
-              renderSection(`${t("contents.classNumber")} ${n}`, byClass.get(n) ?? []),
+              renderSection(`${t("contents.classNumber")} ${n}`, byClass.get(n) ?? [], n),
             )}
           </div>
         )}

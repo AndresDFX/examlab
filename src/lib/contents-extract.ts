@@ -45,9 +45,11 @@ export function availableClassNumbers(files: ContentFile[]): number[] {
 /**
  * Concatena los `body` de los archivos relevantes con un encabezado
  * que identifica cada uno (para que el modelo distinga slides vs guía
- * vs taller). Si `classNumber` está dado, filtra a archivos cuyo nombre
- * contenga `_CLASE_<N>`. Si no hay match exacto, cae a "todos los
- * archivos" para no devolver string vacío.
+ * vs taller). Si `classNumbers` está dado, filtra a archivos cuyo nombre
+ * contenga `_CLASE_<N>` para alguno de esos números. `classNumber`
+ * (singular) sigue siendo aceptado por compatibilidad con el caller
+ * antiguo. Si no hay match exacto, cae a "todos los archivos" para no
+ * devolver string vacío.
  *
  * El resultado se trunca a `maxChars` para no inflar la descripción
  * de la evaluación creada (las descripciones largas se truncan en la
@@ -55,12 +57,19 @@ export function availableClassNumbers(files: ContentFile[]): number[] {
  */
 export function extractContentText(
   files: ContentFile[],
-  options: { classNumber?: number | null; maxChars?: number } = {},
+  options: { classNumber?: number | null; classNumbers?: number[]; maxChars?: number } = {},
 ): string {
-  const { classNumber = null, maxChars = 8000 } = options;
+  const { classNumber = null, classNumbers, maxChars = 8000 } = options;
 
   let relevant = files;
-  if (classNumber != null) {
+  if (classNumbers && classNumbers.length > 0) {
+    const set = new Set(classNumbers);
+    const filtered = files.filter((f) => {
+      const n = classNumberFromFilename(f.name);
+      return n != null && set.has(n);
+    });
+    if (filtered.length > 0) relevant = filtered;
+  } else if (classNumber != null) {
     const filtered = files.filter((f) => classNumberFromFilename(f.name) === classNumber);
     if (filtered.length > 0) relevant = filtered;
   }
@@ -75,4 +84,37 @@ export function extractContentText(
     out = out.slice(0, maxChars - 60) + "\n\n[…contenido truncado por longitud…]";
   }
   return out;
+}
+
+/**
+ * Intenta extraer el título/tema de una clase a partir del primer
+ * heading o primera línea con sustancia que aparece en el body de
+ * cualquier archivo de esa clase. La heurística:
+ *   1) Primer línea que empieza con `#` (markdown heading) — quita los
+ *      `#` y un prefijo redundante "Clase N:" si lo trae.
+ *   2) Si no, primera línea no vacía como fallback (truncada).
+ * Devuelve null si ningún archivo de la clase tiene body.
+ */
+export function extractClassTitle(files: ContentFile[], classNumber: number): string | null {
+  const filtered = files.filter((f) => classNumberFromFilename(f.name) === classNumber);
+  for (const f of filtered) {
+    if (!f.body) continue;
+    const lines = f.body.split(/\r?\n/);
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      if (t.startsWith("#")) {
+        const cleaned = t
+          .replace(/^#+\s*/, "")
+          .replace(/^clase\s+\d+\s*[:\-—]\s*/i, "")
+          .trim();
+        if (cleaned) return cleaned.slice(0, 120);
+      }
+      // Fallback: primera línea con sustancia. No la usamos si arranca
+      // con "TITULO:" o similar de plantilla — cortamos desde el ":".
+      const cleaned = t.replace(/^(t[ií]tulo|title)\s*:\s*/i, "").trim();
+      return cleaned.slice(0, 120);
+    }
+  }
+  return null;
 }

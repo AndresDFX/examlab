@@ -131,6 +131,20 @@ function safeFileName(name: string, fallbackIndex: number): string {
 
 interface RequestBody {
   id: string;
+  /** Si está definido, se regenera ÚNICAMENTE esa clase y los archivos
+   *  resultantes se mergean con los existentes (mantienen la intro y
+   *  las otras clases intactas). Sin este campo, regen completa. */
+  target_class?: number;
+}
+
+/** Extrae el número de clase del nombre del archivo. Replica de la
+ *  helper del cliente — duplicada acá porque Deno edge functions no
+ *  comparten src/lib con el bundle del browser. */
+function classFromName(name: string): number | null {
+  const m = name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 interface FileEntry {
@@ -173,17 +187,46 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  if (gen.status === "done" || gen.status === "processing") {
+  const isPartial = typeof body.target_class === "number" && body.target_class > 0;
+  // Para regen completa: si ya está done/processing, no hacemos nada
+  // (el cliente debe poner status='queued' antes de invocar).
+  // Para regen parcial: aceptamos status='done' (queremos volver a
+  // generar UNA clase sin tocar el resto), pero rechazamos 'processing'
+  // para no pisar otra ejecución en curso.
+  if (gen.status === "processing") {
+    return new Response(JSON.stringify({ ok: true, skipped: true, status: gen.status }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (!isPartial && gen.status === "done") {
     return new Response(JSON.stringify({ ok: true, skipped: true, status: gen.status }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  // Marca como processing para evitar dobles ejecuciones.
+  // Marca como processing para evitar dobles ejecuciones (igual para
+  // regen completa y parcial). El polling del cliente lo verá y refresca.
   await adminClient
     .from("generated_contents")
     .update({ status: "processing", error: null })
     .eq("id", gen.id);
+
+  // Para regen parcial, borramos del bucket los archivos previos de la
+  // clase target ANTES de subir los nuevos — así no quedan huérfanos
+  // si el modelo decide cambiar el nombre del archivo (e.g. de
+  // GUIA_CLASE_3.MD a MATERIAL_CLASE_3.MD). El upload usa upsert para
+  // los que sí coincidan en path.
+  if (isPartial) {
+    const existing = (gen.files ?? []) as FileEntry[];
+    const tn = body.target_class!;
+    const oldClassFiles = existing.filter((f) => classFromName(f.name) === tn);
+    if (oldClassFiles.length > 0) {
+      const paths = oldClassFiles.map((f) => f.path).filter(Boolean);
+      if (paths.length > 0) {
+        await adminClient.storage.from("generated-contents").remove(paths);
+      }
+    }
+  }
 
   try {
     const promptTemplate = await resolveContentPrompt();
@@ -220,10 +263,20 @@ Deno.serve(async (req: Request) => {
     // modelo las trate con prioridad sobre los defaults del system
     // prompt sin que necesitemos editarlo cada vez.
     const commonContext = `Tema: ${gen.topic}\nDuración por clase: ${vars.duration_minutes} minutos\nModalidad: ${modalityLabel}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}`;
-    const baseMessage =
-      gen.mode === "curso_completo"
-        ? `Modo seleccionado: CURSO COMPLETO.\n\n${commonContext}\nCantidad de clases: ${gen.n_classes}\n\nGenera la introducción del curso y luego el material por cada una de las ${gen.n_classes} sesiones, respetando duración y modalidad.`
-        : `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\nGenera el material completo de UNA sola sesión sobre el tema, respetando la duración y la modalidad indicada.`;
+    let baseMessage: string;
+    if (isPartial) {
+      // Regen de una clase puntual. Le pedimos AL MODELO que genere
+      // SOLO la clase target y use el sufijo `_CLASE_<N>` en cada
+      // filename para que el merge posterior funcione. NO debe incluir
+      // intro ni otras clases — esos archivos del row los conservamos
+      // tal cual.
+      const tn = body.target_class!;
+      baseMessage = `Modo seleccionado: REGENERAR UNA CLASE.\n\n${commonContext}\n\nRegenera ÚNICAMENTE el material de la clase número ${tn} (de un curso de ${gen.n_classes} clases en total). Mantén el sufijo "_CLASE_${tn}" en cada nombre de archivo — es obligatorio para que el sistema sepa a qué clase pertenece. NO generes la introducción del curso ni material de otras clases.`;
+    } else if (gen.mode === "curso_completo") {
+      baseMessage = `Modo seleccionado: CURSO COMPLETO.\n\n${commonContext}\nCantidad de clases: ${gen.n_classes}\n\nGenera la introducción del curso y luego el material por cada una de las ${gen.n_classes} sesiones, respetando duración y modalidad.`;
+    } else {
+      baseMessage = `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\nGenera el material completo de UNA sola sesión sobre el tema, respetando la duración y la modalidad indicada.`;
+    }
     const teacherInstructions =
       typeof gen.instructions === "string" && gen.instructions.trim().length > 0
         ? `\n\n### INSTRUCCIONES ADICIONALES DEL DOCENTE (PRIORIDAD ALTA)\n${gen.instructions.trim()}`
@@ -274,8 +327,25 @@ Deno.serve(async (req: Request) => {
 
     const blocks = parseFileBlocks(rawOutput);
     if (blocks.length === 0) {
-      // No bloques → guardamos el output crudo igual para inspección,
-      // pero marcamos como failed con un mensaje claro al docente.
+      // No bloques. Para regen completa marcamos failed; para regen
+      // parcial rollback a 'done' (los archivos previos siguen válidos)
+      // y devolvemos el error en la respuesta para que el cliente lo
+      // muestre como toast sin alarmar con un status='failed'.
+      if (isPartial) {
+        await adminClient
+          .from("generated_contents")
+          .update({ status: "done", error: null })
+          .eq("id", gen.id);
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            partial: true,
+            error:
+              "La IA no produjo bloques [INICIO_ARCHIVO]…[FIN_ARCHIVO] reconocibles para esa clase. Reintenta.",
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       await adminClient
         .from("generated_contents")
         .update({
@@ -317,6 +387,24 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (isPartial) {
+      // Merge: conserva los archivos que NO pertenecen a la clase target,
+      // reemplaza/agrega los nuevos. Mantenemos el `raw_output` original
+      // del curso completo — el regen parcial no debe sobrescribirlo.
+      const tn = body.target_class!;
+      const existing = (gen.files ?? []) as FileEntry[];
+      const kept = existing.filter((f) => classFromName(f.name) !== tn);
+      const merged = [...kept, ...files];
+      await adminClient
+        .from("generated_contents")
+        .update({ status: "done", files: merged, error: null })
+        .eq("id", gen.id);
+      return new Response(
+        JSON.stringify({ ok: true, partial: true, target_class: tn, count: files.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     await adminClient
       .from("generated_contents")
       .update({
@@ -332,6 +420,19 @@ Deno.serve(async (req: Request) => {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // Regen parcial: rollback a 'done' y dejamos `error` limpio. Los
+    // archivos previos del row siguen siendo válidos, así que el row
+    // no debe aparecer como failed en el grid.
+    if (isPartial) {
+      await adminClient
+        .from("generated_contents")
+        .update({ status: "done", error: null })
+        .eq("id", gen.id);
+      return new Response(JSON.stringify({ ok: false, partial: true, error: msg }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     await adminClient
       .from("generated_contents")
       .update({ status: "failed", error: msg })
