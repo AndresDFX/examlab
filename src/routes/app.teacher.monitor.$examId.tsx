@@ -1065,14 +1065,14 @@ function ExamMonitor() {
       {/* Integrity / Fraud detection top card */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="text-base flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-primary" />
-                {t("integrity.title")}
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">{t("integrity.subtitle")}</p>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="space-y-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-primary" />
+              {t("integrity.title")}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">{t("integrity.subtitle")}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
                 {(() => {
                   const aiCount = aiSignalsByQuestion.filter(
                     (s) => s.score >= 0.6 && !s.reviewedAt,
@@ -1116,21 +1116,21 @@ function ExamMonitor() {
                   );
                 })()}
               </div>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={runDetectFraud}
+                disabled={detecting}
+                className="shrink-0"
+              >
+                {detecting ? (
+                  <Spinner size="sm" className="mr-1.5" />
+                ) : (
+                  <Search className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                {detecting ? t("integrity.detecting") : t("integrity.detectButton")}
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={runDetectFraud}
-              disabled={detecting}
-              className="shrink-0"
-            >
-              {detecting ? (
-                <Spinner size="sm" className="mr-1.5" />
-              ) : (
-                <Search className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              {detecting ? t("integrity.detecting") : t("integrity.detectButton")}
-            </Button>
           </div>
         </CardHeader>
       </Card>
