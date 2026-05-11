@@ -301,7 +301,9 @@
     "authEmailError": "Tu perfil se actualizó, pero no fue posible cambiar el correo de inicio de sesión",
     "errorNameTooShort": "El nombre debe tener al menos 2 caracteres.",
     "errorInstitutionalInvalid": "El correo institucional no es válido.",
-    "errorPersonalInvalid": "El correo personal no es válido."
+    "errorPersonalInvalid": "El correo personal no es válido.",
+    "errorInstitutionalTaken": "El correo institucional ya está en uso por otro usuario.",
+    "errorPersonalTaken": "El correo personal ya está en uso por otro usuario."
   },
   "monitorGrid": {
     "student": "Estudiante",

@@ -301,7 +301,9 @@
     "authEmailError": "Profile updated, but the sign-in email could not be changed",
     "errorNameTooShort": "Name must be at least 2 characters long.",
     "errorInstitutionalInvalid": "Institutional email is not valid.",
-    "errorPersonalInvalid": "Personal email is not valid."
+    "errorPersonalInvalid": "Personal email is not valid.",
+    "errorInstitutionalTaken": "Institutional email is already in use by another user.",
+    "errorPersonalTaken": "Personal email is already in use by another user."
   },
   "monitorGrid": {
     "student": "Student",

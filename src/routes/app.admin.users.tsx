@@ -186,6 +186,43 @@ function AdminUsers() {
     setDialogOpen(true);
   };
 
+  /** Validación proactiva de unicidad — antes de mandar el form al
+   *  backend. Llama al RPC `check_email_taken` (case-insensitive,
+   *  excluyendo al propio usuario en modo edit). Retorna true si
+   *  algún email del form colisiona con otro usuario; el caller debe
+   *  abortar y mostrar el toast correspondiente. */
+  const validateEmailUniqueness = async (
+    institutional: string,
+    personal: string,
+    excludeUserId: string | null,
+  ): Promise<boolean> => {
+    const check = async (email: string, kind: "institutional" | "personal") => {
+      const clean = email.trim().toLowerCase();
+      if (!clean) return false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("check_email_taken", {
+        p_email: clean,
+        p_exclude_user_id: excludeUserId,
+      });
+      if (error) {
+        console.warn("[admin.users] check_email_taken failed:", error.message);
+        return false; // fallback al constraint UNIQUE de DB
+      }
+      if (data === true) {
+        toast.error(
+          kind === "institutional"
+            ? `El email institucional "${clean}" ya está en uso por otro usuario.`
+            : `El email personal "${clean}" ya está en uso por otro usuario.`,
+        );
+        return true;
+      }
+      return false;
+    };
+    if (await check(institutional, "institutional")) return true;
+    if (await check(personal, "personal")) return true;
+    return false;
+  };
+
   const saveProfile = async () => {
     if (!editing) return;
     if (!editing.full_name.trim() || !editing.institutional_email.trim()) {
@@ -194,6 +231,18 @@ function AdminUsers() {
     }
     setSavingUser(true);
     try {
+      // Validación proactiva de unicidad — antes de tocar DB. En modo
+      // edit pasamos editing.id como exclude para que no choque con el
+      // propio usuario.
+      if (
+        await validateEmailUniqueness(
+          editing.institutional_email,
+          editing.personal_email ?? "",
+          editing.id || null,
+        )
+      ) {
+        return;
+      }
       if (editing.id) {
         // Update profile
         const { error } = await supabase

@@ -81,14 +81,50 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
     setSaving(true);
     try {
+      // 0) Validación PROACTIVA de unicidad de email — antes de tocar DB.
+      //    `check_email_taken` mira ambos columnas (institutional +
+      //    personal) + auth.users.email, case-insensitive. Excluye al
+      //    propio usuario para que no choque consigo mismo. Si el email
+      //    ya está en uso, mostramos toast amigable y NO enviamos —
+      //    evita el error técnico "duplicate key value violates ...".
+      const checkEmail = async (
+        email: string,
+        kind: "institutional" | "personal",
+      ): Promise<boolean> => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).rpc("check_email_taken", {
+          p_email: email,
+          p_exclude_user_id: profile.id,
+        });
+        if (error) {
+          // RPC no disponible (migración no aplicada) → caemos al
+          // comportamiento legacy. DB UNIQUE igual va a atrapar duplicados.
+          console.warn("[profile] check_email_taken failed, skipping pre-check:", error.message);
+          return false;
+        }
+        if (data === true) {
+          toast.error(
+            kind === "institutional"
+              ? t("profile.errorInstitutionalTaken")
+              : t("profile.errorPersonalTaken"),
+          );
+          return true;
+        }
+        return false;
+      };
+      const inst = institutional.trim().toLowerCase();
+      if (inst && (await checkEmail(inst, "institutional"))) return;
+      const pers = personal.trim().toLowerCase();
+      if (pers && (await checkEmail(pers, "personal"))) return;
+
       // 1) UPDATE de profiles (gobernado por RLS own-row). Mandamos solo
       //    los campos editables.
       const { error: profErr } = await supabase
         .from("profiles")
         .update({
           full_name: fullName.trim(),
-          institutional_email: institutional.trim().toLowerCase(),
-          personal_email: personal.trim() ? personal.trim().toLowerCase() : null,
+          institutional_email: inst,
+          personal_email: pers ? pers : null,
         })
         .eq("id", profile.id);
       if (profErr) {
