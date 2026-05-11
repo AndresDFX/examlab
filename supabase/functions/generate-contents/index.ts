@@ -575,5 +575,19 @@ Deno.serve(async (req: Request) => {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+    }
+  })();
+
+  // Si EdgeRuntime.waitUntil existe, lo usamos para mantener vivo al worker
+  // hasta que termine el trabajo en background. Si no (entorno local), igual
+  // dejamos correr la promise — Deno.serve no la espera, pero el cliente sigue
+  // por polling.
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(heavyWork);
   }
+
+  return new Response(JSON.stringify({ ok: true, accepted: true, id: gen.id }), {
+    status: 202,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
