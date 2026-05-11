@@ -102,6 +102,40 @@ Deno.serve(async (req) => {
     return redirectBack(origin, { err: "missing_params" });
   }
 
+  // OAUTH-1/2: validar el state contra calendar_oauth_states (one-time + no expirado).
+  // Marca consumed_at para que un replay del callback no permita reusarlo.
+  const { data: stateRow, error: stateErr } = await adminClient
+    .from("calendar_oauth_states")
+    .select("teacher_id, origin, expires_at, consumed_at")
+    .eq("state", state)
+    .maybeSingle();
+  if (stateErr || !stateRow) {
+    await auditCalendarConnect(teacherId, "error", "calendar.connect_failed", {
+      provider: "google",
+      reason: "invalid_state",
+    });
+    return redirectBack(origin, { err: "invalid_state" });
+  }
+  if (stateRow.consumed_at) {
+    await auditCalendarConnect(teacherId, "error", "calendar.connect_failed", {
+      provider: "google",
+      reason: "state_replayed",
+    });
+    return redirectBack(origin, { err: "state_replayed" });
+  }
+  if (new Date(stateRow.expires_at).getTime() < Date.now()) {
+    return redirectBack(origin, { err: "state_expired" });
+  }
+  if (stateRow.teacher_id !== teacherId) {
+    return redirectBack(origin, { err: "state_mismatch" });
+  }
+  // Origin verificado del lado servidor — más confiable que el b64 del state.
+  origin = stateRow.origin || origin;
+  await adminClient
+    .from("calendar_oauth_states")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("state", state);
+
   try {
     const tok = await exchangeCodeForTokens(code);
     if (!tok.refresh_token) {
