@@ -64,6 +64,12 @@ const weekdayFmt = new Intl.DateTimeFormat(LOCALE, {
   month: "long",
 });
 
+/** Solo el nombre del día. "sábado". Útil cuando la fecha ya se muestra
+ *  en un badge contiguo y no queremos repetirla. */
+const weekdayNameFmt = new Intl.DateTimeFormat(LOCALE, {
+  weekday: "long",
+});
+
 /** Solo fecha. "30 sep 2026". */
 export function formatDate(value: DateInput, fallback = "—"): string {
   const d = toDate(value);
@@ -95,10 +101,24 @@ export function formatTime(value: DateInput, fallback = "—"): string {
   return d ? timeFmt.format(d) : fallback;
 }
 
-/** Día de la semana + fecha. "lunes, 30 de septiembre". */
+/** Día de la semana + fecha. "lunes, 30 de septiembre".
+ *  Anchora "YYYY-MM-DD" a mediodía local para evitar el bug clásico
+ *  de UTC -1 día (igual que `formatDateOnly`). */
 export function formatWeekday(value: DateInput, fallback = "—"): string {
-  const d = toDate(value);
+  const v =
+    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  const d = toDate(v);
   return d ? weekdayFmt.format(d) : fallback;
+}
+
+/** Solo el nombre del día ("sábado") con la misma protección UTC. Pensado
+ *  para subtítulos donde la fecha completa ya está en un badge contiguo
+ *  — evita duplicación visual. */
+export function formatWeekdayName(value: DateInput, fallback = "—"): string {
+  const v =
+    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  const d = toDate(v);
+  return d ? weekdayNameFmt.format(d) : fallback;
 }
 
 /**

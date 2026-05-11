@@ -28,7 +28,7 @@ import {
   CheckSquare,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { formatDateOnly, formatWeekday } from "@/lib/format";
+import { formatDateOnly, formatWeekdayName } from "@/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -581,8 +581,13 @@ function SessionGroup({
                       <Badge variant="outline" className="text-[11px] tabular-nums">
                         {formatDateOnly(s.session_date)}
                       </Badge>
+                      {/* Subtítulo solo con el nombre del día — la fecha
+                          ya está en el badge contiguo y duplicarla con
+                          "Sábado, 16 de mayo" generaba además un mismatch
+                          (UTC -1 día). `formatWeekdayName` ancla a 12:00
+                          local y devuelve solo "sábado". */}
                       <span className="text-[11px] text-muted-foreground capitalize">
-                        {formatWeekday(s.session_date)}
+                        {formatWeekdayName(s.session_date)}
                       </span>
                     </div>
                     <h3 className="font-medium text-base">

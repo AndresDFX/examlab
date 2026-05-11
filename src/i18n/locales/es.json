@@ -94,7 +94,12 @@
     "signOut": "Cerrar sesión",
     "changePassword": "Cambiar contraseña",
     "editProfile": "Editar mi perfil",
-    "theme": "Tema"
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Sistema",
+    "language": "Idioma",
+    "options": "Opciones"
   },
   "roles": {
     "Admin": "Administrador",

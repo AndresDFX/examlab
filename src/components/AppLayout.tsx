@@ -2,6 +2,22 @@ import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-r
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTheme } from "@/hooks/use-theme";
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/i18n";
+// ThemeToggle + LanguageSwitcher se siguen usando en el drawer mobile
+// (Sheet más abajo), donde sí hay espacio para botones inline. En el
+// sidebar de escritorio los reemplazamos por entradas del DropdownMenu.
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -36,6 +52,11 @@ import {
   ScrollText,
   ShieldEllipsis,
   Presentation,
+  MoreHorizontal,
+  Sun,
+  Moon,
+  Monitor,
+  Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -239,8 +260,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, roles, signOut, loading, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const confirm = useConfirm();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const currentLang = (i18n.language.slice(0, 2) as SupportedLanguage) ?? "es";
 
   const handleSignOut = async () => {
     const ok = await confirm({
@@ -507,53 +530,110 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           {!isTakingExam && (
-            // 6 controles no entran en una sola fila del sidebar a ~220px
-            // (Lang switcher arrastra "ES"/"EN" además del icono → empuja).
-            // Partimos en 2 filas: arriba "toggles globales" (bell, theme,
-            // lang), abajo "acciones de cuenta" (profile, password, logout).
-            // Cada fila usa justify-between para que los iconos respiren.
-            <div className="space-y-1">
-              <div className="flex items-center justify-between gap-1">
-                <NotificationBell userId={user.id} variant="sidebar" />
-                <ThemeToggle />
-                <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-              </div>
-              <div className="flex items-center justify-between gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setProfileDialogOpen(true)}
-                  className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  title={t("nav.editProfile")}
-                >
-                  <UserCog className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPwDialogOpen(true)}
-                  className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  title={t("nav.changePassword")}
-                >
-                  <KeyRound className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    // Belt-and-suspenders: even if the button renders during exam, intercept it.
-                    if (isTakingExam) {
-                      window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
-                    } else {
-                      void handleSignOut();
-                    }
-                  }}
-                  className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  title={t("nav.signOut")}
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
+            // Bar inferior compacta: solo "cerrar sesión" inline. El resto
+            // de opciones (perfil, contraseña, tema, idioma) viven en un
+            // DropdownMenu del design system. La campana queda visible
+            // aparte porque el badge de no leídas es awareness crítica.
+            <div className="flex items-center justify-between gap-1">
+              <NotificationBell userId={user.id} variant="sidebar" />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title={t("nav.options")}
+                    className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start" className="w-56">
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    {profile?.full_name ?? user.email}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setProfileDialogOpen(true)} className="gap-2">
+                    <UserCog className="h-4 w-4" />
+                    {t("nav.editProfile")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setPwDialogOpen(true)} className="gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    {t("nav.changePassword")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2">
+                      {resolvedTheme === "dark" ? (
+                        <Moon className="h-4 w-4" />
+                      ) : (
+                        <Sun className="h-4 w-4" />
+                      )}
+                      {t("nav.theme")}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => setTheme("light")} className="gap-2">
+                        <Sun className="h-4 w-4" /> {t("nav.themeLight")}
+                        {theme === "light" && (
+                          <span className="ml-auto text-xs text-primary">✓</span>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2">
+                        <Moon className="h-4 w-4" /> {t("nav.themeDark")}
+                        {theme === "dark" && (
+                          <span className="ml-auto text-xs text-primary">✓</span>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("system")} className="gap-2">
+                        <Monitor className="h-4 w-4" /> {t("nav.themeSystem")}
+                        {theme === "system" && (
+                          <span className="ml-auto text-xs text-primary">✓</span>
+                        )}
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2">
+                      <Languages className="h-4 w-4" />
+                      {t("nav.language")}
+                      <span className="ml-auto text-[10px] uppercase text-muted-foreground">
+                        {currentLang}
+                      </span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {SUPPORTED_LANGUAGES.map((lng) => (
+                        <DropdownMenuItem
+                          key={lng}
+                          onClick={() => void i18n.changeLanguage(lng)}
+                          className="gap-2"
+                        >
+                          {lng === "es" ? "Español" : "English"}
+                          {currentLang === lng && (
+                            <span className="ml-auto text-xs text-primary">✓</span>
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Belt-and-suspenders: even if the button renders during exam, intercept it.
+                  if (isTakingExam) {
+                    window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
+                  } else {
+                    void handleSignOut();
+                  }
+                }}
+                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                title={t("nav.signOut")}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </div>
