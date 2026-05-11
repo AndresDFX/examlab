@@ -1654,6 +1654,27 @@ export type Database = {
           },
         ]
       }
+      rate_limit_events: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          id?: number
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          id?: number
+        }
+        Relationships: []
+      }
       similarity_pairs: {
         Row: {
           created_at: string
@@ -2216,6 +2237,10 @@ export type Database = {
     }
     Functions: {
       _audit_jwt_uid: { Args: never; Returns: string }
+      check_rate_limit: {
+        Args: { p_action: string; p_max: number; p_window_seconds: number }
+        Returns: Json
+      }
       compute_attendance_code: {
         Args: { p_period: number; p_seed: string }
         Returns: string
