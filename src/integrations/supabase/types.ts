@@ -1756,6 +1756,8 @@ export type Database = {
           created_at: string
           expires_at: string | null
           google_email: string | null
+          provider: string
+          provider_email: string | null
           refresh_token: string
           teacher_id: string
           updated_at: string
@@ -1767,6 +1769,8 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           google_email?: string | null
+          provider?: string
+          provider_email?: string | null
           refresh_token: string
           teacher_id: string
           updated_at?: string
@@ -1778,6 +1782,8 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           google_email?: string | null
+          provider?: string
+          provider_email?: string | null
           refresh_token?: string
           teacher_id?: string
           updated_at?: string
