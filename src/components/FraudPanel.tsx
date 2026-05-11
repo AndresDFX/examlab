@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Bot, Check, Eye, Search, Users } from "lucide-react";
+import { AlertTriangle, Bot, Check, Eye, Save, Search, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -462,6 +462,10 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
    * detectar deny silencioso de RLS, luego actualiza el snapshot
    * local para que la columna "Nota actual" refleje el cambio.
    */
+  // Estado de la operación masiva — controla el botón "Aplicar a todos"
+  // y deshabilita las filas individuales mientras corre.
+  const [bulkApplying, setBulkApplying] = useState(false);
+
   const applyPenalty = useCallback(
     async (userId: string, gradeToApply: number | null) => {
       const snap = gradesByUser[userId];
@@ -511,6 +515,55 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
     [gradesByUser, overrideColumn, table, userNames],
   );
 
+  /**
+   * Aplica la sugerencia a TODAS las filas de una sección (IA o copia).
+   * Iteramos secuencial — preferimos UX de "ver progreso" sobre paralelo
+   * (que podría saturar PostgREST en cursos grandes). Solo aplica filas
+   * con sugerencia válida.
+   *
+   * Recibe la lista de (userId, suggested, severity) — el caller computa
+   * estos valores con la misma lógica que usa para pintar cada fila, así
+   * el botón hace exactamente lo que el docente ve.
+   */
+  const applyAllInSection = useCallback(
+    async (rowsToApply: Array<{ userId: string; suggested: number | null; severity: number }>) => {
+      const applicable = rowsToApply.filter(
+        (r) =>
+          r.suggested != null &&
+          !Number.isNaN(r.suggested) &&
+          r.severity >= INTEGRITY_ALERT_THRESHOLD,
+      );
+      if (applicable.length === 0) {
+        toast.info("Ninguna fila tiene sugerencia aplicable");
+        return;
+      }
+      const confirmMsg = `Vas a aplicar la sugerencia a ${applicable.length} estudiante${
+        applicable.length === 1 ? "" : "s"
+      }. La nota actual se reemplaza por la sugerida. ¿Continuar?`;
+      if (!window.confirm(confirmMsg)) return;
+
+      setBulkApplying(true);
+      let okCount = 0;
+      let failCount = 0;
+      for (const r of applicable) {
+        try {
+          await applyPenalty(r.userId, r.suggested);
+          okCount += 1;
+        } catch (_) {
+          failCount += 1;
+        }
+      }
+      setBulkApplying(false);
+      if (okCount > 0) {
+        toast.success(
+          `Sugerencia aplicada a ${okCount} estudiante${okCount === 1 ? "" : "s"}` +
+            (failCount > 0 ? ` · ${failCount} fallido${failCount === 1 ? "" : "s"}` : ""),
+        );
+      }
+    },
+    [applyPenalty],
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -544,6 +597,35 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             <Badge variant="outline" className="ml-auto text-[11px]">
               {aiSummaryLabel}
             </Badge>
+            {hasAi && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px]"
+                disabled={bulkApplying}
+                onClick={() =>
+                  applyAllInSection(
+                    aiSignals.map((row) => {
+                      const snap = gradesByUser[row.userId];
+                      const rowKey = `ai-${row.userId}`;
+                      return {
+                        userId: row.userId,
+                        suggested: getSuggestedValue(rowKey, snap?.currentGrade ?? null, row.score),
+                        severity: row.score,
+                      };
+                    }),
+                  )
+                }
+                title="Aplica la sugerencia a todas las filas con score ≥ umbral"
+              >
+                {bulkApplying ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <Save className="h-3 w-3 mr-1" />
+                )}
+                Aplicar a todos
+              </Button>
+            )}
           </div>
           {!hasAi ? (
             <p className="text-xs text-muted-foreground">
@@ -782,8 +864,43 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                   alumno. Severidad = max similarity con cualquier
                   compañero en el examen/taller/proyecto. */}
               <div className="pt-3 border-t">
-                <div className="text-xs font-medium text-muted-foreground mb-2">
-                  Penalización sugerida por estudiante (severidad = similitud máxima)
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Penalización sugerida por estudiante (severidad = similitud máxima)
+                  </div>
+                  {plagiarismByStudent.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[11px]"
+                      disabled={bulkApplying}
+                      onClick={() =>
+                        applyAllInSection(
+                          plagiarismByStudent.map((s) => {
+                            const snap = gradesByUser[s.userId];
+                            const rowKey = `pl-${s.userId}`;
+                            return {
+                              userId: s.userId,
+                              suggested: getSuggestedValue(
+                                rowKey,
+                                snap?.currentGrade ?? null,
+                                s.maxScore,
+                              ),
+                              severity: s.maxScore,
+                            };
+                          }),
+                        )
+                      }
+                      title="Aplica la sugerencia a todos los estudiantes con similitud ≥ umbral"
+                    >
+                      {bulkApplying ? (
+                        <Spinner size="sm" className="mr-1" />
+                      ) : (
+                        <Save className="h-3 w-3 mr-1" />
+                      )}
+                      Aplicar a todos
+                    </Button>
+                  )}
                 </div>
                 <Table>
                   <TableHeader>

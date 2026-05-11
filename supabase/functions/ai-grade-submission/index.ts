@@ -1,6 +1,7 @@
 // AI grading: scores exam answers or workshop submissions via AI Gateway
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
+import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -191,6 +192,16 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Rate limit: cada call gasta créditos de IA. 120/hora por usuario
+    // = ~2 por minuto, suficiente para calificar manualmente un curso
+    // grande (30-50 entregas) sin disparar 429, pero corta scripts en
+    // loop. El helper deja pasar si el RPC SQL no está disponible.
+    const rl = await enforceRateLimit(userClient, "ai.grade_submission", {
+      max: 120,
+      windowSeconds: 3600,
+    });
+    if (!rl.ok) return rl.response;
+
     const callerId = u.user.id;
     auditCallerId = callerId;
     const { data: callerRoles } = await adminClient

@@ -4,12 +4,8 @@
  * Currently supports Java via JDoodle API (extensible to Python/JS).
  * Architecture: Strategy pattern for easy language addition.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
+import { auditFromEdge } from "../_shared/audit.ts";
 
 interface ExecutionRequest {
   sourceCode: string;
@@ -153,23 +149,13 @@ Deno.serve(async (req) => {
     }
 
     // Authenticate user
-    const authHeader = req.headers.get("Authorization");
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
-      { global: { headers: { Authorization: authHeader ?? "" } } },
-    );
+    const userClient = userClientFromRequest(req);
+    if (!userClient) throw new Error("No autenticado");
     const { data: u } = await userClient.auth.getUser();
     if (!u.user) throw new Error("No autenticado");
 
     // Execute code
     const result = await executeWithJDoodle(sourceCode, language, stdin);
-
-    // Log execution in database
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
     await admin.from("code_executions").insert({
       submission_id: submissionId || null,
       question_id: questionId,
@@ -182,6 +168,26 @@ Deno.serve(async (req) => {
       exit_code: result.exitCode,
       execution_time_ms: result.executionTimeMs,
       status: result.exitCode === 0 ? "completed" : "error",
+    });
+
+    // Auditoría: una fila por ejecución. Útil para detectar abuso (un
+    // estudiante intentando spamear JDoodle). NO logueamos el código
+    // fuente (ya queda en `code_executions`) — solo metadata.
+    void auditFromEdge(admin, {
+      actorId: u.user.id,
+      action: "code.executed",
+      category: "system",
+      severity: "info",
+      entityType: "code_execution",
+      entityId: questionId,
+      metadata: {
+        language,
+        submission_id: submissionId ?? null,
+        question_id: questionId,
+        exit_code: result.exitCode,
+        execution_time_ms: result.executionTimeMs,
+        source_length: sourceCode.length,
+      },
     });
 
     return new Response(JSON.stringify(result), {

@@ -1,5 +1,7 @@
 // AI question generator via AI Gateway (Gemini)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { adminClient, userClientFromRequest } from "../_shared/admin.ts";
+import { auditFromEdge } from "../_shared/audit.ts";
+import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,8 +52,38 @@ async function resolveSystemPrompt(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Capturamos contexto para el catch global (modo + caller) — útil para
+  // que la auditoría del fallo identifique qué se intentaba generar.
+  let auditMode = "unknown";
+  let auditActorId: string | null = null;
   try {
     const body = await req.json();
+    auditMode = body.projectDescriptionGeneration
+      ? "project_description"
+      : body.projectQuestionsAndAssets
+        ? "project_questions_assets"
+        : body.projectFilesGeneration
+          ? "project_files"
+          : body.workshopQuestionsGeneration
+            ? "workshop_questions"
+            : body.examQuestionsGeneration
+              ? "exam_questions"
+              : "unknown";
+
+    // Rate limit antes de hacer trabajo (gastar créditos de IA). 30
+    // calls/hora por usuario es generoso para uso interactivo y atrapa
+    // scripts que entren en loop. Si la migración del RPC no está
+    // aplicada, el helper deja pasar (best-effort).
+    const rlClient = userClientFromRequest(req);
+    if (rlClient) {
+      const { data: uPre } = await rlClient.auth.getUser();
+      if (uPre?.user) auditActorId = uPre.user.id;
+      const rl = await enforceRateLimit(rlClient, "ai.generate_questions", {
+        max: 30,
+        windowSeconds: 3600,
+      });
+      if (!rl.ok) return rl.response;
+    }
 
     // ── Modo: generación de DESCRIPCIÓN de proyecto (contexto global) ──
     // Body: { projectDescriptionGeneration: true, topic, courseId?, courseLanguage? }
@@ -72,10 +104,10 @@ Deno.serve(async (req) => {
       const lang: "es" | "en" =
         courseLanguage === "en" || courseLanguage === "es" ? courseLanguage : "es";
       const langName = lang === "en" ? "inglés (English)" : "español";
-      const adminPD = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      );
+      // Mantener nombre `adminPD` por consistencia con los pasos siguientes
+      // del modo project_description. El cliente subyacente es el singleton
+      // compartido (`adminClient` de `_shared/admin.ts`).
+      const adminPD = adminClient;
       const fallback = `Eres un docente experto que redacta la descripción de un proyecto académico. Sé concreto y conciso (3-6 oraciones). Indica el propósito, alcance y restricciones. NO listes entregables uno por uno (van en cada pregunta). NO uses encabezados Markdown — texto plano corrido. Devuelve solo la descripción.`;
       const systemPrompt = await resolveSystemPrompt(
         adminPD,
@@ -241,10 +273,7 @@ Idioma obligatorio: ${langName}.`,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const adminPQA = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      );
+      const adminPQA = adminClient;
       // Idioma: explícito del cliente o derivado del curso.
       let pqaLangCode: "es" | "en" = "es";
       if (pqaLang === "en" || pqaLang === "es") {
@@ -436,10 +465,7 @@ Idioma obligatorio: ${langName}.`,
       const cnt = Math.max(1, Math.min(20, Number(pfCount) || 3));
 
       // Resolve course language from project → course
-      const adminPF = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      );
+      const adminPF = adminClient;
       let pfCourseLang: "es" | "en" = "es";
       if (pfLang === "en" || pfLang === "es") {
         pfCourseLang = pfLang;
@@ -801,6 +827,16 @@ Idioma de salida obligatorio: ${langName}.`;
         : typeof e === "object" && e !== null
           ? JSON.stringify(e)
           : String(e);
+    // Auditoría del fallo. El modo se capturó antes de que tirara la
+    // excepción, así que sabemos qué se intentaba generar.
+    void auditFromEdge(adminClient, {
+      actorId: auditActorId,
+      action: "ai.questions_generation_failed",
+      category: "system",
+      severity: "error",
+      entityType: "ai_generation",
+      metadata: { mode: auditMode, error: msg },
+    });
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

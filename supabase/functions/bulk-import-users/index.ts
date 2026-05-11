@@ -1,30 +1,17 @@
 // Bulk import users via CSV (admin only)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { adminClient, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
+import { auditFromEdge } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const userClient = userClientFromRequest(req);
+    if (!userClient) {
       return new Response(JSON.stringify({ error: "No autenticado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
-
-    // Validate user with anon client + token
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
     const { data: u, error: uErr } = await userClient.auth.getUser();
     if (uErr || !u.user) {
       return new Response(JSON.stringify({ error: "Token inválido" }), {
@@ -33,9 +20,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin role using service-role (bypass RLS quirks)
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", u.user.id);
+    const { data: roles } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", u.user.id);
     if (!roles?.some((r) => r.role === "Admin")) {
       return new Response(JSON.stringify({ error: "Solo Admin puede importar" }), {
         status: 403,
@@ -47,7 +35,7 @@ Deno.serve(async (req) => {
     if (!Array.isArray(rows)) throw new Error("rows[] requerido");
 
     // Pre-fetch all auth users once for O(1) duplicate lookups
-    const { data: authList } = await admin.auth.admin.listUsers({ page: 1, perPage: 10000 });
+    const { data: authList } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 10000 });
     const emailToId = new Map<string, string>();
     (authList?.users ?? []).forEach((u: any) => {
       if (u.email) emailToId.set(u.email.toLowerCase(), u.id);
@@ -99,7 +87,7 @@ Deno.serve(async (req) => {
           continue;
         }
         if (!userId) {
-          const { data, error } = await admin.auth.admin.createUser({
+          const { data, error } = await adminClient.auth.admin.createUser({
             email: institutional_email,
             password: password || "Cambiar#123",
             email_confirm: true,
@@ -144,6 +132,27 @@ Deno.serve(async (req) => {
         });
       }
     }
+    // Auditoría: un solo evento por import con resumen. Loggeamos
+    // creados/actualizados/fallidos + el primer puñado de emails para
+    // que el admin sepa qué entró. Severity warning porque crear usuarios
+    // masivamente es operación sensible.
+    const created = result.filter((r) => r.ok).length;
+    const failed = result.filter((r) => !r.ok).length;
+    void auditFromEdge(adminClient, {
+      actorId: u.user.id,
+      action: "user.bulk_imported",
+      category: "user",
+      severity: "warning",
+      entityType: "user",
+      metadata: {
+        total: rows.length,
+        created,
+        failed,
+        allow_existing: !!allowExisting,
+        first_emails: result.slice(0, 10).map((r) => ({ email: r.email, ok: r.ok })),
+      },
+    });
+
     return new Response(JSON.stringify({ ok: true, result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

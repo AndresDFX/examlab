@@ -27,11 +27,7 @@ const adminClient = createClient(
 
 /** Escapa los chars que ICS reserva: comma, semicolon, backslash, newline. */
 function icsEscape(s: string): string {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/\n/g, "\\n")
-    .replace(/,/g, "\\,")
-    .replace(/;/g, "\\;");
+  return s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 }
 
 /** Convierte una fecha ISO (YYYY-MM-DD) o ISO datetime a formato ICS
@@ -47,7 +43,10 @@ function toIcsTime(dateStr: string): string {
   // del usuario hacer la conversión a su local.
   const d = dateStr.length === 10 ? new Date(`${dateStr}T09:00:00Z`) : new Date(dateStr);
   if (Number.isNaN(d.getTime())) return "19700101T000000Z";
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  return d
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 }
 
 /** Línea ICS con folding RFC 5545: ninguna línea puede exceder 75
@@ -81,11 +80,17 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {
-    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
   const { data: userRes, error: userErr } = await adminClient.auth.getUser(token);
   if (userErr || !userRes?.user) {
-    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
   const userId = userRes.user.id;
 
@@ -167,15 +172,16 @@ Deno.serve(async (req: Request) => {
     // Duración por defecto 90 min (típica clase universitaria). Cuando
     // tengamos `session_time` + `duration_minutes` por sesión, usamos
     // esos valores. Por ahora 90 min es razonable.
-    const startDate = new Date(s.session_date.length === 10
-      ? `${s.session_date}T09:00:00Z`
-      : s.session_date);
+    const startDate = new Date(
+      s.session_date.length === 10 ? `${s.session_date}T09:00:00Z` : s.session_date,
+    );
     const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
-    const end = endDate.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const end = endDate
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
     const courseName = courseById.get(s.course_id) ?? "Curso";
-    const summary = s.title
-      ? `${courseName}: ${s.title}`
-      : `${courseName} — ${s.session_date}`;
+    const summary = s.title ? `${courseName}: ${s.title}` : `${courseName} — ${s.session_date}`;
     const descLines: string[] = [];
     if (s.meeting_url) descLines.push(`Reunión: ${s.meeting_url}`);
     descLines.push(`Curso: ${courseName}`);

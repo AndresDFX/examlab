@@ -62,6 +62,10 @@ interface Row {
   feedback: string;
   submissionId: string | null;
   hasGrade: boolean;
+  /** Snapshot al cargar la fila — usado para detectar cambios sin guardar
+   *  y omitir saves redundantes en `Guardar todo`. */
+  originalGrade: number | null;
+  originalFeedback: string;
 }
 
 export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
@@ -128,14 +132,17 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
         const sub = subByUser.get(p.id);
         const rawGrade = kind === "exam" ? sub?.final_override_grade : sub?.final_grade;
         const grade = rawGrade != null ? Number(rawGrade) : null;
+        const feedback = sub?.teacher_feedback ?? "";
         return {
           userId: p.id,
           fullName: p.full_name ?? "—",
           email: p.institutional_email ?? "",
           grade,
-          feedback: sub?.teacher_feedback ?? "",
+          feedback,
           submissionId: sub?.id ?? null,
           hasGrade: grade != null,
+          originalGrade: grade,
+          originalFeedback: feedback,
         };
       });
       newRows.sort((a, b) => a.fullName.localeCompare(b.fullName));
@@ -294,26 +301,61 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
     setSavingId(row.userId);
     try {
       const ok = await saveRow(row);
-      if (ok) toast.success(`Nota guardada: ${row.fullName}`);
+      if (ok) {
+        // Snapshot post-save: la fila ya no es dirty hasta el siguiente edit.
+        updateRow(row.userId, {
+          originalGrade: row.grade,
+          originalFeedback: row.feedback,
+        });
+        toast.success(`Nota guardada: ${row.fullName}`);
+      }
     } finally {
       setSavingId(null);
     }
   };
 
+  /** Filas con cambios sin guardar. La comparación es estricta sobre
+   *  `grade` (null vs número) y feedback (trim para evitar marcar dirty
+   *  por espacios en blanco accidentales). Usado para el botón de
+   *  guardado masivo y el badge contador. */
+  const dirtyRows = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          r.grade !== r.originalGrade ||
+          (r.feedback ?? "").trim() !== (r.originalFeedback ?? "").trim(),
+      ),
+    [rows],
+  );
+
   const handleSaveAll = async () => {
     setBulkSaving(true);
     let okCount = 0;
+    let failCount = 0;
     try {
-      for (const row of rows) {
-        // Saltamos filas vacías para no crear submissions sin nota.
+      for (const row of dirtyRows) {
+        // Saltamos filas que igual quedaron vacías (sin nota ni feedback).
         if (row.grade == null && !row.feedback.trim()) continue;
         const ok = await saveRow(row);
-        if (ok) okCount += 1;
+        if (ok) {
+          okCount += 1;
+          // Marcar como "no dirty" actualizando los originales en memoria.
+          updateRow(row.userId, {
+            originalGrade: row.grade,
+            originalFeedback: row.feedback,
+          });
+        } else {
+          failCount += 1;
+        }
       }
-      if (okCount > 0)
+      if (okCount > 0) {
         toast.success(
-          `${okCount} nota${okCount === 1 ? "" : "s"} guardada${okCount === 1 ? "" : "s"}`,
+          `${okCount} cambio${okCount === 1 ? "" : "s"} guardado${okCount === 1 ? "" : "s"}` +
+            (failCount > 0 ? ` · ${failCount} fallido${failCount === 1 ? "" : "s"}` : ""),
         );
+      } else if (failCount === 0) {
+        toast.info("No hay cambios sin guardar");
+      }
     } finally {
       setBulkSaving(false);
     }
@@ -355,15 +397,20 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
             <Button
               size="sm"
               onClick={handleSaveAll}
-              disabled={bulkSaving || loading || rows.length === 0}
+              disabled={bulkSaving || loading || dirtyRows.length === 0}
               className="h-8 text-xs"
+              title={
+                dirtyRows.length === 0
+                  ? "No hay cambios sin guardar"
+                  : `Guardar ${dirtyRows.length} cambio(s) pendiente(s)`
+              }
             >
               {bulkSaving ? (
                 <Spinner size="sm" className="mr-1.5" />
               ) : (
                 <Save className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Guardar todo
+              {dirtyRows.length > 0 ? `Guardar todos (${dirtyRows.length})` : "Guardar todos"}
             </Button>
           </div>
         </div>

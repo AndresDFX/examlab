@@ -18,7 +18,7 @@
 //    accesible (ai_feedback). Implementación completa requeriría
 //    descomprimir N ZIPs por llamada — caro y poco útil con muchas
 //    entregas. Si se necesita, se hace en una v2.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { adminClient as admin, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 
 const corsHeaders = {
@@ -94,27 +94,18 @@ Deno.serve(async (req) => {
   try {
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
 
     // ── Authn/Authz ──
     // La detección lee submissions de OTROS estudiantes y ejecuta IA
     // (cuesta créditos). Solo Docente/Admin puede invocarla. Sin esto
     // un estudiante con curiosidad podría exfiltrar metadatos / DoS.
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const userClient = userClientFromRequest(req);
+    if (!userClient) {
       return new Response(JSON.stringify({ error: "No autenticado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
     const { data: u } = await userClient.auth.getUser();
     if (!u.user) {
       return new Response(JSON.stringify({ error: "Token inválido" }), {
@@ -510,18 +501,15 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     console.error(e);
-    void auditFromEdge(
-      createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
-      {
-        actorId: auditActorId,
-        action: "fraud.plagiarism_detection_failed",
-        category: "fraud",
-        severity: "error",
-        entityType: auditKind ?? undefined,
-        entityId: auditRefId,
-        metadata: { kind: auditKind, error: e instanceof Error ? e.message : String(e) },
-      },
-    );
+    void auditFromEdge(admin, {
+      actorId: auditActorId,
+      action: "fraud.plagiarism_detection_failed",
+      category: "fraud",
+      severity: "error",
+      entityType: auditKind ?? undefined,
+      entityId: auditRefId,
+      metadata: { kind: auditKind, error: e instanceof Error ? e.message : String(e) },
+    });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

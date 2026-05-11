@@ -150,6 +150,33 @@ Deno.serve(async (req) => {
       .single();
     if (eErr || !exam) throw new Error("Examen no encontrado");
 
+    // Authz: el caller debe ser docente DEL curso del examen (o Admin).
+    // Sin esto cualquier docente puede leer metadata de exámenes de
+    // cursos ajenos. Admin pasa siempre.
+    const isAdmin = (roles ?? []).some((r: { role: string }) => r.role === "Admin");
+    if (!isAdmin) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const courseId = (exam as any).course_id as string | null;
+      if (!courseId) {
+        return new Response(JSON.stringify({ error: "Examen sin curso asignado" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: ct } = await adminClient
+        .from("course_teachers")
+        .select("course_id")
+        .eq("course_id", courseId)
+        .eq("user_id", u.user.id)
+        .maybeSingle();
+      if (!ct) {
+        return new Response(JSON.stringify({ error: "No eres docente de este curso" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { data: questions, error: qErr } = await adminClient
       .from("questions")
       .select("id, type, content, points, expected_rubric")
