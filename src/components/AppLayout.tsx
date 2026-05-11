@@ -137,8 +137,8 @@ const NAV: NavItem[] = [
     roles: ["Estudiante"],
   },
   {
-    to: "/app/teacher/google-calendar",
-    labelKey: "nav.googleCalendar",
+    to: "/app/teacher/calendar",
+    labelKey: "nav.calendar",
     icon: CalendarDays,
     roles: ["Docente"],
   },

@@ -18,9 +18,9 @@ import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.wo
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
-import { Route as AppTeacherGoogleCalendarRouteImport } from './routes/app.teacher.google-calendar'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
 import { Route as AppTeacherContentsRouteImport } from './routes/app.teacher.contents'
+import { Route as AppTeacherCalendarRouteImport } from './routes/app.teacher.calendar'
 import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
 import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.attendance'
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
@@ -35,7 +35,6 @@ import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.stati
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
-import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google-oauth-callback'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
@@ -90,12 +89,6 @@ const AppTeacherGradebookRoute = AppTeacherGradebookRouteImport.update({
   path: '/teacher/gradebook',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTeacherGoogleCalendarRoute =
-  AppTeacherGoogleCalendarRouteImport.update({
-    id: '/teacher/google-calendar',
-    path: '/teacher/google-calendar',
-    getParentRoute: () => AppRoute,
-  } as any)
 const AppTeacherCoursesRoute = AppTeacherCoursesRouteImport.update({
   id: '/teacher/courses',
   path: '/teacher/courses',
@@ -104,6 +97,11 @@ const AppTeacherCoursesRoute = AppTeacherCoursesRouteImport.update({
 const AppTeacherContentsRoute = AppTeacherContentsRouteImport.update({
   id: '/teacher/contents',
   path: '/teacher/contents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherCalendarRoute = AppTeacherCalendarRouteImport.update({
+  id: '/teacher/calendar',
+  path: '/teacher/calendar',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherAuditLogsRoute = AppTeacherAuditLogsRouteImport.update({
@@ -176,12 +174,6 @@ const AppAdminAiPromptsRoute = AppAdminAiPromptsRouteImport.update({
   path: '/admin/ai-prompts',
   getParentRoute: () => AppRoute,
 } as any)
-const ApiPublicGoogleOauthCallbackRoute =
-  ApiPublicGoogleOauthCallbackRouteImport.update({
-    id: '/api/public/google-oauth-callback',
-    path: '/api/public/google-oauth-callback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   id: '/teacher/exams/',
   path: '/teacher/exams/',
@@ -232,7 +224,6 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
-  '/api/public/google-oauth-callback': typeof ApiPublicGoogleOauthCallbackRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -247,9 +238,9 @@ export interface FileRoutesByFullPath {
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
+  '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
-  '/app/teacher/google-calendar': typeof AppTeacherGoogleCalendarRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
@@ -268,7 +259,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app': typeof AppIndexRoute
-  '/api/public/google-oauth-callback': typeof ApiPublicGoogleOauthCallbackRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -283,9 +273,9 @@ export interface FileRoutesByTo {
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
+  '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
-  '/app/teacher/google-calendar': typeof AppTeacherGoogleCalendarRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
@@ -306,7 +296,6 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
-  '/api/public/google-oauth-callback': typeof ApiPublicGoogleOauthCallbackRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -321,9 +310,9 @@ export interface FileRoutesById {
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
+  '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
-  '/app/teacher/google-calendar': typeof AppTeacherGoogleCalendarRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
@@ -345,7 +334,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/app/unauthorized'
     | '/app/'
-    | '/api/public/google-oauth-callback'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -360,9 +348,9 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
+    | '/app/teacher/calendar'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
-    | '/app/teacher/google-calendar'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/statistics'
@@ -381,7 +369,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/app/unauthorized'
     | '/app'
-    | '/api/public/google-oauth-callback'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -396,9 +383,9 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
+    | '/app/teacher/calendar'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
-    | '/app/teacher/google-calendar'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/statistics'
@@ -418,7 +405,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/app/unauthorized'
     | '/app/'
-    | '/api/public/google-oauth-callback'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -433,9 +419,9 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
+    | '/app/teacher/calendar'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
-    | '/app/teacher/google-calendar'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/statistics'
@@ -454,7 +440,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -522,13 +507,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherGradebookRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/teacher/google-calendar': {
-      id: '/app/teacher/google-calendar'
-      path: '/teacher/google-calendar'
-      fullPath: '/app/teacher/google-calendar'
-      preLoaderRoute: typeof AppTeacherGoogleCalendarRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/teacher/courses': {
       id: '/app/teacher/courses'
       path: '/teacher/courses'
@@ -541,6 +519,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/contents'
       fullPath: '/app/teacher/contents'
       preLoaderRoute: typeof AppTeacherContentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/calendar': {
+      id: '/app/teacher/calendar'
+      path: '/teacher/calendar'
+      fullPath: '/app/teacher/calendar'
+      preLoaderRoute: typeof AppTeacherCalendarRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/audit-logs': {
@@ -641,13 +626,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAiPromptsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/api/public/google-oauth-callback': {
-      id: '/api/public/google-oauth-callback'
-      path: '/api/public/google-oauth-callback'
-      fullPath: '/api/public/google-oauth-callback'
-      preLoaderRoute: typeof ApiPublicGoogleOauthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/app/teacher/exams/': {
       id: '/app/teacher/exams/'
       path: '/teacher/exams'
@@ -724,9 +702,9 @@ interface AppRouteChildren {
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
   AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
+  AppTeacherCalendarRoute: typeof AppTeacherCalendarRoute
   AppTeacherContentsRoute: typeof AppTeacherContentsRoute
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
-  AppTeacherGoogleCalendarRoute: typeof AppTeacherGoogleCalendarRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
   AppTeacherProjectsRoute: typeof AppTeacherProjectsRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
@@ -758,9 +736,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
   AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
+  AppTeacherCalendarRoute: AppTeacherCalendarRoute,
   AppTeacherContentsRoute: AppTeacherContentsRoute,
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
-  AppTeacherGoogleCalendarRoute: AppTeacherGoogleCalendarRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
   AppTeacherProjectsRoute: AppTeacherProjectsRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
@@ -781,8 +759,16 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
-  ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

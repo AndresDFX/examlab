@@ -60,6 +60,17 @@ verify_jwt = true
 enabled = true
 verify_jwt = true
 
+# Calendar RPC — requiere JWT del docente para identificarlo.
+[functions."calendar"]
+enabled = true
+verify_jwt = true
+
+# OAuth callback público — Google manda el redirect sin Authorization.
+# Sin verify_jwt = false el callback rebota con 401 y el flujo se rompe.
+[functions."calendar-oauth-callback"]
+enabled = true
+verify_jwt = false
+
 [logging]
 vector_enabled = false
 postgres_enabled = false
