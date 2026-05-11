@@ -246,7 +246,15 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  try {
+  // La generación de un curso completo (8 clases × varios archivos × Gemini Pro)
+  // tarda varios minutos. El cliente invoca fire-and-forget, pero si la conexión
+  // HTTP se cancela antes de que el handler termine, el worker se mata y la fila
+  // queda atascada en 'processing'. Movemos el trabajo pesado a EdgeRuntime.waitUntil
+  // y respondemos 202 de inmediato — el polling del cliente sigue el progreso vía DB.
+  // deno-lint-ignore no-explicit-any
+  const runtime = (globalThis as any).EdgeRuntime;
+  const heavyWork = (async () => {
+    try {
     const promptTemplate = await resolveContentPrompt();
     // Etiqueta legible para `modality` — el modelo entiende mejor un
     // string descriptivo que el enum interno. Si no llega, asumimos
