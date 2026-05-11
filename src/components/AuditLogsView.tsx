@@ -71,7 +71,14 @@ type AuditLog = {
 
 // ─── Catálogos de etiquetas ────────────────────────────────────────────────────
 
+// Mapa completo de `action` → etiqueta humana. Lo agrupamos por
+// dominio (CRUD, entregas, IA, fraude, etc.) para que sea fácil revisar
+// si falta alguno y editar de un vistazo. Si un evento entra a `audit_logs`
+// sin entrada en este mapa, el grid lo muestra con el string crudo
+// (`ai.grading_started` en vez de "Calificación IA iniciada") — lo cual
+// es perfectamente válido como fallback, pero menos legible.
 const ACTION_LABELS: Record<string, string> = {
+  // ── Exámenes — CRUD + ciclo de vida ──
   "exam.created": "Examen creado",
   "exam.updated": "Examen actualizado",
   "exam.deleted": "Examen eliminado",
@@ -79,39 +86,109 @@ const ACTION_LABELS: Record<string, string> = {
   "exam.published": "Examen publicado",
   "exam.closed": "Examen cerrado",
   "exam.duplicated": "Examen duplicado",
+
+  // ── Talleres — CRUD ──
+  "workshop.created": "Taller creado",
+  "workshop.updated": "Taller actualizado",
+  "workshop.deleted": "Taller eliminado",
+  "workshop.bulk_deleted": "Talleres eliminados (masivo)",
+
+  // ── Proyectos — CRUD ──
+  "project.created": "Proyecto creado",
+  "project.updated": "Proyecto actualizado",
+  "project.deleted": "Proyecto eliminado",
+  "project.bulk_deleted": "Proyectos eliminados (masivo)",
+
+  // ── Cursos ──
+  "course.created": "Curso creado",
+  "course.updated": "Curso actualizado",
+  "course.deleted": "Curso eliminado",
+
+  // ── Matrículas ──
+  "enrollment.added": "Estudiante matriculado",
+  "enrollment.removed": "Estudiante desmatriculado",
+  "enrollment.bulk_added": "Matriculación masiva",
+
+  // ── Entregas de examen ──
   "submission.exam.started": "Examen iniciado",
   "submission.exam.submitted": "Examen entregado",
   "submission.exam.graded": "Examen calificado",
   "submission.exam.grade_updated": "Nota de examen actualizada",
   "submission.exam.flagged_suspicious": "Examen marcado sospechoso",
-  "workshop.created": "Taller creado",
-  "workshop.updated": "Taller actualizado",
-  "workshop.deleted": "Taller eliminado",
-  "workshop.bulk_deleted": "Talleres eliminados (masivo)",
+
+  // ── Entregas de taller ──
   "submission.workshop.submitted": "Taller entregado",
   "submission.workshop.graded": "Taller calificado",
-  "project.created": "Proyecto creado",
-  "project.updated": "Proyecto actualizado",
-  "project.deleted": "Proyecto eliminado",
-  "project.bulk_deleted": "Proyectos eliminados (masivo)",
+  "submission.workshop.updated_in_progress": "Taller editado en progreso",
+
+  // ── Entregas de proyecto ──
   "submission.project.submitted": "Proyecto entregado",
   "submission.project.graded": "Proyecto calificado",
-  "course.created": "Curso creado",
-  "course.updated": "Curso actualizado",
-  "course.deleted": "Curso eliminado",
-  "enrollment.added": "Estudiante matriculado",
-  "enrollment.removed": "Estudiante desmatriculado",
-  "enrollment.bulk_added": "Matriculación masiva",
-  "user.created": "Usuario creado",
-  "user.deleted": "Usuario eliminado",
-  "user.bulk_deleted": "Usuarios eliminados (masivo)",
-  "user.role_added": "Rol asignado",
-  "user.role_removed": "Rol removido",
+  "submission.project.updated_in_progress": "Proyecto editado en progreso",
+
+  // ── Calificación manual (docente sobreescribe IA) ──
+  "grade.manual_override": "Nota manual guardada",
+  "grade.manual_cleared": "Nota manual eliminada",
   "grading.ai_triggered": "Calificación IA iniciada",
   "grading.grade_override": "Nota manual guardada",
   "grading.defense_saved": "Sustentación guardada",
+  "grading.manual_save": "Calificación manual guardada",
+
+  // ── IA — generación + calificación ──
+  "ai.grading_started": "Calificación IA iniciada",
+  "ai.grading_failed": "Calificación IA fallida",
+  "ai.questions_generation_failed": "Generación IA de preguntas fallida",
+
+  // ── Fraude / integridad ──
   "fraud.plagiarism_run": "Análisis de plagio ejecutado",
+  "fraud.plagiarism_detection_started": "Detección de plagio iniciada",
+  "fraud.plagiarism_detected": "Detección de plagio completada",
+  "fraud.plagiarism_detection_failed": "Detección de plagio fallida",
   "fraud.manual_flag": "Marcado como fraude manualmente",
+  "fraud.warnings_cleared_all": "Advertencias borradas",
+
+  // ── Asistencia (check-in con QR) ──
+  "attendance.checkin_opened": "Check-in de asistencia abierto",
+  "attendance.checkin_closed": "Check-in de asistencia cerrado",
+  "attendance.pending_marked_absent": "Pendientes marcados como ausentes",
+
+  // ── Contenidos (módulo Contenidos del docente) ──
+  "content.generated": "Contenido generado",
+  "content.generation_failed": "Generación de contenido fallida",
+  "content.regeneration_failed": "Regeneración de contenido fallida",
+
+  // ── Configuración del sistema (admin) ──
+  "ai_model.activated": "Modelo de IA actualizado",
+  "ai_prompt.updated": "Prompt de IA actualizado",
+  "ai_prompt.restored_default": "Prompt de IA restaurado al default",
+  "ai_prompt.course_override_saved": "Prompt de IA override por curso",
+  "ai_prompt.course_override_removed": "Prompt de IA override removido",
+  "branding.created": "Marca institucional creada",
+  "branding.updated": "Marca institucional actualizada",
+
+  // ── Usuarios ──
+  "user.created": "Usuario creado",
+  "user.deleted": "Usuario eliminado",
+  "user.bulk_deleted": "Usuarios eliminados (masivo)",
+  "user.bulk_imported": "Usuarios importados (masivo)",
+  "user.role_added": "Rol asignado",
+  "user.role_removed": "Rol removido",
+  "user.roles_updated": "Roles actualizados",
+  "user.password_changed": "Contraseña cambiada",
+  "user.password_change_failed": "Cambio de contraseña fallido",
+  "user.password_reset_by_admin": "Contraseña restablecida por admin",
+  "user.password_reset_failed": "Reset de contraseña fallido",
+  "user.logged_out": "Sesión cerrada",
+  "user.login_failed": "Inicio de sesión fallido",
+  "user.navigated": "Navegación interna",
+  "code.executed": "Código ejecutado",
+
+  // ── Calendario externo (Google / Outlook) ──
+  "calendar.connected": "Calendario conectado",
+  "calendar.connect_failed": "Conexión de calendario fallida",
+  "calendar.disconnected": "Calendario desconectado",
+  "calendar.synced": "Calendario sincronizado",
+  "calendar.sync_failed": "Sincronización de calendario fallida",
 };
 
 // Solo guardamos las clases CSS; el label se resuelve con t("audit.categories.<key>").
@@ -164,11 +241,16 @@ const SEVERITY_ICONS: Record<string, React.ReactNode> = {
   critical: <ShieldAlert className="h-3.5 w-3.5" />,
 };
 
+// Estilos del badge de rol. Cubrimos variantes con/sin mayúscula
+// porque el trigger DB persiste 'sistema' minúscula pero las edge
+// functions usan 'Sistema'. Igual con Anónimo (login fallido).
 const ROLE_CLS: Record<string, string> = {
   Admin: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   Docente: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   Estudiante: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  Sistema: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
   sistema: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+  Anónimo: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300",
 };
 
 const PAGE_SIZE = 100;
@@ -188,6 +270,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [severity, setSeverity] = useState("all");
+  // Filtro por rol del actor. "Sistema" cubre tanto los eventos que el
+  // trigger DB marca con actor_role='sistema' (ej. flagged_suspicious)
+  // como los del helper de edge functions con fallback 'Sistema'.
+  const [roleFilter, setRoleFilter] = useState("all");
   // Grupo de acciones — filtra server-side por prefijo/sufijo de action.
   // Mapeamos cada opción a un patrón ILIKE en el handler de carga. Útil
   // para enfocarse rápido en "actualizaciones de entregas en progreso"
@@ -233,6 +319,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
 
         if (category !== "all") q = q.eq("category", category);
         if (severity !== "all") q = q.eq("severity", severity);
+        if (roleFilter !== "all") q = q.eq("actor_role", roleFilter);
         if (mode === "admin" && courseFilter !== "all") q = q.eq("course_id", courseFilter);
         if (dateFrom) q = q.gte("created_at", new Date(dateFrom).toISOString());
         if (dateTo) {
@@ -272,7 +359,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         setLoadingMore(false);
       }
     },
-    [category, severity, courseFilter, dateFrom, dateTo, actionGroup, mode],
+    [category, severity, roleFilter, courseFilter, dateFrom, dateTo, actionGroup, mode],
   ); // search es client-side
 
   // Reload cuando cambian filtros de servidor
@@ -299,6 +386,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     search ||
     category !== "all" ||
     severity !== "all" ||
+    roleFilter !== "all" ||
     actionGroup !== "all" ||
     (mode === "admin" && courseFilter !== "all") ||
     dateFrom ||
@@ -308,6 +396,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     setSearch("");
     setCategory("all");
     setSeverity("all");
+    setRoleFilter("all");
     setActionGroup("all");
     setCourseFilter("all");
     setDateFrom("");
@@ -419,6 +508,26 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                     {t(`audit.severities.${k}`)}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            {/* Rol del actor — filtra eventos por quién los ejecutó.
+                Los valores aquí deben coincidir EXACTAMENTE con lo que
+                el trigger DB y los helpers de edge functions persisten
+                en `actor_role` (Admin, Docente, Estudiante, Sistema,
+                Anónimo). El admin también necesita ver "Sistema"
+                (triggers internos como flagged_suspicious). */}
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue placeholder={t("audit.filters.rolePlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("audit.filters.roleAll")}</SelectItem>
+                <SelectItem value="Admin">{t("roles.Admin")}</SelectItem>
+                <SelectItem value="Docente">{t("roles.Docente")}</SelectItem>
+                <SelectItem value="Estudiante">{t("roles.Estudiante")}</SelectItem>
+                <SelectItem value="Sistema">{t("audit.filters.roleSystem")}</SelectItem>
+                <SelectItem value="Anónimo">{t("audit.filters.roleAnonymous")}</SelectItem>
               </SelectContent>
             </Select>
 
