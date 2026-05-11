@@ -156,6 +156,12 @@ function TeacherAttendance() {
   const [records, setRecords] = useState<Record_[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
+  // Hora local (HH:MM 24h) + duración en minutos. La edge function de
+  // calendar las usa para crear el evento Google a la hora exacta en vez
+  // de hardcodear 09:00 / 90min. Defaults razonables que aplican al 80%
+  // de los cursos universitarios.
+  const [newStartTime, setNewStartTime] = useState("09:00");
+  const [newDuration, setNewDuration] = useState(90);
   const [newTitle, setNewTitle] = useState("");
   // Corte explícito al que pertenece la sesión nueva. "" = sin corte
   // (la sesión queda visible pero no aporta a la nota de asistencia).
@@ -276,6 +282,11 @@ function TeacherAttendance() {
     const { error } = await (supabase as any).from("attendance_sessions").insert({
       course_id: courseId,
       session_date: newDate,
+      // start_time se persiste como TIME ("HH:MM:00") sin zona horaria.
+      // Bogotá se aplica al construir el ISO datetime en la edge function
+      // de calendar — manteniendo el DB columna agnóstica de TZ.
+      start_time: newStartTime ? `${newStartTime}:00` : null,
+      duration_minutes: newDuration > 0 ? newDuration : 90,
       title: newTitle || null,
       created_by: user.id,
       cut_id: newCutId || null,
@@ -1147,6 +1158,35 @@ function TeacherAttendance() {
             <div>
               <Label required>Fecha</Label>
               <DatePicker value={newDate} onChange={setNewDate} />
+            </div>
+            {/* Hora + duración — usadas por la sincronización a Google
+                Calendar para crear el evento a la hora real. Antes
+                hardcodeábamos 09:00/90min. */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>
+                  Hora inicio{" "}
+                  <HelpHint>
+                    Hora local (Bogotá). Se usa al sincronizar con tu calendario externo.
+                  </HelpHint>
+                </Label>
+                <Input
+                  type="time"
+                  value={newStartTime}
+                  onChange={(e) => setNewStartTime(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Duración (min)</Label>
+                <Input
+                  type="number"
+                  min={15}
+                  max={480}
+                  step={5}
+                  value={newDuration}
+                  onChange={(e) => setNewDuration(Number(e.target.value) || 90)}
+                />
+              </div>
             </div>
             <div>
               <Label>Título (opcional)</Label>

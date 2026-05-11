@@ -375,6 +375,61 @@ function TeacherContents() {
     toast.success(t("contents.deletedToast"));
   };
 
+  /** Borra UN archivo individual del contenido. Útil cuando al docente
+   *  no le gustó solo una parte (ej. la solución del ejercicio salió
+   *  mal) y no quiere regenerar el contenido entero. Acciones:
+   *   1. Confirma con el docente (acción destructiva).
+   *   2. Borra el archivo del bucket.
+   *   3. Re-escribe `files[]` en el JSONB sin esa entrada.
+   *   4. Refresca la lista local.
+   *
+   *  La fila de `generated_contents` se mantiene — solo desaparece el
+   *  archivo puntual. El docente puede volver a generarlo individualmente
+   *  (regen de clase) si lo necesita.
+   */
+  const deleteFile = async (item: GeneratedContent, file: FileEntry) => {
+    const ok = await confirm({
+      title: t("contents.deleteFileTitle", { name: humanLabelForFile(file) }),
+      description: t("contents.deleteFileBody"),
+      confirmLabel: t("common.delete"),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    try {
+      // 1. Storage — best-effort. Si falla seguimos para limpiar el
+      // JSONB de todos modos (el archivo huérfano en storage es menos
+      // grave que dejar la referencia colgada en el grid).
+      const { error: stErr } = await supabase.storage
+        .from("generated-contents")
+        .remove([file.path]);
+      if (stErr) console.warn("[contents] storage.remove failed:", stErr.message);
+
+      // 2. JSONB — leer files actuales, filtrar el path, persistir.
+      const { data: row, error: getErr } = await db
+        .from("generated_contents")
+        .select("files")
+        .eq("id", item.id)
+        .maybeSingle();
+      if (getErr || !row) throw new Error(getErr?.message ?? "No se pudo cargar el contenido");
+      const filesArr = Array.isArray(row.files) ? (row.files as FileEntry[]) : [];
+      const nextFiles = filesArr.filter((f) => f.path !== file.path);
+      const { error: updErr } = await db
+        .from("generated_contents")
+        .update({ files: nextFiles })
+        .eq("id", item.id);
+      if (updErr) throw new Error(updErr.message);
+
+      // 3. State local — actualiza la fila in-place sin re-fetch.
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, files: nextFiles } : i)));
+      // Si el dialog de archivos está abierto sobre este content, también
+      // refrescamos su referencia para que la chip desaparezca al instante.
+      setFilesViewerFor((cur) => (cur && cur.id === item.id ? { ...cur, files: nextFiles } : cur));
+      toast.success(t("contents.deleteFileDone"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   /** Abre el dialog "Regenerar" pre-cargando topic + instructions
    *  actuales para que el docente pueda ajustar antes de relanzar.
    *  Antes este botón ejecutaba directo — perdías la oportunidad de
@@ -991,6 +1046,7 @@ function TeacherContents() {
         brand={brand}
         downloadingPath={downloadingId}
         onDownload={(file) => filesViewerFor && void download(filesViewerFor, file)}
+        onDeleteFile={(file) => filesViewerFor && void deleteFile(filesViewerFor, file)}
         onRegenerateClass={(classNumber) =>
           filesViewerFor && openRegenerateClass(filesViewerFor, classNumber)
         }
@@ -2448,6 +2504,7 @@ function FilesByClassDialog({
   brand,
   downloadingPath,
   onDownload,
+  onDeleteFile,
   onRegenerateClass,
   onClose,
 }: {
@@ -2455,6 +2512,7 @@ function FilesByClassDialog({
   brand: BrandConfig | null;
   downloadingPath: string | null;
   onDownload: (file: FileEntry) => void;
+  onDeleteFile: (file: FileEntry) => void;
   onRegenerateClass: (classNumber: number) => void;
   onClose: () => void;
 }) {
@@ -2585,22 +2643,46 @@ function FilesByClassDialog({
           >
             {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
           </button>
+          {/* Eliminar archivo individual — útil cuando solo una parte
+              del contenido salió mal y no quieres regenerar todo. El
+              caller confirma y actualiza storage + JSONB. */}
+          <button
+            type="button"
+            onClick={() => onDeleteFile(f)}
+            className="flex items-center justify-center w-7 h-7 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            title={`${label} — ${t("contents.deleteFileHint")}`}
+            aria-label={`${label} — ${t("contents.deleteFileHint")}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       );
     }
+    // Variante sin preview: un grupo de 2 botones (descarga + borrar).
+    // No usamos el patrón inline-flex del caso preview para no romper
+    // los estilos de los archivos no editables (poco frecuentes).
     return (
-      <Button
-        key={f.path}
-        size="icon"
-        variant="outline"
-        className="h-7 w-7"
-        disabled={busy}
-        onClick={() => onDownload(f)}
-        title={`${label} — ${t("contents.downloadHint")}`}
-        aria-label={`${label} — ${t("contents.downloadHint")}`}
-      >
-        {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
-      </Button>
+      <div key={f.path} className="inline-flex rounded-md border overflow-hidden">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onDownload(f)}
+          className="flex items-center justify-center w-7 h-7 hover:bg-muted/60 transition-colors disabled:opacity-60"
+          title={`${label} — ${t("contents.downloadHint")}`}
+          aria-label={`${label} — ${t("contents.downloadHint")}`}
+        >
+          {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => onDeleteFile(f)}
+          className="flex items-center justify-center w-7 h-7 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          title={`${label} — ${t("contents.deleteFileHint")}`}
+          aria-label={`${label} — ${t("contents.deleteFileHint")}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
     );
   };
 

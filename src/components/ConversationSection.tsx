@@ -26,6 +26,7 @@ export function ConversationSection({
   summary,
   conversationLabel,
   pendingLabel,
+  onChanged,
 }: {
   parentKind: "exam" | "workshop" | "project";
   questionId: string;
@@ -33,6 +34,10 @@ export function ConversationSection({
   summary?: { count: number; pending: boolean };
   conversationLabel: string;
   pendingLabel: string;
+  /** Forwardea al FeedbackThread interior — el caller recibe el aviso
+   *  cuando el docente cierra/reabre o postea un comentario para
+   *  refrescar sus agregados (badges del monitor). */
+  onChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const hasPending = summary?.pending === true;
@@ -71,6 +76,7 @@ export function ConversationSection({
               questionId={questionId}
               submissionId={submissionId}
               isTeacher
+              onChanged={onChanged}
             />
           )}
         </CollapsibleContent>

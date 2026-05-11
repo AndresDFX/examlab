@@ -20,16 +20,17 @@ import {
   XCircle,
   Clock3,
   Sparkles,
-  Video,
   CalendarPlus,
-  Copy as CopyIcon,
+  RefreshCw,
   BookOpen,
   ClipboardList,
   CheckSquare,
+  Copy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatDateOnly, formatWeekdayName } from "@/lib/format";
 import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -41,9 +42,11 @@ import {
 } from "@/components/ui/dialog";
 import { Eye } from "lucide-react";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
+import { MeetingLink } from "@/components/MeetingLink";
 import {
   classNumberFromFilename,
   extractContentText,
+  isTeacherOnlyFile,
   type ContentFile,
 } from "@/lib/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
@@ -296,17 +299,20 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
     })();
   }, [user, course.id]);
 
-  /** Devuelve los archivos relevantes para una sesión. Si el contenido
-   *  es curso_completo y la sesión tiene class_index N, filtra a
-   *  archivos cuyo nombre contenga `_CLASE_N`. */
+  /** Devuelve los archivos relevantes para una sesión. Filtra:
+   *   1. Archivos de uso exclusivo del docente (guía docente, solución
+   *      del ejercicio) — el estudiante no debe verlos ni descargarlos.
+   *   2. Si el contenido es curso_completo y la sesión tiene class_index
+   *      N, filtra a archivos cuyo nombre contenga `_CLASE_N`. */
   const filesForSession = (s: SessionRow): ContentFileEntry[] => {
     const c = s.content_id ? contents[s.content_id] : null;
     if (!c) return [];
-    if (s.content_class_index == null) return c.files;
-    const filtered = c.files.filter(
+    const visible = c.files.filter((f) => !isTeacherOnlyFile(f.name));
+    if (s.content_class_index == null) return visible;
+    const filtered = visible.filter(
       (f) => classNumberFromFilename(f.name) === s.content_class_index,
     );
-    return filtered.length > 0 ? filtered : c.files;
+    return filtered.length > 0 ? filtered : visible;
   };
 
   /** Items "vinculados" a una sesión: due dentro de ±3 días de la fecha
@@ -606,15 +612,7 @@ function SessionGroup({
                       </div>
                     )}
                     {s.meeting_url && (
-                      <a
-                        href={s.meeting_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-1 text-xs rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
-                      >
-                        <Video className="h-3.5 w-3.5" />
-                        {t("courseBoard.joinMeeting")}
-                      </a>
+                      <MeetingLink url={s.meeting_url} label={t("courseBoard.joinMeeting")} />
                     )}
                   </div>
                   <AttendanceBadge status={att} />
@@ -810,11 +808,42 @@ function iconForFile(f: ContentFileEntry): LucideIcon {
  * del refresh token, ~1h por access; suficiente para que Google
  * cachée el feed la primera vez y luego use la URL como public).
  */
+/**
+ * Botón "Suscribir/Actualizar a mi calendario" — un solo click que
+ * abre Google Calendar con la suscripción al feed del estudiante
+ * pre-armada. El usuario solo confirma en Google.
+ *
+ * Flujo:
+ *   1. Construimos el feed ICS firmado con el JWT del estudiante:
+ *      `${SUPABASE_URL}/functions/v1/calendar-ics?apikey=${JWT}`.
+ *      Ese feed contiene TODAS las sesiones de los cursos en los que el
+ *      estudiante está matriculado, con la hora real que cada docente
+ *      configuró.
+ *   2. Lo transformamos a `webcal://...` (protocolo que Google reconoce
+ *      como "feed suscribible").
+ *   3. Abrimos `calendar.google.com/calendar/r?cid=<webcal>` en nueva
+ *      pestaña — Google pide confirmar y queda suscrito.
+ *   4. Persistimos en localStorage que el estudiante ya se suscribió;
+ *      la próxima vez el label cambia a "Actualizar en mi calendario".
+ *
+ * URL manual como fallback: si Google no abre (popup blocker, browser
+ * sin sesión Google, etc.) el dialog ofrece copiar la URL para pegarla
+ * a mano en cualquier app de calendario.
+ */
+const CALENDAR_SUBSCRIBED_KEY = "examlab:calendar_subscribed";
+
 function SubscribeCalendarButton() {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const [alreadySubscribed, setAlreadySubscribed] = useState(
+    () => typeof window !== "undefined" && !!localStorage.getItem(CALENDAR_SUBSCRIBED_KEY),
+  );
+  // Dialog de fallback — solo aparece si el primer intento (popup
+  // bloqueado) o si el estudiante hace click en "URL manual".
+  const [fallbackOpen, setFallbackOpen] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState("");
+  const [fallbackCopied, setFallbackCopied] = useState(false);
 
-  const buildUrl = async (): Promise<string | null> => {
+  const buildIcsUrl = async (): Promise<string | null> => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
     if (!supabaseUrl) return null;
     const { data } = await supabase.auth.getSession();
@@ -823,35 +852,109 @@ function SubscribeCalendarButton() {
     return `${supabaseUrl}/functions/v1/calendar-ics?apikey=${encodeURIComponent(token)}`;
   };
 
-  const onClick = async () => {
-    const url = await buildUrl();
-    if (!url) {
+  const subscribeViaGoogle = async () => {
+    const icsUrl = await buildIcsUrl();
+    if (!icsUrl) {
       toast.error(t("courseBoard.calendarUrlError"));
       return;
     }
+    // webcal:// le dice a Google "esto es un feed suscribible".
+    const webcal = icsUrl.replace(/^https?:\/\//, "webcal://");
+    const target = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`;
+    const opened = window.open(target, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      // Popup bloqueado: caemos al fallback con la URL para que el
+      // estudiante la pegue en su app de calendario favorita.
+      setFallbackUrl(icsUrl);
+      setFallbackOpen(true);
+      return;
+    }
+    localStorage.setItem(CALENDAR_SUBSCRIBED_KEY, "1");
+    setAlreadySubscribed(true);
+    toast.success(t("courseBoard.calendarOpenedToast"));
+  };
+
+  const showFallback = async () => {
+    const icsUrl = await buildIcsUrl();
+    if (!icsUrl) {
+      toast.error(t("courseBoard.calendarUrlError"));
+      return;
+    }
+    setFallbackUrl(icsUrl);
+    setFallbackCopied(false);
+    setFallbackOpen(true);
+  };
+
+  const copyFallbackUrl = async () => {
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      toast.success(t("courseBoard.calendarUrlCopied"), {
-        description: t("courseBoard.calendarUrlHint"),
-        duration: 8000,
-      });
-      setTimeout(() => setCopied(false), 2500);
+      await navigator.clipboard.writeText(fallbackUrl);
+      setFallbackCopied(true);
+      setTimeout(() => setFallbackCopied(false), 2500);
     } catch {
-      // Algunos browsers móviles no permiten writeText sin gesto. Como
-      // fallback, mostramos el URL en un prompt para copiar manual.
-      window.prompt(t("courseBoard.calendarUrlManualCopy"), url);
+      // Algunos browsers móviles bloquean writeText sin gesto previo —
+      // mostramos un prompt como último recurso.
+      window.prompt(t("courseBoard.subscribeFallbackCopyManual"), fallbackUrl);
     }
   };
 
   return (
-    <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs" onClick={onClick}>
-      {copied ? (
-        <CopyIcon className="h-3.5 w-3.5 mr-1 text-emerald-600" />
-      ) : (
-        <CalendarPlus className="h-3.5 w-3.5 mr-1" />
-      )}
-      {copied ? t("courseBoard.calendarUrlCopiedShort") : t("courseBoard.subscribeCalendar")}
-    </Button>
+    <>
+      <div className="inline-flex items-center gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          onClick={() => void subscribeViaGoogle()}
+        >
+          {alreadySubscribed ? (
+            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+          ) : (
+            <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+          )}
+          {alreadySubscribed ? t("courseBoard.updateCalendar") : t("courseBoard.subscribeCalendar")}
+        </Button>
+        {/* Fallback discreto — solo visible para quien lo necesite. */}
+        <button
+          type="button"
+          onClick={() => void showFallback()}
+          className="text-[10px] text-muted-foreground underline hover:text-foreground"
+        >
+          {t("courseBoard.subscribeFallbackLink")}
+        </button>
+      </div>
+
+      {/* Dialog de fallback — muestra la URL ICS para pegar manualmente
+          en cualquier app de calendario (Outlook, Apple, etc.). */}
+      <Dialog open={fallbackOpen} onOpenChange={setFallbackOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarPlus className="h-5 w-5 text-primary" />
+              {t("courseBoard.subscribeFallbackTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("courseBoard.subscribeFallbackBody")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={fallbackUrl}
+              readOnly
+              onClick={(e) => e.currentTarget.select()}
+              className="font-mono text-[11px]"
+            />
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => void copyFallbackUrl()}>
+                <Copy className="h-3.5 w-3.5 mr-1" />
+                {fallbackCopied
+                  ? t("courseBoard.subscribeFallbackCopied")
+                  : t("courseBoard.subscribeFallbackCopy")}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground pt-2 border-t">
+              {t("courseBoard.subscribeFallbackHint")}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -76,6 +76,33 @@ export function isIntroFilename(name: string): boolean {
 }
 
 /**
+ * True si el archivo es de uso exclusivo del docente y NO debe
+ * mostrarse al estudiante en su tablero / vista de sesión. Hoy:
+ *  - GUIA_DOCENTE_*.md → guion completo de la clase (incluye errores
+ *    comunes, respuestas a preguntas frecuentes, etc.).
+ *  - EJERCICIO_SOLUCION_*.md → solución paso a paso de un ejercicio
+ *    que el estudiante debe resolver por sí mismo.
+ *
+ * El estudiante SÍ debe ver: PRESENTACION (slides), TALLER_PRACTICO
+ * (instrucciones del laboratorio), EJERCICIO_ESTUDIANTE (enunciado
+ * sin solución), INTRO_CURSO.
+ *
+ * El check es case-insensitive y aplica sobre el filename completo —
+ * tolera variantes como "Guia Docente Clase 1 - Tema.md" después del
+ * rename amigable del downloader.
+ */
+export function isTeacherOnlyFile(name: string): boolean {
+  const upper = name.toUpperCase();
+  // Solución del ejercicio: detectamos "SOLUCION" o "SOLUTION".
+  if (/SOLUCION|SOLUTION/.test(upper)) return true;
+  // Guía docente: "GUIA_DOCENTE", "GUIA DOCENTE", "TEACHER_GUIDE", etc.
+  // Importante: NO matchear solo "GUIA" porque podríamos confundir con
+  // una guía del estudiante a futuro.
+  if (/GUIA[_\s-]*DOCENTE|TEACHER[_\s-]*GUIDE/.test(upper)) return true;
+  return false;
+}
+
+/**
  * Agrupa archivos por clase. Primero intenta detectar el número de
  * clase con `classNumberFromFilename`. Si NINGÚN archivo lo trae y el
  * curso declara `nClasses > 0`, hace fallback: separa los intro

@@ -1964,7 +1964,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
 
   return (
     <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">

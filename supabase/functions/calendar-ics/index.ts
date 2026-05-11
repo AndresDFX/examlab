@@ -36,12 +36,21 @@ function icsEscape(s: string): string {
  *  programa "Clase del 15 de mayo" sin hora explícita y queremos que
  *  caiga en la mañana. Para sesiones con hora explícita en futuro,
  *  agregaremos un campo `session_time` separado. */
-function toIcsTime(dateStr: string): string {
-  // Asumimos UTC para evitar problemas de zona horaria entre clientes
-  // en distintos países. Google Calendar respeta el TZID si lo
-  // declaramos; lo simplificamos a Z (UTC) y dejamos al calendario
-  // del usuario hacer la conversión a su local.
-  const d = dateStr.length === 10 ? new Date(`${dateStr}T09:00:00Z`) : new Date(dateStr);
+function toIcsTime(dateStr: string, startTime: string | null): string {
+  // Si la sesión tiene `start_time` lo usamos como hora local de Bogotá
+  // (UTC-5). Si no, mantenemos el legado de 09:00 UTC para sesiones
+  // viejas sin hora explícita.
+  let d: Date;
+  if (dateStr.length === 10) {
+    if (startTime && /^\d{2}:\d{2}/.test(startTime)) {
+      const normTime = startTime.length === 5 ? `${startTime}:00` : startTime;
+      d = new Date(`${dateStr}T${normTime}-05:00`);
+    } else {
+      d = new Date(`${dateStr}T09:00:00Z`);
+    }
+  } else {
+    d = new Date(dateStr);
+  }
   if (Number.isNaN(d.getTime())) return "19700101T000000Z";
   return d
     .toISOString()
@@ -64,6 +73,10 @@ interface SessionRow {
   id: string;
   course_id: string;
   session_date: string;
+  /** HH:MM:SS local Bogotá; null para sesiones legacy sin hora. */
+  start_time: string | null;
+  /** Minutos; null/<=0 → fallback 90 (igual que la edge `calendar`). */
+  duration_minutes: number | null;
   title: string | null;
   meeting_url: string | null;
 }
@@ -134,7 +147,7 @@ Deno.serve(async (req: Request) => {
     adminClient.from("courses").select("id, name").in("id", courseIds),
     adminClient
       .from("attendance_sessions")
-      .select("id, course_id, session_date, title, meeting_url")
+      .select("id, course_id, session_date, start_time, duration_minutes, title, meeting_url")
       .in("course_id", courseIds)
       .order("session_date", { ascending: true }),
   ]);
@@ -168,14 +181,21 @@ Deno.serve(async (req: Request) => {
   ];
 
   for (const s of sessions) {
-    const start = toIcsTime(s.session_date);
-    // Duración por defecto 90 min (típica clase universitaria). Cuando
-    // tengamos `session_time` + `duration_minutes` por sesión, usamos
-    // esos valores. Por ahora 90 min es razonable.
-    const startDate = new Date(
-      s.session_date.length === 10 ? `${s.session_date}T09:00:00Z` : s.session_date,
-    );
-    const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
+    const start = toIcsTime(s.session_date, s.start_time);
+    // Construye la fecha de inicio con la MISMA lógica que toIcsTime
+    // para que start + duración produzcan un end consistente. Si la
+    // sesión declaró `start_time` lo usamos como hora local Bogotá;
+    // si no, fallback al legacy 09:00 UTC.
+    const startDate =
+      s.session_date.length === 10
+        ? s.start_time && /^\d{2}:\d{2}/.test(s.start_time)
+          ? new Date(
+              `${s.session_date}T${s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time}-05:00`,
+            )
+          : new Date(`${s.session_date}T09:00:00Z`)
+        : new Date(s.session_date);
+    const durationMin = s.duration_minutes && s.duration_minutes > 0 ? s.duration_minutes : 90;
+    const endDate = new Date(startDate.getTime() + durationMin * 60 * 1000);
     const end = endDate
       .toISOString()
       .replace(/[-:]/g, "")

@@ -270,12 +270,21 @@ interface GCalEvent {
   conferenceData?: { entryPoints?: Array<{ uri: string; entryPointType: string }> };
 }
 
-function toIsoEvent(dateStr: string, durationMin = 90): { start: string; end: string } {
-  // session_date es DATE puro (YYYY-MM-DD). Lo anclamos a 09:00 hora
-  // local de Bogotá (UTC-5) — TODO V2: tomar la hora real cuando la
-  // tabla la guarde.
-  const start = new Date(`${dateStr}T09:00:00-05:00`);
-  const end = new Date(start.getTime() + durationMin * 60_000);
+function toIsoEvent(
+  dateStr: string,
+  startTime: string | null,
+  durationMin: number | null,
+): { start: string; end: string } {
+  // session_date es DATE puro (YYYY-MM-DD). `start_time` viene como
+  // "HH:MM:SS" (sin zona) — lo interpretamos como hora local de Bogotá.
+  // Si no hay hora explícita, mantenemos el legado de 09:00 para no
+  // romper sesiones viejas que no se actualizaron tras la migración.
+  const timePart = startTime && /^\d{2}:\d{2}/.test(startTime) ? startTime : "09:00:00";
+  // Aseguramos formato HH:MM:SS (Postgres a veces devuelve "09:00" sin segundos).
+  const normTime = timePart.length === 5 ? `${timePart}:00` : timePart;
+  const start = new Date(`${dateStr}T${normTime}-05:00`);
+  const minutes = durationMin && durationMin > 0 ? durationMin : 90;
+  const end = new Date(start.getTime() + minutes * 60_000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
@@ -305,7 +314,7 @@ async function handleSync(userId: string, body: SyncBody) {
     adminClient.from("courses").select("name").eq("id", body.courseId).maybeSingle(),
     adminClient
       .from("attendance_sessions")
-      .select("id, title, session_date, google_event_id, meeting_url")
+      .select("id, title, session_date, start_time, duration_minutes, google_event_id, meeting_url")
       .eq("course_id", body.courseId)
       .order("session_date", { ascending: true }),
     adminClient.from("course_enrollments").select("user_id").eq("course_id", body.courseId),
@@ -331,7 +340,11 @@ async function handleSync(userId: string, body: SyncBody) {
 
   for (const s of sessions ?? []) {
     try {
-      const { start, end } = toIsoEvent(s.session_date);
+      const { start, end } = toIsoEvent(
+        s.session_date,
+        (s as { start_time?: string | null }).start_time ?? null,
+        (s as { duration_minutes?: number | null }).duration_minutes ?? null,
+      );
       const summary = s.title
         ? `${course?.name ?? "Curso"}: ${s.title}`
         : `${course?.name ?? "Curso"} — ${s.session_date}`;

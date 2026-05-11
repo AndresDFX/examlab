@@ -304,7 +304,13 @@ function ExamMonitor() {
   const [threadsByQ, setThreadsByQ] = useState<Record<string, { count: number; pending: boolean }>>(
     {},
   );
-  useEffect(() => {
+  // Lo extraemos en una función callable (no solo dentro del effect)
+  // para que el `FeedbackThread` pueda invocarla via `onChanged` cuando
+  // el docente cierra/reabre/agrega un comentario. Sin esto, los
+  // contadores "Diálogo pendientes" / "openThreadsByUser" se quedaban
+  // stale hasta que cambiaba `submissions` — bug reportado: al cerrar
+  // un thread, el badge seguía marcando "1 pendiente".
+  const reloadThreadCounts = useCallback(async () => {
     if (!submissions.length) {
       setOpenThreadsByUser({});
       setPendingReplyByUser({});
@@ -313,8 +319,7 @@ function ExamMonitor() {
     }
     const subUserById = new Map(submissions.map((s) => [s.id, s.user_id]));
     const subIds = submissions.map((s) => s.id);
-    let cancelled = false;
-    (async () => {
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: threads } = await (supabase as any)
         .from("feedback_threads")
@@ -322,7 +327,6 @@ function ExamMonitor() {
         .eq("parent_kind", "exam")
         .eq("closed", false)
         .in("submission_id", subIds);
-      if (cancelled) return;
       const threadsArr = (threads ?? []) as {
         id: string;
         submission_id: string;
@@ -358,7 +362,6 @@ function ExamMonitor() {
         .select("thread_id, user_id, created_at")
         .in("thread_id", threadIds)
         .order("created_at", { ascending: false });
-      if (cancelled) return;
       const lastByThread = new Map<string, string>(); // thread_id → user_id del último comentario
       for (const c of (comments ?? []) as {
         thread_id: string;
@@ -391,11 +394,14 @@ function ExamMonitor() {
         };
       }
       setThreadsByQ(byQ);
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch (e) {
+      console.warn("[monitor] reloadThreadCounts failed", e);
+    }
   }, [submissions]);
+
+  useEffect(() => {
+    void reloadThreadCounts();
+  }, [reloadThreadCounts]);
 
   // Deep-link desde notificación o modal "Conversaciones abiertas":
   //   ?student=USER_ID      → abre el modal de intentos del estudiante.
@@ -2298,6 +2304,7 @@ function ExamMonitor() {
                                   summary={threadsByQ[`${viewingSub.id}:${q.id}`]}
                                   conversationLabel={t("integrity.conversation")}
                                   pendingLabel={t("integrity.conversationPending")}
+                                  onChanged={() => void reloadThreadCounts()}
                                 />
                               )}
                             </div>

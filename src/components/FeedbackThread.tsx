@@ -59,6 +59,12 @@ interface Props {
   /** Si true, muestra controles de cerrar / reabrir. Default false. */
   isTeacher?: boolean;
   className?: string;
+  /** Callback opcional que se dispara cuando el thread cambia de estado
+   *  (cerrar/reabrir, nuevo comentario, edit, delete). Útil para que el
+   *  caller refresque sus contadores agregados (ej. "diálogos pendientes"
+   *  en el monitor docente). Best-effort: nunca falla la operación
+   *  principal si el callback tira. */
+  onChanged?: () => void;
 }
 
 export function FeedbackThread({
@@ -67,6 +73,7 @@ export function FeedbackThread({
   submissionId,
   isTeacher = false,
   className,
+  onChanged,
 }: Props) {
   const { user } = useAuth();
   const confirm = useConfirm();
@@ -106,9 +113,7 @@ export function FeedbackThread({
         toast.error(error.message ?? "No se pudo editar el comentario");
         return;
       }
-      setComments((prev) =>
-        prev.map((c) => (c.id === editingId ? { ...c, body: trimmed } : c)),
-      );
+      setComments((prev) => prev.map((c) => (c.id === editingId ? { ...c, body: trimmed } : c)));
       cancelEdit();
     } finally {
       setSavingEdit(false);
@@ -176,9 +181,7 @@ export function FeedbackThread({
         // 42703 = undefined_column en Postgres; PGRST204 también
         // aparece cuando PostgREST no encuentra la columna.
         if (code === "42703" || code === "PGRST204") {
-          console.warn(
-            "[FeedbackThread] author_role column missing; falling back",
-          );
+          console.warn("[FeedbackThread] author_role column missing; falling back");
           const second = await db
             .from("feedback_comments")
             .select("id, thread_id, user_id, body, created_at")
@@ -214,11 +217,16 @@ export function FeedbackThread({
           .select("id, full_name, institutional_email")
           .in("id", userIds);
         profilesById = new Map(
-          ((profs ?? []) as Array<{
-            id: string;
-            full_name: string | null;
-            institutional_email: string | null;
-          }>).map((p) => [p.id, { full_name: p.full_name, institutional_email: p.institutional_email }]),
+          (
+            (profs ?? []) as Array<{
+              id: string;
+              full_name: string | null;
+              institutional_email: string | null;
+            }>
+          ).map((p) => [
+            p.id,
+            { full_name: p.full_name, institutional_email: p.institutional_email },
+          ]),
         );
       }
       setComments(
@@ -319,6 +327,14 @@ export function FeedbackThread({
       // Refresca en background para tomar nombres reales desde profiles
       // (si user_metadata.full_name está vacío) y comentarios concurrentes.
       void load();
+      // Notificar al caller que el thread cambió — el monitor docente
+      // usa esto para refrescar el contador "diálogos pendientes" sin
+      // esperar a que cambien las submissions. Best-effort.
+      try {
+        onChanged?.();
+      } catch (_) {
+        /* ignore */
+      }
       // Notificar al otro lado de la conversación. Fire-and-forget:
       // si el RPC falla (p. ej. la migración aún no corrió), el
       // comentario igual quedó persistido y se ve.
@@ -350,6 +366,14 @@ export function FeedbackThread({
     if (error) return toast.error(error.message);
     toast.success(next ? "Conversación cerrada" : "Conversación reabierta");
     await load();
+    // Avisa al caller que cambió el estado del thread (refresca el
+    // badge "Diálogo pendientes" en el monitor sin esperar al próximo
+    // cambio de submissions).
+    try {
+      onChanged?.();
+    } catch (_) {
+      /* ignore */
+    }
     void db
       .rpc("notify_feedback_event", {
         _thread_id: thread.id,
@@ -462,11 +486,7 @@ export function FeedbackThread({
                           title="Eliminar"
                           disabled={isDeletingThis}
                         >
-                          {isDeletingThis ? (
-                            <Spinner size="xs" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
+                          {isDeletingThis ? <Spinner size="xs" /> : <Trash2 className="h-3 w-3" />}
                         </Button>
                       </>
                     )}
@@ -531,9 +551,7 @@ export function FeedbackThread({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={2}
-            placeholder={
-              comments.length === 0 ? "Escribe tu comentario…" : "Responder…"
-            }
+            placeholder={comments.length === 0 ? "Escribe tu comentario…" : "Responder…"}
             className="text-xs min-h-[2.5rem]"
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -548,11 +566,7 @@ export function FeedbackThread({
             disabled={!body.trim() || sending}
             className="self-end h-9"
           >
-            {sending ? (
-              <Spinner size="xs" />
-            ) : (
-              <Send className="h-3 w-3" />
-            )}
+            {sending ? <Spinner size="xs" /> : <Send className="h-3 w-3" />}
           </Button>
         </div>
       )}
