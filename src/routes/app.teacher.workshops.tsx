@@ -62,6 +62,7 @@ import {
   ListChecks,
   Hammer,
   UsersRound,
+  AlertTriangle,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -79,8 +80,9 @@ import { CourseListCell } from "@/components/ui/course-list-cell";
 import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
-import { FeedbackThread } from "@/components/FeedbackThread";
+import { ConversationSection } from "@/components/ConversationSection";
 import { FraudPanel } from "@/components/FraudPanel";
+import { computeIntegritySuggestion } from "@/lib/integrity";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
@@ -158,7 +160,24 @@ type WsSub = {
   teacher_feedback: string | null;
   status: string;
   submitted_at: string | null;
+  /** Señales de IA a nivel submission (fallback cuando la entrega es
+   *  monolítica sin preguntas; para preguntas usamos ai_likelihood de
+   *  workshop_submission_answers). */
+  ai_detected?: boolean | null;
+  ai_detected_score?: number | null;
+  ai_detected_reasons?: string | null;
   profile?: { full_name: string; institutional_email: string };
+};
+
+/** Par de copia detectado entre dos estudiantes para UNA pregunta. */
+type WsSimilarityPair = {
+  id: string;
+  question_id: string | null;
+  user_a: string;
+  user_b: string;
+  score: number;
+  reasons: string | null;
+  reviewed_at: string | null;
 };
 
 type WsQuestion = {
@@ -182,6 +201,11 @@ type WsAnswer = {
   diagram_code: string | null;
   ai_grade: number | null;
   ai_feedback: string | null;
+  /** Probabilidad estimada (0..1) de que la respuesta sea generada por IA.
+   *  Persistida por respuesta (migración 20260510190000) para que la
+   *  sugerencia de penalización por integridad se calcule por pregunta. */
+  ai_likelihood: number | null;
+  ai_reasons: string | null;
 };
 
 function TeacherWorkshops() {
@@ -288,6 +312,17 @@ function TeacherWorkshops() {
   const [answersBySub, setAnswersBySub] = useState<Record<string, WsAnswer[]>>({});
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
   const [aiGradingAnswerId, setAiGradingAnswerId] = useState<string | null>(null);
+  // Pares de copia detectados (similarity_pairs) para este taller —
+  // cruzados por user_id para sugerir penalización por plagio en la
+  // grilla de calificación. Se recargan junto con las submissions.
+  const [wsSimilarityPairs, setWsSimilarityPairs] = useState<WsSimilarityPair[]>([]);
+  // Resumen de "Conversación con el estudiante" por (submissionId,
+  // questionId) — { count, pending }. Pending=true cuando el último
+  // mensaje del thread lo escribió el alumno (espera respuesta del
+  // docente). Se carga una sola vez en openGrading.
+  const [wsThreadsByQ, setWsThreadsByQ] = useState<
+    Record<string, { count: number; pending: boolean }>
+  >({});
 
   // Assignment
   const [assignWs, setAssignWs] = useState<Workshop | null>(null);
@@ -819,7 +854,9 @@ function TeacherWorkshops() {
     setGradingWs(ws);
     setWsQuestions([]);
     setAnswersBySub({});
-    const [{ data: subs }, { data: qs }] = await Promise.all([
+    setWsSimilarityPairs([]);
+    setWsThreadsByQ({});
+    const [{ data: subs }, { data: qs }, { data: pairs }] = await Promise.all([
       supabase.from("workshop_submissions").select("*").eq("workshop_id", ws.id),
       supabase
         .from("workshop_questions")
@@ -828,13 +865,21 @@ function TeacherWorkshops() {
         )
         .eq("workshop_id", ws.id)
         .order("position"),
+      // similarity_pairs no está en types.ts auto-generado todavía
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("similarity_pairs")
+        .select("id, question_id, user_a, user_b, score, reasons, reviewed_at")
+        .eq("kind", "workshop")
+        .eq("ref_id", ws.id),
     ]);
     setWsQuestions((qs ?? []) as WsQuestion[]);
+    setWsSimilarityPairs((pairs ?? []) as WsSimilarityPair[]);
 
     if (subs?.length) {
       const userIds = subs.map((s: any) => s.user_id);
       const subIds = subs.map((s: any) => s.id);
-      const [{ data: profiles }, { data: ans }] = await Promise.all([
+      const [{ data: profiles }, { data: ans }, { data: threads }] = await Promise.all([
         supabase.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
         supabase
           .from("workshop_submission_answers")
@@ -842,19 +887,164 @@ function TeacherWorkshops() {
             "id, submission_id, question_id, answer_text, selected_option, code_content, diagram_code, ai_grade, ai_feedback",
           )
           .in("submission_id", subIds),
+        // feedback_threads + comments para calcular el resumen
+        // "Conversación con el estudiante" por pregunta (count + pending).
+        // Pending=true cuando el último comentario lo escribió el ALUMNO
+        // — mismo criterio que usa el monitor de exámenes.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("feedback_threads")
+          .select("id, submission_id, question_id")
+          .eq("parent_kind", "workshop")
+          .in("submission_id", subIds),
       ]);
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
       const grouped: Record<string, WsAnswer[]> = {};
       for (const a of (ans ?? []) as WsAnswer[]) {
-        (grouped[a.submission_id] ||= []).push(a);
+        // Las dos columnas nuevas se cargan abajo en una query separada
+        // y defensiva — aquí solo aseguramos que el shape de WsAnswer
+        // tenga ai_likelihood/ai_reasons en null por defecto.
+        (grouped[a.submission_id] ||= []).push({
+          ...a,
+          ai_likelihood: null,
+          ai_reasons: null,
+        });
       }
       setAnswersBySub(grouped);
+
+      // Carga AUXILIAR de ai_likelihood/ai_reasons. La hacemos en query
+      // separada y con try/catch para que si la migración 20260510190000
+      // todavía no se aplicó (pendiente de Publish en Lovable Cloud),
+      // el dialog NO se rompa — simplemente la sugerencia por integridad
+      // por pregunta no aparecerá hasta que las columnas existan.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: aiAns, error: aiErr } = await (supabase as any)
+          .from("workshop_submission_answers")
+          .select("id, ai_likelihood, ai_reasons")
+          .in("submission_id", subIds);
+        if (!aiErr && Array.isArray(aiAns) && aiAns.length > 0) {
+          const byId = new Map(
+            (
+              aiAns as Array<{
+                id: string;
+                ai_likelihood: number | null;
+                ai_reasons: string | null;
+              }>
+            ).map((r) => [r.id, { ai_likelihood: r.ai_likelihood, ai_reasons: r.ai_reasons }]),
+          );
+          setAnswersBySub((prev) => {
+            const next: Record<string, WsAnswer[]> = {};
+            for (const [subId, list] of Object.entries(prev)) {
+              next[subId] = list.map((a) => {
+                const extra = byId.get(a.id);
+                return extra ? { ...a, ...extra } : a;
+              });
+            }
+            return next;
+          });
+        }
+      } catch {
+        // Migración pendiente — no es bloqueante.
+      }
       setWsSubs(subs.map((s: any) => ({ ...s, profile: profileMap.get(s.user_id) })));
+
+      // Agrupar threads por (submissionId, questionId) y calcular pending
+      // mirando el último comment de cada thread.
+      const threadsArr = (threads ?? []) as Array<{
+        id: string;
+        submission_id: string;
+        question_id: string;
+      }>;
+      const subOwner = new Map<string, string>(
+        (subs as Array<{ id: string; user_id: string }>).map((s) => [s.id, s.user_id]),
+      );
+      const threadOwner = new Map<string, string>();
+      const threadsByQKey = new Map<string, string[]>();
+      for (const th of threadsArr) {
+        const uid = subOwner.get(th.submission_id);
+        if (!uid) continue;
+        threadOwner.set(th.id, uid);
+        const key = `${th.submission_id}:${th.question_id}`;
+        const arr = threadsByQKey.get(key) ?? [];
+        arr.push(th.id);
+        threadsByQKey.set(key, arr);
+      }
+      if (threadsArr.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: comments } = await (supabase as any)
+          .from("feedback_comments")
+          .select("thread_id, user_id, created_at")
+          .in(
+            "thread_id",
+            threadsArr.map((t) => t.id),
+          )
+          .order("created_at", { ascending: false });
+        const lastByThread = new Map<string, string>();
+        for (const c of (comments ?? []) as Array<{
+          thread_id: string;
+          user_id: string;
+        }>) {
+          if (!lastByThread.has(c.thread_id)) lastByThread.set(c.thread_id, c.user_id);
+        }
+        const pendingByThread = new Set<string>();
+        for (const [tid, ownerUid] of threadOwner.entries()) {
+          if (lastByThread.get(tid) === ownerUid) pendingByThread.add(tid);
+        }
+        const byQ: Record<string, { count: number; pending: boolean }> = {};
+        for (const [key, ids] of threadsByQKey.entries()) {
+          byQ[key] = {
+            count: ids.length,
+            pending: ids.some((tid) => pendingByThread.has(tid)),
+          };
+        }
+        setWsThreadsByQ(byQ);
+      } else {
+        setWsThreadsByQ({});
+      }
     } else {
       setWsSubs([]);
     }
     setGradingOpen(true);
   };
+
+  /** Mapa: submissionId → questionId → { score, reasons } con la
+   *  probabilidad de IA por pregunta. Lo derivamos de answersBySub
+   *  (que ahora trae ai_likelihood) y lo consumimos en el card amber
+   *  de "sugerencia por integridad" — mismo patrón que el monitor. */
+  const wsAiSignalsBySubmissionQuestion = useMemo(() => {
+    const map = new Map<string, Map<string, { score: number; reasons: string | null }>>();
+    for (const [subId, answers] of Object.entries(answersBySub)) {
+      const inner = new Map<string, { score: number; reasons: string | null }>();
+      for (const a of answers) {
+        const score = a.ai_likelihood != null ? Number(a.ai_likelihood) : 0;
+        if (score > 0) inner.set(a.question_id, { score, reasons: a.ai_reasons ?? null });
+      }
+      if (inner.size > 0) map.set(subId, inner);
+    }
+    return map;
+  }, [answersBySub]);
+
+  /** Mapa: userId → pares de copia donde ese estudiante aparece (en
+   *  user_a o user_b). Cada par incluye question_id, peerId y score —
+   *  los consumimos en el render por pregunta filtrando por questionId. */
+  const wsCopyPairsByUser = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{ questionId: string | null; peerId: string; score: number }>
+    >();
+    for (const p of wsSimilarityPairs) {
+      for (const [u, peer] of [
+        [p.user_a, p.user_b],
+        [p.user_b, p.user_a],
+      ] as const) {
+        const arr = map.get(u) ?? [];
+        arr.push({ questionId: p.question_id, peerId: peer, score: Number(p.score) || 0 });
+        map.set(u, arr);
+      }
+    }
+    return map;
+  }, [wsSimilarityPairs]);
 
   /** Recompute the global grade of a submission from its per-question ai_grade
    *  values (capped at each question's `points`) and scale it to max_score. */
@@ -888,6 +1078,8 @@ function TeacherWorkshops() {
           diagram_code: null,
           ai_grade: null,
           ai_feedback: null,
+          ai_likelihood: null,
+          ai_reasons: null,
           ...patch,
         });
       }
@@ -945,17 +1137,46 @@ function TeacherWorkshops() {
     question: WsQuestion,
     answer: WsAnswer | undefined,
   ) => {
-    if (!answer || !answer.id) {
-      toast.error("Sin respuesta para recalificar.");
+    // Estrategia de fallback (en orden de preferencia):
+    //   1) Hay row per-pregunta con contenido → la usamos.
+    //   2) Hay row pero sin contenido → si la entrega tiene `content`,
+    //      external_link o file_url, los usamos como respuesta global
+    //      (sirve para talleres "monolíticos" donde el estudiante puso
+    //      todo en el campo principal sin responder pregunta-por-pregunta).
+    //   3) No hay row → idem, fallback a la entrega y NO persistimos
+    //      (saveAnswerGrade exige id; el docente puede usar el botón
+    //      "Calificar todo con IA" si quiere persistir a nivel submission).
+    const sub = wsSubs.find((s) => s.id === subId);
+    const perQuestionRaw =
+      answer?.code_content ??
+      answer?.diagram_code ??
+      answer?.selected_option ??
+      answer?.answer_text ??
+      "";
+    const submissionFallback = sub
+      ? [
+          sub.content ? `Contenido de la entrega: ${sub.content}` : "",
+          sub.external_link ? `Link externo: ${sub.external_link}` : "",
+          sub.file_url ? `Archivo entregado: ${sub.file_url.split("/").pop()}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "";
+    const raw =
+      perQuestionRaw && String(perQuestionRaw).trim() ? String(perQuestionRaw) : submissionFallback;
+
+    if (!raw || !raw.trim()) {
+      toast.error(
+        "Esta entrega no tiene respuesta a esta pregunta ni contenido global. No hay nada para recalificar.",
+      );
       return;
     }
-    const raw =
-      answer.code_content ??
-      answer.diagram_code ??
-      answer.selected_option ??
-      answer.answer_text ??
-      "";
-    setAiGradingAnswerId(answer.id);
+    if (!answer?.id) {
+      toast.message(
+        "Recalificando con el contenido global de la entrega — esta pregunta no tiene respuesta específica.",
+      );
+    }
+    setAiGradingAnswerId(answer?.id ?? `tmp-${subId}-${question.id}`);
     try {
       const courseLanguage =
         (courses.find((c) => c.id === gradingWs?.course_id) as any)?.language === "en"
@@ -979,12 +1200,41 @@ function TeacherWorkshops() {
       }
       const newGrade = Number(data?.grade ?? 0);
       const newFeedback = String(data?.feedback ?? "");
-      patchAnswer(subId, question.id, { ai_grade: newGrade, ai_feedback: newFeedback });
-      // Persist immediately so the recalc is consistent.
-      await supabase
-        .from("workshop_submission_answers")
-        .update({ ai_grade: newGrade, ai_feedback: newFeedback })
-        .eq("id", answer.id);
+      // ai_likelihood llega de la edge function (0..1). Lo persistimos
+      // por respuesta para que la sugerencia de penalización pueda
+      // calcularse PER pregunta, igual que en el monitor de exámenes.
+      const aiLikelihood =
+        data?.ai_likelihood != null ? Math.max(0, Math.min(1, Number(data.ai_likelihood))) : null;
+      const aiReasons = data?.ai_reasons != null ? String(data.ai_reasons) : null;
+      patchAnswer(subId, question.id, {
+        ai_grade: newGrade,
+        ai_feedback: newFeedback,
+        ai_likelihood: aiLikelihood,
+        ai_reasons: aiReasons,
+      });
+      // Persistir solo si hay row per-pregunta (answer.id). Intento 1:
+      // con las 4 columnas (ai_grade/feedback + likelihood/reasons).
+      // Si la migración 20260510190000 no se ha aplicado, ese UPDATE
+      // falla por columnas inexistentes — fallback a las dos viejas.
+      if (answer?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: updErr } = await (supabase as any)
+          .from("workshop_submission_answers")
+          .update({
+            ai_grade: newGrade,
+            ai_feedback: newFeedback,
+            ai_likelihood: aiLikelihood,
+            ai_reasons: aiReasons,
+          })
+          .eq("id", answer.id);
+        if (updErr) {
+          // Probablemente migración pendiente — retry sin las dos nuevas.
+          await supabase
+            .from("workshop_submission_answers")
+            .update({ ai_grade: newGrade, ai_feedback: newFeedback })
+            .eq("id", answer.id);
+        }
+      }
       toast.success(t("workshop.regraded"));
     } finally {
       setAiGradingAnswerId(null);
@@ -2301,6 +2551,65 @@ function TeacherWorkshops() {
                                       </p>
                                     )}
                                   </div>
+                                  {/* Sugerencia de penalización por integridad (IA o
+                                      copia) por pregunta. Mismo patrón que el modal
+                                      de respuestas del monitor de exámenes: cuando
+                                      la pregunta tiene señal IA ≥ 0.6 o un par de
+                                      copia ≥ 0.6, calculamos sugerencia = nota_actual
+                                      × (1 − severidad) y mostramos un botón "Aplicar
+                                      sugerencia" que precarga el input de IA. El
+                                      docente puede ignorarla y poner el valor que
+                                      quiera. */}
+                                  {(() => {
+                                    const aiSig = wsAiSignalsBySubmissionQuestion
+                                      .get(sub.id)
+                                      ?.get(q.id);
+                                    const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                                    const qPairs = userPairs.filter((p) => p.questionId === q.id);
+                                    const plagiarismMax =
+                                      qPairs.length > 0
+                                        ? qPairs.reduce((m, p) => Math.max(m, p.score), 0)
+                                        : null;
+                                    const currentRaw =
+                                      ans?.ai_grade != null ? Number(ans.ai_grade) : null;
+                                    if (currentRaw == null || currentRaw <= 0) return null;
+                                    const sug = computeIntegritySuggestion(
+                                      currentRaw,
+                                      aiSig?.score ?? null,
+                                      plagiarismMax,
+                                    );
+                                    if (!sug) return null;
+                                    const aiPct = Math.round((aiSig?.score ?? 0) * 100);
+                                    const cpPct = Math.round((plagiarismMax ?? 0) * 100);
+                                    return (
+                                      <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
+                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+                                        <span className="font-medium text-amber-700 dark:text-amber-300">
+                                          {t("integrity.perQuestionSuggestion")}
+                                        </span>
+                                        <span className="font-semibold tabular-nums">
+                                          {sug.suggested.toLocaleString("es-CO")} / {q.points}
+                                        </span>
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {sug.source === "ai"
+                                            ? `IA ${aiPct}%`
+                                            : sug.source === "plagio"
+                                              ? `Copia ${cpPct}%`
+                                              : `IA ${aiPct}% + Copia ${cpPct}%`}
+                                        </Badge>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                          onClick={() =>
+                                            patchAnswer(sub.id, q.id, { ai_grade: sug.suggested })
+                                          }
+                                        >
+                                          {t("integrity.applySuggestion")}
+                                        </Button>
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
                                     <div>
                                       <Label className="text-[11px]">Calificación IA</Label>
@@ -2352,11 +2661,17 @@ function TeacherWorkshops() {
                                       Recalificar IA
                                     </Button>
                                   </div>
-                                  <FeedbackThread
+                                  {/* Conversación colapsable con resumen (count +
+                                      pending). Reemplaza el FeedbackThread inline
+                                      que se montaba siempre y disparaba 1 request
+                                      por pregunta al abrir el accordion. */}
+                                  <ConversationSection
                                     parentKind="workshop"
                                     questionId={q.id}
                                     submissionId={sub.id}
-                                    isTeacher
+                                    summary={wsThreadsByQ[`${sub.id}:${q.id}`]}
+                                    conversationLabel={t("integrity.conversation")}
+                                    pendingLabel={t("integrity.conversationPending")}
                                   />
                                 </div>
                               );

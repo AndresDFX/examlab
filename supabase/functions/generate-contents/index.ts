@@ -255,7 +255,7 @@ Deno.serve(async (req: Request) => {
         ? "Teórica (solo presentación + guía docente)"
         : gen.modality === "practica"
           ? "Práctica (solo taller práctico, sin presentación)"
-          : "Teórico-práctica (presentación + guía + taller)";
+          : "Teórico-práctica (presentación teórica con cierre práctico + guía + taller + ejercicio para el estudiante + ejercicio resuelto para el docente)";
     const vars: Record<string, string> = {
       university_name: brand?.university_name ?? "",
       logo_url: brand?.logo_url ?? "",

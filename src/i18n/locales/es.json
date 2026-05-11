@@ -93,6 +93,7 @@
     "auditLogs": "Auditoría",
     "signOut": "Cerrar sesión",
     "changePassword": "Cambiar contraseña",
+    "editProfile": "Editar mi perfil",
     "theme": "Tema"
   },
   "roles": {
@@ -198,6 +199,23 @@
     "deletedToast": "Usuario eliminado correctamente",
     "emptyTitle": "Aún no hay usuarios registrados.",
     "emptyHint": "Crea el primer usuario para comenzar."
+  },
+  "profile": {
+    "title": "Editar mi perfil",
+    "subtitle": "Actualiza tu nombre, correo institucional y correo personal. La contraseña se cambia desde otro botón.",
+    "fullName": "Nombre completo",
+    "fullNamePlaceholder": "Tu nombre tal como aparece en certificados",
+    "institutionalEmail": "Email institucional",
+    "personalEmail": "Email personal",
+    "personalEmailHint": "Correo alternativo (no se usa para iniciar sesión). Útil para que el docente te contacte si pierdes el acceso al institucional.",
+    "institutionalChangeWarning": "Vas a cambiar el correo institucional. Te enviaremos un mensaje de confirmación al nuevo correo — hasta que lo confirmes, seguirás ingresando con el correo anterior.",
+    "savedToast": "Perfil actualizado",
+    "savedWithEmailConfirm": "Perfil actualizado · confirma el cambio de correo",
+    "emailConfirmHint": "Revisa tu bandeja en el nuevo correo institucional y haz click en el link de confirmación. Hasta entonces, sigue ingresando con el correo anterior.",
+    "authEmailError": "Tu perfil se actualizó, pero no fue posible cambiar el correo de inicio de sesión",
+    "errorNameTooShort": "El nombre debe tener al menos 2 caracteres.",
+    "errorInstitutionalInvalid": "El correo institucional no es válido.",
+    "errorPersonalInvalid": "El correo personal no es válido."
   },
   "monitorGrid": {
     "student": "Estudiante",

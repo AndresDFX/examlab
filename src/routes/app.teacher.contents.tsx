@@ -48,11 +48,17 @@ import {
   Trash2,
   Eye,
   BookOpenCheck,
+  BookOpen,
+  ClipboardList,
+  CheckSquare,
+  Hammer,
+  Sparkles as SparklesIcon,
   CalendarRange,
   CalendarPlus,
   AlertCircle,
   Wand2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
 import {
@@ -2004,18 +2010,39 @@ function AssignToSessionsDialog({
 // agrupar.
 // ──────────────────────────────────────────────────────────────────────
 
-/** Etiqueta humana corta para mostrar en cada botón. Replica la del
- *  tablero del estudiante para mantener vocabulario consistente. */
+/** Etiqueta humana corta. Replica la del tablero del estudiante para
+ *  mantener vocabulario consistente. Se usa ahora solo en tooltip
+ *  (los botones del modal son icon-only para no ensanchar la columna).
+ *  Orden de detección: SOLUCION antes que EJERCICIO genérico — porque
+ *  el filename de la solución incluye ambos sufijos. */
 function humanLabelForFile(f: FileEntry): string {
   if (f.kind === "pptx-source") return "Presentación";
   if (f.kind === "md") {
     const u = f.name.toUpperCase();
+    if (u.includes("SOLUCION") || u.includes("SOLUTION")) return "Ejercicio (con solución)";
+    if (u.includes("EJERCICIO")) return "Ejercicio (estudiante)";
     if (u.includes("GUIA")) return "Guía docente";
     if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
     if (u.includes("INTRO")) return "Introducción";
     return "Material";
   }
   return f.name;
+}
+
+/** Icono por tipo de archivo — usado en chips icon-only para que el
+ *  docente distinga "Guía docente" de "Taller práctico" sin leer el
+ *  label. La detección replica humanLabelForFile (mismo orden). */
+function iconForFile(f: FileEntry): LucideIcon {
+  if (f.kind === "pptx-source") return Presentation;
+  if (f.kind === "md") {
+    const u = f.name.toUpperCase();
+    if (u.includes("SOLUCION") || u.includes("SOLUTION")) return CheckSquare;
+    if (u.includes("EJERCICIO")) return ClipboardList;
+    if (u.includes("GUIA")) return BookOpen;
+    if (u.includes("TALLER") || u.includes("PRACTICO")) return Hammer;
+    if (u.includes("INTRO")) return SparklesIcon;
+  }
+  return FileText;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -2446,32 +2473,36 @@ function FilesByClassDialog({
   const { intro, byClass } = groupFilesByClass(files as ContentFile[], content.n_classes);
   const classNumbers = Array.from(byClass.keys()).sort((a, b) => a - b);
 
-  /** Render de una "chip" de descarga compacta con preview opcional. */
+  /** Render de una "chip" icon-only con tooltip — preview opcional
+   *  (.md/.txt con body) + descarga. El label humano vive en `title`
+   *  para no ensanchar la columna del grid (antes ~150px → ahora ~52px). */
   const renderFileChip = (f: FileEntry) => {
     const path = `${content.id}:${f.path}`;
     const busy = downloadingPath === path;
     const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
-    const Icon = f.kind === "pptx-source" ? Presentation : FileText;
+    const TypeIcon = iconForFile(f);
+    const label = humanLabelForFile(f);
     if (canPreview) {
       return (
         <div key={f.path} className="inline-flex rounded-md border overflow-hidden">
           <button
             type="button"
             onClick={() => setPreviewFile(f)}
-            className="flex items-center gap-1 px-2 h-7 text-[11px] hover:bg-muted/60 transition-colors"
-            title={t("contents.previewHint")}
+            className="flex items-center justify-center w-7 h-7 hover:bg-muted/60 transition-colors"
+            title={`${label} — ${t("contents.previewHint")}`}
+            aria-label={`${label} — ${t("contents.previewHint")}`}
           >
-            <Eye className="h-3 w-3" />
-            {humanLabelForFile(f)}
+            <TypeIcon className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => onDownload(f)}
-            className="flex items-center px-1.5 h-7 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-            title={t("contents.downloadHint")}
+            className="flex items-center justify-center w-7 h-7 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+            title={`${label} — ${t("contents.downloadHint")}`}
+            aria-label={`${label} — ${t("contents.downloadHint")}`}
           >
-            {busy ? <Spinner size="xs" /> : <Download className="h-3 w-3" />}
+            {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
           </button>
         </div>
       );
@@ -2479,15 +2510,15 @@ function FilesByClassDialog({
     return (
       <Button
         key={f.path}
-        size="sm"
+        size="icon"
         variant="outline"
-        className="h-7 px-2 text-[11px]"
+        className="h-7 w-7"
         disabled={busy}
         onClick={() => onDownload(f)}
+        title={`${label} — ${t("contents.downloadHint")}`}
+        aria-label={`${label} — ${t("contents.downloadHint")}`}
       >
-        {busy ? <Spinner size="xs" className="mr-1" /> : <Icon className="h-3 w-3 mr-1" />}
-        {humanLabelForFile(f)}
-        <Download className="h-3 w-3 ml-1 opacity-60" />
+        {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
       </Button>
     );
   };
@@ -2624,12 +2655,6 @@ function FilesByClassDialog({
               )}
             </div>
           )}
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={onClose}>
-              {t("common.close")}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2653,11 +2678,6 @@ function FilesByClassDialog({
               <p className="text-muted-foreground text-xs">{t("contents.previewNoBody")}</p>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setPreviewFile(null)}>
-              {t("common.close")}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

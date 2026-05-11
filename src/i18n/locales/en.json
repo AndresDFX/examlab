@@ -93,6 +93,7 @@
     "auditLogs": "Audit Log",
     "signOut": "Sign out",
     "changePassword": "Change password",
+    "editProfile": "Edit my profile",
     "theme": "Theme"
   },
   "roles": {
@@ -198,6 +199,23 @@
     "deletedToast": "User deleted successfully",
     "emptyTitle": "No users registered yet.",
     "emptyHint": "Create the first user to get started."
+  },
+  "profile": {
+    "title": "Edit my profile",
+    "subtitle": "Update your name, institutional and personal email. Password is changed from another button.",
+    "fullName": "Full name",
+    "fullNamePlaceholder": "Your name as it appears on certificates",
+    "institutionalEmail": "Institutional email",
+    "personalEmail": "Personal email",
+    "personalEmailHint": "Alternate address (not used for login). Useful so your teacher can reach you if you lose access to the institutional one.",
+    "institutionalChangeWarning": "You're changing the institutional email. We'll send a confirmation email to the new address — until you confirm it, you'll keep signing in with the previous email.",
+    "savedToast": "Profile updated",
+    "savedWithEmailConfirm": "Profile updated · please confirm your new email",
+    "emailConfirmHint": "Check the inbox of your new institutional email and click the confirmation link. Until then, keep signing in with the previous email.",
+    "authEmailError": "Profile updated, but the sign-in email could not be changed",
+    "errorNameTooShort": "Name must be at least 2 characters long.",
+    "errorInstitutionalInvalid": "Institutional email is not valid.",
+    "errorPersonalInvalid": "Personal email is not valid."
   },
   "monitorGrid": {
     "student": "Student",

@@ -23,7 +23,11 @@ import {
   Video,
   CalendarPlus,
   Copy as CopyIcon,
+  BookOpen,
+  ClipboardList,
+  CheckSquare,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { formatDateOnly, formatWeekday } from "@/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -616,6 +620,8 @@ function SessionGroup({
                     {files.map((f) => {
                       const busy = downloadingPath === f.path;
                       const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+                      const TypeIcon = iconForFile(f);
+                      const label = humanLabelForFile(f);
                       if (canPreview) {
                         return (
                           <div
@@ -625,17 +631,19 @@ function SessionGroup({
                             <button
                               type="button"
                               onClick={() => onPreview(f)}
-                              className="flex items-center gap-1 px-2.5 h-8 text-xs hover:bg-muted/60 transition-colors"
+                              className="flex items-center justify-center w-8 h-8 hover:bg-muted/60 transition-colors"
+                              title={`${label} — ${t("contents.previewHint")}`}
+                              aria-label={`${label} — ${t("contents.previewHint")}`}
                             >
-                              <Eye className="h-3.5 w-3.5" />
-                              {humanLabelForFile(f)}
+                              <TypeIcon className="h-3.5 w-3.5" />
                             </button>
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                              className="flex items-center px-2 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-                              title={t("contents.downloadHint")}
+                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+                              title={`${label} — ${t("contents.downloadHint")}`}
+                              aria-label={`${label} — ${t("contents.downloadHint")}`}
                             >
                               {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
                             </button>
@@ -645,21 +653,15 @@ function SessionGroup({
                       return (
                         <Button
                           key={f.path}
-                          size="sm"
+                          size="icon"
                           variant="outline"
-                          className="h-8 text-xs"
+                          className="h-8 w-8"
                           disabled={busy}
                           onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                          title={`${label} — ${t("contents.downloadHint")}`}
+                          aria-label={`${label} — ${t("contents.downloadHint")}`}
                         >
-                          {busy ? (
-                            <Spinner size="xs" className="mr-1" />
-                          ) : f.kind === "pptx-source" ? (
-                            <Presentation className="h-3.5 w-3.5 mr-1" />
-                          ) : (
-                            <FileText className="h-3.5 w-3.5 mr-1" />
-                          )}
-                          {humanLabelForFile(f)}
-                          <Download className="h-3 w-3 ml-1.5 opacity-60" />
+                          {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
                         </Button>
                       );
                     })}
@@ -762,12 +764,29 @@ function humanLabelForFile(f: ContentFileEntry): string {
   if (f.kind === "pptx-source") return "Presentación";
   if (f.kind === "md") {
     const u = f.name.toUpperCase();
+    if (u.includes("SOLUCION") || u.includes("SOLUTION")) return "Ejercicio (con solución)";
+    if (u.includes("EJERCICIO")) return "Ejercicio (estudiante)";
     if (u.includes("GUIA")) return "Guía docente";
     if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
     if (u.includes("INTRO")) return "Introducción";
     return "Material";
   }
   return f.name;
+}
+
+/** Icono distintivo por tipo — los chips del tablero son icon-only y
+ *  necesitan que cada tipo se reconozca sin leer el tooltip. */
+function iconForFile(f: ContentFileEntry): LucideIcon {
+  if (f.kind === "pptx-source") return Presentation;
+  if (f.kind === "md") {
+    const u = f.name.toUpperCase();
+    if (u.includes("SOLUCION") || u.includes("SOLUTION")) return CheckSquare;
+    if (u.includes("EJERCICIO")) return ClipboardList;
+    if (u.includes("GUIA")) return BookOpen;
+    if (u.includes("TALLER") || u.includes("PRACTICO")) return Hammer;
+    if (u.includes("INTRO")) return Sparkles;
+  }
+  return FileText;
 }
 
 /**

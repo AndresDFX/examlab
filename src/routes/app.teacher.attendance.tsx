@@ -25,6 +25,13 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -44,6 +51,7 @@ import {
   Settings2,
   Presentation as PresentationIcon,
   Scissors,
+  MoreVertical,
 } from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
@@ -872,31 +880,8 @@ function TeacherAttendance() {
                           >
                             <QrCode className="h-4 w-4" aria-hidden />
                           </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => markAllPresent(sess.id)}
-                            title="Marcar a todos como presentes"
-                          >
-                            <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => clearSessionAttendance(sess.id)}
-                            title="Quitar asistencia de todos (reiniciar sesión)"
-                          >
-                            <Eraser className="h-4 w-4 text-muted-foreground" aria-hidden />
-                          </Button>
-                          {/* Configurar sesión: corte + contenido — antes
-                              eran dos Selects inline (max-w-[6.5rem]) que
-                              hacían columnas muy altas y truncaban textos.
-                              Ahora se editan en un Popover y abajo solo
-                              vemos un resumen compacto. */}
+                          {/* Configurar sesión: corte + contenido — popover
+                              porque son Selects que necesitan espacio. */}
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button
@@ -976,16 +961,43 @@ function TeacherAttendance() {
                               </div>
                             </PopoverContent>
                           </Popover>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 hover:bg-destructive/10 hover:border-destructive/40"
-                            onClick={() => deleteSession(sess.id)}
-                            title="Eliminar sesión completa"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
-                          </Button>
+                          {/* Menú "Más acciones" — antes había 3 botones inline
+                              (marcar todos / reiniciar / eliminar) que hacían
+                              el header de cada columna muy ancho. Las acciones
+                              menos frecuentes ahora viven en este DropdownMenu;
+                              QR y Settings se quedan inline porque son los más
+                              usados. */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                title="Más acciones de la sesión"
+                              >
+                                <MoreVertical className="h-4 w-4" aria-hidden />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem onSelect={() => markAllPresent(sess.id)}>
+                                <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
+                                Marcar todos presentes
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => clearSessionAttendance(sess.id)}>
+                                <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
+                                Reiniciar asistencia
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={() => deleteSession(sess.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Eliminar sesión
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                         {sess.check_in_open && (
                           <Badge variant="default" className="text-[9px] py-0 px-1 self-center">

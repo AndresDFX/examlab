@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/lib/rbac";
 import { logEvent } from "@/lib/audit";
@@ -253,6 +254,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Sidebar de desktop: colapsable con el botón hamburguesa o
   // automáticamente cuando el examen entra en pantalla completa,
@@ -501,6 +503,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => setProfileDialogOpen(true)}
+                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                title={t("nav.editProfile")}
+              >
+                <UserCog className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setPwDialogOpen(true)}
                 className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 title={t("nav.changePassword")}
@@ -529,6 +540,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <ChangePasswordDialog open={pwDialogOpen} onOpenChange={setPwDialogOpen} />
+      <EditProfileDialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen} />
 
       {/* ──────────────────────────────────────────────────────────
          MOBILE TOP BAR — hamburger + brand + notifications
@@ -667,6 +679,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <div className="flex items-center gap-1 flex-wrap">
                     <ThemeToggle />
                     <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setProfileDialogOpen(true);
+                        setMobileMenuOpen(false);
+                      }}
+                      className="text-sidebar-foreground/80 hover:bg-sidebar-accent"
+                      title={t("nav.editProfile")}
+                    >
+                      <UserCog className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

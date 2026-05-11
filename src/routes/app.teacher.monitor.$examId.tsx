@@ -63,7 +63,8 @@ import {
 } from "@/utils/grade";
 import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { FeedbackThread } from "@/components/FeedbackThread";
+import { ConversationSection } from "@/components/ConversationSection";
+import { computeIntegritySuggestion } from "@/lib/integrity";
 import {
   countPendingByUser,
   rpcMarkAiReviewed,
@@ -149,41 +150,6 @@ type ManualOverride = { score: number; feedback?: string };
 
 const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
 
-/** Umbral por debajo del cual una señal de IA o copia se considera ruido
- * y no entra en la sugerencia. Mismo umbral que usa la edge function
- * detect-plagiarism y la calificación con IA para `ai_detected=true`. */
-const INTEGRITY_ALERT_THRESHOLD = 0.6;
-
-/**
- * Sugerencia de calificación por integridad académica. Toma la nota
- * actual (override > IA) y la multiplica por (1 - severidad), donde
- * severidad = max(prob IA, max similitud con otro estudiante). Solo
- * entra al cálculo cuando alguna señal supera el umbral 0.6.
- *
- * Ejemplos sobre nota actual = 4,5:
- *   IA 60%  → 4,5 × (1 - 0,60) = 1,8
- *   IA 85%  → 4,5 × (1 - 0,85) = 0,675
- *   IA 100% → 4,5 × (1 - 1,00) = 0
- *
- * El docente siempre puede ignorar la sugerencia y poner el valor que
- * quiera; este cálculo solo CARGA el input para que sea un click.
- */
-function computeIntegritySuggestion(
-  currentGrade: number | null,
-  aiScore: number | null,
-  plagiarismMax: number | null,
-): { severity: number; suggested: number; source: "ai" | "plagio" | "ambas" } | null {
-  const ai = aiScore != null && aiScore >= INTEGRITY_ALERT_THRESHOLD ? aiScore : 0;
-  const pl =
-    plagiarismMax != null && plagiarismMax >= INTEGRITY_ALERT_THRESHOLD ? plagiarismMax : 0;
-  if (ai === 0 && pl === 0) return null;
-  if (currentGrade == null) return null;
-  const severity = Math.max(ai, pl);
-  const suggested = Math.max(0, Number((currentGrade * (1 - severity)).toFixed(2)));
-  const source = ai > 0 && pl > 0 ? "ambas" : ai > 0 ? "ai" : "plagio";
-  return { severity, suggested, source };
-}
-
 /**
  * Calcula la fecha fin de un intento. Para intentos terminados es
  * `submitted_at`; para intentos en curso es `min(exam.end_time,
@@ -202,75 +168,6 @@ function computeAttemptEnd(
   const examEnd = exam?.end_time ? new Date(exam.end_time).getTime() : Infinity;
   const naturalEnd = Math.min(examEnd, startedAt + timeLimitMs);
   return new Date(naturalEnd + (sub.extra_seconds ?? 0) * 1000);
-}
-
-/**
- * Sección colapsable de "Conversación con el estudiante" por pregunta.
- * Default cerrada — la modal de respuestas tiene N preguntas y mantener
- * todos los hilos abiertos es ruido visual + N requests innecesarias.
- * El trigger muestra un badge con el conteo de hilos abiertos para
- * esta pregunta y un badge "Esperando respuesta" si el último mensaje
- * lo escribió el alumno (lo calculamos una sola vez en el load del
- * monitor — no requiere fetch por componente). El `<FeedbackThread>`
- * se renderiza solo cuando está abierto: así no dispara su propio
- * useEffect de carga hasta que el docente decide expandir.
- */
-function ConversationSection({
-  questionId,
-  submissionId,
-  summary,
-  conversationLabel,
-  pendingLabel,
-}: {
-  questionId: string;
-  submissionId: string;
-  summary?: { count: number; pending: boolean };
-  conversationLabel: string;
-  pendingLabel: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const hasPending = summary?.pending === true;
-  const count = summary?.count ?? 0;
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div
-        className={`rounded-md border p-2 space-y-2 ${
-          hasPending ? "border-destructive/40 bg-destructive/5" : "border-border/60 bg-muted/20"
-        }`}
-      >
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="w-full flex items-center gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground group"
-          >
-            <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-            <MessageSquareText className="h-3 w-3" />
-            <span>{conversationLabel}</span>
-            {count > 0 && (
-              <Badge variant="outline" className="ml-auto text-[10px] tabular-nums">
-                {count}
-              </Badge>
-            )}
-            {hasPending && (
-              <Badge variant="destructive" className={`text-[10px] ${count > 0 ? "" : "ml-auto"}`}>
-                {pendingLabel}
-              </Badge>
-            )}
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          {open && (
-            <FeedbackThread
-              parentKind="exam"
-              questionId={questionId}
-              submissionId={submissionId}
-              isTeacher
-            />
-          )}
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
-  );
 }
 
 function ExamMonitor() {
@@ -2306,6 +2203,7 @@ function ExamMonitor() {
                               />
                               {viewingSub && (
                                 <ConversationSection
+                                  parentKind="exam"
                                   questionId={q.id}
                                   submissionId={viewingSub.id}
                                   summary={threadsByQ[`${viewingSub.id}:${q.id}`]}
@@ -2516,20 +2414,18 @@ function ExamMonitor() {
                     <span className="font-medium">Nota IA</span>
                     <HelpHint side="top">
                       Nota propuesta automáticamente por la IA al calificar el intento. Es el
-                      baseline del modelo — sirve como referencia pero NO se usa para el
-                      gradebook si el docente puso una nota Final manual.
+                      baseline del modelo — sirve como referencia pero NO se usa para el gradebook
+                      si el docente puso una nota Final manual.
                     </HelpHint>
-                    <span className="font-semibold tabular-nums">
-                      {viewingSub.ai_grade ?? "—"}
-                    </span>
+                    <span className="font-semibold tabular-nums">{viewingSub.ai_grade ?? "—"}</span>
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">
                     <Check className="h-3 w-3" aria-hidden />
                     <span className="font-medium">Nota Final</span>
                     <HelpHint side="top">
-                      Nota efectiva del intento — la que aparece en gradebook, reportes y nota
-                      del curso. Si pones un valor manual abajo (override) toma ese; si no, hereda
-                      la nota de IA. Cambiarla aquí pisa la calificación automática.
+                      Nota efectiva del intento — la que aparece en gradebook, reportes y nota del
+                      curso. Si pones un valor manual abajo (override) toma ese; si no, hereda la
+                      nota de IA. Cambiarla aquí pisa la calificación automática.
                     </HelpHint>
                     <span className="font-semibold tabular-nums">
                       {viewingSub.final_override_grade ?? viewingSub.ai_grade ?? "—"}
