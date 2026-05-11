@@ -76,6 +76,23 @@ interface SubscriptionRow {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Auth propio (no JWT de Supabase): el trigger del DB manda
+  // X-Trigger-Secret con un valor que solo conoce el servidor.
+  // Sin esto cualquiera podría spamear push notifications a cualquier
+  // user_id porque verify_jwt=false en config.toml.
+  const triggerSecret = Deno.env.get("PUSH_TRIGGER_SECRET");
+  if (triggerSecret) {
+    const got = req.headers.get("x-trigger-secret") ?? "";
+    if (got !== triggerSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    console.warn("[send-push] PUSH_TRIGGER_SECRET not set — function is unprotected");
+  }
+
   let body: RequestBody;
   try {
     body = await req.json();

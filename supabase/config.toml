@@ -71,6 +71,14 @@ verify_jwt = true
 enabled = true
 verify_jwt = false
 
+# send-push lo llama un trigger de Postgres vía pg_net. No queremos
+# meter el service_role_key en DB settings (riesgo de exposición),
+# así que apagamos verify_jwt y validamos con un shared secret
+# (PUSH_TRIGGER_SECRET) dentro del propio handler.
+[functions."send-push"]
+enabled = true
+verify_jwt = false
+
 [logging]
 vector_enabled = false
 postgres_enabled = false
