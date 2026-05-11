@@ -54,6 +54,14 @@ export function useAuth() {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Defensa en profundidad: limpiar caches del cliente antes del
+    // full reload, por si en el futuro alguien refactoriza a SPA nav.
+    try {
+      const { queryClient } = await import("@/router");
+      queryClient.clear();
+    } catch {
+      // queryClient no disponible — el reload limpia igual.
+    }
     window.location.href = "/auth";
   };
 
