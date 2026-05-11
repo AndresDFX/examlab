@@ -54,6 +54,14 @@ export function useAuth() {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Defensa en profundidad: limpiar storages locales antes del full
+    // reload, por si en el futuro alguien refactoriza a SPA nav y el
+    // reload deja de pasar.
+    try {
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
     window.location.href = "/auth";
   };
 
