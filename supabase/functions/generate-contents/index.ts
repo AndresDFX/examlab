@@ -280,69 +280,121 @@ Deno.serve(async (req: Request) => {
     // modelo las trate con prioridad sobre los defaults del system
     // prompt sin que necesitemos editarlo cada vez.
     const commonContext = `Tema: ${gen.topic}\nDuración por clase: ${vars.duration_minutes} minutos\nModalidad: ${modalityLabel}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}`;
-    let baseMessage: string;
-    if (isPartial) {
-      // Regen de una clase puntual. Le pedimos AL MODELO que genere
-      // SOLO la clase target y use el sufijo `_CLASE_<N>` en cada
-      // filename para que el merge posterior funcione. NO debe incluir
-      // intro ni otras clases — esos archivos del row los conservamos
-      // tal cual.
-      const tn = body.target_class!;
-      baseMessage = `Modo seleccionado: REGENERAR UNA CLASE.\n\n${commonContext}\n\nRegenera ÚNICAMENTE el material de la clase número ${tn} (de un curso de ${gen.n_classes} clases en total). Mantén el sufijo "_CLASE_${tn}" en cada nombre de archivo — es obligatorio para que el sistema sepa a qué clase pertenece. NO generes la introducción del curso ni material de otras clases.`;
-    } else if (gen.mode === "curso_completo") {
-      baseMessage = `Modo seleccionado: CURSO COMPLETO.\n\n${commonContext}\nCantidad de clases: ${gen.n_classes}\n\nGenera la introducción del curso y luego el material por cada una de las ${gen.n_classes} sesiones, respetando duración y modalidad.`;
-    } else {
-      baseMessage = `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\nGenera el material completo de UNA sola sesión sobre el tema, respetando la duración y la modalidad indicada.`;
-    }
     const teacherInstructions =
       typeof gen.instructions === "string" && gen.instructions.trim().length > 0
         ? `\n\n### INSTRUCCIONES ADICIONALES DEL DOCENTE (PRIORIDAD ALTA)\n${gen.instructions.trim()}`
         : "";
-    const userMessage = baseMessage + teacherInstructions;
 
-    const aiRes = await aiChat([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ]);
+    /**
+     * Hace UNA llamada al modelo con el user message dado y devuelve
+     * los bloques parseados. Centraliza el manejo de errores (HTML del
+     * gateway, JSON inválido, output vacío) para que el orquestador
+     * de abajo solo se preocupe por iterar pases.
+     */
+    const runOnePass = async (
+      userMessage: string,
+      label: string,
+    ): Promise<{
+      blocks: Array<{ name: string; body: string }>;
+      rawOutput: string;
+    }> => {
+      const fullMsg = userMessage + teacherInstructions;
+      const aiRes = await aiChat([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: fullMsg },
+      ]);
+      const rawText = await aiRes.text();
+      const looksHtml = rawText.trimStart().startsWith("<");
+      if (!aiRes.ok || looksHtml) {
+        const reason = looksHtml
+          ? `[${label}] AI Gateway devolvió HTML (típicamente 504/timeout). Reintenta; si persiste, reduce la duración por clase o cambia a modalidad teorica/practica.`
+          : `[${label}] AI Gateway ${aiRes.status}: ${rawText.slice(0, 400)}`;
+        throw new Error(reason);
+      }
+      let aiJson: Record<string, unknown> = {};
+      try {
+        aiJson = JSON.parse(rawText);
+      } catch {
+        throw new Error(
+          `[${label}] Respuesta inválida (no es JSON). Primeros 300 chars: ${rawText.slice(0, 300)}`,
+        );
+      }
+      const rawOutput: string =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (aiJson as any).choices?.[0]?.message?.content ??
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (aiJson as any).choices?.[0]?.message?.output_text ??
+        "";
+      if (!rawOutput.trim()) throw new Error(`[${label}] La IA devolvió contenido vacío`);
+      return { blocks: parseFileBlocks(rawOutput), rawOutput };
+    };
 
-    // Capturamos el body como TEXT primero — si es HTML (gateway timeout
-    // 504, página de error del proxy, etc.) un .json() crashearía con
-    // "Unexpected token '<'" y perderíamos el contexto. Con texto crudo
-    // podemos detectar HTML y construir un mensaje útil para el docente
-    // antes de re-intentar el parseo JSON.
-    const rawText = await aiRes.text();
-    const looksHtml = rawText.trimStart().startsWith("<");
+    /**
+     * Mensaje user para UNA clase específica de un curso_completo.
+     * El system prompt ya conoce las plantillas; acá le pedimos que
+     * SOLO produzca los archivos de esa clase, con sufijo `_CLASE_<N>`,
+     * y le recordamos los objetivos de profundidad (paso-a-paso para
+     * docente sin conocimiento previo + longitud por archivo).
+     */
+    const buildClassMessage = (classNum: number, totalClasses: number) =>
+      `Modo seleccionado: GENERAR UNA CLASE de un curso de ${totalClasses} clases.\n\n` +
+      `${commonContext}\nClase a generar: ${classNum} de ${totalClasses}\n\n` +
+      `Genera ÚNICAMENTE los archivos de la clase ${classNum}, con sufijo "_CLASE_${classNum}" en cada filename. ` +
+      `NO incluyas la introducción del curso ni material de otras clases.\n\n` +
+      `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
+      `- **PRESENTACION**: 9–22 slides según duración. Cada slide debe tener título + 3–6 viñetas concretas. No abusar de generalidades — incluir ejemplos, definiciones técnicas precisas y al menos 2 slides con casos concretos. Aplica el color {{primary_color}} en títulos.\n` +
+      `- **GUIA_DOCENTE**: extensión mínima 800 palabras. Asume que el docente JAMÁS ha enseñado este tema antes — explica los conceptos clave PASO A PASO, anticipa preguntas frecuentes de los estudiantes con sus respuestas, sugiere analogías para conceptos abstractos. Incluye una sección "Errores comunes que cometen los estudiantes" con al menos 3 entradas y "Cómo retroalimentarlos" debajo de cada una. NO sea genérico ("explicar el concepto") — escribe el guion exacto que el docente puede leer.\n` +
+      `- **TALLER_PRACTICO**: 5–8 pasos secuenciados. Cada paso incluye: objetivo (1 línea), instrucciones detalladas con la herramienta SaaS específica + URL, capturas verbales esperadas ("deberías ver X en la esquina Y") y un entregable verificable. Criterios de éxito con métricas observables (no "lo hizo bien" — "completa la tarea en <10 min con 0 errores de sintaxis").\n` +
+      `- **EJERCICIO_ESTUDIANTE** (solo teorico_practica): enunciado autocontenido, ≥300 palabras. Incluye contexto, datos de entrada concretos, restricciones, formato del entregable y rubrica de evaluación visible para el estudiante.\n` +
+      `- **EJERCICIO_SOLUCION** (solo teorico_practica): MISMO enunciado palabra-por-palabra + solución paso-a-paso completa con justificación pedagógica + respuesta final + 3+ errores comunes con guía de retroalimentación.`;
 
-    if (!aiRes.ok || looksHtml) {
-      // Acortamos para que el campo `error` no se desborde y el dialog
-      // de "Ver error completo" sea legible. Si es HTML, preferimos un
-      // diagnóstico claro a 400 chars de tags HTML.
-      const reason = looksHtml
-        ? "El AI Gateway devolvió HTML en vez de JSON — típicamente un timeout del proxy (504) o el provider rechazó la solicitud antes de empezar el stream. Reintenta; si persiste, divide el curso en menos clases o usa modalidad teorica/practica para reducir la longitud."
-        : `AI Gateway ${aiRes.status}: ${rawText.slice(0, 400)}`;
-      throw new Error(reason);
+    const buildIntroMessage = (totalClasses: number) =>
+      `Modo seleccionado: GENERAR INTRODUCCIÓN DEL CURSO.\n\n` +
+      `${commonContext}\nCantidad total de clases: ${totalClasses}\n\n` +
+      `Genera ÚNICAMENTE el archivo INTRO_CURSO.PPTX con la portada institucional, los objetivos del curso (5+ objetivos de aprendizaje accionables), justificación (≥150 palabras explicando por qué este curso importa y para quién está pensado) y el cronograma de las ${totalClasses} clases (un slide con tabla resumen: clase N · título · objetivo principal). NO generes archivos de clases individuales — esos se generan en pases separados.`;
+
+    let aggregatedRaw = "";
+    let allBlocks: Array<{ name: string; body: string }> = [];
+
+    if (isPartial) {
+      // Regen de UNA clase puntual — un único pase, igual que antes.
+      const tn = body.target_class!;
+      const userMsg = buildClassMessage(tn, gen.n_classes ?? tn);
+      const { blocks: pb, rawOutput } = await runOnePass(userMsg, `Clase ${tn}`);
+      aggregatedRaw = rawOutput;
+      allBlocks = pb;
+    } else if (gen.mode === "curso_completo") {
+      // Multi-pase: 1 llamada para la intro + 1 por cada clase. Cada
+      // pase produce archivos más profundos que la era monolítica
+      // anterior porque no hay que comprimir todo el curso en una
+      // sola respuesta del modelo.
+      const n = Math.max(1, Math.min(Number(gen.n_classes) || 1, 40));
+      const introRes = await runOnePass(buildIntroMessage(n), "Intro");
+      aggregatedRaw += `### Intro\n${introRes.rawOutput}\n\n`;
+      allBlocks.push(...introRes.blocks);
+      for (let k = 1; k <= n; k++) {
+        const r = await runOnePass(buildClassMessage(k, n), `Clase ${k}`);
+        aggregatedRaw += `### Clase ${k}\n${r.rawOutput}\n\n`;
+        allBlocks.push(...r.blocks);
+      }
+    } else {
+      // material_individual: una sola sesión, un solo pase con énfasis
+      // en profundidad por archivo (mismas guías que el per-class).
+      const userMsg =
+        `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\n` +
+        `Genera el material completo de UNA sola sesión sobre el tema. NO uses sufijo _CLASE_N — usa los nombres base.\n\n` +
+        `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
+        `- PRESENTACION: 9–22 slides según duración; cada slide con título + 3–6 viñetas + ejemplos concretos.\n` +
+        `- GUIA_DOCENTE: ≥800 palabras, paso-a-paso para docente sin conocimiento previo, con errores comunes y cómo retroalimentar.\n` +
+        `- TALLER_PRACTICO: 5–8 pasos con herramienta SaaS específica + criterios de éxito medibles.\n` +
+        `- EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION (solo teorico_practica): mismo enunciado palabra-por-palabra, el segundo añade solución paso-a-paso.`;
+      const r = await runOnePass(userMsg, "Material individual");
+      aggregatedRaw = r.rawOutput;
+      allBlocks = r.blocks;
     }
 
-    let aiJson: Record<string, unknown> = {};
-    try {
-      aiJson = JSON.parse(rawText);
-    } catch (parseErr) {
-      throw new Error(
-        `Respuesta del AI Gateway inválida (no es JSON). Primeros 300 chars: ${rawText.slice(0, 300)}`,
-      );
-    }
-
-    const rawOutput: string =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (aiJson as any).choices?.[0]?.message?.content ??
-      // Algunos providers ponen el contenido en `output_text` (legacy).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (aiJson as any).choices?.[0]?.message?.output_text ??
-      "";
-
-    if (!rawOutput.trim()) throw new Error("AI returned empty content");
-
-    const blocks = parseFileBlocks(rawOutput);
+    const rawOutput = aggregatedRaw;
+    const blocks = allBlocks;
     if (blocks.length === 0) {
       // No bloques. Para regen completa marcamos failed; para regen
       // parcial rollback a 'done' (los archivos previos siguen válidos)

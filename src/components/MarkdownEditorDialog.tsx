@@ -49,6 +49,9 @@ interface MarkdownEditorDialogProps {
   /** Notifica al padre con el nuevo body después de guardar — útil para
    *  refrescar `bodyOverrides` en el grid sin re-fetch. */
   onSaved?: (newBody: string) => void;
+  /** "edit" abre directo en modo edición; "view" (default) muestra
+   *  preview con botón Editar. */
+  initialMode?: "view" | "edit";
 }
 
 function humanLabelForFile(f: MdLikeFile): string {
@@ -67,6 +70,7 @@ export function MarkdownEditorDialog({
   contentId,
   onClose,
   onSaved,
+  initialMode = "view",
 }: MarkdownEditorDialogProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -78,13 +82,13 @@ export function MarkdownEditorDialog({
     if (file?.body != null) {
       setBody(file.body);
       setOriginalBody(file.body);
-      setEditing(false);
+      setEditing(initialMode === "edit");
     } else if (!file) {
       setBody("");
       setOriginalBody("");
       setEditing(false);
     }
-  }, [file]);
+  }, [file, initialMode]);
 
   const open = file != null;
   const dirty = body !== originalBody;

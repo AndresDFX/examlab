@@ -57,11 +57,13 @@ import {
   CalendarPlus,
   AlertCircle,
   Wand2,
+  Pencil,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MarkdownEditorDialog } from "@/components/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/components/PptxViewerDialog";
+import { RegenerateContentDialog } from "@/components/RegenerateContentDialog";
 import {
   availableClassNumbers,
   classNumberFromFilename,
@@ -109,6 +111,10 @@ interface GeneratedContent {
   files: FileEntry[];
   error: string | null;
   raw_output: string | null;
+  /** Instrucciones libres del docente apiladas al user message del
+   *  prompt. Se editan desde el dialog "Regenerar" sin necesidad de
+   *  borrar/recrear el contenido. */
+  instructions: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -182,6 +188,16 @@ function TeacherContents() {
   // CLASE_N → sesión específica. Requiere que el contenido esté
   // asociado a un curso y que el curso tenga sesiones programadas.
   const [assignFor, setAssignFor] = useState<GeneratedContent | null>(null);
+  // Target del dialog "Regenerar" — null = cerrado. Se setea desde el
+  // menú de acciones (full) o desde FilesByClassDialog (per-class).
+  // Permite al docente editar topic + instructions antes de relanzar.
+  const [regenerateTarget, setRegenerateTarget] = useState<{
+    contentId: string;
+    topic: string;
+    instructions: string | null;
+    mode: "full" | "class";
+    classNumber?: number;
+  } | null>(null);
   // "Programar sesiones del curso": genera N sesiones de attendance
   // a partir de fecha-inicio + días-de-la-semana, y les asigna cada
   // clase del contenido. Resuelve el caso del docente que no tiene
@@ -359,47 +375,29 @@ function TeacherContents() {
     toast.success(t("contents.deletedToast"));
   };
 
-  const regenerate = async (item: GeneratedContent) => {
-    // Reset al estado queued y re-disparamos la edge function. La función
-    // resetea error e ignora si ya está done (en realidad la pasamos a queued
-    // con un update explícito antes para reintentar fallos).
-    const { error } = await db
-      .from("generated_contents")
-      .update({ status: "queued", error: null })
-      .eq("id", item.id);
-    if (error) return toast.error(error.message);
-    void supabase.functions.invoke("generate-contents", { body: { id: item.id } });
-    toast.success(t("contents.regeneratedToast"));
-    void load();
+  /** Abre el dialog "Regenerar" pre-cargando topic + instructions
+   *  actuales para que el docente pueda ajustar antes de relanzar.
+   *  Antes este botón ejecutaba directo — perdías la oportunidad de
+   *  refinar el prompt sin borrar/recrear el contenido. */
+  const openRegenerate = (item: GeneratedContent) => {
+    setRegenerateTarget({
+      contentId: item.id,
+      topic: item.topic,
+      instructions: item.instructions ?? null,
+      mode: "full",
+    });
   };
 
-  /**
-   * Regenera UNA clase del curso. La edge function preserva el resto
-   * de archivos (intro + otras clases) y mergea los nuevos para esa
-   * clase específica. Awaiteamos la invocación para mostrar feedback
-   * (la generación parcial es más rápida que la completa, ~10-30s).
-   */
-  const regenerateClass = async (item: GeneratedContent, classNumber: number) => {
-    toast.info(t("contents.regeneratingClass", { class: classNumber }));
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-contents", {
-        body: { id: item.id, target_class: classNumber },
-      });
-      if (error) throw new Error(error.message);
-      // El edge devuelve `{ ok: false, partial: true, error }` cuando
-      // falla la regen parcial sin tirar el row entero. Convertimos en
-      // toast para el docente.
-      if (data && typeof data === "object" && (data as { ok?: boolean }).ok === false) {
-        const msg = (data as { error?: string }).error ?? "Falló la regeneración";
-        toast.error(msg);
-      } else {
-        toast.success(t("contents.regeneratedClassToast", { class: classNumber }));
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
-    } finally {
-      void load();
-    }
+  /** Igual al anterior pero para UNA clase. El edge function mergea
+   *  el output con las clases existentes (no las pierde). */
+  const openRegenerateClass = (item: GeneratedContent, classNumber: number) => {
+    setRegenerateTarget({
+      contentId: item.id,
+      topic: item.topic,
+      instructions: item.instructions ?? null,
+      mode: "class",
+      classNumber,
+    });
   };
 
   /**
@@ -709,7 +707,7 @@ function TeacherContents() {
                           {
                             label: t("contents.regenerate"),
                             icon: RefreshCw,
-                            onClick: () => regenerate(it),
+                            onClick: () => openRegenerate(it),
                             disabled: it.status === "queued" || it.status === "processing",
                           },
                           {
@@ -985,7 +983,7 @@ function TeacherContents() {
         downloadingPath={downloadingId}
         onDownload={(file) => filesViewerFor && void download(filesViewerFor, file)}
         onRegenerateClass={(classNumber) =>
-          filesViewerFor && void regenerateClass(filesViewerFor, classNumber)
+          filesViewerFor && openRegenerateClass(filesViewerFor, classNumber)
         }
         onClose={() => setFilesViewerFor(null)}
       />
@@ -1007,6 +1005,15 @@ function TeacherContents() {
           else void navigate({ to: "/app/teacher/projects", search: { edit: id } });
           toast.success(t("contents.assessmentCreatedToast"));
         }}
+      />
+
+      {/* Dialog "Regenerar" — edita topic + instructions antes de
+          relanzar, sin tener que borrar el contenido. Para regen total
+          y por clase. */}
+      <RegenerateContentDialog
+        target={regenerateTarget}
+        onClose={() => setRegenerateTarget(null)}
+        onStarted={() => void load()}
       />
     </div>
   );
@@ -2437,6 +2444,10 @@ function FilesByClassDialog({
   // Archivo .pptx-source seleccionado para visualizar/editar slide-by-slide.
   // Separado del preview .md porque usa otro componente (PptxViewerDialog).
   const [pptxPreviewFile, setPptxPreviewFile] = useState<FileEntry | null>(null);
+  // Modo inicial al abrir cualquiera de los dos viewers — "edit" cuando
+  // el docente pulsa el lápiz directamente desde la chip; "view" cuando
+  // pulsa el icono de tipo (entra a vista previa con botón Editar).
+  const [viewerInitialMode, setViewerInitialMode] = useState<"view" | "edit">("view");
   // Tras guardar ediciones en el viewer, refrescamos localmente el body
   // del file en content.files para que el siguiente "Vista previa" no
   // muestre stale data. El padre vuelve a llamar load() en parallelismo,
@@ -2502,7 +2513,8 @@ function FilesByClassDialog({
     const effectiveBody = bodyOverrides[f.path] ?? f.body;
     const fileWithBody: FileEntry = { ...f, body: effectiveBody };
     if (canPreview) {
-      const openPreview = () => {
+      const openViewer = (mode: "view" | "edit") => {
+        setViewerInitialMode(mode);
         if (isPptx) setPptxPreviewFile(fileWithBody);
         else setPreviewFile(fileWithBody);
       };
@@ -2510,12 +2522,24 @@ function FilesByClassDialog({
         <div key={f.path} className="inline-flex rounded-md border overflow-hidden">
           <button
             type="button"
-            onClick={openPreview}
+            onClick={() => openViewer("view")}
             className="flex items-center justify-center w-7 h-7 hover:bg-muted/60 transition-colors"
             title={`${label} — ${t("contents.previewHint")}`}
             aria-label={`${label} — ${t("contents.previewHint")}`}
           >
             <TypeIcon className="h-3.5 w-3.5" />
+          </button>
+          {/* Botón Editar — atajo al modo edición del viewer, sin pasar
+              por el step de "ver y luego pulsar Editar". Resuelve la
+              queja: "el editar online no es visible desde el grid". */}
+          <button
+            type="button"
+            onClick={() => openViewer("edit")}
+            className="flex items-center justify-center w-7 h-7 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+            title={`${label} — ${t("contents.editOnline")}`}
+            aria-label={`${label} — ${t("contents.editOnline")}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -2688,6 +2712,7 @@ function FilesByClassDialog({
       <MarkdownEditorDialog
         file={previewFile}
         contentId={content.id}
+        initialMode={viewerInitialMode}
         onClose={() => setPreviewFile(null)}
         onSaved={(newBody) => {
           if (previewFile) setBodyOverrides((prev) => ({ ...prev, [previewFile.path]: newBody }));
@@ -2702,6 +2727,7 @@ function FilesByClassDialog({
         onOpenChange={(o) => !o && setPptxPreviewFile(null)}
         file={pptxPreviewFile}
         contentId={content.id}
+        initialMode={viewerInitialMode}
         isProcessing={isProcessing}
         onRegenerate={
           pptxPreviewFile

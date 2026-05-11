@@ -88,6 +88,11 @@ interface PptxViewerDialogProps {
   /** Notificación al padre cuando los cambios se persisten — útil para
    *  que el grid refresque el `files` cache local sin re-fetch. */
   onSaved?: (newBody: string) => void;
+  /** Si "edit", monta directamente en modo edición. "view" por default —
+   *  el docente abre vista previa y desde ahí pulsa "Editar". El caller
+   *  usa "edit" cuando el botón es explícitamente "Editar online" en el
+   *  grid (skip el step de vista para no agregar fricción). */
+  initialMode?: "view" | "edit";
 }
 
 export function PptxViewerDialog({
@@ -99,6 +104,7 @@ export function PptxViewerDialog({
   onDownload,
   isProcessing,
   onSaved,
+  initialMode = "view",
 }: PptxViewerDialogProps) {
   const { t } = useTranslation();
   const [slides, setSlides] = useState<ParsedSlide[]>([]);
@@ -112,14 +118,14 @@ export function PptxViewerDialog({
     if (open && file?.body) {
       setSlides(parseSlideBlock(file.body));
       setOriginalBody(file.body);
-      setEditing(false);
+      setEditing(initialMode === "edit");
     } else if (!open) {
       // Reset del state al cerrar para no mostrar stale data al re-abrir.
       setSlides([]);
       setOriginalBody("");
       setEditing(false);
     }
-  }, [open, file]);
+  }, [open, file, initialMode]);
 
   if (!file) return null;
 
