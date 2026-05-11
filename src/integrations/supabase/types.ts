@@ -1534,6 +1534,27 @@ export type Database = {
           },
         ]
       }
+      push_config: {
+        Row: {
+          id: number
+          send_push_url: string
+          trigger_secret: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          send_push_url: string
+          trigger_secret: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          send_push_url?: string
+          trigger_secret?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string
