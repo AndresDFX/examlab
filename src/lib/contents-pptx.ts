@@ -27,10 +27,22 @@ export interface PptxBrand {
   author: string | null;
 }
 
+export interface CodeBlock {
+  /** Hint de lenguaje (`python`, `js`, `sql`, …) — viene del fence ```lang. */
+  lang?: string;
+  /** Cuerpo del bloque con indentación original preservada. */
+  code: string;
+}
+
 export interface ParsedSlide {
   title: string;
   /** Cada string es una bullet o párrafo del slide. */
   bullets: string[];
+  /** Bloques de código fenced (```...```) detectados en el slide. Se
+   *  renderizan como panel monoespaciado debajo de las bullets, no como
+   *  bullets sueltas (que perdían indentación y se veían como texto
+   *  común). */
+  codeBlocks?: CodeBlock[];
   isCover?: boolean;
 }
 
@@ -40,15 +52,58 @@ export interface ParsedSlide {
  * acumulan hasta el siguiente "Slide X" o EOF.
  *
  * Acepta variantes: "Slide 3 - Título", "Slide 3:", "Slide [3-N]:".
+ *
+ * Bloques de código fenced (```lang ... ```) se extraen aparte:
+ * preservamos la indentación de cada línea (sin trim) y los exponemos
+ * en `slide.codeBlocks`. El renderer los dibuja con fuente monoespaciada
+ * sobre fondo gris.
  */
 export function parseSlideBlock(raw: string): ParsedSlide[] {
   const slides: ParsedSlide[] = [];
   const lines = raw.split(/\r?\n/);
 
   let current: ParsedSlide | null = null;
+  let codeFenceLang: string | null = null;
+  let codeBuf: string[] = [];
+
+  const ensureSlide = () => {
+    if (!current) current = { title: "", bullets: [], isCover: true };
+    return current;
+  };
+
   for (const rawLine of lines) {
+    // Dentro de un fence: acumulamos sin tocar la línea (queremos
+    // preservar indentación). El cierre `​```` puede llegar con
+    // espacios alrededor; lo detectamos con trim solo a efectos de
+    // matching, no del contenido.
+    if (codeFenceLang !== null) {
+      const trimmed = rawLine.trim();
+      if (trimmed.startsWith("```")) {
+        const slide = ensureSlide();
+        slide.codeBlocks = slide.codeBlocks ?? [];
+        slide.codeBlocks.push({
+          lang: codeFenceLang || undefined,
+          code: codeBuf.join("\n"),
+        });
+        codeFenceLang = null;
+        codeBuf = [];
+      } else {
+        codeBuf.push(rawLine);
+      }
+      continue;
+    }
+
     const line = rawLine.trim();
     if (!line) continue;
+
+    // Apertura de fence: ```python o solo ```
+    if (line.startsWith("```")) {
+      codeFenceLang = line.replace(/^```/, "").trim();
+      codeBuf = [];
+      ensureSlide();
+      continue;
+    }
+
     // "Slide 3 (Título): foo"  o  "Slide 3 - Título"  o  "- Slide 3 (Título): foo"
     const slideHead = line.match(
       /^[-*]?\s*Slide\s+\[?[\d-]+\]?\s*[(:-]\s*([^):]+)[):]?\s*:?\s*(.*)$/i,
@@ -72,6 +127,18 @@ export function parseSlideBlock(raw: string): ParsedSlide[] {
       // Texto antes del primer "Slide …" — lo metemos como cover libre.
       current = { title: "", bullets: [line], isCover: true };
     }
+  }
+
+  // Si el cierre del fence se perdió (modelo truncó o se le olvidaron
+  // los ```), emitimos lo acumulado como code block igual — mejor mostrar
+  // el código que perderlo.
+  if (codeFenceLang !== null && codeBuf.length > 0) {
+    const slide = ensureSlide();
+    slide.codeBlocks = slide.codeBlocks ?? [];
+    slide.codeBlocks.push({
+      lang: codeFenceLang || undefined,
+      code: codeBuf.join("\n"),
+    });
   }
   if (current) slides.push(current);
   return slides;
@@ -104,7 +171,11 @@ export function serializeSlides(slides: ParsedSlide[]): string {
         .filter(Boolean)
         .map((b) => `- ${b}`)
         .join("\n");
-      return bullets ? `${header}\n${bullets}` : header;
+      const codeBlocks = (s.codeBlocks ?? [])
+        .map((cb) => `\`\`\`${cb.lang ?? ""}\n${cb.code}\n\`\`\``)
+        .join("\n");
+      const parts = [header, bullets, codeBlocks].filter(Boolean);
+      return parts.join("\n");
     })
     .join("\n\n");
 }
@@ -206,7 +277,9 @@ export async function buildPptxBlob(
       continue;
     }
 
-    // Slide regular: title arriba con primary color, bullets debajo.
+    // Slide regular: title arriba con primary color, bullets + bloques
+    // de código debajo. Si hay code blocks, las bullets ocupan menos
+    // alto vertical para dejar espacio al panel de código.
     slide.addText(s.title || "", {
       x: 0.5,
       y: 0.4,
@@ -216,6 +289,10 @@ export async function buildPptxBlob(
       bold: true,
       color: primary,
     });
+
+    const hasCode = (s.codeBlocks?.length ?? 0) > 0;
+    const bulletsH = hasCode ? 2.8 : 5.6;
+
     if (s.bullets.length) {
       slide.addText(
         s.bullets.map((b) => ({ text: b, options: { bullet: true } })),
@@ -223,12 +300,41 @@ export async function buildPptxBlob(
           x: 0.5,
           y: 1.4,
           w: 12,
-          h: 5.6,
+          h: bulletsH,
           fontSize: 18,
           color: "222222",
           paraSpaceAfter: 6,
+          valign: "top",
         },
       );
+    }
+
+    if (hasCode) {
+      // Una textbox por code block, apiladas debajo de las bullets.
+      // Fuente monoespaciada + fondo gris claro + indentación preservada.
+      // Si hay varios bloques los repartimos verticalmente, hasta 3
+      // visibles (más de eso queda apretado — el modelo no debería emitir
+      // tantos en un slide).
+      const blocks = s.codeBlocks!.slice(0, 3);
+      const startY = s.bullets.length ? 1.4 + bulletsH + 0.1 : 1.4;
+      const totalH = 7.0 - startY - 0.2;
+      const perBlockH = totalH / blocks.length;
+      blocks.forEach((cb, idx) => {
+        slide.addText(cb.code, {
+          x: 0.5,
+          y: startY + idx * perBlockH,
+          w: 12,
+          h: perBlockH - 0.1,
+          fontSize: 12,
+          fontFace: "Consolas",
+          color: "1F2937",
+          fill: { color: "F3F4F6" },
+          valign: "top",
+          margin: 6,
+          // pptxgenjs respeta \n en addText; con monospace la
+          // indentación visual queda correcta sin tabular.
+        });
+      });
     }
   }
 

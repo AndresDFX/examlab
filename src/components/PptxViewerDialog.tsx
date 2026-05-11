@@ -312,12 +312,29 @@ export function PptxViewerDialog({
                         className="text-xs min-h-[80px] font-mono"
                       />
                     </div>
-                  ) : slide.bullets.length > 0 ? (
-                    <ul className="list-disc pl-5 text-sm space-y-1 text-foreground/90">
-                      {slide.bullets.map((b, bi) => (
-                        <li key={bi}>{b}</li>
+                  ) : slide.bullets.length > 0 || (slide.codeBlocks?.length ?? 0) > 0 ? (
+                    <div className="space-y-2">
+                      {slide.bullets.length > 0 && (
+                        <ul className="list-disc pl-5 text-sm space-y-1 text-foreground/90">
+                          {slide.bullets.map((b, bi) => (
+                            <li key={bi}>{b}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {(slide.codeBlocks ?? []).map((cb, ci) => (
+                        <pre
+                          key={ci}
+                          className="rounded-md bg-muted/60 border p-2 text-[11px] font-mono overflow-x-auto whitespace-pre"
+                        >
+                          {cb.lang ? (
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                              {cb.lang}
+                            </div>
+                          ) : null}
+                          <code>{cb.code}</code>
+                        </pre>
                       ))}
-                    </ul>
+                    </div>
                   ) : (
                     <p className="text-xs text-muted-foreground italic">
                       {t("pptxViewer.noBullets")}

@@ -356,13 +356,26 @@ Deno.serve(async (req: Request) => {
     let aggregatedRaw = "";
     let allBlocks: Array<{ name: string; body: string }> = [];
 
+    // Defensa contra el bug clásico del multi-pase: el modelo a veces
+    // ignora la instrucción de añadir `_CLASE_<N>` al filename. Si dos
+    // clases generan `TALLER_PRACTICO.MD`, ambas suben al MISMO
+    // storagePath y se sobrescriben (upsert). Resultado: spinner se
+    // muestra en todas las chips de ese tipo y la descarga trae siempre
+    // el último archivo. Forzamos el sufijo aquí.
+    const tagWithClass = (blocks: Array<{ name: string; body: string }>, k: number) =>
+      blocks.map((b) => {
+        if (classFromName(b.name) !== null) return b;
+        const newName = b.name.replace(/(\.[A-Za-z0-9]+)?$/, `_CLASE_${k}$1`);
+        return { ...b, name: newName };
+      });
+
     if (isPartial) {
       // Regen de UNA clase puntual — un único pase, igual que antes.
       const tn = body.target_class!;
       const userMsg = buildClassMessage(tn, gen.n_classes ?? tn);
       const { blocks: pb, rawOutput } = await runOnePass(userMsg, `Clase ${tn}`);
       aggregatedRaw = rawOutput;
-      allBlocks = pb;
+      allBlocks = tagWithClass(pb, tn);
     } else if (gen.mode === "curso_completo") {
       // Multi-pase: 1 llamada para la intro + 1 por cada clase. Cada
       // pase produce archivos más profundos que la era monolítica
@@ -375,7 +388,7 @@ Deno.serve(async (req: Request) => {
       for (let k = 1; k <= n; k++) {
         const r = await runOnePass(buildClassMessage(k, n), `Clase ${k}`);
         aggregatedRaw += `### Clase ${k}\n${r.rawOutput}\n\n`;
-        allBlocks.push(...r.blocks);
+        allBlocks.push(...tagWithClass(r.blocks, k));
       }
     } else {
       // material_individual: una sola sesión, un solo pase con énfasis
