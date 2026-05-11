@@ -29,10 +29,21 @@ function timeAgo(date: string): string {
 interface NotificationBellProps {
   userId: string | undefined;
   variant?: "sidebar" | "default";
+  /** Rol activo del viewer — usado para filtrar notificaciones del
+   *  MISMO rol (un docente no debe ver notificaciones generadas por
+   *  otros docentes). Si no se pasa, no se filtra por rol. */
+  viewerRole?: string | null;
 }
 
-export function NotificationBell({ userId, variant = "default" }: NotificationBellProps) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(userId);
+export function NotificationBell({
+  userId,
+  variant = "default",
+  viewerRole,
+}: NotificationBellProps) {
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(
+    userId,
+    viewerRole,
+  );
   const navigate = useNavigate();
 
   const handleClick = (n: Notification) => {

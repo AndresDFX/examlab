@@ -64,7 +64,7 @@ function formatNotifDate(
 function Dashboard() {
   const { profile, user } = useAuth();
   const activeRole = useActiveRole();
-  const { notifications, unreadCount, markAsRead } = useNotifications(user?.id);
+  const { notifications, unreadCount, markAsRead } = useNotifications(user?.id, activeRole);
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith("en") ? "en" : "es";
 

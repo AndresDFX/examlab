@@ -51,6 +51,7 @@ import {
   BookOpen,
   ClipboardList,
   CheckSquare,
+  CheckSquare as CheckSquareIcon,
   Hammer,
   Sparkles as SparklesIcon,
   CalendarRange,
@@ -88,6 +89,18 @@ const db = supabase as any;
 type ContentMode = "curso_completo" | "material_individual";
 type ContentStatus = "queued" | "processing" | "done" | "failed";
 type ContentModality = "teorica" | "practica" | "teorico_practica";
+// Tags componibles para la generación: combina libremente teorico /
+// practico / examen. Reemplaza el enum `modality` que solo permitía 3
+// combinaciones. Mantenemos `modality` por compatibilidad con filas
+// viejas (el edge function lo deriva de tags si falta).
+type ContentTag = "teorico" | "practico" | "examen";
+const TAG_TO_MODALITY = (tags: ContentTag[]): ContentModality => {
+  const hasT = tags.includes("teorico");
+  const hasP = tags.includes("practico");
+  if (hasT && hasP) return "teorico_practica";
+  if (hasP) return "practica";
+  return "teorica"; // default si solo teorico, solo examen, o vacío
+};
 
 interface FileEntry {
   name: string;
@@ -105,6 +118,9 @@ interface GeneratedContent {
   n_classes: number | null;
   duration_minutes: number | null;
   modality: ContentModality | null;
+  /** Tags compositivos — fuente de verdad. `modality` se conserva por
+   *  compatibilidad con filas pre-migración pero se deriva de tags. */
+  tags: ContentTag[] | null;
   language: string;
   author: string | null;
   status: ContentStatus;
@@ -218,11 +234,15 @@ function TeacherContents() {
   // extensión: <30 → material compacto, >120 → material extenso. Default
   // 60 (clase universitaria estándar).
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
-  // Modalidad: define QUÉ archivos genera la IA.
-  //   teorica          → solo presentación + guía
-  //   practica         → solo taller práctico
-  //   teorico_practica → todo (default — el caso más común).
-  const [modality, setModality] = useState<ContentModality>("teorico_practica");
+  // Tags compositivos: el docente elige qué tipos de archivo generar.
+  //   teorico  → presentación + guía docente
+  //   practico → taller práctico (+ ejercicio estudiante / solución)
+  //   examen   → examen por sesión (oculto al estudiante)
+  // Default: teorico + practico (equivalente al viejo "teorico_practica").
+  const [tags, setTags] = useState<ContentTag[]>(["teorico", "practico"]);
+  // `modality` se conserva derivado de tags para mantener compatibilidad
+  // con el edge function y filas viejas. Lo recomputamos donde se persiste.
+  const modality = TAG_TO_MODALITY(tags);
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [courseId, setCourseId] = useState<string>("");
   const [author, setAuthor] = useState("");
@@ -313,6 +333,10 @@ function TeacherContents() {
       toast.error(t("integrity.applyError"));
       return;
     }
+    if (tags.length === 0) {
+      toast.error(t("contents.tagsRequired"));
+      return;
+    }
     setCreating(true);
     try {
       const insertPayload: Record<string, unknown> = {
@@ -322,7 +346,8 @@ function TeacherContents() {
         language,
         n_classes: mode === "curso_completo" ? nClasses : null,
         duration_minutes: durationMinutes,
-        modality,
+        modality, // derivado de tags (compat con edge function + filas viejas)
+        tags, // fuente de verdad (incluye "examen" si está activo)
         course_id: courseId || null,
         author: author.trim() || null,
         instructions: instructions.trim() || null,
@@ -878,34 +903,62 @@ function TeacherContents() {
 
             <div className="space-y-1.5">
               <Label required>
-                {t("contents.modality")}
-                <HelpHint>{t("contents.modalityHint")}</HelpHint>
+                {t("contents.tags")}
+                <HelpHint>{t("contents.tagsHint")}</HelpHint>
               </Label>
+              {/* Tags compositivos (multi-select). Cada uno determina
+                  qué archivos genera la IA. Combina libremente teórico,
+                  práctico y examen. Al menos un tag debe estar activo —
+                  se valida abajo en `canSubmit`. */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {(
                   [
-                    { key: "teorica", label: t("contents.modalityTheory") },
-                    { key: "practica", label: t("contents.modalityPractice") },
-                    { key: "teorico_practica", label: t("contents.modalityBoth") },
+                    {
+                      key: "teorico" as ContentTag,
+                      label: t("contents.tagTheory"),
+                      desc: t("contents.tagTheoryDesc"),
+                    },
+                    {
+                      key: "practico" as ContentTag,
+                      label: t("contents.tagPractice"),
+                      desc: t("contents.tagPracticeDesc"),
+                    },
+                    {
+                      key: "examen" as ContentTag,
+                      label: t("contents.tagExam"),
+                      desc: t("contents.tagExamDesc"),
+                    },
                   ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setModality(opt.key as ContentModality)}
-                    className={`text-left rounded-md border p-2 text-xs transition-colors ${
-                      modality === opt.key
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="font-medium text-sm">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {t(`contents.modality_${opt.key}_desc`)}
-                    </div>
-                  </button>
-                ))}
+                ).map((opt) => {
+                  const active = tags.includes(opt.key);
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() =>
+                        setTags((prev) =>
+                          active ? prev.filter((x) => x !== opt.key) : [...prev, opt.key],
+                        )
+                      }
+                      className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                        active
+                          ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                          : "border-border hover:bg-muted/40"
+                      }`}
+                      aria-pressed={active}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="font-medium text-sm">{opt.label}</div>
+                        {active && <CheckSquareIcon className="h-3.5 w-3.5 text-primary" />}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
+              {tags.length === 0 && (
+                <p className="text-[11px] text-destructive">{t("contents.tagsRequired")}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -969,7 +1022,7 @@ function TeacherContents() {
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={submitNew} disabled={creating || !topic.trim()}>
+            <Button onClick={submitNew} disabled={creating || !topic.trim() || tags.length === 0}>
               {creating ? (
                 <Spinner size="sm" className="mr-1" />
               ) : (
@@ -1116,6 +1169,12 @@ function CreateAssessmentDialog({
   const [selectedClasses, setSelectedClasses] = useState<Set<number> | null>(null);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  // Cortes del curso seleccionado (si tiene). Si el curso no tiene
+  // cortes, el selector de alcance no aparece.
+  const [courseCuts, setCourseCuts] = useState<Array<{ id: string; name: string }>>([]);
+  // Scope: "course" = 1 evaluación para todo el curso (sin cut_id).
+  //        "per_cut" = N evaluaciones, una por cada corte del curso.
+  const [scope, setScope] = useState<"course" | "per_cut">("course");
 
   // Resetea el form cada vez que se abre con un contenido distinto.
   // Pre-elige el curso del propio contenido si vino con uno.
@@ -1124,10 +1183,43 @@ function CreateAssessmentDialog({
     setTarget("exam");
     setCourseId(content.course_id ?? "");
     setTitle(content.topic);
+    setScope("course");
     // Default: todo el contenido seleccionado. El docente puede
     // restringir a clases específicas con los checkboxes.
     setSelectedClasses(null);
   }, [content]);
+
+  // Carga cortes del curso seleccionado. Sin cortes, el control de
+  // alcance queda oculto y todo se inserta como curso completo (sin
+  // cut_id). Si el docente cambia de curso, la lista se refresca.
+  useEffect(() => {
+    if (!courseId) {
+      setCourseCuts([]);
+      setScope("course");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db
+        .from("grade_cuts")
+        .select("id, name, position")
+        .eq("course_id", courseId)
+        .order("position", { ascending: true });
+      if (cancelled) return;
+      setCourseCuts(
+        ((data as Array<{ id: string; name: string }> | null) ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+        })),
+      );
+      // Al cambiar de curso, volvemos a "course" para no arrastrar
+      // selección stale (un curso anterior tenía cortes, el nuevo no).
+      setScope("course");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
 
   const classes = useMemo(
     () => (content ? availableClassNumbers((content.files as ContentFile[]) ?? []) : []),
@@ -1170,6 +1262,10 @@ function CreateAssessmentDialog({
       toast.error(t("contents.classesRequired"));
       return;
     }
+    if (scope === "per_cut" && courseCuts.length === 0) {
+      toast.error(t("contents.scopePerCutNoCuts"));
+      return;
+    }
     setCreating(true);
     try {
       const description = extractContentText((content.files as ContentFile[]) ?? [], {
@@ -1186,16 +1282,59 @@ function CreateAssessmentDialog({
             : `${content.topic} — Clases ${selectedArray.join(", ")}`;
       const finalTitle = title.trim() || fallbackTitle;
 
-      // Defaults razonables para cada target: aprovechamos
-      // duration_minutes del contenido como límite del examen, y
-      // ventana de 7 días para start/end. El docente puede ajustar
-      // todo en el editor.
-      // Backlink al contenido de origen — la migración 20260510150000
-      // agregó `source_content_id` a las 3 tablas de evaluación. Lo
-      // setamos en el INSERT para que el grid de Contenidos pueda
-      // mostrar cuántas evaluaciones se derivaron de cada contenido.
-      // ON DELETE SET NULL: si después borran el contenido, la
-      // evaluación queda intacta — solo se pierde el backlink.
+      // Si el docente eligió "Por corte" → repetir el INSERT por cada
+      // corte del curso, con cut_id seteado y título prefijado con el
+      // nombre del corte ("Final de Corte 1: …"). Si es "course" →
+      // 1 INSERT con cut_id null (comportamiento histórico).
+      const cutTargets =
+        scope === "per_cut" ? courseCuts : ([{ id: null as string | null, name: "" }] as const);
+      let firstCreated: { kind: AssessmentTarget; id: string } | null = null;
+      let createdCount = 0;
+      for (const cut of cutTargets) {
+        const insertTitle = cut.id ? `${cut.name}: ${finalTitle}` : finalTitle;
+        const id = await insertAssessment(insertTitle, description, cut.id);
+        if (id) {
+          createdCount += 1;
+          if (!firstCreated) firstCreated = { kind: target, id };
+        }
+      }
+      if (createdCount === 0) {
+        return; // ya se mostró el error en insertAssessment
+      }
+      if (scope === "per_cut") {
+        toast.success(t("contents.scopePerCutCreatedToast", { count: createdCount }));
+        // Al crear N evaluaciones no abrimos editor — eso forzaría N
+        // pestañas. El docente las verá en sus grids respectivos.
+        onCreated(target, firstCreated!.id);
+      } else {
+        onCreated(target, firstCreated!.id);
+      }
+      return;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  /** INSERT helper compartido entre el modo "course" (1 fila) y
+   *  "per_cut" (N filas). Devuelve el id creado o null si falló (con el
+   *  toast ya mostrado). NO llama onCreated — eso es responsabilidad
+   *  del caller, que decide qué hacer cuando se crearon N filas (no
+   *  abrir el editor en bucle).
+   *
+   *  `source_content_id` se setea con backlink al contenido (la
+   *  migración 20260510150000 lo agregó). Las 3 tablas tienen ON DELETE
+   *  SET NULL: si después borran el contenido, las evaluaciones quedan
+   *  intactas — solo se pierde el backlink.
+   */
+  const insertAssessment = async (
+    insertTitle: string,
+    description: string,
+    cutId: string | null,
+  ): Promise<string | null> => {
+    if (!content || !user) return null;
+    try {
       if (target === "exam") {
         const start = new Date();
         const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -1203,7 +1342,7 @@ function CreateAssessmentDialog({
           .from("exams")
           .insert({
             course_id: courseId,
-            title: finalTitle,
+            title: insertTitle,
             description,
             start_time: start.toISOString(),
             end_time: end.toISOString(),
@@ -1212,18 +1351,19 @@ function CreateAssessmentDialog({
             shuffle_enabled: false,
             created_by: user.id,
             source_content_id: content.id,
+            cut_id: cutId,
           })
           .select("id")
           .single();
         if (error || !data) throw new Error(error?.message ?? "exam insert failed");
-        onCreated("exam", data.id);
+        return data.id as string;
       } else if (target === "workshop") {
         const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         const { data, error } = await db
           .from("workshops")
           .insert({
             course_id: courseId,
-            title: finalTitle,
+            title: insertTitle,
             description,
             instructions: null,
             due_date: due.toISOString(),
@@ -1231,32 +1371,33 @@ function CreateAssessmentDialog({
             status: "draft",
             created_by: user.id,
             source_content_id: content.id,
+            cut_id: cutId,
           })
           .select("id")
           .single();
         if (error || !data) throw new Error(error?.message ?? "workshop insert failed");
-        onCreated("workshop", data.id);
+        return data.id as string;
       } else {
         const { data, error } = await db
           .from("projects")
           .insert({
             course_id: courseId,
-            title: finalTitle,
+            title: insertTitle,
             description,
             max_score: 100,
             status: "draft",
             created_by: user.id,
             source_content_id: content.id,
+            cut_id: cutId,
           })
           .select("id")
           .single();
         if (error || !data) throw new Error(error?.message ?? "project insert failed");
-        onCreated("project", data.id);
+        return data.id as string;
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
-    } finally {
-      setCreating(false);
+      return null;
     }
   };
 
@@ -1322,6 +1463,58 @@ function CreateAssessmentDialog({
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
           </div>
+
+          {/* Selector de alcance por cortes — solo visible si el curso
+              elegido tiene cortes definidos. "Curso completo" crea UNA
+              evaluación (sin cut_id, comportamiento histórico).
+              "Por corte" crea N evaluaciones, una por cada corte, con
+              cut_id seteado y título prefijado con el nombre del corte
+              ("Corte 1: …"). Útil para parciales finales por corte o
+              para distribuir el peso de un examen entre cortes. */}
+          {courseCuts.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>{t("contents.scopeLabel")}</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setScope("course")}
+                  className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                    scope === "course"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="font-medium text-sm">{t("contents.scopeWholeCourse")}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {t("contents.scopeWholeCourseHint")}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope("per_cut")}
+                  className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                    scope === "per_cut"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="font-medium text-sm">
+                    {t("contents.scopePerCut", { count: courseCuts.length })}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {t("contents.scopePerCutHint")}
+                  </div>
+                </button>
+              </div>
+              {scope === "per_cut" && (
+                <p className="text-[11px] text-muted-foreground">
+                  {t("contents.scopePerCutPreview", {
+                    names: courseCuts.map((c) => c.name).join(", "),
+                  })}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Alcance: si el contenido es curso_completo, el docente
               elige una o varias clases (multi-select). El default es

@@ -79,6 +79,66 @@ async function resolveContentPrompt(): Promise<string> {
   return (data?.system_prompt as string) ?? "";
 }
 
+/** Sub-prompts por tag — uno por tipo de archivo. El edge function carga
+ *  desde DB SOLO los tags activos y los concatena al user message. Si
+ *  algún use_case falta en la tabla, se usa string vacío y el modelo
+ *  cae al instructivo genérico del system prompt. */
+type TagPrompts = {
+  presentacion: string;
+  guia_docente: string;
+  taller_practico: string;
+  ejercicio: string;
+  examen: string;
+};
+
+async function loadTagPrompts(activeTags: string[]): Promise<TagPrompts> {
+  const tags = new Set(activeTags);
+  const wanted: string[] = [];
+  if (tags.has("teorico")) wanted.push("content.presentacion", "content.guia_docente");
+  if (tags.has("practico")) wanted.push("content.taller_practico", "content.ejercicio");
+  if (tags.has("examen")) wanted.push("content.examen");
+
+  const out: TagPrompts = {
+    presentacion: "",
+    guia_docente: "",
+    taller_practico: "",
+    ejercicio: "",
+    examen: "",
+  };
+  if (wanted.length === 0) return out;
+
+  const { data } = await adminClient
+    .from("ai_prompts")
+    .select("use_case, system_prompt")
+    .in("use_case", wanted)
+    .is("course_id", null);
+  for (const row of (data ?? []) as Array<{ use_case: string; system_prompt: string }>) {
+    if (row.use_case === "content.presentacion") out.presentacion = row.system_prompt;
+    else if (row.use_case === "content.guia_docente") out.guia_docente = row.system_prompt;
+    else if (row.use_case === "content.taller_practico") out.taller_practico = row.system_prompt;
+    else if (row.use_case === "content.ejercicio") out.ejercicio = row.system_prompt;
+    else if (row.use_case === "content.examen") out.examen = row.system_prompt;
+  }
+  return out;
+}
+
+/** Deriva los tags a usar para esta generación. Fuente de verdad =
+ *  `gen.tags` (columna nueva). Fallback para filas viejas que aún no
+ *  tienen tags: usar `modality` para inferirlo. */
+function resolveTags(gen: { tags?: string[] | null; modality?: string | null }): string[] {
+  if (Array.isArray(gen.tags) && gen.tags.length > 0) return gen.tags;
+  switch (gen.modality) {
+    case "teorica":
+      return ["teorico"];
+    case "practica":
+      return ["practico"];
+    case "teorico_practica":
+      return ["teorico", "practico"];
+    default:
+      return ["teorico", "practico"];
+  }
+}
+
 /**
  * Sustituye los placeholders del system prompt con los valores
  * concretos de la generación. Usamos {{key}} para mantener el contrato
@@ -256,6 +316,11 @@ Deno.serve(async (req: Request) => {
   const heavyWork = (async () => {
     try {
       const promptTemplate = await resolveContentPrompt();
+      // Tags activos para esta generación (teorico / practico / examen).
+      // Fuente de verdad = columna `tags`; filas viejas caen al fallback
+      // por `modality`. Solo cargamos los sub-prompts de los tags activos.
+      const activeTags = resolveTags(gen);
+      const tagPrompts = await loadTagPrompts(activeTags);
       // Etiqueta legible para `modality` — el modelo entiende mejor un
       // string descriptivo que el enum interno. Si no llega, asumimos
       // teorico_practica (el default histórico).
@@ -338,25 +403,61 @@ Deno.serve(async (req: Request) => {
         return { blocks: parseFileBlocks(rawOutput), rawOutput };
       };
 
+      /** Componen la sección "OBJETIVOS DE PROFUNDIDAD POR ARCHIVO" con
+       *  SOLO los tipos correspondientes a los tags activos. Cada bloque
+       *  viene del sub-prompt de DB (`content.*`) — si está vacío usamos
+       *  un fallback corto inline para que el modelo igual produzca el
+       *  archivo. Pluraliza el ejercicio (estudiante + solución como un
+       *  par) y agrega EXAMEN solo cuando el tag está activo. */
+      const composeFileSections = (): string => {
+        const sections: string[] = [];
+        if (activeTags.includes("teorico")) {
+          sections.push(
+            tagPrompts.presentacion ||
+              "- PRESENTACION: 9–18 slides con título + 3–6 viñetas + ejemplos.",
+          );
+          sections.push(
+            tagPrompts.guia_docente ||
+              "- GUIA_DOCENTE: ≥500 palabras, paso-a-paso para docente sin conocimiento previo.",
+          );
+        }
+        if (activeTags.includes("practico")) {
+          sections.push(
+            tagPrompts.taller_practico ||
+              "- TALLER_PRACTICO: 5–8 pasos con herramienta SaaS específica + criterios medibles.",
+          );
+          sections.push(
+            tagPrompts.ejercicio ||
+              "- EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION: enunciado autocontenido (≥250 palabras); solución paso-a-paso para el docente con el mismo enunciado palabra-por-palabra.",
+          );
+        }
+        if (activeTags.includes("examen")) {
+          sections.push(
+            tagPrompts.examen ||
+              "- EXAMEN: 5–10 preguntas (cerradas + desarrollo) con clave + rúbrica. SOLO para el docente — el estudiante no debe verlo.",
+          );
+        }
+        return sections.join("\n\n");
+      };
+
       /**
        * Mensaje user para UNA clase específica de un curso_completo.
-       * El system prompt ya conoce las plantillas; acá le pedimos que
-       * SOLO produzca los archivos de esa clase, con sufijo `_CLASE_<N>`,
-       * y le recordamos los objetivos de profundidad (paso-a-paso para
-       * docente sin conocimiento previo + longitud por archivo).
+       * Compone los sub-prompts de los tags activos. Si el tag examen
+       * está activo, le decimos al modelo que emita EXAMEN_CLASE_N.MD
+       * adicionalmente.
        */
       const buildClassMessage = (classNum: number, totalClasses: number) =>
         `Modo seleccionado: GENERAR UNA CLASE de un curso de ${totalClasses} clases.\n\n` +
         `${commonContext}\nClase a generar: ${classNum} de ${totalClasses}\n\n` +
         `Genera ÚNICAMENTE los archivos de la clase ${classNum}, con sufijo "_CLASE_${classNum}" en cada filename. ` +
         `NO incluyas la introducción del curso ni material de otras clases.\n\n` +
-        `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
-        `- **PRESENTACION**: 9–22 slides según duración. Cada slide debe tener título + 3–6 viñetas concretas. No abusar de generalidades — incluir ejemplos, definiciones técnicas precisas y al menos 2 slides con casos concretos. Aplica el color {{primary_color}} en títulos.\n` +
-        `- **GUIA_DOCENTE**: extensión mínima 800 palabras. Asume que el docente JAMÁS ha enseñado este tema antes — explica los conceptos clave PASO A PASO, anticipa preguntas frecuentes de los estudiantes con sus respuestas, sugiere analogías para conceptos abstractos. Incluye una sección "Errores comunes que cometen los estudiantes" con al menos 3 entradas y "Cómo retroalimentarlos" debajo de cada una. NO sea genérico ("explicar el concepto") — escribe el guion exacto que el docente puede leer.\n` +
-        `- **TALLER_PRACTICO**: 5–8 pasos secuenciados. Cada paso incluye: objetivo (1 línea), instrucciones detalladas con la herramienta SaaS específica + URL, capturas verbales esperadas ("deberías ver X en la esquina Y") y un entregable verificable. Criterios de éxito con métricas observables (no "lo hizo bien" — "completa la tarea en <10 min con 0 errores de sintaxis").\n` +
-        `- **EJERCICIO_ESTUDIANTE** (solo teorico_practica): enunciado autocontenido, ≥300 palabras. Incluye contexto, datos de entrada concretos, restricciones, formato del entregable y rubrica de evaluación visible para el estudiante.\n` +
-        `- **EJERCICIO_SOLUCION** (solo teorico_practica): MISMO enunciado palabra-por-palabra + solución paso-a-paso completa con justificación pedagógica + respuesta final + 3+ errores comunes con guía de retroalimentación.`;
+        `### TIPOS DE ARCHIVO A GENERAR (según tags activos)\n` +
+        `Tags activos: ${activeTags.join(", ")}\n\n` +
+        composeFileSections();
 
+      // Intro del curso = portada PPTX. Solo tiene sentido cuando el
+      // docente quiere presentación (tag `teorico`). Si no hay teorico
+      // la intro no se genera — el feedback es coherente con los tags.
       const buildIntroMessage = (totalClasses: number) =>
         `Modo seleccionado: GENERAR INTRODUCCIÓN DEL CURSO.\n\n` +
         `${commonContext}\nCantidad total de clases: ${totalClasses}\n\n` +
@@ -386,27 +487,25 @@ Deno.serve(async (req: Request) => {
         aggregatedRaw = rawOutput;
         allBlocks = tagWithClass(pb, tn);
       } else if (gen.mode === "curso_completo") {
-        // Pase ÚNICO (revertido del multi-pase que hacía 1 + N llamadas
-        // y demoraba 3-5 min en cursos de 8 clases). Le pedimos al modelo
-        // que devuelva en UNA sola respuesta TODOS los archivos del curso
-        // (intro + N clases) usando los marcadores `_CLASE_<N>` en cada
-        // filename. Trade-off conocido: el contenido por archivo es algo
-        // más conciso que con el multi-pase, a cambio de un tiempo de
-        // generación 5-10× más rápido. El docente puede regenerar UNA
-        // clase puntual desde el grid si quiere más profundidad en esa
-        // clase específica (RegenerateContentDialog mode="class").
+        // Pase ÚNICO con composición por tags. El modelo recibe la lista
+        // de archivos a generar por clase derivada de `activeTags`
+        // (teorico → PRESENTACION + GUIA_DOCENTE; practico → TALLER +
+        // EJERCICIO; examen → EXAMEN). Si el tag examen está activo, el
+        // EXAMEN_CLASE_N.MD se entrega junto con los demás archivos.
         const n = Math.max(1, Math.min(Number(gen.n_classes) || 1, 40));
+        const sections = composeFileSections();
+        const includeIntro = activeTags.includes("teorico");
+        const fileListIntro = includeIntro
+          ? `1. INTRO_CURSO.PPTX con portada, objetivos del curso (5+), justificación (≥150 palabras) y cronograma de las ${n} clases.\n` +
+            `2. Para CADA clase (de 1 a ${n}), los archivos con sufijo "_CLASE_<N>" en el filename, según los tipos listados abajo.`
+          : `Para CADA clase (de 1 a ${n}), los archivos con sufijo "_CLASE_<N>" en el filename, según los tipos listados abajo (sin INTRO_CURSO porque el tag teórico no está activo).`;
         const userMsg =
           `Modo seleccionado: GENERAR CURSO COMPLETO.\n\n` +
-          `${commonContext}\nCantidad total de clases: ${n}\n\n` +
+          `${commonContext}\nCantidad total de clases: ${n}\n` +
+          `Tags activos: ${activeTags.join(", ")}\n\n` +
           `Genera EN UNA SOLA RESPUESTA todos los archivos del curso:\n` +
-          `1. INTRO_CURSO.PPTX con portada, objetivos del curso (5+), justificación (≥150 palabras) y cronograma de las ${n} clases.\n` +
-          `2. Para CADA clase (de 1 a ${n}), los archivos con sufijo "_CLASE_<N>" en el filename:\n` +
-          `   - PRESENTACION_CLASE_<N>.PPTX: 9–18 slides con título + 3–6 viñetas concretas + ejemplos. Color {{primary_color}} en títulos.\n` +
-          `   - GUIA_DOCENTE_CLASE_<N>.MD: ≥500 palabras. Asume que el docente no conoce el tema — explica paso a paso, anticipa preguntas frecuentes con respuesta, sugiere analogías. Incluye sección "Errores comunes" con ≥3 entradas y cómo retroalimentar.\n` +
-          `   - TALLER_PRACTICO_CLASE_<N>.MD: 5–8 pasos con herramienta SaaS específica + URL + criterios de éxito medibles.\n` +
-          `   - (solo si modalidad teorico_practica) EJERCICIO_ESTUDIANTE_CLASE_<N>.MD: enunciado autocontenido ≥250 palabras.\n` +
-          `   - (solo si modalidad teorico_practica) EJERCICIO_SOLUCION_CLASE_<N>.MD: mismo enunciado palabra-por-palabra + solución paso-a-paso + 3+ errores comunes.\n\n` +
+          `${fileListIntro}\n\n` +
+          `### TIPOS DE ARCHIVO POR CLASE\n${sections}\n\n` +
           `CRÍTICO: cada filename DEBE incluir "_CLASE_<N>" para que los archivos de distintas clases no colisionen al guardar. Usa los marcadores [INICIO_ARCHIVO: NAME] / [FIN_ARCHIVO: NAME] alrededor de cada archivo.`;
         const r = await runOnePass(userMsg, `Curso completo (${n} clases)`);
         aggregatedRaw = r.rawOutput;
@@ -417,15 +516,15 @@ Deno.serve(async (req: Request) => {
         allBlocks = r.blocks;
       } else {
         // material_individual: una sola sesión, un solo pase con énfasis
-        // en profundidad por archivo (mismas guías que el per-class).
+        // en profundidad por archivo. Reusa `composeFileSections` para
+        // listar solo los archivos correspondientes a los tags activos.
+        const sections = composeFileSections();
         const userMsg =
-          `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\n` +
+          `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n` +
+          `Tags activos: ${activeTags.join(", ")}\n\n` +
           `Genera el material completo de UNA sola sesión sobre el tema. NO uses sufijo _CLASE_N — usa los nombres base.\n\n` +
-          `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
-          `- PRESENTACION: 9–22 slides según duración; cada slide con título + 3–6 viñetas + ejemplos concretos.\n` +
-          `- GUIA_DOCENTE: ≥800 palabras, paso-a-paso para docente sin conocimiento previo, con errores comunes y cómo retroalimentar.\n` +
-          `- TALLER_PRACTICO: 5–8 pasos con herramienta SaaS específica + criterios de éxito medibles.\n` +
-          `- EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION (solo teorico_practica): mismo enunciado palabra-por-palabra, el segundo añade solución paso-a-paso.`;
+          `### TIPOS DE ARCHIVO A GENERAR\n${sections}\n\n` +
+          `Usa los marcadores [INICIO_ARCHIVO: NAME] / [FIN_ARCHIVO: NAME] alrededor de cada archivo.`;
         const r = await runOnePass(userMsg, "Material individual");
         aggregatedRaw = r.rawOutput;
         allBlocks = r.blocks;
@@ -536,6 +635,7 @@ Deno.serve(async (req: Request) => {
           mode: gen.mode,
           n_classes: gen.n_classes,
           modality: gen.modality,
+          tags: activeTags,
           files_count: files.length,
         },
       });

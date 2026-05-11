@@ -535,7 +535,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             // DropdownMenu del design system. La campana queda visible
             // aparte porque el badge de no leídas es awareness crítica.
             <div className="flex items-center justify-between gap-1">
-              <NotificationBell userId={user.id} variant="sidebar" />
+              <NotificationBell
+                userId={user.id}
+                variant="sidebar"
+                viewerRole={activeRole ?? roles[0]}
+              />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -831,7 +835,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {!isTakingExam && (
           <div className="flex items-center">
-            <NotificationBell userId={user.id} />
+            <NotificationBell userId={user.id} viewerRole={activeRole ?? roles[0]} />
           </div>
         )}
       </header>

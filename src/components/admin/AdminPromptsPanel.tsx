@@ -41,7 +41,12 @@ type UseCase =
   | "ai_content_detection"
   | "project_description"
   | "project_questions"
-  | "content_generation";
+  | "content_generation"
+  | "content.presentacion"
+  | "content.guia_docente"
+  | "content.taller_practico"
+  | "content.ejercicio"
+  | "content.examen";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
@@ -151,6 +156,57 @@ const USE_CASES: UseCaseDef[] = [
       "Prompt usado por el módulo Contenidos para generar PRESENTACION.PPTX, GUIA_DOCENTE.MD y/o TALLER_PRACTICO.MD según la modalidad y duración indicadas. Acepta placeholders {{topic}}, {{n_classes}}, {{duration_minutes}}, {{modality_label}}, {{university_name}}, {{logo_url}}, {{primary_color}}, {{secondary_color}} y {{rag_context_documents}}.",
     defaultPrompt:
       "Eres un Arquitecto de Contenido Educativo. Tu objetivo es generar estructuras de datos pedagógicas y precisas para cualquier disciplina académica, las cuales la plataforma utilizará para crear archivos descargables (.pptx y .md). Devuelve EXCLUSIVAMENTE bloques [INICIO_ARCHIVO: X.PPTX|MD]…[FIN_ARCHIVO: X.PPTX|MD] sin texto fuera de las etiquetas. Respeta la duración (extensión proporcional) y la modalidad (qué archivos generar).",
+  },
+  // ── Sub-prompts por tipo de archivo del módulo Contenidos ──
+  // Estos NO son prompts "completos" — cada uno aporta la sección
+  // específica del archivo correspondiente al tag activo en la
+  // generación. El edge function compone el user message uniendo los
+  // sub-prompts de los tags marcados por el docente. El system prompt
+  // sigue siendo `content_generation` (contiene el contrato).
+  {
+    key: "content.presentacion",
+    module: "contents",
+    label: "Contenido · Presentación (PPTX)",
+    description:
+      "Sub-prompt que define cómo el modelo debe estructurar la PRESENTACION_CLASE_N.PPTX cuando el tag 'teorico' está activo. Se concatena al user message junto a los sub-prompts de los otros tags.",
+    defaultPrompt:
+      "### PRESENTACION_CLASE_<N>.PPTX\n\nGenera 9–18 slides con título + 3–6 viñetas concretas cada uno. Cada slide debe incluir ejemplos o definiciones técnicas precisas — evita generalidades.\n\nEstructura sugerida:\n- Slide 1: portada con el título de la clase y subtítulo del tema.\n- Slide 2: objetivos de aprendizaje específicos de la clase (3–5 bullets accionables).\n- Slides 3–N-2: desarrollo del tema. Al menos 2 slides con casos concretos / ejemplos numéricos.\n- Slide N-1: síntesis o mapa conceptual.\n- Slide N: cierre + próximos pasos.\n\nAplica el color {{primary_color}} en los títulos. NO uses Markdown en las viñetas (asteriscos, backticks). Texto plano.",
+  },
+  {
+    key: "content.guia_docente",
+    module: "contents",
+    label: "Contenido · Guía docente (MD)",
+    description:
+      "Sub-prompt para GUIA_DOCENTE_CLASE_N.MD (tag 'teorico'). Define la estructura del guion + secciones obligatorias.",
+    defaultPrompt:
+      '### GUIA_DOCENTE_CLASE_<N>.MD\n\nExtensión mínima 500 palabras. Asume que el docente JAMÁS ha enseñado este tema antes — explica los conceptos clave PASO A PASO en lenguaje que pueda leer en voz alta. NO seas genérico ("explicar el concepto"); escribe el guion exacto.\n\nIncluye siempre estas secciones:\n\n1. **Objetivos de la clase** (lista accionable, ≥3 ítems).\n2. **Conceptos clave** (cada uno con definición precisa + ejemplo).\n3. **Guion paso a paso** (3–7 momentos pedagógicos con tiempo estimado).\n4. **Errores comunes que cometen los estudiantes** (≥3 entradas, cada una con: error + por qué ocurre + cómo retroalimentarlo).\n5. **Preguntas frecuentes** (≥3, cada una con respuesta sugerida).\n6. **Analogías o metáforas útiles** para conceptos abstractos.\n7. **Cierre** (mensaje de síntesis para los estudiantes).\n\nSolo Markdown estándar. Sin emojis.',
+  },
+  {
+    key: "content.taller_practico",
+    module: "contents",
+    label: "Contenido · Taller práctico (MD)",
+    description:
+      "Sub-prompt para TALLER_PRACTICO_CLASE_N.MD (tag 'practico'). Define los pasos secuenciados que el estudiante puede seguir solo.",
+    defaultPrompt:
+      '### TALLER_PRACTICO_CLASE_<N>.MD\n\n5–8 pasos secuenciados que el estudiante puede seguir solo en una sesión práctica. Cada paso debe ser concreto y verificable.\n\nEstructura de cada paso:\n\n- **Objetivo del paso** (1 línea).\n- **Instrucciones** detalladas incluyendo la HERRAMIENTA SaaS específica + URL si aplica (ej. https://replit.com, https://draw.io, https://mermaid.live).\n- **Captura verbal esperada**: "deberías ver X en la esquina superior derecha" o equivalente para que el estudiante valide sin ayuda.\n- **Entregable verificable** (un archivo, una URL, un screenshot, etc.).\n\nAl final del taller, agrega una sección "**Criterios de éxito**" con métricas observables — no "lo hizo bien", sino "completa la tarea en <10 min con 0 errores de sintaxis" o equivalente.\n\nMarkdown estándar.',
+  },
+  {
+    key: "content.ejercicio",
+    module: "contents",
+    label: "Contenido · Ejercicio + solución (MD)",
+    description:
+      "Sub-prompt para el PAR EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION (tag 'practico'). El enunciado del estudiante se copia palabra-por-palabra al archivo del docente para que pueda repartirlo sin confusión.",
+    defaultPrompt:
+      "### EJERCICIO_ESTUDIANTE_CLASE_<N>.MD  +  EJERCICIO_SOLUCION_CLASE_<N>.MD\n\nGenera DOS archivos como un par:\n\n**EJERCICIO_ESTUDIANTE_CLASE_<N>.MD** (entregable al alumno, ≥250 palabras):\n- Contexto del problema (3–5 líneas).\n- Datos de entrada concretos (cifras, ejemplos, dataset, etc.).\n- Restricciones (lenguaje, librerías permitidas, tiempo límite si aplica).\n- Formato del entregable (archivo, URL, captura, etc.).\n- Rúbrica de evaluación VISIBLE para el estudiante (3–5 criterios con pesos).\n\n**EJERCICIO_SOLUCION_CLASE_<N>.MD** (solo docente):\n- MISMO enunciado palabra-por-palabra del archivo del estudiante (copia/pega).\n- Solución completa paso-a-paso con justificación pedagógica.\n- Respuesta final destacada.\n- ≥3 errores comunes que el docente debe esperar + cómo retroalimentar cada uno.\n\nMarkdown estándar.",
+  },
+  {
+    key: "content.examen",
+    module: "contents",
+    label: "Contenido · Examen por sesión (MD, solo docente)",
+    description:
+      "Sub-prompt para EXAMEN_CLASE_N.MD (tag 'examen'). El archivo se genera para uso opcional del docente — el estudiante NUNCA lo ve (filtrado por isTeacherOnlyFile + RLS de storage).",
+    defaultPrompt:
+      "### EXAMEN_CLASE_<N>.MD  (SOLO docente — el estudiante NUNCA debe verlo)\n\nGenera un examen de la clase ${classNum} con la siguiente estructura. El docente lo usa OPCIONALMENTE: puede importarlo al módulo de Exámenes o descartarlo.\n\n**Encabezado:**\n- Tema, duración sugerida (en min), puntaje total (sobre 100).\n\n**Preguntas — entre 5 y 10 en total**, con esta distribución sugerida:\n- 3–5 preguntas cerradas (selección múltiple, 4 opciones, UNA correcta).\n- 1–3 preguntas de desarrollo corto (≤200 palabras de respuesta).\n- 0–2 preguntas de análisis (caso o problema, ≤400 palabras).\n\nPara CADA pregunta incluye:\n1. **Enunciado** (claro y autosuficiente).\n2. **Tipo**: cerrada / desarrollo / análisis.\n3. **Puntaje** (suman 100 entre todas).\n4. **Opciones** (solo cerradas) con la correcta marcada.\n5. **Clave / respuesta esperada** con justificación breve.\n6. **Rúbrica** (solo desarrollo / análisis): 3–4 criterios con descriptores de logro (excelente / bueno / regular / insuficiente).\n7. **Errores comunes** que debería detectar la calificación.\n\nMarkdown plano. NO uses encabezados Markdown dentro del enunciado (sólo en las secciones de la pregunta).",
   },
   {
     key: "project_questions",

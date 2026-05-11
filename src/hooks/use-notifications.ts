@@ -29,9 +29,25 @@ export interface Notification {
   link: string | null;
   read: boolean;
   created_at: string;
+  /** Rol del actor que generó la notificación. Si null = legacy o
+   *  evento de sistema sin actor humano. Opcional porque los tipos
+   *  auto-generados de Supabase aún no reflejan la columna nueva
+   *  (la migración recién se agrega; al regenerar types se completa). */
+  source_role?: string | null;
 }
 
-export function useNotifications(userId: string | undefined) {
+/**
+ * Hook de notificaciones.
+ *
+ * @param userId destinatario (siempre el usuario actual).
+ * @param viewerRole rol activo del usuario en la UI. Si se pasa, las
+ *   notificaciones donde `source_role === viewerRole` se filtran
+ *   client-side. Caso de uso: un docente NO debe ver notificaciones
+ *   originadas por otros docentes (sus pares); solo de estudiantes o
+ *   admins. Estudiantes y admins típicamente no se filtran a sí
+ *   mismos — pasa null o undefined.
+ */
+export function useNotifications(userId: string | undefined, viewerRole?: string | null) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -45,12 +61,24 @@ export function useNotifications(userId: string | undefined) {
   const lastSeenIdRef = useRef<string | null>(null);
   const load = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
+    let query = supabase
       .from("notifications")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
+    // Filtro por rol: excluimos notificaciones donde el actor tiene el
+    // MISMO rol que el viewer. Caso original: un docente no debe ver
+    // eventos de otros docentes (su rol). Mismo principio aplica a
+    // Admin (no debe verse a sí mismo ni a otros admins) y Estudiante
+    // (eventos entre alumnos típicamente son ruido). Sistema/null
+    // siempre pasa porque representa eventos automáticos relevantes.
+    // Aplicamos server-side para no consumir cuota del límite (50)
+    // con filas filtradas.
+    if (viewerRole) {
+      query = query.or(`source_role.is.null,source_role.neq.${viewerRole}`);
+    }
+    const { data, error } = await query;
     if (error) {
       console.warn("[notifications] load error", error);
       return;
@@ -103,7 +131,7 @@ export function useNotifications(userId: string | undefined) {
     }
     setNotifications(items);
     setUnreadCount(items.filter((n) => !n.read).length);
-  }, [userId, navigate]);
+  }, [userId, navigate, viewerRole]);
 
   useEffect(() => {
     load();

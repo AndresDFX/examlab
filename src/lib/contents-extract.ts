@@ -82,6 +82,8 @@ export function isIntroFilename(name: string): boolean {
  *    comunes, respuestas a preguntas frecuentes, etc.).
  *  - EJERCICIO_SOLUCION_*.md → solución paso a paso de un ejercicio
  *    que el estudiante debe resolver por sí mismo.
+ *  - EXAMEN_*.md → preguntas + clave del examen por sesión (tag nuevo
+ *    "examen"). Se genera para que el docente lo use opcionalmente.
  *
  * El estudiante SÍ debe ver: PRESENTACION (slides), TALLER_PRACTICO
  * (instrucciones del laboratorio), EJERCICIO_ESTUDIANTE (enunciado
@@ -99,6 +101,9 @@ export function isTeacherOnlyFile(name: string): boolean {
   // Importante: NO matchear solo "GUIA" porque podríamos confundir con
   // una guía del estudiante a futuro.
   if (/GUIA[_\s-]*DOCENTE|TEACHER[_\s-]*GUIDE/.test(upper)) return true;
+  // Examen por sesión: "EXAMEN_*" o "EXAM_*". Es material de evaluación
+  // del docente — el estudiante NO debe verlo de antemano.
+  if (/^EXAMEN|[_\s-]EXAMEN|^EXAM\b|[_\s-]EXAM[_\s-]/.test(upper)) return true;
   return false;
 }
 
