@@ -275,6 +275,39 @@ export type Database = {
           },
         ]
       }
+      calendar_oauth_states: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          nonce: string
+          origin: string
+          provider: string
+          state: string
+          teacher_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          nonce: string
+          origin: string
+          provider?: string
+          state: string
+          teacher_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          nonce?: string
+          origin?: string
+          provider?: string
+          state?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       code_executions: {
         Row: {
           created_at: string
@@ -2241,6 +2274,7 @@ export type Database = {
         Args: { p_action: string; p_max: number; p_window_seconds: number }
         Returns: Json
       }
+      cleanup_calendar_oauth_states: { Args: never; Returns: number }
       compute_attendance_code: {
         Args: { p_period: number; p_seed: string }
         Returns: string
