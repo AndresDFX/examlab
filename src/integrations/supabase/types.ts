@@ -158,10 +158,12 @@ export type Database = {
           created_at: string
           created_by: string
           cut_id: string | null
+          duration_minutes: number | null
           google_event_id: string | null
           id: string
           meeting_url: string | null
           session_date: string
+          start_time: string | null
           title: string | null
         }
         Insert: {
@@ -172,10 +174,12 @@ export type Database = {
           created_at?: string
           created_by: string
           cut_id?: string | null
+          duration_minutes?: number | null
           google_event_id?: string | null
           id?: string
           meeting_url?: string | null
           session_date: string
+          start_time?: string | null
           title?: string | null
         }
         Update: {
@@ -186,10 +190,12 @@ export type Database = {
           created_at?: string
           created_by?: string
           cut_id?: string | null
+          duration_minutes?: number | null
           google_event_id?: string | null
           id?: string
           meeting_url?: string | null
           session_date?: string
+          start_time?: string | null
           title?: string | null
         }
         Relationships: [
@@ -689,6 +695,7 @@ export type Database = {
           retry_mode: string
           schedule_type: string
           shuffle_enabled: boolean
+          source_content_id: string | null
           start_time: string
           time_limit_minutes: number
           title: string
@@ -711,6 +718,7 @@ export type Database = {
           retry_mode?: string
           schedule_type?: string
           shuffle_enabled?: boolean
+          source_content_id?: string | null
           start_time: string
           time_limit_minutes?: number
           title: string
@@ -733,6 +741,7 @@ export type Database = {
           retry_mode?: string
           schedule_type?: string
           shuffle_enabled?: boolean
+          source_content_id?: string | null
           start_time?: string
           time_limit_minutes?: number
           title?: string
@@ -759,6 +768,13 @@ export type Database = {
             columns: ["parent_exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exams_source_content_id_fkey"
+            columns: ["source_content_id"]
+            isOneToOne: false
+            referencedRelation: "generated_contents"
             referencedColumns: ["id"]
           },
         ]
@@ -1516,6 +1532,7 @@ export type Database = {
           max_files: number
           max_score: number
           project_type: string
+          source_content_id: string | null
           start_date: string | null
           status: string
           title: string
@@ -1540,6 +1557,7 @@ export type Database = {
           max_files?: number
           max_score?: number
           project_type?: string
+          source_content_id?: string | null
           start_date?: string | null
           status?: string
           title: string
@@ -1564,6 +1582,7 @@ export type Database = {
           max_files?: number
           max_score?: number
           project_type?: string
+          source_content_id?: string | null
           start_date?: string | null
           status?: string
           title?: string
@@ -1576,6 +1595,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_source_content_id_fkey"
+            columns: ["source_content_id"]
+            isOneToOne: false
+            referencedRelation: "generated_contents"
             referencedColumns: ["id"]
           },
         ]
@@ -2195,6 +2221,7 @@ export type Database = {
           is_external: boolean
           max_score: number
           rubric: Json | null
+          source_content_id: string | null
           start_date: string | null
           status: string
           title: string
@@ -2218,6 +2245,7 @@ export type Database = {
           is_external?: boolean
           max_score?: number
           rubric?: Json | null
+          source_content_id?: string | null
           start_date?: string | null
           status?: string
           title: string
@@ -2241,6 +2269,7 @@ export type Database = {
           is_external?: boolean
           max_score?: number
           rubric?: Json | null
+          source_content_id?: string | null
           start_date?: string | null
           status?: string
           title?: string
@@ -2260,6 +2289,13 @@ export type Database = {
             columns: ["cut_id"]
             isOneToOne: false
             referencedRelation: "grade_cuts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshops_source_content_id_fkey"
+            columns: ["source_content_id"]
+            isOneToOne: false
+            referencedRelation: "generated_contents"
             referencedColumns: ["id"]
           },
         ]
