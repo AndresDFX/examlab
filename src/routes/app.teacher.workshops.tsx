@@ -63,6 +63,8 @@ import {
   Hammer,
   UsersRound,
   AlertTriangle,
+  Search,
+  X,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -298,6 +300,10 @@ function TeacherWorkshops() {
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [gradingOpen, setGradingOpen] = useState(false);
+  // Buscador dentro del modal de calificaciones — filtra entregas por
+  // nombre / correo del estudiante. Se limpia al abrir el dialog para
+  // que la próxima vez no muestre filtrado stale.
+  const [gradingSearch, setGradingSearch] = useState("");
   // Submission a destacar/scrollear cuando el dialog abre desde un
   // deep-link (?submission=ID): se setea en el effect de la URL y el
   // effect de wsSubs lo consume.
@@ -1005,6 +1011,7 @@ function TeacherWorkshops() {
     } else {
       setWsSubs([]);
     }
+    setGradingSearch(""); // reset buscador al abrir
     setGradingOpen(true);
   };
 
@@ -1045,6 +1052,23 @@ function TeacherWorkshops() {
     }
     return map;
   }, [wsSimilarityPairs]);
+
+  /** Entregas filtradas por el buscador del modal de calificaciones.
+   *  Matchea por nombre completo o email institucional del estudiante.
+   *  Si el query está vacío devuelve todas. */
+  const filteredWsSubs = useMemo(() => {
+    const q = gradingSearch.trim().toLowerCase();
+    if (!q) return wsSubs;
+    return wsSubs.filter((s) => {
+      const name = (
+        (s as { profile?: { full_name?: string } }).profile?.full_name ?? ""
+      ).toLowerCase();
+      const email = (
+        (s as { profile?: { institutional_email?: string } }).profile?.institutional_email ?? ""
+      ).toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [wsSubs, gradingSearch]);
 
   /** Recompute the global grade of a submission from its per-question ai_grade
    *  values (capped at each question's `points`) and scale it to max_score. */
@@ -2353,11 +2377,49 @@ function TeacherWorkshops() {
             </div>
           )}
           <div className="space-y-3">
+            {/* Buscador de estudiantes — solo cuando hay entregas. Sigue
+                el mismo patrón visual que `ListFilters`: input con icono
+                lupa, botón X cuando hay query, contador "X de Y". */}
+            {!(gradingWs as any)?.is_external && wsSubs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={gradingSearch}
+                    onChange={(e) => setGradingSearch(e.target.value)}
+                    placeholder="Buscar estudiante por nombre o correo…"
+                    className="h-8 pl-8 pr-8 text-xs"
+                  />
+                  {gradingSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setGradingSearch("")}
+                      aria-label="Limpiar búsqueda"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {gradingSearch && (
+                  <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                    {filteredWsSubs.length} de {wsSubs.length}
+                  </span>
+                )}
+              </div>
+            )}
             {!(gradingWs as any)?.is_external && wsSubs.length === 0 && (
               <p className="text-sm text-muted-foreground">No hay entregas aún.</p>
             )}
             {!(gradingWs as any)?.is_external &&
-              wsSubs.map((sub) => (
+              wsSubs.length > 0 &&
+              filteredWsSubs.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Ningún estudiante coincide con la búsqueda.
+                </p>
+              )}
+            {!(gradingWs as any)?.is_external &&
+              filteredWsSubs.map((sub) => (
                 <Card
                   key={sub.id}
                   id={`ws-sub-${sub.id}`}

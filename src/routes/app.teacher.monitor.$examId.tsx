@@ -43,6 +43,7 @@ import {
   TimerReset,
   MessageSquareText,
   Search,
+  X as XIcon,
   Check,
   Bot,
   Users,
@@ -75,6 +76,7 @@ import {
   type IntegrityAiSignal,
 } from "@/components/IntegrityReviewDialog";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { Input } from "@/components/ui/input";
 import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/components/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
@@ -178,6 +180,10 @@ function ExamMonitor() {
   const { t } = useTranslation();
   const [exam, setExam] = useState<any>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  // Buscador de la tabla principal de monitor — filtra por nombre/correo
+  // del estudiante client-side. Persiste mientras el docente revisa la
+  // pantalla (no se limpia automáticamente).
+  const [monitorSearch, setMonitorSearch] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   // Pares de copia detectados (similarity_pairs) cruzados por user_id
   // para sugerir penalización por plagio en el modal "Respuestas". Se
@@ -1047,6 +1053,18 @@ function ExamMonitor() {
     (a.profile?.full_name ?? "").localeCompare(b.profile?.full_name ?? ""),
   );
 
+  // Filtrado client-side por nombre o correo institucional. El estado
+  // `monitorSearch` se declara abajo donde viven los demás useState; acá
+  // solo derivamos. Si el buscador está vacío, devuelve todos los rows.
+  const monitorQuery = monitorSearch.trim().toLowerCase();
+  const filteredStudentRows = monitorQuery
+    ? studentRows.filter((r) => {
+        const name = (r.profile?.full_name ?? "").toLowerCase();
+        const email = (r.profile?.institutional_email ?? "").toLowerCase();
+        return name.includes(monitorQuery) || email.includes(monitorQuery);
+      })
+    : studentRows;
+
   const inProgressStudents = studentRows.filter((r) => r.inProgress);
   const completedStudents = studentRows.filter((r) => !r.inProgress && r.finishedAttempts.length);
 
@@ -1177,7 +1195,7 @@ function ExamMonitor() {
 
       {/* Live submissions */}
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
               En progreso ({inProgressStudents.length}) · Completados ({completedStudents.length})
@@ -1186,6 +1204,34 @@ function ExamMonitor() {
               <Clock className="h-4 w-4 mr-1" /> Actualizar
             </Button>
           </div>
+          {studentRows.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={monitorSearch}
+                  onChange={(e) => setMonitorSearch(e.target.value)}
+                  placeholder="Buscar estudiante por nombre o correo…"
+                  className="h-8 pl-8 pr-8 text-xs"
+                />
+                {monitorSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMonitorSearch("")}
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <XIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {monitorSearch && (
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {filteredStudentRows.length} de {studentRows.length}
+                </span>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -1242,7 +1288,10 @@ function ExamMonitor() {
               {studentRows.length === 0 && (
                 <TableEmpty colSpan={10} text="Ningún estudiante ha iniciado el examen aún." />
               )}
-              {studentRows.map((row) => {
+              {studentRows.length > 0 && filteredStudentRows.length === 0 && (
+                <TableEmpty colSpan={10} text="Ningún estudiante coincide con la búsqueda." />
+              )}
+              {filteredStudentRows.map((row) => {
                 const latest = row.latest;
                 const inProg = !!row.inProgress;
                 // Pregunta actual del intento en curso. Persistida por el

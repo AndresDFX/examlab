@@ -62,6 +62,8 @@ import {
   UserPlus,
   FolderKanban,
   UsersRound,
+  Search,
+  X,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
@@ -287,6 +289,18 @@ function TeacherProjects() {
   const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
   const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
   const [gradingLoading, setGradingLoading] = useState(false);
+  // Buscador del modal de calificaciones — filtra por nombre/correo del
+  // estudiante. Se limpia al abrir el dialog.
+  const [gradingSearch, setGradingSearch] = useState("");
+  const filteredGradingSubs = useMemo(() => {
+    const q = gradingSearch.trim().toLowerCase();
+    if (!q) return gradingSubs;
+    return gradingSubs.filter((s) => {
+      const name = (s.profile?.full_name ?? "").toLowerCase();
+      const email = (s.profile?.institutional_email ?? "").toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [gradingSubs, gradingSearch]);
   // Submission a destacar/scrollear cuando el dialog abre desde un
   // deep-link (?submission=ID).
   const [highlightSubId, setHighlightSubId] = useState<string | null>(null);
@@ -1022,6 +1036,7 @@ function TeacherProjects() {
     setGradingFiles([]);
     setGradingSubs([]);
     setGradingAnsBySub({});
+    setGradingSearch(""); // reset buscador al abrir
     setGradingOpen(true);
     setGradingLoading(true);
     try {
@@ -1928,17 +1943,51 @@ function TeacherProjects() {
             )}
           {!gradingProject?.is_external && !gradingLoading && gradingSubs.length > 0 && (
             <div className="space-y-2">
+              {/* Buscador de estudiantes — patrón compartido con
+                  workshops/exam monitor. Filtra cliente-side; el
+                  Accordion sigue manteniendo su state global. */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={gradingSearch}
+                    onChange={(e) => setGradingSearch(e.target.value)}
+                    placeholder="Buscar estudiante por nombre o correo…"
+                    className="h-8 pl-8 pr-8 text-xs"
+                  />
+                  {gradingSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setGradingSearch("")}
+                      aria-label="Limpiar búsqueda"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {gradingSearch && (
+                  <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                    {filteredGradingSubs.length} de {gradingSubs.length}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
                 <span className="font-medium">decimales con coma (ej. 4,5)</span>
               </p>
+              {filteredGradingSubs.length === 0 && (
+                <p className="text-sm text-muted-foreground p-2 text-center">
+                  Ningún estudiante coincide con la búsqueda.
+                </p>
+              )}
               <Accordion
                 type="multiple"
                 className="w-full"
                 value={openAccordionItems}
                 onValueChange={setOpenAccordionItems}
               >
-                {gradingSubs.map((sub) => {
+                {filteredGradingSubs.map((sub) => {
                   const ans = gradingAnsBySub[sub.id] ?? [];
                   // grade que aparece en el badge del header: la final si ya
                   // hay sustentación, si no la de la entrega (submission_grade
