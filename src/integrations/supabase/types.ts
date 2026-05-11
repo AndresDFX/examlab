@@ -863,6 +863,7 @@ export type Database = {
           n_classes: number | null
           raw_output: string | null
           status: Database["public"]["Enums"]["content_status"]
+          tags: string[] | null
           teacher_id: string
           topic: string
           updated_at: string
@@ -882,6 +883,7 @@ export type Database = {
           n_classes?: number | null
           raw_output?: string | null
           status?: Database["public"]["Enums"]["content_status"]
+          tags?: string[] | null
           teacher_id: string
           topic: string
           updated_at?: string
@@ -901,6 +903,7 @@ export type Database = {
           n_classes?: number | null
           raw_output?: string | null
           status?: Database["public"]["Enums"]["content_status"]
+          tags?: string[] | null
           teacher_id?: string
           topic?: string
           updated_at?: string
@@ -1046,6 +1049,7 @@ export type Database = {
           link: string | null
           read: boolean
           related_user_id: string | null
+          source_role: string | null
           title: string
           user_id: string
         }
@@ -1058,6 +1062,7 @@ export type Database = {
           link?: string | null
           read?: boolean
           related_user_id?: string | null
+          source_role?: string | null
           title: string
           user_id: string
         }
@@ -1070,6 +1075,7 @@ export type Database = {
           link?: string | null
           read?: boolean
           related_user_id?: string | null
+          source_role?: string | null
           title?: string
           user_id?: string
         }
@@ -2306,6 +2312,10 @@ export type Database = {
     }
     Functions: {
       _audit_jwt_uid: { Args: never; Returns: string }
+      check_email_taken: {
+        Args: { p_email: string; p_exclude_user_id?: string }
+        Returns: boolean
+      }
       check_rate_limit: {
         Args: { p_action: string; p_max: number; p_window_seconds: number }
         Returns: Json
@@ -2352,16 +2362,28 @@ export type Database = {
         Args: { p_notes?: string; p_pair_id: string; p_unmark?: boolean }
         Returns: undefined
       }
-      notify_course_students: {
-        Args: {
-          _body: string
-          _course_id: string
-          _kind?: string
-          _link?: string
-          _title: string
-        }
-        Returns: number
-      }
+      notify_course_students:
+        | {
+            Args: {
+              _body: string
+              _course_id: string
+              _kind?: string
+              _link?: string
+              _title: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              _body: string
+              _course_id: string
+              _kind?: string
+              _link?: string
+              _source_role?: string
+              _title: string
+            }
+            Returns: number
+          }
       notify_exam_teachers: {
         Args: {
           _body: string
