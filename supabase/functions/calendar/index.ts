@@ -228,9 +228,26 @@ async function audit(
 async function handleDisconnect(userId: string) {
   const { data: tok } = await adminClient
     .from("teacher_google_tokens")
-    .select("provider, provider_email, google_email")
+    .select("provider, provider_email, google_email, refresh_token, access_token")
     .eq("teacher_id", userId)
     .maybeSingle();
+
+  // OAUTH-4: revocar el token en Google ANTES de borrar localmente.
+  // Best-effort — si falla (ya revocado, red caída) seguimos con el delete
+  // local: el docente igual queda desconectado del lado app.
+  const tokenToRevoke = tok?.refresh_token ?? tok?.access_token;
+  if (tokenToRevoke) {
+    try {
+      await fetch("https://oauth2.googleapis.com/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token: tokenToRevoke }),
+      });
+    } catch (_) {
+      /* best-effort */
+    }
+  }
+
   await adminClient.from("teacher_google_tokens").delete().eq("teacher_id", userId);
   await audit(
     userId,
@@ -239,6 +256,7 @@ async function handleDisconnect(userId: string) {
     {
       provider: tok?.provider ?? "google",
       provider_email: tok?.provider_email ?? tok?.google_email ?? null,
+      revoked: !!tokenToRevoke,
     },
     "Google Calendar",
   );
