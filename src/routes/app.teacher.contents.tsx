@@ -60,9 +60,11 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { MarkdownViewer } from "@/components/MarkdownViewer";
+import { MarkdownEditorDialog } from "@/components/MarkdownEditorDialog";
+import { PptxViewerDialog } from "@/components/PptxViewerDialog";
 import {
   availableClassNumbers,
+  classNumberFromFilename,
   extractClassTitle,
   extractClassTitleFromBucket,
   extractContentText,
@@ -2432,6 +2434,14 @@ function FilesByClassDialog({
   // Archivo .md seleccionado para previsualizar inline (sin descargar).
   // El body viene del JSONB almacenado en generated_contents.files.
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
+  // Archivo .pptx-source seleccionado para visualizar/editar slide-by-slide.
+  // Separado del preview .md porque usa otro componente (PptxViewerDialog).
+  const [pptxPreviewFile, setPptxPreviewFile] = useState<FileEntry | null>(null);
+  // Tras guardar ediciones en el viewer, refrescamos localmente el body
+  // del file en content.files para que el siguiente "Vista previa" no
+  // muestre stale data. El padre vuelve a llamar load() en parallelismo,
+  // pero esto mantiene el dialog actual coherente.
+  const [bodyOverrides, setBodyOverrides] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!content || !content.course_id) {
@@ -2479,15 +2489,28 @@ function FilesByClassDialog({
   const renderFileChip = (f: FileEntry) => {
     const path = `${content.id}:${f.path}`;
     const busy = downloadingPath === path;
-    const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+    // .md/.txt → markdown viewer; pptx-source → slide-by-slide viewer.
+    // Ambos requieren body presente (sin body no hay nada que mostrar
+    // inline — el archivo solo se puede descargar).
+    const isMdLike = f.kind === "md" || f.kind === "txt";
+    const isPptx = f.kind === "pptx-source";
+    const canPreview = (isMdLike || isPptx) && !!f.body;
     const TypeIcon = iconForFile(f);
     const label = humanLabelForFile(f);
+    // Si el viewer guardó ediciones, las aplicamos al body que se pasa
+    // al dialog (sin re-fetch). El padre persiste también en DB.
+    const effectiveBody = bodyOverrides[f.path] ?? f.body;
+    const fileWithBody: FileEntry = { ...f, body: effectiveBody };
     if (canPreview) {
+      const openPreview = () => {
+        if (isPptx) setPptxPreviewFile(fileWithBody);
+        else setPreviewFile(fileWithBody);
+      };
       return (
         <div key={f.path} className="inline-flex rounded-md border overflow-hidden">
           <button
             type="button"
-            onClick={() => setPreviewFile(f)}
+            onClick={openPreview}
             className="flex items-center justify-center w-7 h-7 hover:bg-muted/60 transition-colors"
             title={`${label} — ${t("contents.previewHint")}`}
             aria-label={`${label} — ${t("contents.previewHint")}`}
@@ -2497,7 +2520,7 @@ function FilesByClassDialog({
           <button
             type="button"
             disabled={busy}
-            onClick={() => onDownload(f)}
+            onClick={() => onDownload(fileWithBody)}
             className="flex items-center justify-center w-7 h-7 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
             title={`${label} — ${t("contents.downloadHint")}`}
             aria-label={`${label} — ${t("contents.downloadHint")}`}
@@ -2658,28 +2681,58 @@ function FilesByClassDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Preview dialog para archivos .md/.txt — muestra el body inline
-        con react-markdown, sin necesidad de descargar. */}
-      <Dialog open={previewFile != null} onOpenChange={(o) => !o && setPreviewFile(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-              <FileText className="h-4 w-4 text-primary" />
-              {previewFile ? humanLabelForFile(previewFile) : ""}
-            </DialogTitle>
-            <DialogDescription className="text-[11px] font-mono truncate">
-              {previewFile?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto text-sm pr-1">
-            {previewFile?.body ? (
-              <MarkdownViewer>{previewFile.body}</MarkdownViewer>
-            ) : (
-              <p className="text-muted-foreground text-xs">{t("contents.previewNoBody")}</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Preview/editor inline para archivos .md/.txt. View mode usa
+          react-markdown; edit mode swap a Textarea raw para ajustes
+          rápidos. Al guardar, sube a storage (upsert) + actualiza el
+          JSONB files[].body — misma estrategia que PptxViewerDialog. */}
+      <MarkdownEditorDialog
+        file={previewFile}
+        contentId={content.id}
+        onClose={() => setPreviewFile(null)}
+        onSaved={(newBody) => {
+          if (previewFile) setBodyOverrides((prev) => ({ ...prev, [previewFile.path]: newBody }));
+        }}
+      />
+
+      {/* Viewer/editor de presentaciones .pptx-source. Reusa el JSONB
+          `files[].body` para parsear las slides; al guardar persiste a
+          storage (upsert el .pptx.txt) y al JSONB del contenido. */}
+      <PptxViewerDialog
+        open={pptxPreviewFile != null}
+        onOpenChange={(o) => !o && setPptxPreviewFile(null)}
+        file={pptxPreviewFile}
+        contentId={content.id}
+        isProcessing={isProcessing}
+        onRegenerate={
+          pptxPreviewFile
+            ? () => {
+                const cls = classNumberFromFilename(pptxPreviewFile.name);
+                setPptxPreviewFile(null);
+                if (cls != null) onRegenerateClass(cls);
+              }
+            : undefined
+        }
+        onDownload={(body) => {
+          // Aprovechamos el flujo de descarga existente — el caller
+          // espera un FileEntry pero `onDownload(f)` lee del storage.
+          // Si el docente acaba de editar SIN guardar, la descarga
+          // todavía traerá la versión del storage. Para reflejar el
+          // body in-flight, llamamos un build local rápido aquí:
+          if (!pptxPreviewFile) return;
+          // Como buildPptxBlob vive en el padre del componente, lo
+          // pasamos vía onDownload(file). El viewer ya validó que
+          // currentBody es lo que hay que descargar. Si está en el
+          // storage (post-save), `onDownload(file)` lo recogerá.
+          // Si está dirty, el usuario debería guardar primero — el
+          // botón de descarga en modo edit no se muestra.
+          void body;
+          onDownload(pptxPreviewFile);
+        }}
+        onSaved={(newBody) => {
+          if (pptxPreviewFile)
+            setBodyOverrides((prev) => ({ ...prev, [pptxPreviewFile.path]: newBody }));
+        }}
+      />
     </>
   );
 }

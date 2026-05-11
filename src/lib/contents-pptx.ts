@@ -77,6 +77,38 @@ export function parseSlideBlock(raw: string): ParsedSlide[] {
   return slides;
 }
 
+/**
+ * Inverso de `parseSlideBlock`: re-genera el bloque texto en el formato
+ * que el parser entiende. Lo usa el viewer/editor inline para persistir
+ * los cambios del docente al storage + al JSONB `files[].body` sin
+ * romper el contrato del downloader (que sigue llamando parseSlideBlock
+ * sobre el body al construir el .pptx).
+ *
+ * Formato emitido (estable):
+ *   Slide 1 (Título): bullet o líneas iniciales
+ *   - bullet 2
+ *   - bullet 3
+ *
+ *   Slide 2 (...): ...
+ *
+ * Separación con doble newline entre slides para legibilidad cuando un
+ * humano abre el .pptx.txt en un editor de texto.
+ */
+export function serializeSlides(slides: ParsedSlide[]): string {
+  return slides
+    .map((s, i) => {
+      const title = s.title.trim() || (s.isCover ? "Portada" : "Sin título");
+      const header = `Slide ${i + 1} (${title}):`;
+      const bullets = (s.bullets ?? [])
+        .map((b) => b.trim())
+        .filter(Boolean)
+        .map((b) => `- ${b}`)
+        .join("\n");
+      return bullets ? `${header}\n${bullets}` : header;
+    })
+    .join("\n\n");
+}
+
 function normalizeColor(c: string): string {
   // pptxgenjs requiere hex sin '#'. Devolvemos 6 chars sólidos.
   let h = c.replace("#", "").trim();
