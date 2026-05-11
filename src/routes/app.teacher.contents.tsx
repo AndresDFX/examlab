@@ -416,6 +416,15 @@ function TeacherContents() {
         .download(file.path);
       if (error || !blob) throw new Error(error?.message ?? "download failed");
 
+      // Filename amigable: "Guía Docente Clase 1 - Tema.md" en vez de
+      // "GUIA_DOCENTE_CLASE_1.MD". Tema viene del título extraído de los
+      // headings del archivo (igual lógica que usa el grid).
+      const classNum = classNumberFromFilename(file.name);
+      const filesArr = (item.files as ContentFile[] | null) ?? [];
+      const topic =
+        (classNum != null ? extractClassTitle(filesArr, classNum) : null) ?? item.topic ?? null;
+      const friendlyName = buildDownloadName(file, classNum, topic);
+
       if (file.kind === "pptx-source") {
         const raw = await blob.text();
         const pptxBrand: PptxBrand = {
@@ -430,7 +439,7 @@ function TeacherContents() {
         const url = URL.createObjectURL(pptxBlob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = file.name.replace(/\.txt$/i, "");
+        a.download = friendlyName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -439,7 +448,7 @@ function TeacherContents() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = file.name;
+        a.download = friendlyName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -2038,6 +2047,31 @@ function humanLabelForFile(f: FileEntry): string {
   return f.name;
 }
 
+/** Construye el filename amigable que descarga el navegador. Reemplaza
+ *  los códigos tipo `GUIA_DOCENTE_CLASE_1.MD` por algo legible:
+ *  `Guía Docente Clase 1 - Tema.md`. Si el tema no se conoce, omite el
+ *  sufijo. Preserva la extensión original (sin `.txt` de la fuente
+ *  pptx — eso lo recorta la lógica de descarga aparte). */
+function buildDownloadName(f: FileEntry, classNumber: number | null, topic: string | null): string {
+  // Extensión: para pptx-source es ".pptx" (sin el .txt sufijo);
+  // para los demás respetamos lo que diga el filename.
+  const extMatch = f.name.match(/\.([a-zA-Z0-9]+)$/);
+  let ext = extMatch ? `.${extMatch[1]}` : "";
+  if (f.kind === "pptx-source") ext = ".pptx";
+  // Sanitiza para filesystem (Windows + Linux + macOS son estrictos
+  // con < > : " / \ | ? * + chars de control).
+  const sanitize = (s: string) =>
+    s
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const baseLabel = humanLabelForFile(f);
+  const classBit = classNumber != null ? ` Clase ${classNumber}` : "";
+  const topicBit = topic ? ` - ${topic}` : "";
+  const composed = sanitize(`${baseLabel}${classBit}${topicBit}`).slice(0, 120);
+  return composed ? `${composed}${ext}` : f.name.replace(/\.txt$/i, "");
+}
+
 /** Icono por tipo de archivo — usado en chips icon-only para que el
  *  docente distinga "Guía docente" de "Taller práctico" sin leer el
  *  label. La detección replica humanLabelForFile (mismo orden). */
@@ -2641,14 +2675,19 @@ function FilesByClassDialog({
                               {n}
                             </TableCell>
                             <TableCell>
-                              <div className="text-sm font-medium">
+                              {/* Formato "Clase X: Tema" en una sola línea
+                                  (con truncate para no romper el ancho
+                                  del grid). Si no hay tema todavía, solo
+                                  muestra "Clase X". */}
+                              <div
+                                className="text-sm font-medium truncate max-w-[320px]"
+                                title={
+                                  title ? `${t("contents.classNumber")} ${n}: ${title}` : undefined
+                                }
+                              >
                                 {t("contents.classNumber")} {n}
+                                {title ? `: ${title}` : ""}
                               </div>
-                              {title && (
-                                <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">
-                                  {title}
-                                </div>
-                              )}
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               {session ? (

@@ -507,44 +507,53 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           {!isTakingExam && (
-            <div className="flex items-center gap-1">
-              <NotificationBell userId={user.id} variant="sidebar" />
-              <ThemeToggle />
-              <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setProfileDialogOpen(true)}
-                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                title={t("nav.editProfile")}
-              >
-                <UserCog className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setPwDialogOpen(true)}
-                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                title={t("nav.changePassword")}
-              >
-                <KeyRound className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  // Belt-and-suspenders: even if the button renders during exam, intercept it.
-                  if (isTakingExam) {
-                    window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
-                  } else {
-                    void handleSignOut();
-                  }
-                }}
-                className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                title={t("nav.signOut")}
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
+            // 6 controles no entran en una sola fila del sidebar a ~220px
+            // (Lang switcher arrastra "ES"/"EN" además del icono → empuja).
+            // Partimos en 2 filas: arriba "toggles globales" (bell, theme,
+            // lang), abajo "acciones de cuenta" (profile, password, logout).
+            // Cada fila usa justify-between para que los iconos respiren.
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <NotificationBell userId={user.id} variant="sidebar" />
+                <ThemeToggle />
+                <LanguageSwitcher className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+              </div>
+              <div className="flex items-center justify-between gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setProfileDialogOpen(true)}
+                  className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  title={t("nav.editProfile")}
+                >
+                  <UserCog className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPwDialogOpen(true)}
+                  className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  title={t("nav.changePassword")}
+                >
+                  <KeyRound className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Belt-and-suspenders: even if the button renders during exam, intercept it.
+                    if (isTakingExam) {
+                      window.dispatchEvent(new CustomEvent("examlab:navAttempt"));
+                    } else {
+                      void handleSignOut();
+                    }
+                  }}
+                  className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  title={t("nav.signOut")}
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </div>

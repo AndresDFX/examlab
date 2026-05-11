@@ -188,6 +188,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [severity, setSeverity] = useState("all");
+  // Grupo de acciones — filtra server-side por prefijo/sufijo de action.
+  // Mapeamos cada opción a un patrón ILIKE en el handler de carga. Útil
+  // para enfocarse rápido en "actualizaciones de entregas en progreso"
+  // sin tener que escribir el action exacto en la búsqueda.
+  const [actionGroup, setActionGroup] = useState("all");
   const [courseFilter, setCourseFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -235,6 +240,18 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
           to.setDate(to.getDate() + 1);
           q = q.lt("created_at", to.toISOString());
         }
+        // Grupos de acción — patrones ILIKE. Mantener en sync con las
+        // opciones del Select de abajo.
+        const actionGroupPatterns: Record<string, string | null> = {
+          all: null,
+          submissions: "submission.%",
+          updates_in_progress: "%updated_in_progress",
+          grading: "%grade%",
+          login: "user.log%",
+          ai: "ai%",
+        };
+        const pat = actionGroupPatterns[actionGroup];
+        if (pat) q = q.ilike("action", pat);
 
         const { data, error, count } = await q;
         if (error) throw error;
@@ -255,7 +272,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         setLoadingMore(false);
       }
     },
-    [category, severity, courseFilter, dateFrom, dateTo, mode],
+    [category, severity, courseFilter, dateFrom, dateTo, actionGroup, mode],
   ); // search es client-side
 
   // Reload cuando cambian filtros de servidor
@@ -282,6 +299,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     search ||
     category !== "all" ||
     severity !== "all" ||
+    actionGroup !== "all" ||
     (mode === "admin" && courseFilter !== "all") ||
     dateFrom ||
     dateTo;
@@ -290,6 +308,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     setSearch("");
     setCategory("all");
     setSeverity("all");
+    setActionGroup("all");
     setCourseFilter("all");
     setDateFrom("");
     setDateTo("");
@@ -304,9 +323,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         actor: l.actor_email ?? "",
         rol: l.actor_role ?? "",
         accion: ACTION_LABELS[l.action] ?? l.action,
-        categoria: CATEGORY_CONFIG[l.category]
-          ? t(`audit.categories.${l.category}`)
-          : l.category,
+        categoria: CATEGORY_CONFIG[l.category] ? t(`audit.categories.${l.category}`) : l.category,
         nivel: SEVERITY_CONFIG[l.severity] ? t(`audit.severities.${l.severity}`) : l.severity,
         entidad: l.entity_name ?? "",
         tipo_entidad: l.entity_type ?? "",
@@ -366,6 +383,27 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                     {t(`audit.categories.${k}`)}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            {/* Tipo de evento (grupo de acción) — patrones ILIKE
+                server-side. Útil para enfocarse rápido sin tener que
+                conocer cada action key. */}
+            <Select value={actionGroup} onValueChange={setActionGroup}>
+              <SelectTrigger className="w-48 h-9">
+                <SelectValue placeholder={t("audit.filters.actionGroupPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("audit.filters.actionGroupAll")}</SelectItem>
+                <SelectItem value="submissions">
+                  {t("audit.filters.actionGroupSubmissions")}
+                </SelectItem>
+                <SelectItem value="updates_in_progress">
+                  {t("audit.filters.actionGroupUpdatesInProgress")}
+                </SelectItem>
+                <SelectItem value="grading">{t("audit.filters.actionGroupGrading")}</SelectItem>
+                <SelectItem value="login">{t("audit.filters.actionGroupLogin")}</SelectItem>
+                <SelectItem value="ai">{t("audit.filters.actionGroupAi")}</SelectItem>
               </SelectContent>
             </Select>
 
