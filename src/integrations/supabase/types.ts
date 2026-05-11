@@ -152,6 +152,8 @@ export type Database = {
       attendance_sessions: {
         Row: {
           check_in_open: boolean
+          content_class_index: number | null
+          content_id: string | null
           course_id: string
           created_at: string
           created_by: string
@@ -164,6 +166,8 @@ export type Database = {
         }
         Insert: {
           check_in_open?: boolean
+          content_class_index?: number | null
+          content_id?: string | null
           course_id: string
           created_at?: string
           created_by: string
@@ -176,6 +180,8 @@ export type Database = {
         }
         Update: {
           check_in_open?: boolean
+          content_class_index?: number | null
+          content_id?: string | null
           course_id?: string
           created_at?: string
           created_by?: string
@@ -187,6 +193,13 @@ export type Database = {
           title?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "attendance_sessions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "generated_contents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "attendance_sessions_course_id_fkey"
             columns: ["course_id"]
