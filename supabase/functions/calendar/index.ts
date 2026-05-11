@@ -157,8 +157,59 @@ async function handleSelect(userId: string, body: SelectBody) {
   return jsonOk({});
 }
 
+/**
+ * Inserta directo en audit_logs porque acá el caller SÍ está autenticado
+ * (lo validamos arriba con getUserIdFromRequest), pero usamos adminClient
+ * para escribir — preferimos no exigir RLS para auditoría server-side.
+ */
+async function audit(
+  userId: string,
+  action: string,
+  severity: "info" | "warning" | "error",
+  metadata: Record<string, unknown>,
+  entityName: string | null = null,
+) {
+  try {
+    const { data: u } = await adminClient.auth.admin.getUserById(userId);
+    const { data: r } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+    await adminClient.from("audit_logs").insert({
+      actor_id: userId,
+      actor_email: u?.user?.email ?? null,
+      actor_role: r?.role ?? "Docente",
+      action,
+      category: "system",
+      severity,
+      entity_type: "calendar_connection",
+      entity_id: userId,
+      entity_name: entityName,
+      metadata,
+    });
+  } catch (_) {
+    /* best-effort */
+  }
+}
+
 async function handleDisconnect(userId: string) {
+  const { data: tok } = await adminClient
+    .from("teacher_google_tokens")
+    .select("provider, provider_email, google_email")
+    .eq("teacher_id", userId)
+    .maybeSingle();
   await adminClient.from("teacher_google_tokens").delete().eq("teacher_id", userId);
+  await audit(
+    userId,
+    "calendar.disconnected",
+    "info",
+    {
+      provider: tok?.provider ?? "google",
+      provider_email: tok?.provider_email ?? tok?.google_email ?? null,
+    },
+    "Google Calendar",
+  );
   return jsonOk({});
 }
 
@@ -285,6 +336,24 @@ async function handleSync(userId: string, body: SyncBody) {
       errors.push(`Sesión ${s.session_date}: ${(e as Error).message}`);
     }
   }
+
+  await audit(
+    userId,
+    failed > 0 && created + updated === 0 ? "calendar.sync_failed" : "calendar.synced",
+    failed > 0 && created + updated === 0 ? "error" : "info",
+    {
+      provider: "google",
+      course_id: body.courseId,
+      course_name: course?.name ?? null,
+      calendar_id: tok.calendar_id,
+      created,
+      updated,
+      failed,
+      total: (sessions ?? []).length,
+      first_errors: errors.slice(0, 3),
+    },
+    course?.name ?? null,
+  );
 
   return jsonOk({
     created,

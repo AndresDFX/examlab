@@ -9,6 +9,43 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Inserta directo en audit_logs porque la RPC `log_audit_event` usa
+ * auth.uid() del request actual — pero al hablar como admin queremos
+ * registrar al docente/admin caller, NO al target del reset. Capturamos
+ * email del caller y el target_user_id va en metadata.
+ */
+async function auditAdminReset(
+  admin: ReturnType<typeof createClient>,
+  caller: { id: string; email?: string | null },
+  targetUserId: string,
+  severity: "info" | "error",
+  reason: string | null,
+) {
+  try {
+    const { data: r } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+    const { data: target } = await admin.auth.admin.getUserById(targetUserId);
+    await admin.from("audit_logs").insert({
+      actor_id: caller.id,
+      actor_email: caller.email ?? null,
+      actor_role: r?.role ?? "Admin",
+      action: severity === "info" ? "user.password_reset_by_admin" : "user.password_reset_failed",
+      category: "user",
+      severity: severity === "info" ? "warning" : "error",
+      entity_type: "user",
+      entity_id: targetUserId,
+      entity_name: target?.user?.email ?? null,
+      metadata: reason ? { reason } : {},
+    });
+  } catch (_) {
+    /* best-effort */
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -69,12 +106,14 @@ Deno.serve(async (req) => {
     // Update the password
     const { error } = await admin.auth.admin.updateUserById(userId, { password: newPassword });
     if (error) {
+      await auditAdminReset(admin, caller.user, userId, "error", error.message);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    await auditAdminReset(admin, caller.user, userId, "info", null);
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

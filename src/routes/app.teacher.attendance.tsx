@@ -672,6 +672,16 @@ function TeacherAttendance() {
     }
     const result = data as { ok: boolean; marked_absent?: number; error?: string };
     if (result?.ok) {
+      void logEvent({
+        action: "attendance.pending_marked_absent",
+        category: "attendance",
+        actorRole: roles[0],
+        severity: "warning",
+        entityType: "attendance_session",
+        entityId: closedSessionId,
+        courseId: courseId || undefined,
+        metadata: { marked_absent: result.marked_absent ?? 0 },
+      });
       toast.success(`${result.marked_absent ?? 0} estudiante(s) marcado(s) como ausentes`);
       loadCourse();
     } else {

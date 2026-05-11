@@ -121,11 +121,21 @@ function CalendarPage() {
     void loadStatus();
   }, [loadStatus]);
 
-  // ── Toast del callback (?ok=1 o ?err=...) ──
+  // ── Toast del callback (?ok=1&provider=... o ?err=...) ──
+  // El provider viene en el query string para que el toast sea específico
+  // ("Google Calendar conectado correctamente") en vez del genérico
+  // "Cuenta conectada correctamente".
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("ok")) {
-      toast.success(t("calendar.connectedToast"));
+      const p = sp.get("provider");
+      const key =
+        p === "google"
+          ? "calendar.connectedToastGoogle"
+          : p === "microsoft"
+            ? "calendar.connectedToastMicrosoft"
+            : "calendar.connectedToast";
+      toast.success(t(key));
       window.history.replaceState({}, "", window.location.pathname);
       void loadStatus();
     } else if (sp.get("err")) {
@@ -228,7 +238,13 @@ function CalendarPage() {
     setDisconnecting(true);
     try {
       await callCalendar({ action: "disconnect", provider });
-      toast.success(t("calendar.disconnectedToast"));
+      const key =
+        provider === "google"
+          ? "calendar.disconnectedToastGoogle"
+          : provider === "microsoft"
+            ? "calendar.disconnectedToastMicrosoft"
+            : "calendar.disconnectedToast";
+      toast.success(t(key));
       setStatus(null);
       setCalendars([]);
       setSelectedCalId("");

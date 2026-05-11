@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
+import { logEvent } from "@/lib/audit";
 
 interface ChangePasswordDialogProps {
   open: boolean;
@@ -53,9 +54,21 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
       // Supabase allows the logged-in user to update their own password
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
+        void logEvent({
+          action: "user.password_change_failed",
+          category: "user",
+          severity: "error",
+          metadata: { reason: error.message },
+        });
         toast.error(error.message);
         return;
       }
+      void logEvent({
+        action: "user.password_changed",
+        category: "user",
+        severity: "warning",
+        metadata: { self: true },
+      });
       toast.success("Contraseña actualizada correctamente");
       reset();
       onOpenChange(false);

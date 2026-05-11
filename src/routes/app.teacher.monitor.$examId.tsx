@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -597,12 +598,33 @@ function ExamMonitor() {
       return;
     }
     setSavingOverride(true);
+    const previous = sub.final_override_grade ?? null;
     const { error } = await supabase
       .from("submissions")
       .update({ final_override_grade: numValue })
       .eq("id", sub.id);
     setSavingOverride(false);
     if (error) return toast.error(error.message);
+    // Distingue override manual de la calificación IA en auditoría.
+    // El trigger genérico de submissions captura cambios de nota pero
+    // no marca quién lo hizo manual vs el pipeline IA. Acá lo hacemos
+    // explícito.
+    void logEvent({
+      action: numValue == null ? "grade.manual_cleared" : "grade.manual_override",
+      category: "grading",
+      severity: "warning",
+      entityType: "submission",
+      entityId: sub.id,
+      courseId: exam?.course_id ?? null,
+      courseName: exam?.course_name ?? null,
+      metadata: {
+        exam_id: exam?.id,
+        student_id: sub.user_id,
+        previous,
+        new: numValue,
+        ai_grade: sub.ai_grade,
+      },
+    });
     toast.success(
       numValue == null ? "Calificación manual eliminada" : "Calificación guardada correctamente",
     );
@@ -633,6 +655,24 @@ function ExamMonitor() {
       .update({ focus_warnings: 0, answers: nextAnswers, status: nextStatus })
       .eq("id", sub.id);
     if (error) return toast.error(error.message);
+    // Auditoría: borrar todas las advertencias es decisión sensible
+    // (puede convertir un intento "sospechoso" en válido). Lo marcamos
+    // warning con before/after para que quede rastro.
+    void logEvent({
+      action: "fraud.warnings_cleared_all",
+      category: "fraud",
+      severity: "warning",
+      entityType: "submission",
+      entityId: sub.id,
+      courseId: exam?.course_id ?? null,
+      metadata: {
+        exam_id: exam?.id,
+        student_id: sub.user_id,
+        previous_warnings: sub.focus_warnings,
+        previous_status: sub.status,
+        new_status: nextStatus,
+      },
+    });
     toast.success("Advertencias eliminadas");
     setSubmissions((prev) =>
       prev.map((s) =>

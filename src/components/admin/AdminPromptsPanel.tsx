@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -283,6 +284,21 @@ export function AdminPromptsPanel() {
         toast.error(error.message);
         return;
       }
+      void logEvent({
+        action: brand.id ? "branding.updated" : "branding.created",
+        category: "system",
+        severity: "warning",
+        entityType: "branding",
+        entityId: brand.id ?? undefined,
+        entityName: brand.university_name ?? null,
+        metadata: {
+          university_name: brand.university_name,
+          primary_color: brand.primary_color,
+          secondary_color: brand.secondary_color,
+          has_logo: !!brand.logo_url,
+          author_default: brand.author_default,
+        },
+      });
       toast.success("Marca institucional actualizada");
       await load();
     } finally {
@@ -300,6 +316,7 @@ export function AdminPromptsPanel() {
     setSavingKey(uc.key);
     try {
       const existing = rows[uc.key];
+      const previousText = existing?.system_prompt ?? null;
       if (existing) {
         const { error } = await db
           .from("ai_prompts")
@@ -321,6 +338,20 @@ export function AdminPromptsPanel() {
           return;
         }
       }
+      void logEvent({
+        action: "ai_prompt.updated",
+        category: "system",
+        severity: "warning",
+        entityType: "ai_prompt",
+        entityId: existing?.id ?? undefined,
+        entityName: uc.label,
+        metadata: {
+          use_case: uc.key,
+          scope: "global",
+          length_before: previousText?.length ?? null,
+          length_after: text.length,
+        },
+      });
       toast.success(`Prompt "${uc.label}" actualizado`);
       await load();
     } finally {
@@ -363,6 +394,15 @@ export function AdminPromptsPanel() {
           return;
         }
       }
+      void logEvent({
+        action: "ai_prompt.restored_default",
+        category: "system",
+        severity: "warning",
+        entityType: "ai_prompt",
+        entityId: existing?.id ?? undefined,
+        entityName: uc.label,
+        metadata: { use_case: uc.key, scope: "global" },
+      });
       toast.success(`"${uc.label}" restaurado al default`);
       await load();
     } finally {

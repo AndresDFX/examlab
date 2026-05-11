@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -283,6 +284,16 @@ function TeacherAIPrompts() {
           return;
         }
       }
+      void logEvent({
+        action: "ai_prompt.course_override_saved",
+        category: "system",
+        severity: "info",
+        entityType: "ai_prompt",
+        entityId: existing?.id ?? undefined,
+        entityName: uc.label,
+        courseId,
+        metadata: { use_case: uc.key, scope: "course", length: text.length },
+      });
       toast.success(`Override de "${uc.label}" guardado para este curso`);
       await loadPrompts(courseId);
     } finally {
@@ -308,6 +319,16 @@ function TeacherAIPrompts() {
         toast.error(error.message);
         return;
       }
+      void logEvent({
+        action: "ai_prompt.course_override_removed",
+        category: "system",
+        severity: "info",
+        entityType: "ai_prompt",
+        entityId: existing.id,
+        entityName: uc.label,
+        courseId,
+        metadata: { use_case: uc.key, scope: "course" },
+      });
       toast.success(`"${uc.label}" volvió al prompt global`);
       await loadPrompts(courseId);
     } finally {

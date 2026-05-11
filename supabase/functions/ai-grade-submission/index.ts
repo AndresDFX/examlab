@@ -1,5 +1,6 @@
 // AI grading: scores exam answers or workshop submissions via AI Gateway
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { auditFromEdge } from "../_shared/audit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -155,6 +156,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Cerramos sobre estas variables para que el catch global tenga
+  // contexto sobre qué modo + caller estaban en juego cuando explotó.
+  let auditCallerId: string | null = null;
+  let auditMode: string = "unknown";
+  let auditEntityId: string | null = null;
+  let auditModel: string | null = null;
   try {
     // ── Authn ──
     // Esta función ejecuta IA (cuesta créditos) y escribe en
@@ -185,6 +192,7 @@ Deno.serve(async (req) => {
       });
     }
     const callerId = u.user.id;
+    auditCallerId = callerId;
     const { data: callerRoles } = await adminClient
       .from("user_roles")
       .select("role")
@@ -194,6 +202,40 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
+    auditMode = body.workshopGrading
+      ? "workshop_full"
+      : body.workshopQuestionGrading
+        ? "workshop_question"
+        : body.projectGrading
+          ? "project_full"
+          : body.projectFileGrading
+            ? "project_file"
+            : body.projectCodeZipGrading
+              ? "project_code_zip"
+              : body.examQuestion
+                ? "exam_question"
+                : "exam_full";
+    auditEntityId =
+      body.submissionId ??
+      body.workshopSubmissionId ??
+      body.projectSubmissionId ??
+      body.examSubmissionId ??
+      null;
+    try {
+      const m = await getActiveAiModel();
+      auditModel = `${m.provider}:${m.model}`;
+    } catch {
+      /* no-op: si falla el lookup del modelo no aborta la grading */
+    }
+    void auditFromEdge(adminClient, {
+      actorId: callerId,
+      action: "ai.grading_started",
+      category: "grading",
+      severity: "info",
+      entityType: "submission",
+      entityId: auditEntityId,
+      metadata: { mode: auditMode, model: auditModel },
+    });
     // La validación del API key vive ahora en aiChatCompletion según el
     // provider activo (LOVABLE_API_KEY o OPENAI_API_KEY).
 
@@ -1293,6 +1335,22 @@ Idioma de salida: ${langName}.`,
     );
   } catch (e) {
     console.error(e);
+    // Auditoría del fallo. Modo + entity_id quedaron capturados arriba
+    // antes de que tirara la excepción, así sabemos qué se intentaba
+    // calificar cuando todo explotó.
+    void auditFromEdge(adminClient, {
+      actorId: auditCallerId,
+      action: "ai.grading_failed",
+      category: "grading",
+      severity: "error",
+      entityType: "submission",
+      entityId: auditEntityId,
+      metadata: {
+        mode: auditMode,
+        model: auditModel,
+        error: e instanceof Error ? e.message : String(e),
+      },
+    });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

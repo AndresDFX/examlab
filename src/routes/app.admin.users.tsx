@@ -150,6 +150,27 @@ function AdminUsers() {
         return false;
       }
     }
+    // Auditoría — solo si hubo cambios reales. Privilege escalation
+    // (Admin/Docente añadido o removido) lo elevamos a `warning` por
+    // ser un cambio sensible.
+    if (toAdd.length || toRemove.length) {
+      const target = rows.find((r) => r.id === userId);
+      const sensitive = [...toAdd, ...toRemove].some((r) => r === "Admin" || r === "Docente");
+      void logEvent({
+        action: "user.roles_updated",
+        category: "user",
+        severity: sensitive ? "warning" : "info",
+        entityType: "user",
+        entityId: userId,
+        entityName: target?.full_name ?? target?.institutional_email ?? null,
+        metadata: {
+          before: [...currentSet],
+          after: newRoles,
+          added: toAdd,
+          removed: toRemove,
+        },
+      });
+    }
     return true;
   };
 

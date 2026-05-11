@@ -250,6 +250,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       tone: "warning",
     });
     if (!ok) return;
+    // Auditoría ANTES del signOut — después auth.uid() ya no existe y
+    // el RPC `log_audit_event` no podría capturar el actor.
+    await logEvent({
+      action: "user.logged_out",
+      category: "user",
+      actorRole: activeRole ?? roles[0],
+      entityType: "user",
+      entityId: user?.id,
+      entityName: profile?.full_name ?? user?.email ?? null,
+      severity: "info",
+    });
     signOut();
   };
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);

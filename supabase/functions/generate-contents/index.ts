@@ -12,6 +12,7 @@
 // El cliente debe haber INSERT antes con status='queued'; este handler
 // pasa a 'processing', llama IA, parsea, sube archivos y deja 'done'.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { auditFromEdge } from "../_shared/audit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -497,6 +498,23 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", gen.id);
 
+    void auditFromEdge(adminClient, {
+      actorId: gen.teacher_id ?? null,
+      action: "content.generated",
+      category: "course",
+      severity: "info",
+      entityType: "generated_content",
+      entityId: gen.id,
+      entityName: gen.topic ?? null,
+      courseId: gen.course_id ?? null,
+      metadata: {
+        mode: gen.mode,
+        n_classes: gen.n_classes,
+        modality: gen.modality,
+        files_count: files.length,
+      },
+    });
+
     return new Response(JSON.stringify({ ok: true, count: files.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -510,6 +528,21 @@ Deno.serve(async (req: Request) => {
         .from("generated_contents")
         .update({ status: "done", error: null })
         .eq("id", gen.id);
+      void auditFromEdge(adminClient, {
+        actorId: gen.teacher_id ?? null,
+        action: "content.regeneration_failed",
+        category: "course",
+        severity: "error",
+        entityType: "generated_content",
+        entityId: gen.id,
+        entityName: gen.topic ?? null,
+        courseId: gen.course_id ?? null,
+        metadata: {
+          mode: gen.mode,
+          target_class: body.target_class,
+          error: msg,
+        },
+      });
       return new Response(JSON.stringify({ ok: false, partial: true, error: msg }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -519,6 +552,17 @@ Deno.serve(async (req: Request) => {
       .from("generated_contents")
       .update({ status: "failed", error: msg })
       .eq("id", gen.id);
+    void auditFromEdge(adminClient, {
+      actorId: gen.teacher_id ?? null,
+      action: "content.generation_failed",
+      category: "course",
+      severity: "error",
+      entityType: "generated_content",
+      entityId: gen.id,
+      entityName: gen.topic ?? null,
+      courseId: gen.course_id ?? null,
+      metadata: { mode: gen.mode, n_classes: gen.n_classes, error: msg },
+    });
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -19,6 +19,7 @@
 //    descomprimir N ZIPs por llamada — caro y poco útil con muchas
 //    entregas. Si se necesita, se hace en una v2.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { auditFromEdge } from "../_shared/audit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -87,6 +88,9 @@ async function resolvePlagiarismPrompt(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  let auditActorId: string | null = null;
+  let auditKind: string | null = null;
+  let auditRefId: string | null = null;
   try {
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
@@ -132,6 +136,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    auditActorId = u.user.id;
     const { kind, refId } = await req.json();
     if (!kind || !refId) throw new Error("kind y refId requeridos");
     if (!["exam", "workshop", "project"].includes(kind)) {
@@ -140,6 +145,17 @@ Deno.serve(async (req) => {
     if (typeof refId !== "string" || !UUID_RE.test(refId)) {
       throw new Error("refId inválido");
     }
+    auditKind = kind;
+    auditRefId = refId;
+    void auditFromEdge(admin, {
+      actorId: auditActorId,
+      action: "fraud.plagiarism_detection_started",
+      category: "fraud",
+      severity: "info",
+      entityType: kind,
+      entityId: refId,
+      metadata: { kind },
+    });
 
     // Construye los grupos a comparar según el tipo.
     const groups: Group[] = [];
@@ -471,6 +487,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    void auditFromEdge(admin, {
+      actorId: auditActorId,
+      action: "fraud.plagiarism_detected",
+      category: "fraud",
+      severity: inserted > 0 ? "warning" : "info",
+      entityType: auditKind ?? undefined,
+      entityId: auditRefId,
+      metadata: {
+        kind: auditKind,
+        pairs_found: inserted,
+        groups_compared: groups.length,
+      },
+    });
     return new Response(
       JSON.stringify({
         ok: true,
@@ -481,6 +510,18 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     console.error(e);
+    void auditFromEdge(
+      createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+      {
+        actorId: auditActorId,
+        action: "fraud.plagiarism_detection_failed",
+        category: "fraud",
+        severity: "error",
+        entityType: auditKind ?? undefined,
+        entityId: auditRefId,
+        metadata: { kind: auditKind, error: e instanceof Error ? e.message : String(e) },
+      },
+    );
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -40,6 +40,13 @@ function AuthPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
+      // Auditoría de login fallido — RPC `log_failed_login` es SECURITY
+      // DEFINER y acepta anon. Fire-and-forget; nunca bloquea la UI.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void (supabase as any).rpc("log_failed_login", {
+        p_email: email,
+        p_reason: error.message,
+      });
       toast.error(t("auth.invalidCredentials"));
       return;
     }

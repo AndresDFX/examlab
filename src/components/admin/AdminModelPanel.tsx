@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,6 +130,19 @@ export function AdminModelPanel() {
         toast.error(insErr.message);
         return;
       }
+      void logEvent({
+        action: "ai_model.activated",
+        category: "system",
+        severity: "warning",
+        entityType: "ai_model_settings",
+        entityName: `${draftProvider}:${draftModel}`,
+        metadata: {
+          previous_provider: activeRow?.provider ?? null,
+          previous_model: activeRow?.model ?? null,
+          new_provider: draftProvider,
+          new_model: draftModel.trim(),
+        },
+      });
       toast.success("Configuración del modelo actualizada");
       await load();
     } finally {

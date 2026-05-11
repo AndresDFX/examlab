@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -437,7 +438,24 @@ function Gradebook() {
             .update({ final_override_grade: numValue })
             .eq("id", g.subId);
           if (error) errors++;
-          else saved++;
+          else {
+            saved++;
+            void logEvent({
+              action: "grade.manual_override",
+              category: "grading",
+              severity: "warning",
+              entityType: "submission",
+              entityId: g.subId,
+              courseId: courseId ?? null,
+              metadata: {
+                source: "gradebook",
+                kind: "exam",
+                exam_id: col.id,
+                student_id: studentId,
+                new: numValue,
+              },
+            });
+          }
         } else {
           errors++; // No submission to update
         }
@@ -449,7 +467,24 @@ function Gradebook() {
             .update({ final_grade: numValue, status: "calificado" })
             .eq("id", g.subId);
           if (error) errors++;
-          else saved++;
+          else {
+            saved++;
+            void logEvent({
+              action: "grade.manual_override",
+              category: "grading",
+              severity: "warning",
+              entityType: "workshop_submission",
+              entityId: g.subId,
+              courseId: courseId ?? null,
+              metadata: {
+                source: "gradebook",
+                kind: "workshop",
+                workshop_id: col.id,
+                student_id: studentId,
+                new: numValue,
+              },
+            });
+          }
         } else {
           errors++; // No submission to update
         }
