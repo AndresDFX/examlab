@@ -113,15 +113,47 @@ async function handleStatus(userId: string) {
   });
 }
 
+// OAUTH-5: allowlist de origins permitidos para redirect post-callback.
+// Cualquier dominio fuera de esta lista se rechaza para evitar open-redirect.
+const ALLOWED_ORIGINS_RE = [
+  /^https:\/\/[a-z0-9-]+\.lovable\.app$/i,
+  /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/i,
+  /^https:\/\/examlab\.lovable\.app$/i,
+  /^http:\/\/localhost(:\d+)?$/i,
+];
+function isAllowedOrigin(o: string): boolean {
+  try {
+    const u = new URL(o);
+    const origin = `${u.protocol}//${u.host}`;
+    return ALLOWED_ORIGINS_RE.some((re) => re.test(origin));
+  } catch {
+    return false;
+  }
+}
+
 async function handleInit(userId: string, body: InitBody) {
   if (!body.origin || !/^https?:\/\//.test(body.origin)) {
     return jsonError("origin_required", 400);
   }
+  if (!isAllowedOrigin(body.origin)) {
+    return jsonError("origin_not_allowed", 400);
+  }
   const nonce = crypto.randomUUID();
-  // state opaco con el origin codificado en base64 — el callback lo
-  // usa para redirigir al frontend correcto (preview vs published).
+  // state opaco — el callback lo cruza contra calendar_oauth_states para
+  // validar one-time + extraer origin sin confiar en lo que mande Google.
   const originB64 = btoa(body.origin).replace(/=+$/, "");
   const state = `${userId}:${nonce}:${originB64}`;
+
+  // OAUTH-1/2: persistir el state con expiración 10min para validación one-time.
+  const { error: stErr } = await adminClient.from("calendar_oauth_states").insert({
+    state,
+    teacher_id: userId,
+    provider: "google",
+    origin: body.origin,
+    nonce,
+  });
+  if (stErr) throw new Error(`oauth_state_insert_failed: ${stErr.message}`);
+
   return jsonOk({ url: buildGoogleAuthUrl(state) });
 }
 
@@ -196,9 +228,26 @@ async function audit(
 async function handleDisconnect(userId: string) {
   const { data: tok } = await adminClient
     .from("teacher_google_tokens")
-    .select("provider, provider_email, google_email")
+    .select("provider, provider_email, google_email, refresh_token, access_token")
     .eq("teacher_id", userId)
     .maybeSingle();
+
+  // OAUTH-4: revocar el token en Google ANTES de borrar localmente.
+  // Best-effort — si falla (ya revocado, red caída) seguimos con el delete
+  // local: el docente igual queda desconectado del lado app.
+  const tokenToRevoke = tok?.refresh_token ?? tok?.access_token;
+  if (tokenToRevoke) {
+    try {
+      await fetch("https://oauth2.googleapis.com/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token: tokenToRevoke }),
+      });
+    } catch (_) {
+      /* best-effort */
+    }
+  }
+
   await adminClient.from("teacher_google_tokens").delete().eq("teacher_id", userId);
   await audit(
     userId,
@@ -207,6 +256,7 @@ async function handleDisconnect(userId: string) {
     {
       provider: tok?.provider ?? "google",
       provider_email: tok?.provider_email ?? tok?.google_email ?? null,
+      revoked: !!tokenToRevoke,
     },
     "Google Calendar",
   );
