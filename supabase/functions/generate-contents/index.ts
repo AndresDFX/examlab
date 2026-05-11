@@ -255,326 +255,343 @@ Deno.serve(async (req: Request) => {
   const runtime = (globalThis as any).EdgeRuntime;
   const heavyWork = (async () => {
     try {
-    const promptTemplate = await resolveContentPrompt();
-    // Etiqueta legible para `modality` — el modelo entiende mejor un
-    // string descriptivo que el enum interno. Si no llega, asumimos
-    // teorico_practica (el default histórico).
-    const modalityLabel =
-      gen.modality === "teorica"
-        ? "Teórica (solo presentación + guía docente)"
-        : gen.modality === "practica"
-          ? "Práctica (solo taller práctico, sin presentación)"
-          : "Teórico-práctica (presentación teórica con cierre práctico + guía + taller + ejercicio para el estudiante + ejercicio resuelto para el docente)";
-    const vars: Record<string, string> = {
-      university_name: brand?.university_name ?? "",
-      logo_url: brand?.logo_url ?? "",
-      primary_color: brand?.primary_color ?? "#1e40af",
-      secondary_color: brand?.secondary_color ?? "#64748b",
-      topic: gen.topic ?? "",
-      n_classes: gen.n_classes != null ? String(gen.n_classes) : "",
-      duration_minutes: gen.duration_minutes != null ? String(gen.duration_minutes) : "60",
-      modality: gen.modality ?? "teorico_practica",
-      modality_label: modalityLabel,
-      // RAG queda placeholder por ahora. Cuando agreguemos
-      // content_rag_documents este string traerá los chunks reseleccionados.
-      rag_context_documents: "(sin contexto histórico disponible)",
-    };
-    const systemPrompt = applyPlaceholders(promptTemplate, vars);
+      const promptTemplate = await resolveContentPrompt();
+      // Etiqueta legible para `modality` — el modelo entiende mejor un
+      // string descriptivo que el enum interno. Si no llega, asumimos
+      // teorico_practica (el default histórico).
+      const modalityLabel =
+        gen.modality === "teorica"
+          ? "Teórica (solo presentación + guía docente)"
+          : gen.modality === "practica"
+            ? "Práctica (solo taller práctico, sin presentación)"
+            : "Teórico-práctica (presentación teórica con cierre práctico + guía + taller + ejercicio para el estudiante + ejercicio resuelto para el docente)";
+      const vars: Record<string, string> = {
+        university_name: brand?.university_name ?? "",
+        logo_url: brand?.logo_url ?? "",
+        primary_color: brand?.primary_color ?? "#1e40af",
+        secondary_color: brand?.secondary_color ?? "#64748b",
+        topic: gen.topic ?? "",
+        n_classes: gen.n_classes != null ? String(gen.n_classes) : "",
+        duration_minutes: gen.duration_minutes != null ? String(gen.duration_minutes) : "60",
+        modality: gen.modality ?? "teorico_practica",
+        modality_label: modalityLabel,
+        // RAG queda placeholder por ahora. Cuando agreguemos
+        // content_rag_documents este string traerá los chunks reseleccionados.
+        rag_context_documents: "(sin contexto histórico disponible)",
+      };
+      const systemPrompt = applyPlaceholders(promptTemplate, vars);
 
-    // El user message le indica al modelo qué modo se eligió y refuerza
-    // los parámetros concretos. Mantener este texto corto y declarativo
-    // — el grueso del prompt vive en el system. Si el docente añadió
-    // instrucciones libres al crear la generación, las apilamos al
-    // final del user message como un bloque etiquetado para que el
-    // modelo las trate con prioridad sobre los defaults del system
-    // prompt sin que necesitemos editarlo cada vez.
-    const commonContext = `Tema: ${gen.topic}\nDuración por clase: ${vars.duration_minutes} minutos\nModalidad: ${modalityLabel}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}`;
-    const teacherInstructions =
-      typeof gen.instructions === "string" && gen.instructions.trim().length > 0
-        ? `\n\n### INSTRUCCIONES ADICIONALES DEL DOCENTE (PRIORIDAD ALTA)\n${gen.instructions.trim()}`
-        : "";
+      // El user message le indica al modelo qué modo se eligió y refuerza
+      // los parámetros concretos. Mantener este texto corto y declarativo
+      // — el grueso del prompt vive en el system. Si el docente añadió
+      // instrucciones libres al crear la generación, las apilamos al
+      // final del user message como un bloque etiquetado para que el
+      // modelo las trate con prioridad sobre los defaults del system
+      // prompt sin que necesitemos editarlo cada vez.
+      const commonContext = `Tema: ${gen.topic}\nDuración por clase: ${vars.duration_minutes} minutos\nModalidad: ${modalityLabel}\nIdioma: ${gen.language}\nAutor: ${gen.author ?? brand?.author_default ?? ""}`;
+      const teacherInstructions =
+        typeof gen.instructions === "string" && gen.instructions.trim().length > 0
+          ? `\n\n### INSTRUCCIONES ADICIONALES DEL DOCENTE (PRIORIDAD ALTA)\n${gen.instructions.trim()}`
+          : "";
 
-    /**
-     * Hace UNA llamada al modelo con el user message dado y devuelve
-     * los bloques parseados. Centraliza el manejo de errores (HTML del
-     * gateway, JSON inválido, output vacío) para que el orquestador
-     * de abajo solo se preocupe por iterar pases.
-     */
-    const runOnePass = async (
-      userMessage: string,
-      label: string,
-    ): Promise<{
-      blocks: Array<{ name: string; body: string }>;
-      rawOutput: string;
-    }> => {
-      const fullMsg = userMessage + teacherInstructions;
-      const aiRes = await aiChat([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: fullMsg },
-      ]);
-      const rawText = await aiRes.text();
-      const looksHtml = rawText.trimStart().startsWith("<");
-      if (!aiRes.ok || looksHtml) {
-        const reason = looksHtml
-          ? `[${label}] AI Gateway devolvió HTML (típicamente 504/timeout). Reintenta; si persiste, reduce la duración por clase o cambia a modalidad teorica/practica.`
-          : `[${label}] AI Gateway ${aiRes.status}: ${rawText.slice(0, 400)}`;
-        throw new Error(reason);
-      }
-      let aiJson: Record<string, unknown> = {};
-      try {
-        aiJson = JSON.parse(rawText);
-      } catch {
-        throw new Error(
-          `[${label}] Respuesta inválida (no es JSON). Primeros 300 chars: ${rawText.slice(0, 300)}`,
-        );
-      }
-      const rawOutput: string =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (aiJson as any).choices?.[0]?.message?.content ??
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (aiJson as any).choices?.[0]?.message?.output_text ??
-        "";
-      if (!rawOutput.trim()) throw new Error(`[${label}] La IA devolvió contenido vacío`);
-      return { blocks: parseFileBlocks(rawOutput), rawOutput };
-    };
+      /**
+       * Hace UNA llamada al modelo con el user message dado y devuelve
+       * los bloques parseados. Centraliza el manejo de errores (HTML del
+       * gateway, JSON inválido, output vacío) para que el orquestador
+       * de abajo solo se preocupe por iterar pases.
+       */
+      const runOnePass = async (
+        userMessage: string,
+        label: string,
+      ): Promise<{
+        blocks: Array<{ name: string; body: string }>;
+        rawOutput: string;
+      }> => {
+        const fullMsg = userMessage + teacherInstructions;
+        const aiRes = await aiChat([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: fullMsg },
+        ]);
+        const rawText = await aiRes.text();
+        const looksHtml = rawText.trimStart().startsWith("<");
+        if (!aiRes.ok || looksHtml) {
+          const reason = looksHtml
+            ? `[${label}] AI Gateway devolvió HTML (típicamente 504/timeout). Reintenta; si persiste, reduce la duración por clase o cambia a modalidad teorica/practica.`
+            : `[${label}] AI Gateway ${aiRes.status}: ${rawText.slice(0, 400)}`;
+          throw new Error(reason);
+        }
+        let aiJson: Record<string, unknown> = {};
+        try {
+          aiJson = JSON.parse(rawText);
+        } catch {
+          throw new Error(
+            `[${label}] Respuesta inválida (no es JSON). Primeros 300 chars: ${rawText.slice(0, 300)}`,
+          );
+        }
+        const rawOutput: string =
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (aiJson as any).choices?.[0]?.message?.content ??
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (aiJson as any).choices?.[0]?.message?.output_text ??
+          "";
+        if (!rawOutput.trim()) throw new Error(`[${label}] La IA devolvió contenido vacío`);
+        return { blocks: parseFileBlocks(rawOutput), rawOutput };
+      };
 
-    /**
-     * Mensaje user para UNA clase específica de un curso_completo.
-     * El system prompt ya conoce las plantillas; acá le pedimos que
-     * SOLO produzca los archivos de esa clase, con sufijo `_CLASE_<N>`,
-     * y le recordamos los objetivos de profundidad (paso-a-paso para
-     * docente sin conocimiento previo + longitud por archivo).
-     */
-    const buildClassMessage = (classNum: number, totalClasses: number) =>
-      `Modo seleccionado: GENERAR UNA CLASE de un curso de ${totalClasses} clases.\n\n` +
-      `${commonContext}\nClase a generar: ${classNum} de ${totalClasses}\n\n` +
-      `Genera ÚNICAMENTE los archivos de la clase ${classNum}, con sufijo "_CLASE_${classNum}" en cada filename. ` +
-      `NO incluyas la introducción del curso ni material de otras clases.\n\n` +
-      `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
-      `- **PRESENTACION**: 9–22 slides según duración. Cada slide debe tener título + 3–6 viñetas concretas. No abusar de generalidades — incluir ejemplos, definiciones técnicas precisas y al menos 2 slides con casos concretos. Aplica el color {{primary_color}} en títulos.\n` +
-      `- **GUIA_DOCENTE**: extensión mínima 800 palabras. Asume que el docente JAMÁS ha enseñado este tema antes — explica los conceptos clave PASO A PASO, anticipa preguntas frecuentes de los estudiantes con sus respuestas, sugiere analogías para conceptos abstractos. Incluye una sección "Errores comunes que cometen los estudiantes" con al menos 3 entradas y "Cómo retroalimentarlos" debajo de cada una. NO sea genérico ("explicar el concepto") — escribe el guion exacto que el docente puede leer.\n` +
-      `- **TALLER_PRACTICO**: 5–8 pasos secuenciados. Cada paso incluye: objetivo (1 línea), instrucciones detalladas con la herramienta SaaS específica + URL, capturas verbales esperadas ("deberías ver X en la esquina Y") y un entregable verificable. Criterios de éxito con métricas observables (no "lo hizo bien" — "completa la tarea en <10 min con 0 errores de sintaxis").\n` +
-      `- **EJERCICIO_ESTUDIANTE** (solo teorico_practica): enunciado autocontenido, ≥300 palabras. Incluye contexto, datos de entrada concretos, restricciones, formato del entregable y rubrica de evaluación visible para el estudiante.\n` +
-      `- **EJERCICIO_SOLUCION** (solo teorico_practica): MISMO enunciado palabra-por-palabra + solución paso-a-paso completa con justificación pedagógica + respuesta final + 3+ errores comunes con guía de retroalimentación.`;
-
-    const buildIntroMessage = (totalClasses: number) =>
-      `Modo seleccionado: GENERAR INTRODUCCIÓN DEL CURSO.\n\n` +
-      `${commonContext}\nCantidad total de clases: ${totalClasses}\n\n` +
-      `Genera ÚNICAMENTE el archivo INTRO_CURSO.PPTX con la portada institucional, los objetivos del curso (5+ objetivos de aprendizaje accionables), justificación (≥150 palabras explicando por qué este curso importa y para quién está pensado) y el cronograma de las ${totalClasses} clases (un slide con tabla resumen: clase N · título · objetivo principal). NO generes archivos de clases individuales — esos se generan en pases separados.`;
-
-    let aggregatedRaw = "";
-    let allBlocks: Array<{ name: string; body: string }> = [];
-
-    // Defensa contra el bug clásico del multi-pase: el modelo a veces
-    // ignora la instrucción de añadir `_CLASE_<N>` al filename. Si dos
-    // clases generan `TALLER_PRACTICO.MD`, ambas suben al MISMO
-    // storagePath y se sobrescriben (upsert). Resultado: spinner se
-    // muestra en todas las chips de ese tipo y la descarga trae siempre
-    // el último archivo. Forzamos el sufijo aquí.
-    const tagWithClass = (blocks: Array<{ name: string; body: string }>, k: number) =>
-      blocks.map((b) => {
-        if (classFromName(b.name) !== null) return b;
-        const newName = b.name.replace(/(\.[A-Za-z0-9]+)?$/, `_CLASE_${k}$1`);
-        return { ...b, name: newName };
-      });
-
-    if (isPartial) {
-      // Regen de UNA clase puntual — un único pase, igual que antes.
-      const tn = body.target_class!;
-      const userMsg = buildClassMessage(tn, gen.n_classes ?? tn);
-      const { blocks: pb, rawOutput } = await runOnePass(userMsg, `Clase ${tn}`);
-      aggregatedRaw = rawOutput;
-      allBlocks = tagWithClass(pb, tn);
-    } else if (gen.mode === "curso_completo") {
-      // Multi-pase: 1 llamada para la intro + 1 por cada clase. Cada
-      // pase produce archivos más profundos que la era monolítica
-      // anterior porque no hay que comprimir todo el curso en una
-      // sola respuesta del modelo.
-      const n = Math.max(1, Math.min(Number(gen.n_classes) || 1, 40));
-      const introRes = await runOnePass(buildIntroMessage(n), "Intro");
-      aggregatedRaw += `### Intro\n${introRes.rawOutput}\n\n`;
-      allBlocks.push(...introRes.blocks);
-      for (let k = 1; k <= n; k++) {
-        const r = await runOnePass(buildClassMessage(k, n), `Clase ${k}`);
-        aggregatedRaw += `### Clase ${k}\n${r.rawOutput}\n\n`;
-        allBlocks.push(...tagWithClass(r.blocks, k));
-      }
-    } else {
-      // material_individual: una sola sesión, un solo pase con énfasis
-      // en profundidad por archivo (mismas guías que el per-class).
-      const userMsg =
-        `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\n` +
-        `Genera el material completo de UNA sola sesión sobre el tema. NO uses sufijo _CLASE_N — usa los nombres base.\n\n` +
+      /**
+       * Mensaje user para UNA clase específica de un curso_completo.
+       * El system prompt ya conoce las plantillas; acá le pedimos que
+       * SOLO produzca los archivos de esa clase, con sufijo `_CLASE_<N>`,
+       * y le recordamos los objetivos de profundidad (paso-a-paso para
+       * docente sin conocimiento previo + longitud por archivo).
+       */
+      const buildClassMessage = (classNum: number, totalClasses: number) =>
+        `Modo seleccionado: GENERAR UNA CLASE de un curso de ${totalClasses} clases.\n\n` +
+        `${commonContext}\nClase a generar: ${classNum} de ${totalClasses}\n\n` +
+        `Genera ÚNICAMENTE los archivos de la clase ${classNum}, con sufijo "_CLASE_${classNum}" en cada filename. ` +
+        `NO incluyas la introducción del curso ni material de otras clases.\n\n` +
         `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
-        `- PRESENTACION: 9–22 slides según duración; cada slide con título + 3–6 viñetas + ejemplos concretos.\n` +
-        `- GUIA_DOCENTE: ≥800 palabras, paso-a-paso para docente sin conocimiento previo, con errores comunes y cómo retroalimentar.\n` +
-        `- TALLER_PRACTICO: 5–8 pasos con herramienta SaaS específica + criterios de éxito medibles.\n` +
-        `- EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION (solo teorico_practica): mismo enunciado palabra-por-palabra, el segundo añade solución paso-a-paso.`;
-      const r = await runOnePass(userMsg, "Material individual");
-      aggregatedRaw = r.rawOutput;
-      allBlocks = r.blocks;
-    }
+        `- **PRESENTACION**: 9–22 slides según duración. Cada slide debe tener título + 3–6 viñetas concretas. No abusar de generalidades — incluir ejemplos, definiciones técnicas precisas y al menos 2 slides con casos concretos. Aplica el color {{primary_color}} en títulos.\n` +
+        `- **GUIA_DOCENTE**: extensión mínima 800 palabras. Asume que el docente JAMÁS ha enseñado este tema antes — explica los conceptos clave PASO A PASO, anticipa preguntas frecuentes de los estudiantes con sus respuestas, sugiere analogías para conceptos abstractos. Incluye una sección "Errores comunes que cometen los estudiantes" con al menos 3 entradas y "Cómo retroalimentarlos" debajo de cada una. NO sea genérico ("explicar el concepto") — escribe el guion exacto que el docente puede leer.\n` +
+        `- **TALLER_PRACTICO**: 5–8 pasos secuenciados. Cada paso incluye: objetivo (1 línea), instrucciones detalladas con la herramienta SaaS específica + URL, capturas verbales esperadas ("deberías ver X en la esquina Y") y un entregable verificable. Criterios de éxito con métricas observables (no "lo hizo bien" — "completa la tarea en <10 min con 0 errores de sintaxis").\n` +
+        `- **EJERCICIO_ESTUDIANTE** (solo teorico_practica): enunciado autocontenido, ≥300 palabras. Incluye contexto, datos de entrada concretos, restricciones, formato del entregable y rubrica de evaluación visible para el estudiante.\n` +
+        `- **EJERCICIO_SOLUCION** (solo teorico_practica): MISMO enunciado palabra-por-palabra + solución paso-a-paso completa con justificación pedagógica + respuesta final + 3+ errores comunes con guía de retroalimentación.`;
 
-    const rawOutput = aggregatedRaw;
-    const blocks = allBlocks;
-    if (blocks.length === 0) {
-      // No bloques. Para regen completa marcamos failed; para regen
-      // parcial rollback a 'done' (los archivos previos siguen válidos)
-      // y devolvemos el error en la respuesta para que el cliente lo
-      // muestre como toast sin alarmar con un status='failed'.
+      const buildIntroMessage = (totalClasses: number) =>
+        `Modo seleccionado: GENERAR INTRODUCCIÓN DEL CURSO.\n\n` +
+        `${commonContext}\nCantidad total de clases: ${totalClasses}\n\n` +
+        `Genera ÚNICAMENTE el archivo INTRO_CURSO.PPTX con la portada institucional, los objetivos del curso (5+ objetivos de aprendizaje accionables), justificación (≥150 palabras explicando por qué este curso importa y para quién está pensado) y el cronograma de las ${totalClasses} clases (un slide con tabla resumen: clase N · título · objetivo principal). NO generes archivos de clases individuales — esos se generan en pases separados.`;
+
+      let aggregatedRaw = "";
+      let allBlocks: Array<{ name: string; body: string }> = [];
+
+      // Defensa contra el bug clásico del multi-pase: el modelo a veces
+      // ignora la instrucción de añadir `_CLASE_<N>` al filename. Si dos
+      // clases generan `TALLER_PRACTICO.MD`, ambas suben al MISMO
+      // storagePath y se sobrescriben (upsert). Resultado: spinner se
+      // muestra en todas las chips de ese tipo y la descarga trae siempre
+      // el último archivo. Forzamos el sufijo aquí.
+      const tagWithClass = (blocks: Array<{ name: string; body: string }>, k: number) =>
+        blocks.map((b) => {
+          if (classFromName(b.name) !== null) return b;
+          const newName = b.name.replace(/(\.[A-Za-z0-9]+)?$/, `_CLASE_${k}$1`);
+          return { ...b, name: newName };
+        });
+
       if (isPartial) {
+        // Regen de UNA clase puntual — un único pase, igual que antes.
+        const tn = body.target_class!;
+        const userMsg = buildClassMessage(tn, gen.n_classes ?? tn);
+        const { blocks: pb, rawOutput } = await runOnePass(userMsg, `Clase ${tn}`);
+        aggregatedRaw = rawOutput;
+        allBlocks = tagWithClass(pb, tn);
+      } else if (gen.mode === "curso_completo") {
+        // Pase ÚNICO (revertido del multi-pase que hacía 1 + N llamadas
+        // y demoraba 3-5 min en cursos de 8 clases). Le pedimos al modelo
+        // que devuelva en UNA sola respuesta TODOS los archivos del curso
+        // (intro + N clases) usando los marcadores `_CLASE_<N>` en cada
+        // filename. Trade-off conocido: el contenido por archivo es algo
+        // más conciso que con el multi-pase, a cambio de un tiempo de
+        // generación 5-10× más rápido. El docente puede regenerar UNA
+        // clase puntual desde el grid si quiere más profundidad en esa
+        // clase específica (RegenerateContentDialog mode="class").
+        const n = Math.max(1, Math.min(Number(gen.n_classes) || 1, 40));
+        const userMsg =
+          `Modo seleccionado: GENERAR CURSO COMPLETO.\n\n` +
+          `${commonContext}\nCantidad total de clases: ${n}\n\n` +
+          `Genera EN UNA SOLA RESPUESTA todos los archivos del curso:\n` +
+          `1. INTRO_CURSO.PPTX con portada, objetivos del curso (5+), justificación (≥150 palabras) y cronograma de las ${n} clases.\n` +
+          `2. Para CADA clase (de 1 a ${n}), los archivos con sufijo "_CLASE_<N>" en el filename:\n` +
+          `   - PRESENTACION_CLASE_<N>.PPTX: 9–18 slides con título + 3–6 viñetas concretas + ejemplos. Color {{primary_color}} en títulos.\n` +
+          `   - GUIA_DOCENTE_CLASE_<N>.MD: ≥500 palabras. Asume que el docente no conoce el tema — explica paso a paso, anticipa preguntas frecuentes con respuesta, sugiere analogías. Incluye sección "Errores comunes" con ≥3 entradas y cómo retroalimentar.\n` +
+          `   - TALLER_PRACTICO_CLASE_<N>.MD: 5–8 pasos con herramienta SaaS específica + URL + criterios de éxito medibles.\n` +
+          `   - (solo si modalidad teorico_practica) EJERCICIO_ESTUDIANTE_CLASE_<N>.MD: enunciado autocontenido ≥250 palabras.\n` +
+          `   - (solo si modalidad teorico_practica) EJERCICIO_SOLUCION_CLASE_<N>.MD: mismo enunciado palabra-por-palabra + solución paso-a-paso + 3+ errores comunes.\n\n` +
+          `CRÍTICO: cada filename DEBE incluir "_CLASE_<N>" para que los archivos de distintas clases no colisionen al guardar. Usa los marcadores [INICIO_ARCHIVO: NAME] / [FIN_ARCHIVO: NAME] alrededor de cada archivo.`;
+        const r = await runOnePass(userMsg, `Curso completo (${n} clases)`);
+        aggregatedRaw = r.rawOutput;
+        // tagWithClass de seguridad por archivo: si el modelo ignoró el
+        // sufijo _CLASE_<N> en alguno (lo hace a veces), classFromName lo
+        // detecta o lo deja sin tag — la intro queda sin tag (correcto).
+        // El número de clase real se infiere del filename en el cliente.
+        allBlocks = r.blocks;
+      } else {
+        // material_individual: una sola sesión, un solo pase con énfasis
+        // en profundidad por archivo (mismas guías que el per-class).
+        const userMsg =
+          `Modo seleccionado: MATERIAL INDIVIDUAL.\n\n${commonContext}\n\n` +
+          `Genera el material completo de UNA sola sesión sobre el tema. NO uses sufijo _CLASE_N — usa los nombres base.\n\n` +
+          `### OBJETIVOS DE PROFUNDIDAD POR ARCHIVO\n` +
+          `- PRESENTACION: 9–22 slides según duración; cada slide con título + 3–6 viñetas + ejemplos concretos.\n` +
+          `- GUIA_DOCENTE: ≥800 palabras, paso-a-paso para docente sin conocimiento previo, con errores comunes y cómo retroalimentar.\n` +
+          `- TALLER_PRACTICO: 5–8 pasos con herramienta SaaS específica + criterios de éxito medibles.\n` +
+          `- EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION (solo teorico_practica): mismo enunciado palabra-por-palabra, el segundo añade solución paso-a-paso.`;
+        const r = await runOnePass(userMsg, "Material individual");
+        aggregatedRaw = r.rawOutput;
+        allBlocks = r.blocks;
+      }
+
+      const rawOutput = aggregatedRaw;
+      const blocks = allBlocks;
+      if (blocks.length === 0) {
+        // No bloques. Para regen completa marcamos failed; para regen
+        // parcial rollback a 'done' (los archivos previos siguen válidos)
+        // y devolvemos el error en la respuesta para que el cliente lo
+        // muestre como toast sin alarmar con un status='failed'.
+        if (isPartial) {
+          await adminClient
+            .from("generated_contents")
+            .update({ status: "done", error: null })
+            .eq("id", gen.id);
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              partial: true,
+              error:
+                "La IA no produjo bloques [INICIO_ARCHIVO]…[FIN_ARCHIVO] reconocibles para esa clase. Reintenta.",
+            }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
         await adminClient
           .from("generated_contents")
-          .update({ status: "done", error: null })
+          .update({
+            status: "failed",
+            raw_output: rawOutput,
+            error:
+              "La IA no produjo bloques [INICIO_ARCHIVO]…[FIN_ARCHIVO] reconocibles. Revisa el prompt o reintenta.",
+          })
+          .eq("id", gen.id);
+        return new Response(JSON.stringify({ ok: false, error: "no_blocks" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Sube cada bloque al bucket. Layout:
+      //   <teacher_id>/<content_id>/<safe-name>
+      // Esto matchea las RLS policies sobre storage.objects.
+      const files: FileEntry[] = [];
+      let i = 0;
+      for (const b of blocks) {
+        i += 1;
+        const fileName = safeFileName(b.name, i);
+        // Guardamos los .pptx como .pptx.txt para que el cliente los reconozca
+        // como "fuente" y los convierta on-demand a binario .pptx con pptxgenjs.
+        const storedName = blockKind(b.name) === "pptx-source" ? `${fileName}.txt` : fileName;
+        const storagePath = `${gen.teacher_id}/${gen.id}/${storedName}`;
+        const upload = await adminClient.storage
+          .from("generated-contents")
+          .upload(storagePath, new Blob([b.body], { type: "text/plain; charset=utf-8" }), {
+            upsert: true,
+            contentType: "text/plain; charset=utf-8",
+          });
+        if (upload.error)
+          throw new Error(`Upload failed for ${storedName}: ${upload.error.message}`);
+        files.push({
+          name: fileName,
+          path: storagePath,
+          kind: blockKind(b.name),
+          body: b.body,
+        });
+      }
+
+      if (isPartial) {
+        // Merge: conserva los archivos que NO pertenecen a la clase target,
+        // reemplaza/agrega los nuevos. Mantenemos el `raw_output` original
+        // del curso completo — el regen parcial no debe sobrescribirlo.
+        const tn = body.target_class!;
+        const existing = (gen.files ?? []) as FileEntry[];
+        const kept = existing.filter((f) => classFromName(f.name) !== tn);
+        const merged = [...kept, ...files];
+        await adminClient
+          .from("generated_contents")
+          .update({ status: "done", files: merged, error: null })
           .eq("id", gen.id);
         return new Response(
-          JSON.stringify({
-            ok: false,
-            partial: true,
-            error:
-              "La IA no produjo bloques [INICIO_ARCHIVO]…[FIN_ARCHIVO] reconocibles para esa clase. Reintenta.",
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          JSON.stringify({ ok: true, partial: true, target_class: tn, count: files.length }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+
       await adminClient
         .from("generated_contents")
         .update({
-          status: "failed",
+          status: "done",
+          files,
           raw_output: rawOutput,
-          error:
-            "La IA no produjo bloques [INICIO_ARCHIVO]…[FIN_ARCHIVO] reconocibles. Revisa el prompt o reintenta.",
+          error: null,
         })
         .eq("id", gen.id);
-      return new Response(JSON.stringify({ ok: false, error: "no_blocks" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
-    // Sube cada bloque al bucket. Layout:
-    //   <teacher_id>/<content_id>/<safe-name>
-    // Esto matchea las RLS policies sobre storage.objects.
-    const files: FileEntry[] = [];
-    let i = 0;
-    for (const b of blocks) {
-      i += 1;
-      const fileName = safeFileName(b.name, i);
-      // Guardamos los .pptx como .pptx.txt para que el cliente los reconozca
-      // como "fuente" y los convierta on-demand a binario .pptx con pptxgenjs.
-      const storedName = blockKind(b.name) === "pptx-source" ? `${fileName}.txt` : fileName;
-      const storagePath = `${gen.teacher_id}/${gen.id}/${storedName}`;
-      const upload = await adminClient.storage
-        .from("generated-contents")
-        .upload(storagePath, new Blob([b.body], { type: "text/plain; charset=utf-8" }), {
-          upsert: true,
-          contentType: "text/plain; charset=utf-8",
-        });
-      if (upload.error) throw new Error(`Upload failed for ${storedName}: ${upload.error.message}`);
-      files.push({
-        name: fileName,
-        path: storagePath,
-        kind: blockKind(b.name),
-        body: b.body,
-      });
-    }
-
-    if (isPartial) {
-      // Merge: conserva los archivos que NO pertenecen a la clase target,
-      // reemplaza/agrega los nuevos. Mantenemos el `raw_output` original
-      // del curso completo — el regen parcial no debe sobrescribirlo.
-      const tn = body.target_class!;
-      const existing = (gen.files ?? []) as FileEntry[];
-      const kept = existing.filter((f) => classFromName(f.name) !== tn);
-      const merged = [...kept, ...files];
-      await adminClient
-        .from("generated_contents")
-        .update({ status: "done", files: merged, error: null })
-        .eq("id", gen.id);
-      return new Response(
-        JSON.stringify({ ok: true, partial: true, target_class: tn, count: files.length }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    await adminClient
-      .from("generated_contents")
-      .update({
-        status: "done",
-        files,
-        raw_output: rawOutput,
-        error: null,
-      })
-      .eq("id", gen.id);
-
-    void auditFromEdge(adminClient, {
-      actorId: gen.teacher_id ?? null,
-      action: "content.generated",
-      category: "course",
-      severity: "info",
-      entityType: "generated_content",
-      entityId: gen.id,
-      entityName: gen.topic ?? null,
-      courseId: gen.course_id ?? null,
-      metadata: {
-        mode: gen.mode,
-        n_classes: gen.n_classes,
-        modality: gen.modality,
-        files_count: files.length,
-      },
-    });
-
-    return new Response(JSON.stringify({ ok: true, count: files.length }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // Regen parcial: rollback a 'done' y dejamos `error` limpio. Los
-    // archivos previos del row siguen siendo válidos, así que el row
-    // no debe aparecer como failed en el grid.
-    if (isPartial) {
-      await adminClient
-        .from("generated_contents")
-        .update({ status: "done", error: null })
-        .eq("id", gen.id);
       void auditFromEdge(adminClient, {
         actorId: gen.teacher_id ?? null,
-        action: "content.regeneration_failed",
+        action: "content.generated",
         category: "course",
-        severity: "error",
+        severity: "info",
         entityType: "generated_content",
         entityId: gen.id,
         entityName: gen.topic ?? null,
         courseId: gen.course_id ?? null,
         metadata: {
           mode: gen.mode,
-          target_class: body.target_class,
-          error: msg,
+          n_classes: gen.n_classes,
+          modality: gen.modality,
+          files_count: files.length,
         },
       });
-      return new Response(JSON.stringify({ ok: false, partial: true, error: msg }), {
+
+      return new Response(JSON.stringify({ ok: true, count: files.length }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Regen parcial: rollback a 'done' y dejamos `error` limpio. Los
+      // archivos previos del row siguen siendo válidos, así que el row
+      // no debe aparecer como failed en el grid.
+      if (isPartial) {
+        await adminClient
+          .from("generated_contents")
+          .update({ status: "done", error: null })
+          .eq("id", gen.id);
+        void auditFromEdge(adminClient, {
+          actorId: gen.teacher_id ?? null,
+          action: "content.regeneration_failed",
+          category: "course",
+          severity: "error",
+          entityType: "generated_content",
+          entityId: gen.id,
+          entityName: gen.topic ?? null,
+          courseId: gen.course_id ?? null,
+          metadata: {
+            mode: gen.mode,
+            target_class: body.target_class,
+            error: msg,
+          },
+        });
+        return new Response(JSON.stringify({ ok: false, partial: true, error: msg }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      await adminClient
+        .from("generated_contents")
+        .update({ status: "failed", error: msg })
+        .eq("id", gen.id);
+      void auditFromEdge(adminClient, {
+        actorId: gen.teacher_id ?? null,
+        action: "content.generation_failed",
+        category: "course",
+        severity: "error",
+        entityType: "generated_content",
+        entityId: gen.id,
+        entityName: gen.topic ?? null,
+        courseId: gen.course_id ?? null,
+        metadata: { mode: gen.mode, n_classes: gen.n_classes, error: msg },
+      });
+      return new Response(JSON.stringify({ ok: false, error: msg }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-    await adminClient
-      .from("generated_contents")
-      .update({ status: "failed", error: msg })
-      .eq("id", gen.id);
-    void auditFromEdge(adminClient, {
-      actorId: gen.teacher_id ?? null,
-      action: "content.generation_failed",
-      category: "course",
-      severity: "error",
-      entityType: "generated_content",
-      entityId: gen.id,
-      entityName: gen.topic ?? null,
-      courseId: gen.course_id ?? null,
-      metadata: { mode: gen.mode, n_classes: gen.n_classes, error: msg },
-    });
-    return new Response(JSON.stringify({ ok: false, error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
     }
   })();
 

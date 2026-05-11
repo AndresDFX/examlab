@@ -180,6 +180,48 @@ export function serializeSlides(slides: ParsedSlide[]): string {
     .join("\n\n");
 }
 
+/**
+ * Strips inline markdown for rendering en texto plano dentro de PPTX.
+ * El modelo a veces emite bullets como "**Variable**: contenedor de
+ * datos" — pptxgenjs no parsea Markdown, así que el slide muestra
+ * literal los asteriscos. Acá los quitamos preservando el texto.
+ *
+ * Cubre el inventario común que sale del modelo:
+ *  - **bold** / __bold__       → bold
+ *  - *italic* / _italic_       → italic
+ *  - `code`                    → code
+ *  - ~~strike~~                → strike
+ *  - # headings                → headings
+ *  - [text](url)               → text
+ *  - ![alt](src)               → alt
+ *
+ * NO maneja markdown a nivel bloque (listas anidadas, tablas) — eso ya
+ * lo separamos antes en parseSlideBlock como bullets/code blocks.
+ */
+export function stripInlineMarkdown(raw: string): string {
+  if (!raw) return "";
+  let out = raw;
+  // Heading prefixes "# / ## / ###" al inicio de línea.
+  out = out.replace(/^\s*#{1,6}\s+/gm, "");
+  // Images: ![alt](src) → alt
+  out = out.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+  // Links: [text](url) → text
+  out = out.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  // Bold + italic combinados ***text*** / ___text___
+  out = out.replace(/(\*\*\*|___)([^*_]+?)\1/g, "$2");
+  // Bold: **text** / __text__
+  out = out.replace(/(\*\*|__)([^*_]+?)\1/g, "$2");
+  // Italic: *text* / _text_ — guardamos los espacios alrededor.
+  out = out.replace(/(?<!\w)[*_]([^*_\n]+?)[*_](?!\w)/g, "$1");
+  // Strikethrough: ~~text~~
+  out = out.replace(/~~([^~]+?)~~/g, "$1");
+  // Inline code: `code`
+  out = out.replace(/`([^`]+?)`/g, "$1");
+  // HTML tags simples: <tag>x</tag> → x
+  out = out.replace(/<\/?[a-z][^>]*>/gi, "");
+  return out;
+}
+
 function normalizeColor(c: string): string {
   // pptxgenjs requiere hex sin '#'. Devolvemos 6 chars sólidos.
   let h = c.replace("#", "").trim();
@@ -241,7 +283,7 @@ export async function buildPptxBlob(
           // Logo opcional — si falla la carga no abortamos.
         }
       }
-      slide.addText(s.title || documentTitle, {
+      slide.addText(stripInlineMarkdown(s.title || documentTitle), {
         x: 0.5,
         y: 2.5,
         w: 12,
@@ -264,7 +306,7 @@ export async function buildPptxBlob(
         });
       }
       if (s.bullets.length) {
-        slide.addText(s.bullets.join("\n"), {
+        slide.addText(s.bullets.map(stripInlineMarkdown).filter(Boolean).join("\n"), {
           x: 0.5,
           y: 5.0,
           w: 12,
@@ -280,7 +322,7 @@ export async function buildPptxBlob(
     // Slide regular: title arriba con primary color, bullets + bloques
     // de código debajo. Si hay code blocks, las bullets ocupan menos
     // alto vertical para dejar espacio al panel de código.
-    slide.addText(s.title || "", {
+    slide.addText(stripInlineMarkdown(s.title || ""), {
       x: 0.5,
       y: 0.4,
       w: 12,
@@ -294,8 +336,13 @@ export async function buildPptxBlob(
     const bulletsH = hasCode ? 2.8 : 5.6;
 
     if (s.bullets.length) {
+      // Limpia el markdown inline de cada bullet (pptxgenjs no parsea
+      // Markdown, así que sin esto el slide muestra "**Variable**:" en
+      // vez de "Variable:" o un bullet en negrita). Filtramos vacíos
+      // también para no pintar bullets en blanco.
+      const cleanBullets = s.bullets.map(stripInlineMarkdown).filter((b) => b.trim().length > 0);
       slide.addText(
-        s.bullets.map((b) => ({ text: b, options: { bullet: true } })),
+        cleanBullets.map((b) => ({ text: b, options: { bullet: true } })),
         {
           x: 0.5,
           y: 1.4,

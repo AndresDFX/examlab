@@ -52,7 +52,12 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import { parseSlideBlock, serializeSlides, type ParsedSlide } from "@/lib/contents-pptx";
+import {
+  parseSlideBlock,
+  serializeSlides,
+  stripInlineMarkdown,
+  type ParsedSlide,
+} from "@/lib/contents-pptx";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -326,25 +331,28 @@ export function PptxViewerDialog({
                         {slide.isCover ? (
                           <div className="flex-1 flex flex-col items-center justify-center text-center gap-2">
                             <h2 className="text-2xl font-bold text-primary leading-tight">
-                              {slide.title || t("pptxViewer.cover")}
+                              {stripInlineMarkdown(slide.title) || t("pptxViewer.cover")}
                             </h2>
                             {slide.bullets.filter(Boolean).length > 0 && (
                               <p className="text-sm text-slate-600 max-w-md">
-                                {slide.bullets.filter(Boolean).join(" · ")}
+                                {slide.bullets.map(stripInlineMarkdown).filter(Boolean).join(" · ")}
                               </p>
                             )}
                           </div>
                         ) : (
                           <>
                             <h3 className="text-lg font-bold text-primary border-b border-primary/30 pb-1.5 mb-2 leading-tight">
-                              {slide.title || t("pptxViewer.untitled")}
+                              {stripInlineMarkdown(slide.title) || t("pptxViewer.untitled")}
                             </h3>
                             <div className="flex-1 overflow-y-auto space-y-1.5 text-sm pr-1">
                               {slide.bullets.filter(Boolean).length > 0 && (
                                 <ul className="list-disc pl-5 space-y-1">
-                                  {slide.bullets.filter(Boolean).map((b, bi) => (
-                                    <li key={bi}>{b}</li>
-                                  ))}
+                                  {slide.bullets
+                                    .map(stripInlineMarkdown)
+                                    .filter((b) => b.trim().length > 0)
+                                    .map((b, bi) => (
+                                      <li key={bi}>{b}</li>
+                                    ))}
                                 </ul>
                               )}
                               {(slide.codeBlocks ?? []).map((cb, ci) => (
