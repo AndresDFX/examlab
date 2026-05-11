@@ -151,6 +151,12 @@ function CalendarPage() {
   }, []);
 
   // ── Cursos del docente (para el selector de sync) ──
+  // Solo mostramos cursos que tengan AL MENOS una sesión con start_time
+  // definido. Sin hora, la sincronización con Google caería al fallback
+  // 09:00 — comportamiento histórico — pero el docente quiere ver el
+  // tiempo real, así que escondemos el curso del selector hasta que
+  // configure al menos una sesión con hora. Esto previene "sincronicé y
+  // todo quedó a las 9 am" como bug reportado.
   useEffect(() => {
     if (!user) return;
     void (async () => {
@@ -163,7 +169,24 @@ function CalendarPage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((r: any) => r.courses)
         .filter(Boolean) as CourseRow[];
-      setCourses(rows);
+      if (rows.length === 0) {
+        setCourses([]);
+        return;
+      }
+      // Para cada course_id consultamos si existe al menos una sesión
+      // con start_time IS NOT NULL. Una sola query con IN + DISTINCT.
+      const ids = rows.map((c) => c.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: timedSessions } = await (supabase as any)
+        .from("attendance_sessions")
+        .select("course_id")
+        .in("course_id", ids)
+        .not("start_time", "is", null)
+        .limit(10000);
+      const withTime = new Set<string>(
+        (timedSessions ?? []).map((s: { course_id: string }) => s.course_id),
+      );
+      setCourses(rows.filter((c) => withTime.has(c.id)));
     })();
   }, [user]);
 
@@ -418,21 +441,35 @@ function CalendarPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Label>{t("calendar.courseLabel")}</Label>
-              <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("calendar.coursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {courses.length === 0 ? (
+                // Mensaje explicativo si el docente no tiene cursos
+                // sincronizables: o NO es docente de ningún curso, o
+                // todos sus cursos están sin sesiones con start_time
+                // definido. En el segundo caso, le decimos cómo arreglar.
+                <Alert>
+                  <AlertDescription className="text-xs">
+                    {t("calendar.noCoursesWithTime")}
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("calendar.coursePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Button
                 onClick={handleSync}
-                disabled={!selectedCourseId || !status?.calendar_id || syncing}
+                disabled={
+                  !selectedCourseId || !status?.calendar_id || syncing || courses.length === 0
+                }
               >
                 {syncing ? (
                   <Spinner size="sm" className="mr-2" />

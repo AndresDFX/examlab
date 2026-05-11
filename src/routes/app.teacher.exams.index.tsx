@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { friendlyUniqueViolation } from "@/lib/db-errors";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/lib/audit";
@@ -154,7 +155,7 @@ function TeacherExams() {
     });
     if (!ok) return;
     const { error } = await supabase.from("exams").delete().eq("id", exam.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
     toast.success(t("exam.deleted", { defaultValue: "Examen eliminado" }));
     void logEvent({
       action: "exam.deleted",
@@ -203,7 +204,7 @@ function TeacherExams() {
       })
       .select()
       .single();
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
     // Copiar preguntas
     const { data: qs } = await supabase
       .from("questions")
@@ -401,7 +402,7 @@ function TeacherExams() {
         .select()
         .single();
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyUniqueViolation(error) ?? error.message);
         return;
       }
       if (!firstId) firstId = data.id;

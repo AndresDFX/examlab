@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/lib/audit";
+import { friendlyUniqueViolation } from "@/lib/db-errors";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -481,7 +482,11 @@ export function AdminCourses() {
         }
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      // El throw que cae acá viene de las queries de grade_cuts arriba.
+      // Si es unique_violation (dos cortes con el mismo nombre en el
+      // mismo curso) lo traducimos al mensaje humano.
+      const friendly = friendlyUniqueViolation(e);
+      const msg = friendly ?? (e instanceof Error ? e.message : String(e));
       toast.error(`Curso guardado, pero falló la sincronización de cortes: ${msg}`);
       setOpen(false);
       setEditing(null);
@@ -1566,6 +1571,11 @@ interface SessionRow {
   id: string;
   course_id: string;
   session_date: string;
+  /** Hora local Bogotá HH:MM:SS (TIME). Null = legacy, la edge function
+   *  cae al fallback 09:00 al sincronizar con Google Calendar. */
+  start_time: string | null;
+  /** Minutos. Null = fallback 90. */
+  duration_minutes: number | null;
   title: string | null;
   content_id: string | null;
   content_class_index: number | null;
@@ -1602,6 +1612,13 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   // un id, edita esa fila. La fila editada queda con un anillo
   // primary para señalizar el modo edición.
   const [draftDate, setDraftDate] = useState("");
+  // Hora de inicio (HH:MM) y duración en minutos — usados por la
+  // sincronización con Google Calendar (edge function `calendar`) para
+  // crear el evento a la hora real en vez de hardcodear 09:00/90min.
+  // Defaults sugeridos para clase universitaria; el docente los puede
+  // ajustar por sesión.
+  const [draftStartTime, setDraftStartTime] = useState("09:00");
+  const [draftDuration, setDraftDuration] = useState(90);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftMeetingUrl, setDraftMeetingUrl] = useState("");
   // CSV import: bandera que muestra spinner mientras procesa, y un
@@ -1625,7 +1642,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         db
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, title, content_id, content_class_index, meeting_url",
+            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
           )
           .eq("course_id", course.id)
           .order("session_date", { ascending: true }),
@@ -1729,14 +1746,20 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         .insert({
           course_id: course.id,
           session_date: draftDate,
+          // start_time como TIME "HH:MM:00" (Postgres acepta tanto HH:MM
+          // como HH:MM:SS pero normalizamos para ser explícitos).
+          start_time: draftStartTime ? `${draftStartTime}:00` : null,
+          duration_minutes: draftDuration > 0 ? draftDuration : 90,
           title: draftTitle.trim() || null,
           meeting_url: draftMeetingUrl.trim() || null,
           created_by: user.id,
         })
-        .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url")
+        .select(
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
+        )
         .single();
       if (error || !data) {
-        toast.error(error?.message ?? "insert failed");
+        toast.error(friendlyUniqueViolation(error) ?? error?.message ?? "insert failed");
         return;
       }
       // Insertamos manteniendo el orden por session_date asc.
@@ -1744,6 +1767,8 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         [...prev, data as SessionRow].sort((a, b) => a.session_date.localeCompare(b.session_date)),
       );
       setDraftDate("");
+      setDraftStartTime("09:00");
+      setDraftDuration(90);
       setDraftTitle("");
       setDraftMeetingUrl("");
       toast.success(t("course.boardSessionCreated"));
@@ -1888,6 +1913,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const startEdit = (s: SessionRow) => {
     setEditingId(s.id);
     setDraftDate(s.session_date);
+    // Postgres devuelve TIME como "HH:MM:SS"; el <input type="time">
+    // espera "HH:MM". Cortamos al primer ":" desde el final.
+    setDraftStartTime(s.start_time ? s.start_time.slice(0, 5) : "09:00");
+    setDraftDuration(s.duration_minutes ?? 90);
     setDraftTitle(s.title ?? "");
     setDraftMeetingUrl(s.meeting_url ?? "");
   };
@@ -1895,25 +1924,33 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const cancelEdit = () => {
     setEditingId(null);
     setDraftDate("");
+    setDraftStartTime("09:00");
+    setDraftDuration(90);
     setDraftTitle("");
     setDraftMeetingUrl("");
   };
 
-  /** Persiste cambios de fecha/título de la sesión en edición. */
+  /** Persiste cambios de fecha/hora/título/duración de la sesión en
+   *  edición. La hora + duración alimentan la sincronización a
+   *  Google Calendar (edge function `calendar`). */
   const saveEdit = async () => {
     if (!editingId || !draftDate) return;
     setSaving(true);
     try {
+      const newStartTime = draftStartTime ? `${draftStartTime}:00` : null;
+      const newDuration = draftDuration > 0 ? draftDuration : 90;
       const { error } = await db
         .from("attendance_sessions")
         .update({
           session_date: draftDate,
+          start_time: newStartTime,
+          duration_minutes: newDuration,
           title: draftTitle.trim() || null,
           meeting_url: draftMeetingUrl.trim() || null,
         })
         .eq("id", editingId);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyUniqueViolation(error) ?? error.message);
         return;
       }
       setSessions((prev) =>
@@ -1923,6 +1960,8 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
               ? {
                   ...s,
                   session_date: draftDate,
+                  start_time: newStartTime,
+                  duration_minutes: newDuration,
                   title: draftTitle.trim() || null,
                   meeting_url: draftMeetingUrl.trim() || null,
                 }
@@ -2040,6 +2079,36 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                 className="h-8 text-xs w-44"
               />
             </div>
+            {/* Hora inicio + duración — alimentan la sincronización a
+                Google Calendar para crear el evento a la hora real en
+                vez de hardcodear 09:00/90min. */}
+            <div className="space-y-1">
+              <Label className="text-[11px]">{t("course.boardStartTime")}</Label>
+              <Input
+                type="time"
+                value={editingId ? "" : draftStartTime}
+                onChange={(e) => {
+                  if (editingId) setEditingId(null);
+                  setDraftStartTime(e.target.value);
+                }}
+                className="h-8 text-xs w-28"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">{t("course.boardDuration")}</Label>
+              <Input
+                type="number"
+                min={15}
+                max={480}
+                step={5}
+                value={editingId ? "" : draftDuration}
+                onChange={(e) => {
+                  if (editingId) setEditingId(null);
+                  setDraftDuration(Number(e.target.value) || 90);
+                }}
+                className="h-8 text-xs w-20"
+              />
+            </div>
             <div className="space-y-1 flex-1 min-w-48">
               <Label className="text-[11px]">{t("common.title")}</Label>
               <Input
@@ -2115,6 +2184,27 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             className="h-8 text-xs w-44"
                           />
                         </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">{t("course.boardStartTime")}</Label>
+                          <Input
+                            type="time"
+                            value={draftStartTime}
+                            onChange={(e) => setDraftStartTime(e.target.value)}
+                            className="h-8 text-xs w-28"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">{t("course.boardDuration")}</Label>
+                          <Input
+                            type="number"
+                            min={15}
+                            max={480}
+                            step={5}
+                            value={draftDuration}
+                            onChange={(e) => setDraftDuration(Number(e.target.value) || 90)}
+                            className="h-8 text-xs w-20"
+                          />
+                        </div>
                         <div className="space-y-1 flex-1 min-w-48">
                           <Label className="text-[11px]">{t("common.title")}</Label>
                           <Input
@@ -2164,6 +2254,12 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             <Badge variant="outline" className="text-[11px] tabular-nums">
                               {s.session_date}
                             </Badge>
+                            {s.start_time && (
+                              <Badge variant="outline" className="text-[11px] tabular-nums">
+                                {s.start_time.slice(0, 5)}
+                                {s.duration_minutes ? ` · ${s.duration_minutes}m` : ""}
+                              </Badge>
+                            )}
                             {s.title && <span className="text-sm font-medium">{s.title}</span>}
                             {s.meeting_url && (
                               <a

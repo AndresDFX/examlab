@@ -44,6 +44,7 @@ import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { logEvent } from "@/lib/audit";
+import { friendlyUniqueViolation } from "@/lib/db-errors";
 import {
   Plus,
   Pencil,
@@ -649,7 +650,7 @@ function TeacherWorkshops() {
         .from("workshops")
         .update({ ...basePayload, course_id: form.course_id! })
         .eq("id", form.id);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       if (courseChanged) {
         await supabase.from("workshop_assignments").delete().eq("workshop_id", form.id);
         await autoAssignWorkshop(form.id, form.course_id!);
@@ -693,7 +694,7 @@ function TeacherWorkshops() {
           .select()
           .single();
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyUniqueViolation(error) ?? error.message);
           return;
         }
         // Auto-asignar a todos los estudiantes matriculados al crear

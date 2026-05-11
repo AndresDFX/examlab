@@ -28,14 +28,34 @@ function detectProvider(url: string): Provider {
   }
 }
 
-/** Mini logo por proveedor — letra estilizada en círculo brand-colored.
- *  Reemplazo razonable del logo oficial (evita el problema de TM). */
+/** Mini logo por proveedor.
+ *
+ * Para Google Meet usamos el SVG OFICIAL — los 4 cuadrantes en
+ * verde/azul/amarillo/rojo de Google que forman una "M" / cámara
+ * estilizada (uso permitido como "favicon" para enlazar a la app).
+ * Para Teams y Zoom seguimos con letras estilizadas porque sus marcas
+ * son más restrictivas — la letra coloreada cumple el propósito sin
+ * exponernos a problemas de marca.
+ */
 function ProviderLogo({ provider }: { provider: Provider }) {
   if (provider === "meet") {
+    // Logo oficial de Google Meet (vector simplificado de los 4
+    // cuadrantes que forman la M de Meet). 4 colores de Google +
+    // cuerpo de la cámara en verde.
     return (
-      <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-[#00897B] text-white text-[9px] font-bold leading-none shrink-0">
-        M
-      </span>
+      <svg
+        viewBox="0 0 87 72"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+        className="h-4 w-4 shrink-0"
+      >
+        <path d="M49.5 36L59 44.5 87 22V50c0 5.5-4.5 10-10 10H67V46L49.5 36z" fill="#00832D" />
+        <path d="M0 51.5V61c0 5.5 4.5 10 10 10h33V60H10V51.5H0z" fill="#0066DA" />
+        <path d="M10 0C4.5 0 0 4.5 0 10v41.5h10V14h33V0H10z" fill="#E94235" />
+        <path d="M43 0v14h24v22l20 14V21c0-5.5-4.5-10-10-10L80 0H43z" fill="#FFBA00" />
+        <path d="M43 14v46h24V36L43 14z" fill="#00AC47" />
+        <path d="M67 36v10l20 14V22L67 36z" fill="#FFBA00" />
+      </svg>
     );
   }
   if (provider === "teams") {

@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { friendlyUniqueViolation } from "@/lib/db-errors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -358,7 +359,7 @@ function ExamEditor() {
       .from("exams")
       .update(payload as any)
       .eq("id", examId);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
     if (courseChanged) {
       // Limpia asignaciones del curso anterior y re-asigna todos los
       // matriculados del nuevo curso. Idempotente: si vuelves a guardar
@@ -410,7 +411,7 @@ function ExamEditor() {
           language,
         })
         .eq("id", editingId);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       toast.success("Pregunta actualizada correctamente");
     } else {
       const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
@@ -430,7 +431,7 @@ function ExamEditor() {
               ? JAVA_STARTER
               : null,
       });
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       toast.success("Pregunta agregada correctamente");
     }
     resetQForm();
@@ -468,7 +469,7 @@ function ExamEditor() {
     });
     if (!ok) return;
     const { error } = await supabase.from("questions").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
     load();
   };
 
@@ -502,7 +503,7 @@ function ExamEditor() {
       const { error } = await supabase
         .from("exam_assignments")
         .insert({ exam_id: examId, user_id: uid });
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       await supabase.from("notifications").insert({
         user_id: uid,
         title: "Examen asignado",
@@ -518,7 +519,7 @@ function ExamEditor() {
         .delete()
         .eq("exam_id", examId)
         .eq("user_id", uid);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       const ns = new Set(assigned);
       ns.delete(uid);
       setAssigned(ns);
@@ -532,7 +533,7 @@ function ExamEditor() {
     const { error } = await supabase
       .from("exam_assignments")
       .insert(toAdd.map((id) => ({ exam_id: examId, user_id: id })));
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
     for (const id of toAdd) {
       await supabase.from("notifications").insert({
         user_id: id,

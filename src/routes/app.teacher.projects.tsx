@@ -50,6 +50,7 @@ import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
 import { ProjectGroupsEditor } from "@/components/ProjectGroupsEditor";
 import { toast } from "sonner";
 import { logEvent } from "@/lib/audit";
+import { friendlyUniqueViolation } from "@/lib/db-errors";
 import {
   Plus,
   Pencil,
@@ -689,7 +690,7 @@ function TeacherProjects() {
     let projectId: string | null = null;
     if (editing) {
       const { error } = await db.from("projects").update(payload).eq("id", editing.id);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       projectId = editing.id;
       toast.success(t("project.savedToast"));
       void logEvent({
@@ -708,7 +709,8 @@ function TeacherProjects() {
         .insert({ ...payload, created_by: user.id })
         .select("id")
         .single();
-      if (error || !created) return toast.error(error?.message ?? "Error al crear");
+      if (error || !created)
+        return toast.error(friendlyUniqueViolation(error) ?? error?.message ?? "Error al crear");
       projectId = created.id;
       toast.success(t("project.createdToast"));
       void logEvent({
