@@ -31,6 +31,7 @@ import { Route as AppStudentExamsRouteImport } from './routes/app.student.exams'
 import { Route as AppStudentCoursesRouteImport } from './routes/app.student.courses'
 import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.attendance'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
+import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
@@ -154,6 +155,11 @@ const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminSystemRoute = AppAdminSystemRouteImport.update({
+  id: '/admin/system',
+  path: '/admin/system',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminStatisticsRoute = AppAdminStatisticsRouteImport.update({
   id: '/admin/statistics',
   path: '/admin/statistics',
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
+  '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
+  '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
@@ -300,6 +308,7 @@ export interface FileRoutesById {
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
+  '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
@@ -338,6 +347,7 @@ export interface FileRouteTypes {
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/statistics'
+    | '/app/admin/system'
     | '/app/admin/users'
     | '/app/student/attendance'
     | '/app/student/courses'
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/statistics'
+    | '/app/admin/system'
     | '/app/admin/users'
     | '/app/student/attendance'
     | '/app/student/courses'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/statistics'
+    | '/app/admin/system'
     | '/app/admin/users'
     | '/app/student/attendance'
     | '/app/student/courses'
@@ -598,6 +610,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/system': {
+      id: '/app/admin/system'
+      path: '/admin/system'
+      fullPath: '/app/admin/system'
+      preLoaderRoute: typeof AppAdminSystemRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/admin/statistics': {
       id: '/app/admin/statistics'
       path: '/admin/statistics'
@@ -692,6 +711,7 @@ interface AppRouteChildren {
   AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
+  AppAdminSystemRoute: typeof AppAdminSystemRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
   AppStudentAttendanceRoute: typeof AppStudentAttendanceRoute
   AppStudentCoursesRoute: typeof AppStudentCoursesRoute
@@ -726,6 +746,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
+  AppAdminSystemRoute: AppAdminSystemRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
   AppStudentAttendanceRoute: AppStudentAttendanceRoute,
   AppStudentCoursesRoute: AppStudentCoursesRoute,
