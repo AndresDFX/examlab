@@ -35,3 +35,12 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Backup dumps — contienen datos personales (emails, nombres). Mantener
+# los .sql en local pero nunca commitearlos. La documentacion del proceso
+# de migracion vive en docs/migration/.
+backup/
+!backup/.gitkeep
+
+# Supabase CLI temp (se crea al hacer `supabase link`).
+supabase/.temp/

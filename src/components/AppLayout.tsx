@@ -57,6 +57,7 @@ import {
   Moon,
   Monitor,
   Languages,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -196,6 +197,10 @@ const NAV: NavItem[] = [
   },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
+  // Admin-only: utilidades de diagnóstico de la infraestructura
+  // (edge functions health-check, etc.). Va al final porque rara vez
+  // se usa — solo cuando hay sospecha de algo roto en Supabase.
+  { to: "/app/admin/system", labelKey: "nav.system", icon: Wrench, roles: ["Admin"] },
 ];
 
 const ROLE_CONFIG: Record<
@@ -249,6 +254,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/admin/statistics": "text-blue-300",
   "/app/teacher/audit-logs": "text-teal-300",
   "/app/admin/audit-logs": "text-teal-300",
+  "/app/admin/system": "text-cyan-300",
   "/app/student/exams": "text-amber-300",
   "/app/student/workshops": "text-orange-300",
   "/app/student/projects": "text-rose-300",

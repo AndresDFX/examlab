@@ -1,0 +1,4 @@
+id,name,public,file_size_limit,allowed_mime_types
+workshop-files,workshop-files,f,52428800,
+project-files,project-files,f,10485760,
+generated-contents,generated-contents,f,52428800,
