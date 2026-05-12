@@ -309,6 +309,20 @@ async function handleSync(userId: string, body: SyncBody) {
   if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
   const calId = encodeURIComponent(tok.calendar_id);
 
+  // Belt-and-suspenders: aunque el cliente filtra cursos sin sesiones
+  // completas, validamos también server-side. Si llegara un sync con
+  // sesiones sin start_time, abortamos antes de tocar Google — evita
+  // que eventos queden con hora default 09:00 cuando el docente nunca
+  // las configuró.
+  const { count: missingCount } = await adminClient
+    .from("attendance_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("course_id", body.courseId)
+    .is("start_time", null);
+  if ((missingCount ?? 0) > 0) {
+    return jsonError(`course_has_sessions_without_time:${missingCount}`, 400);
+  }
+
   // 3) Curso + sesiones + emails de matriculados (en paralelo).
   const [{ data: course }, { data: sessions }, { data: enrolls }] = await Promise.all([
     adminClient.from("courses").select("name").eq("id", body.courseId).maybeSingle(),

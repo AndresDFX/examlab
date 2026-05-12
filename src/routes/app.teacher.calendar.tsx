@@ -92,6 +92,12 @@ function CalendarPage() {
   const [calendarsLoading, setCalendarsLoading] = useState(false);
   const [calendarsError, setCalendarsError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseRow[]>([]);
+  // Cursos del docente con sesiones sin hora — para mostrar el detalle
+  // en el Alert ("Curso X: faltan 3 sesiones"). Cada entrada tiene el
+  // nombre del curso para no perder el contexto al filtrar.
+  const [coursesPendingTimes, setCoursesPendingTimes] = useState<
+    Array<{ id: string; name: string; missing: number }>
+  >([]);
   const [selectedCalId, setSelectedCalId] = useState<string>("");
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [connecting, setConnecting] = useState(false);
@@ -151,12 +157,15 @@ function CalendarPage() {
   }, []);
 
   // ── Cursos del docente (para el selector de sync) ──
-  // Solo mostramos cursos que tengan AL MENOS una sesión con start_time
-  // definido. Sin hora, la sincronización con Google caería al fallback
-  // 09:00 — comportamiento histórico — pero el docente quiere ver el
-  // tiempo real, así que escondemos el curso del selector hasta que
-  // configure al menos una sesión con hora. Esto previene "sincronicé y
-  // todo quedó a las 9 am" como bug reportado.
+  // Filtro DURO: solo mostramos cursos donde TODAS las sesiones tienen
+  // start_time definido (y existe al menos una sesión). Si alguna está
+  // sin hora, el curso queda fuera del selector — el docente debe
+  // completar todas antes de poder sincronizar. Esto evita el caso
+  // "sincronicé y algunas clases quedaron a las 9 am por defecto".
+  //
+  // También mantenemos un `pendingByCourse: Map<courseId, count>` con
+  // el número de sesiones SIN hora por curso — lo usamos para mostrar
+  // al docente cuántas le faltan completar.
   useEffect(() => {
     if (!user) return;
     void (async () => {
@@ -171,22 +180,39 @@ function CalendarPage() {
         .filter(Boolean) as CourseRow[];
       if (rows.length === 0) {
         setCourses([]);
+        setCoursesPendingTimes([]);
         return;
       }
-      // Para cada course_id consultamos si existe al menos una sesión
-      // con start_time IS NOT NULL. Una sola query con IN + DISTINCT.
       const ids = rows.map((c) => c.id);
+      // Traemos TODAS las sesiones (course_id + start_time) en un solo
+      // round-trip; con N pequeño (<200 sesiones por curso) es trivial.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: timedSessions } = await (supabase as any)
+      const { data: allSessions } = await (supabase as any)
         .from("attendance_sessions")
-        .select("course_id")
+        .select("course_id, start_time")
         .in("course_id", ids)
-        .not("start_time", "is", null)
         .limit(10000);
-      const withTime = new Set<string>(
-        (timedSessions ?? []).map((s: { course_id: string }) => s.course_id),
-      );
-      setCourses(rows.filter((c) => withTime.has(c.id)));
+      const totalByCourse = new Map<string, number>();
+      const missingByCourse = new Map<string, number>();
+      for (const s of (allSessions ?? []) as Array<{
+        course_id: string;
+        start_time: string | null;
+      }>) {
+        totalByCourse.set(s.course_id, (totalByCourse.get(s.course_id) ?? 0) + 1);
+        if (!s.start_time) {
+          missingByCourse.set(s.course_id, (missingByCourse.get(s.course_id) ?? 0) + 1);
+        }
+      }
+      const eligible: CourseRow[] = [];
+      const pending: Array<{ id: string; name: string; missing: number }> = [];
+      for (const c of rows) {
+        const total = totalByCourse.get(c.id) ?? 0;
+        const missing = missingByCourse.get(c.id) ?? 0;
+        if (total > 0 && missing === 0) eligible.push(c);
+        else if (missing > 0) pending.push({ id: c.id, name: c.name, missing });
+      }
+      setCourses(eligible);
+      setCoursesPendingTimes(pending);
     })();
   }, [user]);
 
@@ -442,13 +468,24 @@ function CalendarPage() {
             <CardContent className="space-y-3">
               <Label>{t("calendar.courseLabel")}</Label>
               {courses.length === 0 ? (
-                // Mensaje explicativo si el docente no tiene cursos
-                // sincronizables: o NO es docente de ningún curso, o
-                // todos sus cursos están sin sesiones con start_time
-                // definido. En el segundo caso, le decimos cómo arreglar.
+                // Mensaje explicativo. Hay 2 casos:
+                //   - No tiene NINGÚN curso → genérico.
+                //   - Tiene cursos pero TODOS tienen sesiones sin hora →
+                //     listamos el nombre del curso + cuántas faltan, así
+                //     sabe a dónde ir a configurarlo.
                 <Alert>
-                  <AlertDescription className="text-xs">
-                    {t("calendar.noCoursesWithTime")}
+                  <AlertDescription className="text-xs space-y-1">
+                    <div>{t("calendar.noCoursesWithTime")}</div>
+                    {coursesPendingTimes.length > 0 && (
+                      <ul className="list-disc pl-4 mt-1 text-[11px]">
+                        {coursesPendingTimes.map((c) => (
+                          <li key={c.id}>
+                            <span className="font-medium">{c.name}</span>:{" "}
+                            {t("calendar.pendingTimesPerCourse", { count: c.missing })}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </AlertDescription>
                 </Alert>
               ) : (
