@@ -27,7 +27,11 @@ export interface LogEventParams {
   metadata?: Record<string, unknown>;
 }
 
-/** Registra un evento de auditoría. Fire-and-forget: no await, nunca lanza. */
+/** Registra un evento de auditoría. Fire-and-forget: no await, nunca lanza.
+ *  El parámetro de la RPC se llama `p_metadata` (ver migration
+ *  20260509150000_audit_logs.sql). Antes este wrapper enviaba `p_details`
+ *  por un typo histórico y daba 404 en Supabase publicos (Lovable lo
+ *  parcheaba internamente). */
 export function logEvent(params: LogEventParams): Promise<void> {
   return (supabase as any)
     .rpc("log_audit_event", {
@@ -39,7 +43,7 @@ export function logEvent(params: LogEventParams): Promise<void> {
       p_entity_name: params.entityName ?? null,
       p_course_id:   params.courseId  ?? null,
       p_course_name: params.courseName ?? null,
-      p_details:     params.metadata  ?? {},
+      p_metadata:    params.metadata  ?? {},
     })
     .then(() => {})
     .catch(() => {});

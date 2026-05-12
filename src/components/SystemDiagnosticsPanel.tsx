@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -159,9 +160,39 @@ export function SystemDiagnosticsPanel() {
         return res.data;
       });
       setHc({ state: "ok", data, latencyMs });
+
+      // Cuando el response llega OK pero detecta problemas internos
+      // (secret IA faltante, push apuntando al Supabase viejo, etc.),
+      // los registramos al audit como warnings. Así el admin puede
+      // revisar histórico en /app/admin/audit-logs sin tener que estar
+      // refrescando este panel.
+      const warnings: string[] = [];
+      if (data.ai?.required_secret_missing && data.ai.required_secret) {
+        warnings.push(`AI secret missing: ${data.ai.required_secret}`);
+      }
+      if (data.push && data.push.send_push_url && data.push.points_to_current_project === false) {
+        warnings.push(`push_config apunta a otro proyecto: ${data.push.send_push_url}`);
+      }
+      if (data.storage && data.storage.buckets.length === 0) {
+        warnings.push("Storage sin buckets configurados");
+      }
+      if (warnings.length > 0) {
+        void logEvent({
+          action: "system.diagnostic.warnings_detected",
+          category: "system",
+          severity: "warning",
+          metadata: { warnings, latencyMs },
+        });
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setHc({ state: "error", message, latencyMs: 0 });
+      void logEvent({
+        action: "system.diagnostic.edge_function_failed",
+        category: "system",
+        severity: "error",
+        metadata: { check: "health-check", error: message },
+      });
     }
   }
 
@@ -179,6 +210,12 @@ export function SystemDiagnosticsPanel() {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setDb({ state: "error", message, latencyMs: 0 });
+      void logEvent({
+        action: "system.diagnostic.db_failed",
+        category: "system",
+        severity: "error",
+        metadata: { check: "courses-count", error: message },
+      });
     }
   }
 
@@ -192,29 +229,44 @@ export function SystemDiagnosticsPanel() {
   const allLoading = hc.state === "loading" || db.state === "loading";
 
   // ─── Computo de estados derivados para los cards ──────────────
-  const aiState: "idle" | "ok" | "warning" | "error" =
-    hc.state === "ok"
-      ? hc.data.ai.active_provider
-        ? hc.data.ai.required_secret_missing
-          ? "error"
-          : "ok"
-        : "warning"
-      : hc.state === "error"
-        ? "error"
-        : "idle";
+  // Lecturas defensivas — la edge function puede devolver una version
+  // vieja (sin storage/ai/push/secrets) si el deploy no se actualizó.
+  // Sin esto el render explota con "Cannot read properties of undefined".
+  const hcData = hc.state === "ok" ? hc.data : null;
+  const ai = hcData?.ai ?? null;
+  const push = hcData?.push ?? null;
+  const storage = hcData?.storage ?? null;
+  const secrets = hcData?.secrets ?? [];
 
-  const pushState: "idle" | "ok" | "warning" | "error" =
-    hc.state === "ok"
-      ? hc.data.push.send_push_url
-        ? hc.data.push.points_to_current_project === false
-          ? "warning"
-          : "ok"
-        : "warning"
-      : hc.state === "error"
+  const aiState: "idle" | "ok" | "warning" | "error" = ai
+    ? ai.active_provider
+      ? ai.required_secret_missing
         ? "error"
-        : "idle";
+        : "ok"
+      : "warning"
+    : hc.state === "error"
+      ? "error"
+      : "idle";
 
-  const secretsState: "idle" | "ok" | "warning" | "error" = hc.state === "ok" ? "ok" : "idle";
+  const pushState: "idle" | "ok" | "warning" | "error" = push
+    ? push.send_push_url
+      ? push.points_to_current_project === false
+        ? "warning"
+        : "ok"
+      : "warning"
+    : hc.state === "error"
+      ? "error"
+      : "idle";
+
+  const secretsState: "idle" | "ok" | "warning" | "error" = hcData ? "ok" : "idle";
+
+  const storageState: "idle" | "ok" | "warning" | "error" = storage
+    ? storage.buckets.length > 0
+      ? "ok"
+      : "warning"
+    : hc.state === "error"
+      ? "error"
+      : "idle";
 
   return (
     <div className="space-y-4">
@@ -250,9 +302,9 @@ export function SystemDiagnosticsPanel() {
           {hc.state === "ok" && (
             <>
               <MutedLine label="Latencia" value={`${hc.latencyMs} ms`} />
-              <MutedLine label="Deno" value={hc.data.runtime.deno_version} />
-              <MutedLine label="Región" value={hc.data.runtime.region} />
-              <MutedLine label="Timestamp" value={hc.data.timestamp} />
+              <MutedLine label="Deno" value={hcData?.runtime?.deno_version ?? "—"} />
+              <MutedLine label="Región" value={hcData?.runtime?.region ?? "—"} />
+              <MutedLine label="Timestamp" value={hcData?.timestamp ?? "—"} />
             </>
           )}
           {hc.state === "error" && (
@@ -319,28 +371,24 @@ export function SystemDiagnosticsPanel() {
           title="Storage"
           description="Buckets reportados por el edge function (con service_role)."
           icon={<HardDrive className="h-4 w-4 text-fuchsia-500" />}
-          state={
-            hc.state === "ok"
-              ? hc.data.storage.buckets.length > 0
-                ? "ok"
-                : "warning"
-              : hc.state === "error"
-                ? "error"
-                : "idle"
-          }
+          state={storageState}
         >
-          {hc.state !== "ok" ? (
-            <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
-          ) : hc.data.storage.buckets.length === 0 ? (
+          {!storage ? (
+            <p className="text-muted-foreground">
+              {hc.state === "ok"
+                ? "La edge function no devolvió info de Storage (versión vieja desplegada)."
+                : "Refresca el diagnóstico para ver el estado."}
+            </p>
+          ) : storage.buckets.length === 0 ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
               No hay buckets en el proyecto. Si esperabas verlos, revisa que el restore haya
               creado workshop-files, project-files y generated-contents.
             </p>
           ) : (
             <>
-              <MutedLine label="Buckets" value={hc.data.storage.buckets.length} />
+              <MutedLine label="Buckets" value={storage.buckets.length} />
               <div className="flex flex-wrap gap-1 pt-1">
-                {hc.data.storage.buckets.map((b) => (
+                {storage.buckets.map((b) => (
                   <Badge key={b.id} variant="outline" className="text-xs">
                     {b.id}
                     {b.public && (
@@ -362,24 +410,26 @@ export function SystemDiagnosticsPanel() {
           icon={<Bot className="h-4 w-4 text-violet-500" />}
           state={aiState}
         >
-          {hc.state !== "ok" ? (
+          {!ai ? (
             <p className="text-muted-foreground">
-              Refresca el diagnóstico para ver el estado.
+              {hc.state === "ok"
+                ? "La edge function no devolvió info de IA (versión vieja desplegada)."
+                : "Refresca el diagnóstico para ver el estado."}
             </p>
-          ) : !hc.data.ai.active_provider ? (
+          ) : !ai.active_provider ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
               No hay provider activo en ai_model_settings.
             </p>
           ) : (
             <>
-              <MutedLine label="Provider" value={hc.data.ai.active_provider} />
-              <MutedLine label="Modelo" value={hc.data.ai.active_model ?? "—"} />
+              <MutedLine label="Provider" value={ai.active_provider} />
+              <MutedLine label="Modelo" value={ai.active_model ?? "—"} />
               <MutedLine
                 label="Secret"
                 value={
                   <span>
-                    {hc.data.ai.required_secret}{" "}
-                    {hc.data.ai.required_secret_missing ? (
+                    {ai.required_secret}{" "}
+                    {ai.required_secret_missing ? (
                       <span className="text-destructive">(faltante)</span>
                     ) : (
                       <span className="text-emerald-600 dark:text-emerald-400">(presente)</span>
@@ -387,10 +437,10 @@ export function SystemDiagnosticsPanel() {
                   </span>
                 }
               />
-              {hc.data.ai.required_secret_missing && (
+              {ai.required_secret_missing && (
                 <p className="pt-1 text-xs text-destructive">
-                  Falta el secret {hc.data.ai.required_secret} en Edge Function Secrets.
-                  Las llamadas de IA van a fallar hasta que lo configures.
+                  Falta el secret {ai.required_secret} en Edge Function Secrets. Las llamadas
+                  de IA van a fallar hasta que lo configures.
                 </p>
               )}
             </>
@@ -404,21 +454,23 @@ export function SystemDiagnosticsPanel() {
           icon={<Bell className="h-4 w-4 text-orange-500" />}
           state={pushState}
         >
-          {hc.state !== "ok" ? (
+          {!push ? (
             <p className="text-muted-foreground">
-              Refresca el diagnóstico para ver el estado.
+              {hc.state === "ok"
+                ? "La edge function no devolvió info de push (versión vieja desplegada)."
+                : "Refresca el diagnóstico para ver el estado."}
             </p>
-          ) : !hc.data.push.send_push_url ? (
+          ) : !push.send_push_url ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
               push_config.send_push_url está vacío.
             </p>
           ) : (
             <>
-              <MutedLine label="URL" value={hc.data.push.send_push_url} />
+              <MutedLine label="URL" value={push.send_push_url} />
               <MutedLine
                 label="Apunta a este proyecto"
                 value={
-                  hc.data.push.points_to_current_project === false ? (
+                  push.points_to_current_project === false ? (
                     <span className="text-amber-600 dark:text-amber-400">
                       NO — apunta a otro Supabase
                     </span>
@@ -427,7 +479,7 @@ export function SystemDiagnosticsPanel() {
                   )
                 }
               />
-              {hc.data.push.points_to_current_project === false && (
+              {push.points_to_current_project === false && (
                 <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
                   Actualiza public.push_config.send_push_url al endpoint del proyecto actual.
                 </p>
@@ -443,13 +495,15 @@ export function SystemDiagnosticsPanel() {
           icon={<KeyRound className="h-4 w-4 text-amber-500" />}
           state={secretsState}
         >
-          {hc.state !== "ok" ? (
+          {!hcData ? (
+            <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+          ) : secrets.length === 0 ? (
             <p className="text-muted-foreground">
-              Refresca el diagnóstico para ver el estado.
+              La edge function no devolvió info de secrets (versión vieja desplegada).
             </p>
           ) : (
             <div className="space-y-1">
-              {hc.data.secrets.map((s) => (
+              {secrets.map((s) => (
                 <div key={s.name} className="flex items-center justify-between text-xs">
                   <span className="font-mono">{s.name}</span>
                   {s.present ? (
