@@ -322,6 +322,44 @@ la "barrera" (env var `BARRIER_VERSION`, default `20260515000000`) y
 escribe el SQL a `docs/migration/baseline-migrations.sql`. Commitea el
 resultado.
 
+### Timestamps duplicados — error "duplicate key value violates unique constraint schema_migrations_pkey"
+
+La tabla `supabase_migrations.schema_migrations` usa `version` (el
+timestamp del filename) como PRIMARY KEY. Si dos archivos en
+`supabase/migrations/` tienen el **mismo** timestamp, el baseline solo
+puede insertar una de las dos filas y la otra queda pendiente. Al
+correr `supabase db push`, el CLI intenta aplicar la pendiente y falla
+con violación de PK.
+
+Esto ya pasó una vez en este repo con `20260507100000`:
+- `20260507100000_attendance_check_in.sql`
+- `20260507100000_weights_as_percent_of_final.sql`
+
+Fix: renombrar una de las dos con un timestamp posterior, manteniendo
+el orden cronológico relativo (incrementar el segundo si se puede, o
+el minuto):
+
+```powershell
+git mv supabase/migrations/20260507100000_weights_as_percent_of_final.sql `
+       supabase/migrations/20260507100001_weights_as_percent_of_final.sql
+bash scripts/baseline-migrations.sh
+```
+
+Después del rename + regenerar baseline, re-aplicar `baseline-migrations.sql`
+en el SQL Editor (el `ON CONFLICT DO NOTHING` evita duplicados, solo
+agrega la nueva fila).
+
+**Cómo detectar timestamps duplicados antes de que rompan algo**:
+
+```powershell
+Get-ChildItem supabase/migrations/*.sql `
+  | ForEach-Object { ($_.Name -split '_')[0] } `
+  | Group-Object `
+  | Where-Object Count -gt 1
+```
+
+Si imprime algo, tenés timestamps duplicados.
+
 ---
 
 ## Paso 6 — Configurar GitHub Actions para deploys futuros
