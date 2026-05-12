@@ -335,7 +335,17 @@ async function handleSync(userId: string, body: SyncBody) {
   ]);
 
   const studentIds = (enrolls ?? []).map((e: { user_id: string }) => e.user_id);
-  let attendees: Array<{ email: string }> = [];
+  // Pre-aceptamos a los attendees con responseStatus="accepted" para
+  // que el evento aparezca automaticamente en SU Google Calendar sin
+  // que tengan que RSVP. Esto es importante porque Google Meet muestra
+  // el `summary` del evento como nombre de la reunion SOLO si el
+  // usuario tiene el evento en su calendar. Si entra al Meet por la
+  // URL sin tener el evento, ve el meeting code (abc-defg-hij) en vez
+  // del titulo legible. Pre-aceptar resuelve el caso comun.
+  // (Funciona dentro del mismo Google Workspace que el organizer; para
+  // emails externos Google igual respeta el responseStatus pero algunos
+  // clientes muestran "tentative" hasta confirmar manualmente.)
+  let attendees: Array<{ email: string; responseStatus: "accepted" }> = [];
   if (studentIds.length > 0) {
     const { data: profs } = await adminClient
       .from("profiles")
@@ -344,7 +354,7 @@ async function handleSync(userId: string, body: SyncBody) {
     attendees = (profs ?? [])
       .map((p: { institutional_email: string | null }) => p.institutional_email)
       .filter((e: string | null): e is string => !!e && e.includes("@"))
-      .map((email: string) => ({ email }));
+      .map((email: string) => ({ email, responseStatus: "accepted" as const }));
   }
 
   let created = 0,
