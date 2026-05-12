@@ -1592,6 +1592,85 @@ interface AvailableContent {
   classes: number[];
 }
 
+/**
+ * Selector de asignación de contenido en 2 pasos:
+ *   1. Primer Select → ¿qué contenido? (un curso puede tener varios).
+ *   2. Segundo Select → ¿qué clase dentro de ese contenido?
+ *      Si el contenido es `material_individual` (sin clases), el 2do
+ *      select se oculta y se asigna directo con classIndex=null.
+ * Las opciones de "Sin asignar" se concentran en el 1er select para
+ * que el caller no tenga que limpiar dos cosas a mano.
+ */
+function ContentAssignmentSelector({
+  contents,
+  contentId,
+  classIndex,
+  onChange,
+}: {
+  contents: AvailableContent[];
+  contentId: string | null;
+  classIndex: number | null;
+  onChange: (contentId: string | null, classIndex: number | null) => void;
+}) {
+  const { t } = useTranslation();
+  const selected = contents.find((c) => c.id === contentId) ?? null;
+  const hasClasses = selected && selected.classes.length > 0;
+  return (
+    <div className="flex items-center gap-1.5">
+      {/* 1) Contenido */}
+      <Select
+        value={contentId ?? "__none"}
+        onValueChange={(v) => {
+          if (v === "__none") {
+            onChange(null, null);
+            return;
+          }
+          // Al cambiar de contenido, reseteamos la clase. Si el nuevo
+          // contenido tiene clases, el 2do select queda en placeholder
+          // hasta que el docente escoja; mientras tanto classIndex=null
+          // marca la asignación como "todo el contenido".
+          const next = contents.find((c) => c.id === v);
+          if (next && next.classes.length > 0) {
+            onChange(v, next.classes[0]);
+          } else {
+            onChange(v, null);
+          }
+        }}
+      >
+        <SelectTrigger className="w-44 h-8 text-xs">
+          <SelectValue placeholder={t("contents.assignNone")} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none">{t("contents.assignNone")}</SelectItem>
+          {contents.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.topic}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {/* 2) Clase — solo si el contenido elegido tiene clases. */}
+      {hasClasses && (
+        <Select
+          value={classIndex != null ? String(classIndex) : ""}
+          onValueChange={(v) => onChange(contentId, Number(v))}
+        >
+          <SelectTrigger className="w-28 h-8 text-xs">
+            <SelectValue placeholder={t("contents.classPlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {selected!.classes.map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {t("contents.classNumber")} {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
 type ScheduledItem = {
   kind: "exam" | "workshop" | "project";
   id: string;
@@ -2275,31 +2354,20 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             )}
                           </div>
                         </div>
-                        {/* Asignación de contenido inline — reusa el mismo
-                            formato value `<contentId>:<classIndex>` que el
-                            inline column de attendance, así ambos caminos
-                            escriben lo mismo en la BD. */}
-                        <Select value={value} onValueChange={(v) => updateAssignment(s.id, v)}>
-                          <SelectTrigger className="w-56 h-8 text-xs">
-                            <SelectValue placeholder={t("contents.assignNone")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">{t("contents.assignNone")}</SelectItem>
-                            {contents.flatMap((c) =>
-                              c.classes.length > 0
-                                ? c.classes.map((n) => (
-                                    <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
-                                      {c.topic} · {t("contents.classNumber")} {n}
-                                    </SelectItem>
-                                  ))
-                                : [
-                                    <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
-                                      {c.topic}
-                                    </SelectItem>,
-                                  ],
-                            )}
-                          </SelectContent>
-                        </Select>
+                        {/* Asignación de contenido en 2 pasos: primero
+                            elige el contenido (tema), luego la clase
+                            dentro de ese contenido. Mejor que un único
+                            select gigante cuando el curso tiene varios
+                            contenidos con varias clases cada uno. */}
+                        <ContentAssignmentSelector
+                          contents={contents}
+                          contentId={s.content_id}
+                          classIndex={s.content_class_index}
+                          onChange={(cid, idx) => {
+                            const raw = cid == null ? "__none" : `${cid}:${idx ?? 0}`;
+                            void updateAssignment(s.id, raw);
+                          }}
+                        />
                         {/* Acciones de la sesión: editar metadata + eliminar.
                             Iconos discretos pero accesibles — el menú "tres
                             puntos" no aplica acá porque la fila ya tiene

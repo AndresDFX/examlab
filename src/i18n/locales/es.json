@@ -796,6 +796,7 @@
     "assignDialogTitle": "Asignar contenido a sesiones",
     "assignDialogSubtitle": "Mapea cada clase del contenido a una sesión de asistencia. El estudiante verá el material en el tablero del curso, en la fecha de la sesión.",
     "assignNone": "Sin contenido",
+    "classPlaceholder": "Clase…",
     "assignWhole": "Asignar este contenido",
     "assignNoSessions": "El curso aún no tiene sesiones programadas. Crea sesiones desde Asistencia para poder asignar contenido.",
     "assignSessionUntitled": "(sin título)",

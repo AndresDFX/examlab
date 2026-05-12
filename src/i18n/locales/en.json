@@ -796,6 +796,7 @@
     "assignDialogTitle": "Assign content to sessions",
     "assignDialogSubtitle": "Map each content class to an attendance session. Students will see the material on the course board, on the session date.",
     "assignNone": "No content",
+    "classPlaceholder": "Class…",
     "assignWhole": "Assign this content",
     "assignNoSessions": "The course has no sessions scheduled yet. Create sessions from Attendance to assign content.",
     "assignSessionUntitled": "(no title)",
