@@ -1,11 +1,18 @@
 -- Baseline de migrations existentes.
--- Marca todas las migrations que ya estan reflejadas en el dump
--- como 'aplicadas' en supabase_migrations.schema_migrations, para
--- que 'supabase db push' solo intente aplicar las NUEVAS de aqui
--- en adelante.
+-- Marca todas las migrations <20260515000000 como 'aplicadas' en
+-- supabase_migrations.schema_migrations, para que 'supabase db push'
+-- solo intente aplicar las nuevas a partir de esa version.
 --
--- Genera con: scripts/baseline-migrations.sh
--- Excluye 20260515000000_ai_provider_gemini.sql (esa SI debe correrse).
+-- Regenerado por: scripts/baseline-migrations.sh
+-- Fecha: 2026-05-12 05:00:56 UTC
+
+-- Asegurar que la tabla y schema existan (no-op si ya estan).
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+  version text NOT NULL PRIMARY KEY,
+  statements text[],
+  name text
+);
 
 INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20260419051958', '98dabc38-1077-4f03-bd86-983fb09523bb'),
@@ -56,7 +63,7 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20260506173334', '17256bb9-e67b-4c6f-89da-a172d1eb28f8'),
   ('20260506200000', 'workshops_weight'),
   ('20260507100000', 'attendance_check_in'),
-  ('20260507100000', 'weights_as_percent_of_final'),
+  ('20260507100001', 'weights_as_percent_of_final'),
   ('20260507100100', 'attendance_check_in_pgcrypto_fix'),
   ('20260507110000', 'ai_model_settings'),
   ('20260507120000', 'notify_feedback_specific_links'),
@@ -121,5 +128,6 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20260514110000', 'legacy_unique_case_insensitive')
 ON CONFLICT (version) DO NOTHING;
 
--- Verificacion: deberia mostrar 111 filas.
+-- Verificacion.
 SELECT count(*) AS aplicadas FROM supabase_migrations.schema_migrations;
+-- Deberia ser >= 111 (puede ser mayor si ya habia algunas marcadas).
