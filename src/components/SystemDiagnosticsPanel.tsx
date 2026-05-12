@@ -50,6 +50,9 @@ type HealthCheckResponse = {
     send_push_url: string | null;
     points_to_current_project: boolean | null;
   };
+  storage: {
+    buckets: Array<{ id: string; public: boolean; file_size_limit: number | null }>;
+  };
   secrets: Array<{ name: string; present: boolean; expected_prefix?: string }>;
 };
 
@@ -143,7 +146,6 @@ export function SystemDiagnosticsPanel() {
 
   const [hc, setHc] = useState<CheckResult<HealthCheckResponse>>({ state: "idle" });
   const [db, setDb] = useState<CheckResult<{ courses: number }>>({ state: "idle" });
-  const [storage, setStorage] = useState<CheckResult<{ buckets: string[] }>>({ state: "idle" });
 
   async function runEdgeFunction() {
     setHc({ state: "loading" });
@@ -180,27 +182,14 @@ export function SystemDiagnosticsPanel() {
     }
   }
 
-  async function runStorage() {
-    setStorage({ state: "loading" });
-    try {
-      const { data, latencyMs } = await timed(async () => {
-        const { data: bucketsData, error } = await supabase.storage.listBuckets();
-        if (error) throw error;
-        return { buckets: (bucketsData ?? []).map((b) => b.id) };
-      });
-      setStorage({ state: "ok", data, latencyMs });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setStorage({ state: "error", message, latencyMs: 0 });
-    }
-  }
-
   async function runAll() {
-    await Promise.all([runEdgeFunction(), runDb(), runStorage()]);
+    // El estado de storage viene EMBEBIDO en la respuesta del health-check
+    // (que corre con service_role y ve los buckets reales). No corremos
+    // listBuckets() desde el cliente porque RLS lo bloquea y devolveria 0.
+    await Promise.all([runEdgeFunction(), runDb()]);
   }
 
-  const allLoading =
-    hc.state === "loading" || db.state === "loading" || storage.state === "loading";
+  const allLoading = hc.state === "loading" || db.state === "loading";
 
   // ─── Computo de estados derivados para los cards ──────────────
   const aiState: "idle" | "ok" | "warning" | "error" =
@@ -328,30 +317,41 @@ export function SystemDiagnosticsPanel() {
         {/* Storage */}
         <StatusCard
           title="Storage"
-          description="Listado de buckets disponibles."
+          description="Buckets reportados por el edge function (con service_role)."
           icon={<HardDrive className="h-4 w-4 text-fuchsia-500" />}
-          state={storage.state === "ok" ? "ok" : storage.state}
+          state={
+            hc.state === "ok"
+              ? hc.data.storage.buckets.length > 0
+                ? "ok"
+                : "warning"
+              : hc.state === "error"
+                ? "error"
+                : "idle"
+          }
         >
-          {storage.state === "idle" && (
-            <p className="text-muted-foreground">Click en "Refrescar" para iniciar.</p>
-          )}
-          {storage.state === "ok" && (
+          {hc.state !== "ok" ? (
+            <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+          ) : hc.data.storage.buckets.length === 0 ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              No hay buckets en el proyecto. Si esperabas verlos, revisa que el restore haya
+              creado workshop-files, project-files y generated-contents.
+            </p>
+          ) : (
             <>
-              <MutedLine label="Latencia" value={`${storage.latencyMs} ms`} />
-              <MutedLine label="Buckets" value={storage.data.buckets.length} />
-              {storage.data.buckets.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {storage.data.buckets.map((b) => (
-                    <Badge key={b} variant="outline" className="text-xs">
-                      {b}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+              <MutedLine label="Buckets" value={hc.data.storage.buckets.length} />
+              <div className="flex flex-wrap gap-1 pt-1">
+                {hc.data.storage.buckets.map((b) => (
+                  <Badge key={b.id} variant="outline" className="text-xs">
+                    {b.id}
+                    {b.public && (
+                      <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400">
+                        público
+                      </span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
             </>
-          )}
-          {storage.state === "error" && (
-            <p className="text-xs text-destructive">{storage.message}</p>
           )}
         </StatusCard>
 

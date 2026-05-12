@@ -90,6 +90,32 @@ async function fetchPushConfig(): Promise<{ send_push_url: string | null } | nul
   }
 }
 
+type StorageBucketInfo = { id: string; public: boolean; file_size_limit: number | null };
+
+async function fetchStorageBuckets(): Promise<StorageBucketInfo[] | null> {
+  // `supabase.storage.listBuckets()` desde el cliente del frontend
+  // suele devolver 0 porque RLS de `storage.buckets` no permite SELECT
+  // al rol `authenticated`. Usamos el service_role del edge function
+  // para listar realmente lo que hay en el proyecto.
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const supa = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data, error } = await supa.storage.listBuckets();
+    if (error) return null;
+    return (data ?? []).map((b) => ({
+      id: b.id,
+      public: b.public,
+      file_size_limit: b.file_size_limit,
+    }));
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -102,7 +128,11 @@ Deno.serve(async (req) => {
     }
   }
 
-  const [aiSettings, pushConfig] = await Promise.all([fetchAiSettings(), fetchPushConfig()]);
+  const [aiSettings, pushConfig, storageBuckets] = await Promise.all([
+    fetchAiSettings(),
+    fetchPushConfig(),
+    fetchStorageBuckets(),
+  ]);
   const secrets = checkSecrets();
 
   // El secret de IA "requerido" depende del provider activo. Si el
@@ -145,6 +175,12 @@ Deno.serve(async (req) => {
       points_to_current_project: pushConfig?.send_push_url
         ? pushConfig.send_push_url.includes(Deno.env.get("SUPABASE_URL") ?? "__nope__")
         : null,
+    },
+    storage: {
+      // Devolvemos los buckets desde el server (service_role) porque
+      // listBuckets() en el frontend con JWT de usuario suele devolver
+      // 0 por RLS en storage.buckets.
+      buckets: storageBuckets ?? [],
     },
     secrets,
     received_payload: payload,

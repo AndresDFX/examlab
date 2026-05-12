@@ -40,13 +40,6 @@ import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Plus,
   Download,
   FileText,
@@ -66,7 +59,6 @@ import {
   AlertCircle,
   Wand2,
   Pencil,
-  MoreVertical,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -2787,26 +2779,19 @@ function FilesByClassDialog({
   const { intro, byClass } = groupFilesByClass(files as ContentFile[], content.n_classes);
   const classNumbers = Array.from(byClass.keys()).sort((a, b) => a - b);
 
-  /** Render de una "chip" compacta por material. Cada chip muestra solo
-   *  el icono del tipo (acción principal: vista previa si existe, o
-   *  descarga directa si el archivo no tiene preview) + un botón "..."
-   *  que abre un menú con las acciones secundarias (editar, descargar,
-   *  eliminar). Esto reduce el ancho de cada chip de ~112px (4 botones)
-   *  a ~46px (1 icono + 1 trigger). Crítico cuando una clase tiene 5-6
-   *  materiales y la columna se hace inmanejable. */
+  /** Render compacto de chip por material. 4 botones inline de 24x24px
+   *  con iconos de 12px (h-3 w-3): tipo (vista previa) + editar +
+   *  descargar + eliminar. Total ~96px por chip (vs 112px original).
+   *  Las acciones quedan visibles sin clicks adicionales — el menú "..."
+   *  se descartó porque el usuario prefiere ver las opciones directo. */
   const renderFileChip = (f: FileEntry) => {
     const path = `${content.id}:${f.path}`;
     const busy = downloadingPath === path;
-    // .md/.txt → markdown viewer; pptx-source → slide-by-slide viewer.
-    // Ambos requieren body presente (sin body no hay nada que mostrar
-    // inline — el archivo solo se puede descargar).
     const isMdLike = f.kind === "md" || f.kind === "txt";
     const isPptx = f.kind === "pptx-source";
     const canPreview = (isMdLike || isPptx) && !!f.body;
     const TypeIcon = iconForFile(f);
     const label = humanLabelForFile(f);
-    // Si el viewer guardó ediciones, las aplicamos al body que se pasa
-    // al dialog (sin re-fetch). El padre persiste también en DB.
     const effectiveBody = bodyOverrides[f.path] ?? f.body;
     const fileWithBody: FileEntry = { ...f, body: effectiveBody };
 
@@ -2816,11 +2801,9 @@ function FilesByClassDialog({
       else setPreviewFile(fileWithBody);
     };
 
-    // Click directo sobre el icono del tipo: vista previa si se puede,
-    // descarga si no. Es la acción más usada — ahorra ir al menú.
-    const primaryAction = canPreview
-      ? () => openViewer("view")
-      : () => onDownload(fileWithBody);
+    // Click directo en el icono del tipo: vista previa si es previewable;
+    // descarga directa si no. Es la acción más usada.
+    const primaryAction = canPreview ? () => openViewer("view") : () => onDownload(fileWithBody);
     const primaryHint = canPreview ? t("contents.previewHint") : t("contents.downloadHint");
 
     return (
@@ -2829,50 +2812,44 @@ function FilesByClassDialog({
           type="button"
           disabled={busy}
           onClick={primaryAction}
-          className="flex items-center justify-center w-7 h-7 hover:bg-muted/60 transition-colors disabled:opacity-60"
+          className="flex items-center justify-center w-6 h-6 hover:bg-muted/60 transition-colors disabled:opacity-60"
           title={`${label} — ${primaryHint}`}
           aria-label={`${label} — ${primaryHint}`}
         >
-          {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
+          {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3 w-3" />}
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center justify-center w-5 h-7 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-              aria-label={`${label} — ${t("common.moreActions")}`}
-              title={`${label} — ${t("common.moreActions")}`}
-            >
-              <MoreVertical className="h-3 w-3" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="text-xs">
-            {canPreview && (
-              <DropdownMenuItem onClick={() => openViewer("edit")} className="text-xs">
-                <Pencil className="h-3.5 w-3.5 mr-2" />
-                {t("contents.editOnline")}
-              </DropdownMenuItem>
-            )}
-            {canPreview && (
-              <DropdownMenuItem
-                onClick={() => onDownload(fileWithBody)}
-                disabled={busy}
-                className="text-xs"
-              >
-                <Download className="h-3.5 w-3.5 mr-2" />
-                {t("contents.downloadHint")}
-              </DropdownMenuItem>
-            )}
-            {canPreview && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onClick={() => onDeleteFile(f)}
-              className="text-xs text-destructive focus:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-2" />
-              {t("contents.deleteFileHint")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canPreview && (
+          <button
+            type="button"
+            onClick={() => openViewer("edit")}
+            className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+            title={`${label} — ${t("contents.editOnline")}`}
+            aria-label={`${label} — ${t("contents.editOnline")}`}
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+        {canPreview && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDownload(fileWithBody)}
+            className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+            title={`${label} — ${t("contents.downloadHint")}`}
+            aria-label={`${label} — ${t("contents.downloadHint")}`}
+          >
+            <Download className="h-3 w-3" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onDeleteFile(f)}
+          className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          title={`${label} — ${t("contents.deleteFileHint")}`}
+          aria-label={`${label} — ${t("contents.deleteFileHint")}`}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
       </div>
     );
   };
@@ -2923,7 +2900,7 @@ function FilesByClassDialog({
                       <TableRow>
                         <TableHead className="w-12 text-center">#</TableHead>
                         <TableHead>{t("contents.classNumber")}</TableHead>
-                        <TableHead className="hidden md:table-cell w-56">
+                        <TableHead className="hidden md:table-cell w-32">
                           {t("contents.classSessionCol")}
                         </TableHead>
                         <TableHead>{t("contents.classMaterialsCol")}</TableHead>
@@ -2970,7 +2947,7 @@ function FilesByClassDialog({
                                     <DateCell value={session.date} variant="date" />
                                   </div>
                                   {session.title && (
-                                    <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">
+                                    <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
                                       {session.title}
                                     </span>
                                   )}
