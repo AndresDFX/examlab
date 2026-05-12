@@ -46,7 +46,7 @@ type ProjectRow = {
     max_score: number;
     is_external?: boolean | null;
     status: string;
-    group_mode?: "individual" | "teacher_assigned" | "self_signup";
+    group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
     course: {
       name: string;
       grade_scale_min: number;
@@ -262,6 +262,9 @@ function StudentProjects() {
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
           const isOpen = project.status === "published" && !isOverdue && !isUpcoming;
+          // Modo grupal estricto: si el estudiante no esta en un grupo,
+          // no puede entregar. En modo mixto (teacher_assigned) si.
+          const blockedNoGroup = project.group_mode === "group_required" && !groupId;
 
           return (
             <Card key={project.id}>
@@ -341,10 +344,19 @@ function StudentProjects() {
                   </div>
                 )}
 
+                {/* Modo grupal estricto SIN grupo: bloqueo de entrega. */}
+                {isOpen && blockedNoGroup && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                    <div className="font-medium mb-1">Modo grupal — sin grupo asignado</div>
+                    Tu docente configuró este proyecto como grupal. Aún no perteneces a ningún
+                    grupo, así que no puedes entregar. Pídele al docente que te asigne a uno.
+                  </div>
+                )}
+
                 {/* Mientras esté abierto el plazo, el estudiante puede
                     actualizar su entrega aunque ya tenga calificación de
                     IA — al re-entregar se vuelve a calificar. */}
-                {isOpen && (
+                {isOpen && !blockedNoGroup && (
                   <Button
                     size="sm"
                     className="w-full"

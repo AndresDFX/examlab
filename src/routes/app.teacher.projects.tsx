@@ -141,7 +141,7 @@ type Project = {
   max_score: number;
   status: "draft" | "published" | "closed";
   is_external?: boolean;
-  group_mode?: "individual" | "teacher_assigned" | "self_signup";
+  group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
   course?: { name: string; period: string | null; language?: string | null };
   // Lista de IDs de cursos vinculados (incluye course_id primario)
   linked_course_ids?: string[];
@@ -663,6 +663,9 @@ function TeacherProjects() {
       payload.external_link = form.external_link || null;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
+      // Modo de trabajo (individual / grupal / mixto). Solo aplica si NO
+      // es externo — en externos no hay entrega digital.
+      payload.group_mode = form.group_mode ?? "individual";
     }
     // Validate weight per course and collect into payload for the primary course.
     const editingId = editing?.id;
@@ -1442,11 +1445,7 @@ function TeacherProjects() {
                           onClick: () => openAssignDialog(p),
                         },
                         !p.is_external && {
-                          label:
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (p as any).group_mode && (p as any).group_mode !== "individual"
-                              ? "Grupos"
-                              : "Activar grupos",
+                          label: "Grupos",
                           icon: UsersRound,
                           onClick: () => openGroupsForProject(p),
                         },
@@ -1523,6 +1522,40 @@ function TeacherProjects() {
                 onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
               />
             </div>
+            {/* Modo de trabajo del proyecto. NO aplica en externos (esos
+                no tienen entrega digital). 'individual' = cada estudiante
+                entrega solo; 'group_required' = todos deben estar en un
+                grupo o no pueden entregar; 'teacher_assigned' (Mixto) =
+                quien tenga grupo entrega en grupo, los demas individual. */}
+            {!(form as any).is_external && (
+              <div className="space-y-1">
+                <Label>Modo de trabajo</Label>
+                <Select
+                  value={form.group_mode ?? "individual"}
+                  onValueChange={(v) =>
+                    setForm({ ...form, group_mode: v as Project["group_mode"] })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">
+                      Individual — cada estudiante entrega por separado
+                    </SelectItem>
+                    <SelectItem value="group_required">
+                      Grupal — todos deben estar en un grupo para entregar
+                    </SelectItem>
+                    <SelectItem value="teacher_assigned">
+                      Mixto — quien tenga grupo entrega en grupo, los demás individual
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  En Grupal o Mixto administras los grupos desde el menú "Grupos".
+                </p>
+              </div>
+            )}
             <div>
               <Label required>Título</Label>
               <Input

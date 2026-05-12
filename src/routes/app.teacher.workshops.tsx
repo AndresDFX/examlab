@@ -136,7 +136,7 @@ type Workshop = {
   max_score: number;
   status: string;
   is_external?: boolean | null;
-  group_mode?: "individual" | "teacher_assigned" | "self_signup";
+  group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
   course?: { name: string; period: string | null };
 };
 type Cut = {
@@ -1726,10 +1726,7 @@ function TeacherWorkshops() {
                           onClick: () => openAssign(ws),
                         },
                         !ws.is_external && {
-                          label:
-                            ws.group_mode && ws.group_mode !== "individual"
-                              ? "Grupos"
-                              : "Activar grupos",
+                          label: "Grupos",
                           icon: UsersRound,
                           onClick: () => openGroupsForWorkshop(ws),
                         },
@@ -1803,28 +1800,41 @@ function TeacherWorkshops() {
              * configura desde el botón "Grupos" en el grid del taller
              * (sólo modo teacher_assigned por ahora).
              */}
+            {/* Modo de trabajo del taller. NO aplica en externos. Tres
+                opciones: 'individual' (cada estudiante entrega solo),
+                'group_required' (todos deben estar en un grupo para
+                entregar) y 'teacher_assigned' (Mixto: quien tenga grupo
+                entrega en grupo, los demas individual). */}
             {!(form as any).is_external && (
-              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
-                <div className="space-y-0.5">
-                  <Label htmlFor="ws-group-mode" className="text-sm">
-                    Trabajo en grupo
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground leading-tight">
-                    La entrega es del grupo: todos los miembros editan la misma entrega y reciben la
-                    misma nota. Después de guardar, configura los grupos desde el botón{" "}
-                    <strong>Grupos</strong> del taller.
-                  </p>
-                </div>
-                <Switch
-                  id="ws-group-mode"
-                  checked={((form as any).group_mode ?? "individual") !== "individual"}
-                  onCheckedChange={(v) =>
+              <div className="space-y-1">
+                <Label>Modo de trabajo</Label>
+                <Select
+                  value={(form as any).group_mode ?? "individual"}
+                  onValueChange={(v) =>
                     setForm({
                       ...form,
-                      group_mode: v ? "teacher_assigned" : "individual",
+                      group_mode: v as Workshop["group_mode"],
                     } as any)
                   }
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">
+                      Individual — cada estudiante entrega por separado
+                    </SelectItem>
+                    <SelectItem value="group_required">
+                      Grupal — todos deben estar en un grupo para entregar
+                    </SelectItem>
+                    <SelectItem value="teacher_assigned">
+                      Mixto — quien tenga grupo entrega en grupo, los demás individual
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  En Grupal o Mixto administras los grupos desde el menú "Grupos".
+                </p>
               </div>
             )}
             <div>

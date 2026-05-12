@@ -49,7 +49,7 @@ type WorkshopRow = {
     max_score: number;
     is_external?: boolean | null;
     status: string;
-    group_mode?: "individual" | "teacher_assigned" | "self_signup";
+    group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
     course: {
       name: string;
       grade_scale_min: number;
@@ -207,11 +207,12 @@ function StudentWorkshops() {
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
           const isOpen = workshop.status === "published" && !isOverdue && !isUpcoming;
-          // Modo mixto: en un taller con group_mode != 'individual',
-          // pueden coexistir estudiantes con grupo (entregan en grupo) y
-          // sin grupo (entregan individual). NO bloqueamos al estudiante
-          // sin grupo — simplemente entrega individualmente.
+          // Modo mixto (teacher_assigned): coexisten estudiantes con grupo y sin
+          // grupo — los segundos entregan individual. Modo grupal estricto
+          // (group_required): los estudiantes sin grupo NO pueden entregar.
           const isGroupWorkshop = workshop.group_mode && workshop.group_mode !== "individual";
+          const requiresGroup = workshop.group_mode === "group_required";
+          const blockedNoGroup = requiresGroup && !groupId;
           void isGroupWorkshop;
           return (
             <Card key={workshop.id}>
@@ -302,13 +303,23 @@ function StudentWorkshops() {
                   </div>
                 )}
 
+                {/* Modo grupal estricto SIN grupo: no se puede entregar.
+                    Mostramos un aviso en lugar del CTA. */}
+                {isOpen && blockedNoGroup && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                    <div className="font-medium mb-1">Modo grupal — sin grupo asignado</div>
+                    Tu docente configuró este taller como grupal. Aún no perteneces a ningún
+                    grupo, así que no puedes entregar. Pídele al docente que te asigne a uno.
+                  </div>
+                )}
+
                 {/* CTA principal: responder/editar entrega. Mientras esté
                     abierto el plazo, el estudiante puede actualizar su
                     entrega aunque ya haya sido calificada por la IA — al
                     re-entregar se vuelve a calificar. En modo mixto: si
                     el estudiante tiene grupo, la entrega es del grupo;
                     si no, entrega individualmente. */}
-                {isOpen && (
+                {isOpen && !blockedNoGroup && (
                   <Button
                     size="sm"
                     className="w-full"

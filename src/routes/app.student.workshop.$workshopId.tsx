@@ -38,7 +38,7 @@ type WorkshopLoaded = {
   due_date: string | null;
   max_score: number;
   status: string;
-  group_mode?: "individual" | "teacher_assigned" | "self_signup";
+  group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
   course: { name: string; grade_scale_min: number; grade_scale_max: number };
 };
 
