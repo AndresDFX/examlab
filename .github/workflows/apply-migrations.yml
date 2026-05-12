@@ -1,0 +1,139 @@
+# Aplica las migraciones SQL nuevas de supabase/migrations/ al proyecto
+# Supabase configurado en los GitHub Secrets.
+#
+# Por que este workflow:
+#   Antes Lovable Cloud aplicaba las migrations automaticamente al hacer
+#   "Publish". Despues de migrar a un Supabase propio, Lovable solo
+#   despliega el frontend — las migrations las debe aplicar este
+#   pipeline en cada push a main que toque supabase/migrations/.
+#
+# Como funciona:
+#   `supabase db push` lee las migrations locales (ordenadas por nombre)
+#   y compara contra la tabla `supabase_migrations.schema_migrations` del
+#   proyecto remoto. Solo aplica las que aun no estan en esa tabla, asi
+#   que es 100% idempotente — re-correr el workflow sin cambios no hace
+#   nada. Si agregas una migration nueva con timestamp posterior al
+#   ultimo aplicado, la corre.
+#
+# Secrets requeridos en GitHub (Settings -> Secrets -> Actions):
+#   - SUPABASE_PROJECT_REF: ref del proyecto Supabase destino (ya lo
+#     tienes configurado para el workflow de edge functions).
+#   - SUPABASE_DB_URL: connection string del Session Pooler (puerto 5432)
+#     con la DB password embebida. El mismo formato que usas en
+#     docker/restore.env (NEW_SUPABASE_DB_URL).
+#     Formato:
+#       postgresql://postgres.<ref>:<password>@aws-X-<region>.pooler.supabase.com:5432/postgres
+#     Dashboard del nuevo Supabase -> Project Settings -> Database ->
+#     Connection string -> tab "Session pooler".
+#
+# Cuando se dispara:
+#   - Push a main que toque supabase/migrations/** (automatico).
+#   - workflow_dispatch (manual): util tras agregar una migration sin
+#     pushear todavia, o para forzar re-aplicacion despues de un rollback.
+name: Apply DB Migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/apply-migrations.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo mostrar las migrations pendientes sin aplicarlas'
+        required: true
+        type: boolean
+        default: false
+
+# Una sola corrida de migrations en paralelo — evita carreras si dos
+# pushes llegan casi a la vez.
+concurrency:
+  group: apply-migrations-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validar secrets
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          missing=0
+          [ -z "$DB_URL" ] && { echo "::error::SUPABASE_DB_URL no configurado."; missing=1; }
+          [ -z "$REF" ] && { echo "::error::SUPABASE_PROJECT_REF no configurado."; missing=1; }
+          [ $missing -eq 0 ] || exit 1
+
+          # Detectar accidentalmente la direct connection (no funciona desde GH Actions).
+          case "$DB_URL" in
+            *"@db."*.supabase.co*)
+              echo "::error::SUPABASE_DB_URL apunta a 'db.<ref>.supabase.co' (direct connection, solo IPv6)."
+              echo "::error::Necesitas el Session Pooler (host *.pooler.supabase.com puerto 5432)."
+              exit 1
+              ;;
+          esac
+
+      - name: Preparar config.toml minimo
+        # El supabase/config.toml del repo tiene claves de versiones viejas
+        # del CLI que la latest rechaza. Igual que en el workflow de edge
+        # functions, armamos un dir temporal con symlinks al material real
+        # y un config minimo.
+        env:
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          mkdir -p /tmp/sb-migrate/supabase
+          ln -sfn "$GITHUB_WORKSPACE/supabase/migrations" /tmp/sb-migrate/supabase/migrations
+          cat > /tmp/sb-migrate/supabase/config.toml <<EOF
+          project_id = "${REF}"
+          EOF
+          echo "Migrations disponibles para push:"
+          ls -1 /tmp/sb-migrate/supabase/migrations | head -50
+          echo "..."
+          echo "Total: $(ls /tmp/sb-migrate/supabase/migrations | wc -l) archivos"
+
+      - name: Dry run — mostrar migrations pendientes
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        working-directory: /tmp/sb-migrate
+        run: |
+          # `supabase migration list` muestra las locales vs las aplicadas
+          # en el remoto. Las que aparecen solo en "LOCAL" son las que
+          # `db push` aplicaria.
+          supabase migration list --db-url "$DB_URL"
+
+      - name: Aplicar migrations
+        # Solo corre cuando NO es dry_run (cubre push automatico + dispatch manual).
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        working-directory: /tmp/sb-migrate
+        run: |
+          set -euo pipefail
+          echo "═══ Aplicando migrations pendientes ═══"
+          # --include-all asegura que el CLI no salte ninguna por filtros
+          # de seguridad; el push igual valida contra la tabla de tracking
+          # del remoto y solo aplica las que faltan, asi que es seguro.
+          supabase db push --db-url "$DB_URL" --include-all
+          echo ""
+          echo "═══ Estado tras el push ═══"
+          supabase migration list --db-url "$DB_URL" | tail -20
+
+      - name: Resumen
+        if: ${{ always() }}
+        env:
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          echo ""
+          echo "Migrations aplicadas al proyecto: $REF"
+          echo "Dashboard: https://supabase.com/dashboard/project/$REF/database/migrations"

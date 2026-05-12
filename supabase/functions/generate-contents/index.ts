@@ -24,7 +24,8 @@ const adminClient = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-let cachedModel: { provider: "lovable" | "openai"; model: string } | null = null;
+type AiProvider = "lovable" | "openai" | "gemini";
+let cachedModel: { provider: AiProvider; model: string } | null = null;
 async function getActiveAiModel() {
   if (cachedModel) return cachedModel;
   try {
@@ -33,7 +34,10 @@ async function getActiveAiModel() {
       .select("provider, model")
       .eq("is_active", true)
       .maybeSingle();
-    if (data && (data.provider === "lovable" || data.provider === "openai")) {
+    if (
+      data &&
+      (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
+    ) {
       cachedModel = { provider: data.provider, model: data.model };
       return cachedModel;
     }
@@ -47,12 +51,18 @@ async function getActiveAiModel() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function aiChat(messages: any[]): Promise<Response> {
   const m = await getActiveAiModel();
-  const url =
-    m.provider === "openai"
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://ai.gateway.lovable.dev/v1/chat/completions";
-  const key =
-    m.provider === "openai" ? Deno.env.get("OPENAI_API_KEY") : Deno.env.get("LOVABLE_API_KEY");
+  let url: string;
+  let key: string | undefined;
+  if (m.provider === "openai") {
+    url = "https://api.openai.com/v1/chat/completions";
+    key = Deno.env.get("OPENAI_API_KEY");
+  } else if (m.provider === "gemini") {
+    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    key = Deno.env.get("GEMINI_API_KEY");
+  } else {
+    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    key = Deno.env.get("LOVABLE_API_KEY");
+  }
   if (!key) throw new Error(`${m.provider.toUpperCase()}_API_KEY missing`);
   return fetch(url, {
     method: "POST",

@@ -285,19 +285,33 @@ NO borres la URI vieja todavía — sirve para rollback inmediato.
 
 ## Paso 6 — Configurar GitHub Actions para deploys futuros
 
-Una vez que la migración está hecha, las edge functions las despliega
-GitHub Actions en cada push a `main` (ver
-[.github/workflows/deploy-edge-functions.yml](../../.github/workflows/deploy-edge-functions.yml)).
+Después de migrar, **Lovable solo despliega el frontend**. Las edge
+functions y las migrations SQL las aplica GitHub Actions automáticamente
+en cada push a `main`. Hay dos workflows separados:
+
+| Workflow | Trigger | Qué hace |
+|---|---|---|
+| [deploy-edge-functions.yml](../../.github/workflows/deploy-edge-functions.yml) | Cada push a `main` | Desplega todas las edge functions del repo (idempotente). Toggle manual para `prune_orphaned` (borrar funciones que ya no están en el repo). |
+| [apply-migrations.yml](../../.github/workflows/apply-migrations.yml) | Push a `main` que toque `supabase/migrations/**` | `supabase db push` contra el proyecto destino. Idempotente — solo aplica migrations nuevas (las que no están en `supabase_migrations.schema_migrations` del remoto). Soporta dry-run manual. |
+
+### Secrets a configurar en GitHub
 
 GitHub → tu repo → **`Settings`** → **`Secrets and variables`** →
-**`Actions`** → editar (no añadir):
+**`Actions`**. Necesitas estos 3:
 
-- `SUPABASE_PROJECT_REF` → poner el ref del nuevo proyecto.
-- `SUPABASE_ACCESS_TOKEN` → Personal Access Token con permisos sobre el
-  nuevo proyecto. Si es la misma cuenta que el viejo, sirve el mismo.
+| Secret | Valor | Usado por |
+|---|---|---|
+| `SUPABASE_PROJECT_REF` | Ref del nuevo proyecto (subdominio, ej. `uxxpzfsfcnqiwwdxoelm`) | Ambos workflows |
+| `SUPABASE_ACCESS_TOKEN` | Personal Access Token (`sbp_...`) desde https://supabase.com/dashboard/account/tokens | deploy-edge-functions |
+| `SUPABASE_DB_URL` | Connection string del **Session Pooler** (puerto 5432). El mismo formato del `NEW_SUPABASE_DB_URL` que usaste en `docker/restore.env`. Formato: `postgresql://postgres.<ref>:<password>@aws-X-<region>.pooler.supabase.com:5432/postgres` | apply-migrations |
 
-Desde ese momento, cada `git push origin main` despliega
-automáticamente las 12 funciones (~3-4 min).
+> ⚠️ Para `SUPABASE_DB_URL` usar el **Session Pooler**, NO la Direct
+> connection (`db.<ref>.supabase.co`) — esa solo funciona con IPv6 y
+> GitHub Actions no la alcanza.
+
+Desde ese momento, cada `git push origin main`:
+1. Despliega las edge functions (~3-4 min).
+2. Si tocaste `supabase/migrations/**`, aplica las nuevas (~30 seg).
 
 ---
 
