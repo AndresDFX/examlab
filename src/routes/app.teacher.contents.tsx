@@ -60,6 +60,7 @@ import {
   AlertCircle,
   Wand2,
   Pencil,
+  MoreHorizontal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -2955,17 +2956,16 @@ function FilesByClassDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Intro / materiales sueltos arriba (sin grid). El título y
-                  los chips van en la MISMA línea (con flex-wrap) — antes
-                  estaban apilados verticalmente. */}
-              {intro.length > 0 && (
+              {/* En curso_completo, los archivos sueltos (intro) van como
+                  un Card aparte arriba del grid. En material_individual los
+                  pintamos directo como una fila del mismo grid (abajo) para
+                  unificar el diseño visual. */}
+              {isCourse && intro.length > 0 && (
                 <Card>
                   <CardContent className="p-3">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                       <div className="text-sm font-medium">
-                        {isCourse
-                          ? t("contents.viewFilesByClassIntro")
-                          : t("contents.viewFilesByClassMaterials")}
+                        {t("contents.viewFilesByClassIntro")}
                       </div>
                       <div className="flex flex-wrap gap-1.5">{intro.map(renderFileChip)}</div>
                     </div>
@@ -2973,8 +2973,9 @@ function FilesByClassDialog({
                 </Card>
               )}
 
-              {/* Grid de clases — solo en curso_completo y cuando hay clases. */}
-              {classNumbers.length > 0 && (
+              {/* Grid: curso_completo muestra una fila por clase; material
+                  individual muestra UNA fila con todos los archivos. */}
+              {(classNumbers.length > 0 || (!isCourse && intro.length > 0)) && (
                 <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -2991,6 +2992,69 @@ function FilesByClassDialog({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* Fila para material_individual: una sola fila con
+                          TODOS los archivos como popover. La sesión puede
+                          estar mapeada a content_class_index = 0 (o null). */}
+                      {!isCourse && intro.length > 0 && (
+                        <TableRow>
+                          <TableCell className="text-center text-muted-foreground">—</TableCell>
+                          <TableCell>
+                            <div
+                              className="text-sm font-medium truncate max-w-[320px]"
+                              title={t("contents.viewFilesByClassMaterials")}
+                            >
+                              {t("contents.viewFilesByClassMaterials")}
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {sessionsByClass[0] ? (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1 text-[11px]">
+                                  <CalendarRange className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                  <DateCell value={sessionsByClass[0].date} variant="date" />
+                                </div>
+                                {sessionsByClass[0].title && (
+                                  <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
+                                    {sessionsByClass[0].title}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-normal text-muted-foreground"
+                                title={t("contents.classNoSessionHint")}
+                              >
+                                {t("contents.classNoSession")}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-xs"
+                                  title={`Materiales (${intro.length})`}
+                                >
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                  <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">
+                                    {intro.length}
+                                  </span>
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-72 p-1">
+                                <div className="space-y-0.5">
+                                  {intro.map(renderMaterialItem)}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </TableCell>
+                          {/* Acciones: no hay "regenerar clase" en modo individual */}
+                          <TableCell className="text-right" />
+                        </TableRow>
+                      )}
                       {classNumbers.map((n) => {
                         const session = sessionsByClass[n];
                         const sectionFiles = byClass.get(n) ?? [];
@@ -3047,15 +3111,16 @@ function FilesByClassDialog({
                               {sectionFiles.length > 0 ? (
                                 <Popover>
                                   <PopoverTrigger asChild>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs">
-                                      <FileText className="h-3.5 w-3.5 mr-1.5" />
-                                      Materiales
-                                      <Badge
-                                        variant="secondary"
-                                        className="ml-1.5 h-4 px-1.5 text-[10px] tabular-nums"
-                                      >
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 px-2 text-xs"
+                                      title={`Materiales (${sectionFiles.length})`}
+                                    >
+                                      <MoreHorizontal className="h-3.5 w-3.5" />
+                                      <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">
                                         {sectionFiles.length}
-                                      </Badge>
+                                      </span>
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent align="start" className="w-72 p-1">
