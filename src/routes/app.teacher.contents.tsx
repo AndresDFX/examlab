@@ -39,6 +39,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Plus,
   Download,
@@ -2854,6 +2855,82 @@ function FilesByClassDialog({
     );
   };
 
+  /** Render de un material como fila dentro del Popover de materiales
+   *  del grid de clases. A diferencia de renderFileChip (que es solo
+   *  iconos), aquí mostramos el nombre humano del material + las 3
+   *  acciones a la derecha. Más legible cuando hay 4-5 materiales por
+   *  clase. Click en el nombre = vista previa (o descarga). */
+  const renderMaterialItem = (f: FileEntry) => {
+    const path = `${content.id}:${f.path}`;
+    const busy = downloadingPath === path;
+    const isMdLike = f.kind === "md" || f.kind === "txt";
+    const isPptx = f.kind === "pptx-source";
+    const canPreview = (isMdLike || isPptx) && !!f.body;
+    const TypeIcon = iconForFile(f);
+    const label = humanLabelForFile(f);
+    const effectiveBody = bodyOverrides[f.path] ?? f.body;
+    const fileWithBody: FileEntry = { ...f, body: effectiveBody };
+
+    const openViewer = (mode: "view" | "edit") => {
+      setViewerInitialMode(mode);
+      if (isPptx) setPptxPreviewFile(fileWithBody);
+      else setPreviewFile(fileWithBody);
+    };
+
+    const primaryAction = canPreview ? () => openViewer("view") : () => onDownload(fileWithBody);
+    const primaryHint = canPreview ? t("contents.previewHint") : t("contents.downloadHint");
+
+    return (
+      <div
+        key={f.path}
+        className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50 transition-colors"
+      >
+        <button
+          type="button"
+          onClick={primaryAction}
+          disabled={busy}
+          className="flex flex-1 items-center gap-2 text-left text-xs disabled:opacity-60"
+          title={`${label} — ${primaryHint}`}
+        >
+          {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5 shrink-0" />}
+          <span className="truncate">{label}</span>
+        </button>
+        {canPreview && (
+          <button
+            type="button"
+            onClick={() => openViewer("edit")}
+            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+            title={t("contents.editOnline")}
+            aria-label={t("contents.editOnline")}
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+        {canPreview && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDownload(fileWithBody)}
+            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors disabled:opacity-60"
+            title={t("contents.downloadHint")}
+            aria-label={t("contents.downloadHint")}
+          >
+            <Download className="h-3 w-3" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onDeleteFile(f)}
+          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          title={t("contents.deleteFileHint")}
+          aria-label={t("contents.deleteFileHint")}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <>
       <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
@@ -2878,16 +2955,20 @@ function FilesByClassDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Intro / materiales sueltos arriba (sin grid). */}
+              {/* Intro / materiales sueltos arriba (sin grid). El título y
+                  los chips van en la MISMA línea (con flex-wrap) — antes
+                  estaban apilados verticalmente. */}
               {intro.length > 0 && (
                 <Card>
-                  <CardContent className="p-3 space-y-2">
-                    <div className="text-sm font-medium">
-                      {isCourse
-                        ? t("contents.viewFilesByClassIntro")
-                        : t("contents.viewFilesByClassMaterials")}
+                  <CardContent className="p-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <div className="text-sm font-medium">
+                        {isCourse
+                          ? t("contents.viewFilesByClassIntro")
+                          : t("contents.viewFilesByClassMaterials")}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">{intro.map(renderFileChip)}</div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">{intro.map(renderFileChip)}</div>
                   </CardContent>
                 </Card>
               )}
@@ -2963,15 +3044,31 @@ function FilesByClassDialog({
                               )}
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-wrap gap-1.5">
-                                {sectionFiles.length > 0 ? (
-                                  sectionFiles.map(renderFileChip)
-                                ) : (
-                                  <span className="text-[11px] text-muted-foreground/60">
-                                    {t("contents.viewFilesByClassEmpty")}
-                                  </span>
-                                )}
-                              </div>
+                              {sectionFiles.length > 0 ? (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs">
+                                      <FileText className="h-3.5 w-3.5 mr-1.5" />
+                                      Materiales
+                                      <Badge
+                                        variant="secondary"
+                                        className="ml-1.5 h-4 px-1.5 text-[10px] tabular-nums"
+                                      >
+                                        {sectionFiles.length}
+                                      </Badge>
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" className="w-72 p-1">
+                                    <div className="space-y-0.5">
+                                      {sectionFiles.map(renderMaterialItem)}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground/60">
+                                  {t("contents.viewFilesByClassEmpty")}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <RowAction
