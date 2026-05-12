@@ -1,0 +1,92 @@
+# Despliega edge functions de Supabase en cada push a `main`.
+#
+# Por qué este workflow: Lovable Cloud aplica migraciones SQL al hacer
+# "Publish", pero NO despliega edge functions automáticamente. Sin esto
+# cada vez que cambia un archivo en `supabase/functions/` hay que correr
+# `supabase functions deploy <name>` a mano. El workflow lo automatiza.
+#
+# Secrets requeridos en GitHub (Settings → Secrets → Actions):
+#   - SUPABASE_ACCESS_TOKEN: personal token (no service_role) de
+#     https://supabase.com/dashboard/account/tokens
+#   - SUPABASE_PROJECT_REF: ref del proyecto (ej. xrgqhrqsorknplzegffr).
+#
+# Filtro de funciones a desplegar:
+#   El loop salta directorios que empiezan con "_" (típicamente
+#   `_shared`, que NO es una function sino un módulo importado por las
+#   demás). Solo despliega lo que aparece como subcarpeta directa de
+#   supabase/functions/.
+#
+# Performance: las 13 funciones tardan ~3-4 min en total (deploy
+# secuencial — paralelo es mas complejo y rara vez vale la pena).
+name: Deploy Edge Functions
+
+on:
+  push:
+    # En CADA push a main desplegamos todas las funciones — no usamos
+    # filtro `paths` a propósito. Razón: el deploy es idempotente y
+    # confiamos más en "siempre desplegar todo" que en filtros que se
+    # pueden saltar despliegues por un cambio en `_shared` no detectado,
+    # un rebase, un revert, etc. El trade-off es ~3-4 min de CI por
+    # push aunque sea solo frontend — aceptable para garantizar que la
+    # producción siempre refleje lo del repo.
+    branches: [main]
+
+  # Permite re-disparar el workflow desde la UI de Actions sin
+  # necesidad de un push (útil cuando un deploy falló y queremos
+  # reintentar sin commit nuevo).
+  workflow_dispatch:
+
+# Cancelamos runs anteriores en curso si llega un push nuevo a main.
+# Evita race entre dos pushes seguidos donde el segundo termina antes
+# que el primero y deja un estado inconsistente.
+concurrency:
+  group: deploy-edge-functions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_PROJECT_REF}" ]; then
+            echo "::error::SUPABASE_PROJECT_REF secret no está configurado en GitHub."
+            exit 1
+          fi
+          if [ -z "${SUPABASE_ACCESS_TOKEN}" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret no está configurado en GitHub."
+            exit 1
+          fi
+          cd supabase/functions
+          deployed=0
+          failed=0
+          for dir in */; do
+            name="${dir%/}"
+            # Salta carpetas auxiliares (modulos compartidos: _shared, etc.)
+            case "$name" in _*) echo "Skipping helper: $name"; continue;; esac
+            echo ""
+            echo "═══ Deploying: $name ═══"
+            if supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_REF"; then
+              deployed=$((deployed + 1))
+            else
+              failed=$((failed + 1))
+              echo "::warning::Deploy de $name falló — seguimos con los demás."
+            fi
+          done
+          echo ""
+          echo "═══ Resumen: $deployed desplegadas, $failed fallidas ═══"
+          if [ "$failed" -gt 0 ]; then
+            exit 1
+          fi
