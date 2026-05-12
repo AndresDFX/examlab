@@ -283,6 +283,47 @@ NO borres la URI vieja todavía — sirve para rollback inmediato.
 
 ---
 
+## Paso 5.7 — Baseline de migrations (CRÍTICO para que el pipeline funcione)
+
+Cuando restauras desde un dump SQL, todos los objetos quedan creados
+pero la tabla `supabase_migrations.schema_migrations` (que el CLI usa
+para tracking) queda vacía. Si después corres `supabase db push`, el
+CLI piensa que ninguna migration está aplicada e intenta correrlas
+todas → falla en la primera con `type "X" already exists`.
+
+La solución es hacer **baseline**: marcar todas las migrations
+existentes como "ya aplicadas" sin ejecutarlas, para que el CLI solo
+intente aplicar las **nuevas** a partir de ahí.
+
+A partir de `docker/restore.sh` v2 esto se hace **automáticamente**
+durante el restore (paso 2b aplica `docs/migration/baseline-migrations.sql`
+después del dump). Si ya hiciste el restore antes de esa versión, o
+si por alguna razón tu `supabase_migrations.schema_migrations` está
+vacía, aplica el baseline manualmente:
+
+1. SQL Editor del nuevo Supabase → New query → pega el contenido de
+   [docs/migration/baseline-migrations.sql](baseline-migrations.sql).
+2. Click `Run`. Verifica que el `count(*)` al final sea el número de
+   migrations del repo menos la nueva (al momento de la migración: 111).
+3. Re-corre el workflow `Apply DB Migrations` desde GitHub Actions. Esta
+   vez solo aplica la nueva (`20260515000000_ai_provider_gemini.sql`).
+
+### Regenerar el baseline cuando agregues nuevas migrations
+
+Si después agregas más migrations y necesitas re-hacer un dump→restore
+(ej. en un entorno de staging fresco), regenera el baseline:
+
+```powershell
+bash scripts/baseline-migrations.sh
+```
+
+El script lee `supabase/migrations/*.sql`, toma todas las anteriores a
+la "barrera" (env var `BARRIER_VERSION`, default `20260515000000`) y
+escribe el SQL a `docs/migration/baseline-migrations.sql`. Commitea el
+resultado.
+
+---
+
 ## Paso 6 — Configurar GitHub Actions para deploys futuros
 
 Después de migrar, **Lovable solo despliega el frontend**. Las edge

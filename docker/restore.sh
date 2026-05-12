@@ -170,6 +170,20 @@ else
       GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 SQL
   echo "      OK"
+
+  # Baseline: marca las migrations existentes en supabase/migrations/*
+  # como "ya aplicadas" en supabase_migrations.schema_migrations. Sin
+  # esto, el workflow apply-migrations.yml intenta re-aplicarlas y falla
+  # con "type already exists" porque el dump ya creo todos los objetos.
+  if [ -f docs/migration/baseline-migrations.sql ]; then
+    echo "      Aplicando baseline-migrations.sql (marcar migrations como aplicadas)..."
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -f docs/migration/baseline-migrations.sql >/dev/null
+    marcadas=$(psql "$DB_URL" -tAc "SELECT count(*) FROM supabase_migrations.schema_migrations;")
+    echo "      OK — $marcadas migrations marcadas como aplicadas"
+  else
+    echo "      WARN: no existe docs/migration/baseline-migrations.sql — saltando baseline."
+    echo "      Si despues corres 'supabase db push' va a intentar re-aplicar todo y fallar."
+  fi
   echo ""
 
   echo "[3/5] Creando buckets de Storage..."
