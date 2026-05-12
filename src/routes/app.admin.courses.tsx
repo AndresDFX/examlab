@@ -1587,15 +1587,29 @@ function ContentAssignmentSelector({
   contentId,
   classIndex,
   onChange,
+  assignedClassesByContent,
 }: {
   contents: AvailableContent[];
   contentId: string | null;
   classIndex: number | null;
   onChange: (contentId: string | null, classIndex: number | null) => void;
+  /** Map de clases ya asignadas a OTRAS sesiones del mismo curso
+   *  (excluye la sesión actual). El selector oculta esas clases para
+   *  evitar que el docente asigne dos veces la misma clase. */
+  assignedClassesByContent?: Map<string, Set<number>>;
 }) {
   const { t } = useTranslation();
   const selected = contents.find((c) => c.id === contentId) ?? null;
-  const hasClasses = selected && selected.classes.length > 0;
+  // Filtramos del listado de clases las que ya estan asignadas a otra
+  // sesion. La clase actual (classIndex) se preserva — sin esto, el
+  // dropdown se vacia cuando ya hay una asignacion valida.
+  const blockedForSelected = selected
+    ? (assignedClassesByContent?.get(selected.id) ?? new Set<number>())
+    : new Set<number>();
+  const availableClasses = selected
+    ? selected.classes.filter((n) => n === classIndex || !blockedForSelected.has(n))
+    : [];
+  const hasClasses = selected && availableClasses.length > 0;
   return (
     <div className="flex items-center gap-1.5">
       {/* 1) Contenido */}
@@ -1607,12 +1621,15 @@ function ContentAssignmentSelector({
             return;
           }
           // Al cambiar de contenido, reseteamos la clase. Si el nuevo
-          // contenido tiene clases, el 2do select queda en placeholder
-          // hasta que el docente escoja; mientras tanto classIndex=null
-          // marca la asignación como "todo el contenido".
+          // contenido tiene clases, escogemos la primera DISPONIBLE
+          // (no asignada a otra sesión). Si todas estan tomadas
+          // dejamos classIndex en null y el segundo select muestra el
+          // placeholder "todas las clases asignadas".
           const next = contents.find((c) => c.id === v);
           if (next && next.classes.length > 0) {
-            onChange(v, next.classes[0]);
+            const taken = assignedClassesByContent?.get(v) ?? new Set<number>();
+            const firstFree = next.classes.find((n) => !taken.has(n)) ?? null;
+            onChange(v, firstFree);
           } else {
             onChange(v, null);
           }
@@ -1640,7 +1657,7 @@ function ContentAssignmentSelector({
             <SelectValue placeholder={t("contents.classPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            {selected!.classes.map((n) => (
+            {availableClasses.map((n) => (
               <SelectItem key={n} value={String(n)}>
                 {t("contents.classNumber")} {n}
               </SelectItem>
@@ -1667,6 +1684,25 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const [contents, setContents] = useState<AvailableContent[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Mapa de (content_id → set de class_index ya asignados en este curso).
+  // Sirve para que el selector de contenido oculte las clases tomadas
+  // y obligar la regla "una clase del contenido = una sesion". El selector
+  // preserva internamente la clase de la sesion actual aunque este en el
+  // set, asi el dropdown no se "vacia" cuando ya hay asignacion valida.
+  const assignedClassesByContent = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    for (const s of sessions) {
+      if (!s.content_id || s.content_class_index == null) continue;
+      let set = map.get(s.content_id);
+      if (!set) {
+        set = new Set();
+        map.set(s.content_id, set);
+      }
+      set.add(s.content_class_index);
+    }
+    return map;
+  }, [sessions]);
   // Borrador para creación + edición inline. Cuando `editingId` es
   // null el form de la card-borrador crea una sesión nueva; cuando es
   // un id, edita esa fila. La fila editada queda con un anillo
@@ -1783,7 +1819,16 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       .update({ content_id, content_class_index })
       .eq("id", sessionId);
     if (error) {
-      toast.error(error.message);
+      // 23505 = unique_violation. La constraint `attendance_sessions_unique_content_class`
+      // se dispara si alguien (o una race condition) intenta asignar la
+      // misma (content_id, class_index) a dos sesiones del mismo curso.
+      // El selector ya filtra clases tomadas, pero por defensa en
+      // profundidad mostramos un mensaje claro en lugar del raw del CLI.
+      if (error.code === "23505") {
+        toast.error(t("course.classAlreadyAssignedToAnotherSession"));
+      } else {
+        toast.error(error.message);
+      }
       return;
     }
     setSessions((prev) =>
@@ -2344,6 +2389,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                           contents={contents}
                           contentId={s.content_id}
                           classIndex={s.content_class_index}
+                          assignedClassesByContent={assignedClassesByContent}
                           onChange={(cid, idx) => {
                             const raw = cid == null ? "__none" : `${cid}:${idx ?? 0}`;
                             void updateAssignment(s.id, raw);

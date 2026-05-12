@@ -180,6 +180,7 @@
     "boardNewSession": "Programar nueva sesión",
     "boardCreateSession": "Crear sesión",
     "boardSessionTitlePlaceholder": "Ej: Clase 1 — Introducción",
+    "classAlreadyAssignedToAnotherSession": "Esa clase del contenido ya está asignada a otra sesión del curso. Cada clase solo puede estar en una sesión.",
     "boardSessionCreated": "Sesión creada",
     "boardSessionSaved": "Sesión actualizada",
     "boardSessionDeleted": "Sesión eliminada",

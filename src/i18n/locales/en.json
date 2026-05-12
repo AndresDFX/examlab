@@ -180,6 +180,7 @@
     "boardNewSession": "Schedule new session",
     "boardCreateSession": "Create session",
     "boardSessionTitlePlaceholder": "e.g. Session 1 — Introduction",
+    "classAlreadyAssignedToAnotherSession": "That class of the content is already assigned to another session of this course. Each class can only be in one session.",
     "boardSessionCreated": "Session created",
     "boardSessionSaved": "Session updated",
     "boardSessionDeleted": "Session deleted",
