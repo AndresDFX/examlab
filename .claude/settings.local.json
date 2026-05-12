@@ -6,7 +6,8 @@
       "Bash(git pull *)",
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Personal\\\\examlab\\\\src\\\\routes\" -Filter \"*.tsx\" -File)",
       "Bash(Select-Object Name)",
-      "Bash(Sort-Object Name)"
+      "Bash(Sort-Object Name)",
+      "Bash(grep -rn \"course.boardLabel\\\\|course\\\\\\\\.boardShort\" src/)"
     ]
   }
 }

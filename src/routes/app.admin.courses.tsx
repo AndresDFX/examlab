@@ -961,57 +961,38 @@ export function AdminCourses() {
                     {c.description ?? "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Acción inline "Tablero" — visible por defecto en
-                          cada fila, sin esconderla dentro del menú de
-                          tres puntos. Es la entrada principal al CRUD
-                          de sesiones del curso (vista que verán los
-                          estudiantes). El menú de la derecha sigue
-                          conteniendo la misma acción para descubribilidad
-                          desde ambos lados. */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs hidden sm:inline-flex"
-                        onClick={() => setBoardForCourse(c)}
-                        title={t("course.boardLabel")}
-                      >
-                        <CalendarRange className="h-3.5 w-3.5 mr-1" />
-                        {t("course.boardShort")}
-                      </Button>
-                      <RowActionsMenu
-                        actions={[
-                          {
-                            label: t("course.boardLabel"),
-                            icon: CalendarRange,
-                            onClick: () => setBoardForCourse(c),
-                          },
-                          {
-                            label: t("course.students"),
-                            icon: Users,
-                            onClick: () => openEnroll(c),
-                          },
-                          {
-                            label: t("course.teachers"),
-                            icon: UserCog,
-                            onClick: () => openTeachers(c),
-                          },
-                          {
-                            label: t("common.duplicate"),
-                            icon: Copy,
-                            onClick: () => openDuplicate(c),
-                          },
-                          { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
-                          {
-                            label: t("common.delete"),
-                            icon: Trash2,
-                            tone: "destructive",
-                            separatorBefore: true,
-                            onClick: () => remove(c.id),
-                          },
-                        ]}
-                      />
-                    </div>
+                    <RowActionsMenu
+                      actions={[
+                        {
+                          label: t("course.boardShort"),
+                          icon: CalendarRange,
+                          onClick: () => setBoardForCourse(c),
+                        },
+                        {
+                          label: t("course.students"),
+                          icon: Users,
+                          onClick: () => openEnroll(c),
+                        },
+                        {
+                          label: t("course.teachers"),
+                          icon: UserCog,
+                          onClick: () => openTeachers(c),
+                        },
+                        {
+                          label: t("common.duplicate"),
+                          icon: Copy,
+                          onClick: () => openDuplicate(c),
+                        },
+                        { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
+                        {
+                          label: t("common.delete"),
+                          icon: Trash2,
+                          tone: "destructive",
+                          separatorBefore: true,
+                          onClick: () => remove(c.id),
+                        },
+                      ]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
