@@ -68,6 +68,7 @@ import {
   X,
   Bot,
   ChevronRight,
+  Check,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -89,6 +90,7 @@ import { ConversationSection } from "@/components/ConversationSection";
 // FraudPanel quitado: la detección de IA y copia ahora se muestra POR
 // pregunta dentro del Accordion (mismo patrón del monitor de exámenes).
 import { computeIntegritySuggestion } from "@/lib/integrity";
+import { computeWorkshopAlerts } from "@/lib/workshop-integrity-alerts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -213,6 +215,10 @@ type WsAnswer = {
    *  sugerencia de penalización por integridad se calcule por pregunta. */
   ai_likelihood: number | null;
   ai_reasons: string | null;
+  /** Cuándo el docente marcó esta sospecha de IA POR PREGUNTA como
+   *  revisada. NULL = pendiente. Igual semántica que el `ai_review_at`
+   *  del breakdown de exámenes. Migración 20260519100000. */
+  ai_review_at: string | null;
 };
 
 function TeacherWorkshops() {
@@ -914,25 +920,26 @@ function TeacherWorkshops() {
       for (const a of (ans ?? []) as WsAnswer[]) {
         // Las dos columnas nuevas se cargan abajo en una query separada
         // y defensiva — aquí solo aseguramos que el shape de WsAnswer
-        // tenga ai_likelihood/ai_reasons en null por defecto.
+        // tenga ai_likelihood/ai_reasons/ai_review_at en null por defecto.
         (grouped[a.submission_id] ||= []).push({
           ...a,
           ai_likelihood: null,
           ai_reasons: null,
+          ai_review_at: null,
         });
       }
       setAnswersBySub(grouped);
 
-      // Carga AUXILIAR de ai_likelihood/ai_reasons. La hacemos en query
-      // separada y con try/catch para que si la migración 20260510190000
-      // todavía no se aplicó (pendiente de Publish en Lovable Cloud),
-      // el dialog NO se rompa — simplemente la sugerencia por integridad
-      // por pregunta no aparecerá hasta que las columnas existan.
+      // Carga AUXILIAR de ai_likelihood/ai_reasons/ai_review_at. La hacemos
+      // en query separada y con try/catch para que si las migraciones
+      // (20260510190000 y 20260519100000) todavía no se aplicaron, el
+      // dialog NO se rompa — simplemente las features dependientes (badge
+      // de IA, botón "Marcar revisada") no aparecen hasta el publish.
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: aiAns, error: aiErr } = await (supabase as any)
           .from("workshop_submission_answers")
-          .select("id, ai_likelihood, ai_reasons")
+          .select("id, ai_likelihood, ai_reasons, ai_review_at")
           .in("submission_id", subIds);
         if (!aiErr && Array.isArray(aiAns) && aiAns.length > 0) {
           const byId = new Map(
@@ -941,8 +948,16 @@ function TeacherWorkshops() {
                 id: string;
                 ai_likelihood: number | null;
                 ai_reasons: string | null;
+                ai_review_at: string | null;
               }>
-            ).map((r) => [r.id, { ai_likelihood: r.ai_likelihood, ai_reasons: r.ai_reasons }]),
+            ).map((r) => [
+              r.id,
+              {
+                ai_likelihood: r.ai_likelihood,
+                ai_reasons: r.ai_reasons,
+                ai_review_at: r.ai_review_at,
+              },
+            ]),
           );
           setAnswersBySub((prev) => {
             const next: Record<string, WsAnswer[]> = {};
@@ -1020,17 +1035,33 @@ function TeacherWorkshops() {
     setGradingOpen(true);
   };
 
-  /** Mapa: submissionId → questionId → { score, reasons } con la
-   *  probabilidad de IA por pregunta. Lo derivamos de answersBySub
-   *  (que ahora trae ai_likelihood) y lo consumimos en el card amber
-   *  de "sugerencia por integridad" — mismo patrón que el monitor. */
+  /** Mapa: submissionId → questionId → { answerId, score, reasons, reviewedAt }.
+   *  `answerId` permite hacer UPDATE en el toggle de "revisada" sin re-
+   *  buscar la fila. `reviewedAt` es el timestamp si el docente ya la
+   *  inspeccionó. Mismo patrón del monitor de exámenes. */
   const wsAiSignalsBySubmissionQuestion = useMemo(() => {
-    const map = new Map<string, Map<string, { score: number; reasons: string | null }>>();
+    const map = new Map<
+      string,
+      Map<
+        string,
+        { answerId: string; score: number; reasons: string | null; reviewedAt: string | null }
+      >
+    >();
     for (const [subId, answers] of Object.entries(answersBySub)) {
-      const inner = new Map<string, { score: number; reasons: string | null }>();
+      const inner = new Map<
+        string,
+        { answerId: string; score: number; reasons: string | null; reviewedAt: string | null }
+      >();
       for (const a of answers) {
         const score = a.ai_likelihood != null ? Number(a.ai_likelihood) : 0;
-        if (score > 0) inner.set(a.question_id, { score, reasons: a.ai_reasons ?? null });
+        if (score > 0) {
+          inner.set(a.question_id, {
+            answerId: a.id,
+            score,
+            reasons: a.ai_reasons ?? null,
+            reviewedAt: a.ai_review_at ?? null,
+          });
+        }
       }
       if (inner.size > 0) map.set(subId, inner);
     }
@@ -1038,12 +1069,18 @@ function TeacherWorkshops() {
   }, [answersBySub]);
 
   /** Mapa: userId → pares de copia donde ese estudiante aparece (en
-   *  user_a o user_b). Cada par incluye question_id, peerId y score —
-   *  los consumimos en el render por pregunta filtrando por questionId. */
+   *  user_a o user_b). Incluye `id` del similarity_pair para poder
+   *  marcarlo como revisado, y `reviewedAt` para mostrar el estado. */
   const wsCopyPairsByUser = useMemo(() => {
     const map = new Map<
       string,
-      Array<{ questionId: string | null; peerId: string; score: number }>
+      Array<{
+        id: string;
+        questionId: string | null;
+        peerId: string;
+        score: number;
+        reviewedAt: string | null;
+      }>
     >();
     for (const p of wsSimilarityPairs) {
       for (const [u, peer] of [
@@ -1051,7 +1088,13 @@ function TeacherWorkshops() {
         [p.user_b, p.user_a],
       ] as const) {
         const arr = map.get(u) ?? [];
-        arr.push({ questionId: p.question_id, peerId: peer, score: Number(p.score) || 0 });
+        arr.push({
+          id: p.id,
+          questionId: p.question_id,
+          peerId: peer,
+          score: Number(p.score) || 0,
+          reviewedAt: p.reviewed_at ?? null,
+        });
         map.set(u, arr);
       }
     }
@@ -1272,6 +1315,56 @@ function TeacherWorkshops() {
 
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
+
+  /** Marca/desmarca una sospecha de IA POR PREGUNTA como revisada. Persiste
+   *  `workshop_submission_answers.ai_review_at` (timestamp = revisada,
+   *  null = pendiente). Mismo patrón del monitor de exámenes pero usando
+   *  una tabla en vez del JSON __breakdown. */
+  const toggleQuestionAiReviewed = async (
+    answerId: string,
+    submissionId: string,
+    currentlyReviewed: boolean,
+  ) => {
+    const next = currentlyReviewed ? null : new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
+    const { error } = await dbAny
+      .from("workshop_submission_answers")
+      .update({ ai_review_at: next, ai_review_by: user?.id ?? null })
+      .eq("id", answerId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setAnswersBySub((prev) => {
+      const list = (prev[submissionId] ?? []).map((a) =>
+        a.id === answerId ? { ...a, ai_review_at: next } : a,
+      );
+      return { ...prev, [submissionId]: list };
+    });
+    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+  };
+
+  /** Marca/desmarca un par de copia (similarity_pairs) como revisado.
+   *  Persiste `reviewed_at`. Tras toggle actualiza wsSimilarityPairs en
+   *  memoria para que el badge "Revisada" se refleje sin recargar. */
+  const togglePairReviewed = async (pairId: string, currentlyReviewed: boolean) => {
+    const next = currentlyReviewed ? null : new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
+    const { error } = await dbAny
+      .from("similarity_pairs")
+      .update({ reviewed_at: next })
+      .eq("id", pairId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setWsSimilarityPairs((prev) =>
+      prev.map((p) => (p.id === pairId ? { ...p, reviewed_at: next } : p)),
+    );
+    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+  };
   /** Estado del botón "Detectar copias" del modal de calificación. La
    *  edge function `detect-plagiarism` compara respuestas POR PREGUNTA
    *  entre todos los estudiantes y devuelve los pares con `question_id`
@@ -1319,7 +1412,7 @@ function TeacherWorkshops() {
         subIds.length > 0
           ? dbAny
               .from("workshop_submission_answers")
-              .select("id, ai_likelihood, ai_reasons")
+              .select("id, ai_likelihood, ai_reasons, ai_review_at")
               .in("submission_id", subIds)
           : Promise.resolve({ data: [] }),
       ]);
@@ -1331,6 +1424,7 @@ function TeacherWorkshops() {
               id: string;
               ai_likelihood: number | null;
               ai_reasons: string | null;
+              ai_review_at: string | null;
             }>
           ).map((r) => [r.id, r]),
         );
@@ -1339,7 +1433,14 @@ function TeacherWorkshops() {
           for (const [k, list] of Object.entries(prev)) {
             next[k] = list.map((a) => {
               const u = byId.get(a.id);
-              return u ? { ...a, ai_likelihood: u.ai_likelihood, ai_reasons: u.ai_reasons } : a;
+              return u
+                ? {
+                    ...a,
+                    ai_likelihood: u.ai_likelihood,
+                    ai_reasons: u.ai_reasons,
+                    ai_review_at: u.ai_review_at,
+                  }
+                : a;
             });
           }
           return next;
@@ -2526,40 +2627,106 @@ function TeacherWorkshops() {
                 </p>
               )}
             {!(gradingWs as any)?.is_external &&
-              filteredWsSubs.map((sub) => (
-                <Card
-                  key={sub.id}
-                  id={`ws-sub-${sub.id}`}
-                  className={[
-                    sub.status === "ai_revisado"
-                      ? "border-amber-400/50 dark:border-amber-500/30"
-                      : "",
-                    highlightSubId === sub.id ? "ring-2 ring-primary/60" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <CardContent className="p-4 space-y-3">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">{sub.profile?.full_name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {sub.profile?.institutional_email}
+              filteredWsSubs.map((sub) => {
+                // Resumen agregado de alertas de integridad para este
+                // estudiante (suma de IA + copia pendientes/totales en
+                // sus respuestas). Lo usamos para destacar la card y
+                // pintar badges en el header — el docente sabe que tiene
+                // que expandir el acordeón sin abrirlo a ciegas.
+                const aiSigsForSub = wsAiSignalsBySubmissionQuestion.get(sub.id);
+                const copyPairsForUser = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                const integrity = computeWorkshopAlerts(
+                  aiSigsForSub ? aiSigsForSub.values() : [],
+                  copyPairsForUser,
+                );
+                const hasPendingAlerts = integrity.totalPending > 0;
+                return (
+                  <Card
+                    key={sub.id}
+                    id={`ws-sub-${sub.id}`}
+                    className={[
+                      // Borde rojo/ámbar prominente cuando hay alertas
+                      // PENDIENTES de revisar. Si todas están revisadas
+                      // (pero existen), volvemos al borde por status
+                      // (ai_revisado = ámbar suave).
+                      hasPendingAlerts
+                        ? "border-red-400/70 bg-red-50/30 dark:border-red-500/40 dark:bg-red-500/5"
+                        : sub.status === "ai_revisado"
+                          ? "border-amber-400/50 dark:border-amber-500/30"
+                          : "",
+                      highlightSubId === sub.id ? "ring-2 ring-primary/60" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <CardContent className="p-4 space-y-3">
+                      {/* Header */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {sub.profile?.full_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {sub.profile?.institutional_email}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          {/* Badges de alertas de integridad. Solo se
+                              muestran si HAY alertas (pendientes o
+                              revisadas). Color:
+                                - destructive = pendientes
+                                - emerald = todas revisadas */}
+                          {integrity.aiTotal > 0 && (
+                            <Badge
+                              variant={integrity.aiPending > 0 ? "destructive" : "outline"}
+                              className={
+                                integrity.aiPending > 0
+                                  ? "text-[10px] flex items-center gap-1"
+                                  : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                              }
+                              title={
+                                integrity.aiPending > 0
+                                  ? `IA: ${integrity.aiPending} pendiente${integrity.aiPending === 1 ? "" : "s"} de ${integrity.aiTotal}`
+                                  : `IA: ${integrity.aiTotal} revisada${integrity.aiTotal === 1 ? "" : "s"}`
+                              }
+                            >
+                              <Bot className="h-3 w-3" />
+                              {integrity.aiPending > 0
+                                ? `${integrity.aiPending}/${integrity.aiTotal}`
+                                : `${integrity.aiTotal} ✓`}
+                            </Badge>
+                          )}
+                          {integrity.copyTotal > 0 && (
+                            <Badge
+                              variant={integrity.copyPending > 0 ? "destructive" : "outline"}
+                              className={
+                                integrity.copyPending > 0
+                                  ? "text-[10px] flex items-center gap-1"
+                                  : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                              }
+                              title={
+                                integrity.copyPending > 0
+                                  ? `Copia: ${integrity.copyPending} pendiente${integrity.copyPending === 1 ? "" : "s"} de ${integrity.copyTotal}`
+                                  : `Copia: ${integrity.copyTotal} revisada${integrity.copyTotal === 1 ? "" : "s"}`
+                              }
+                            >
+                              <Users className="h-3 w-3" />
+                              {integrity.copyPending > 0
+                                ? `${integrity.copyPending}/${integrity.copyTotal}`
+                                : `${integrity.copyTotal} ✓`}
+                            </Badge>
+                          )}
+                          <StatusBadge status={sub.status || "pendiente"} />
+                          <RowAction
+                            label="Eliminar entrega"
+                            icon={Trash2}
+                            tone="destructive"
+                            onClick={() =>
+                              deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")
+                            }
+                          />
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <StatusBadge status={sub.status || "pendiente"} />
-                        <RowAction
-                          label="Eliminar entrega"
-                          icon={Trash2}
-                          tone="destructive"
-                          onClick={() =>
-                            deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")
-                          }
-                        />
-                      </div>
-                    </div>
 
                     {/* Student content */}
                     {sub.content && (
@@ -2782,14 +2949,15 @@ function TeacherWorkshops() {
 
                                   {/* Bloque "Sospecha IA" por pregunta. Mismo
                                       patrón visual del monitor de exámenes:
-                                      Collapsible amber con score badge + razones.
-                                      Solo aparece si el score IA es ≥ 0.6 (por
-                                      debajo lo consideramos ruido). */}
+                                      Collapsible amber con score badge + razones
+                                      + botón "Marcar revisada" / "Reabrir".
+                                      Solo aparece si el score IA es ≥ 0.6. */}
                                   {(() => {
                                     const aiSig = wsAiSignalsBySubmissionQuestion
                                       .get(sub.id)
                                       ?.get(q.id);
                                     if (!aiSig || aiSig.score < 0.6) return null;
+                                    const reviewed = aiSig.reviewedAt != null;
                                     return (
                                       <Collapsible defaultOpen={false}>
                                         <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
@@ -2813,14 +2981,63 @@ function TeacherWorkshops() {
                                               >
                                                 {Math.round(aiSig.score * 100)}%
                                               </Badge>
+                                              {reviewed && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                >
+                                                  <Check className="h-3 w-3 mr-1" />
+                                                  {t("integrity.reviewed", {
+                                                    defaultValue: "Revisada",
+                                                  })}
+                                                </Badge>
+                                              )}
                                             </button>
                                           </CollapsibleTrigger>
-                                          <CollapsibleContent>
+                                          <CollapsibleContent className="space-y-2">
                                             {aiSig.reasons && (
                                               <p className="text-[11px] text-amber-700 dark:text-amber-300 whitespace-pre-wrap pt-1 border-t border-amber-300/30">
                                                 {aiSig.reasons}
                                               </p>
                                             )}
+                                            <div className="flex justify-end pt-1 border-t border-amber-300/30">
+                                              {reviewed ? (
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="h-7 text-[11px] bg-background"
+                                                  onClick={() =>
+                                                    toggleQuestionAiReviewed(
+                                                      aiSig.answerId,
+                                                      sub.id,
+                                                      true,
+                                                    )
+                                                  }
+                                                >
+                                                  {t("integrity.reopen", {
+                                                    defaultValue: "Reabrir",
+                                                  })}
+                                                </Button>
+                                              ) : (
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                  onClick={() =>
+                                                    toggleQuestionAiReviewed(
+                                                      aiSig.answerId,
+                                                      sub.id,
+                                                      false,
+                                                    )
+                                                  }
+                                                >
+                                                  <Check className="h-3 w-3 mr-1" />
+                                                  {t("integrity.markReviewed", {
+                                                    defaultValue: "Marcar revisada",
+                                                  })}
+                                                </Button>
+                                              )}
+                                            </div>
                                           </CollapsibleContent>
                                         </div>
                                       </Collapsible>
@@ -2829,18 +3046,17 @@ function TeacherWorkshops() {
 
                                   {/* Bloque "Posibles copias" por pregunta. Lista
                                       los pares de similarity_pairs filtrados por
-                                      esta question_id, con el nombre del peer y
-                                      score. Sin botón "ver respuesta del peer"
-                                      (eso es feature avanzada del monitor de
-                                      exámenes). */}
+                                      esta question_id. Cada par tiene su propio
+                                      botón "Marcar revisada" (ese par específico).
+                                      El trigger muestra cuántos quedan pendientes
+                                      para que el docente decida si abrir. */}
                                   {(() => {
                                     const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
                                     const qPairs = userPairs.filter((p) => p.questionId === q.id);
                                     if (qPairs.length === 0) return null;
                                     const sorted = [...qPairs].sort((a, b) => b.score - a.score);
                                     const maxScore = sorted[0].score;
-                                    // Nombres de los peers desde wsSubs (cargados
-                                    // junto con las entregas).
+                                    const pendingCount = sorted.filter((p) => !p.reviewedAt).length;
                                     const peerName = (peerId: string) => {
                                       const peer = wsSubs.find((s) => s.user_id === peerId);
                                       return (
@@ -2865,31 +3081,87 @@ function TeacherWorkshops() {
                                               >
                                                 {qPairs.length} · {Math.round(maxScore * 100)}%
                                               </Badge>
+                                              {pendingCount > 0 ? (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
+                                                >
+                                                  {pendingCount} pendiente
+                                                  {pendingCount === 1 ? "" : "s"}
+                                                </Badge>
+                                              ) : (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                >
+                                                  <Check className="h-3 w-3 mr-1" />
+                                                  Todas revisadas
+                                                </Badge>
+                                              )}
                                             </button>
                                           </CollapsibleTrigger>
                                           <CollapsibleContent className="space-y-1.5 pt-1 border-t border-amber-300/30">
-                                            {sorted.map((p, i) => (
-                                              <div
-                                                key={i}
-                                                className="rounded border bg-background p-1.5 text-xs flex items-center gap-2 flex-wrap"
-                                              >
-                                                <span className="font-medium">
-                                                  {peerName(p.peerId)}
-                                                </span>
-                                                <Badge
-                                                  variant={
-                                                    p.score >= 0.85
-                                                      ? "destructive"
-                                                      : p.score >= 0.7
-                                                        ? "default"
-                                                        : "secondary"
-                                                  }
-                                                  className="text-[10px]"
+                                            {sorted.map((p) => {
+                                              const isReviewed = p.reviewedAt != null;
+                                              return (
+                                                <div
+                                                  key={p.id}
+                                                  className="rounded border bg-background p-1.5 text-xs flex items-center gap-2 flex-wrap"
                                                 >
-                                                  {Math.round(p.score * 100)}%
-                                                </Badge>
-                                              </div>
-                                            ))}
+                                                  <span className="font-medium">
+                                                    {peerName(p.peerId)}
+                                                  </span>
+                                                  <Badge
+                                                    variant={
+                                                      p.score >= 0.85
+                                                        ? "destructive"
+                                                        : p.score >= 0.7
+                                                          ? "default"
+                                                          : "secondary"
+                                                    }
+                                                    className="text-[10px]"
+                                                  >
+                                                    {Math.round(p.score * 100)}%
+                                                  </Badge>
+                                                  {isReviewed && (
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                    >
+                                                      <Check className="h-3 w-3 mr-1" />
+                                                      {t("integrity.reviewed", {
+                                                        defaultValue: "Revisada",
+                                                      })}
+                                                    </Badge>
+                                                  )}
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className={
+                                                      isReviewed
+                                                        ? "h-6 text-[10px] ml-auto bg-background"
+                                                        : "h-6 text-[10px] ml-auto bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                    }
+                                                    onClick={() =>
+                                                      togglePairReviewed(p.id, isReviewed)
+                                                    }
+                                                  >
+                                                    {isReviewed ? (
+                                                      t("integrity.reopen", {
+                                                        defaultValue: "Reabrir",
+                                                      })
+                                                    ) : (
+                                                      <>
+                                                        <Check className="h-3 w-3 mr-1" />
+                                                        {t("integrity.markReviewed", {
+                                                          defaultValue: "Marcar revisada",
+                                                        })}
+                                                      </>
+                                                    )}
+                                                  </Button>
+                                                </div>
+                                              );
+                                            })}
                                           </CollapsibleContent>
                                         </div>
                                       </Collapsible>
@@ -3020,9 +3292,10 @@ function TeacherWorkshops() {
                           : "Calificar con IA"}
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
           </div>
         </DialogContent>
       </Dialog>
