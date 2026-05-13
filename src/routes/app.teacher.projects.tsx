@@ -1370,22 +1370,23 @@ function TeacherProjects() {
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <Table>
+          {/* table-fixed: anchos de columna respetados. */}
+          <Table fixed>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
                 <TableHead>{t("common.title")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("common.course")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("exam.columns.cut")}</TableHead>
-                <TableHead className="hidden lg:table-cell text-right">
+                <TableHead className="hidden sm:table-cell w-32">{t("common.course")}</TableHead>
+                <TableHead className="hidden md:table-cell w-24">{t("exam.columns.cut")}</TableHead>
+                <TableHead className="hidden lg:table-cell text-right w-16">
                   {t("common.weight")}
                 </TableHead>
-                <TableHead>{t("common.status")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("common.start")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("common.end")}</TableHead>
-                <TableHead className="text-right">{t("common.actions")}</TableHead>
+                <TableHead className="w-24">{t("common.status")}</TableHead>
+                <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
+                <TableHead className="hidden sm:table-cell w-28">{t("common.end")}</TableHead>
+                <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

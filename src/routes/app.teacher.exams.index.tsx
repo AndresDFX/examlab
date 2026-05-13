@@ -574,24 +574,34 @@ function TeacherExams() {
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <Table>
+          {/* table-fixed: anchos por columna respetados; títulos largos
+              truncan en cada cell (ver wrapper truncate más abajo). */}
+          <Table fixed>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
                 <TableHead>{t("exam.columns.title")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("exam.columns.course")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("exam.columns.cut")}</TableHead>
-                <TableHead className="text-right hidden md:table-cell">Peso</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("exam.columns.start")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("exam.columns.end")}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t("exam.columns.duration")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("exam.columns.type")}</TableHead>
-                <TableHead className="hidden lg:table-cell">
+                <TableHead className="hidden md:table-cell w-32">
+                  {t("exam.columns.course")}
+                </TableHead>
+                <TableHead className="hidden md:table-cell w-24">{t("exam.columns.cut")}</TableHead>
+                <TableHead className="text-right hidden md:table-cell w-16">Peso</TableHead>
+                <TableHead className="hidden sm:table-cell w-28">
+                  {t("exam.columns.start")}
+                </TableHead>
+                <TableHead className="hidden sm:table-cell w-28">{t("exam.columns.end")}</TableHead>
+                <TableHead className="hidden lg:table-cell w-20">
+                  {t("exam.columns.duration")}
+                </TableHead>
+                <TableHead className="hidden md:table-cell w-24">
+                  {t("exam.columns.type")}
+                </TableHead>
+                <TableHead className="hidden lg:table-cell w-28">
                   {t("exam.columns.navigation")}
                 </TableHead>
-                <TableHead className="text-right">{t("common.actions")}</TableHead>
+                <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -622,9 +632,11 @@ function TeacherExams() {
                     <MultiSelectCheckbox id={e.id} state={sel} />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span>{e.title}</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        <span className="truncate" title={e.title}>
+                          {e.title}
+                        </span>
                         {e.parent_exam_id && (
                           <Badge variant="outline" className="text-[10px]">
                             <GitBranch className="h-3 w-3 mr-1" />

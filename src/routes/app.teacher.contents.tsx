@@ -612,16 +612,18 @@ function TeacherContents() {
           {loading ? (
             <TableSkeleton rows={5} cols={5} />
           ) : (
-            <Table>
+            // table-fixed: el topic/display_name puede ser largo —
+            // trunca en su cell sin expandir la tabla.
+            <Table fixed>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("contents.topicColumn")}</TableHead>
-                  <TableHead>{t("contents.modeColumn")}</TableHead>
-                  <TableHead>{t("common.course")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead>{t("contents.filesColumn")}</TableHead>
-                  <TableHead>{t("contents.createdColumn")}</TableHead>
-                  <TableHead className="text-right">{t("common.actions")}</TableHead>
+                  <TableHead className="w-32">{t("contents.modeColumn")}</TableHead>
+                  <TableHead className="w-32">{t("common.course")}</TableHead>
+                  <TableHead className="w-24">{t("common.status")}</TableHead>
+                  <TableHead className="w-20">{t("contents.filesColumn")}</TableHead>
+                  <TableHead className="w-32">{t("contents.createdColumn")}</TableHead>
+                  <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

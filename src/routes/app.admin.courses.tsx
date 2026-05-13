@@ -889,19 +889,23 @@ export function AdminCourses() {
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <Table>
+          {/* table-fixed via `fixed`: las columnas respetan los anchos
+              de los TableHead (definidos por las clases `w-X`). Sin
+              esto, un nombre/descripción largos expanden la tabla y
+              empujan acciones fuera de pantalla. */}
+          <Table fixed>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
                 <TableHead>{t("common.name")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("common.period")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("common.scale")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("common.start")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("common.end")}</TableHead>
+                <TableHead className="hidden sm:table-cell w-32">{t("common.period")}</TableHead>
+                <TableHead className="hidden sm:table-cell w-24">{t("common.scale")}</TableHead>
+                <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
+                <TableHead className="hidden md:table-cell w-28">{t("common.end")}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t("common.description")}</TableHead>
-                <TableHead className="text-right">{t("common.actions")}</TableHead>
+                <TableHead className="text-right w-28">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -925,8 +929,14 @@ export function AdminCourses() {
                     <MultiSelectCheckbox id={c.id} state={sel} />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <div className="flex flex-col gap-1">
-                      <span>{c.name}</span>
+                    {/* Wrapper truncate: con table-fixed el cell respeta
+                        el ancho de su columna, pero solo si el contenido
+                        usa truncate. min-w-0 permite el shrinking dentro
+                        del flex-col. */}
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="truncate" title={c.name}>
+                        {c.name}
+                      </span>
                       {c.period && (
                         <Badge variant="outline" className="text-[10px] w-fit sm:hidden">
                           {c.period}

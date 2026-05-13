@@ -533,7 +533,8 @@ function AdminUsers() {
             <div className="p-6 text-sm text-muted-foreground">Cargando…</div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              {/* table-fixed: emails y nombres largos truncan. */}
+              <Table fixed>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -546,8 +547,10 @@ function AdminUsers() {
                     <TableHead className="hidden md:table-cell">
                       {t("users.personalEmail")}
                     </TableHead>
-                    <TableHead className="hidden xs:table-cell">{t("common.roles")}</TableHead>
-                    <TableHead className="text-right">{t("common.actions")}</TableHead>
+                    <TableHead className="hidden xs:table-cell w-40">
+                      {t("common.roles")}
+                    </TableHead>
+                    <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -571,9 +574,11 @@ function AdminUsers() {
                         <MultiSelectCheckbox id={r.id} state={sel} />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <div className="flex flex-col gap-1">
-                          <span>{r.full_name}</span>
-                          <span className="text-xs text-muted-foreground sm:hidden truncate max-w-[14rem]">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="truncate" title={r.full_name}>
+                            {r.full_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground sm:hidden truncate">
                             {r.institutional_email}
                           </span>
                           <div className="flex flex-wrap gap-1 sm:hidden">
@@ -585,11 +590,14 @@ function AdminUsers() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm hidden sm:table-cell">
-                        {r.institutional_email}
+                      <TableCell className="text-sm hidden sm:table-cell" title={r.institutional_email}>
+                        <div className="truncate">{r.institutional_email}</div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
-                        {r.personal_email ?? "—"}
+                      <TableCell
+                        className="text-sm text-muted-foreground hidden md:table-cell"
+                        title={r.personal_email ?? undefined}
+                      >
+                        <div className="truncate">{r.personal_email ?? "—"}</div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <div className="flex flex-wrap gap-1">
