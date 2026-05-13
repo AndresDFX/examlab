@@ -66,6 +66,8 @@ import {
   AlertTriangle,
   Search,
   X,
+  Bot,
+  ChevronRight,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -84,8 +86,10 @@ import { toCSV } from "@/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { ConversationSection } from "@/components/ConversationSection";
-import { FraudPanel } from "@/components/FraudPanel";
+// FraudPanel quitado: la detección de IA y copia ahora se muestra POR
+// pregunta dentro del Accordion (mismo patrón del monitor de exámenes).
 import { computeIntegritySuggestion } from "@/lib/integrity";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
@@ -1268,6 +1272,87 @@ function TeacherWorkshops() {
 
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
+  /** Estado del botón "Detectar copias" del modal de calificación. La
+   *  edge function `detect-plagiarism` compara respuestas POR PREGUNTA
+   *  entre todos los estudiantes y devuelve los pares con `question_id`
+   *  poblado. Al terminar, recargamos `wsSimilarityPairs` para que los
+   *  bloques de copia por pregunta se actualicen. */
+  const [detectingCopies, setDetectingCopies] = useState(false);
+
+  /** Invoca la edge function `detect-plagiarism` para comparar
+   *  respuestas de TODOS los estudiantes de este taller y agrupa los
+   *  resultados por pregunta. Al volver, recarga similarity_pairs +
+   *  ai_likelihood (la edge también puede setear ai_detected_score por
+   *  respuesta) para que los bloques de IA y copia por pregunta
+   *  reflejen los nuevos datos sin recargar el modal. */
+  const runDetectCopies = async () => {
+    if (!gradingWs) return;
+    setDetectingCopies(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
+        body: { kind: "workshop", refId: gradingWs.id },
+      });
+      if (error) throw error;
+      const summary = data as { pairs?: unknown[]; message?: string };
+      const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
+      if (found > 0) {
+        toast.success(
+          `Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"} encontrado${found === 1 ? "" : "s"}.`,
+        );
+      } else {
+        toast.message("Detección completada", {
+          description: summary?.message ?? "No se encontraron coincidencias relevantes.",
+        });
+      }
+      // Recarga similarity_pairs y ai_likelihood por respuesta — ambos
+      // los puede haber escrito la edge function. Usamos `any` puntual
+      // porque similarity_pairs no está en los types generados.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const subIds = wsSubs.map((s) => s.id);
+      const [{ data: pairs }, aiResp] = await Promise.all([
+        dbAny
+          .from("similarity_pairs")
+          .select("id, question_id, user_a, user_b, score, reasons, reviewed_at")
+          .eq("kind", "workshop")
+          .eq("ref_id", gradingWs.id),
+        subIds.length > 0
+          ? dbAny
+              .from("workshop_submission_answers")
+              .select("id, ai_likelihood, ai_reasons")
+              .in("submission_id", subIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+      setWsSimilarityPairs((pairs ?? []) as WsSimilarityPair[]);
+      if (Array.isArray(aiResp.data) && aiResp.data.length > 0) {
+        const byId = new Map(
+          (
+            aiResp.data as Array<{
+              id: string;
+              ai_likelihood: number | null;
+              ai_reasons: string | null;
+            }>
+          ).map((r) => [r.id, r]),
+        );
+        setAnswersBySub((prev) => {
+          const next: typeof prev = {};
+          for (const [k, list] of Object.entries(prev)) {
+            next[k] = list.map((a) => {
+              const u = byId.get(a.id);
+              return u ? { ...a, ai_likelihood: u.ai_likelihood, ai_reasons: u.ai_reasons } : a;
+            });
+          }
+          return next;
+        });
+      }
+    } catch (e) {
+      toast.error(
+        `No se pudo ejecutar la detección: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setDetectingCopies(false);
+    }
+  };
 
   const gradeOneWithAI = async (sub: WsSub): Promise<boolean> => {
     if (!gradingWs) return false;
@@ -2357,33 +2442,45 @@ function TeacherWorkshops() {
               maxScore={Number(gradingWs.max_score) || 100}
             />
           )}
-          {gradingWs && !(gradingWs as any).is_external && (
-            <FraudPanel
-              kind="workshop"
-              refId={gradingWs.id}
-              userNames={Object.fromEntries(
-                wsSubs.map((s) => [s.user_id, (s as any).profile?.full_name ?? "—"]),
-              )}
-            />
-          )}
-          {/* Bulk AI action */}
+          {/* FraudPanel global removido — el resumen agregado a nivel
+              submission se reemplaza por bloques POR PREGUNTA dentro del
+              Accordion (mismo patrón del monitor de exámenes). El botón
+              "Detectar copias" se traslada a la barra de acciones bulk
+              de abajo para mantener visibilidad. */}
+          {/* Bulk actions (IA + Detección de copias) */}
           {!(gradingWs as any)?.is_external && wsSubs.length > 0 && (
-            <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
-              <div>
-                <p className="text-sm font-medium">Calificar con IA</p>
+            <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30 gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Acciones masivas</p>
                 <p className="text-xs text-muted-foreground">
-                  Califica (o recalifica) todas las entregas con IA. Quedarán en revisión para tu
-                  aprobación.
+                  Califica todas las entregas con IA y detecta copias entre estudiantes a nivel
+                  pregunta. Los resultados aparecen junto a cada pregunta dentro del acordeón.
                 </p>
               </div>
-              <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
-                {aiGradingAll ? (
-                  <Spinner size="md" className="mr-1" />
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-1" />
-                )}
-                Calificar todo con IA
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={runDetectCopies}
+                  disabled={detectingCopies}
+                  title="Compara las respuestas por pregunta entre estudiantes con la IA"
+                >
+                  {detectingCopies ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <Users className="h-4 w-4 mr-1" />
+                  )}
+                  Detectar copias
+                </Button>
+                <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
+                  {aiGradingAll ? (
+                    <Spinner size="md" className="mr-1" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-1" />
+                  )}
+                  Calificar todo con IA
+                </Button>
+              </div>
             </div>
           )}
           <div className="space-y-3">
@@ -2682,6 +2779,123 @@ function TeacherWorkshops() {
                                       </div>
                                     );
                                   })()}
+
+                                  {/* Bloque "Sospecha IA" por pregunta. Mismo
+                                      patrón visual del monitor de exámenes:
+                                      Collapsible amber con score badge + razones.
+                                      Solo aparece si el score IA es ≥ 0.6 (por
+                                      debajo lo consideramos ruido). */}
+                                  {(() => {
+                                    const aiSig = wsAiSignalsBySubmissionQuestion
+                                      .get(sub.id)
+                                      ?.get(q.id);
+                                    if (!aiSig || aiSig.score < 0.6) return null;
+                                    return (
+                                      <Collapsible defaultOpen={false}>
+                                        <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                          <CollapsibleTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                            >
+                                              <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                                              <Bot className="h-3 w-3" />
+                                              <span>{t("integrity.aiSection")}</span>
+                                              <Badge
+                                                variant={
+                                                  aiSig.score >= 0.85
+                                                    ? "destructive"
+                                                    : aiSig.score >= 0.7
+                                                      ? "default"
+                                                      : "secondary"
+                                                }
+                                                className="text-[10px] ml-auto"
+                                              >
+                                                {Math.round(aiSig.score * 100)}%
+                                              </Badge>
+                                            </button>
+                                          </CollapsibleTrigger>
+                                          <CollapsibleContent>
+                                            {aiSig.reasons && (
+                                              <p className="text-[11px] text-amber-700 dark:text-amber-300 whitespace-pre-wrap pt-1 border-t border-amber-300/30">
+                                                {aiSig.reasons}
+                                              </p>
+                                            )}
+                                          </CollapsibleContent>
+                                        </div>
+                                      </Collapsible>
+                                    );
+                                  })()}
+
+                                  {/* Bloque "Posibles copias" por pregunta. Lista
+                                      los pares de similarity_pairs filtrados por
+                                      esta question_id, con el nombre del peer y
+                                      score. Sin botón "ver respuesta del peer"
+                                      (eso es feature avanzada del monitor de
+                                      exámenes). */}
+                                  {(() => {
+                                    const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                                    const qPairs = userPairs.filter((p) => p.questionId === q.id);
+                                    if (qPairs.length === 0) return null;
+                                    const sorted = [...qPairs].sort((a, b) => b.score - a.score);
+                                    const maxScore = sorted[0].score;
+                                    // Nombres de los peers desde wsSubs (cargados
+                                    // junto con las entregas).
+                                    const peerName = (peerId: string) => {
+                                      const peer = wsSubs.find((s) => s.user_id === peerId);
+                                      return (
+                                        (peer as { profile?: { full_name?: string } } | undefined)
+                                          ?.profile?.full_name ?? peerId.slice(0, 8)
+                                      );
+                                    };
+                                    return (
+                                      <Collapsible defaultOpen={false}>
+                                        <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                          <CollapsibleTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                            >
+                                              <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                                              <Users className="h-3 w-3" />
+                                              <span>{t("integrity.copySection")}</span>
+                                              <Badge
+                                                variant="outline"
+                                                className="text-[10px] ml-auto"
+                                              >
+                                                {qPairs.length} · {Math.round(maxScore * 100)}%
+                                              </Badge>
+                                            </button>
+                                          </CollapsibleTrigger>
+                                          <CollapsibleContent className="space-y-1.5 pt-1 border-t border-amber-300/30">
+                                            {sorted.map((p, i) => (
+                                              <div
+                                                key={i}
+                                                className="rounded border bg-background p-1.5 text-xs flex items-center gap-2 flex-wrap"
+                                              >
+                                                <span className="font-medium">
+                                                  {peerName(p.peerId)}
+                                                </span>
+                                                <Badge
+                                                  variant={
+                                                    p.score >= 0.85
+                                                      ? "destructive"
+                                                      : p.score >= 0.7
+                                                        ? "default"
+                                                        : "secondary"
+                                                  }
+                                                  className="text-[10px]"
+                                                >
+                                                  {Math.round(p.score * 100)}%
+                                                </Badge>
+                                              </div>
+                                            ))}
+                                          </CollapsibleContent>
+                                        </div>
+                                      </Collapsible>
+                                    );
+                                  })()}
+
                                   <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
                                     <div>
                                       <Label className="text-[11px]">Calificación IA</Label>

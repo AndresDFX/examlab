@@ -90,7 +90,14 @@ function Dashboard() {
   const recentNotifs = notifications.slice(0, DASHBOARD_NOTIF_LIMIT);
 
   return (
-    <div className="space-y-6">
+    // Layout flex-col con altura mínima del viewport (descontado el
+    // padding/breadcrumb del AppLayout) para que el contenido del
+    // dashboard pueda EXPANDIRSE verticalmente cuando hay espacio
+    // sobrante — los cards de "Próximas clases" y compañía toman el
+    // remanente hasta el final de la página si no hay notificaciones
+    // abajo. Cuando sí las hay, ceden el espacio sin truncarse (cada
+    // card scrollea internamente).
+    <div className="flex flex-col gap-6 min-h-[calc(100vh-7rem)]">
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
           {t("dashboard.hello")}, {profile?.full_name?.split(" ")[0] ?? "👋"}
@@ -409,7 +416,10 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .gte("session_date", todayStr)
         .order("session_date", { ascending: true })
         .order("start_time", { ascending: true, nullsFirst: false })
-        .limit(5);
+        // Limit subido de 5 a 8 para que las cards (que ahora se expanden
+        // verticalmente cuando no hay notificaciones) muestren más datos
+        // útiles. El scroll interno del CardContent maneja la altura.
+        .limit(8);
       setUpcomingSessions(sess ?? []);
 
       const { data: exams } = await supabase
@@ -417,7 +427,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .select("id, title, start_time, end_time, time_limit_minutes, course:courses(name)")
         .gte("end_time", now)
         .order("start_time")
-        .limit(4);
+        .limit(8);
       setUpcomingExams(exams ?? []);
 
       const { data: ws } = await supabase
@@ -425,7 +435,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .select("id, title, due_date, status, course:courses(name)")
         .eq("status", "published")
         .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(4);
+        .limit(8);
       setActiveWorkshops(ws ?? []);
 
       const { data: pjs } = await (supabase as any)
@@ -433,13 +443,19 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .select("id, title, due_date, status, course:courses(name)")
         .eq("status", "published")
         .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(4);
+        .limit(8);
       setActiveProjects(pjs ?? []);
     })();
   }, []);
 
   return (
-    <>
+    // Wrapper flex-col + flex-1 para que la fila de 4 cards de abajo
+    // pueda crecer hasta llenar la altura disponible del viewport
+    // cuando NO hay tarjeta de notificaciones bajo el dashboard. Si las
+    // notificaciones aparecen, esta sección cede el espacio
+    // automáticamente (cada card scrollea internamente). min-h-0
+    // permite el shrinking dentro del padre flex.
+    <div className="flex flex-col gap-4 flex-1 min-h-0">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
@@ -497,43 +513,53 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      <div className="grid md:grid-cols-4 gap-4">
+      {/* `flex-1 min-h-0` permite que la grid de 4 cards crezca hasta
+          el final del viewport cuando no hay tarjeta de notificaciones
+          abajo, y se encoja sin desbordar cuando sí la hay. Cada card
+          dentro escucha esa altura con su propio flex-col + scroll. */}
+      <div className="grid md:grid-cols-4 gap-4 flex-1 min-h-0">
         {/* Próximas clases — sesiones de asistencia con session_date >=
             hoy en los cursos asignados al docente. Reemplaza el bloque
             "Acciones rápidas" porque es más accionable: el docente ve a
             simple vista qué viene en los próximos días sin abrir el
             módulo de asistencia. RLS filtra a sus cursos. */}
-        <Card>
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-cyan-500 dark:text-cyan-300" />{" "}
               {t("dashboard.upcomingClasses", { defaultValue: "Próximas clases" })}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {upcomingSessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                {t("dashboard.noUpcomingClasses", {
-                  defaultValue: "No tienes sesiones próximas programadas.",
-                })}
-              </p>
-            ) : (
-              upcomingSessions.map((s: any) => {
-                // session_date es DATE (YYYY-MM-DD); formatDate
-                // ya maneja string ISO. start_time viene separado;
-                // si existe lo concatenamos para mostrar hora.
-                const dateLabel = formatDate(s.session_date);
-                const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
-                return (
-                  <EventRow
-                    key={s.id}
-                    title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
-                    subtitle={s.course?.name}
-                    date={`${dateLabel}${timeLabel}`}
-                  />
-                );
-              })
-            )}
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            {/* La lista usa flex-1 + overflow-y-auto: cuando hay muchos
+                items y la card creció (porque no hay notificaciones
+                abajo), se ven más sin que el botón "Gestionar" se
+                empuje fuera del viewport. */}
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {upcomingSessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noUpcomingClasses", {
+                    defaultValue: "No tienes sesiones próximas programadas.",
+                  })}
+                </p>
+              ) : (
+                upcomingSessions.map((s: any) => {
+                  // session_date es DATE (YYYY-MM-DD); formatDate
+                  // ya maneja string ISO. start_time viene separado;
+                  // si existe lo concatenamos para mostrar hora.
+                  const dateLabel = formatDate(s.session_date);
+                  const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
+                  return (
+                    <EventRow
+                      key={s.id}
+                      title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
+                      subtitle={s.course?.name}
+                      date={`${dateLabel}${timeLabel}`}
+                    />
+                  );
+                })
+              )}
+            </div>
             <Link to="/app/teacher/attendance" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
@@ -543,28 +569,30 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         </Card>
 
         {/* Active projects */}
-        <Card>
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
               {t("dashboard.activeProjects")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {activeProjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                {t("dashboard.noActiveProjects")}
-              </p>
-            ) : (
-              activeProjects.map((p: any) => (
-                <EventRow
-                  key={p.id}
-                  title={p.title}
-                  subtitle={p.course?.name}
-                  date={p.due_date ? formatDate(p.due_date) : t("dashboard.noDate")}
-                />
-              ))
-            )}
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {activeProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noActiveProjects")}
+                </p>
+              ) : (
+                activeProjects.map((p: any) => (
+                  <EventRow
+                    key={p.id}
+                    title={p.title}
+                    subtitle={p.course?.name}
+                    date={p.due_date ? formatDate(p.due_date) : t("dashboard.noDate")}
+                  />
+                ))
+              )}
+            </div>
             <Link to="/app/teacher/projects" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
@@ -574,32 +602,36 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         </Card>
 
         {/* Upcoming exams */}
-        <Card>
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
               {t("dashboard.upcomingExams")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {upcomingExams.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">{t("dashboard.noUpcomingExams")}</p>
-            ) : (
-              upcomingExams.map((e: any) => {
-                const isOpen =
-                  new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
-                return (
-                  <EventRow
-                    key={e.id}
-                    title={e.title}
-                    subtitle={e.course?.name}
-                    date={formatDate(e.start_time)}
-                    badge={isOpen ? t("dashboard.inProgress") : undefined}
-                    badgeColor="bg-success text-success-foreground"
-                  />
-                );
-              })
-            )}
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {upcomingExams.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noUpcomingExams")}
+                </p>
+              ) : (
+                upcomingExams.map((e: any) => {
+                  const isOpen =
+                    new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
+                  return (
+                    <EventRow
+                      key={e.id}
+                      title={e.title}
+                      subtitle={e.course?.name}
+                      date={formatDate(e.start_time)}
+                      badge={isOpen ? t("dashboard.inProgress") : undefined}
+                      badgeColor="bg-success text-success-foreground"
+                    />
+                  );
+                })
+              )}
+            </div>
             <Link to="/app/teacher/exams" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
@@ -609,28 +641,30 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         </Card>
 
         {/* Active workshops */}
-        <Card>
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" />{" "}
               {t("dashboard.activeWorkshops")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {activeWorkshops.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                {t("dashboard.noActiveWorkshops")}
-              </p>
-            ) : (
-              activeWorkshops.map((w: any) => (
-                <EventRow
-                  key={w.id}
-                  title={w.title}
-                  subtitle={w.course?.name}
-                  date={w.due_date ? formatDate(w.due_date) : t("dashboard.noDate")}
-                />
-              ))
-            )}
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {activeWorkshops.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noActiveWorkshops")}
+                </p>
+              ) : (
+                activeWorkshops.map((w: any) => (
+                  <EventRow
+                    key={w.id}
+                    title={w.title}
+                    subtitle={w.course?.name}
+                    date={w.due_date ? formatDate(w.due_date) : t("dashboard.noDate")}
+                  />
+                ))
+              )}
+            </div>
             <Link to="/app/teacher/workshops" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
@@ -654,7 +688,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         onOpenChange={setPendingNotesModalOpen}
         onChange={refreshPendingExamNotes}
       />
-    </>
+    </div>
   );
 }
 
