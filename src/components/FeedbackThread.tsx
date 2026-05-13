@@ -13,17 +13,36 @@
  * RLS hace cumplir que solo el dueño de la entrega o un docente del
  * curso vean / escriban; ver migración 20260503210000_feedback_threads.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Lock, Unlock, Send, Pencil, Trash2, Check, X } from "lucide-react";
+import {
+  MessageSquare,
+  Lock,
+  Unlock,
+  Send,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Paperclip,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { FeedbackCommentAttachments } from "@/components/FeedbackCommentAttachments";
+import {
+  buildAttachmentPath,
+  FEEDBACK_ATTACHMENT_MAX_COUNT,
+  formatAttachmentSize,
+  safeAttachmentName,
+  validateAttachmentFile,
+  type AttachmentRow,
+} from "@/lib/feedback-attachments";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -50,6 +69,9 @@ type Comment = {
   /** 'student' | 'teacher' — rol con el que se escribió el comentario. */
   author_role?: string | null;
   profile?: { full_name: string | null; institutional_email: string | null } | null;
+  /** Adjuntos cargados desde feedback_attachments en el mismo round-trip
+   *  del load(). Vacío si el comment no tiene archivos. */
+  attachments?: AttachmentRow[];
 };
 
 interface Props {
@@ -86,6 +108,86 @@ export function FeedbackThread({
   const [editingText, setEditingText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** Archivos seleccionados por el usuario para adjuntar al PRÓXIMO
+   *  comment. Se suben recién después de que `send()` cree el comment
+   *  (necesitamos el id para armar el path `<user>/<comment>/<file>`). */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  /** Cache por comment_id para forzar re-render del listado cuando se
+   *  borra un adjunto sin recargar todo el hilo. */
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return;
+    const next: File[] = [];
+    for (const f of Array.from(incoming)) {
+      const err = validateAttachmentFile(f);
+      if (err) {
+        toast.error(`${f.name}: ${err}`);
+        continue;
+      }
+      next.push(f);
+    }
+    setPendingFiles((prev) => {
+      const merged = [...prev, ...next];
+      if (merged.length > FEEDBACK_ATTACHMENT_MAX_COUNT) {
+        toast.error(`Máximo ${FEEDBACK_ATTACHMENT_MAX_COUNT} archivos por comentario.`);
+        return merged.slice(0, FEEDBACK_ATTACHMENT_MAX_COUNT);
+      }
+      return merged;
+    });
+    // Limpiamos el input para que el mismo archivo pueda re-seleccionarse
+    // tras quitarlo (el input nativo no dispara `change` si el archivo
+    // ya estaba).
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removePendingFile = (idx: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  /** Sube los archivos pendientes al bucket + inserta filas en
+   *  feedback_attachments. Idempotente por archivo: si uno falla, los
+   *  demás siguen — el caller decide si revertir. Devuelve el set de
+   *  AttachmentRow creados para append-optimista en la UI. */
+  const uploadPendingFiles = async (commentId: string): Promise<AttachmentRow[]> => {
+    if (pendingFiles.length === 0 || !user) return [];
+    const created: AttachmentRow[] = [];
+    for (const file of pendingFiles) {
+      const safe = safeAttachmentName(file.name);
+      const path = buildAttachmentPath(user.id, commentId, file.name);
+      const up = await supabase.storage.from("feedback-attachments").upload(path, file, {
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+      if (up.error) {
+        console.warn("[FeedbackThread] upload attachment", up.error);
+        toast.error(`No se pudo subir ${safe}: ${up.error.message}`);
+        continue;
+      }
+      const { data, error } = await db
+        .from("feedback_attachments")
+        .insert({
+          comment_id: commentId,
+          path,
+          name: safe,
+          mime_type: file.type || null,
+          size_bytes: file.size,
+          uploaded_by: user.id,
+        })
+        .select("*")
+        .single();
+      if (error || !data) {
+        console.warn("[FeedbackThread] insert attachment row", error);
+        // El archivo quedó en el bucket pero sin row — lo borramos para
+        // no dejar huérfano.
+        await supabase.storage.from("feedback-attachments").remove([path]);
+        toast.error(`No se pudo registrar ${safe}: ${error?.message ?? "desconocido"}`);
+        continue;
+      }
+      created.push(data as AttachmentRow);
+    }
+    return created;
+  };
 
   const startEdit = (c: Comment) => {
     setEditingId(c.id);
@@ -229,10 +331,37 @@ export function FeedbackThread({
           ]),
         );
       }
+      // Adjuntos por comment_id — un solo round-trip para todos los
+      // comments del hilo. Si la migración aún no se aplicó en este
+      // entorno la consulta falla 42P01/PGRST205; tratamos eso como
+      // "no hay adjuntos" para no romper el thread legacy.
+      const commentIds = list.map((c) => c.id);
+      const attachmentsByCommentId = new Map<string, AttachmentRow[]>();
+      if (commentIds.length > 0) {
+        const attRes = await db
+          .from("feedback_attachments")
+          .select("*")
+          .in("comment_id", commentIds)
+          .order("created_at", { ascending: true });
+        if (attRes.error) {
+          const code = (attRes.error as { code?: string }).code;
+          if (code !== "42P01" && code !== "PGRST205") {
+            console.warn("[FeedbackThread] load attachments", attRes.error);
+          }
+        } else {
+          for (const row of (attRes.data ?? []) as AttachmentRow[]) {
+            const arr = attachmentsByCommentId.get(row.comment_id) ?? [];
+            arr.push(row);
+            attachmentsByCommentId.set(row.comment_id, arr);
+          }
+        }
+      }
+
       setComments(
         list.map((c) => ({
           ...c,
           profile: profilesById.get(c.user_id) ?? null,
+          attachments: attachmentsByCommentId.get(c.id) ?? [],
         })),
       );
     } finally {
@@ -246,8 +375,15 @@ export function FeedbackThread({
   }, [parentKind, questionId, submissionId]);
 
   const send = async () => {
-    if (!body.trim() || !user) return;
-    const text = body.trim();
+    // El comment necesita un body O al menos un adjunto. Permitir
+    // adjunto-sin-texto cubre el caso "el estudiante manda una captura
+    // por sí sola" — la app ya no exige escribir un texto vacío para
+    // poder compartir un archivo.
+    const hasBody = body.trim().length > 0;
+    const hasFiles = pendingFiles.length > 0;
+    if (!hasBody && !hasFiles) return;
+    if (!user) return;
+    const text = hasBody ? body.trim() : "(adjuntos)";
     setSending(true);
     try {
       let t = thread;
@@ -310,6 +446,11 @@ export function FeedbackThread({
         toast.error("No se pudo enviar el comentario");
         return;
       }
+      // Subir archivos pendientes (si los hay) antes del append optimista
+      // para que la UI pinte el comment ya con sus adjuntos en su lugar
+      // — sin el "flash" de comment sin attachments y luego con ellos.
+      const uploadedAttachments = await uploadPendingFiles((inserted as Comment).id);
+
       // Optimistic append: aunque load() falle por algún motivo, el
       // estudiante ve su comentario inmediatamente.
       setComments((prev) => [
@@ -321,9 +462,11 @@ export function FeedbackThread({
             full_name: user.user_metadata?.full_name ?? null,
             institutional_email: user.email ?? null,
           },
+          attachments: uploadedAttachments,
         },
       ]);
       setBody("");
+      setPendingFiles([]);
       // Refresca en background para tomar nombres reales desde profiles
       // (si user_metadata.full_name está vacío) y comentarios concurrentes.
       void load();
@@ -537,7 +680,16 @@ export function FeedbackThread({
                     </div>
                   </div>
                 ) : (
-                  <p className="whitespace-pre-wrap">{c.body}</p>
+                  <>
+                    <p className="whitespace-pre-wrap">{c.body}</p>
+                    {c.attachments && c.attachments.length > 0 && (
+                      <FeedbackCommentAttachments
+                        attachments={c.attachments}
+                        closed={closed}
+                        onChanged={() => void load()}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -546,28 +698,83 @@ export function FeedbackThread({
       )}
 
       {!closed && !loading && user && (
-        <div className="flex gap-2">
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={2}
-            placeholder={comments.length === 0 ? "Escribe tu comentario…" : "Responder…"}
-            className="text-xs min-h-[2.5rem]"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            onClick={() => void send()}
-            disabled={!body.trim() || sending}
-            className="self-end h-9"
-          >
-            {sending ? <Spinner size="xs" /> : <Send className="h-3 w-3" />}
-          </Button>
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={2}
+              placeholder={comments.length === 0 ? "Escribe tu comentario…" : "Responder…"}
+              className="text-xs min-h-[2.5rem]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+            />
+            <div className="flex flex-col gap-1 self-end">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => addFiles(e.target.files)}
+                aria-label="Adjuntar archivos"
+                data-testid="feedback-file-input"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 px-2"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || pendingFiles.length >= FEEDBACK_ATTACHMENT_MAX_COUNT}
+                title="Adjuntar archivos"
+                aria-label="Adjuntar archivos"
+              >
+                <Paperclip className="h-3 w-3" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void send()}
+                disabled={(!body.trim() && pendingFiles.length === 0) || sending}
+                className="h-9"
+              >
+                {sending ? <Spinner size="xs" /> : <Send className="h-3 w-3" />}
+              </Button>
+            </div>
+          </div>
+          {pendingFiles.length > 0 && (
+            <ul className="space-y-1" data-testid="feedback-pending-files">
+              {pendingFiles.map((f, idx) => (
+                <li
+                  key={`${f.name}-${idx}`}
+                  className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-[11px]"
+                >
+                  <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1" title={f.name}>
+                    {f.name}
+                  </span>
+                  <span className="text-muted-foreground tabular-nums shrink-0">
+                    {formatAttachmentSize(f.size)}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => removePendingFile(idx)}
+                    disabled={sending}
+                    title="Quitar"
+                    aria-label={`Quitar ${f.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

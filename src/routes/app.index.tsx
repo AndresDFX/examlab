@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
 import { PendingExamNotesModal } from "@/components/PendingExamNotesModal";
+import { pendingResponsesCount } from "@/lib/feedback-stats";
 import {
   Users,
   BookOpen,
@@ -31,6 +32,7 @@ import {
   Send,
   Eye,
   MessageSquareText,
+  Reply,
   TrendingUp,
   UserCog,
 } from "lucide-react";
@@ -294,11 +296,14 @@ function AdminDashboard() {
    ═══════════════════════════════════════════════════════════ */
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
-  void userId;
+  void userId; // ahora la lógica es rol-based, no depende del user_id actual
   const [counts, setCounts] = useState({
     pendingExamNotes: 0,
     workshops: 0,
-    projects: 0,
+    /** Threads abiertos donde el último comment NO es del docente actual.
+     *  Si yo fui el último responder, el balón está en cancha del estudiante
+     *  — no cuenta como "pendiente por mi respuesta". */
+    pendingMyResponse: 0,
     openThreads: 0,
     courses: 0,
   });
@@ -306,6 +311,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
   const [openFeedbackModalOpen, setOpenFeedbackModalOpen] = useState(false);
+  /** Mismo modal pero con filtro "needsMyResponse" — abierto desde el
+   *  card "Comentarios pendientes por respuesta". */
+  const [pendingResponseModalOpen, setPendingResponseModalOpen] = useState(false);
   const [pendingNotesModalOpen, setPendingNotesModalOpen] = useState(false);
 
   // Cuenta de exam_notes (notas de apoyo) en estado 'pendiente' — chuletas
@@ -326,26 +334,45 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       const now = new Date().toISOString();
       // Conversaciones abiertas: feedback_threads con closed=false que el
       // docente puede ver (RLS filtra por curso vía is_question_course_teacher).
+      // openThreads = TODAS las abiertas (global, "por cerrar").
+      // pendingMyResponse = subset donde el último comment NO es del docente
+      // actual — se calcula trayendo los IDs de threads + el último comment
+      // de cada uno y comparando user_id en JS (helper en lib/feedback-stats).
       // Notas de examen pendientes: exam_notes en status='pendiente' (chuletas
       // subidas por el estudiante esperando aprobación del docente).
-      const [pendingNotes, w, pr, threads, c] = await Promise.all([
+      const [pendingNotes, w, openThreadsList, c] = await Promise.all([
         (supabase as any)
           .from("exam_notes")
           .select("id", { count: "exact", head: true })
           .eq("status", "pendiente"),
         supabase.from("workshops").select("id", { count: "exact", head: true }),
-        (supabase as any).from("projects").select("id", { count: "exact", head: true }),
         (supabase as any)
           .from("feedback_threads")
-          .select("id", { count: "exact", head: true })
+          .select("id")
           .eq("closed", false),
         supabase.from("courses").select("id", { count: "exact", head: true }),
       ]);
+      const openThreadIds: string[] = (openThreadsList.data ?? []).map((r: any) => r.id);
+      let pendingMyResponse = 0;
+      if (openThreadIds.length > 0) {
+        const { data: comments } = await (supabase as any)
+          .from("feedback_comments")
+          .select("thread_id, author_role, created_at")
+          .in("thread_id", openThreadIds);
+        pendingMyResponse = pendingResponsesCount(
+          openThreadIds,
+          (comments ?? []) as Array<{
+            thread_id: string;
+            author_role: string | null;
+            created_at: string;
+          }>,
+        );
+      }
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
         workshops: w.count ?? 0,
-        projects: pr.count ?? 0,
-        openThreads: threads.count ?? 0,
+        pendingMyResponse,
+        openThreads: openThreadIds.length,
         courses: c.count ?? 0,
       });
 
@@ -393,11 +420,18 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           value={counts.workshops}
           color="text-amber-500 dark:text-amber-400"
         />
+        {/* Comentarios pendientes por respuesta del docente actual:
+            threads abiertos donde el último comment lo escribió alguien
+            que NO soy yo. Click → abre OpenFeedbackModal con
+            filterMode="needsMyResponse". */}
         <Stat
-          icon={FolderKanban}
-          label={t("dashboard.stats.projects")}
-          value={counts.projects}
+          icon={Reply}
+          label={t("dashboard.stats.pendingMyResponse", {
+            defaultValue: "Comentarios pendientes por respuesta",
+          })}
+          value={counts.pendingMyResponse}
           color="text-rose-500 dark:text-rose-400"
+          onClick={() => setPendingResponseModalOpen(true)}
         />
         <Stat
           icon={MessageSquareText}
@@ -551,6 +585,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       </div>
 
       <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />
+      {/* Mismo modal, filtrado a "pendientes de mi respuesta". Compartir
+          el componente evita duplicar la lógica de carga + render. */}
+      <OpenFeedbackModal
+        open={pendingResponseModalOpen}
+        onOpenChange={setPendingResponseModalOpen}
+        filterMode="needsMyResponse"
+      />
       <PendingExamNotesModal
         open={pendingNotesModalOpen}
         onOpenChange={setPendingNotesModalOpen}

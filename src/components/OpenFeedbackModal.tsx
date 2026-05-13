@@ -29,8 +29,10 @@ import {
   ArrowRight,
   Loader2,
   MessageSquareText,
+  Reply,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import { threadsPendingTeacherResponse } from "@/lib/feedback-stats";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -50,15 +52,32 @@ type ThreadRow = {
   studentName?: string;
   studentUserId?: string;
   courseName?: string;
-  lastComment?: { created_at: string; authorName: string } | null;
+  lastComment?: {
+    created_at: string;
+    authorName: string;
+    userId: string;
+    authorRole: string | null;
+  } | null;
 };
+
+/**
+ * Modo de filtrado del modal:
+ *   - "all" (default): muestra todas las conversaciones abiertas
+ *     (closed=false). Es el card "Conversaciones abiertas" del dashboard.
+ *   - "needsMyResponse": muestra solo aquellas donde el ÚLTIMO comment
+ *     no es del docente actual — es decir, la pelota está en mi cancha.
+ *     Es el card "Comentarios pendientes por respuesta".
+ */
+export type FeedbackFilterMode = "all" | "needsMyResponse";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Default "all". */
+  filterMode?: FeedbackFilterMode;
 }
 
-export function OpenFeedbackModal({ open, onOpenChange }: Props) {
+export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -168,19 +187,25 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
         ((courses ?? []) as any[]).forEach((c) => courseNameById.set(c.id, c.name));
       }
 
-      // Último comentario por thread + autor
+      // Último comentario por thread + autor + rol. `author_role` se usa
+      // para el filtro rol-based de "needsMyResponse" (cualquier teacher
+      // cuenta como respondido).
       const threadIds = rows.map((r) => r.id);
       const { data: comments } = await db
         .from("feedback_comments")
-        .select("thread_id, user_id, body, created_at")
+        .select("thread_id, user_id, body, author_role, created_at")
         .in("thread_id", threadIds)
         .order("created_at", { ascending: false });
-      const lastByThread = new Map<string, { user_id: string; body: string; created_at: string }>();
+      const lastByThread = new Map<
+        string,
+        { user_id: string; body: string; author_role: string | null; created_at: string }
+      >();
       ((comments ?? []) as any[]).forEach((c) => {
         if (!lastByThread.has(c.thread_id)) {
           lastByThread.set(c.thread_id, {
             user_id: c.user_id,
             body: c.body,
+            author_role: c.author_role ?? null,
             created_at: c.created_at,
           });
         }
@@ -262,18 +287,45 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
             ? {
                 created_at: lastC.created_at,
                 authorName: nameById.get(lastC.user_id) ?? "Usuario",
+                userId: lastC.user_id,
+                authorRole: lastC.author_role,
               }
             : null,
         };
       });
 
-      setThreads(enriched);
+      // Filtrado por modo. "needsMyResponse" se queda solo con los
+      // threads cuyo último comment NO es de un docente (cualquier
+      // docente del curso cuenta como respondido — ver feedback-stats.ts).
+      let final = enriched;
+      if (filterMode === "needsMyResponse") {
+        const allowed = threadsPendingTeacherResponse(
+          enriched.map((t) => t.id),
+          enriched
+            .map((t) =>
+              t.lastComment
+                ? {
+                    thread_id: t.id,
+                    author_role: t.lastComment.authorRole,
+                    created_at: t.lastComment.created_at,
+                  }
+                : null,
+            )
+            .filter(
+              (x): x is { thread_id: string; author_role: string | null; created_at: string } =>
+                x !== null,
+            ),
+        );
+        final = enriched.filter((t) => allowed.has(t.id));
+      }
+
+      setThreads(final);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, filterMode]);
 
   const goToThread = (t: ThreadRow) => {
     if (!t.refId) return;
@@ -331,8 +383,14 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquareText className="h-5 w-5" />
-            Conversaciones abiertas
+            {filterMode === "needsMyResponse" ? (
+              <Reply className="h-5 w-5" />
+            ) : (
+              <MessageSquareText className="h-5 w-5" />
+            )}
+            {filterMode === "needsMyResponse"
+              ? "Comentarios pendientes por respuesta"
+              : "Conversaciones abiertas"}
             {!loading && (
               <Badge variant="secondary" className="text-[10px]">
                 {threads.length}
@@ -347,7 +405,9 @@ export function OpenFeedbackModal({ open, onOpenChange }: Props) {
           </div>
         ) : threads.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            No hay conversaciones abiertas 🎉
+            {filterMode === "needsMyResponse"
+              ? "Ningún estudiante está esperando respuesta tuya 🎉"
+              : "No hay conversaciones abiertas 🎉"}
           </p>
         ) : (
           <div className="space-y-4 min-w-0">
