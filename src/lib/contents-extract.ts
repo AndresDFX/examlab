@@ -103,7 +103,11 @@ export function isTeacherOnlyFile(name: string): boolean {
   if (/GUIA[_\s-]*DOCENTE|TEACHER[_\s-]*GUIDE/.test(upper)) return true;
   // Examen por sesión: "EXAMEN_*" o "EXAM_*". Es material de evaluación
   // del docente — el estudiante NO debe verlo de antemano.
-  if (/^EXAMEN|[_\s-]EXAMEN|^EXAM\b|[_\s-]EXAM[_\s-]/.test(upper)) return true;
+  // El cuarto branch usa [_\s-] (en vez de \b) porque \b en JavaScript NO
+  // matchea entre "M" y "_" — ambos son caracteres palabra. Por eso
+  // "EXAM_CLASE_2.MD" antes pasaba como visible al estudiante; ahora se
+  // captura correctamente.
+  if (/^EXAMEN|[_\s-]EXAMEN|^EXAM[_\s-]|[_\s-]EXAM[_\s-]/.test(upper)) return true;
   return false;
 }
 

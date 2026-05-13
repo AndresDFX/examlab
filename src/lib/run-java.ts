@@ -108,7 +108,7 @@ function loadToolsJar(): Promise<Uint8Array> {
   return p;
 }
 
-function deriveMainClass(source: string): string {
+export function deriveMainClass(source: string): string {
   const m = source.match(/public\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
   return m ? m[1] : "Main";
 }
@@ -144,7 +144,7 @@ function flushDom(): Promise<void> {
  * salga del bucle o el navegador lo mate por unresponsive. Pero al
  * menos liberamos el UI y el alumno puede editar y reintentar.
  */
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+export async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(
