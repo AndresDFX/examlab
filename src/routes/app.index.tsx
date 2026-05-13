@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
@@ -35,6 +35,8 @@ import {
   Reply,
   TrendingUp,
   UserCog,
+  Inbox,
+  CalendarClock,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
@@ -296,20 +298,28 @@ function AdminDashboard() {
    ═══════════════════════════════════════════════════════════ */
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
-  void userId; // ahora la lógica es rol-based, no depende del user_id actual
+  const navigate = useNavigate();
+  void userId; // la lógica de stats es rol-based, no depende del user_id
   const [counts, setCounts] = useState({
     pendingExamNotes: 0,
-    workshops: 0,
-    /** Threads abiertos donde el último comment NO es del docente actual.
-     *  Si yo fui el último responder, el balón está en cancha del estudiante
-     *  — no cuenta como "pendiente por mi respuesta". */
+    /** Conversaciones del módulo /app/messages cuyo último mensaje
+     *  (visible para mí, respetando cleared_at) lo envió la otra parte.
+     *  La query es la RPC `count_unanswered_conversations`. */
+    unansweredMessages: 0,
+    /** Threads abiertos de retroalimentación con último comment NO de
+     *  un docente. Se mantiene como métrica separada — es un dominio
+     *  distinto (feedback de entregas vs. mensajería directa). */
     pendingMyResponse: 0,
     openThreads: 0,
-    courses: 0,
+    /** Sesiones de asistencia con `session_date = today` en mis cursos. */
+    todaySessions: 0,
   });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
+  /** Próximas sesiones de asistencia en cursos asignados al docente,
+   *  con session_date >= hoy. Top 5 ordenadas por fecha + start_time. */
+  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [openFeedbackModalOpen, setOpenFeedbackModalOpen] = useState(false);
   /** Mismo modal pero con filtro "needsMyResponse" — abierto desde el
    *  card "Comentarios pendientes por respuesta". */
@@ -332,25 +342,33 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
+      // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
+      // con `attendance_sessions.session_date` que es columna DATE sin TZ.
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
       // Conversaciones abiertas: feedback_threads con closed=false que el
-      // docente puede ver (RLS filtra por curso vía is_question_course_teacher).
-      // openThreads = TODAS las abiertas (global, "por cerrar").
-      // pendingMyResponse = subset donde el último comment NO es del docente
-      // actual — se calcula trayendo los IDs de threads + el último comment
-      // de cada uno y comparando user_id en JS (helper en lib/feedback-stats).
-      // Notas de examen pendientes: exam_notes en status='pendiente' (chuletas
-      // subidas por el estudiante esperando aprobación del docente).
-      const [pendingNotes, w, openThreadsList, c] = await Promise.all([
+      // docente puede ver (RLS filtra por curso). pendingMyResponse =
+      // subset donde el último comment NO es de un docente.
+      // unansweredMessages = conversaciones del módulo /app/messages
+      // donde el último mensaje (visible) no es mío. Vive en una RPC
+      // SECURITY DEFINER por eficiencia + correctness.
+      // todaySessions = attendance_sessions con session_date = hoy (RLS
+      // filtra por mis cursos).
+      const [pendingNotes, openThreadsList, unansweredRes, todaySess] = await Promise.all([
         (supabase as any)
           .from("exam_notes")
           .select("id", { count: "exact", head: true })
           .eq("status", "pendiente"),
-        supabase.from("workshops").select("id", { count: "exact", head: true }),
         (supabase as any)
           .from("feedback_threads")
           .select("id")
           .eq("closed", false),
-        supabase.from("courses").select("id", { count: "exact", head: true }),
+        (supabase as any).rpc("count_unanswered_conversations"),
+        (supabase as any)
+          .from("attendance_sessions")
+          .select("id", { count: "exact", head: true })
+          .eq("session_date", todayStr),
       ]);
       const openThreadIds: string[] = (openThreadsList.data ?? []).map((r: any) => r.id);
       let pendingMyResponse = 0;
@@ -368,13 +386,31 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           }>,
         );
       }
+      // Si la RPC falla porque la migración no está aplicada, caemos a
+      // 0 para que el dashboard no rompa. El bug se nota cuando el badge
+      // se queda en 0 aunque haya conversaciones — el usuario sabe que
+      // debe publicar la migración.
+      const unansweredCount =
+        typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
-        workshops: w.count ?? 0,
+        unansweredMessages: unansweredCount,
         pendingMyResponse,
         openThreads: openThreadIds.length,
-        courses: c.count ?? 0,
+        todaySessions: todaySess.count ?? 0,
       });
+
+      // Próximas clases: attendance_sessions del docente con
+      // session_date >= hoy, ordenadas por fecha y hora. RLS recorta
+      // a sus cursos.
+      const { data: sess } = await (supabase as any)
+        .from("attendance_sessions")
+        .select("id, title, session_date, start_time, course_id, course:courses(name)")
+        .gte("session_date", todayStr)
+        .order("session_date", { ascending: true })
+        .order("start_time", { ascending: true, nullsFirst: false })
+        .limit(5);
+      setUpcomingSessions(sess ?? []);
 
       const { data: exams } = await supabase
         .from("exams")
@@ -414,11 +450,17 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-violet-500 dark:text-violet-400"
           onClick={() => setPendingNotesModalOpen(true)}
         />
+        {/* Mensajes pendientes sin responder: conversaciones del módulo
+            /app/messages donde el último mensaje no es mío. Click → abre
+            /app/messages para que el docente vaya directo a responder. */}
         <Stat
-          icon={Hammer}
-          label={t("dashboard.stats.workshops")}
-          value={counts.workshops}
+          icon={Inbox}
+          label={t("dashboard.stats.unansweredMessages", {
+            defaultValue: "Mensajes pendientes sin responder",
+          })}
+          value={counts.unansweredMessages}
           color="text-amber-500 dark:text-amber-400"
+          onClick={() => void navigate({ to: "/app/messages" })}
         />
         {/* Comentarios pendientes por respuesta del docente actual:
             threads abiertos donde el último comment lo escribió alguien
@@ -442,15 +484,64 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-pink-500 dark:text-pink-400"
           onClick={() => setOpenFeedbackModalOpen(true)}
         />
+        {/* Sesiones de asistencia HOY en mis cursos. Click → módulo
+            de asistencia para tomar la lista o cerrar el check-in. */}
         <Stat
-          icon={BookOpen}
-          label={t("dashboard.stats.courses")}
-          value={counts.courses}
+          icon={CalendarClock}
+          label={t("dashboard.stats.todaySessions", {
+            defaultValue: "Sesiones hoy",
+          })}
+          value={counts.todaySessions}
           color="text-blue-500 dark:text-blue-400"
+          onClick={() => void navigate({ to: "/app/teacher/attendance" })}
         />
       </div>
 
       <div className="grid md:grid-cols-4 gap-4">
+        {/* Próximas clases — sesiones de asistencia con session_date >=
+            hoy en los cursos asignados al docente. Reemplaza el bloque
+            "Acciones rápidas" porque es más accionable: el docente ve a
+            simple vista qué viene en los próximos días sin abrir el
+            módulo de asistencia. RLS filtra a sus cursos. */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-cyan-500 dark:text-cyan-300" />{" "}
+              {t("dashboard.upcomingClasses", { defaultValue: "Próximas clases" })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {upcomingSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                {t("dashboard.noUpcomingClasses", {
+                  defaultValue: "No tienes sesiones próximas programadas.",
+                })}
+              </p>
+            ) : (
+              upcomingSessions.map((s: any) => {
+                // session_date es DATE (YYYY-MM-DD); formatDate
+                // ya maneja string ISO. start_time viene separado;
+                // si existe lo concatenamos para mostrar hora.
+                const dateLabel = formatDate(s.session_date);
+                const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
+                return (
+                  <EventRow
+                    key={s.id}
+                    title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
+                    subtitle={s.course?.name}
+                    date={`${dateLabel}${timeLabel}`}
+                  />
+                );
+              })
+            )}
+            <Link to="/app/teacher/attendance" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* Active projects */}
         <Card>
           <CardHeader className="pb-2">
@@ -548,40 +639,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           </CardContent>
         </Card>
 
-        {/* Quick actions */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickActions")}</h2>
-          <div className="space-y-2.5">
-            <QuickCard
-              to="/app/teacher/exams"
-              title={t("dashboard.cards.createExam")}
-              desc={t("dashboard.cards.createExamDesc")}
-              icon={FileText}
-              color="bg-violet-500/10 text-violet-600 dark:text-violet-400"
-            />
-            <QuickCard
-              to="/app/teacher/workshops"
-              title={t("dashboard.cards.createWorkshop")}
-              desc={t("dashboard.cards.createWorkshopDesc")}
-              icon={Hammer}
-              color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            />
-            <QuickCard
-              to="/app/teacher/projects"
-              title={t("dashboard.cards.createProject")}
-              desc={t("dashboard.cards.createProjectDesc")}
-              icon={FolderKanban}
-              color="bg-rose-500/10 text-rose-600 dark:text-rose-400"
-            />
-            <QuickCard
-              to="/app/teacher/gradebook"
-              title={t("dashboard.cards.grades")}
-              desc={t("dashboard.cards.gradesDesc")}
-              icon={ClipboardList}
-              color="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-            />
-          </div>
-        </div>
       </div>
 
       <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />

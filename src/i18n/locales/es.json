@@ -364,7 +364,9 @@
       "pendingWorkshops": "Talleres pendientes",
       "projects": "Proyectos",
       "pendingProjects": "Proyectos pendientes",
-      "completed": "Completados"
+      "completed": "Completados",
+      "unansweredMessages": "Mensajes pendientes sin responder",
+      "todaySessions": "Sesiones hoy"
     },
     "recentUsers": "Usuarios recientes",
     "manageUsers": "Gestionar usuarios",
@@ -377,6 +379,9 @@
     "noPendingWorkshops": "Sin talleres pendientes 🎉",
     "activeProjects": "Proyectos activos",
     "noActiveProjects": "Sin proyectos activos",
+    "upcomingClasses": "Próximas clases",
+    "noUpcomingClasses": "No tienes sesiones próximas programadas.",
+    "untitledSession": "Clase",
     "pendingDeliveryProjects": "Proyectos por entregar",
     "noPendingProjects": "Sin proyectos pendientes 🎉",
     "administration": "Administración",

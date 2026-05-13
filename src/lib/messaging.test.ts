@@ -8,6 +8,7 @@ import {
   searchMessages,
   shouldStackWithPrevious,
   splitByMatch,
+  unansweredConversationsCount,
   unreadCount,
   type MessageLite,
 } from "./messaging";
@@ -284,6 +285,65 @@ describe("searchMessages", () => {
 
   it("retorna [] sin matches", () => {
     expect(searchMessages(msgs, "noexiste")).toHaveLength(0);
+  });
+});
+
+describe("unansweredConversationsCount", () => {
+  const me = "user-me";
+  const them1 = "user-1";
+  const them2 = "user-2";
+
+  it("retorna 0 cuando myUserId es null", () => {
+    const msgs: MessageLite[] = [
+      { id: "m1", conversation_id: "c1", sender_id: them1, body: "x", created_at: "2026-01-01T00:00:00Z" },
+    ];
+    expect(unansweredConversationsCount(msgs, null)).toBe(0);
+    expect(unansweredConversationsCount(msgs, undefined)).toBe(0);
+  });
+
+  it("0 cuando no hay mensajes", () => {
+    expect(unansweredConversationsCount([], me)).toBe(0);
+  });
+
+  it("cuenta una conv cuyo último mensaje es del otro", () => {
+    const msgs: MessageLite[] = [
+      { id: "m1", conversation_id: "c1", sender_id: me, body: "a", created_at: "2026-01-01T10:00:00Z" },
+      { id: "m2", conversation_id: "c1", sender_id: them1, body: "b", created_at: "2026-01-02T10:00:00Z" },
+    ];
+    expect(unansweredConversationsCount(msgs, me)).toBe(1);
+  });
+
+  it("NO cuenta una conv cuyo último mensaje es mío", () => {
+    const msgs: MessageLite[] = [
+      { id: "m1", conversation_id: "c1", sender_id: them1, body: "a", created_at: "2026-01-01T10:00:00Z" },
+      { id: "m2", conversation_id: "c1", sender_id: me, body: "b", created_at: "2026-01-02T10:00:00Z" },
+    ];
+    expect(unansweredConversationsCount(msgs, me)).toBe(0);
+  });
+
+  it("cuenta cada conversación independiente", () => {
+    const msgs: MessageLite[] = [
+      { id: "m1", conversation_id: "c1", sender_id: them1, body: "a", created_at: "2026-01-02T00:00:00Z" },
+      { id: "m2", conversation_id: "c2", sender_id: me, body: "b", created_at: "2026-01-02T00:00:00Z" },
+      { id: "m3", conversation_id: "c3", sender_id: them2, body: "c", created_at: "2026-01-02T00:00:00Z" },
+    ];
+    expect(unansweredConversationsCount(msgs, me)).toBe(2); // c1 y c3
+  });
+
+  it("acepta mensajes desordenados — usa created_at, no orden de array", () => {
+    const msgs: MessageLite[] = [
+      { id: "m2", conversation_id: "c1", sender_id: me, body: "b", created_at: "2026-01-05T00:00:00Z" },
+      { id: "m1", conversation_id: "c1", sender_id: them1, body: "a", created_at: "2026-01-01T00:00:00Z" },
+    ];
+    // Último por created_at es m2 (mío) → no cuenta.
+    expect(unansweredConversationsCount(msgs, me)).toBe(0);
+  });
+
+  it("ignora conversación con solo mensaje mío", () => {
+    const msgs: MessageLite[] = [
+      { id: "m1", conversation_id: "c1", sender_id: me, body: "a", created_at: "2026-01-01T00:00:00Z" },
+    ];
+    expect(unansweredConversationsCount(msgs, me)).toBe(0);
   });
 });
 

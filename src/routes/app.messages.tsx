@@ -135,6 +135,10 @@ function MessagesPage() {
   const myUserId = user?.id ?? null;
 
   const [contacts, setContacts] = useState<MessageableUser[]>([]);
+  /** Mensaje a mostrar cuando la lista de contactos viene vacía. Difere
+   *  entre "no tienes contactos disponibles" (lista honesta) y "la RPC
+   *  falló" (migración faltante u otro error de DB). */
+  const [contactsLoadError, setContactsLoadError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationEnriched[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -176,6 +180,26 @@ function MessagesPage() {
         db.rpc("list_messageable_users"),
         db.from("conversations").select("*").order("created_at", { ascending: false }),
       ]);
+      // Si la RPC falla — típicamente porque la migración del módulo
+      // aún no está aplicada en este entorno (Lovable aún no publicó) —
+      // antes caíamos a `[]` silencioso y mostrábamos "sin contactos".
+      // Ahora preservamos el error para mostrarlo en el dialog.
+      if (contactsRes.error) {
+        const msg = String(contactsRes.error.message ?? contactsRes.error);
+        console.warn("[messages] list_messageable_users", contactsRes.error);
+        // Mensaje legible al usuario según el código de PostgREST.
+        const code = (contactsRes.error as { code?: string }).code;
+        if (code === "PGRST202" || code === "42883" || /function .* does not exist/i.test(msg)) {
+          setContactsLoadError(
+            "El módulo de mensajería aún no está publicado en este entorno. Pide al administrador que publique los cambios pendientes.",
+          );
+        } else {
+          setContactsLoadError(`No pudimos cargar los contactos: ${msg}`);
+        }
+        setContacts([]);
+      } else {
+        setContactsLoadError(null);
+      }
       const contactsList = (contactsRes.data ?? []) as MessageableUser[];
       const convList = (convsRes.data ?? []) as ConversationRow[];
       setContacts(contactsList);
@@ -982,9 +1006,17 @@ function MessagesPage() {
               />
             </div>
             <div className="max-h-[50vh] overflow-y-auto -mx-3">
-              {filteredContacts.length === 0 ? (
+              {contactsLoadError ? (
+                <p className="text-sm text-destructive px-3 py-4 text-center">
+                  {contactsLoadError}
+                </p>
+              ) : filteredContacts.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic px-3 py-4 text-center">
-                  No hay contactos disponibles.
+                  {contactSearch.trim()
+                    ? "No hay contactos que coincidan con la búsqueda."
+                    : contacts.length === 0
+                      ? "No hay contactos disponibles todavía. Si esperas mensajear a alguien de un curso, asegúrate de estar matriculado en al menos un curso compartido. También puedes escribirle a un administrador."
+                      : "No hay contactos disponibles."}
                 </p>
               ) : (
                 <ul className="divide-y">

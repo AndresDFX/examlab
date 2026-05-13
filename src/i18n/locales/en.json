@@ -364,7 +364,9 @@
       "pendingWorkshops": "Pending workshops",
       "projects": "Projects",
       "pendingProjects": "Pending projects",
-      "completed": "Completed"
+      "completed": "Completed",
+      "unansweredMessages": "Unanswered messages",
+      "todaySessions": "Sessions today"
     },
     "recentUsers": "Recent users",
     "manageUsers": "Manage users",
@@ -377,6 +379,9 @@
     "noPendingWorkshops": "No pending workshops 🎉",
     "activeProjects": "Active projects",
     "noActiveProjects": "No active projects",
+    "upcomingClasses": "Upcoming classes",
+    "noUpcomingClasses": "No upcoming classes scheduled.",
+    "untitledSession": "Class",
     "pendingDeliveryProjects": "Projects to submit",
     "noPendingProjects": "No pending projects 🎉",
     "administration": "Administration",

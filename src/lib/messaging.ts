@@ -135,6 +135,37 @@ export function filterByClearedAt(
  * Si `lastReadAt` es null/undefined, todos los mensajes ajenos cuentan
  * como no leídos (caso "primera apertura").
  */
+/**
+ * A partir de una lista de mensajes (potencialmente de muchas convs),
+ * cuenta cuántas conversaciones tienen como ÚLTIMO mensaje uno enviado
+ * por OTRO usuario distinto a `myUserId`. Útil como fallback en cliente
+ * cuando no usamos la RPC `count_unanswered_conversations`, y para tests.
+ *
+ * Reglas:
+ *   - Una conversación sin mensajes no entra al conteo (no hay nada
+ *     pendiente que responder).
+ *   - Solo importa el último mensaje por conv (por `created_at`).
+ *   - Si `myUserId` es null/undefined, devuelve 0 (no podemos decidir).
+ */
+export function unansweredConversationsCount(
+  messages: readonly MessageLite[],
+  myUserId: string | null | undefined,
+): number {
+  if (!myUserId) return 0;
+  const latestBySender = new Map<string, MessageLite>();
+  for (const m of messages) {
+    const prev = latestBySender.get(m.conversation_id);
+    if (!prev || m.created_at > prev.created_at) {
+      latestBySender.set(m.conversation_id, m);
+    }
+  }
+  let n = 0;
+  for (const [, m] of latestBySender) {
+    if (m.sender_id !== myUserId) n += 1;
+  }
+  return n;
+}
+
 export function unreadCount(
   messages: readonly MessageLite[],
   lastReadAt: string | null | undefined,
