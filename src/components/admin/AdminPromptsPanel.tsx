@@ -50,8 +50,15 @@ type UseCase =
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
- * agrega un nuevo use_case, hay que asignarle module aquí. */
-type PromptModule = "exams" | "workshops" | "projects" | "fraud" | "contents";
+ * agrega un nuevo use_case, hay que asignarle module aquí.
+ *
+ * `branding` es una categoría especial: NO contiene prompts (use_cases)
+ * sino la configuración de marca institucional (logo, colores, etc.)
+ * que se interpola al prompt de Contenidos en runtime. Antes vivía
+ * como un Card extra dentro de "Contenidos"; lo movimos a su propia
+ * categoría para que el Admin lo encuentre directamente desde el
+ * filtro y no compita visualmente con los sub-prompts de Contenidos. */
+type PromptModule = "exams" | "workshops" | "projects" | "fraud" | "contents" | "branding";
 
 type UseCaseDef = {
   key: UseCase;
@@ -67,6 +74,7 @@ const MODULE_LABELS: Record<PromptModule, string> = {
   projects: "Proyectos",
   fraud: "Detección de fraude",
   contents: "Contenidos",
+  branding: "Marca institucional",
 };
 
 // Sincronizado con seeds de la migración 20260508100000_ai_prompts.sql.
@@ -493,7 +501,9 @@ export function AdminPromptsPanel() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los módulos</SelectItem>
-              {(["exams", "workshops", "projects", "fraud", "contents"] as const).map((m) => (
+              {(
+                ["exams", "workshops", "projects", "fraud", "contents", "branding"] as const
+              ).map((m) => (
                 <SelectItem key={m} value={m}>
                   {MODULE_LABELS[m]}
                 </SelectItem>
@@ -501,28 +511,30 @@ export function AdminPromptsPanel() {
             </SelectContent>
           </Select>
         </div>
-        <Badge variant="outline" className="text-[11px] tabular-nums h-6">
-          {filteredUseCases.length} de {USE_CASES.length} prompt(s)
-        </Badge>
+        {/* En `branding` no contamos prompts — la categoría tiene su
+            propio Card de marca institucional, no use_cases de IA. */}
+        {moduleFilter !== "branding" && (
+          <Badge variant="outline" className="text-[11px] tabular-nums h-6">
+            {filteredUseCases.length} de {USE_CASES.length} prompt(s)
+          </Badge>
+        )}
       </div>
 
       <div className="grid gap-4">
-        {/* Campos especiales del módulo Contenidos: marca institucional
-            (logo, colores, autor por defecto). Aparecen cuando el filtro
-            es "all" o "contents" — son los datos que el prompt
-            content_generation interpola en {{university_name}},
-            {{logo_url}}, {{primary_color}}, {{secondary_color}} antes de
-            llamar a la IA. Vivían en una página aparte; ahora están
-            junto al prompt que los consume. */}
-        {(moduleFilter === "all" || moduleFilter === "contents") && (
+        {/* Marca institucional: logo, colores, autor por defecto. Son
+            los datos que el prompt content_generation interpola en
+            {{university_name}}, {{logo_url}}, {{primary_color}},
+            {{secondary_color}} antes de llamar a la IA. Aparecen
+            también en la portada del .pptx generado.
+            Categoría propia "branding" en el filtro — antes vivía
+            mezclado con los sub-prompts de Contenidos y competía
+            visualmente con ellos. */}
+        {moduleFilter === "branding" && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <Palette className="h-4 w-4 text-primary" />
-                Marca institucional (Contenidos)
-                <Badge variant="outline" className="text-[10px]">
-                  Campos especiales
-                </Badge>
+                Marca institucional
                 <HelpHint>
                   Estos valores se inyectan al prompt de Generación de contenidos como{" "}
                   <code>{`{{university_name}}`}</code>, <code>{`{{logo_url}}`}</code>,{" "}
@@ -603,7 +615,10 @@ export function AdminPromptsPanel() {
             </CardContent>
           </Card>
         )}
-        {filteredUseCases.length === 0 ? (
+        {/* En `branding` el Card de marca institucional ya cubre la
+            categoría — NO mostramos "sin prompts" porque sí hay
+            contenido editable (solo no es un use_case de IA). */}
+        {filteredUseCases.length === 0 && moduleFilter !== "branding" ? (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground text-center">
               No hay prompts en este módulo.

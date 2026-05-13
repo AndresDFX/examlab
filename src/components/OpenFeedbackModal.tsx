@@ -390,7 +390,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
             )}
             {filterMode === "needsMyResponse"
               ? "Comentarios pendientes por respuesta"
-              : "Conversaciones abiertas"}
+              : "Comentarios abiertos"}
             {!loading && (
               <Badge variant="secondary" className="text-[10px]">
                 {threads.length}
@@ -407,7 +407,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
           <p className="py-8 text-center text-sm text-muted-foreground">
             {filterMode === "needsMyResponse"
               ? "Ningún estudiante está esperando respuesta tuya 🎉"
-              : "No hay conversaciones abiertas 🎉"}
+              : "No hay comentarios abiertos 🎉"}
           </p>
         ) : (
           <div className="space-y-4 min-w-0">

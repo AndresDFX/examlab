@@ -425,7 +425,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         <Stat
           icon={MessageSquareText}
           label={t("dashboard.stats.openThreads", {
-            defaultValue: "Conversaciones abiertas",
+            defaultValue: "Comentarios abiertos",
           })}
           value={counts.openThreads}
           color="text-pink-500 dark:text-pink-400"
