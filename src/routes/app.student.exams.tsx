@@ -59,7 +59,7 @@ function StudentExams() {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, is_external, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, is_external, allow_exam_notes, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       // Filtramos los externos: el estudiante no debería verlos en
@@ -213,9 +213,15 @@ function StudentExams() {
                       </div>
                     )}
                 </div>
-                {!completed && user && (now < end) && (
-                  <StudentExamNotes examId={exam.id} userId={user.id} />
-                )}
+                {/* Solo mostramos el componente de notas de apoyo si
+                    el docente las habilitó para este examen. Default
+                    true para mantener compat con exámenes pre-toggle. */}
+                {!completed &&
+                  user &&
+                  now < end &&
+                  ((exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true) && (
+                    <StudentExamNotes examId={exam.id} userId={user.id} />
+                  )}
                 {completed && !noAttemptsLeft && isOpen ? (
                   <div className="space-y-2">
                     <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>

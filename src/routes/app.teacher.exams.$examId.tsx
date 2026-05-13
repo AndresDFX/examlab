@@ -354,6 +354,9 @@ function ExamEditor() {
       );
       payload.schedule_type = ((exam as any).schedule_type ?? "normal") as string;
       payload.retry_mode = ((exam as any).retry_mode ?? "last") as string;
+      // Default true: si el docente nunca tocó el toggle, asume el
+      // comportamiento histórico (notas de apoyo permitidas).
+      payload.allow_exam_notes = (exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true;
     }
     const { error } = await supabase
       .from("exams")
@@ -870,6 +873,31 @@ function ExamEditor() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Toggle de notas de apoyo: cuando está desactivado,
+                      el estudiante NO ve la sección para subir chuletas
+                      y el tab "Notas de apoyo" del editor muestra aviso.
+                      Default true para no romper exámenes existentes. */}
+                  <div className="rounded-md border p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Label htmlFor="allow_exam_notes" className="text-sm">
+                          Permitir notas de apoyo
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Cuando está activo, el estudiante puede subir chuletas o resúmenes para
+                          que tú los apruebes antes del examen. Desactívalo para exámenes sin
+                          material de apoyo permitido.
+                        </p>
+                      </div>
+                      <Checkbox
+                        id="allow_exam_notes"
+                        checked={(exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true}
+                        onCheckedChange={(v) =>
+                          setExam({ ...exam, allow_exam_notes: v === true } as typeof exam)
+                        }
+                      />
+                    </div>
+                  </div>
                 </>
               )}
               <div>
@@ -1241,7 +1269,25 @@ function ExamEditor() {
               </p>
             </CardHeader>
             <CardContent>
-              <TeacherExamNotes examId={examId} />
+              {/* Si el docente desactivó las notas para este examen,
+                  mostramos aviso en vez del manager. Las notas
+                  YA EXISTENTES quedan en DB; al reactivar el toggle
+                  vuelven a aparecer. */}
+              {((exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true) === false ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-4 text-sm space-y-2">
+                  <p className="font-medium text-amber-700 dark:text-amber-300">
+                    Notas de apoyo desactivadas para este examen.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Los estudiantes NO podrán subir chuletas ni material de apoyo. Si quieres
+                    habilitarlas, activa el toggle "Permitir notas de apoyo" en la pestaña
+                    Configuración. Las notas previamente enviadas se conservan y volverán a aparecer
+                    aquí si reactivas el toggle.
+                  </p>
+                </div>
+              ) : (
+                <TeacherExamNotes examId={examId} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

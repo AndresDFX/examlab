@@ -619,10 +619,12 @@ Idioma obligatorio: ${pfLangName}.`,
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    const admin0 = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    // Singleton compartido (`adminClient`) en vez de createClient inline.
+    // Antes se llamaba `createClient` directo sin importarlo — y rompía
+    // con "createClient is not defined" cada vez que entraba al path de
+    // resolver `courseLanguage` desde DB. Bug visible en audit logs como
+    // ai.questions_generation_failed { error: 'createClient is not defined' }.
+    const admin0 = adminClient;
     let courseLanguage: "es" | "en" = "es";
     if (body.courseLanguage === "en" || body.courseLanguage === "es") {
       courseLanguage = body.courseLanguage;
@@ -752,13 +754,17 @@ Idioma de salida obligatorio: ${langName}.`;
     const args = toolCall ? JSON.parse(toolCall.function.arguments) : { questions: [] };
     const questions = args.questions || [];
 
-    // Insert into DB using service role (auth checked via JWT below)
-    const authHeader = req.headers.get("Authorization");
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader ?? "" } } },
-    );
+    // Insert into DB using service role (auth checked via JWT below).
+    // `userClientFromRequest` arma el cliente con anon key + JWT del
+    // header — antes esto se replicaba inline con un createClient sin
+    // importar. Si no viene Authorization header, retorna null → 401.
+    const userClient = userClientFromRequest(req);
+    if (!userClient) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { data: u } = await userClient.auth.getUser();
     if (!u.user)
       return new Response(JSON.stringify({ error: "No autenticado" }), {
@@ -766,10 +772,8 @@ Idioma de salida obligatorio: ${langName}.`;
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    // Reusamos el singleton — antes era otro `createClient` inline.
+    const admin = adminClient;
     const tableName = isProject ? "project_files" : isWorkshop ? "workshop_questions" : "questions";
     const fkColumn = isProject ? "project_id" : isWorkshop ? "workshop_id" : "exam_id";
 
