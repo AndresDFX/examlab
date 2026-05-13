@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
+import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
@@ -68,6 +69,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
   id: '/unauthorized',
   path: '/unauthorized',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMessagesRoute = AppMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/app/messages': typeof AppMessagesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app/messages': typeof AppMessagesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app': typeof AppIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
@@ -302,6 +310,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/app/messages': typeof AppMessagesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/': typeof AppIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/messages'
     | '/app/unauthorized'
     | '/app/'
     | '/app/admin/ai-prompts'
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/app/messages'
     | '/app/unauthorized'
     | '/app'
     | '/app/admin/ai-prompts'
@@ -414,6 +425,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/messages'
     | '/app/unauthorized'
     | '/app/'
     | '/app/admin/ai-prompts'
@@ -489,6 +501,13 @@ declare module '@tanstack/react-router' {
       path: '/unauthorized'
       fullPath: '/app/unauthorized'
       preLoaderRoute: typeof AppUnauthorizedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/messages': {
+      id: '/app/messages'
+      path: '/messages'
+      fullPath: '/app/messages'
+      preLoaderRoute: typeof AppMessagesRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/workshops': {
@@ -705,6 +724,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppMessagesRoute: typeof AppMessagesRoute
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
@@ -740,6 +760,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppMessagesRoute: AppMessagesRoute,
   AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppIndexRoute: AppIndexRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
