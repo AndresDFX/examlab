@@ -58,6 +58,7 @@ import {
   Monitor,
   Languages,
   Wrench,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -195,6 +196,15 @@ const NAV: NavItem[] = [
     icon: ShieldEllipsis,
     roles: ["Admin"],
   },
+  // Mensajería interna 1-a-1. Visible para los tres roles — la regla
+  // de "con quién puedo hablar" la enforza la RLS de conversations
+  // (compañeros de curso + Admins).
+  {
+    to: "/app/messages",
+    labelKey: "nav.messages",
+    icon: MessageSquare,
+    roles: ["Admin", "Docente", "Estudiante"],
+  },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
   // Admin-only: utilidades de diagnóstico de la infraestructura
@@ -260,6 +270,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/student/projects": "text-rose-300",
   "/app/student/courses": "text-fuchsia-300",
   "/app/student/grades": "text-emerald-300",
+  "/app/messages": "text-cyan-300",
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
