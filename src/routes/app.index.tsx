@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
-import { formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,6 @@ import {
   FolderKanban,
   Calendar,
   Clock,
-  Bell,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
@@ -41,42 +40,28 @@ import {
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
-const DASHBOARD_NOTIF_LIMIT = 5;
-
-function formatNotifDate(
-  iso: string,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-  locale: string,
-): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return t("dashboard.notifications.relativeNow");
-  if (diffMins < 60) return t("dashboard.notifications.relativeMins", { min: diffMins });
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return t("dashboard.notifications.relativeHours", { hour: diffHours });
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return `${t("dashboard.notifications.relativeYesterday")} ${formatTime(d)}`;
-  // Weekday + time: caso muy específico de notificaciones recientes
-  // (esta semana). Lo dejamos inline porque ningún otro lugar lo usa.
-  if (diffDays < 7)
-    return d.toLocaleDateString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" });
-  return formatDateTime(d);
-}
+// `DASHBOARD_NOTIF_LIMIT` y `formatNotifDate` se removieron junto con
+// el card de notificaciones del dashboard. Las notificaciones siguen
+// disponibles desde el bell del header global (NotificationBell), que
+// tiene su propio formato relativo.
 
 function Dashboard() {
   const { profile, user } = useAuth();
   const activeRole = useActiveRole();
-  const { notifications, unreadCount, markAsRead } = useNotifications(user?.id, activeRole);
-  const { t, i18n } = useTranslation();
-  const locale = i18n.language.startsWith("en") ? "en" : "es";
+  // Las notificaciones siguen viviendo en el bell del header global
+  // (NotificationBell). Aquí solo las usamos para disparar el toast de
+  // bienvenida con las no-leídas — el card grande de notificaciones se
+  // removió del dashboard para que las 4 cards de eventos (Próximas
+  // clases / proyectos / exámenes / talleres) ocupen toda la altura.
+  const { notifications, unreadCount } = useNotifications(user?.id, activeRole);
+  const { t } = useTranslation();
 
   const isAdmin = activeRole === "Admin";
   const isTeacher = activeRole === "Docente";
   const isStudent = activeRole === "Estudiante";
 
-  // Toast unread on mount
+  // Toast unread on mount — sigue siendo útil para que al entrar al
+  // dashboard el docente vea de inmediato qué hay nuevo.
   useEffect(() => {
     if (unreadCount > 0) {
       const recent = notifications.filter((n) => !n.read).slice(0, 3);
@@ -87,17 +72,13 @@ function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const recentNotifs = notifications.slice(0, DASHBOARD_NOTIF_LIMIT);
-
   return (
-    // Layout flex-col con altura mínima del viewport (descontado el
-    // padding/breadcrumb del AppLayout) para que el contenido del
-    // dashboard pueda EXPANDIRSE verticalmente cuando hay espacio
-    // sobrante — los cards de "Próximas clases" y compañía toman el
-    // remanente hasta el final de la página si no hay notificaciones
-    // abajo. Cuando sí las hay, ceden el espacio sin truncarse (cada
-    // card scrollea internamente).
-    <div className="flex flex-col gap-6 min-h-[calc(100vh-7rem)]">
+    // Layout flex-col con altura mínima del viewport (descontado solo
+    // el padding del AppLayout). El card de notificaciones se quitó del
+    // dashboard, así que los cards de eventos (Próximas clases /
+    // proyectos / exámenes / talleres) usan TODO el espacio vertical
+    // disponible vía flex-1 + min-h-0 en el wrapper interno.
+    <div className="flex flex-col gap-6 min-h-[calc(100vh-5rem)]">
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
           {t("dashboard.hello")}, {profile?.full_name?.split(" ")[0] ?? "👋"}
@@ -114,56 +95,6 @@ function Dashboard() {
       {isAdmin && <AdminDashboard />}
       {isTeacher && <TeacherDashboard userId={user?.id} />}
       {isStudent && <StudentDashboard userId={user?.id} />}
-
-      {/* Notifications — shared across roles */}
-      {recentNotifs.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Bell className="h-4 w-4 text-primary" />
-                {t("dashboard.notifications.title")}
-                {unreadCount > 0 && (
-                  <Badge className="text-[10px] h-5">
-                    {t("dashboard.notifications.unread", { count: unreadCount })}
-                  </Badge>
-                )}
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">
-                {t("dashboard.notifications.lastN", { count: DASHBOARD_NOTIF_LIMIT })}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {recentNotifs.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => !n.read && markAsRead(n.id)}
-                  className={`w-full text-left flex items-start gap-2 p-2.5 rounded-md border transition-colors ${
-                    n.read
-                      ? "bg-muted/20 hover:bg-muted/30 opacity-70"
-                      : "bg-primary/5 hover:bg-primary/10 border-primary/20"
-                  }`}
-                >
-                  <span
-                    className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${n.read ? "bg-muted-foreground/30" : "bg-primary"}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="text-sm font-medium truncate">{n.title}</div>
-                      <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                        {formatNotifDate(n.created_at, t, locale)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{n.body}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
