@@ -118,6 +118,9 @@ interface GeneratedContent {
   teacher_id: string;
   course_id: string | null;
   mode: ContentMode;
+  /** Nombre único humano (ej. "Semana 5 — Bucles"). Distinto de `topic`,
+   *  que es lo que se le inyecta al prompt de IA. UNIQUE por docente. */
+  display_name: string;
   topic: string;
   n_classes: number | null;
   duration_minutes: number | null;
@@ -237,6 +240,12 @@ function TeacherContents() {
   const [materializeFor, setMaterializeFor] = useState<GeneratedContent | null>(null);
 
   // Form
+  // `displayName` es el nombre único que el docente le pone a este
+  // contenido específico (ej. "Semana 5 — Estructuras de control"). Es
+  // distinto de `topic` (lo que se inyecta al prompt de IA, ej.
+  // "introducción a Python"). Permite distinguir dos contenidos con el
+  // mismo tema en el tablero / selectores. UNIQUE por docente vía DB.
+  const [displayName, setDisplayName] = useState("");
   const [topic, setTopic] = useState("");
   const [mode, setMode] = useState<ContentMode>("material_individual");
   const [nClasses, setNClasses] = useState<number>(8);
@@ -343,6 +352,17 @@ function TeacherContents() {
       toast.error(t("integrity.applyError"));
       return;
     }
+    // Validamos display_name antes que el topic falle el DB: mismas
+    // reglas que el helper `validateDisplayName` para feedback inmediato.
+    const dn = displayName.trim();
+    if (!dn) {
+      toast.error("Indica un nombre único para este contenido.");
+      return;
+    }
+    if (dn.length > 120) {
+      toast.error("El nombre es demasiado largo (máx 120 caracteres).");
+      return;
+    }
     if (tags.length === 0) {
       toast.error(t("contents.tagsRequired"));
       return;
@@ -351,6 +371,7 @@ function TeacherContents() {
     try {
       const insertPayload: Record<string, unknown> = {
         teacher_id: user.id,
+        display_name: dn,
         topic: topic.trim(),
         mode,
         language,
@@ -368,7 +389,16 @@ function TeacherContents() {
         .insert(insertPayload)
         .select("*")
         .maybeSingle();
-      if (insErr || !created) throw new Error(insErr?.message ?? "insert failed");
+      if (insErr || !created) {
+        // 23505 = unique_violation en Postgres. Mensaje específico para
+        // que el docente sepa que es por display_name duplicado.
+        const code = (insErr as { code?: string } | null | undefined)?.code;
+        if (code === "23505") {
+          toast.error(`Ya tienes un contenido llamado "${dn}". Usa un nombre distinto.`);
+          return;
+        }
+        throw new Error(insErr?.message ?? "insert failed");
+      }
 
       // Disparamos la edge function fire-and-forget. El usuario verá
       // el estado en la lista (queued → processing → done/failed) vía polling.
@@ -377,6 +407,7 @@ function TeacherContents() {
       toast.success(t("contents.createdToast"));
       setDialogOpen(false);
       // Reset form
+      setDisplayName("");
       setTopic("");
       setAuthor("");
       setInstructions("");
@@ -609,9 +640,22 @@ function TeacherContents() {
                 {items.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="max-w-xs">
-                      <div className="font-medium truncate" title={it.topic}>
-                        {it.topic}
+                      {/* display_name como identificador humano principal.
+                          topic queda como subtítulo en gris para conservar
+                          el contexto del prompt cuando dos contenidos tienen
+                          el mismo tema. Fallback al topic si la migración
+                          aún no se aplicó (filas pre-display_name). */}
+                      <div className="font-medium truncate" title={it.display_name ?? it.topic}>
+                        {it.display_name ?? it.topic}
                       </div>
+                      {it.display_name && it.display_name !== it.topic && (
+                        <div
+                          className="text-[11px] text-muted-foreground truncate"
+                          title={it.topic}
+                        >
+                          {it.topic}
+                        </div>
+                      )}
                       {/* Conteos derivados: sesiones programadas +
                           evaluaciones creadas con este contenido como
                           source. Solo se muestran badges con count > 0
@@ -846,6 +890,26 @@ function TeacherContents() {
           </DialogHeader>
 
           <div className="space-y-3">
+            {/* Nombre único del contenido: lo que aparece en grids y
+                selectores. Es DISTINTO del topic (tema del prompt) —
+                permite distinguir dos contenidos del mismo tema. La DB
+                exige unicidad por docente (case-insensitive). */}
+            <div className="space-y-1.5">
+              <Label required>
+                Nombre del contenido
+                <HelpHint>
+                  Nombre único para identificar este contenido en el tablero y en los
+                  selectores. Por ejemplo: "Semana 5 — Estructuras de control" o "Cohorte
+                  2026-I · Algoritmos". Es distinto del tema (lo que se le pide a la IA).
+                </HelpHint>
+              </Label>
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder='Ej. "Semana 5 — Bucles" o "Cohorte 2026-I · Algoritmos"'
+                maxLength={120}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label required>
                 {t("contents.topic")}

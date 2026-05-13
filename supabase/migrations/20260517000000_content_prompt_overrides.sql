@@ -29,15 +29,19 @@ ALTER TABLE public.generated_contents
 -- cliente (ej. "content.presentacion " con espacio). NO incluimos keys
 -- de otros módulos para evitar que un cliente malicioso meta overrides
 -- de `workshop_full` aprovechando este JSONB.
-ALTER TABLE public.generated_contents
-  DROP CONSTRAINT IF EXISTS generated_contents_prompt_overrides_keys_check;
-
-ALTER TABLE public.generated_contents
-  ADD CONSTRAINT generated_contents_prompt_overrides_keys_check
-  CHECK (
-    -- Si es NULL o vacío, pasa. Si no, todas las keys deben estar en el set permitido.
-    prompt_overrides IS NULL
-    OR prompt_overrides = '{}'::jsonb
+--
+-- PostgreSQL NO permite subqueries dentro de CHECK constraints (error
+-- "cannot use subquery in check constraint" / SQLSTATE 0A000). El
+-- workaround es envolver la lógica en una función IMMUTABLE y llamarla
+-- desde el CHECK — el planner trata la llamada como una expresión.
+CREATE OR REPLACE FUNCTION public._check_content_prompt_overrides_keys(_overrides JSONB)
+RETURNS BOOLEAN
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT
+    _overrides IS NULL
+    OR _overrides = '{}'::jsonb
     OR (
       SELECT bool_and(k IN (
         'content_generation',
@@ -47,8 +51,15 @@ ALTER TABLE public.generated_contents
         'content.ejercicio',
         'content.examen'
       ))
-      FROM jsonb_object_keys(prompt_overrides) AS k
-    )
-  );
+      FROM jsonb_object_keys(_overrides) AS k
+    );
+$$;
+
+ALTER TABLE public.generated_contents
+  DROP CONSTRAINT IF EXISTS generated_contents_prompt_overrides_keys_check;
+
+ALTER TABLE public.generated_contents
+  ADD CONSTRAINT generated_contents_prompt_overrides_keys_check
+  CHECK (public._check_content_prompt_overrides_keys(prompt_overrides));
 
 NOTIFY pgrst, 'reload schema';

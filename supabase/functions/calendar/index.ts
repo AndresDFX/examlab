@@ -382,36 +382,13 @@ async function handleSync(userId: string, body: SyncBody) {
         reminders: { useDefault: true },
       };
 
-      if (s.google_event_id) {
-        // PATCH idempotente. Conservamos el Meet existente (no se
-        // recrea). Sí extraemos el meet link de la respuesta y lo
-        // re-escribimos a la fila — esto cubre dos casos:
-        //   1) `attendance_sessions.meeting_url` está vacío (sesión
-        //      creada antes de que esta función escribiera el link).
-        //   2) El docente lo borró manualmente y queremos volver a
-        //      reflejar el link real del evento Google.
-        const ev = await callGoogle<GCalEvent>(
-          userId,
-          `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(s.google_event_id)}?sendUpdates=all&conferenceDataVersion=1`,
-          { method: "PATCH", body: JSON.stringify(eventBody) },
-        );
-        const meetLink =
-          ev.hangoutLink ||
-          ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ||
-          null;
-        // Solo actualizamos meeting_url si efectivamente Google devolvió
-        // uno — si el evento no tiene Meet asociado, dejamos lo que
-        // hubiera en la fila (puede ser un link manual de Teams/Zoom).
-        if (meetLink) {
-          await adminClient
-            .from("attendance_sessions")
-            .update({ meeting_url: meetLink })
-            .eq("id", s.id);
-        }
-        updated++;
-      } else {
-        // INSERT con conferenceData → genera link de Meet.
-        const ev = await callGoogle<GCalEvent>(
+      // Recreación si PATCH devuelve 404: el evento puede haber sido
+      // borrado manualmente en Google Calendar (o quedó stale tras
+      // mover el curso a otro calendario). En vez de marcar la sesión
+      // como "fallida" para siempre, recreamos el evento y refrescamos
+      // `google_event_id` en la fila. El docente solo ve "Creadas: N".
+      const insertNewEvent = async (): Promise<GCalEvent> => {
+        return await callGoogle<GCalEvent>(
           userId,
           `/calendar/v3/calendars/${calId}/events?conferenceDataVersion=1&sendUpdates=all`,
           {
@@ -420,17 +397,69 @@ async function handleSync(userId: string, body: SyncBody) {
               ...eventBody,
               conferenceData: {
                 createRequest: {
-                  requestId: `examlab-${s.id}`,
+                  requestId: `examlab-${s.id}-${Date.now()}`,
                   conferenceSolutionKey: { type: "hangoutsMeet" },
                 },
               },
             }),
           },
         );
-        const meetLink =
-          ev.hangoutLink ||
-          ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ||
-          null;
+      };
+      const extractMeetLink = (ev: GCalEvent) =>
+        ev.hangoutLink ||
+        ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ||
+        null;
+
+      if (s.google_event_id) {
+        // PATCH idempotente. Conservamos el Meet existente (no se
+        // recrea) cuando el evento aún vive en Google. Si Google
+        // responde 404, el event_id quedó stale → caemos a INSERT.
+        let ev: GCalEvent | null = null;
+        let recreatedFrom404 = false;
+        try {
+          ev = await callGoogle<GCalEvent>(
+            userId,
+            `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(s.google_event_id)}?sendUpdates=all&conferenceDataVersion=1`,
+            { method: "PATCH", body: JSON.stringify(eventBody) },
+          );
+        } catch (e) {
+          const msg = String((e as Error).message ?? e);
+          // callGoogle formatea: "Google API <path> falló [<status>]: ..."
+          // 404 = el event_id que tenemos ya no existe en este calendario.
+          // 410 = "Gone" — el evento fue borrado permanentemente.
+          if (/\[(404|410)\]/.test(msg)) {
+            recreatedFrom404 = true;
+          } else {
+            throw e;
+          }
+        }
+        if (recreatedFrom404) {
+          ev = await insertNewEvent();
+          const meetLink = extractMeetLink(ev);
+          await adminClient
+            .from("attendance_sessions")
+            .update({ google_event_id: ev.id, meeting_url: meetLink })
+            .eq("id", s.id);
+          // Lo contamos como creado: para el docente, el evento es
+          // efectivamente nuevo (id distinto, posiblemente Meet nuevo).
+          created++;
+        } else if (ev) {
+          const meetLink = extractMeetLink(ev);
+          // Solo actualizamos meeting_url si Google devolvió uno — si
+          // el evento no tiene Meet asociado, dejamos lo que hubiera
+          // en la fila (puede ser un link manual de Teams/Zoom).
+          if (meetLink) {
+            await adminClient
+              .from("attendance_sessions")
+              .update({ meeting_url: meetLink })
+              .eq("id", s.id);
+          }
+          updated++;
+        }
+      } else {
+        // INSERT con conferenceData → genera link de Meet.
+        const ev = await insertNewEvent();
+        const meetLink = extractMeetLink(ev);
         await adminClient
           .from("attendance_sessions")
           .update({ google_event_id: ev.id, meeting_url: meetLink })

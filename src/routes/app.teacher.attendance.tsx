@@ -25,6 +25,14 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -52,9 +60,12 @@ import {
   Presentation as PresentationIcon,
   Scissors,
   MoreVertical,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import { ImportExportMenu } from "@/components/ImportExportMenu";
@@ -108,6 +119,10 @@ type Session = {
  *  pero filtramos para no traer ruido). */
 type AvailableContent = {
   id: string;
+  /** Nombre humano único — lo que muestra el selector. */
+  display_name: string;
+  /** Tema original del prompt (subtítulo para distinguir contenidos
+   *  con el mismo nombre o reusar como buscable). */
   topic: string;
   mode: "curso_completo" | "material_individual";
   course_id: string | null;
@@ -214,7 +229,7 @@ function TeacherAttendance() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
         .from("generated_contents")
-        .select("id, topic, mode, course_id, files")
+        .select("id, display_name, topic, mode, course_id, files")
         .eq("status", "done")
         .or(`course_id.eq.${courseId},course_id.is.null`),
     ]);
@@ -233,6 +248,8 @@ function TeacherAttendance() {
         }
         return {
           id: g.id,
+          // Fallback al topic para filas pre-migración display_name.
+          display_name: (g.display_name as string | null) ?? g.topic,
           topic: g.topic,
           mode: g.mode,
           course_id: g.course_id,
@@ -951,34 +968,15 @@ function TeacherAttendance() {
                                   <PresentationIcon className="h-3 w-3" />
                                   Contenido
                                 </Label>
-                                <Select
+                                <ContentPicker
                                   value={
                                     sess.content_id
                                       ? `${sess.content_id}:${sess.content_class_index ?? 0}`
                                       : "__none"
                                   }
-                                  onValueChange={(v) => updateSessionContent(sess.id, v)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder="Sin contenido" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none">Sin contenido</SelectItem>
-                                    {availableContents.map((c) =>
-                                      c.classes.length > 0 ? (
-                                        c.classes.map((n) => (
-                                          <SelectItem key={`${c.id}:${n}`} value={`${c.id}:${n}`}>
-                                            {c.topic} · Clase {n}
-                                          </SelectItem>
-                                        ))
-                                      ) : (
-                                        <SelectItem key={`${c.id}:0`} value={`${c.id}:0`}>
-                                          {c.topic}
-                                        </SelectItem>
-                                      ),
-                                    )}
-                                  </SelectContent>
-                                </Select>
+                                  contents={availableContents}
+                                  onChange={(v) => updateSessionContent(sess.id, v)}
+                                />
                               </div>
                             </PopoverContent>
                           </Popover>
@@ -1315,5 +1313,138 @@ function TeacherAttendance() {
       {/* Projector overlay */}
       {projector && <AttendanceCheckInProjector state={projector} onClose={closeProjector} />}
     </div>
+  );
+}
+
+/**
+ * Selector buscable de contenidos generados para asignar a una sesión.
+ * Antes era un `<Select>` plano que listaba `topic` — cuando dos
+ * contenidos compartían tema, eran indistinguibles. Ahora muestra
+ * `display_name` como label principal + `topic` como subtítulo gris, y
+ * permite filtrar por cualquiera de los dos via `CommandInput`.
+ *
+ * Value codificado igual que antes: `<contentId>:<classIndex>` (o
+ * `__none` para "sin contenido"). Mantener el formato evita tocar la
+ * lógica de `updateSessionContent`.
+ */
+interface ContentPickerProps {
+  value: string;
+  contents: AvailableContent[];
+  onChange: (value: string) => void;
+}
+
+function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
+  const [open, setOpen] = useState(false);
+
+  // Construimos la lista plana de opciones — material_individual usa
+  // ":0", curso_completo se expande a una opción por clase.
+  type Option = {
+    value: string;
+    /** Lo que se muestra en negrita en la opción y como label cuando
+     *  está seleccionada. */
+    primary: string;
+    /** Subtítulo gris con el topic + sufijo de clase si aplica. */
+    secondary: string;
+    /** Texto agregado para la búsqueda — incluye topic, display_name
+     *  y "clase N" para que cualquier criterio matchee. */
+    searchKey: string;
+  };
+  const options: Option[] = [];
+  for (const c of contents) {
+    if (c.classes.length > 0) {
+      for (const n of c.classes) {
+        options.push({
+          value: `${c.id}:${n}`,
+          primary: `${c.display_name} · Clase ${n}`,
+          secondary: c.topic,
+          searchKey: `${c.display_name} ${c.topic} clase ${n}`,
+        });
+      }
+    } else {
+      options.push({
+        value: `${c.id}:0`,
+        primary: c.display_name,
+        secondary: c.topic,
+        searchKey: `${c.display_name} ${c.topic}`,
+      });
+    }
+  }
+
+  const selected = options.find((o) => o.value === value);
+  const triggerLabel =
+    value === "__none" || !selected ? "Sin contenido" : selected.primary;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-8 text-xs w-full justify-between font-normal"
+        >
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50 ml-1" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[260px]" align="start">
+        <Command
+          filter={(item, search) => {
+            // cmdk pasa el `value` del CommandItem como `item`. Usamos
+            // option.searchKey como ese value para soportar búsqueda por
+            // display_name, topic o número de clase.
+            return item.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+          }}
+        >
+          <CommandInput placeholder="Buscar por nombre o tema…" className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty>Sin resultados.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="sin contenido __none"
+                onSelect={() => {
+                  onChange("__none");
+                  setOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-3.5 w-3.5",
+                    value === "__none" ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                <span className="text-muted-foreground italic">Sin contenido</span>
+              </CommandItem>
+              {options.map((o) => (
+                <CommandItem
+                  key={o.value}
+                  value={o.searchKey}
+                  onSelect={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-3.5 w-3.5 shrink-0",
+                      value === o.value ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">{o.primary}</div>
+                    {o.secondary && o.secondary !== o.primary && (
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {o.secondary}
+                      </div>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
