@@ -203,8 +203,6 @@ function ExamMonitor() {
   // deep-link viene del modal de Conversaciones abiertas. Aplica un
   // ring temporal y scroll a la card de la pregunta.
   const [highlightQuestionId, setHighlightQuestionId] = useState<string | null>(null);
-  const [overrideValue, setOverrideValue] = useState<number | null>(null);
-  const [savingOverride, setSavingOverride] = useState(false);
   const [qOverrides, setQOverrides] = useState<
     Record<string, { score: number | null; feedback: string }>
   >({});
@@ -590,8 +588,6 @@ function ExamMonitor() {
 
   const openView = (sub: Submission) => {
     setViewingId(sub.id);
-    const cur = sub.final_override_grade ?? sub.ai_grade;
-    setOverrideValue(cur != null ? Number(cur) : null);
     const manual: Record<string, ManualOverride> = sub.answers?.__manual_overrides ?? {};
     const next: Record<string, { score: number | null; feedback: string }> = {};
     for (const [qid, v] of Object.entries(manual)) {
@@ -603,47 +599,12 @@ function ExamMonitor() {
     setQOverrides(next);
   };
 
-  const saveOverride = async (sub: Submission) => {
-    const numValue = overrideValue;
-    if (numValue != null && (Number.isNaN(numValue) || numValue < 0 || numValue > 5)) {
-      toast.error("La calificación debe ser un número entre 0 y 5");
-      return;
-    }
-    setSavingOverride(true);
-    const previous = sub.final_override_grade ?? null;
-    const { error } = await supabase
-      .from("submissions")
-      .update({ final_override_grade: numValue })
-      .eq("id", sub.id);
-    setSavingOverride(false);
-    if (error) return toast.error(error.message);
-    // Distingue override manual de la calificación IA en auditoría.
-    // El trigger genérico de submissions captura cambios de nota pero
-    // no marca quién lo hizo manual vs el pipeline IA. Acá lo hacemos
-    // explícito.
-    void logEvent({
-      action: numValue == null ? "grade.manual_cleared" : "grade.manual_override",
-      category: "grading",
-      severity: "warning",
-      entityType: "submission",
-      entityId: sub.id,
-      courseId: exam?.course_id ?? null,
-      courseName: exam?.course_name ?? null,
-      metadata: {
-        exam_id: exam?.id,
-        student_id: sub.user_id,
-        previous,
-        new: numValue,
-        ai_grade: sub.ai_grade,
-      },
-    });
-    toast.success(
-      numValue == null ? "Calificación manual eliminada" : "Calificación guardada correctamente",
-    );
-    setSubmissions((prev) =>
-      prev.map((s) => (s.id === sub.id ? { ...s, final_override_grade: numValue } : s)),
-    );
-  };
+  // saveOverride (input global de "Calificación final" del modal) fue
+  // removido. La nota final ahora se recomputa automáticamente desde
+  // las calificaciones por pregunta vía `saveQuestionScore` →
+  // computeFinalGrade. El audit log de "grade.manual_override" sigue
+  // existiendo en `gradebook` cuando el docente edita la nota desde
+  // ahí (otra ruta), pero no hay override global desde el monitor.
 
   // Borra TODAS las advertencias de un intento: focus_warnings=0,
   // limpia __warning_events del JSON, y si el intento estaba en
@@ -777,7 +738,6 @@ function ExamMonitor() {
         s.id === sub.id ? { ...s, answers: nextAnswers, final_override_grade: recomputed } : s,
       ),
     );
-    setOverrideValue(recomputed != null ? Number(recomputed) : null);
   };
 
   const viewingSub = useMemo(
@@ -2541,28 +2501,13 @@ function ExamMonitor() {
                   )}
                   Recalificar todo con IA
                 </Button>
-                <div className="flex items-center gap-1">
-                  <DecimalInput
-                    min={0}
-                    max={5}
-                    placeholder="Calificación 0-5"
-                    value={overrideValue}
-                    onChange={setOverrideValue}
-                    className="w-24 h-8 text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => saveOverride(viewingSub)}
-                    disabled={savingOverride}
-                  >
-                    {savingOverride ? (
-                      <Spinner size="sm" className="mr-1" />
-                    ) : (
-                      <Save className="h-3.5 w-3.5 mr-1" />
-                    )}
-                    Guardar calificación
-                  </Button>
-                </div>
+                {/* Override global manual (DecimalInput + "Guardar
+                    calificación") fue removido: la calificación final
+                    ahora se recomputa automáticamente desde las notas
+                    por pregunta (ver `saveQuestionScore` →
+                    computeFinalGrade), y la retroalimentación vive en
+                    cada pregunta. No queremos un atajo global que
+                    contradiga las notas por pregunta. */}
               </>
             )}
           </DialogFooter>

@@ -1409,12 +1409,15 @@ function TeacherWorkshops() {
     toast.success(t("workshop.gradeRejected"));
   };
 
-  const saveGrade = async (subId: string, grade: number, feedback: string) => {
+  // Persiste la `final_grade` (que el caller ya recalculó desde las
+  // notas por pregunta) + cambia status a 'calificado'. Antes recibía
+  // también `feedback` global, pero ese textarea fue removido — la
+  // retroalimentación vive pregunta-por-pregunta dentro de `answers`.
+  const saveGrade = async (subId: string, grade: number) => {
     const { data, error } = await supabase
       .from("workshop_submissions")
       .update({
         final_grade: grade,
-        teacher_feedback: feedback,
         status: "calificado",
       })
       .eq("id", subId)
@@ -1442,11 +1445,7 @@ function TeacherWorkshops() {
       metadata: { grade },
     });
     setWsSubs((prev) =>
-      prev.map((s) =>
-        s.id === subId
-          ? { ...s, final_grade: grade, teacher_feedback: feedback, status: "calificado" }
-          : s,
-      ),
+      prev.map((s) => (s.id === subId ? { ...s, final_grade: grade, status: "calificado" } : s)),
     );
 
     // Notificar al estudiante (o a todos los miembros del grupo si la
@@ -2773,64 +2772,39 @@ function TeacherWorkshops() {
                       </Accordion>
                     )}
 
-                    {/* Manual grading / override */}
-                    <div className="space-y-2">
-                      <div>
-                        <Label className="text-xs">Calificación final</Label>
-                        <DecimalInput
-                          min={0}
-                          max={gradingWs?.max_score ?? 100}
-                          value={sub.final_grade ?? null}
-                          onChange={(v) => {
-                            setWsSubs((prev) =>
-                              prev.map((s) => (s.id === sub.id ? { ...s, final_grade: v } : s)),
-                            );
-                          }}
-                          className="h-8 text-sm mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Retroalimentación</Label>
-                        <Textarea
-                          rows={3}
-                          value={sub.teacher_feedback ?? ""}
-                          onChange={(e) => {
-                            setWsSubs((prev) =>
-                              prev.map((s) =>
-                                s.id === sub.id ? { ...s, teacher_feedback: e.target.value } : s,
-                              ),
-                            );
-                          }}
-                          className="text-sm mt-1"
-                          placeholder="Escribe tu retroalimentación detallada..."
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            saveGrade(sub.id, sub.final_grade ?? 0, sub.teacher_feedback ?? "")
-                          }
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => gradeOneWithAI(sub)}
-                          disabled={aiGradingId === sub.id}
-                        >
-                          {aiGradingId === sub.id ? (
-                            <Spinner size="sm" className="mr-1" />
-                          ) : (
-                            <Sparkles className="h-3.5 w-3.5 mr-1" />
-                          )}
-                          {sub.status === "calificado" || sub.status === "ai_revisado"
-                            ? "Recalificar con IA"
-                            : "Calificar con IA"}
-                        </Button>
-                      </div>
+                    {/* Acciones de calificación. Quitamos el input
+                        "Calificación final" y el textarea
+                        "Retroalimentación" globales: la nota final se
+                        recomputa automáticamente desde las notas por
+                        pregunta (botón "Recalcular calificación global"
+                        del acordeón) y la retroalimentación vive
+                        pregunta-por-pregunta dentro del acordeón.
+                        El botón "Guardar calificación" persiste la
+                        `final_grade` recalculada; "Calificar con IA"
+                        dispara la evaluación por preguntas. */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => saveGrade(sub.id, sub.final_grade ?? 0)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => gradeOneWithAI(sub)}
+                        disabled={aiGradingId === sub.id}
+                      >
+                        {aiGradingId === sub.id ? (
+                          <Spinner size="sm" className="mr-1" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        {sub.status === "calificado" || sub.status === "ai_revisado"
+                          ? "Recalificar con IA"
+                          : "Calificar con IA"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
