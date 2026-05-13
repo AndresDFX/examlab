@@ -223,3 +223,48 @@ export function splitByMatch(
   }
   return out;
 }
+
+/**
+ * True si el mensaje fue leído por el OTRO usuario de la conversación.
+ *
+ * Un mensaje se considera leído cuando el destinatario abrió la conv
+ * después de su `created_at` — eso dispara `mark_conversation_read` que
+ * setea `<otherSide>_last_read_at = now()`. Si ese timestamp es >= el
+ * `created_at` del mensaje, el receptor ya lo vio.
+ *
+ * Usado para:
+ *   - Pintar el doble check ✓✓ tipo WhatsApp en los mensajes propios.
+ *   - Decidir si el sender aún puede editarlo / borrarlo (ver
+ *     `canEditOrDeleteMessage`). Espeja la lógica del RLS en DB.
+ *
+ * Importante: solo aplica a mensajes propios. Para mensajes ajenos el
+ * "leído" no tiene sentido (los lees vos al abrir la conv, el bool de
+ * "el otro lo leyó" no aplica).
+ */
+export function isMessageReadByOther(
+  messageCreatedAt: string,
+  otherSideLastReadAt: string | null | undefined,
+): boolean {
+  if (!otherSideLastReadAt) return false;
+  return otherSideLastReadAt >= messageCreatedAt;
+}
+
+/**
+ * True si el sender aún puede editar/borrar el mensaje. Mismo predicado
+ * que el RLS en DB (`_message_was_read_by_other` invertido).
+ *
+ * Reglas:
+ *   - Si no es mío (sender !== me), NUNCA puedo editar/borrar → false.
+ *   - Si es mío y el otro no lo leyó → true.
+ *   - Si es mío y el otro lo leyó → false (queda congelado).
+ */
+export function canEditOrDeleteMessage(params: {
+  senderId: string;
+  myUserId: string | null | undefined;
+  messageCreatedAt: string;
+  otherSideLastReadAt: string | null | undefined;
+}): boolean {
+  if (!params.myUserId) return false;
+  if (params.senderId !== params.myUserId) return false;
+  return !isMessageReadByOther(params.messageCreatedAt, params.otherSideLastReadAt);
+}

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  canEditOrDeleteMessage,
   filterByClearedAt,
   formatMessageTime,
   groupMessagesByDay,
+  isMessageReadByOther,
   previewBody,
   relativeDayLabel,
   searchMessages,
@@ -375,5 +377,80 @@ describe("splitByMatch", () => {
   it("sin matches: un solo segmento isMatch=false", () => {
     const result = splitByMatch("nada", "xyz");
     expect(result).toEqual([{ text: "nada", isMatch: false }]);
+  });
+});
+
+describe("isMessageReadByOther", () => {
+  it("false cuando otherLastReadAt es null (el otro nunca abrió)", () => {
+    expect(isMessageReadByOther("2026-05-20T10:00:00Z", null)).toBe(false);
+  });
+
+  it("false cuando otherLastReadAt es undefined", () => {
+    expect(isMessageReadByOther("2026-05-20T10:00:00Z", undefined)).toBe(false);
+  });
+
+  it("false cuando el otro leyó ANTES de que llegara el mensaje", () => {
+    expect(isMessageReadByOther("2026-05-20T10:00:00Z", "2026-05-20T09:00:00Z")).toBe(false);
+  });
+
+  it("true cuando el otro leyó DESPUÉS de que llegara el mensaje", () => {
+    expect(isMessageReadByOther("2026-05-20T10:00:00Z", "2026-05-20T11:00:00Z")).toBe(true);
+  });
+
+  it("true cuando el timestamp del read coincide exactamente con created_at", () => {
+    // Edge case: race condition donde mark_conversation_read se dispara
+    // exactamente en el mismo timestamp del INSERT. Lo tratamos como
+    // "ya leído" — preferimos congelar antes que dejar editar.
+    expect(isMessageReadByOther("2026-05-20T10:00:00Z", "2026-05-20T10:00:00Z")).toBe(true);
+  });
+
+  it("compara como strings ISO (lexicográficamente)", () => {
+    // 9 < 10 lexicográfico falla con timestamps sin padding, pero los
+    // ISO siempre tienen padding fijo (HH:MM:SS) → comparación segura.
+    expect(isMessageReadByOther("2026-05-20T09:59:59Z", "2026-05-20T10:00:00Z")).toBe(true);
+  });
+});
+
+describe("canEditOrDeleteMessage", () => {
+  const baseParams = {
+    senderId: "me",
+    myUserId: "me",
+    messageCreatedAt: "2026-05-20T10:00:00Z",
+    otherSideLastReadAt: null as string | null,
+  };
+
+  it("false cuando myUserId es null (sin sesión)", () => {
+    expect(canEditOrDeleteMessage({ ...baseParams, myUserId: null })).toBe(false);
+  });
+
+  it("false cuando myUserId es undefined", () => {
+    expect(canEditOrDeleteMessage({ ...baseParams, myUserId: undefined })).toBe(false);
+  });
+
+  it("false cuando el mensaje NO es mío (sender distinto)", () => {
+    expect(canEditOrDeleteMessage({ ...baseParams, senderId: "other" })).toBe(false);
+  });
+
+  it("true cuando es mío y el otro NO lo ha leído", () => {
+    expect(canEditOrDeleteMessage({ ...baseParams, otherSideLastReadAt: null })).toBe(true);
+  });
+
+  it("true cuando es mío y el otro leyó ANTES del mensaje", () => {
+    expect(
+      canEditOrDeleteMessage({ ...baseParams, otherSideLastReadAt: "2026-05-20T09:00:00Z" }),
+    ).toBe(true);
+  });
+
+  it("false cuando es mío pero el otro YA lo leyó (después de created_at)", () => {
+    expect(
+      canEditOrDeleteMessage({ ...baseParams, otherSideLastReadAt: "2026-05-20T11:00:00Z" }),
+    ).toBe(false);
+  });
+
+  it("false cuando el read_at coincide exactamente con el created_at", () => {
+    // Mismo razonamiento que isMessageReadByOther: preferimos congelar.
+    expect(
+      canEditOrDeleteMessage({ ...baseParams, otherSideLastReadAt: "2026-05-20T10:00:00Z" }),
+    ).toBe(false);
   });
 });

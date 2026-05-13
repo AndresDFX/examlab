@@ -57,6 +57,7 @@ import {
   Pencil,
   X,
   Check,
+  CheckCheck,
   Paperclip,
 } from "lucide-react";
 import {
@@ -67,6 +68,8 @@ import {
   unreadCount,
   searchMessages,
   splitByMatch,
+  isMessageReadByOther,
+  canEditOrDeleteMessage,
   type MessageLite,
 } from "@/lib/messaging";
 import {
@@ -483,6 +486,14 @@ function MessagesPage() {
   };
 
   const startEdit = (m: MessageLite) => {
+    // Defensa cliente: la UI ya oculta el botón cuando el otro leyó el
+    // mensaje, pero si por algún edge case (race con realtime) llegan a
+    // disparar el handler, abortamos con toast amigable. La RLS en DB
+    // tiene la última palabra de todos modos.
+    if (isMessageReadByOther(m.created_at, otherLastReadAt)) {
+      toast.error("Ya no puedes editar este mensaje: el otro usuario lo leyó.");
+      return;
+    }
     setEditingId(m.id);
     setEditingText(m.body);
   };
@@ -521,6 +532,13 @@ function MessagesPage() {
   };
 
   const deleteMessage = async (m: MessageLite) => {
+    // Defensa cliente (espejo de la RLS): si el otro ya leyó el mensaje,
+    // queda congelado. Abortamos con toast en vez de mostrar el error
+    // crudo de Postgres ("policy violation").
+    if (isMessageReadByOther(m.created_at, otherLastReadAt)) {
+      toast.error("Ya no puedes eliminar este mensaje: el otro usuario lo leyó.");
+      return;
+    }
     const ok = await confirm({
       title: "Eliminar mensaje",
       description:
@@ -597,6 +615,17 @@ function MessagesPage() {
     [messages, searchQuery],
   );
   const dayGroups = useMemo(() => groupMessagesByDay(visibleMessages), [visibleMessages]);
+
+  // last_read_at del OTRO usuario en la conv activa. Lo usamos para
+  // (a) decidir si los mensajes propios están "leídos" (doble check)
+  // y (b) bloquear edit/delete cuando el otro ya los vio. La RLS en DB
+  // ya impone la regla; esto es coherencia visual + UX preventiva.
+  const otherLastReadAt = useMemo(() => {
+    if (!activeConv || !myUserId) return null;
+    const c = activeConv.conv;
+    // El "otro" es el que NO soy yo: si yo soy user_a, el otro es user_b.
+    return c.user_a === myUserId ? c.user_b_last_read_at : c.user_a_last_read_at;
+  }, [activeConv, myUserId]);
 
   return (
     <div className="space-y-3">
@@ -855,14 +884,50 @@ function MessagesPage() {
                                     <div className="flex items-center justify-between gap-2 mt-0.5">
                                       <p
                                         className={cn(
-                                          "text-[9px] tabular-nums",
+                                          "text-[9px] tabular-nums flex items-center gap-1",
                                           mine ? "text-primary-foreground/70" : "text-muted-foreground",
                                         )}
                                       >
-                                        {formatMessageTime(m.created_at)}
-                                        {m.edited_at ? " · editado" : ""}
+                                        <span>
+                                          {formatMessageTime(m.created_at)}
+                                          {m.edited_at ? " · editado" : ""}
+                                        </span>
+                                        {/* Doble check de "leído" — solo en
+                                            mensajes propios. ✓✓ azul (heredado
+                                            del foreground) cuando el otro lo
+                                            leyó; ✓ gris para "enviado pero no
+                                            leído todavía". Patrón WhatsApp. */}
+                                        {mine && (() => {
+                                          const isRead = isMessageReadByOther(
+                                            m.created_at,
+                                            otherLastReadAt,
+                                          );
+                                          return (
+                                            <span
+                                              className={cn(
+                                                "inline-flex",
+                                                isRead
+                                                  ? "text-primary-foreground"
+                                                  : "text-primary-foreground/50",
+                                              )}
+                                              title={isRead ? "Leído" : "Enviado"}
+                                              aria-label={isRead ? "Leído" : "Enviado"}
+                                            >
+                                              {isRead ? (
+                                                <CheckCheck className="h-3 w-3" />
+                                              ) : (
+                                                <Check className="h-3 w-3" />
+                                              )}
+                                            </span>
+                                          );
+                                        })()}
                                       </p>
-                                      {mine && (
+                                      {mine && canEditOrDeleteMessage({
+                                        senderId: m.sender_id,
+                                        myUserId,
+                                        messageCreatedAt: m.created_at,
+                                        otherSideLastReadAt: otherLastReadAt,
+                                      }) && (
                                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <Button
                                             type="button"
