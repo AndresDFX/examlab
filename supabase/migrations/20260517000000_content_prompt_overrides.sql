@@ -34,6 +34,14 @@ ALTER TABLE public.generated_contents
 -- "cannot use subquery in check constraint" / SQLSTATE 0A000). El
 -- workaround es envolver la lógica en una función IMMUTABLE y llamarla
 -- desde el CHECK — el planner trata la llamada como una expresión.
+--
+-- IMPORTANTE: si ves en el log del pipeline el ERROR "cannot use
+-- subquery in check constraint", significa que el runner clonó una
+-- versión vieja de este archivo (anterior al fix de la función
+-- IMMUTABLE). Verifica en GitHub Actions que el último run corrió
+-- contra el commit más reciente de main. Si el último run YA aplicó
+-- esta migración con éxito, la tabla `supabase_migrations.schema_migrations`
+-- ya la registra como aplicada y no se vuelve a ejecutar.
 CREATE OR REPLACE FUNCTION public._check_content_prompt_overrides_keys(_overrides JSONB)
 RETURNS BOOLEAN
 LANGUAGE sql
