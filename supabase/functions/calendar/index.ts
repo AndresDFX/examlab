@@ -21,6 +21,7 @@ import {
   callGoogle,
   corsHeaders,
   getUserIdFromRequest,
+  isGoogleEventGoneError,
 } from "../_shared/calendar-google.ts";
 
 interface BaseBody {
@@ -423,11 +424,12 @@ async function handleSync(userId: string, body: SyncBody) {
             { method: "PATCH", body: JSON.stringify(eventBody) },
           );
         } catch (e) {
-          const msg = String((e as Error).message ?? e);
-          // callGoogle formatea: "Google API <path> falló [<status>]: ..."
-          // 404 = el event_id que tenemos ya no existe en este calendario.
-          // 410 = "Gone" — el evento fue borrado permanentemente.
-          if (/\[(404|410)\]/.test(msg)) {
+          // `callGoogle` lanza `GoogleApiError` con `.status` numérico
+          // accesible. Antes detectábamos 404 con regex sobre el mensaje
+          // (`[404]`), pero eso es frágil: si cambia el formato del
+          // string (traducción, refactor), el catch deja de funcionar.
+          // `isGoogleEventGoneError` lo encapsula y cubre 404 + 410.
+          if (isGoogleEventGoneError(e)) {
             recreatedFrom404 = true;
           } else {
             throw e;

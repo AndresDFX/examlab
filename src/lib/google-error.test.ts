@@ -12,6 +12,29 @@ describe("isGoogleEventGoneError", () => {
     expect(isGoogleEventGoneError(new Error(REAL_ERROR_404))).toBe(true);
   });
 
+  it("true para objeto tipo GoogleApiError con status 404", () => {
+    // Mismo shape que `GoogleApiError` que arroja la edge function
+    // (sin necesidad de la clase en el cliente — solo el shape).
+    const err = { status: 404, path: "/events/x", message: "boom" };
+    expect(isGoogleEventGoneError(err)).toBe(true);
+  });
+
+  it("true para objeto con status 410", () => {
+    expect(isGoogleEventGoneError({ status: 410, message: "gone" })).toBe(true);
+  });
+
+  it("false para objeto con status distinto a 404/410", () => {
+    expect(isGoogleEventGoneError({ status: 403, message: "forbidden" })).toBe(false);
+    expect(isGoogleEventGoneError({ status: 500, message: "oops" })).toBe(false);
+  });
+
+  it("propiedad status NO numérica → cae al fallback de mensaje", () => {
+    // status como string no califica como "numeric status".
+    expect(
+      isGoogleEventGoneError({ status: "404", message: "no incluye corchetes" } as unknown),
+    ).toBe(false);
+  });
+
   it("true para 410 Gone", () => {
     expect(isGoogleEventGoneError(new Error("Google API /x falló [410]: gone"))).toBe(true);
   });
@@ -56,6 +79,18 @@ describe("isGoogleEventGoneError", () => {
 describe("extractGoogleErrorStatus", () => {
   it("extrae 404 del mensaje real", () => {
     expect(extractGoogleErrorStatus(new Error(REAL_ERROR_404))).toBe(404);
+  });
+
+  it("usa .status numérico cuando está disponible (forma nueva)", () => {
+    expect(extractGoogleErrorStatus({ status: 404, message: "x" })).toBe(404);
+    expect(extractGoogleErrorStatus({ status: 500, message: "y" })).toBe(500);
+  });
+
+  it("prefiere .status sobre el mensaje cuando ambos existen", () => {
+    // Si el shape lleva status=403 pero el mensaje tiene [404], el
+    // status numérico gana — el status estructurado es más confiable.
+    const err = { status: 403, message: "Google API /x falló [404]: foo" };
+    expect(extractGoogleErrorStatus(err)).toBe(403);
   });
 
   it("extrae 500", () => {

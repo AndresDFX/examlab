@@ -16,26 +16,46 @@
  */
 
 /**
+ * Type-guard para objetos con propiedad `status` numérica (forma nueva
+ * que arroja `GoogleApiError` de la edge function de calendar).
+ */
+function hasNumericStatus(err: unknown): err is { status: number } {
+  return (
+    err != null &&
+    typeof err === "object" &&
+    "status" in err &&
+    typeof (err as { status: unknown }).status === "number"
+  );
+}
+
+/**
  * True si el error indica que el evento de Google Calendar al que
  * apuntamos ya no existe (fue borrado/movido). Esto cubre:
  *   - 404 Not Found (caso típico cuando el docente borró el evento
  *     manualmente).
  *   - 410 Gone (Google purga el evento permanentemente tras un tiempo).
  *
- * Acepta `Error`, string, o cualquier otro valor — útil para usar
- * dentro de catch() sin tener que castear.
+ * Detecta DOS formas del error:
+ *   1. Objeto con `.status` numérico (nueva `GoogleApiError`).
+ *   2. Error/string con `[<status>]` en el mensaje (formato legacy —
+ *      backwards-compatible mientras conviven versiones de la edge
+ *      function distintas).
  */
 export function isGoogleEventGoneError(err: unknown): boolean {
+  if (hasNumericStatus(err)) {
+    return err.status === 404 || err.status === 410;
+  }
   const msg = err instanceof Error ? err.message : String(err ?? "");
   return /\[(404|410)\]/.test(msg);
 }
 
 /**
- * Extrae el status HTTP del mensaje de error de `callGoogle`. Devuelve
- * `null` si el formato no matchea (probablemente un error de red u
- * otra causa, no de la respuesta de Google).
+ * Extrae el status HTTP del error. Devuelve `null` si no se pudo
+ * determinar (sin propiedad `.status` y sin formato `[<status>]` en el
+ * mensaje — probablemente un error de red, no de respuesta Google).
  */
 export function extractGoogleErrorStatus(err: unknown): number | null {
+  if (hasNumericStatus(err)) return err.status;
   const msg = err instanceof Error ? err.message : String(err ?? "");
   const m = msg.match(/\[(\d{3})\]/);
   return m ? Number(m[1]) : null;

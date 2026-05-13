@@ -150,6 +150,45 @@ export async function getValidAccessToken(teacherId: string): Promise<string> {
   return refreshed.access_token;
 }
 
+/**
+ * Error tipado para llamadas a Google API que fallan. Expone `status`
+ * como número para que el caller pueda hacer `if (err.status === 404)`
+ * en vez de depender del formato del mensaje (regex `\[404\]` etc.).
+ *
+ * Antes lanzábamos `new Error(...)` con el status incrustado en el
+ * mensaje. La detección por regex era frágil: si alguien cambiaba la
+ * plantilla del mensaje (ej. traducir "falló"), el catch que filtraba
+ * 404 dejaba de funcionar silenciosamente. Con `instanceof
+ * GoogleApiError` + `.status` numérico, eso ya no pasa.
+ */
+export class GoogleApiError extends Error {
+  status: number;
+  path: string;
+  responseBody: string;
+  constructor(path: string, status: number, responseBody: string) {
+    super(`Google API ${path} falló [${status}]: ${responseBody}`);
+    this.name = "GoogleApiError";
+    this.status = status;
+    this.path = path;
+    this.responseBody = responseBody;
+  }
+}
+
+/**
+ * True si `err` representa un evento de Google Calendar que ya no
+ * existe. Cubre 404 (Not Found) y 410 (Gone). Aceptamos tanto la nueva
+ * `GoogleApiError` (path con `.status`) como un `Error` legacy con el
+ * formato `[<status>]` en el mensaje — backwards-compatible mientras
+ * conviven versiones desplegadas distintas de la edge function.
+ */
+export function isGoogleEventGoneError(err: unknown): boolean {
+  if (err instanceof GoogleApiError) {
+    return err.status === 404 || err.status === 410;
+  }
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /\[(404|410)\]/.test(msg);
+}
+
 /** Wrapper de fetch contra Google API con auth bearer + refresh automático. */
 export async function callGoogle<T>(
   teacherId: string,
@@ -167,7 +206,7 @@ export async function callGoogle<T>(
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Google API ${path} falló [${res.status}]: ${text}`);
+    throw new GoogleApiError(path, res.status, text);
   }
   return (await res.json()) as T;
 }
