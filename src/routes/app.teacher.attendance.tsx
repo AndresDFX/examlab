@@ -62,6 +62,7 @@ import {
   MoreVertical,
   Check,
   ChevronsUpDown,
+  CalendarPlus,
 } from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
@@ -78,6 +79,7 @@ import {
   ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   ATTENDANCE_CODE_ROTATION_DEFAULT,
 } from "@/lib/attendance-code";
+import { GenerateSessionsDialog } from "@/components/GenerateSessionsDialog";
 
 // Columna `cut_name` es OPCIONAL: si está vacía, la sesión queda sin
 // corte (no aporta a la nota de asistencia hasta que el docente la
@@ -184,6 +186,12 @@ function TeacherAttendance() {
 
   // Check-in self-service: configuración + estado del proyector activo
   const [checkInConfigSession, setCheckInConfigSession] = useState<Session | null>(null);
+  /** Abre el dialog "Programar sesiones del curso". Se usa SIN contenido
+   *  pre-asociado — el dialog calcula N sesiones a partir de fecha
+   *  inicio + días de la semana, las crea con `course_id = courseId` y
+   *  titulo genérico "Sesión N". El docente puede asignar contenido
+   *  después desde el selector buscable del propio tablero. */
+  const [generateSessionsOpen, setGenerateSessionsOpen] = useState(false);
   const [checkInDuration, setCheckInDuration] = useState<number>(
     ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   );
@@ -821,6 +829,21 @@ function TeacherAttendance() {
             <Plus className="h-4 w-4 mr-1" />
             Nueva sesión
           </Button>
+          {/* Programar varias sesiones a partir de fecha inicio + días
+              de la semana. Mismo dialog que vive en el módulo de
+              Contenidos, pero acá lo abrimos SIN contenido pre-asociado
+              — el docente puede después asignar contenido a cada sesión
+              desde el selector buscable del propio tablero. */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setGenerateSessionsOpen(true)}
+            disabled={!courseId}
+            title="Programar varias sesiones del curso a partir de fecha + días de semana"
+          >
+            <CalendarPlus className="h-4 w-4 mr-1" />
+            Programar sesiones
+          </Button>
         </div>
       </div>
 
@@ -1309,6 +1332,20 @@ function TeacherAttendance() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Programar sesiones del curso — mismo dialog que el módulo de
+          Contenidos, pero abierto SIN contenido (content=null). El
+          docente elige N sesiones, fecha de inicio y días de la semana. */}
+      <GenerateSessionsDialog
+        open={generateSessionsOpen}
+        content={null}
+        courseId={courseId}
+        onClose={() => setGenerateSessionsOpen(false)}
+        onCreated={() => {
+          setGenerateSessionsOpen(false);
+          void loadCourse();
+        }}
+      />
 
       {/* Projector overlay */}
       {projector && <AttendanceCheckInProjector state={projector} onClose={closeProjector} />}
