@@ -43,6 +43,11 @@ const dateLongFmt = new Intl.DateTimeFormat(LOCALE, {
   day: "2-digit",
 });
 
+// `hourCycle: "h23"` fuerza el ciclo 00..23 para que la medianoche
+// se renderice como "00:00" y no como "24:00". Sin esto, Node Linux
+// (ICU con es-CO) devuelve "24:00" para 0h mientras Node Windows
+// devuelve "00:00" — diferencia visible al usuario en servidores
+// distintos. Con `h23` ambos coinciden en "00:00".
 const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
   year: "numeric",
   month: "short",
@@ -50,12 +55,14 @@ const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+  hourCycle: "h23",
 });
 
 const timeFmt = new Intl.DateTimeFormat(LOCALE, {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+  hourCycle: "h23",
 });
 
 const weekdayFmt = new Intl.DateTimeFormat(LOCALE, {
