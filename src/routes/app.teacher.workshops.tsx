@@ -68,7 +68,9 @@ import {
   X,
   Bot,
   ChevronRight,
+  ChevronLeft,
   Check,
+  Eye,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -311,6 +313,11 @@ function TeacherWorkshops() {
   const [gradingWs, setGradingWs] = useState<Workshop | null>(null);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [gradingOpen, setGradingOpen] = useState(false);
+  /** Cuando está poblado, el modal cambia del GRID de estudiantes al
+   *  DETALLE pregunta-por-pregunta de ese estudiante. Patrón análogo al
+   *  monitor de exámenes (state `viewingId`/`viewingSub`). null = grid.
+   *  Se resetea al abrir el modal de otro taller. */
+  const [viewingSubId, setViewingSubId] = useState<string | null>(null);
   // Buscador dentro del modal de calificaciones — filtra entregas por
   // nombre / correo del estudiante. Se limpia al abrir el dialog para
   // que la próxima vez no muestre filtrado stale.
@@ -504,6 +511,10 @@ function TeacherWorkshops() {
       setHighlightSubId(null);
       return;
     }
+    // Deep-link: si vienen `submission` o `question` en la URL, saltamos
+    // directo al detalle de ese estudiante (en lugar de quedarse en el
+    // grid y forzar al docente a clickear "Ver"). Patrón del monitor.
+    setViewingSubId(highlightSubId);
     const t = setTimeout(() => {
       const el = document.getElementById(`ws-sub-${highlightSubId}`);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1033,6 +1044,10 @@ function TeacherWorkshops() {
     }
     setGradingSearch(""); // reset buscador al abrir
     setGradingOpen(true);
+    // Al abrir desde la lista de talleres, empezamos siempre en el grid.
+    // El deep-link (highlightSubId) lo maneja un effect aparte que abre
+    // automáticamente el detalle de ese estudiante.
+    setViewingSubId(null);
   };
 
   /** Mapa: submissionId → questionId → { answerId, score, reasons, reviewedAt }.
@@ -2503,8 +2518,15 @@ function TeacherWorkshops() {
       </Dialog>
 
       {/* Grading Dialog */}
-      <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog
+        open={gradingOpen}
+        onOpenChange={(o) => {
+          setGradingOpen(o);
+          // Al cerrar el dialog volvemos al modo grid para la próxima vez.
+          if (!o) setViewingSubId(null);
+        }}
+      >
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle>
           </DialogHeader>
@@ -2544,12 +2566,13 @@ function TeacherWorkshops() {
             />
           )}
           {/* FraudPanel global removido — el resumen agregado a nivel
-              submission se reemplaza por bloques POR PREGUNTA dentro del
-              Accordion (mismo patrón del monitor de exámenes). El botón
-              "Detectar copias" se traslada a la barra de acciones bulk
-              de abajo para mantener visibilidad. */}
+              submission se reemplaza por bloques POR PREGUNTA dentro
+              del detalle del estudiante (mismo patrón del monitor de
+              exámenes). El botón "Detectar copias" vive en la barra de
+              acciones bulk de abajo. Toolbar visible SOLO en modo grid
+              (cuando viewingSubId == null). */}
           {/* Bulk actions (IA + Detección de copias) */}
-          {!(gradingWs as any)?.is_external && wsSubs.length > 0 && (
+          {!(gradingWs as any)?.is_external && wsSubs.length > 0 && viewingSubId == null && (
             <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30 gap-3 flex-wrap">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Acciones masivas</p>
@@ -2588,7 +2611,9 @@ function TeacherWorkshops() {
             {/* Buscador de estudiantes — solo cuando hay entregas. Sigue
                 el mismo patrón visual que `ListFilters`: input con icono
                 lupa, botón X cuando hay query, contador "X de Y". */}
-            {!(gradingWs as any)?.is_external && wsSubs.length > 0 && (
+            {/* Buscador SOLO en modo grid. En modo detalle (ver respuestas
+                de un estudiante) no aplica — se ve un solo estudiante. */}
+            {!(gradingWs as any)?.is_external && wsSubs.length > 0 && viewingSubId == null && (
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -2621,13 +2646,167 @@ function TeacherWorkshops() {
             )}
             {!(gradingWs as any)?.is_external &&
               wsSubs.length > 0 &&
-              filteredWsSubs.length === 0 && (
+              filteredWsSubs.length === 0 &&
+              viewingSubId == null && (
                 <p className="text-sm text-muted-foreground">
                   Ningún estudiante coincide con la búsqueda.
                 </p>
               )}
+
+            {/* MODO GRID: tabla con una fila por estudiante. Reemplaza
+                las Cards apiladas anteriores para alinear el UX con el
+                monitor de exámenes — el docente ve toda la lista de
+                un vistazo y entra al detalle solo del que necesite. */}
             {!(gradingWs as any)?.is_external &&
-              filteredWsSubs.map((sub) => {
+              viewingSubId == null &&
+              filteredWsSubs.length > 0 && (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Estudiante</TableHead>
+                        <TableHead className="hidden sm:table-cell">Estado</TableHead>
+                        <TableHead className="hidden md:table-cell text-right">Nota</TableHead>
+                        <TableHead className="hidden lg:table-cell">IA</TableHead>
+                        <TableHead className="hidden lg:table-cell">Copia</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredWsSubs.map((sub) => {
+                        const aiSigsForSub = wsAiSignalsBySubmissionQuestion.get(sub.id);
+                        const copyPairsForUser = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                        const integrity = computeWorkshopAlerts(
+                          aiSigsForSub ? aiSigsForSub.values() : [],
+                          copyPairsForUser,
+                        );
+                        const hasPendingAlerts = integrity.totalPending > 0;
+                        const grade =
+                          sub.final_grade != null
+                            ? `${sub.final_grade}/${gradingWs?.max_score ?? 100}`
+                            : "—";
+                        return (
+                          <TableRow
+                            key={sub.id}
+                            className={
+                              hasPendingAlerts
+                                ? "bg-red-50/30 dark:bg-red-500/5 hover:bg-red-50/50"
+                                : ""
+                            }
+                          >
+                            <TableCell className="max-w-[260px]">
+                              <div className="font-medium text-sm truncate">
+                                {sub.profile?.full_name ?? "—"}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                {sub.profile?.institutional_email}
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <StatusBadge status={sub.status || "pendiente"} />
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-right tabular-nums text-sm">
+                              {grade}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              {integrity.aiTotal > 0 ? (
+                                <Badge
+                                  variant={integrity.aiPending > 0 ? "destructive" : "outline"}
+                                  className={
+                                    integrity.aiPending > 0
+                                      ? "text-[10px] flex items-center gap-1 w-fit"
+                                      : "text-[10px] flex items-center gap-1 w-fit bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                  }
+                                  title={
+                                    integrity.aiPending > 0
+                                      ? `${integrity.aiPending} pendiente${integrity.aiPending === 1 ? "" : "s"} de ${integrity.aiTotal}`
+                                      : `${integrity.aiTotal} revisada${integrity.aiTotal === 1 ? "" : "s"}`
+                                  }
+                                >
+                                  <Bot className="h-3 w-3" />
+                                  {integrity.aiPending > 0
+                                    ? `${integrity.aiPending}/${integrity.aiTotal}`
+                                    : `${integrity.aiTotal} ✓`}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              {integrity.copyTotal > 0 ? (
+                                <Badge
+                                  variant={integrity.copyPending > 0 ? "destructive" : "outline"}
+                                  className={
+                                    integrity.copyPending > 0
+                                      ? "text-[10px] flex items-center gap-1 w-fit"
+                                      : "text-[10px] flex items-center gap-1 w-fit bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                  }
+                                  title={
+                                    integrity.copyPending > 0
+                                      ? `${integrity.copyPending} pendiente${integrity.copyPending === 1 ? "" : "s"} de ${integrity.copyTotal}`
+                                      : `${integrity.copyTotal} revisada${integrity.copyTotal === 1 ? "" : "s"}`
+                                  }
+                                >
+                                  <Users className="h-3 w-3" />
+                                  {integrity.copyPending > 0
+                                    ? `${integrity.copyPending}/${integrity.copyTotal}`
+                                    : `${integrity.copyTotal} ✓`}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <RowAction
+                                  label="Ver respuestas"
+                                  icon={Eye}
+                                  onClick={() => setViewingSubId(sub.id)}
+                                />
+                                <RowAction
+                                  label="Eliminar entrega"
+                                  icon={Trash2}
+                                  tone="destructive"
+                                  onClick={() =>
+                                    deleteSubmission(
+                                      sub.id,
+                                      sub.profile?.full_name ?? "este estudiante",
+                                    )
+                                  }
+                                />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+            {/* Botón "Volver al grid" en modo detalle. Coincide con el
+                patrón del monitor de exámenes (Eye → detalle → back). */}
+            {!(gradingWs as any)?.is_external && viewingSubId != null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewingSubId(null)}
+                className="self-start h-8"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Volver al listado de estudiantes
+              </Button>
+            )}
+
+            {/* MODO DETALLE: vista pregunta-por-pregunta del estudiante
+                seleccionado. Reusa el JSX de la Card anterior pero solo
+                para el sub elegido. */}
+            {!(gradingWs as any)?.is_external &&
+              viewingSubId != null &&
+              wsSubs
+                .filter((sub) => sub.id === viewingSubId)
+                .map((sub) => {
                 // Resumen agregado de alertas de integridad para este
                 // estudiante (suma de IA + copia pendientes/totales en
                 // sus respuestas). Lo usamos para destacar la card y
@@ -2796,17 +2975,17 @@ function TeacherWorkshops() {
                       </div>
                     )}
 
-                    {/* Per-question review & grading (editable) */}
+                    {/* Per-question review & grading (editable). El
+                        Accordion se mantiene por compatibilidad con el
+                        trigger visual, pero por defecto SIEMPRE arranca
+                        expandido en modo detalle — el docente entró al
+                        detalle precisamente para ver las preguntas. */}
                     {wsQuestions.length > 0 && (
                       <Accordion
                         type="single"
                         collapsible
                         className="w-full"
-                        defaultValue={
-                          highlightSubId === sub.id && highlightWsQuestionId
-                            ? `per-q-${sub.id}`
-                            : undefined
-                        }
+                        defaultValue={`per-q-${sub.id}`}
                       >
                         <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
                           <AccordionTrigger className="px-3 py-2 text-sm">
