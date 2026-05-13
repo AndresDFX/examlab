@@ -75,11 +75,22 @@ async function aiChat(messages: any[]): Promise<Response> {
 }
 
 /**
- * Resuelve el system prompt global para el use_case `content_generation`.
- * Hace fallback al texto vacío si la tabla viene mal — la edge function
- * imprime warning pero igual responde para no romper la generación.
+ * Resuelve el system prompt orquestador `content_generation` aplicando
+ * la jerarquía:
+ *   1) override POR CONTENIDO en `gen.prompt_overrides.content_generation`
+ *   2) global Admin en `ai_prompts WHERE use_case='content_generation' AND course_id IS NULL`
+ *   3) string vacío (el modelo cae al user message; raro pero no rompe)
+ *
+ * La lógica vive duplicada con `src/lib/content-prompts.ts` porque las
+ * edge functions corren en Deno y no comparten el bundle del browser.
+ * El test unitario del helper TS cubre el comportamiento esperado; este
+ * código sigue el mismo contrato.
  */
-async function resolveContentPrompt(): Promise<string> {
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveContentPrompt(gen: any): Promise<string> {
+  const override = gen?.prompt_overrides?.content_generation;
+  if (typeof override === "string" && override.trim().length > 0) return override;
   const { data } = await adminClient
     .from("ai_prompts")
     .select("system_prompt")
@@ -101,7 +112,9 @@ type TagPrompts = {
   examen: string;
 };
 
-async function loadTagPrompts(activeTags: string[]): Promise<TagPrompts> {
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadTagPrompts(gen: any, activeTags: string[]): Promise<TagPrompts> {
   const tags = new Set(activeTags);
   const wanted: string[] = [];
   if (tags.has("teorico")) wanted.push("content.presentacion", "content.guia_docente");
@@ -117,18 +130,30 @@ async function loadTagPrompts(activeTags: string[]): Promise<TagPrompts> {
   };
   if (wanted.length === 0) return out;
 
+  // Cargamos los globales en una sola query y los indexamos por use_case.
+  // Después aplicamos la jerarquía override-por-contenido > global para cada uno.
   const { data } = await adminClient
     .from("ai_prompts")
     .select("use_case, system_prompt")
     .in("use_case", wanted)
     .is("course_id", null);
+  const globals: Record<string, string> = {};
   for (const row of (data ?? []) as Array<{ use_case: string; system_prompt: string }>) {
-    if (row.use_case === "content.presentacion") out.presentacion = row.system_prompt;
-    else if (row.use_case === "content.guia_docente") out.guia_docente = row.system_prompt;
-    else if (row.use_case === "content.taller_practico") out.taller_practico = row.system_prompt;
-    else if (row.use_case === "content.ejercicio") out.ejercicio = row.system_prompt;
-    else if (row.use_case === "content.examen") out.examen = row.system_prompt;
+    globals[row.use_case] = row.system_prompt;
   }
+  // override > global. Si ambos vacíos, queda "" y el código de
+  // composeFileSections usa un fallback inline corto.
+  const overrides = (gen?.prompt_overrides ?? {}) as Record<string, unknown>;
+  const pick = (key: string): string => {
+    const ov = overrides[key];
+    if (typeof ov === "string" && ov.trim().length > 0) return ov;
+    return globals[key] ?? "";
+  };
+  out.presentacion = pick("content.presentacion");
+  out.guia_docente = pick("content.guia_docente");
+  out.taller_practico = pick("content.taller_practico");
+  out.ejercicio = pick("content.ejercicio");
+  out.examen = pick("content.examen");
   return out;
 }
 
@@ -325,12 +350,12 @@ Deno.serve(async (req: Request) => {
   const runtime = (globalThis as any).EdgeRuntime;
   const heavyWork = (async () => {
     try {
-      const promptTemplate = await resolveContentPrompt();
+      const promptTemplate = await resolveContentPrompt(gen);
       // Tags activos para esta generación (teorico / practico / examen).
       // Fuente de verdad = columna `tags`; filas viejas caen al fallback
       // por `modality`. Solo cargamos los sub-prompts de los tags activos.
       const activeTags = resolveTags(gen);
-      const tagPrompts = await loadTagPrompts(activeTags);
+      const tagPrompts = await loadTagPrompts(gen, activeTags);
       // Etiqueta legible para `modality` — el modelo entiende mejor un
       // string descriptivo que el enum interno. Si no llega, asumimos
       // teorico_practica (el default histórico).

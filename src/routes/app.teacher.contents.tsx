@@ -61,12 +61,14 @@ import {
   Wand2,
   Pencil,
   MoreHorizontal,
+  MessageSquareText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MarkdownEditorDialog } from "@/components/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/components/PptxViewerDialog";
 import { RegenerateContentDialog } from "@/components/RegenerateContentDialog";
+import { ContentPromptsOverridesDialog } from "@/components/ContentPromptsOverridesDialog";
 import {
   availableClassNumbers,
   classNumberFromFilename,
@@ -216,6 +218,12 @@ function TeacherContents() {
     mode: "full" | "class";
     classNumber?: number;
   } | null>(null);
+  // Editor de overrides de prompts POR CONTENIDO ESPECÍFICO. Cuando
+  // está poblado con un id, se abre el dialog que permite sobrescribir
+  // el system prompt orquestador y/o los 5 sub-prompts solo para este
+  // contenido. La jerarquía resuelta en la edge function es:
+  // override (este dialog) > global (módulo de Prompts) > fallback.
+  const [promptOverridesFor, setPromptOverridesFor] = useState<string | null>(null);
   // "Programar sesiones del curso": genera N sesiones de attendance
   // a partir de fecha-inicio + días-de-la-semana, y les asigna cada
   // clase del contenido. Resuelve el caso del docente que no tiene
@@ -795,6 +803,16 @@ function TeacherContents() {
                                 onClick: () => setRawForId(it.id),
                               }
                             : null,
+                          // "Personalizar prompts" — abre el editor de
+                          // overrides POR CONTENIDO. Aparece siempre (no
+                          // depende de status) porque el docente puede
+                          // querer ajustar los prompts ANTES de regenerar
+                          // — incluso si la fila falló o aún no terminó.
+                          {
+                            label: "Personalizar prompts",
+                            icon: MessageSquareText,
+                            onClick: () => setPromptOverridesFor(it.id),
+                          },
                           {
                             label: t("contents.regenerate"),
                             icon: RefreshCw,
@@ -1134,6 +1152,15 @@ function TeacherContents() {
         target={regenerateTarget}
         onClose={() => setRegenerateTarget(null)}
         onStarted={() => void load()}
+      />
+
+      {/* Dialog para personalizar los prompts (orquestador + sub-prompts)
+          SOLO para este contenido. La jerarquía override > global > fallback
+          la resuelve la edge function `generate-contents` al regenerar. */}
+      <ContentPromptsOverridesDialog
+        contentId={promptOverridesFor}
+        onClose={() => setPromptOverridesFor(null)}
+        onSaved={() => void load()}
       />
     </div>
   );
