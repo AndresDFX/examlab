@@ -43,11 +43,19 @@ const dateLongFmt = new Intl.DateTimeFormat(LOCALE, {
   day: "2-digit",
 });
 
-// `hourCycle: "h23"` fuerza el ciclo 00..23 para que la medianoche
-// se renderice como "00:00" y no como "24:00". Sin esto, Node Linux
-// (ICU con es-CO) devuelve "24:00" para 0h mientras Node Windows
-// devuelve "00:00" — diferencia visible al usuario en servidores
-// distintos. Con `h23` ambos coinciden en "00:00".
+// Configuración de hora:
+//
+// Queremos ciclo 00..23 (medianoche como "00:00", no "24:00"). En
+// teoría `hourCycle: "h23"` lo logra, pero Node Linux/ICU con `es-CO`
+// IGNORA `hourCycle` cuando coexiste con `hour12: false` y devuelve
+// "24:00" para 0h, mientras Node Windows respeta `hourCycle` y devuelve
+// "00:00". Resultado: misma app, dos formatos según el servidor.
+//
+// Solución portable: dejamos `hourCycle` por si el runtime lo respeta
+// (mejor MX/Chrome/Firefox/Node Windows), Y post-procesamos el output
+// con `fixMidnight` para tapar el caso Linux. El regex `\b24:` exige
+// que "24" vaya seguido de ":" — descarta falsos positivos como
+// "24 sep" en la parte de fecha.
 const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
   year: "numeric",
   month: "short",
@@ -64,6 +72,13 @@ const timeFmt = new Intl.DateTimeFormat(LOCALE, {
   hour12: false,
   hourCycle: "h23",
 });
+
+function fixMidnight(s: string): string {
+  // "24:00" → "00:00", "24:30" → "00:30" (cualquier minuto). El \b
+  // garantiza que NO matcheamos "024:" ni "224:" — solo "24" como
+  // número entero seguido de ":".
+  return s.replace(/\b24:/g, "00:");
+}
 
 const weekdayFmt = new Intl.DateTimeFormat(LOCALE, {
   weekday: "long",
@@ -99,13 +114,13 @@ export function formatDateLong(value: DateInput, fallback = "—"): string {
 /** Fecha + hora. "30 sep 2026, 14:30". */
 export function formatDateTime(value: DateInput, fallback = "—"): string {
   const d = toDate(value);
-  return d ? dateTimeFmt.format(d) : fallback;
+  return d ? fixMidnight(dateTimeFmt.format(d)) : fallback;
 }
 
 /** Solo hora. "14:30". */
 export function formatTime(value: DateInput, fallback = "—"): string {
   const d = toDate(value);
-  return d ? timeFmt.format(d) : fallback;
+  return d ? fixMidnight(timeFmt.format(d)) : fallback;
 }
 
 /** Día de la semana + fecha. "lunes, 30 de septiembre".

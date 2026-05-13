@@ -13,6 +13,8 @@ export interface MessageLite {
   sender_id: string;
   body: string;
   created_at: string;
+  /** Si existe, el mensaje fue editado a esa hora. */
+  edited_at?: string | null;
 }
 
 /** Grupo "día" en la vista de chat: encabezado de fecha + items. */
@@ -123,4 +125,70 @@ export function filterByClearedAt(
 ): MessageLite[] {
   if (!clearedAt) return [...messages];
   return messages.filter((m) => m.created_at > clearedAt);
+}
+
+/**
+ * Cuenta cuántos mensajes están "sin leer" para mí en una conversación:
+ * mensajes posteriores a `lastReadAt` y enviados por OTRO usuario (no
+ * tiene sentido marcar mis propios mensajes como no-leídos).
+ *
+ * Si `lastReadAt` es null/undefined, todos los mensajes ajenos cuentan
+ * como no leídos (caso "primera apertura").
+ */
+export function unreadCount(
+  messages: readonly MessageLite[],
+  lastReadAt: string | null | undefined,
+  myUserId: string | null | undefined,
+): number {
+  if (!myUserId) return 0;
+  let n = 0;
+  for (const m of messages) {
+    if (m.sender_id === myUserId) continue;
+    if (!lastReadAt || m.created_at > lastReadAt) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Búsqueda case-insensitive sobre el body de un set de mensajes.
+ * Devuelve los mensajes que matchean. Query vacío = todos.
+ *
+ * Para resaltado visual, el caller puede usar el helper `splitByMatch`.
+ */
+export function searchMessages(
+  messages: readonly MessageLite[],
+  query: string,
+): MessageLite[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...messages];
+  return messages.filter((m) => m.body.toLowerCase().includes(q));
+}
+
+/**
+ * Divide un texto en segmentos `{text, isMatch}` según el query.
+ * Útil para resaltado: la UI envuelve los `isMatch=true` en `<mark>`.
+ *
+ * El match es case-insensitive pero respeta el casing original del texto.
+ */
+export function splitByMatch(
+  text: string,
+  query: string,
+): Array<{ text: string; isMatch: boolean }> {
+  const q = query.trim();
+  if (!q) return [{ text, isMatch: false }];
+  const qLower = q.toLowerCase();
+  const out: Array<{ text: string; isMatch: boolean }> = [];
+  let i = 0;
+  const lower = text.toLowerCase();
+  while (i < text.length) {
+    const idx = lower.indexOf(qLower, i);
+    if (idx === -1) {
+      out.push({ text: text.slice(i), isMatch: false });
+      break;
+    }
+    if (idx > i) out.push({ text: text.slice(i, idx), isMatch: false });
+    out.push({ text: text.slice(idx, idx + q.length), isMatch: true });
+    i = idx + q.length;
+  }
+  return out;
 }

@@ -5,7 +5,10 @@ import {
   groupMessagesByDay,
   previewBody,
   relativeDayLabel,
+  searchMessages,
   shouldStackWithPrevious,
+  splitByMatch,
+  unreadCount,
   type MessageLite,
 } from "./messaging";
 
@@ -223,5 +226,94 @@ describe("filterByClearedAt", () => {
     const copy = [...msgs];
     filterByClearedAt(msgs, "2026-05-17T15:00:00Z");
     expect(msgs).toEqual(copy);
+  });
+});
+
+describe("unreadCount", () => {
+  const me = "user-me";
+  const them = "user-them";
+  const msgs: MessageLite[] = [
+    { id: "m1", conversation_id: "c1", sender_id: them, body: "1", created_at: "2026-05-17T10:00:00Z" },
+    { id: "m2", conversation_id: "c1", sender_id: me, body: "2", created_at: "2026-05-17T11:00:00Z" },
+    { id: "m3", conversation_id: "c1", sender_id: them, body: "3", created_at: "2026-05-18T10:00:00Z" },
+    { id: "m4", conversation_id: "c1", sender_id: them, body: "4", created_at: "2026-05-18T11:00:00Z" },
+  ];
+
+  it("retorna 0 cuando myUserId es null", () => {
+    expect(unreadCount(msgs, "2026-01-01", null)).toBe(0);
+  });
+
+  it("cuenta solo mensajes ajenos", () => {
+    // lastReadAt = null → todos los ajenos cuentan (3).
+    expect(unreadCount(msgs, null, me)).toBe(3);
+  });
+
+  it("aplica lastReadAt strict greater", () => {
+    // Después de 2026-05-17T15:00 → solo m3 y m4 cuentan (2).
+    expect(unreadCount(msgs, "2026-05-17T15:00:00Z", me)).toBe(2);
+  });
+
+  it("nunca cuenta mis propios mensajes", () => {
+    const onlyMine: MessageLite[] = [
+      { id: "m1", conversation_id: "c1", sender_id: me, body: "a", created_at: "2026-05-18T11:00:00Z" },
+    ];
+    expect(unreadCount(onlyMine, null, me)).toBe(0);
+  });
+
+  it("0 si lastReadAt es posterior a todos los mensajes", () => {
+    expect(unreadCount(msgs, "2030-01-01T00:00:00Z", me)).toBe(0);
+  });
+});
+
+describe("searchMessages", () => {
+  const msgs: MessageLite[] = [
+    { id: "m1", conversation_id: "c", sender_id: "u", body: "Hola mundo", created_at: "2026-01-01T00:00:00Z" },
+    { id: "m2", conversation_id: "c", sender_id: "u", body: "MUNDO feliz", created_at: "2026-01-01T00:01:00Z" },
+    { id: "m3", conversation_id: "c", sender_id: "u", body: "otra cosa", created_at: "2026-01-01T00:02:00Z" },
+  ];
+
+  it("retorna todos cuando el query está vacío", () => {
+    expect(searchMessages(msgs, "")).toHaveLength(3);
+    expect(searchMessages(msgs, "  ")).toHaveLength(3);
+  });
+
+  it("es case-insensitive", () => {
+    const result = searchMessages(msgs, "mundo");
+    expect(result.map((m) => m.id)).toEqual(["m1", "m2"]);
+  });
+
+  it("retorna [] sin matches", () => {
+    expect(searchMessages(msgs, "noexiste")).toHaveLength(0);
+  });
+});
+
+describe("splitByMatch", () => {
+  it("retorna un solo segmento sin match si el query es vacío", () => {
+    const result = splitByMatch("Hola mundo", "");
+    expect(result).toEqual([{ text: "Hola mundo", isMatch: false }]);
+  });
+
+  it("parte 'Hola mundo' por 'mundo' en 2 segmentos", () => {
+    const result = splitByMatch("Hola mundo", "mundo");
+    expect(result).toEqual([
+      { text: "Hola ", isMatch: false },
+      { text: "mundo", isMatch: true },
+    ]);
+  });
+
+  it("captura múltiples matches", () => {
+    const result = splitByMatch("abc abc abc", "abc");
+    expect(result.filter((s) => s.isMatch)).toHaveLength(3);
+  });
+
+  it("preserva el casing original", () => {
+    const result = splitByMatch("Hola Mundo", "mundo");
+    const match = result.find((s) => s.isMatch);
+    expect(match?.text).toBe("Mundo");
+  });
+
+  it("sin matches: un solo segmento isMatch=false", () => {
+    const result = splitByMatch("nada", "xyz");
+    expect(result).toEqual([{ text: "nada", isMatch: false }]);
   });
 });

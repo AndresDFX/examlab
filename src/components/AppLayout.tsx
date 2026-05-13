@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/use-theme";
+import { useMessagingToasts } from "@/hooks/use-messaging-toasts";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/i18n";
 // ThemeToggle + LanguageSwitcher se siguen usando en el drawer mobile
 // (Sheet más abajo), donde sí hay espacio para botones inline. En el
@@ -281,6 +282,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const confirm = useConfirm();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const currentLang = (i18n.language.slice(0, 2) as SupportedLanguage) ?? "es";
+  // Toast efímero en realtime cuando llega un mensaje y NO estoy ya
+  // viendo /app/messages. La notificación persistente para el bell la
+  // crea el trigger SQL `tg_notify_new_message`.
+  useMessagingToasts(user?.id);
 
   const handleSignOut = async () => {
     const ok = await confirm({

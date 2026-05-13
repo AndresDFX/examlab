@@ -1,19 +1,28 @@
 /**
- * Módulo de mensajería interna 1-a-1.
+ * Módulo de mensajería interna 1-a-1 — V2.
  *
- * Reglas (implementadas vía RLS + RPC `can_message`):
- *   - Cualquier par que comparta curso puede mensajearse (cualquier
- *     combinación de roles: estudiante/docente).
- *   - Cualquier usuario puede mensajear a Admin y viceversa.
+ * Features:
+ *   - Conversaciones 1-a-1 con borrado asimétrico (V1).
+ *   - Leído/no-leído por usuario: badge en la lista con conteo de
+ *     mensajes ajenos posteriores a mi `last_read_at`. Se marca como
+ *     leído al abrir la conversación y al recibir un mensaje estando en
+ *     la conversación activa.
+ *   - Notificación automática al destinatario: trigger SQL inserta una
+ *     fila en `notifications`. El sistema existente del bell la pinta.
+ *     Adicionalmente, el hook `useMessagingToasts` (montado en
+ *     AppLayout) dispara un toast en tiempo real si NO estoy en /app/messages.
+ *   - Editar/Borrar mensajes individuales — solo los míos. Se muestra
+ *     "(editado)" cuando `edited_at` no es null.
+ *   - Adjuntos por mensaje (texto puro + 0..N archivos). Layout en
+ *     bucket `message-attachments`: <user_id>/<message_id>/<filename>.
+ *   - Búsqueda local en la conversación activa (resalta los matches).
  *
- * Borrado asimétrico: "Eliminar conversación" llama a la RPC
- * `clear_conversation`, que setea cleared_at en MI lado. El otro usuario
- * la sigue viendo intacta. Si me llega un mensaje posterior, la conv
- * "resucita" para mí (los mensajes anteriores quedan ocultos por la
- * policy de SELECT en `messages`).
- *
- * Realtime: nos suscribimos a INSERTs en `messages` y a INSERT/UPDATE en
- * `conversations` para que la lista se actualice sin polling.
+ * RLS resume:
+ *   - `conversations.SELECT`: soy miembro.
+ *   - `messages.SELECT`: soy miembro AND created_at > mi cleared_at.
+ *   - `messages.INSERT`: sender = yo AND `can_message(user_a, user_b)`.
+ *   - `messages.UPDATE`: sender = yo. `DELETE`: sender = yo.
+ *   - `message_attachments.*`: el uploader es yo + el mensaje es mío.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -45,21 +54,37 @@ import {
   GraduationCap,
   UserCog,
   User as UserIcon,
+  Pencil,
+  X,
+  Check,
+  Paperclip,
 } from "lucide-react";
 import {
   groupMessagesByDay,
   formatMessageTime,
   previewBody,
   shouldStackWithPrevious,
+  unreadCount,
+  searchMessages,
+  splitByMatch,
   type MessageLite,
 } from "@/lib/messaging";
+import {
+  buildMessageAttachmentPath,
+  MESSAGE_ATTACHMENT_MAX_COUNT,
+  formatAttachmentSize,
+  safeAttachmentName,
+  validateAttachmentFile,
+  type MessageAttachmentRow,
+} from "@/lib/message-attachments";
+import { MessageAttachments } from "@/components/MessageAttachments";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/messages")({ component: MessagesPage });
 
-// `conversations`, `messages` y las RPC no están en los types generados
-// todavía — la migración es nueva. Usamos `any` puntual hasta regenerar.
+// `conversations`, `messages`, `message_attachments` y las RPC son
+// nuevos — todavía no están en los types generados. Usamos `any` puntual.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
@@ -69,6 +94,8 @@ interface ConversationRow {
   user_b: string;
   user_a_cleared_at: string | null;
   user_b_cleared_at: string | null;
+  user_a_last_read_at: string | null;
+  user_b_last_read_at: string | null;
   created_at: string;
 }
 
@@ -81,11 +108,11 @@ interface MessageableUser {
 
 interface ConversationEnriched {
   conv: ConversationRow;
-  /** El "otro" usuario (el que NO soy yo). */
   other: MessageableUser;
-  /** Último mensaje visible para mí (respeta cleared_at). null si todos
-   *  los mensajes son anteriores al clear (conv "borrada" para mí). */
   lastMessage: MessageLite | null;
+  /** Cuántos mensajes ajenos posteriores a mi last_read_at. Calculado
+   *  via una query agregada — ver `loadAll`. */
+  unread: number;
 }
 
 const ROLE_ICON: Record<MessageableUser["role_label"], typeof Shield> = {
@@ -118,7 +145,21 @@ function MessagesPage() {
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
 
-  // Scroll-to-bottom al cargar mensajes o recibir uno nuevo.
+  // V2: búsqueda dentro de la conversación activa.
+  const [searchQuery, setSearchQuery] = useState("");
+  // V2: edición de mensaje. `editingId === m.id` reemplaza el render del
+  // bubble por un textarea.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingEditId, setSavingEditId] = useState<string | null>(null);
+  // V2: adjuntos pendientes (aún no subidos al bucket).
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // V2: adjuntos cargados por message_id (para el render bajo cada bubble).
+  const [attachmentsByMessageId, setAttachmentsByMessageId] = useState<
+    Map<string, MessageAttachmentRow[]>
+  >(new Map());
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = scrollRef.current;
@@ -126,7 +167,7 @@ function MessagesPage() {
     el.scrollTop = el.scrollHeight;
   }, [messages, activeConvId]);
 
-  /** Carga la lista de contactos + conversaciones del usuario. */
+  /** Carga contactos + conversaciones + previews + conteo "no leídos". */
   const loadAll = async () => {
     if (!myUserId) return;
     setLoading(true);
@@ -139,9 +180,6 @@ function MessagesPage() {
       const convList = (convsRes.data ?? []) as ConversationRow[];
       setContacts(contactsList);
 
-      // Para cada conv: encuentra el "otro" usuario en contacts (o llena
-      // con datos mínimos si por alguna razón no apareció en la lista),
-      // y trae el último mensaje visible.
       const contactsById = new Map(contactsList.map((c) => [c.user_id, c]));
       const enriched: ConversationEnriched[] = [];
       for (const c of convList) {
@@ -152,9 +190,19 @@ function MessagesPage() {
           email: null,
           role_label: "Usuario" as const,
         };
-        // El último mensaje lo trae con la RLS aplicada — solo los
-        // posteriores a MI cleared_at.
-        const { data: lastMsgs } = await db
+        // Último mensaje + lista corta para contar no-leídos del otro
+        // posteriores a MI last_read_at. RLS recorta lo "borrado para
+        // mí" automáticamente.
+        const lastReadAt =
+          c.user_a === myUserId ? c.user_a_last_read_at : c.user_b_last_read_at;
+        const { data: recent } = await db
+          .from("messages")
+          .select("id, sender_id, created_at")
+          .eq("conversation_id", c.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        const recentList = (recent ?? []) as MessageLite[];
+        const { data: lastMsgRow } = await db
           .from("messages")
           .select("*")
           .eq("conversation_id", c.id)
@@ -163,12 +211,10 @@ function MessagesPage() {
         enriched.push({
           conv: c,
           other,
-          lastMessage: (lastMsgs?.[0] as MessageLite | undefined) ?? null,
+          lastMessage: (lastMsgRow?.[0] as MessageLite | undefined) ?? null,
+          unread: unreadCount(recentList, lastReadAt, myUserId),
         });
       }
-      // Ordenar conversaciones por timestamp del último mensaje visible
-      // (descendente). Conversaciones sin mensaje visible (recién creadas
-      // o totalmente borradas) van al final por `created_at`.
       enriched.sort((a, b) => {
         const aT = a.lastMessage?.created_at ?? a.conv.created_at;
         const bT = b.lastMessage?.created_at ?? b.conv.created_at;
@@ -186,8 +232,7 @@ function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId]);
 
-  // Realtime: cuando llega un INSERT en messages dirigido a una conv mía,
-  // recargamos previews (y mensajes si la conv está activa).
+  // Realtime: INSERTs en messages/conversations/message_attachments.
   useEffect(() => {
     if (!myUserId) return;
     const channel = supabase
@@ -197,18 +242,47 @@ function MessagesPage() {
         { event: "INSERT", schema: "public", table: "messages" },
         (payload: { new: MessageLite }) => {
           const m = payload.new;
-          // Si es de la conv activa, append; siempre actualizar previews.
           if (activeConvId && m.conversation_id === activeConvId) {
             setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+            // Si estoy en la conv activa y llega un mensaje ajeno, marco
+            // como leído automáticamente — es coherente con que estoy
+            // VIENDO la conversación.
+            if (m.sender_id !== myUserId) {
+              void db.rpc("mark_conversation_read", { _conv_id: activeConvId });
+            }
           }
           void loadAll();
         },
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "conversations" },
-        () => {
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload: { new: MessageLite }) => {
+          const m = payload.new;
+          if (activeConvId && m.conversation_id === activeConvId) {
+            setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)));
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload: { old: { id: string; conversation_id?: string } }) => {
+          const m = payload.old;
+          setMessages((prev) => prev.filter((x) => x.id !== m.id));
           void loadAll();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversations" },
+        () => void loadAll(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_attachments" },
+        () => {
+          if (activeConvId) void reloadAttachments(activeConvId);
         },
       )
       .subscribe();
@@ -218,10 +292,39 @@ function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId, activeConvId]);
 
-  // Cargar mensajes cuando cambia la conv activa.
+  /** Recarga la map de adjuntos para los mensajes de UNA conv. */
+  const reloadAttachments = async (convId: string) => {
+    const { data: msgs } = await db
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", convId);
+    const ids = ((msgs ?? []) as Array<{ id: string }>).map((m) => m.id);
+    if (ids.length === 0) {
+      setAttachmentsByMessageId(new Map());
+      return;
+    }
+    const { data: atts } = await db
+      .from("message_attachments")
+      .select("*")
+      .in("message_id", ids)
+      .order("created_at", { ascending: true });
+    const m = new Map<string, MessageAttachmentRow[]>();
+    for (const row of (atts ?? []) as MessageAttachmentRow[]) {
+      const arr = m.get(row.message_id) ?? [];
+      arr.push(row);
+      m.set(row.message_id, arr);
+    }
+    setAttachmentsByMessageId(m);
+  };
+
+  // Al cambiar la conv activa: carga mensajes + adjuntos + marca como leída.
   useEffect(() => {
     if (!activeConvId) {
       setMessages([]);
+      setAttachmentsByMessageId(new Map());
+      setSearchQuery("");
+      setEditingId(null);
+      setPendingFiles([]);
       return;
     }
     let cancelled = false;
@@ -240,6 +343,10 @@ function MessagesPage() {
           return;
         }
         setMessages((data ?? []) as MessageLite[]);
+        await reloadAttachments(activeConvId);
+        // Marca leída — silencioso. El loadAll que dispara realtime
+        // refresca el badge de la lista de convs.
+        void db.rpc("mark_conversation_read", { _conv_id: activeConvId }).then(() => loadAll());
       } finally {
         if (!cancelled) setLoadingMessages(false);
       }
@@ -247,12 +354,77 @@ function MessagesPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConvId]);
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return;
+    const next: File[] = [];
+    for (const f of Array.from(incoming)) {
+      const err = validateAttachmentFile(f);
+      if (err) {
+        toast.error(`${f.name}: ${err}`);
+        continue;
+      }
+      next.push(f);
+    }
+    setPendingFiles((prev) => {
+      const merged = [...prev, ...next];
+      if (merged.length > MESSAGE_ATTACHMENT_MAX_COUNT) {
+        toast.error(`Máximo ${MESSAGE_ATTACHMENT_MAX_COUNT} archivos por mensaje.`);
+        return merged.slice(0, MESSAGE_ATTACHMENT_MAX_COUNT);
+      }
+      return merged;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removePendingFile = (idx: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const uploadPendingFiles = async (messageId: string): Promise<MessageAttachmentRow[]> => {
+    if (pendingFiles.length === 0 || !myUserId) return [];
+    const created: MessageAttachmentRow[] = [];
+    for (const file of pendingFiles) {
+      const safe = safeAttachmentName(file.name);
+      const path = buildMessageAttachmentPath(myUserId, messageId, file.name);
+      const up = await supabase.storage.from("message-attachments").upload(path, file, {
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+      if (up.error) {
+        toast.error(`No se pudo subir ${safe}: ${up.error.message}`);
+        continue;
+      }
+      const { data, error } = await db
+        .from("message_attachments")
+        .insert({
+          message_id: messageId,
+          path,
+          name: safe,
+          mime_type: file.type || null,
+          size_bytes: file.size,
+          uploaded_by: myUserId,
+        })
+        .select("*")
+        .single();
+      if (error || !data) {
+        await supabase.storage.from("message-attachments").remove([path]);
+        toast.error(`No se pudo registrar ${safe}: ${error?.message ?? "desconocido"}`);
+        continue;
+      }
+      created.push(data as MessageAttachmentRow);
+    }
+    return created;
+  };
 
   const send = async () => {
     if (!activeConvId || !myUserId) return;
-    const text = body.trim();
-    if (!text) return;
+    const hasBody = body.trim().length > 0;
+    const hasFiles = pendingFiles.length > 0;
+    if (!hasBody && !hasFiles) return;
+    const text = hasBody ? body.trim() : "(adjuntos)";
     setSending(true);
     try {
       const { data, error } = await db
@@ -264,15 +436,92 @@ function MessagesPage() {
         toast.error(error?.message ?? "No se pudo enviar el mensaje");
         return;
       }
+      const inserted = data as MessageLite;
+      // Subir adjuntos antes del append para que el bubble pinte ya con
+      // los archivos en su lugar.
+      const newAtts = await uploadPendingFiles(inserted.id);
       setMessages((prev) =>
-        prev.some((m) => m.id === (data as MessageLite).id) ? prev : [...prev, data as MessageLite],
+        prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted],
       );
+      if (newAtts.length > 0) {
+        setAttachmentsByMessageId((prev) => {
+          const next = new Map(prev);
+          next.set(inserted.id, newAtts);
+          return next;
+        });
+      }
       setBody("");
-      // refresh previews
+      setPendingFiles([]);
       void loadAll();
     } finally {
       setSending(false);
     }
+  };
+
+  const startEdit = (m: MessageLite) => {
+    setEditingId(m.id);
+    setEditingText(m.body);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const trimmed = editingText.trim();
+    if (!trimmed) {
+      toast.error("El mensaje no puede estar vacío");
+      return;
+    }
+    setSavingEditId(editingId);
+    try {
+      const { data, error } = await db
+        .from("messages")
+        .update({ body: trimmed, edited_at: new Date().toISOString() })
+        .eq("id", editingId)
+        .select("*")
+        .single();
+      if (error || !data) {
+        toast.error(error?.message ?? "No se pudo editar el mensaje");
+        return;
+      }
+      setMessages((prev) =>
+        prev.map((m) => (m.id === editingId ? { ...m, ...(data as MessageLite) } : m)),
+      );
+      cancelEdit();
+    } finally {
+      setSavingEditId(null);
+    }
+  };
+
+  const deleteMessage = async (m: MessageLite) => {
+    const ok = await confirm({
+      title: "Eliminar mensaje",
+      description:
+        "Se eliminará el mensaje para ambas partes. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    // También borramos los adjuntos del bucket (la fila se borra por
+    // CASCADE cuando el message se borra; el archivo en storage NO).
+    const atts = attachmentsByMessageId.get(m.id) ?? [];
+    if (atts.length > 0) {
+      await supabase.storage.from("message-attachments").remove(atts.map((a) => a.path));
+    }
+    const { error } = await db.from("messages").delete().eq("id", m.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setMessages((prev) => prev.filter((x) => x.id !== m.id));
+    setAttachmentsByMessageId((prev) => {
+      const next = new Map(prev);
+      next.delete(m.id);
+      return next;
+    });
   };
 
   const openConversationWith = async (otherUserId: string) => {
@@ -318,7 +567,12 @@ function MessagesPage() {
   }, [contacts, contactSearch]);
 
   const activeConv = conversations.find((c) => c.conv.id === activeConvId) ?? null;
-  const dayGroups = useMemo(() => groupMessagesByDay(messages), [messages]);
+  // Mensajes filtrados por búsqueda local.
+  const visibleMessages = useMemo(
+    () => searchMessages(messages, searchQuery),
+    [messages, searchQuery],
+  );
+  const dayGroups = useMemo(() => groupMessagesByDay(visibleMessages), [visibleMessages]);
 
   return (
     <div className="space-y-3">
@@ -366,6 +620,14 @@ function MessagesPage() {
                           <span className="font-medium text-sm truncate flex-1">
                             {c.other.full_name ?? c.other.email ?? "Usuario"}
                           </span>
+                          {c.unread > 0 && (
+                            <Badge
+                              className="text-[10px] h-4 min-w-4 px-1 bg-primary text-primary-foreground"
+                              data-testid={`unread-badge-${c.conv.id}`}
+                            >
+                              {c.unread}
+                            </Badge>
+                          )}
                           <Badge
                             variant="outline"
                             className={cn("text-[9px] px-1 py-0 h-auto", ROLE_BADGE_CLASS[c.other.role_label])}
@@ -373,7 +635,14 @@ function MessagesPage() {
                             {c.other.role_label}
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground truncate">
+                        <p
+                          className={cn(
+                            "text-[11px] truncate",
+                            c.unread > 0
+                              ? "text-foreground font-medium"
+                              : "text-muted-foreground",
+                          )}
+                        >
                           {previewBody(c.lastMessage?.body, 50) || (
                             <span className="italic">Sin mensajes visibles</span>
                           )}
@@ -432,15 +701,31 @@ function MessagesPage() {
                   </Button>
                 </div>
 
+                {/* Búsqueda local */}
+                <div className="px-3 py-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar en la conversación…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-7 h-8 text-xs"
+                      aria-label="Buscar en la conversación"
+                    />
+                  </div>
+                </div>
+
                 {/* Mensajes */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
                   {loadingMessages ? (
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                       <Spinner size="sm" /> Cargando mensajes…
                     </div>
-                  ) : messages.length === 0 ? (
+                  ) : visibleMessages.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic text-center py-8">
-                      Aún no hay mensajes. Escribe el primero ↓
+                      {searchQuery.trim()
+                        ? "Sin coincidencias para la búsqueda."
+                        : "Aún no hay mensajes. Escribe el primero ↓"}
                     </p>
                   ) : (
                     dayGroups.map((group) => (
@@ -453,32 +738,135 @@ function MessagesPage() {
                         {group.items.map((m, idx) => {
                           const mine = m.sender_id === myUserId;
                           const stack = shouldStackWithPrevious(m, group.items[idx - 1]);
+                          const isEditing = editingId === m.id;
+                          const isSaving = savingEditId === m.id;
+                          const atts = attachmentsByMessageId.get(m.id) ?? [];
                           return (
                             <div
                               key={m.id}
                               className={cn(
-                                "flex",
+                                "flex group",
                                 mine ? "justify-end" : "justify-start",
                                 stack ? "mt-0.5" : "mt-1.5",
                               )}
                             >
                               <div
                                 className={cn(
-                                  "max-w-[75%] rounded-lg px-3 py-1.5 text-sm shadow-sm",
+                                  "max-w-[75%] rounded-lg px-3 py-1.5 text-sm shadow-sm relative",
                                   mine
                                     ? "bg-primary text-primary-foreground rounded-br-sm"
                                     : "bg-muted text-foreground rounded-bl-sm",
                                 )}
                               >
-                                <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                                <p
-                                  className={cn(
-                                    "text-[9px] mt-0.5 tabular-nums",
-                                    mine ? "text-primary-foreground/70" : "text-muted-foreground",
-                                  )}
-                                >
-                                  {formatMessageTime(m.created_at)}
-                                </p>
+                                {isEditing ? (
+                                  <div className="space-y-1 min-w-[200px]">
+                                    <Textarea
+                                      value={editingText}
+                                      onChange={(e) => setEditingText(e.target.value)}
+                                      rows={2}
+                                      className="text-xs min-h-[2.5rem] bg-background text-foreground"
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                          e.preventDefault();
+                                          void saveEdit();
+                                        }
+                                        if (e.key === "Escape") {
+                                          e.preventDefault();
+                                          cancelEdit();
+                                        }
+                                      }}
+                                    />
+                                    <div className="flex justify-end gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 text-[10px] text-primary-foreground hover:text-primary-foreground"
+                                        onClick={cancelEdit}
+                                        disabled={isSaving}
+                                      >
+                                        <X className="h-3 w-3 mr-1" /> Cancelar
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        className="h-6 text-[10px]"
+                                        onClick={() => void saveEdit()}
+                                        disabled={isSaving || !editingText.trim()}
+                                      >
+                                        {isSaving ? (
+                                          <Spinner size="xs" className="mr-1" />
+                                        ) : (
+                                          <Check className="h-3 w-3 mr-1" />
+                                        )}
+                                        Guardar
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <p className="whitespace-pre-wrap break-words">
+                                      {searchQuery.trim()
+                                        ? splitByMatch(m.body, searchQuery).map((seg, i) =>
+                                            seg.isMatch ? (
+                                              <mark
+                                                key={i}
+                                                className={cn(
+                                                  "rounded px-0.5",
+                                                  mine
+                                                    ? "bg-primary-foreground text-primary"
+                                                    : "bg-yellow-200 text-foreground dark:bg-yellow-500/40",
+                                                )}
+                                              >
+                                                {seg.text}
+                                              </mark>
+                                            ) : (
+                                              <span key={i}>{seg.text}</span>
+                                            ),
+                                          )
+                                        : m.body}
+                                    </p>
+                                    {atts.length > 0 && (
+                                      <MessageAttachments attachments={atts} inverted={mine} />
+                                    )}
+                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                      <p
+                                        className={cn(
+                                          "text-[9px] tabular-nums",
+                                          mine ? "text-primary-foreground/70" : "text-muted-foreground",
+                                        )}
+                                      >
+                                        {formatMessageTime(m.created_at)}
+                                        {m.edited_at ? " · editado" : ""}
+                                      </p>
+                                      {mine && (
+                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 text-primary-foreground hover:text-primary-foreground"
+                                            onClick={() => startEdit(m)}
+                                            title="Editar mensaje"
+                                            aria-label={`Editar mensaje ${m.id}`}
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 text-primary-foreground hover:text-primary-foreground"
+                                            onClick={() => void deleteMessage(m)}
+                                            title="Eliminar mensaje"
+                                            aria-label={`Eliminar mensaje ${m.id}`}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           );
@@ -488,28 +876,85 @@ function MessagesPage() {
                   )}
                 </div>
 
-                {/* Composer */}
-                <div className="border-t p-2 flex gap-2">
-                  <Textarea
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder="Escribe un mensaje…"
-                    rows={2}
-                    className="text-sm min-h-[2.5rem] resize-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        void send();
-                      }
-                    }}
-                  />
-                  <Button
-                    onClick={() => void send()}
-                    disabled={!body.trim() || sending}
-                    className="self-end h-9"
-                  >
-                    {sending ? <Spinner size="xs" /> : <Send className="h-4 w-4" />}
-                  </Button>
+                {/* Composer + adjuntos */}
+                <div className="border-t p-2 space-y-1.5">
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      placeholder="Escribe un mensaje…"
+                      rows={2}
+                      className="text-sm min-h-[2.5rem] resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          void send();
+                        }
+                      }}
+                    />
+                    <div className="flex flex-col gap-1 self-end">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => addFiles(e.target.files)}
+                        aria-label="Adjuntar archivos"
+                        data-testid="message-file-input"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 px-2"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={
+                          sending || pendingFiles.length >= MESSAGE_ATTACHMENT_MAX_COUNT
+                        }
+                        title="Adjuntar archivos"
+                        aria-label="Adjuntar archivos"
+                      >
+                        <Paperclip className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        onClick={() => void send()}
+                        disabled={(!body.trim() && pendingFiles.length === 0) || sending}
+                        className="h-9"
+                      >
+                        {sending ? <Spinner size="xs" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  {pendingFiles.length > 0 && (
+                    <ul className="space-y-1" data-testid="message-pending-files">
+                      {pendingFiles.map((f, idx) => (
+                        <li
+                          key={`${f.name}-${idx}`}
+                          className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-[11px]"
+                        >
+                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="truncate flex-1" title={f.name}>
+                            {f.name}
+                          </span>
+                          <span className="text-muted-foreground tabular-nums shrink-0">
+                            {formatAttachmentSize(f.size)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
+                            onClick={() => removePendingFile(idx)}
+                            disabled={sending}
+                            title="Quitar"
+                            aria-label={`Quitar ${f.name}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </>
             )}
