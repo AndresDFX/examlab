@@ -1,4 +1,9 @@
-// AI question generator via AI Gateway (Gemini)
+// AI question generator. Las llamadas IA se enrutan al provider activo
+// configurado en `ai_model_settings` (lovable | openai | gemini), mismo
+// patrón que `ai-grade-submission` y `generate-contents` — antes esta
+// función iba HARDCODED a `ai.gateway.lovable.dev`, lo que rompía con
+// "Error en gateway de IA" para usuarios con Supabase propio que ya no
+// tenían `LOVABLE_API_KEY` configurada o que cambiaron a Gemini/OpenAI.
 import { adminClient, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
@@ -7,6 +12,105 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ── Provider de IA dinámico ──────────────────────────────────────────
+// Cachea la fila `is_active=true` de `ai_model_settings` por invocación.
+// Permite múltiples llamadas (ej. proyecto con N preguntas) sin re-query.
+type AiProvider = "lovable" | "openai" | "gemini";
+let cachedModel: { provider: AiProvider; model: string } | null = null;
+
+async function getActiveAiModel(): Promise<{ provider: AiProvider; model: string }> {
+  if (cachedModel) return cachedModel;
+  try {
+    const { data } = await adminClient
+      .from("ai_model_settings")
+      .select("provider, model")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (
+      data &&
+      (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
+    ) {
+      cachedModel = { provider: data.provider, model: data.model };
+      return cachedModel;
+    }
+  } catch (e) {
+    console.warn("[ai_model_settings] resolve failed, using default:", e);
+  }
+  // Fallback: provider lovable + gemini-2.5-flash (era el modelo hardcoded
+  // antes del refactor; mantenemos el default para no romper instancias
+  // que aún corren con Lovable + key vigente).
+  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash" };
+  return cachedModel;
+}
+
+/**
+ * Wrapper de chat completions. Decide URL/key/modelo según el provider
+ * activo. Todos los providers hablan el formato OpenAI chat-completions
+ * estándar → el `body` viaja idéntico, solo cambian endpoint + auth.
+ *
+ * El caller pasa `messages`, opcionalmente `tools` y `tool_choice`. NO
+ * pasa `model` — eso lo resuelve esta función desde `ai_model_settings`.
+ *
+ * `modelOverride` permite especificar un modelo distinto al de settings
+ * dentro del mismo provider (ej. usar `gemini-2.5-pro` para una llamada
+ * pesada cuando settings tiene `flash`). Si no se pasa, usa el del DB.
+ */
+async function aiChatCompletion(body: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tools?: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tool_choice?: any;
+  modelOverride?: string;
+}): Promise<Response> {
+  const m = await getActiveAiModel();
+  let url: string;
+  let key: string | undefined;
+  if (m.provider === "openai") {
+    url = "https://api.openai.com/v1/chat/completions";
+    key = Deno.env.get("OPENAI_API_KEY");
+    if (!key) throw new Error("OPENAI_API_KEY missing. Configura el secret o cambia el provider.");
+  } else if (m.provider === "gemini") {
+    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    key = Deno.env.get("GEMINI_API_KEY");
+    if (!key) throw new Error("GEMINI_API_KEY missing. Configura el secret o cambia el provider.");
+  } else {
+    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    key = Deno.env.get("LOVABLE_API_KEY");
+    if (!key)
+      throw new Error("LOVABLE_API_KEY missing. Configura el secret o cambia el provider.");
+  }
+  // El `model` final: si el caller pasó override, lo usa; si no, el de settings.
+  const finalModel = body.modelOverride ?? m.model;
+  const { modelOverride: _ignore, ...rest } = body;
+  void _ignore;
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model: finalModel, ...rest }),
+  });
+}
+
+/**
+ * Formatea el detalle de un fallo IA para que el usuario vea status +
+ * snippet del cuerpo en vez de un "Error en gateway de IA" opaco. El
+ * cuerpo se trunca a 200 chars para no inundar audit logs y notificaciones.
+ */
+async function describeAiError(res: Response): Promise<string> {
+  let body = "";
+  try {
+    body = await res.text();
+  } catch {
+    /* ignore */
+  }
+  const snippet = body.slice(0, 200).replace(/\s+/g, " ").trim();
+  return `Error de IA [${res.status}]${snippet ? `: ${snippet}` : ""}`;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -92,8 +196,7 @@ Deno.serve(async (req) => {
     // inyecta en cada llamada de calificación de `ai-grade-submission`
     // para que cada pregunta se evalúe sin perder de vista el alcance.
     if (body.projectDescriptionGeneration) {
-      const KEYD = Deno.env.get("LOVABLE_API_KEY");
-      if (!KEYD) throw new Error("LOVABLE_API_KEY missing");
+      // Provider validation vive en `aiChatCompletion` según `ai_model_settings`.
       const { topic, courseId, courseLanguage } = body;
       if (!topic || typeof topic !== "string" || !topic.trim()) {
         return new Response(JSON.stringify({ error: "topic requerido" }), {
@@ -116,22 +219,17 @@ Deno.serve(async (req) => {
         fallback,
       );
 
-      const aiResD = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEYD}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: `${systemPrompt}\n\nIdioma de salida obligatorio: ${langName}.`,
-            },
-            {
-              role: "user",
-              content: `Tema del proyecto: ${topic.trim()}\n\nDevuelve solo la descripción en ${langName}.`,
-            },
-          ],
-        }),
+      const aiResD = await aiChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: `${systemPrompt}\n\nIdioma de salida obligatorio: ${langName}.`,
+          },
+          {
+            role: "user",
+            content: `Tema del proyecto: ${topic.trim()}\n\nDevuelve solo la descripción en ${langName}.`,
+          },
+        ],
       });
       if (aiResD.status === 429) {
         return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
@@ -146,9 +244,7 @@ Deno.serve(async (req) => {
         });
       }
       if (!aiResD.ok) {
-        const err = await aiResD.text();
-        console.error("AI error", aiResD.status, err);
-        throw new Error("Error en gateway de IA");
+        throw new Error(await describeAiError(aiResD));
       }
       const aiJsonD = await aiResD.json();
       const description: string = aiJsonD.choices?.[0]?.message?.content?.toString().trim() ?? "";
@@ -159,8 +255,6 @@ Deno.serve(async (req) => {
 
     // ── Modo: generación de enunciado de PROYECTO ──
     if (body.projectStatement) {
-      const KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!KEY) throw new Error("LOVABLE_API_KEY missing");
       const {
         topic,
         projectType = "escrito", // 'escrito' | 'codigo' | 'diagrama'
@@ -172,49 +266,44 @@ Deno.serve(async (req) => {
         courseLanguage === "en" || courseLanguage === "es" ? courseLanguage : "es";
       const langName = lang === "en" ? "inglés (English)" : "español";
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          messages: [
-            {
-              role: "system",
-              content: `Eres un docente experto que diseña enunciados de proyectos académicos claros, retadores y bien estructurados.
+      const aiRes = await aiChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: `Eres un docente experto que diseña enunciados de proyectos académicos claros, retadores y bien estructurados.
 Devuelve un enunciado completo en ${langName} con: contexto/objetivo, alcance, entregables (respetando exactamente el número máximo de archivos), criterios de evaluación y restricciones técnicas según el tipo de proyecto.`,
-            },
-            {
-              role: "user",
-              content: `Tema: ${topic}
+          },
+          {
+            role: "user",
+            content: `Tema: ${topic}
 Tipo de proyecto: ${projectType} (escrito = ensayo/informe; codigo = solución de programación; diagrama = modelado UML/ER/flujo)
 Número máximo de archivos a entregar: ${maxFiles}
 El estudiante deberá subir los archivos comprimidos en un ZIP.
 Idioma obligatorio: ${langName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "build_project_statement",
-                description: "Devuelve el enunciado del proyecto",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    instructions: {
-                      type: "string",
-                      description: "Enunciado completo en Markdown con secciones",
-                    },
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "build_project_statement",
+              description: "Devuelve el enunciado del proyecto",
+              parameters: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  instructions: {
+                    type: "string",
+                    description: "Enunciado completo en Markdown con secciones",
                   },
-                  required: ["title", "description", "instructions"],
                 },
+                required: ["title", "description", "instructions"],
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "build_project_statement" } },
-        }),
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "build_project_statement" } },
       });
 
       if (aiRes.status === 429) {
@@ -230,9 +319,7 @@ Idioma obligatorio: ${langName}.`,
         });
       }
       if (!aiRes.ok) {
-        const err = await aiRes.text();
-        console.error("AI error", aiRes.status, err);
-        throw new Error("Error en gateway de IA");
+        throw new Error(await describeAiError(aiRes));
       }
       const aiJson = await aiRes.json();
       const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
@@ -254,8 +341,6 @@ Idioma obligatorio: ${langName}.`,
     // (entre 2 y 5) son a criterio de la IA con type ∈
     // {abierta, diagrama, cerrada}.
     if (body.projectQuestionsAutoGeneration) {
-      const KEY_PQA = Deno.env.get("LOVABLE_API_KEY");
-      if (!KEY_PQA) throw new Error("LOVABLE_API_KEY missing");
       const {
         projectId,
         description,
@@ -298,63 +383,55 @@ Idioma obligatorio: ${langName}.`,
         fallbackPQA,
       );
 
-      const aiResPQA = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${KEY_PQA}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: `${systemPromptPQA}\n\nIdioma de salida obligatorio: ${pqaLangName}.`,
-            },
-            {
-              role: "user",
-              content: `Descripción del proyecto:\n${description.trim()}\n\nGenera el set de preguntas evaluativas en ${pqaLangName} respetando las reglas del system prompt.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "build_project_questions",
-                description:
-                  "Devuelve el set de preguntas evaluativas del proyecto. Exactamente una con type='codigo_zip', el resto con type entre 'abierta'|'diagrama'|'cerrada'.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    questions: {
-                      type: "array",
-                      minItems: 3,
-                      maxItems: 6,
-                      items: {
-                        type: "object",
-                        properties: {
-                          title: { type: "string" },
-                          description: { type: "string" },
-                          type: {
-                            type: "string",
-                            enum: ["codigo_zip", "abierta", "diagrama", "cerrada"],
-                          },
-                          expected_rubric: { type: "string" },
+      const aiResPQA = await aiChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: `${systemPromptPQA}\n\nIdioma de salida obligatorio: ${pqaLangName}.`,
+          },
+          {
+            role: "user",
+            content: `Descripción del proyecto:\n${description.trim()}\n\nGenera el set de preguntas evaluativas en ${pqaLangName} respetando las reglas del system prompt.`,
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "build_project_questions",
+              description:
+                "Devuelve el set de preguntas evaluativas del proyecto. Exactamente una con type='codigo_zip', el resto con type entre 'abierta'|'diagrama'|'cerrada'.",
+              parameters: {
+                type: "object",
+                properties: {
+                  questions: {
+                    type: "array",
+                    minItems: 3,
+                    maxItems: 6,
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        description: { type: "string" },
+                        type: {
+                          type: "string",
+                          enum: ["codigo_zip", "abierta", "diagrama", "cerrada"],
                         },
-                        required: ["title", "description", "type", "expected_rubric"],
+                        expected_rubric: { type: "string" },
                       },
+                      required: ["title", "description", "type", "expected_rubric"],
                     },
                   },
-                  required: ["questions"],
                 },
+                required: ["questions"],
               },
             },
-          ],
-          tool_choice: {
-            type: "function",
-            function: { name: "build_project_questions" },
           },
-        }),
+        ],
+        tool_choice: {
+          type: "function",
+          function: { name: "build_project_questions" },
+        },
       });
 
       if (aiResPQA.status === 429) {
@@ -370,9 +447,7 @@ Idioma obligatorio: ${langName}.`,
         });
       }
       if (!aiResPQA.ok) {
-        const err = await aiResPQA.text();
-        console.error("AI error", aiResPQA.status, err);
-        throw new Error("Error en gateway de IA");
+        throw new Error(await describeAiError(aiResPQA));
       }
 
       const aiJsonPQA = await aiResPQA.json();
@@ -453,8 +528,6 @@ Idioma obligatorio: ${langName}.`,
     // Body: { projectFilesGeneration: true, projectId, topic, count, courseLanguage }
     // Devuelve y persiste N rows en `project_files` con title/description/expected_rubric.
     if (body.projectFilesGeneration) {
-      const KEY2 = Deno.env.get("LOVABLE_API_KEY");
-      if (!KEY2) throw new Error("LOVABLE_API_KEY missing");
       const { projectId, topic, count: pfCount = 3, courseLanguage: pfLang } = body;
       if (!projectId || !topic) {
         return new Response(JSON.stringify({ error: "projectId y topic requeridos" }), {
@@ -480,56 +553,51 @@ Idioma obligatorio: ${langName}.`,
       }
       const pfLangName = pfCourseLang === "en" ? "inglés (English)" : "español";
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY2}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: `Eres un docente experto que diseña proyectos académicos. Dado un tema, debes producir EXACTAMENTE ${cnt} archivos esperados que un estudiante debe entregar para completar el proyecto. Cada archivo es una pieza textual independiente (documento de diseño, código, evidencias, manual de usuario, etc.) que el estudiante pegará en una caja de texto y la IA calificará con la rúbrica que tú escribas.
+      const aiRes = await aiChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: `Eres un docente experto que diseña proyectos académicos. Dado un tema, debes producir EXACTAMENTE ${cnt} archivos esperados que un estudiante debe entregar para completar el proyecto. Cada archivo es una pieza textual independiente (documento de diseño, código, evidencias, manual de usuario, etc.) que el estudiante pegará en una caja de texto y la IA calificará con la rúbrica que tú escribas.
 REGLA DE IDIOMA: responde siempre en ${pfLangName}.`,
-            },
-            {
-              role: "user",
-              content: `Tema del proyecto: ${topic}
+          },
+          {
+            role: "user",
+            content: `Tema del proyecto: ${topic}
 Número exacto de archivos: ${cnt}
 Para cada archivo devuelve: title (corto), description (qué debe contener desde la perspectiva del estudiante), expected_rubric (criterios objetivos para calificar).
 Idioma obligatorio: ${pfLangName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "build_project_files",
-                description: "Devuelve los archivos esperados del proyecto",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    files: {
-                      type: "array",
-                      minItems: cnt,
-                      maxItems: cnt,
-                      items: {
-                        type: "object",
-                        properties: {
-                          title: { type: "string" },
-                          description: { type: "string" },
-                          expected_rubric: { type: "string" },
-                        },
-                        required: ["title", "description", "expected_rubric"],
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "build_project_files",
+              description: "Devuelve los archivos esperados del proyecto",
+              parameters: {
+                type: "object",
+                properties: {
+                  files: {
+                    type: "array",
+                    minItems: cnt,
+                    maxItems: cnt,
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        description: { type: "string" },
+                        expected_rubric: { type: "string" },
                       },
+                      required: ["title", "description", "expected_rubric"],
                     },
                   },
-                  required: ["files"],
                 },
+                required: ["files"],
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "build_project_files" } },
-        }),
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "build_project_files" } },
       });
 
       if (aiRes.status === 429) {
@@ -545,9 +613,7 @@ Idioma obligatorio: ${pfLangName}.`,
         });
       }
       if (!aiRes.ok) {
-        const err = await aiRes.text();
-        console.error("AI error", aiRes.status, err);
-        throw new Error("Error en gateway de IA");
+        throw new Error(await describeAiError(aiRes));
       }
 
       const aiJson = await aiRes.json();
@@ -615,9 +681,6 @@ Idioma obligatorio: ${pfLangName}.`,
     if (type === "codigo" || type === "codigo_zip") {
       codeLanguage = allowedLanguages.has(language) ? language : "java";
     }
-
-    const KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!KEY) throw new Error("LOVABLE_API_KEY missing");
 
     // Singleton compartido (`adminClient`) en vez de createClient inline.
     // Antes se llamaba `createClient` directo sin importarlo — y rompía
@@ -717,18 +780,13 @@ Idioma de salida obligatorio: ${langName}.`;
       },
     ];
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        tools,
-        tool_choice: { type: "function", function: { name: "create_questions" } },
-      }),
+    const aiRes = await aiChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      tools,
+      tool_choice: { type: "function", function: { name: "create_questions" } },
     });
 
     if (aiRes.status === 429)
@@ -744,9 +802,7 @@ Idioma de salida obligatorio: ${langName}.`;
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     if (!aiRes.ok) {
-      const t = await aiRes.text();
-      console.error("AI error", aiRes.status, t);
-      throw new Error("Error en gateway de IA");
+      throw new Error(await describeAiError(aiRes));
     }
 
     const aiJson = await aiRes.json();
