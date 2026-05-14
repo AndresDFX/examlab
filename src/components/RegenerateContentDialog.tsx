@@ -87,24 +87,27 @@ export function RegenerateContentDialog({
     }
     setSaving(true);
     try {
-      // 1) Persistir topic + instructions en la fila. Cuando la edge
-      //    function arranca, relee estos campos para armar el prompt.
-      const update: Record<string, unknown> = {
-        topic: topic.trim(),
-        instructions: instructions.trim() ? instructions.trim() : null,
-      };
-      // Para regen completa también reseteamos status + error. Para
-      // regen por clase NO tocamos status — la edge function maneja
-      // el rollback a 'done' si algo falla parcialmente.
+      // Para regen COMPLETA: persistimos topic + instructions en la
+      // fila — son el tema/contexto del curso entero y la edge function
+      // los relee al armar el prompt. También reseteamos status/error.
+      //
+      // Para regen POR CLASE: NO tocamos `topic` ni `instructions` de
+      // la fila. El topic editado es solo de ESTA clase y se pasa al
+      // edge function como `class_topic` en el body. Así el tema general
+      // del curso queda intacto y future regen de OTRAS clases sigue
+      // usando el contexto correcto.
       if (target.mode === "full") {
-        update.status = "queued";
-        update.error = null;
+        const { error } = await db
+          .from("generated_contents")
+          .update({
+            topic: topic.trim(),
+            instructions: instructions.trim() ? instructions.trim() : null,
+            status: "queued",
+            error: null,
+          })
+          .eq("id", target.contentId);
+        if (error) throw new Error(error.message);
       }
-      const { error } = await db
-        .from("generated_contents")
-        .update(update)
-        .eq("id", target.contentId);
-      if (error) throw new Error(error.message);
 
       // 2) Disparar la edge function.
       if (target.mode === "full") {
@@ -117,7 +120,16 @@ export function RegenerateContentDialog({
         // Esperamos esta sí porque el caller espera feedback inmediato.
         void supabase.functions
           .invoke("generate-contents", {
-            body: { id: target.contentId, target_class: target.classNumber },
+            body: {
+              id: target.contentId,
+              target_class: target.classNumber,
+              // Tema específico de esta clase. El edge function lo usa
+              // como contexto puntual sin pisar el `topic` del curso.
+              class_topic: topic.trim(),
+              // Instrucciones puntuales para esta clase, si las hubo.
+              // Pueden estar vacías — el edge usará las de la fila.
+              class_instructions: instructions.trim() ? instructions.trim() : null,
+            },
           })
           .then(({ data, error: invErr }) => {
             if (invErr) {
@@ -166,19 +178,45 @@ export function RegenerateContentDialog({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label required>
-              {t("contents.topic")}
-              <HelpHint>{t("contents.topicHint")}</HelpHint>
+              {target.mode === "class"
+                ? t("contents.classTopic", { defaultValue: "Tema de esta clase" })
+                : t("contents.topic")}
+              <HelpHint>
+                {target.mode === "class"
+                  ? t("contents.classTopicHint", {
+                      defaultValue:
+                        "Tema específico de esta clase (no del curso completo). El curso conserva su tema general; solo se regenera esta clase con el nuevo enfoque.",
+                    })
+                  : t("contents.topicHint")}
+              </HelpHint>
             </Label>
             <Input
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder={t("contents.topicPlaceholder")}
+              placeholder={
+                target.mode === "class"
+                  ? t("contents.classTopicPlaceholder", {
+                      defaultValue: "Ej. Operadores y expresiones aritméticas",
+                    })
+                  : t("contents.topicPlaceholder")
+              }
             />
           </div>
           <div className="space-y-1.5">
             <Label>
-              {t("contents.instructions")}
-              <HelpHint>{t("contents.instructionsHint")}</HelpHint>
+              {target.mode === "class"
+                ? t("contents.classInstructions", {
+                    defaultValue: "Instrucciones puntuales (opcional)",
+                  })
+                : t("contents.instructions")}
+              <HelpHint>
+                {target.mode === "class"
+                  ? t("contents.classInstructionsHint", {
+                      defaultValue:
+                        "Notas adicionales solo para esta clase. Si lo dejas vacío, se usan las instrucciones generales del curso.",
+                    })
+                  : t("contents.instructionsHint")}
+              </HelpHint>
             </Label>
             <Textarea
               value={instructions}

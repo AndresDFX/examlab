@@ -231,6 +231,15 @@ interface RequestBody {
    *  resultantes se mergean con los existentes (mantienen la intro y
    *  las otras clases intactas). Sin este campo, regen completa. */
   target_class?: number;
+  /** Tema puntual de la clase a regenerar. NO sobrescribe `gen.topic`
+   *  (que es el tema general del curso). Se inyecta en el user message
+   *  como "TEMA DE ESTA CLASE" — el modelo lo usa como foco específico,
+   *  manteniendo el contexto del curso. Solo aplica con `target_class`. */
+  class_topic?: string;
+  /** Instrucciones puntuales para esta clase. Si NO se envía, el edge
+   *  usa `gen.instructions` (las del curso). Si se envía vacío, ignora
+   *  el campo y usa las del curso. Solo aplica con `target_class`. */
+  class_instructions?: string | null;
 }
 
 /** Extrae el número de clase del nombre del archivo. Replica de la
@@ -481,14 +490,42 @@ Deno.serve(async (req: Request) => {
        * está activo, le decimos al modelo que emita EXAMEN_CLASE_N.MD
        * adicionalmente.
        */
-      const buildClassMessage = (classNum: number, totalClasses: number) =>
-        `Modo seleccionado: GENERAR UNA CLASE de un curso de ${totalClasses} clases.\n\n` +
-        `${commonContext}\nClase a generar: ${classNum} de ${totalClasses}\n\n` +
-        `Genera ÚNICAMENTE los archivos de la clase ${classNum}, con sufijo "_CLASE_${classNum}" en cada filename. ` +
-        `NO incluyas la introducción del curso ni material de otras clases.\n\n` +
-        `### TIPOS DE ARCHIVO A GENERAR (según tags activos)\n` +
-        `Tags activos: ${activeTags.join(", ")}\n\n` +
-        composeFileSections();
+      // `class_topic` (opcional, viene del dialog "Regenerar clase"):
+      // tema puntual de esta clase, distinto del tema general del curso.
+      // Cuando llega, se inyecta como instrucción de foco — el modelo
+      // sigue viendo el contexto del curso (`commonContext` con
+      // `gen.topic`) pero sabe que ESTA clase debe enfocarse en este
+      // sub-tema. Si no llega, no se agrega nada — comportamiento previo.
+      const classTopicOverride =
+        typeof body.class_topic === "string" && body.class_topic.trim().length > 0
+          ? body.class_topic.trim()
+          : null;
+      const classInstructionsOverride =
+        typeof body.class_instructions === "string" && body.class_instructions.trim().length > 0
+          ? body.class_instructions.trim()
+          : null;
+      const buildClassMessage = (classNum: number, totalClasses: number) => {
+        const classFocus = classTopicOverride
+          ? `\n### TEMA ESPECÍFICO DE ESTA CLASE (PRIORIDAD MÁXIMA)\n${classTopicOverride}\n` +
+            `El tema general del curso sigue siendo "${gen.topic}", pero ESTA CLASE en particular debe ` +
+            `enfocarse en el sub-tema indicado arriba. Ajusta todos los ejemplos, ejercicios y explicaciones ` +
+            `al sub-tema concreto sin perder coherencia con el curso global.\n`
+          : "";
+        const classInstr = classInstructionsOverride
+          ? `\n### INSTRUCCIONES PUNTUALES PARA ESTA CLASE\n${classInstructionsOverride}\n`
+          : "";
+        return (
+          `Modo seleccionado: GENERAR UNA CLASE de un curso de ${totalClasses} clases.\n\n` +
+          `${commonContext}\nClase a generar: ${classNum} de ${totalClasses}\n` +
+          classFocus +
+          classInstr +
+          `\nGenera ÚNICAMENTE los archivos de la clase ${classNum}, con sufijo "_CLASE_${classNum}" en cada filename. ` +
+          `NO incluyas la introducción del curso ni material de otras clases.\n\n` +
+          `### TIPOS DE ARCHIVO A GENERAR (según tags activos)\n` +
+          `Tags activos: ${activeTags.join(", ")}\n\n` +
+          composeFileSections()
+        );
+      };
 
       // Intro del curso = portada PPTX. Solo tiene sentido cuando el
       // docente quiere presentación (tag `teorico`). Si no hay teorico

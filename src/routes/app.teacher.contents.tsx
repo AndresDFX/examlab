@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -182,13 +182,23 @@ function TeacherContents() {
   const [brand, setBrand] = useState<BrandConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  // Filtramos por display_name + topic + autor. El nombre del curso
-  // se resuelve por id contra `courses`, así también soporta búsqueda
-  // por curso. Case-insensitive, includes.
+  /** Filtro por curso. `null` = todos. Coincide con la convención del
+   *  resto de grids docente (talleres, proyectos, exámenes) que usan
+   *  `ListFilters`. Útil para que el docente vea qué material tiene
+   *  asignado a un curso específico cuando administra varios. */
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  // Filtra por curso primero, luego por texto (display_name + topic +
+  // autor + nombre del curso). Case-insensitive, includes. Los items
+  // con `course_id = null` (sin curso) solo aparecen cuando el filtro
+  // de curso es "Todos" — un filtro específico los excluye.
   const filteredItems = useMemo(() => {
-    if (!search.trim()) return items;
-    const q = search.toLowerCase();
-    return items.filter((it) => {
+    let arr = items;
+    if (courseFilter) {
+      arr = arr.filter((it) => it.course_id === courseFilter);
+    }
+    const q = search.trim().toLowerCase();
+    if (!q) return arr;
+    return arr.filter((it) => {
       const courseName = courses.find((c) => c.id === it.course_id)?.name?.toLowerCase() ?? "";
       return (
         it.display_name.toLowerCase().includes(q) ||
@@ -197,7 +207,7 @@ function TeacherContents() {
         courseName.includes(q)
       );
     });
-  }, [items, courses, search]);
+  }, [items, courses, search, courseFilter]);
   // Conteos de items derivados por contenido (sesiones programadas +
   // evaluaciones creadas con source_content_id). Lo poblamos junto al
   // load() principal y lo mostramos como badges debajo del topic en el
@@ -235,6 +245,10 @@ function TeacherContents() {
   // Permite al docente editar topic + instructions antes de relanzar.
   const [regenerateTarget, setRegenerateTarget] = useState<{
     contentId: string;
+    /** Para mode='full' es el tema del curso (gen.topic). Para
+     *  mode='class' es el tema EXTRAÍDO de los archivos de esa clase
+     *  (extractClassTitle) — así el dialog deja editar el tema puntual
+     *  sin pisar el tema general del curso. */
     topic: string;
     instructions: string | null;
     mode: "full" | "class";
@@ -529,11 +543,17 @@ function TeacherContents() {
   };
 
   /** Igual al anterior pero para UNA clase. El edge function mergea
-   *  el output con las clases existentes (no las pierde). */
+   *  el output con las clases existentes (no las pierde). El topic
+   *  pre-cargado es el de la CLASE específica (extraído de sus archivos),
+   *  no el del curso entero — así el docente edita el tema puntual sin
+   *  pisar el `topic` general del curso. Si la extracción falla
+   *  (archivos sin título extraíble), caemos al topic del curso. */
   const openRegenerateClass = (item: GeneratedContent, classNumber: number) => {
+    const files = (item.files ?? []) as ContentFile[];
+    const classTitle = extractClassTitle(files, classNumber);
     setRegenerateTarget({
       contentId: item.id,
-      topic: item.topic,
+      topic: classTitle ?? item.topic,
       instructions: item.instructions ?? null,
       mode: "class",
       classNumber,
@@ -625,10 +645,13 @@ function TeacherContents() {
         </Button>
       </div>
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por nombre, tema o autor…"
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por nombre, tema o autor…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={courses}
       />
 
       <Card>
@@ -651,29 +674,34 @@ function TeacherContents() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredItems.length === 0 && (
-                  <TableEmpty
-                    colSpan={7}
-                    text={
-                      search.trim() && items.length > 0
-                        ? "Sin coincidencias"
-                        : t("contents.emptyTitle")
-                    }
-                    hint={
-                      search.trim() && items.length > 0
-                        ? "Ajusta el buscador para ver más resultados."
-                        : t("contents.emptyHint")
-                    }
-                    action={
-                      search.trim() && items.length > 0 ? undefined : (
-                        <Button onClick={() => setDialogOpen(true)}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          {t("contents.createFirst")}
-                        </Button>
-                      )
-                    }
-                  />
-                )}
+                {filteredItems.length === 0 &&
+                  (() => {
+                    // Si la lista total está vacía → empty state normal
+                    // de "crea tu primer contenido". Si hay items pero
+                    // el filtro (texto o curso) los recortó a 0, mostramos
+                    // un mensaje con la pista para ajustar el filtro.
+                    const filterActive = search.trim() !== "" || courseFilter != null;
+                    const noMatch = filterActive && items.length > 0;
+                    return (
+                      <TableEmpty
+                        colSpan={7}
+                        text={noMatch ? "Sin coincidencias" : t("contents.emptyTitle")}
+                        hint={
+                          noMatch
+                            ? "Ajusta el buscador o el filtro de curso para ver más resultados."
+                            : t("contents.emptyHint")
+                        }
+                        action={
+                          noMatch ? undefined : (
+                            <Button onClick={() => setDialogOpen(true)}>
+                              <Plus className="h-4 w-4 mr-1" />
+                              {t("contents.createFirst")}
+                            </Button>
+                          )
+                        }
+                      />
+                    );
+                  })()}
                 {filteredItems.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="max-w-xs">
