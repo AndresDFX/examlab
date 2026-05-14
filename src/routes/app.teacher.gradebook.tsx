@@ -8,6 +8,7 @@ import { logEvent } from "@/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
+import { SearchInput } from "@/components/ui/search-input";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
@@ -154,6 +155,7 @@ function Gradebook() {
   const [courseId, setCourseId] = useState<string>("");
   const [columns, setColumns] = useState<GradeColumn[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
   const [examSubs, setExamSubs] = useState<ExamSub[]>([]);
   const [wsSubs, setWsSubs] = useState<WsSub[]>([]);
   const [allExams, setAllExams] = useState<Exam[]>([]);
@@ -566,6 +568,20 @@ function Gradebook() {
   const hasEdits = Object.values(edits).some((v) => v !== "");
   const selectedCourse = courses.find((c) => c.id === courseId);
 
+  // Filtra estudiantes por nombre o correo. Aplica al consolidado, a la
+  // sub-grid de "Sin corte asignado" y al modal de detalle. Tabular nums
+  // y exports siguen usando `students` (la lista completa) para que el
+  // CSV traiga TODO aunque haya un filtro activo en pantalla.
+  const filteredStudents = useMemo(() => {
+    if (!studentSearch.trim()) return students;
+    const q = studentSearch.toLowerCase();
+    return students.filter((s) => {
+      const name = s.full_name.toLowerCase();
+      const email = s.institutional_email.toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [students, studentSearch]);
+
   // Agrupa columnas (exámenes + talleres) por corte para que la grilla
   // editable se separe en "items dentro de un corte" (visibles solo en
   // el modal de Ver detalle) vs "items sin corte" (visibles en su
@@ -783,6 +799,17 @@ function Gradebook() {
         </div>
       )}
 
+      {/* Búsqueda por estudiante — filtra el consolidado, "Sin corte" y
+          el modal de detalle. Útil cuando el curso tiene 30-40 alumnos y
+          el docente busca uno específico. El CSV exporta TODO igual. */}
+      {selectedCourse && students.length > 0 && (
+        <SearchInput
+          value={studentSearch}
+          onChange={setStudentSearch}
+          placeholder="Buscar estudiante por nombre o correo…"
+        />
+      )}
+
       {/* Consolidado por cortes — solo lectura */}
       {selectedCourse && consolidated && cuts.length > 0 && (
         <Card>
@@ -841,7 +868,26 @@ function Gradebook() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {consolidated.map((row) => {
+                {(() => {
+                  // Filtra el consolidado por los IDs visibles. Construir
+                  // el Set fuera del map evita O(n²) sobre listas grandes.
+                  const visibleIds = new Set(filteredStudents.map((s) => s.id));
+                  const visible = consolidated.filter((r) => visibleIds.has(r.student.id));
+                  if (visible.length === 0) {
+                    return (
+                      <TableRow>
+                        <TableCell
+                          colSpan={cuts.length + 2}
+                          className="text-center text-muted-foreground py-6 text-sm"
+                        >
+                          {studentSearch.trim()
+                            ? "Sin coincidencias. Ajusta el buscador."
+                            : "Sin estudiantes."}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+                  return visible.map((row) => {
                   const passes =
                     row.finalGrade != null ? row.finalGrade >= selectedCourse.passing_grade : null;
                   return (
@@ -870,7 +916,8 @@ function Gradebook() {
                       </TableCell>
                     </TableRow>
                   );
-                })}
+                  });
+                })()}
               </TableBody>
             </Table>
           </CardContent>
@@ -894,7 +941,7 @@ function Gradebook() {
           </div>
           {renderEditableGrid({
             columns: uncutColumns,
-            students,
+            students: filteredStudents,
             getGrade,
             edits,
             handleEdit,
@@ -931,7 +978,7 @@ function Gradebook() {
             renderCutDetailGrouped({
               cut: detailCut,
               columns: detailCutColumns,
-              students,
+              students: filteredStudents,
               getGrade,
               selectedCourse,
               attSessions,
