@@ -63,7 +63,11 @@ function shouldSendEmail(params: {
     params.kind === "info" &&
     typeof params.link === "string" &&
     params.link.startsWith(MESSAGE_LINK_PREFIX);
-  if (!isCriticalKind && !isMessage) return { send: false, reason: "kind_not_critical" };
+  const isPasswordReset =
+    params.kind === "system" &&
+    typeof params.link === "string" &&
+    params.link.startsWith("/auth/reset-password");
+  if (!isCriticalKind && !isMessage && !isPasswordReset) return { send: false, reason: "kind_not_critical" };
   if (params.userOptedOut) return { send: false, reason: "user_opted_out" };
   return { send: true, reason: null };
 }
