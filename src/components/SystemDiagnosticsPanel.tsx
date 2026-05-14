@@ -18,7 +18,10 @@ import {
   XCircle,
   AlertTriangle,
   RefreshCw,
+  Puzzle,
+  Zap,
 } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * SystemDiagnosticsPanel — dashboard de admin para verificar que todos
@@ -54,6 +57,19 @@ type HealthCheckResponse = {
   storage: {
     buckets: Array<{ id: string; public: boolean; file_size_limit: number | null }>;
   };
+  /** Extensiones de Postgres instaladas. `null` si el edge function
+   *  todavía no tiene el campo (versión vieja) o si la RPC no existe. */
+  db?: {
+    extensions: Array<{ name: string; version: string; schema: string }> | null;
+  };
+  /** Stats de cada edge function conocida. `null` si el edge function
+   *  todavía no tiene el campo o la RPC falló. */
+  edge_functions?: Array<{
+    function_name: string;
+    last_invoked_at: string | null;
+    last_action: string | null;
+    last_severity: string | null;
+  }> | null;
   secrets: Array<{ name: string; present: boolean; expected_prefix?: string }>;
 };
 
@@ -237,6 +253,22 @@ export function SystemDiagnosticsPanel() {
   const push = hcData?.push ?? null;
   const storage = hcData?.storage ?? null;
   const secrets = hcData?.secrets ?? [];
+  const extensions = hcData?.db?.extensions ?? null;
+  const edgeFunctions = hcData?.edge_functions ?? null;
+  // Extensiones críticas que la app necesita. Si falta cualquiera, el
+  // card pasa a 'warning' para que el admin lo vea de inmediato.
+  const REQUIRED_EXTENSIONS = ["pg_net", "pgcrypto", "uuid-ossp"] as const;
+  const missingExtensions = extensions
+    ? REQUIRED_EXTENSIONS.filter((req) => !extensions.some((e) => e.name === req))
+    : [];
+  const extensionsState: "idle" | "ok" | "warning" | "error" = extensions
+    ? missingExtensions.length > 0
+      ? "warning"
+      : "ok"
+    : hc.state === "error"
+      ? "error"
+      : "idle";
+  const edgeFunctionsState: "idle" | "ok" | "warning" | "error" = edgeFunctions ? "ok" : "idle";
 
   const aiState: "idle" | "ok" | "warning" | "error" = ai
     ? ai.active_provider
@@ -519,6 +551,105 @@ export function SystemDiagnosticsPanel() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </StatusCard>
+
+        {/* Extensiones de Postgres */}
+        <StatusCard
+          title="Extensiones de DB"
+          description="Extensiones de Postgres instaladas en el proyecto."
+          icon={<Puzzle className="h-4 w-4 text-teal-500" />}
+          state={extensionsState}
+        >
+          {!extensions ? (
+            <p className="text-muted-foreground">
+              {hc.state === "ok"
+                ? "La edge function no devolvió info de extensiones (migración 20260523000004 no aplicada o RPC fallida)."
+                : "Refresca el diagnóstico para ver el estado."}
+            </p>
+          ) : extensions.length === 0 ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Sin extensiones instaladas — esto es muy raro.
+            </p>
+          ) : (
+            <>
+              <MutedLine label="Total" value={extensions.length} />
+              {missingExtensions.length > 0 && (
+                <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Faltantes críticas: <span className="font-mono">{missingExtensions.join(", ")}</span>
+                </p>
+              )}
+              <div className="max-h-44 overflow-y-auto pt-2 -mr-2 pr-2 space-y-1">
+                {extensions.map((e) => (
+                  <div
+                    key={`${e.schema}.${e.name}`}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <span className="font-mono truncate" title={`${e.schema}.${e.name}`}>
+                      {e.name}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums shrink-0 ml-2">
+                      v{e.version}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </StatusCard>
+
+        {/* Edge functions + última invocación */}
+        <StatusCard
+          title="Edge functions registradas"
+          description="Última invocación detectada en audit_logs por función."
+          icon={<Zap className="h-4 w-4 text-yellow-500" />}
+          state={edgeFunctionsState}
+        >
+          {!edgeFunctions ? (
+            <p className="text-muted-foreground">
+              {hc.state === "ok"
+                ? "La edge function no devolvió info de funciones (migración 20260523000004 no aplicada)."
+                : "Refresca el diagnóstico para ver el estado."}
+            </p>
+          ) : edgeFunctions.length === 0 ? (
+            <p className="text-muted-foreground">Sin funciones registradas.</p>
+          ) : (
+            <div className="space-y-2">
+              {edgeFunctions.map((fn) => {
+                const severityColor =
+                  fn.last_severity === "error"
+                    ? "text-destructive"
+                    : fn.last_severity === "warning"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400";
+                return (
+                  <div
+                    key={fn.function_name}
+                    className="flex items-start justify-between gap-2 text-xs border-b last:border-b-0 pb-1.5 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-mono truncate" title={fn.function_name}>
+                        {fn.function_name}
+                      </div>
+                      {fn.last_action && (
+                        <div className={`text-[10px] ${severityColor}`}>{fn.last_action}</div>
+                      )}
+                    </div>
+                    <span className="text-muted-foreground tabular-nums shrink-0 text-right">
+                      {fn.last_invoked_at ? (
+                        formatDateTime(fn.last_invoked_at)
+                      ) : (
+                        <span className="italic">sin registros</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+              <p className="pt-1 text-[10px] text-muted-foreground">
+                "Sin registros" significa que la función existe pero aún no ha sido invocada (o no
+                logea a audit_logs todavía).
+              </p>
             </div>
           )}
         </StatusCard>

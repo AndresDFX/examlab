@@ -90,6 +90,49 @@ async function fetchPushConfig(): Promise<{ send_push_url: string | null } | nul
   }
 }
 
+type DbExtensionInfo = { name: string; version: string; schema: string };
+
+async function fetchDbExtensions(): Promise<DbExtensionInfo[] | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const supa = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supa as any).rpc("system_db_extensions");
+    if (error) return null;
+    return (data ?? []) as DbExtensionInfo[];
+  } catch {
+    return null;
+  }
+}
+
+type EdgeFunctionStat = {
+  function_name: string;
+  last_invoked_at: string | null;
+  last_action: string | null;
+  last_severity: string | null;
+};
+
+async function fetchEdgeFunctionStats(): Promise<EdgeFunctionStat[] | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const supa = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supa as any).rpc("system_edge_function_stats");
+    if (error) return null;
+    return (data ?? []) as EdgeFunctionStat[];
+  } catch {
+    return null;
+  }
+}
+
 type StorageBucketInfo = { id: string; public: boolean; file_size_limit: number | null };
 
 async function fetchStorageBuckets(): Promise<StorageBucketInfo[] | null> {
@@ -128,11 +171,14 @@ Deno.serve(async (req) => {
     }
   }
 
-  const [aiSettings, pushConfig, storageBuckets] = await Promise.all([
-    fetchAiSettings(),
-    fetchPushConfig(),
-    fetchStorageBuckets(),
-  ]);
+  const [aiSettings, pushConfig, storageBuckets, dbExtensions, edgeFunctionStats] =
+    await Promise.all([
+      fetchAiSettings(),
+      fetchPushConfig(),
+      fetchStorageBuckets(),
+      fetchDbExtensions(),
+      fetchEdgeFunctionStats(),
+    ]);
   const secrets = checkSecrets();
 
   // El secret de IA "requerido" depende del provider activo. Si el
@@ -182,6 +228,13 @@ Deno.serve(async (req) => {
       // 0 por RLS en storage.buckets.
       buckets: storageBuckets ?? [],
     },
+    db: {
+      // Extensiones de Postgres instaladas (nombre + versión + schema).
+      // Útil para verificar que pg_net, vault, etc. están disponibles.
+      // null si la RPC no existe (migración 20260523000004 no aplicada).
+      extensions: dbExtensions,
+    },
+    edge_functions: edgeFunctionStats,
     secrets,
     received_payload: payload,
   };
