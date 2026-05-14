@@ -243,12 +243,29 @@ Deno.serve(async (req: Request) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: profile } = await (adminClient as any)
     .from("profiles")
-    .select("full_name, institutional_email")
+    .select("full_name, institutional_email, personal_email")
     .eq("id", row.user_id)
     .maybeSingle();
 
-  const email: string | null = profile?.institutional_email ?? null;
+  const institutional: string | null = profile?.institutional_email ?? null;
+  const personal: string | null = profile?.personal_email ?? null;
   const fullName: string | null = profile?.full_name ?? null;
+  // Recipients: institucional siempre primero (es el canal "oficial"
+  // y queremos que sea el remitente más visible para el alumno). El
+  // personal se agrega si existe y es distinto del institucional —
+  // evita mandar dos veces al mismo address si el alumno puso el
+  // mismo correo en ambos campos. denomailer acepta string[] en `to`
+  // y manda un solo mensaje SMTP con varios RCPT TO, pero ojo: Gmail
+  // contabiliza cada destinatario contra el límite diario (500/día).
+  const recipients: string[] = [];
+  if (institutional) recipients.push(institutional);
+  if (personal && personal.toLowerCase() !== institutional?.toLowerCase()) {
+    recipients.push(personal);
+  }
+  // Para `hasEmail` del shouldSendEmail nos basta con saber si hay al
+  // menos un destinatario válido. El email principal sigue siendo el
+  // institucional (para audit y para el rate-limit por destinatario).
+  const email: string | null = recipients.length > 0 ? recipients[0] : null;
 
   // 2) Decidir si enviar. Cubre filtros del SQL + opt-outs del usuario.
   // userOptedOut está hardcoded a false hasta la Fase 4 (preferencias
@@ -329,7 +346,12 @@ Deno.serve(async (req: Request) => {
     });
     await client.send({
       from: `${fromName} <${from}>`,
-      to: email!,
+      // Array de recipients — denomailer hace 1 transacción SMTP con
+      // múltiples RCPT TO. El alumno ve a ambos addresses en el header
+      // "Para:" del correo (mismo usuario, sus dos correos — no es leak
+      // de privacidad). Si solo hay uno (institutional o personal),
+      // pasa un array de 1 y SMTP ignora la diferencia.
+      to: recipients,
       subject: row.title,
       content: text,
       html,
@@ -341,6 +363,11 @@ Deno.serve(async (req: Request) => {
       smtp_port: port,
       smtp_ms: Date.now() - smtpStartMs,
       sender: `${fromName} <${from}>`,
+      recipients_count: recipients.length,
+      // Lista de destinatarios — útil para diagnóstico si el alumno
+      // reclama "no me llegó al personal" y queremos confirmar a cuáles
+      // se mandó. NO incluimos el contenido del mensaje.
+      recipients,
     });
     return jsonResponse({ ok: true, sent: true });
   } catch (e) {
