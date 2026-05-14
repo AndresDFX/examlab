@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/lib/audit";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -170,6 +171,7 @@ function TeacherAttendance() {
   // loadCourse — no añade un round-trip extra perceptible.
   const [availableContents, setAvailableContents] = useState<AvailableContent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
   const [records, setRecords] = useState<Record_[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
@@ -784,6 +786,18 @@ function TeacherAttendance() {
       .filter(Boolean) as string[],
   );
 
+  // Filtra estudiantes para el render. La lista completa (`students`)
+  // se preserva para los totales del header y el cálculo de check-in.
+  const filteredStudents = useMemo(() => {
+    if (!studentSearch.trim()) return students;
+    const q = studentSearch.toLowerCase();
+    return students.filter((s) => {
+      const name = s.full_name.toLowerCase();
+      const email = s.institutional_email.toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [students, studentSearch]);
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   return (
@@ -870,6 +884,16 @@ function TeacherAttendance() {
           <span className="text-muted-foreground">— = sin registro</span>
         </CardContent>
       </Card>
+
+      {/* Búsqueda por estudiante — útil cuando un curso tiene 30-40 alumnos
+          y el docente busca uno específico para revisar asistencia. */}
+      {courseId && (
+        <SearchInput
+          value={studentSearch}
+          onChange={setStudentSearch}
+          placeholder="Buscar estudiante por nombre o correo…"
+        />
+      )}
 
       {/* Attendance grid */}
       <Card>
@@ -1094,17 +1118,19 @@ function TeacherAttendance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {students.length === 0 && (
+              {filteredStudents.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={sessions.length + 2}
                     className="text-center text-muted-foreground py-8"
                   >
-                    No hay estudiantes matriculados.
+                    {studentSearch.trim() && students.length > 0
+                      ? "Sin coincidencias. Ajusta el buscador."
+                      : "No hay estudiantes matriculados."}
                   </TableCell>
                 </TableRow>
               )}
-              {students.map((s) => {
+              {filteredStudents.map((s) => {
                 const total = sessions.length;
                 const present = sessions.filter((sess) => {
                   const st = getStatus(sess.id, s.id);

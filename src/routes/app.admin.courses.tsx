@@ -11,6 +11,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -134,6 +135,7 @@ export function AdminCourses() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
   // Curso cuyo "Tablero del estudiante" estamos viendo/editando. Cuando
@@ -142,7 +144,19 @@ export function AdminCourses() {
   // y el docente puede asignar contenido a cada sesión inline.
   const [boardForCourse, setBoardForCourse] = useState<Course | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const sel = useMultiSelect(courses);
+  // Filtramos por nombre + período + descripción. Case-insensitive,
+  // includes. El multi-select trabaja sobre la lista visible.
+  const filteredCourses = useMemo(() => {
+    if (!search.trim()) return courses;
+    const q = search.toLowerCase();
+    return courses.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.period?.toLowerCase().includes(q) ||
+        c.description?.toLowerCase().includes(q),
+    );
+  }, [courses, search]);
+  const sel = useMultiSelect(filteredCourses);
 
   const handleBulkDelete = async (ids: string[]) => {
     // ON DELETE CASCADE arrastra examenes/talleres/proyectos/etc.
@@ -872,12 +886,22 @@ export function AdminCourses() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cursos</h1>
-          <p className="text-sm text-muted-foreground">{courses.length} cursos registrados</p>
+          <p className="text-sm text-muted-foreground">
+            {search.trim()
+              ? `${filteredCourses.length} de ${courses.length} cursos`
+              : `${courses.length} cursos registrados`}
+          </p>
         </div>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo curso
         </Button>
       </div>
+
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre, período o descripción…"
+      />
 
       <MultiSelectToolbar
         count={sel.count}
@@ -909,21 +933,31 @@ export function AdminCourses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {courses.length === 0 && (
+              {filteredCourses.length === 0 && (
                 <TableEmpty
                   colSpan={8}
                   icon={BookOpen}
-                  text={t("course.emptyTitle")}
-                  hint={t("course.emptyHint")}
+                  text={
+                    search.trim() && courses.length > 0
+                      ? "Sin coincidencias"
+                      : t("course.emptyTitle")
+                  }
+                  hint={
+                    search.trim() && courses.length > 0
+                      ? "Ajusta el buscador para ver más resultados."
+                      : t("course.emptyHint")
+                  }
                   action={
-                    <Button size="sm" onClick={openNew}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      {t("course.createFirst")}
-                    </Button>
+                    search.trim() && courses.length > 0 ? undefined : (
+                      <Button size="sm" onClick={openNew}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("course.createFirst")}
+                      </Button>
+                    )
                   }
                 />
               )}
-              {courses.map((c) => (
+              {filteredCourses.map((c) => (
                 <TableRow key={c.id} data-state={sel.isSelected(c.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={c.id} state={sel} />

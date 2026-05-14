@@ -31,6 +31,7 @@ import type { LucideIcon } from "lucide-react";
 import { formatDateOnly, formatWeekdayName } from "@/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -120,6 +121,7 @@ function StudentCourses() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -173,11 +175,44 @@ function StudentCourses() {
         <p className="text-sm text-muted-foreground">{t("courseBoard.indexSubtitle")}</p>
       </div>
 
-      {courses.length === 0 ? (
-        <EmptyState text={t("courseBoard.noEnrollments")} icon={Calendar} />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((c) => (
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre o período…"
+      />
+
+      {(() => {
+        // Filtra por nombre + período. Evita el repintado del grid
+        // entero usando useMemo arriba sería un refactor mayor — para
+        // listas pequeñas (matrículas de un estudiante) un filter
+        // inline es aceptable.
+        const filtered = search.trim()
+          ? courses.filter(
+              (c) =>
+                c.name.toLowerCase().includes(search.toLowerCase()) ||
+                (c.period?.toLowerCase().includes(search.toLowerCase()) ?? false),
+            )
+          : courses;
+        if (filtered.length === 0) {
+          return (
+            <EmptyState
+              text={
+                search.trim() && courses.length > 0
+                  ? "Sin coincidencias"
+                  : t("courseBoard.noEnrollments")
+              }
+              hint={
+                search.trim() && courses.length > 0
+                  ? "Ajusta el buscador para ver más resultados."
+                  : undefined
+              }
+              icon={Calendar}
+            />
+          );
+        }
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -201,9 +236,10 @@ function StudentCourses() {
                 {c.end_date ? formatDateOnly(c.end_date) : "—"}
               </div>
             </button>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -7,13 +7,14 @@
  * calcula sobre `max_score` del proyecto.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SearchInput } from "@/components/ui/search-input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
@@ -72,6 +73,7 @@ function StudentProjects() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<ProjectRow[]>([]);
+  const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectRow | null>(null);
 
@@ -246,17 +248,43 @@ function StudentProjects() {
   }, [user]);
 
   const now = Date.now();
+  // Filtra por título del proyecto + nombre del curso.
+  const visibleRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(
+      (r) =>
+        r.project.title.toLowerCase().includes(q) ||
+        (r.project.course?.name?.toLowerCase().includes(q) ?? false),
+    );
+  }, [rows, search]);
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-        <p className="text-sm text-muted-foreground">{rows.length} proyectos asignados</p>
+        <p className="text-sm text-muted-foreground">
+          {search.trim()
+            ? `${visibleRows.length} de ${rows.length} proyectos`
+            : `${rows.length} proyectos asignados`}
+        </p>
       </div>
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por proyecto o curso…"
+      />
+
       <div className="grid md:grid-cols-2 gap-3">
-        {rows.length === 0 && <p className="text-muted-foreground text-sm">{t("common.empty")}</p>}
-        {rows.map(({ project, submission, groupId }) => {
+        {visibleRows.length === 0 && (
+          <p className="text-muted-foreground text-sm">
+            {search.trim() && rows.length > 0
+              ? "Sin coincidencias. Ajusta el buscador."
+              : t("common.empty")}
+          </p>
+        )}
+        {visibleRows.map(({ project, submission, groupId }) => {
           const isOverdue = project.due_date && new Date(project.due_date).getTime() < now;
           const isUpcoming = project.start_date && new Date(project.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;

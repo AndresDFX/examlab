@@ -12,13 +12,14 @@
  *    idioma configurado (default español).
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SearchInput } from "@/components/ui/search-input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
@@ -75,6 +76,7 @@ function StudentWorkshops() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<WorkshopRow[]>([]);
+  const [search, setSearch] = useState("");
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
 
@@ -186,7 +188,18 @@ function StudentWorkshops() {
   }, [user]);
 
   const now = Date.now();
-  const visibleRows = rows;
+  // Filtra por título del taller + nombre del curso. Case-insensitive,
+  // includes. Las descripciones se omiten para que la búsqueda sea
+  // rápida en mobile (no abruma con texto secundario).
+  const visibleRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(
+      (r) =>
+        r.workshop.title.toLowerCase().includes(q) ||
+        (r.workshop.course?.name?.toLowerCase().includes(q) ?? false),
+    );
+  }, [rows, search]);
 
   return (
     <div className="space-y-5">
@@ -197,9 +210,19 @@ function StudentWorkshops() {
         </p>
       </div>
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por taller o curso…"
+      />
+
       <div className="grid md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("common.empty")}</p>
+          <p className="text-muted-foreground text-sm">
+            {search.trim() && rows.length > 0
+              ? "Sin coincidencias. Ajusta el buscador."
+              : t("common.empty")}
+          </p>
         )}
         {visibleRows.map(({ workshop, submission, groupId }) => {
           const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;

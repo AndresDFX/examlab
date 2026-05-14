@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SearchInput } from "@/components/ui/search-input";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert } from "lucide-react";
 import { StudentExamNotes } from "@/components/ExamNotesManager";
 import { MAX_WARNINGS } from "@/utils/proctoring";
@@ -47,6 +48,7 @@ function StudentExams() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<ExamRow[]>([]);
   const [now, setNow] = useState(Date.now());
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -123,7 +125,18 @@ function StudentExams() {
     })();
   }, [user]);
 
-  const visibleRows = rows;
+  // Filtramos por título del examen + nombre del curso. Case-insensitive,
+  // includes. La búsqueda es local al cliente — la lista del estudiante
+  // raramente supera unos pocos exámenes activos.
+  const visibleRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(
+      (r) =>
+        r.exam.title.toLowerCase().includes(q) ||
+        r.exam.course?.name?.toLowerCase().includes(q),
+    );
+  }, [rows, search]);
 
   return (
     <div className="space-y-5">
@@ -134,9 +147,19 @@ function StudentExams() {
         </p>
       </div>
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por examen o curso…"
+      />
+
       <div className="grid md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("exam.noExamsAvailable")}</p>
+          <p className="text-muted-foreground text-sm">
+            {search.trim() && rows.length > 0
+              ? "Sin coincidencias. Ajusta el buscador."
+              : t("exam.noExamsAvailable")}
+          </p>
         )}
         {visibleRows.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
           const start = new Date(exam.start_time).getTime();

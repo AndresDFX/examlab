@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -180,6 +181,23 @@ function TeacherContents() {
   const [courses, setCourses] = useState<CourseLite[]>([]);
   const [brand, setBrand] = useState<BrandConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  // Filtramos por display_name + topic + autor. El nombre del curso
+  // se resuelve por id contra `courses`, así también soporta búsqueda
+  // por curso. Case-insensitive, includes.
+  const filteredItems = useMemo(() => {
+    if (!search.trim()) return items;
+    const q = search.toLowerCase();
+    return items.filter((it) => {
+      const courseName = courses.find((c) => c.id === it.course_id)?.name?.toLowerCase() ?? "";
+      return (
+        it.display_name.toLowerCase().includes(q) ||
+        it.topic.toLowerCase().includes(q) ||
+        (it.author?.toLowerCase().includes(q) ?? false) ||
+        courseName.includes(q)
+      );
+    });
+  }, [items, courses, search]);
   // Conteos de items derivados por contenido (sesiones programadas +
   // evaluaciones creadas con source_content_id). Lo poblamos junto al
   // load() principal y lo mostramos como badges debajo del topic en el
@@ -607,6 +625,12 @@ function TeacherContents() {
         </Button>
       </div>
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre, tema o autor…"
+      />
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -627,20 +651,30 @@ function TeacherContents() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.length === 0 && (
+                {filteredItems.length === 0 && (
                   <TableEmpty
                     colSpan={7}
-                    text={t("contents.emptyTitle")}
-                    hint={t("contents.emptyHint")}
+                    text={
+                      search.trim() && items.length > 0
+                        ? "Sin coincidencias"
+                        : t("contents.emptyTitle")
+                    }
+                    hint={
+                      search.trim() && items.length > 0
+                        ? "Ajusta el buscador para ver más resultados."
+                        : t("contents.emptyHint")
+                    }
                     action={
-                      <Button onClick={() => setDialogOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1" />
-                        {t("contents.createFirst")}
-                      </Button>
+                      search.trim() && items.length > 0 ? undefined : (
+                        <Button onClick={() => setDialogOpen(true)}>
+                          <Plus className="h-4 w-4 mr-1" />
+                          {t("contents.createFirst")}
+                        </Button>
+                      )
                     }
                   />
                 )}
-                {items.map((it) => (
+                {filteredItems.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="max-w-xs">
                       {/* display_name como identificador humano principal.

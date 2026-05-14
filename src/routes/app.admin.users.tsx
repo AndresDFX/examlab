@@ -9,6 +9,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { HelpHint } from "@/components/ui/help-hint";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -72,8 +73,26 @@ function AdminUsers() {
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const confirm = useConfirm();
-  const sel = useMultiSelect(rows);
+  // Filtramos por nombre + ambos correos + rol. case-insensitive,
+  // includes (no prefix). Cualquier match en cualquier campo cuenta —
+  // los admins suelen buscar por nombre parcial o pedazo de email
+  // (dominio, prefijo) sin recordar el campo exacto.
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(
+      (r) =>
+        r.full_name.toLowerCase().includes(q) ||
+        r.institutional_email.toLowerCase().includes(q) ||
+        (r.personal_email?.toLowerCase().includes(q) ?? false) ||
+        r.roles.some((role) => role.toLowerCase().includes(q)),
+    );
+  }, [rows, search]);
+  // El multi-select trabaja sobre la lista visible. Si seleccioné todo
+  // con un filtro activo, "seleccionar todos" se refiere a lo filtrado.
+  const sel = useMultiSelect(filteredRows);
 
   const handleBulkDelete = async (ids: string[]) => {
     // Atomic batch — Postgres transaccional. Borramos roles primero
@@ -472,7 +491,11 @@ function AdminUsers() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
-          <p className="text-sm text-muted-foreground">{rows.length} cuentas registradas</p>
+          <p className="text-sm text-muted-foreground">
+            {search.trim()
+              ? `${filteredRows.length} de ${rows.length} cuentas`
+              : `${rows.length} cuentas registradas`}
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap w-full sm:w-auto">
           <Button
@@ -519,6 +542,12 @@ function AdminUsers() {
         </div>
       </div>
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre, correo o rol…"
+      />
+
       <MultiSelectToolbar
         count={sel.count}
         onClear={sel.clear}
@@ -554,21 +583,31 @@ function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.length === 0 && (
+                  {filteredRows.length === 0 && (
                     <TableEmpty
                       colSpan={6}
                       icon={UsersIcon}
-                      text={t("users.emptyTitle")}
-                      hint={t("users.emptyHint")}
+                      text={
+                        search.trim() && rows.length > 0
+                          ? "Sin coincidencias"
+                          : t("users.emptyTitle")
+                      }
+                      hint={
+                        search.trim() && rows.length > 0
+                          ? "Ajusta el buscador para ver más resultados."
+                          : t("users.emptyHint")
+                      }
                       action={
-                        <Button size="sm" onClick={openNew}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          {t("users.newUser")}
-                        </Button>
+                        search.trim() && rows.length > 0 ? undefined : (
+                          <Button size="sm" onClick={openNew}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            {t("users.newUser")}
+                          </Button>
+                        )
                       }
                     />
                   )}
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <TableRow key={r.id} data-state={sel.isSelected(r.id) ? "selected" : undefined}>
                       <TableCell className="w-10">
                         <MultiSelectCheckbox id={r.id} state={sel} />
