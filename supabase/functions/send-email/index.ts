@@ -133,8 +133,16 @@ function renderEmailHtml(params: {
           </tr>${cta}
           <tr>
             <td style="padding: 16px 32px 24px 32px; border-top:1px solid #e5e7eb; margin-top:16px;">
+              <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af; line-height:1.5;">
+                Recibiste este correo porque tienes una cuenta en ${brand} y se generó una
+                notificación dirigida a ti. Este es un mensaje automático del sistema; si
+                contestas, llegará al administrador.
+              </p>
               <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
-                Recibiste este correo porque tienes una cuenta en ${brand}. Si las notificaciones por correo te resultan ruidosas, contacta al administrador para ajustar la configuración.
+                ¿No quieres recibir más correos de notificaciones?
+                Responde a este mensaje con el asunto
+                <strong>"Cancelar notificaciones ExamLab"</strong> y el administrador desactivará
+                el envío para tu cuenta.
               </p>
             </td>
           </tr>
@@ -355,9 +363,26 @@ Deno.serve(async (req: Request) => {
       // de privacidad). Si solo hay uno (institutional o personal),
       // pasa un array de 1 y SMTP ignora la diferencia.
       to: recipients,
+      // Reply-To: si el alumno responde, va al SMTP_USER (la cuenta
+      // que el docente/admin monitorea). Sin esto, Outlook penaliza
+      // el trust score por ausencia de canal de respuesta.
+      replyTo: from,
       subject: row.title,
       content: text,
       html,
+      // Headers extra para deliverability — especialmente Outlook/
+      // Hotmail los pesan fuerte:
+      //   - List-Unsubscribe: RFC 2369 — mecanismo opt-out. Sin esto,
+      //     Outlook clasifica como bulk/junk por default.
+      //   - List-Unsubscribe-Post: RFC 8058 — habilita el botón
+      //     "Cancelar suscripción" nativo de Outlook/Gmail web.
+      //   - X-Entity-Ref-ID: ayuda a Gmail a agrupar threads de la
+      //     misma notif (no afecta spam pero mejora UX).
+      headers: {
+        "List-Unsubscribe": `<mailto:${from}?subject=Cancelar%20notificaciones%20ExamLab>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        "X-Entity-Ref-ID": notificationId,
+      },
     });
     await client.close();
     await markDelivered(notificationId);

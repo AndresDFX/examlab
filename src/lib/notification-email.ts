@@ -166,8 +166,16 @@ export function renderEmailHtml(params: RenderEmailParams): string {
           </tr>${cta}
           <tr>
             <td style="padding: 16px 32px 24px 32px; border-top:1px solid #e5e7eb; margin-top:16px;">
+              <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af; line-height:1.5;">
+                Recibiste este correo porque tienes una cuenta en ${brand} y se generó una
+                notificación dirigida a ti. Este es un mensaje automático del sistema; si
+                contestas, llegará al administrador.
+              </p>
               <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
-                Recibiste este correo porque tienes una cuenta en ${brand}. Si las notificaciones por correo te resultan ruidosas, contacta al administrador para ajustar la configuración.
+                ¿No quieres recibir más correos de notificaciones?
+                Responde a este mensaje con el asunto
+                <strong>"Cancelar notificaciones ExamLab"</strong> y el administrador desactivará
+                el envío para tu cuenta.
               </p>
             </td>
           </tr>
