@@ -143,6 +143,33 @@ async function fetchEdgeFunctionStats(): Promise<EdgeFunctionStat[] | null> {
   }
 }
 
+type CronJobInfo = {
+  jobname: string;
+  schedule: string;
+  command: string;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_message: string | null;
+};
+
+async function fetchCronJobs(): Promise<CronJobInfo[] | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const supa = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supa as any).rpc("system_cron_jobs");
+    if (error) return null;
+    return (data ?? []) as CronJobInfo[];
+  } catch {
+    return null;
+  }
+}
+
 type StorageBucketInfo = { id: string; public: boolean; file_size_limit: number | null };
 
 async function fetchStorageBuckets(): Promise<StorageBucketInfo[] | null> {
@@ -181,13 +208,14 @@ Deno.serve(async (req) => {
     }
   }
 
-  const [aiSettings, pushConfig, storageBuckets, dbExtensions, edgeFunctionStats] =
+  const [aiSettings, pushConfig, storageBuckets, dbExtensions, edgeFunctionStats, cronJobs] =
     await Promise.all([
       fetchAiSettings(),
       fetchPushConfig(),
       fetchStorageBuckets(),
       fetchDbExtensions(),
       fetchEdgeFunctionStats(),
+      fetchCronJobs(),
     ]);
   const secrets = checkSecrets();
 
@@ -245,6 +273,10 @@ Deno.serve(async (req) => {
       extensions: dbExtensions,
     },
     edge_functions: edgeFunctionStats,
+    // Lista de pg_cron jobs activos + su última ejecución. null si la
+    // RPC no existe (migración 20260523000007 no aplicada) o si pg_cron
+    // no está instalado. Empty array si todo OK pero no hay jobs.
+    cron_jobs: cronJobs,
     secrets,
     received_payload: payload,
   };

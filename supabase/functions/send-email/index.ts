@@ -38,7 +38,10 @@ import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/ad
 // MANTENER SINCRONIZADO con `src/lib/notification-email.ts`. Los tests
 // del cliente cubren los edge cases — acá replicamos la decisión sin
 // poder importar (Deno edge no comparte src/).
-const CRITICAL_KINDS = ["grade", "exam", "feedback"];
+// Mantener sincronizado con src/lib/notification-email.ts y con la
+// función SQL _notification_kind_emails (migración 20260523000007
+// añadió workshop+project).
+const CRITICAL_KINDS = ["grade", "exam", "feedback", "workshop", "project"];
 const MESSAGE_LINK_PREFIX = "/app/messages";
 
 type SkipReason =

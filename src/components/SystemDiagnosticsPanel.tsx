@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Puzzle,
   Zap,
+  Clock,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 
@@ -69,6 +70,17 @@ type HealthCheckResponse = {
     last_invoked_at: string | null;
     last_action: string | null;
     last_severity: string | null;
+  }> | null;
+  /** pg_cron jobs registrados. `null` si pg_cron no está instalado o
+   *  la migración 20260523000007 no se aplicó. */
+  cron_jobs?: Array<{
+    jobname: string;
+    schedule: string;
+    command: string;
+    active: boolean;
+    last_run_at: string | null;
+    last_status: string | null;
+    last_message: string | null;
   }> | null;
   secrets: Array<{ name: string; present: boolean; expected_prefix?: string }>;
 };
@@ -255,6 +267,7 @@ export function SystemDiagnosticsPanel() {
   const secrets = hcData?.secrets ?? [];
   const extensions = hcData?.db?.extensions ?? null;
   const edgeFunctions = hcData?.edge_functions ?? null;
+  const cronJobs = hcData?.cron_jobs ?? null;
   // Extensiones críticas que la app necesita. Si falta cualquiera, el
   // card pasa a 'warning' para que el admin lo vea de inmediato.
   const REQUIRED_EXTENSIONS = ["pg_net", "pgcrypto", "uuid-ossp"] as const;
@@ -269,6 +282,21 @@ export function SystemDiagnosticsPanel() {
       ? "error"
       : "idle";
   const edgeFunctionsState: "idle" | "ok" | "warning" | "error" = edgeFunctions ? "ok" : "idle";
+  // Estado del card cron: warning si hay jobs inactivos (active=false)
+  // o jobs con última ejecución fallida. ok si todos están sanos. idle
+  // si la RPC no devolvió data (pg_cron no instalado o migración pendiente).
+  const cronInactive = cronJobs?.filter((j) => !j.active) ?? [];
+  const cronFailed =
+    cronJobs?.filter(
+      (j) => j.last_status && !["succeeded", "running", "starting"].includes(j.last_status),
+    ) ?? [];
+  const cronJobsState: "idle" | "ok" | "warning" | "error" = !cronJobs
+    ? "idle"
+    : cronJobs.length === 0
+      ? "warning"
+      : cronInactive.length > 0 || cronFailed.length > 0
+        ? "warning"
+        : "ok";
 
   const aiState: "idle" | "ok" | "warning" | "error" = ai
     ? ai.active_provider
@@ -650,6 +678,66 @@ export function SystemDiagnosticsPanel() {
                 "Sin registros" significa que la función existe pero aún no ha sido invocada (o no
                 logea a audit_logs todavía).
               </p>
+            </div>
+          )}
+        </StatusCard>
+
+        {/* Cron jobs (pg_cron) */}
+        <StatusCard
+          title="Tareas programadas"
+          description="pg_cron — jobs activos + última ejecución."
+          icon={<Clock className="h-4 w-4 text-purple-500" />}
+          state={cronJobsState}
+        >
+          {!cronJobs ? (
+            <p className="text-muted-foreground">
+              {hc.state === "ok"
+                ? "pg_cron no está instalado o la migración 20260523000007 no se aplicó."
+                : "Refresca el diagnóstico para ver el estado."}
+            </p>
+          ) : cronJobs.length === 0 ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Sin cron jobs registrados. Programa los recordatorios desde el SQL Editor (ver
+              migraciones 20260523000006 y 20260523000007).
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {cronJobs.map((j) => {
+                const statusColor =
+                  j.last_status === "succeeded"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : j.last_status === "failed"
+                      ? "text-destructive"
+                      : "text-muted-foreground";
+                return (
+                  <div
+                    key={j.jobname}
+                    className="text-xs border-b last:border-b-0 pb-1.5 last:pb-0 space-y-0.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono truncate" title={j.jobname}>
+                          {j.jobname}
+                        </span>
+                        {!j.active && (
+                          <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                            inactivo
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="font-mono text-muted-foreground tabular-nums shrink-0">
+                        {j.schedule}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className={statusColor}>{j.last_status ?? "sin ejecuciones aún"}</span>
+                      <span className="text-muted-foreground tabular-nums shrink-0">
+                        {j.last_run_at ? formatDateTime(j.last_run_at) : "—"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </StatusCard>

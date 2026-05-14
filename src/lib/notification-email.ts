@@ -18,8 +18,11 @@
  *    si más adelante hay otra plantilla en otro contexto se reuse.
  */
 
-/** Kinds que disparan email por sí solos (sin condiciones extra). */
-export const CRITICAL_KINDS = ["grade", "exam", "feedback"] as const;
+/** Kinds que disparan email por sí solos (sin condiciones extra).
+ *  Mantener sincronizado con el predicado SQL
+ *  `_notification_kind_emails` (migración 20260523000007 añadió
+ *  workshop+project para los recordatorios de vencimiento). */
+export const CRITICAL_KINDS = ["grade", "exam", "feedback", "workshop", "project"] as const;
 
 /** Prefijo de link que indica "mensaje 1-a-1" — usado para discriminar
  *  `kind='info'` de mensajería vs `kind='info'` genérico del sistema. */
