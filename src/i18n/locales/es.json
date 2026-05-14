@@ -127,6 +127,7 @@
       "actionGroupGrading": "Calificaciones",
       "actionGroupLogin": "Inicios/cierres de sesión",
       "actionGroupAi": "IA (generación + calificación)",
+      "actionGroupEmail": "Notificaciones por correo",
       "rolePlaceholder": "Rol",
       "roleAll": "Todos los roles",
       "roleSystem": "Sistema",
@@ -154,6 +155,7 @@
       "user": "Usuario",
       "grading": "Calificación",
       "fraud": "Fraude",
+      "email": "Correo",
       "system": "Sistema"
     },
     "severities": {

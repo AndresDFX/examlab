@@ -189,6 +189,12 @@ const ACTION_LABELS: Record<string, string> = {
   "calendar.disconnected": "Calendario desconectado",
   "calendar.synced": "Calendario sincronizado",
   "calendar.sync_failed": "Sincronización de calendario fallida",
+
+  // ── Notificaciones por correo (trigger SQL + edge function send-email) ──
+  "email.dispatched": "Correo enviado al SMTP",
+  "email.delivered": "Correo entregado",
+  "email.skipped": "Correo omitido",
+  "email.failed": "Correo fallido",
 };
 
 // Solo guardamos las clases CSS; el label se resuelve con t("audit.categories.<key>").
@@ -212,6 +218,9 @@ const CATEGORY_CONFIG: Record<string, { cls: string }> = {
     cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   },
   fraud: { cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  email: {
+    cls: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  },
   system: {
     cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
   },
@@ -336,6 +345,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
           grading: "%grade%",
           login: "user.log%",
           ai: "ai%",
+          email: "email.%",
         };
         const pat = actionGroupPatterns[actionGroup];
         if (pat) q = q.ilike("action", pat);
@@ -493,6 +503,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 <SelectItem value="grading">{t("audit.filters.actionGroupGrading")}</SelectItem>
                 <SelectItem value="login">{t("audit.filters.actionGroupLogin")}</SelectItem>
                 <SelectItem value="ai">{t("audit.filters.actionGroupAi")}</SelectItem>
+                <SelectItem value="email">{t("audit.filters.actionGroupEmail")}</SelectItem>
               </SelectContent>
             </Select>
 

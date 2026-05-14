@@ -158,6 +158,30 @@ async function markSkipped(notificationId: string, reason: string): Promise<void
     .eq("id", notificationId);
 }
 
+// ── Audit log helper ─────────────────────────────────────────────────
+// Llama al RPC `audit_email_event` que escribe en public.audit_logs con
+// categoría 'email'. Fire-and-forget: si el RPC falla (extension missing,
+// notif borrada, etc.), no rompemos el flujo principal. Misma filosofía
+// que `logEvent` del frontend.
+async function auditEmail(
+  notificationId: string,
+  action: "email.dispatched" | "email.skipped" | "email.delivered" | "email.failed",
+  severity: "info" | "warning" | "error" | "critical",
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (adminClient as any).rpc("audit_email_event", {
+      p_notification_id: notificationId,
+      p_action: action,
+      p_severity: severity,
+      p_metadata: { ...metadata, stage: "edge" },
+    });
+  } catch {
+    // silencio — audit nunca rompe el envío
+  }
+}
+
 // ── Handler ──────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -182,6 +206,10 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (rowErr || !row) {
+    await auditEmail(notificationId, "email.failed", "error", {
+      reason: "notification_not_found",
+      error: rowErr?.message ?? "unknown",
+    });
     return jsonError(`notification not found: ${rowErr?.message ?? "unknown"}`, 404);
   }
 
@@ -200,6 +228,9 @@ Deno.serve(async (req: Request) => {
   });
   if (!decision.send) {
     await markSkipped(notificationId, decision.reason ?? "unknown");
+    await auditEmail(notificationId, "email.skipped", "info", {
+      reason: decision.reason ?? "unknown",
+    });
     return jsonResponse({ ok: true, sent: false, reason: decision.reason });
   }
 
@@ -214,11 +245,25 @@ Deno.serve(async (req: Request) => {
 
   if (!host || !portRaw || !user || !password || !from) {
     await markSkipped(notificationId, "no_settings");
+    await auditEmail(notificationId, "email.failed", "error", {
+      reason: "smtp_env_missing",
+      missing: {
+        SMTP_HOST: !host,
+        SMTP_PORT: !portRaw,
+        SMTP_USER: !user,
+        SMTP_PASSWORD: !password,
+        EMAIL_FROM: !from,
+      },
+    });
     return jsonError("SMTP env vars missing", 500);
   }
   const port = Number(portRaw);
   if (!Number.isFinite(port)) {
     await markSkipped(notificationId, "no_settings");
+    await auditEmail(notificationId, "email.failed", "error", {
+      reason: "smtp_port_invalid",
+      port_raw: portRaw,
+    });
     return jsonError("SMTP_PORT invalid", 500);
   }
 
@@ -238,6 +283,7 @@ Deno.serve(async (req: Request) => {
   // 5) Conexión SMTP + envío. denomailer soporta STARTTLS automáticamente
   // si `tls: true` y maneja port 587 correctamente. Cualquier excepción
   // (auth fail, DNS, timeout, antivirus, etc.) cae al catch y se persiste.
+  const smtpStartMs = Date.now();
   try {
     const client = new SMTPClient({
       connection: {
@@ -256,11 +302,24 @@ Deno.serve(async (req: Request) => {
     });
     await client.close();
     await markDelivered(notificationId);
+    await auditEmail(notificationId, "email.delivered", "info", {
+      smtp_host: host,
+      smtp_port: port,
+      smtp_ms: Date.now() - smtpStartMs,
+      sender: `${fromName} <${from}>`,
+    });
     return jsonResponse({ ok: true, sent: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const truncated = msg.slice(0, 200);
     await markSkipped(notificationId, `provider_error: ${truncated}`);
+    await auditEmail(notificationId, "email.failed", "error", {
+      reason: "provider_error",
+      error: truncated,
+      smtp_host: host,
+      smtp_port: port,
+      smtp_ms: Date.now() - smtpStartMs,
+    });
     return jsonError(`SMTP send failed: ${truncated}`, 500);
   }
 });

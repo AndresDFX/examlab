@@ -127,6 +127,7 @@
       "actionGroupGrading": "Grading",
       "actionGroupLogin": "Sign-in / sign-out",
       "actionGroupAi": "AI (generation + grading)",
+      "actionGroupEmail": "Email notifications",
       "rolePlaceholder": "Role",
       "roleAll": "All roles",
       "roleSystem": "System",
@@ -154,6 +155,7 @@
       "user": "User",
       "grading": "Grading",
       "fraud": "Fraud",
+      "email": "Email",
       "system": "System"
     },
     "severities": {

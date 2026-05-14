@@ -8,6 +8,7 @@ export type AuditCategory =
   | "user"
   | "grading"
   | "fraud"
+  | "email"
   | "system";
 
 export type AuditSeverity = "info" | "warning" | "error" | "critical";
