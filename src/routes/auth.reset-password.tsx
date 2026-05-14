@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
-import { GraduationCap, KeyRound, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { GraduationCap, KeyRound, AlertTriangle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/auth/reset-password")({
   head: () => ({
@@ -49,6 +49,11 @@ function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  // Toggles independientes para cada campo — si compartieran estado,
+  // mostrar "nueva" expone también "confirmar" y se pierde la utilidad
+  // de la confirmación.
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   // sessionState distingue los 3 estados terminales del flujo:
   //   - "checking" — esperando a que supabase-js procese el hash de URL
   //   - "ready" — tenemos sesión válida, mostrar form de nueva password
@@ -159,16 +164,31 @@ function ResetPasswordPage() {
                 <Label htmlFor="rp-password" required>
                   {t("auth.reset.newPassword", { defaultValue: "Nueva contraseña" })}
                 </Label>
-                <Input
-                  id="rp-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  autoFocus
-                />
+                <div className="relative">
+                  <Input
+                    id="rp-password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    autoFocus
+                    className="pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={
+                      showPassword
+                        ? t("auth.hidePassword", { defaultValue: "Ocultar contraseña" })
+                        : t("auth.showPassword", { defaultValue: "Mostrar contraseña" })
+                    }
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <p className="text-[11px] text-muted-foreground">
                   {t("auth.reset.minChars", { defaultValue: "Mínimo 8 caracteres." })}
                 </p>
@@ -177,15 +197,30 @@ function ResetPasswordPage() {
                 <Label htmlFor="rp-confirm" required>
                   {t("auth.reset.confirmPassword", { defaultValue: "Confirmar contraseña" })}
                 </Label>
-                <Input
-                  id="rp-confirm"
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  minLength={8}
-                />
+                <div className="relative">
+                  <Input
+                    id="rp-confirm"
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    required
+                    minLength={8}
+                    className="pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={
+                      showConfirm
+                        ? t("auth.hidePassword", { defaultValue: "Ocultar contraseña" })
+                        : t("auth.showPassword", { defaultValue: "Mostrar contraseña" })
+                    }
+                  >
+                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (

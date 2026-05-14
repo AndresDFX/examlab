@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
-import { GraduationCap, KeyRound, Mail } from "lucide-react";
+import { GraduationCap, KeyRound, Mail, Eye, EyeOff } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 export const Route = createFileRoute("/auth")({
@@ -35,6 +35,11 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Toggle visibilidad de la contraseña. Patrón estándar de login —
+  // el usuario puede verificar lo que escribió antes de submit. El
+  // toggle vuelve a "oculto" automáticamente al hacer login (no hace
+  // falta ocultar manualmente).
+  const [showPassword, setShowPassword] = useState(false);
   // Estado del dialog "¿Olvidaste tu contraseña?". Pre-rellena el
   // campo email con lo que el usuario ya tipeó en el form de login,
   // así no tiene que escribirlo dos veces.
@@ -177,14 +182,37 @@ function AuthPage() {
                     {t("auth.forgotPassword", { defaultValue: "¿Olvidaste tu contraseña?" })}
                   </button>
                 </div>
-                <Input
-                  id="li-pass"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                {/* Toggle visibilidad — mismo patrón que
+                    ChangePasswordDialog. `pr-9` deja espacio para que
+                    el ícono no pise el texto. type=button para evitar
+                    submit accidental al hacer click. */}
+                <div className="relative">
+                  <Input
+                    id="li-pass"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={
+                      showPassword
+                        ? t("auth.hidePassword", { defaultValue: "Ocultar contraseña" })
+                        : t("auth.showPassword", { defaultValue: "Mostrar contraseña" })
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Spinner size="md" className="mr-2" />} {t("auth.submit")}
