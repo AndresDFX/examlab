@@ -259,6 +259,28 @@ function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId]);
 
+  // Deep-link desde notificaciones/correo: si la URL trae ?conv=<id>,
+  // auto-selecciona esa conversación cuando esté en la lista cargada.
+  // Patrón mirror del check-in de asistencia: leer searchParams, limpiar
+  // la URL para no re-disparar, fijar el activeConvId. Solo dispara
+  // cuando `conversations` está pobladita — si la conv no está en la
+  // lista (RLS, borrada, etc.) el activeConvId queda null y el render
+  // muestra el estado "selecciona una conversación".
+  useEffect(() => {
+    if (!myUserId || conversations.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const convFromUrl = params.get("conv");
+    if (!convFromUrl) return;
+    const exists = conversations.some((c) => c.conv.id === convFromUrl);
+    // Limpiamos la URL antes incluso de verificar exists — así si la
+    // conv ya no es accesible no quedamos con un querystring rancio
+    // que vuelva a disparar este effect si el user recarga.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("conv");
+    window.history.replaceState({}, "", url.toString());
+    if (exists) setActiveConvId(convFromUrl);
+  }, [myUserId, conversations]);
+
   // Realtime: INSERTs en messages/conversations/message_attachments.
   useEffect(() => {
     if (!myUserId) return;
