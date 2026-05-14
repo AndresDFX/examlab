@@ -18,12 +18,10 @@ import {
   BookOpen,
   FileText,
   ClipboardList,
-  GraduationCap,
   Hammer,
   FolderKanban,
   Calendar,
   Clock,
-  CheckCircle2,
   AlertTriangle,
   ArrowRight,
   ShieldCheck,
@@ -603,7 +601,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             </Link>
           </CardContent>
         </Card>
-
       </div>
 
       <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />
@@ -628,15 +625,29 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    ═══════════════════════════════════════════════════════════ */
 function StudentDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
   const [pendingProjects, setPendingProjects] = useState<any[]>([]);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [courseCount, setCourseCount] = useState(0);
+  /** Próximas sesiones de asistencia en cursos donde estoy matriculado,
+   *  con session_date >= hoy. Mirror del bloque del docente. */
+  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  const [counts, setCounts] = useState({
+    /** Mensajes pendientes sin responder — mismo RPC que el docente
+     *  (`count_unanswered_conversations`), filtrado por `auth.uid()`. */
+    unansweredMessages: 0,
+    /** Sesiones de asistencia con `session_date = today` en mis cursos. */
+    todaySessions: 0,
+  });
 
   useEffect(() => {
     if (!userId) return;
     (async () => {
+      // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
+      // con `attendance_sessions.session_date` que es columna DATE sin TZ.
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
       // Assigned exams
       const { data: asg } = await supabase
         .from("exam_assignments")
@@ -660,7 +671,9 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .sort(
           (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
         )
-        .slice(0, 4);
+        // Subido a 8 para alinear con el dashboard del docente (las
+        // cards crecen vertical y muestran más items útiles).
+        .slice(0, 8);
       setUpcomingExams(exams);
 
       // Assigned workshops
@@ -680,16 +693,18 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           (a: any, b: any) =>
             new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
         )
-        .slice(0, 4);
+        .slice(0, 8);
       setPendingWorkshops(ws);
 
-      // Pending projects (vía cursos matriculados + asignaciones explícitas)
+      // Cursos matriculados (necesarios para proyectos + próximas clases)
       const dbAny = supabase as any;
       const { data: enr } = await dbAny
         .from("course_enrollments")
         .select("course_id")
         .eq("user_id", userId);
       const enrolledCourseIds = ((enr ?? []) as { course_id: string }[]).map((r) => r.course_id);
+
+      // Pending projects (vía cursos matriculados + asignaciones explícitas)
       const { data: linked } = enrolledCourseIds.length
         ? await dbAny
             .from("project_courses")
@@ -733,28 +748,53 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           (a: any, b: any) =>
             new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
         )
-        .slice(0, 4);
+        .slice(0, 8);
       setPendingProjects(pjs);
 
-      // Completed submissions
-      const { count } = await supabase
-        .from("submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("status", "completado");
-      setCompletedCount(count ?? 0);
+      // Métricas tipo "docente": mensajes sin responder + sesiones hoy.
+      // El RPC count_unanswered_conversations es simétrico — filtra por
+      // auth.uid(), funciona igual para docente que para estudiante.
+      // Las sesiones de hoy las contamos limitando a cursos donde estoy
+      // matriculado (RLS de attendance_sessions es abierta, filtramos en
+      // cliente para no traer todo el campus).
+      const [unansweredRes, todaySess] = await Promise.all([
+        dbAny.rpc("count_unanswered_conversations"),
+        enrolledCourseIds.length
+          ? dbAny
+              .from("attendance_sessions")
+              .select("id", { count: "exact", head: true })
+              .eq("session_date", todayStr)
+              .in("course_id", enrolledCourseIds)
+          : Promise.resolve({ count: 0 }),
+      ]);
+      const unansweredCount = typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
+      setCounts({
+        unansweredMessages: unansweredCount,
+        todaySessions: todaySess.count ?? 0,
+      });
 
-      // Enrolled courses
-      const { count: cc } = await supabase
-        .from("course_enrollments")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId);
-      setCourseCount(cc ?? 0);
+      // Próximas clases — top 8 sesiones >= hoy en mis cursos, ordenadas
+      // por fecha y hora. Si no estoy matriculado en nada queda vacío.
+      const { data: sess } = enrolledCourseIds.length
+        ? await dbAny
+            .from("attendance_sessions")
+            .select("id, title, session_date, start_time, course_id, course:courses(name)")
+            .gte("session_date", todayStr)
+            .in("course_id", enrolledCourseIds)
+            .order("session_date", { ascending: true })
+            .order("start_time", { ascending: true, nullsFirst: false })
+            .limit(8)
+        : { data: [] as any[] };
+      setUpcomingSessions(sess ?? []);
     })();
   }, [userId]);
 
   return (
-    <>
+    // Mismo wrapper que TeacherDashboard: flex-col + flex-1 + min-h-0
+    // permite que la grid de 4 cards se estire hasta llenar el viewport
+    // disponible. Cada card scrollea internamente su lista cuando hay
+    // muchos items, sin empujar el botón "Ver todo" fuera de pantalla.
+    <div className="flex flex-col gap-4 flex-1 min-h-0">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={FileText}
@@ -774,69 +814,180 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           value={pendingProjects.length}
           color="text-rose-500 dark:text-rose-400"
         />
+        {/* Mensajes pendientes sin responder — mismo RPC que el docente.
+            Click abre /app/messages para ir directo a la bandeja. */}
         <Stat
-          icon={CheckCircle2}
-          label={t("dashboard.stats.completed")}
-          value={completedCount}
-          color="text-emerald-500 dark:text-emerald-400"
+          icon={Inbox}
+          label={t("dashboard.stats.unansweredMessages", {
+            defaultValue: "Mensajes pendientes sin responder",
+          })}
+          value={counts.unansweredMessages}
+          color="text-amber-500 dark:text-amber-400"
+          onClick={() => void navigate({ to: "/app/messages" })}
         />
+        {/* Sesiones de asistencia HOY en mis cursos matriculados.
+            Click → módulo de asistencia del estudiante. */}
         <Stat
-          icon={BookOpen}
-          label={t("dashboard.stats.courses")}
-          value={courseCount}
+          icon={CalendarClock}
+          label={t("dashboard.stats.todaySessions", {
+            defaultValue: "Sesiones hoy",
+          })}
+          value={counts.todaySessions}
           color="text-blue-500 dark:text-blue-400"
+          onClick={() => void navigate({ to: "/app/student/attendance" })}
         />
       </div>
 
-      <div className="grid md:grid-cols-4 gap-4">
+      {/* Grid de 4 cards con flex-1 + min-h-0 — mismo patrón del docente.
+          El orden replica el del docente: clases / proyectos / exámenes /
+          talleres. Eso unifica la lectura visual entre los dos roles. */}
+      <div className="grid md:grid-cols-4 gap-4 flex-1 min-h-0">
+        {/* Próximas clases — reemplaza el bloque "Acceso rápido" porque
+            es más accionable: el alumno ve a simple vista qué sesiones
+            tiene programadas sin tener que abrir el módulo de asistencia. */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-cyan-500 dark:text-cyan-300" />{" "}
+              {t("dashboard.upcomingClasses", { defaultValue: "Próximas clases" })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {upcomingSessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noUpcomingClasses", {
+                    defaultValue: "No tienes sesiones próximas programadas.",
+                  })}
+                </p>
+              ) : (
+                upcomingSessions.map((s: any) => {
+                  const dateLabel = formatDate(s.session_date);
+                  const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
+                  return (
+                    <EventRow
+                      key={s.id}
+                      title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
+                      subtitle={s.course?.name}
+                      date={`${dateLabel}${timeLabel}`}
+                    />
+                  );
+                })
+              )}
+            </div>
+            <Link to="/app/student/attendance" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Pending projects */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
+              {t("dashboard.pendingDeliveryProjects")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {pendingProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noPendingProjects")}
+                </p>
+              ) : (
+                pendingProjects.map((p: any) => {
+                  const isOverdue = p.due_date && new Date(p.due_date) < new Date();
+                  return (
+                    <Link key={p.id} to="/app/student/projects" className="block">
+                      <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
+                        <div className="mt-0.5">
+                          {isOverdue ? (
+                            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                          ) : (
+                            <Send className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{p.title}</div>
+                          <div className="text-xs text-muted-foreground">{p.course?.name}</div>
+                          {p.due_date && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {t("dashboard.dueLabel")}: {formatDate(p.due_date)}
+                            </div>
+                          )}
+                        </div>
+                        {isOverdue && (
+                          <Badge variant="destructive" className="text-[10px] shrink-0">
+                            {t("dashboard.overdue")}
+                          </Badge>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })
+              )}
+            </div>
+            <Link to="/app/student/projects" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* Upcoming exams */}
-        <Card>
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
               {t("dashboard.upcomingExams")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {upcomingExams.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                {t("dashboard.noStudentUpcomingExams")}
-              </p>
-            ) : (
-              upcomingExams.map((e: any) => {
-                const isOpen =
-                  new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
-                return (
-                  <Link
-                    key={e.id}
-                    to="/app/student/take/$examId"
-                    params={{ examId: e.id }}
-                    className="block"
-                  >
-                    <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
-                      <div className="mt-0.5">
-                        {isOpen ? (
-                          <Play className="h-3.5 w-3.5 text-success" />
-                        ) : (
-                          <Clock className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {upcomingExams.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noStudentUpcomingExams")}
+                </p>
+              ) : (
+                upcomingExams.map((e: any) => {
+                  const isOpen =
+                    new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
+                  return (
+                    <Link
+                      key={e.id}
+                      to="/app/student/take/$examId"
+                      params={{ examId: e.id }}
+                      className="block"
+                    >
+                      <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
+                        <div className="mt-0.5">
+                          {isOpen ? (
+                            <Play className="h-3.5 w-3.5 text-success" />
+                          ) : (
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground/50" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{e.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {e.course?.name} · {e.time_limit_minutes} {t("common.min")}
+                          </div>
+                        </div>
+                        {isOpen && (
+                          <Badge className="bg-success text-success-foreground text-[10px] shrink-0">
+                            {t("dashboard.start")}
+                          </Badge>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{e.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {e.course?.name} · {e.time_limit_minutes} {t("common.min")}
-                        </div>
-                      </div>
-                      {isOpen && (
-                        <Badge className="bg-success text-success-foreground text-[10px] shrink-0">
-                          {t("dashboard.start")}
-                        </Badge>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })
-            )}
+                    </Link>
+                  );
+                })
+              )}
+            </div>
             <Link to="/app/student/exams" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
@@ -846,88 +997,37 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         </Card>
 
         {/* Pending workshops */}
-        <Card>
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" />{" "}
               {t("dashboard.pendingDeliveryWorkshops")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {pendingWorkshops.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                {t("dashboard.noPendingWorkshops")}
-              </p>
-            ) : (
-              pendingWorkshops.map((w: any) => {
-                const isOverdue = w.due_date && new Date(w.due_date) < new Date();
-                return (
-                  <div key={w.id} className="flex items-start gap-2 p-2.5 rounded-md border">
-                    <div className="mt-0.5">
-                      {isOverdue ? (
-                        <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                      ) : (
-                        <Send className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{w.title}</div>
-                      <div className="text-xs text-muted-foreground">{w.course?.name}</div>
-                      {w.due_date && (
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {t("dashboard.dueLabel")}: {formatDate(w.due_date)}
-                        </div>
-                      )}
-                    </div>
-                    {isOverdue && (
-                      <Badge variant="destructive" className="text-[10px] shrink-0">
-                        {t("dashboard.overdue")}
-                      </Badge>
-                    )}
-                  </div>
-                );
-              })
-            )}
-            <Link to="/app/student/workshops" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Pending projects */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
-              {t("dashboard.pendingDeliveryProjects")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {pendingProjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                {t("dashboard.noPendingProjects")}
-              </p>
-            ) : (
-              pendingProjects.map((p: any) => {
-                const isOverdue = p.due_date && new Date(p.due_date) < new Date();
-                return (
-                  <Link key={p.id} to="/app/student/projects" className="block">
-                    <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {pendingWorkshops.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("dashboard.noPendingWorkshops")}
+                </p>
+              ) : (
+                pendingWorkshops.map((w: any) => {
+                  const isOverdue = w.due_date && new Date(w.due_date) < new Date();
+                  return (
+                    <div key={w.id} className="flex items-start gap-2 p-2.5 rounded-md border">
                       <div className="mt-0.5">
                         {isOverdue ? (
                           <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
                         ) : (
-                          <Send className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
+                          <Send className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{p.title}</div>
-                        <div className="text-xs text-muted-foreground">{p.course?.name}</div>
-                        {p.due_date && (
+                        <div className="text-sm font-medium truncate">{w.title}</div>
+                        <div className="text-xs text-muted-foreground">{w.course?.name}</div>
+                        {w.due_date && (
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            {t("dashboard.dueLabel")}: {formatDate(p.due_date)}
+                            {t("dashboard.dueLabel")}: {formatDate(w.due_date)}
                           </div>
                         )}
                       </div>
@@ -937,53 +1037,19 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
                         </Badge>
                       )}
                     </div>
-                  </Link>
-                );
-              })
-            )}
-            <Link to="/app/student/projects" className="block">
+                  );
+                })
+              )}
+            </div>
+            <Link to="/app/student/workshops" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
         </Card>
-
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">{t("common.quickAccess")}</h2>
-          <div className="space-y-2.5">
-            <QuickCard
-              to="/app/student/exams"
-              title={t("dashboard.cards.examsStudent")}
-              desc={t("dashboard.cards.examsStudentDesc")}
-              icon={GraduationCap}
-              color="bg-violet-500/10 text-violet-600 dark:text-violet-400"
-            />
-            <QuickCard
-              to="/app/student/workshops"
-              title={t("dashboard.cards.workshopsStudent")}
-              desc={t("dashboard.cards.workshopsStudentDesc")}
-              icon={Hammer}
-              color="bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            />
-            <QuickCard
-              to="/app/student/projects"
-              title={t("dashboard.cards.projectsStudent")}
-              desc={t("dashboard.cards.projectsStudentDesc")}
-              icon={FolderKanban}
-              color="bg-rose-500/10 text-rose-600 dark:text-rose-400"
-            />
-            <QuickCard
-              to="/app/student/courses"
-              title={t("dashboard.cards.coursesStudent")}
-              desc={t("dashboard.cards.coursesStudentDesc")}
-              icon={BookOpen}
-              color="bg-blue-500/10 text-blue-600 dark:text-blue-400"
-            />
-          </div>
-        </div>
       </div>
-    </>
+    </div>
   );
 }
 
