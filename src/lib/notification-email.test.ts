@@ -183,16 +183,80 @@ describe("renderEmailHtml", () => {
     expect(html).not.toContain("<img src=x>");
     expect(html).toContain("&lt;img");
   });
+
+  // Tests del footer mejorado (cambio del 14-may-2026 para mejorar
+  // deliverability en Outlook — RFC 8058 unsubscribe + clarificación
+  // de que es un mensaje automático).
+  it("footer incluye texto de 'mensaje automático'", () => {
+    const html = renderEmailHtml(baseParams);
+    expect(html).toMatch(/mensaje automático/i);
+  });
+
+  it("footer incluye instrucción de cancelar notificaciones", () => {
+    const html = renderEmailHtml(baseParams);
+    expect(html).toMatch(/cancelar notificaciones/i);
+  });
+
+  it("footer menciona el brand para que el alumno sepa de dónde viene", () => {
+    const html = renderEmailHtml({ ...baseParams, brandName: "MiPlataforma" });
+    expect(html).toMatch(/cuenta en MiPlataforma/);
+  });
 });
 
 describe("CRITICAL_KINDS export", () => {
   it("expone exactamente los kinds esperados (cambio explícito si se modifica)", () => {
-    expect([...CRITICAL_KINDS]).toEqual(["grade", "exam", "feedback"]);
+    // La lista creció con la migración 20260523000007: workshop +
+    // project agregados para que los recordatorios de vencimiento
+    // (notify_students_workshop_due_soon, notify_students_project_due_soon)
+    // disparen correo. Mantener sincronizado con el predicado SQL
+    // `_notification_kind_emails` y con la copia en
+    // supabase/functions/send-email/index.ts.
+    expect([...CRITICAL_KINDS]).toEqual(["grade", "exam", "feedback", "workshop", "project"]);
+  });
+
+  it("cada CRITICAL_KIND hace que shouldSendEmail retorne send:true", () => {
+    // Sanity check: si alguien agrega un kind a CRITICAL_KINDS pero
+    // olvida actualizar shouldSendEmail, este test lo agarra.
+    for (const kind of CRITICAL_KINDS) {
+      const out = shouldSendEmail({ kind, link: null });
+      expect(out.send, `kind ${kind} should trigger send`).toBe(true);
+      expect(out.reason).toBeNull();
+    }
   });
 });
 
 describe("MESSAGE_LINK_PREFIX export", () => {
   it("expone /app/messages", () => {
     expect(MESSAGE_LINK_PREFIX).toBe("/app/messages");
+  });
+});
+
+describe("shouldSendEmail — kinds nuevos workshop + project", () => {
+  // Estos casos cubren el cambio de la migración 20260523000007 que
+  // habilita correo para recordatorios de vencimiento y para
+  // publicación/edición de talleres y proyectos.
+
+  it("envía para kind='workshop' (publicación o vencimiento)", () => {
+    expect(shouldSendEmail({ kind: "workshop", link: "/app/student/workshops" })).toEqual({
+      send: true,
+      reason: null,
+    });
+  });
+
+  it("envía para kind='project' (publicación o vencimiento)", () => {
+    expect(shouldSendEmail({ kind: "project", link: "/app/student/projects" })).toEqual({
+      send: true,
+      reason: null,
+    });
+  });
+
+  it("workshop respeta userOptedOut", () => {
+    const out = shouldSendEmail({ kind: "workshop", link: null, userOptedOut: true });
+    expect(out).toEqual({ send: false, reason: "user_opted_out" });
+  });
+
+  it("project respeta hasEmail=false", () => {
+    const out = shouldSendEmail({ kind: "project", link: null, hasEmail: false });
+    expect(out).toEqual({ send: false, reason: "no_email" });
   });
 });

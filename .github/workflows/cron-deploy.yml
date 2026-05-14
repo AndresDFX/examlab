@@ -1,0 +1,137 @@
+name: Cron — Setup / Teardown / Verify
+
+# Pipeline independiente para programar / desprogramar / verificar los
+# pg_cron jobs de ExamLab. NO se ejecuta automáticamente en push para
+# no resetear el state de cron en cada deploy — es manual via
+# `workflow_dispatch`.
+#
+# Pre-requisitos:
+#  - Las migraciones (que definen las funciones SQL) deben estar
+#    aplicadas en el proyecto Supabase antes de correr `setup`.
+#  - pg_cron debe estar habilitado en `Database → Extensions`.
+#  - Secret `SUPABASE_DB_URL` configurado en GitHub
+#    (Settings → Secrets and variables → Actions):
+#    formato `postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres`
+#    O usar el connection string del pooler en modo SESSION.
+
+on:
+  # Manual — desde la UI de GitHub Actions elegís acción a correr.
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Acción a ejecutar"
+        required: true
+        default: "setup"
+        type: choice
+        options:
+          - setup
+          - teardown
+          - verify
+      target:
+        description: "Entorno objetivo (informativo en logs)"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+
+  # Trigger automático SOLO cuando cambian los archivos de cron en main.
+  # NO se ejecuta en push a otras ramas. Si querés desactivar el auto-run
+  # comentá este bloque entero.
+  push:
+    branches: [main]
+    paths:
+      - "supabase/cron/setup.sql"
+      - "supabase/cron/teardown.sql"
+      - ".github/workflows/cron-deploy.yml"
+
+jobs:
+  cron:
+    name: ${{ github.event.inputs.action || 'setup' }} en ${{ github.event.inputs.target || 'production' }}
+    runs-on: ubuntu-latest
+    # Concurrency: si hay otro run pendiente del mismo workflow lo
+    # cancela. Evita carreras donde dos jobs intentan programar el mismo
+    # cron a la vez (raro pero posible si haces push y dispatch a la par).
+    concurrency:
+      group: cron-deploy-${{ github.event.inputs.target || 'production' }}
+      cancel-in-progress: true
+    env:
+      # SUPABASE_DB_URL viene de Secrets. Si no está, el step de psql
+      # falla con un mensaje claro en vez de seguir y romper algo.
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify DB URL secret
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL en el repo."
+            echo "Settings → Secrets and variables → Actions → New repository secret"
+            echo "Nombre: SUPABASE_DB_URL"
+            echo "Valor: postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres"
+            exit 1
+          fi
+          echo "✓ SUPABASE_DB_URL presente"
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      # Determinar qué archivo correr según la acción seleccionada.
+      # Si fue trigger por push (no por dispatch), default a setup.
+      - name: Resolve action
+        id: action
+        run: |
+          ACTION="${{ github.event.inputs.action || 'setup' }}"
+          echo "Resolved action: $ACTION"
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+          case "$ACTION" in
+            setup)
+              echo "sql_file=supabase/cron/setup.sql" >> "$GITHUB_OUTPUT"
+              ;;
+            teardown)
+              echo "sql_file=supabase/cron/teardown.sql" >> "$GITHUB_OUTPUT"
+              ;;
+            verify)
+              echo "sql_file=" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Run SQL script
+        if: steps.action.outputs.sql_file != ''
+        run: |
+          echo "::group::Ejecutando ${{ steps.action.outputs.sql_file }} en ${{ github.event.inputs.target || 'production' }}"
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "${{ steps.action.outputs.sql_file }}"
+          echo "::endgroup::"
+
+      - name: Verify cron state
+        run: |
+          echo "::group::Estado actual de cron.job"
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "
+            SELECT jobname, schedule, active,
+                   (SELECT status FROM cron.job_run_details r
+                      WHERE r.jobid = j.jobid
+                      ORDER BY start_time DESC LIMIT 1) AS last_status,
+                   (SELECT start_time FROM cron.job_run_details r
+                      WHERE r.jobid = j.jobid
+                      ORDER BY start_time DESC LIMIT 1) AS last_run
+            FROM cron.job j
+            ORDER BY jobname;
+          "
+          echo "::endgroup::"
+
+      - name: Summary
+        run: |
+          echo "### Pipeline de cron ejecutado" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Acción**: \`${{ steps.action.outputs.action }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Entorno**: \`${{ github.event.inputs.target || 'production' }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger**: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit**: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verifica en \`Admin → Sistema → Tareas programadas\`." >> "$GITHUB_STEP_SUMMARY"

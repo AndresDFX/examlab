@@ -800,6 +800,8 @@ function TeacherProjects() {
 
       // Notificar a los estudiantes solo cuando el proyecto está
       // publicado y NO es externo. Distintos titles para create/update.
+      // kind='project' (CRITICAL_KIND tras migración 20260523000007) →
+      // dispara correo. Antes era 'info' y solo iba a in-app.
       if (payload.status === "published" && !isExternal) {
         const isUpdate = !!editing;
         const title = isUpdate ? "Proyecto actualizado" : "Nuevo proyecto disponible";
@@ -811,7 +813,7 @@ function TeacherProjects() {
             _course_id: cid,
             _title: title,
             _body: body,
-            _kind: "info",
+            _kind: "project",
             _link: "/app/student/projects",
           });
         }
@@ -1220,6 +1222,26 @@ function TeacherProjects() {
         ? `Sustentación guardada · nota final: ${newFinal}/${gradingProject?.max_score ?? 100}`
         : "Sustentación borrada",
     );
+
+    // Notificar al estudiante cuando se guarda una sustentación válida
+    // (factor != null = quedó calificado). Si se "borra" la sustentación
+    // (factor null) NO notificamos — la entrega vuelve a 'entregado'
+    // pendiente, no hay novedad para el alumno todavía.
+    // kind='grade' → CRITICAL_KIND → dispara correo + ícono Award.
+    if (validFactor != null) {
+      const maxScore = gradingProject?.max_score ?? 100;
+      await db.from("notifications").insert({
+        user_id: sub.user_id,
+        title: `Sustentación calificada: ${gradingProject?.title ?? "proyecto"}`,
+        body:
+          `Tu proyecto fue sustentado y la nota final es ${newFinal}/${maxScore}. ` +
+          (notes
+            ? `Notas del docente: ${notes.slice(0, 240)}`
+            : "Entra a la plataforma para ver el detalle."),
+        kind: "grade",
+        link: "/app/student/projects",
+      });
+    }
   };
 
   const aiRegradeSubFile = async (

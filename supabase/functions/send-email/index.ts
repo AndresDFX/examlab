@@ -251,6 +251,43 @@ Deno.serve(async (req: Request) => {
     return jsonError(`notification not found: ${rowErr?.message ?? "unknown"}`, 404);
   }
 
+  // Chequeo del kill switch + toggles por tipo (tabla email_settings).
+  // Si la migración 20260523000009 no se aplicó, la tabla no existe y
+  // hacemos fail-open (asumimos enabled). Eso evita romper el flujo si
+  // alguien deploya la edge antes que la migración.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: settings } = await (adminClient as any)
+    .from("email_settings")
+    .select("globally_enabled, enabled_kinds")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (settings) {
+    if (settings.globally_enabled === false) {
+      await markSkipped(notificationId, "globally_disabled");
+      await auditEmail(notificationId, "email.skipped", "info", {
+        reason: "globally_disabled",
+        stage: "edge",
+      });
+      return jsonResponse({ ok: true, sent: false, reason: "globally_disabled" });
+    }
+    // Mapeo notification.kind/link → categoría visible en el config.
+    // Los mensajes 1-a-1 vienen como kind='info' con link de /messages;
+    // los exponemos como 'messages' en el toggle del admin.
+    const isMessage = row.kind === "info" && row.link?.startsWith("/app/messages");
+    const categoryKey = isMessage ? "messages" : row.kind;
+    const enabledKinds = settings.enabled_kinds ?? {};
+    if (enabledKinds[categoryKey] === false) {
+      await markSkipped(notificationId, `kind_disabled:${categoryKey}`);
+      await auditEmail(notificationId, "email.skipped", "info", {
+        reason: "kind_disabled",
+        category: categoryKey,
+        stage: "edge",
+      });
+      return jsonResponse({ ok: true, sent: false, reason: `kind_disabled:${categoryKey}` });
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: profile } = await (adminClient as any)
     .from("profiles")

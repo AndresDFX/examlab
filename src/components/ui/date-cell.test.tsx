@@ -73,11 +73,39 @@ describe("DateCell — withIcon", () => {
 });
 
 describe("DateCell — formato visual", () => {
-  it("aplica tabular-nums + whitespace-nowrap (alineacion en grids)", () => {
+  it("aplica tabular-nums + truncate (anti-overflow en grids)", () => {
+    // El cambio del 14-may-2026: pasamos de `whitespace-nowrap` a
+    // `truncate` (que incluye overflow:hidden + text-overflow:ellipsis
+    // + whitespace:nowrap). Con `<Table fixed>` esto evita que fechas
+    // largas como "21 de may de 2026, 18:00" se desborden sobre la
+    // celda siguiente.
     render(<DateCell value="2026-09-30" />);
     const el = screen.getByText(/30/);
     expect(el.className).toMatch(/tabular-nums/);
-    expect(el.className).toMatch(/whitespace-nowrap/);
+    expect(el.className).toMatch(/truncate/);
+  });
+
+  it("agrega title={text} para tooltip nativo al hacer hover", () => {
+    // Tooltip nativo del browser cuando el texto se trunca por la
+    // celda. Es el mecanismo que pidió el usuario para "ver el texto
+    // completo al hacer hover sobre la columna o celda".
+    render(<DateCell value="2026-09-30T14:30:00" variant="datetime" />);
+    const el = screen.getByText(/14:30/);
+    expect(el.getAttribute("title")).toBeTruthy();
+    expect(el.getAttribute("title")).toMatch(/30/);
+    expect(el.getAttribute("title")).toMatch(/14:30/);
+  });
+
+  it("withIcon usa flex + min-w-0 para que truncate funcione", () => {
+    // Con ícono, el span externo es flex con min-w-0 (necesario para
+    // que truncate funcione dentro de flex). El span interno tiene
+    // truncate. El ícono shrink-0 nunca se trunca.
+    const { container } = render(<DateCell value="2026-09-30" withIcon />);
+    const wrapper = container.querySelector("span");
+    expect(wrapper?.className).toMatch(/flex/);
+    expect(wrapper?.className).toMatch(/min-w-0/);
+    // El title también se aplica al wrapper externo (no al span del texto)
+    expect(wrapper?.getAttribute("title")).toBeTruthy();
   });
 
   it("estado vacío usa text-muted (no tabular-nums)", () => {

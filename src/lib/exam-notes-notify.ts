@@ -27,9 +27,42 @@ interface NotifyExamNoteReviewedParams {
   rejectionReason?: string | null;
 }
 
-export async function notifyExamNoteReviewed(
-  params: NotifyExamNoteReviewedParams,
-): Promise<void> {
+/**
+ * Builder PURO del title + body de la notificación. Sale como helper
+ * exportable para poder testearlo sin mockear supabase. La función
+ * `notifyExamNoteReviewed` lo usa internamente y se encarga del lado
+ * I/O (consulta de título + insert).
+ *
+ * Reglas:
+ *   - approved=true → "Nota de apoyo aprobada — <título>"
+ *   - approved=false sin motivo → "rechazada — <título>" + body sin motivo
+ *   - approved=false con motivo → body incluye "Motivo: <texto>"
+ *   - examTitle null/empty/whitespace → fallback "tu examen"
+ *   - rejectionReason solo whitespace → tratado como ausente
+ */
+export function buildExamNoteReviewedMessage(params: {
+  examTitle?: string | null;
+  approved: boolean;
+  rejectionReason?: string | null;
+}): { title: string; body: string } {
+  const trimmedTitle = params.examTitle?.trim();
+  const safeTitle = trimmedTitle && trimmedTitle.length > 0 ? trimmedTitle : "tu examen";
+
+  const title = params.approved
+    ? `Nota de apoyo aprobada — ${safeTitle}`
+    : `Nota de apoyo rechazada — ${safeTitle}`;
+
+  const reason = params.rejectionReason?.trim();
+  const body = params.approved
+    ? `Tu nota de apoyo para "${safeTitle}" fue aprobada. Estará disponible durante el examen.`
+    : `Tu nota de apoyo para "${safeTitle}" fue rechazada${
+        reason ? `. Motivo: ${reason}` : ""
+      }. Puedes editarla y enviarla de nuevo desde tu vista de exámenes.`;
+
+  return { title, body };
+}
+
+export async function notifyExamNoteReviewed(params: NotifyExamNoteReviewedParams): Promise<void> {
   let title = params.examTitle ?? null;
   if (!title) {
     const { data } = await supabase
@@ -39,18 +72,12 @@ export async function notifyExamNoteReviewed(
       .maybeSingle();
     title = (data as { title: string } | null)?.title ?? null;
   }
-  const safeTitle = title ?? "tu examen";
 
-  const notifTitle = params.approved
-    ? `Nota de apoyo aprobada — ${safeTitle}`
-    : `Nota de apoyo rechazada — ${safeTitle}`;
-
-  const reason = params.rejectionReason?.trim();
-  const notifBody = params.approved
-    ? `Tu nota de apoyo para "${safeTitle}" fue aprobada. Estará disponible durante el examen.`
-    : `Tu nota de apoyo para "${safeTitle}" fue rechazada${
-        reason ? `. Motivo: ${reason}` : ""
-      }. Puedes editarla y enviarla de nuevo desde tu vista de exámenes.`;
+  const { title: notifTitle, body: notifBody } = buildExamNoteReviewedMessage({
+    examTitle: title,
+    approved: params.approved,
+    rejectionReason: params.rejectionReason,
+  });
 
   // kind='exam' → critical kind → dispara correo. El link al listado de
   // exámenes es la mejor entrada para el estudiante: desde ahí ve cuál

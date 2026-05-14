@@ -213,6 +213,14 @@ const NAV: NavItem[] = [
   // (edge functions health-check, etc.). Va al final porque rara vez
   // se usa — solo cuando hay sospecha de algo roto en Supabase.
   { to: "/app/admin/system", labelKey: "nav.system", icon: Wrench, roles: ["Admin"] },
+  // Configuración de correos — toggles para activar/desactivar el envío
+  // global o por tipo (exam, workshop, etc.). Admin-only.
+  {
+    to: "/app/admin/email-settings",
+    labelKey: "nav.emailSettings",
+    icon: MessageSquare,
+    roles: ["Admin"],
+  },
 ];
 
 const ROLE_CONFIG: Record<

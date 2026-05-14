@@ -19,6 +19,8 @@ no dependemos de schedulers externos.
 | `exam-reminders-1h` | `*/10 * * * *` (cada 10 min) | `notify_students_exam_starting_soon(1)` | Notifica + email al estudiante asignado cuando un examen arranca dentro de la próxima 1 hora |
 | `workshop-due-24h` | `0 */2 * * *` (cada 2 horas) | `notify_students_workshop_due_soon(24)` | Aviso de taller que vence dentro de 24h |
 | `project-due-24h` | `0 */2 * * *` (cada 2 horas) | `notify_students_project_due_soon(24)` | Aviso de proyecto que vence dentro de 24h |
+| `teacher-exam-prep-1h` | `*/10 * * * *` (cada 10 min) | `notify_teachers_pending_exam_notes_before_exam(1)` | Avisa al docente si hay notas de apoyo por aprobar y un examen del curso arranca en próx 1h |
+| `teacher-daily-summary` | `0 4 * * *` (23:00 hora Colombia / 04:00 UTC) | `notify_teachers_daily_summary()` | Resumen diario con notas pendientes, conversaciones por responder, mensajes sin responder y entregas por calificar |
 
 Todas tienen **idempotencia integrada**: no duplican al mismo
 destinatario para la misma entidad dentro de una ventana de 2-6h.
@@ -62,6 +64,47 @@ Eso permite cambiar la cadencia del schedule sin riesgo de spam.
   + `course_enrollments` para los `project_courses` vinculados. Cubre
   ambas vías de asignación sin duplicar (DISTINCT).
 - **Notification emitida**: `kind='project'` → dispara correo.
+
+### `teacher-exam-prep-1h`
+
+- **Función**: `public.notify_teachers_pending_exam_notes_before_exam(_hours INTEGER DEFAULT 1)`
+- **Migración**: [`20260523000008_teacher_summary_notifs.sql`](../supabase/migrations/20260523000008_teacher_summary_notifs.sql)
+- **Schedule**: `*/10 * * * *` — corre cada 10 min, mismo ritmo que el
+  recordatorio al estudiante.
+- **Idempotencia**: 12 horas por (docente, examen).
+- **Lógica**:
+  - Busca exámenes con `start_time` dentro de la ventana `_hours`
+  - Por cada uno, cuenta `exam_notes` en estado `pendiente` (limitado
+    a alumnos asignados al examen)
+  - Si hay ≥1, notifica a cada docente del curso (`course_teachers`)
+    con el conteo + link al examen
+- **Notification emitida**: `kind='exam'` → dispara correo.
+- **Caso de uso**: el docente se entera 50-60 min antes del inicio que
+  todavía tiene notas por revisar. Si las aprueba a tiempo, los alumnos
+  pueden usarlas durante el examen.
+
+### `teacher-daily-summary`
+
+- **Función**: `public.notify_teachers_daily_summary()` (sin parámetros)
+- **Migración**: igual que `teacher-exam-prep-1h` (20260523000008).
+- **Schedule**: `0 4 * * *` — 04:00 UTC = **23:00 hora Colombia**.
+- **Idempotencia**: 1 vez por docente por día (`created_at::date = CURRENT_DATE`).
+- **Métricas agregadas por docente**:
+  - **A) Notas de apoyo pendientes**: `exam_notes.status='pendiente'` en sus cursos
+  - **B) Conversaciones esperando respuesta**: `feedback_threads.closed=false`
+    en sus cursos donde el último comment NO es del docente
+  - **C) Mensajes sin responder**: misma lógica que el RPC
+    `count_unanswered_conversations` pero parametrizada por teacher_id
+  - **D) Entregas por calificar**: workshop + project submissions con
+    status en `('entregado', 'ai_revisado')` en sus cursos
+- **Skip si total = 0**: docentes sin pendientes NO reciben correo (no
+  spammeamos con "resumen: 0 pendientes").
+- **Notification emitida**: `kind='feedback'` → dispara correo. Link
+  apunta a `/app` (dashboard, donde el docente ve los detalles).
+- **Caso de uso**: al final del día, el docente recibe un correo
+  consolidado con todo lo que dejó pendiente. Reduce el costo cognitivo
+  de "tengo que revisar varias secciones de la app para saber qué me
+  falta".
 
 ---
 
@@ -149,7 +192,7 @@ Después de aplicar las migraciones, ejecuta una sola vez en SQL Editor:
 -- 1) Habilitar pg_cron si no está
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
 
--- 2) Programar los tres jobs
+-- 2) Programar los cinco jobs
 SELECT cron.schedule(
   'exam-reminders-1h',
   '*/10 * * * *',
@@ -166,6 +209,19 @@ SELECT cron.schedule(
   'project-due-24h',
   '0 */2 * * *',
   $$ SELECT public.notify_students_project_due_soon(24); $$
+);
+
+SELECT cron.schedule(
+  'teacher-exam-prep-1h',
+  '*/10 * * * *',
+  $$ SELECT public.notify_teachers_pending_exam_notes_before_exam(1); $$
+);
+
+-- 23:00 hora Colombia = 04:00 UTC. pg_cron interpreta UTC por default.
+SELECT cron.schedule(
+  'teacher-daily-summary',
+  '0 4 * * *',
+  $$ SELECT public.notify_teachers_daily_summary(); $$
 );
 
 -- 3) Verifica

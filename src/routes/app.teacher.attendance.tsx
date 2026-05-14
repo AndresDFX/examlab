@@ -622,6 +622,26 @@ function TeacherAttendance() {
         courseId: checkInConfigSession.course_id,
         metadata: { duration_minutes: checkInDuration, rotation_seconds: checkInRotation },
       });
+
+      // Notificar a los matriculados del curso. Usa kind='exam'
+      // (CRITICAL_KIND) para disparar correo — semánticamente "tienes
+      // algo de tu clase que atender ahora". El body explica que es
+      // check-in de asistencia. El link lleva al módulo del estudiante,
+      // donde el card "Check-in disponible" aparece automáticamente.
+      // Fire-and-forget — no bloqueamos el setProjector.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void (supabase as any).rpc("notify_course_students", {
+        _course_id: checkInConfigSession.course_id,
+        _title: "Check-in de asistencia abierto",
+        _body:
+          `El docente abrió el check-in de asistencia para la clase del ` +
+          `${checkInConfigSession.session_date}` +
+          (checkInConfigSession.title ? ` ("${checkInConfigSession.title}")` : "") +
+          `. Tienes ${checkInDuration} minuto(s) para marcarte presente.`,
+        _kind: "exam",
+        _link: "/app/student/attendance",
+      });
+
       setCheckInConfigSession(null);
       // Refresca listado para reflejar check_in_open=true
       loadCourse();
