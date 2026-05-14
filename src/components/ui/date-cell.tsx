@@ -66,14 +66,38 @@ export function DateCell({
   if (text == null) {
     return <span className={cn("text-muted-foreground/60 text-sm", className)}>{fallback}</span>;
   }
+  // `block truncate` + `title` resuelve el bug visual donde fechas
+  // largas (ej. "21 de may de 2026, 18:00") en columnas estrechas
+  // (w-28/w-32) se desbordaban sobre la celda siguiente.
+  //
+  // Cómo funciona: `truncate` = overflow-hidden + text-overflow:ellipsis
+  // + whitespace-nowrap. En `<Table fixed>` cada celda tiene ancho fijo;
+  // el span ocupa el ancho útil de la celda y lo que no quepa se corta
+  // con "…". `title={text}` da el tooltip nativo del browser con el
+  // valor completo al hacer hover sobre la celda — UX estándar para
+  // textos truncados sin requerir librería de tooltips.
+  if (withIcon) {
+    // Variante con ícono: usamos flex + min-w-0 para que el span
+    // truncable funcione dentro del contenedor inline. El ícono nunca
+    // se trunca (shrink-0).
+    return (
+      <span
+        title={text}
+        className={cn("flex items-center gap-1.5 min-w-0 max-w-full", className)}
+      >
+        <Calendar
+          className="h-3.5 w-3.5 text-muted-foreground shrink-0"
+          aria-hidden
+        />
+        <span className="truncate text-sm tabular-nums">{text}</span>
+      </span>
+    );
+  }
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-sm tabular-nums whitespace-nowrap",
-        className,
-      )}
+      title={text}
+      className={cn("block truncate text-sm tabular-nums", className)}
     >
-      {withIcon && <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden />}
       {text}
     </span>
   );
