@@ -183,6 +183,27 @@ async function auditEmail(
 }
 
 // ── Handler ──────────────────────────────────────────────────────────
+// Wrapper top-level que captura excepciones no manejadas — denomailer
+// 1.6.0 puede emitir errores desde event handlers internos durante
+// STARTTLS (puerto 587) que escapan de try/catch normal y aparecen
+// como UncaughtException en logs sin quedar en audit_logs. Este
+// wrapper los atrapa via globalThis.addEventListener("unhandledrejection")
+// + try/catch del cuerpo, y los logea con el notification_id si lo
+// teníamos.
+let currentNotificationId: string | null = null;
+globalThis.addEventListener("unhandledrejection", (event) => {
+  const id = currentNotificationId;
+  if (!id) return;
+  const msg = event.reason instanceof Error ? event.reason.message : String(event.reason);
+  // No await — el unhandledrejection no es async-friendly. Mejor
+  // disparar y olvidar; si llega tarde queda como audit log igual.
+  void auditEmail(id, "email.failed", "error", {
+    reason: "uncaught_exception",
+    error: msg.slice(0, 200),
+    stage: "edge_global",
+  });
+});
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -194,6 +215,7 @@ Deno.serve(async (req: Request) => {
   }
   const notificationId = body?.notification_id;
   if (!notificationId) return jsonError("missing notification_id", 400);
+  currentNotificationId = notificationId;
 
   // 1) Cargar notification + perfil del destinatario.
   // Antes intentaba un embed `profile:profiles!notifications_user_id_fkey`

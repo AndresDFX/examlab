@@ -42,6 +42,16 @@ function checkSecrets(): SecretCheck[] {
     { name: "GOOGLE_OAUTH_CLIENT_ID" },
     { name: "GOOGLE_OAUTH_CLIENT_SECRET" },
     { name: "PUSH_TRIGGER_SECRET" },
+    // SMTP — usados por la edge function send-email para correos de
+    // notificación (calificación, mensaje nuevo, etc.). Si cualquiera
+    // falta el correo falla con reason='smtp_env_missing'.
+    { name: "SMTP_HOST" },
+    { name: "SMTP_PORT" },
+    { name: "SMTP_USER" },
+    { name: "SMTP_PASSWORD" },
+    { name: "EMAIL_FROM" },
+    { name: "EMAIL_FROM_NAME" },
+    { name: "APP_PUBLIC_URL", expected_prefix: "https://" },
   ];
   return defs.map((d) => ({
     name: d.name,
