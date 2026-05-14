@@ -715,11 +715,14 @@ function ExamEditor() {
                     <div className="space-y-1">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <Label className="m-0">Duración (min)</Label>
+                        {/* CTA destacado para acción IA — sigue el patrón
+                            de "Calificar todo con IA" del módulo de
+                            talleres (default variant + Sparkles). Antes
+                            era variant="ghost" y pasaba desapercibido. */}
                         <Button
                           type="button"
-                          variant="ghost"
                           size="sm"
-                          className="h-7 px-2 text-[11px]"
+                          className="h-7 px-2.5 text-[11px] gap-1"
                           onClick={evaluateTimeWithAI}
                           disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
                           title={
@@ -729,9 +732,9 @@ function ExamEditor() {
                           }
                         >
                           {timeEvalLoading ? (
-                            <Spinner size="xs" className="mr-1" />
+                            <Spinner size="xs" />
                           ) : (
-                            <Sparkles className="h-3 w-3 mr-1" />
+                            <Sparkles className="h-3 w-3" />
                           )}
                           Evaluar tiempo con IA
                         </Button>
