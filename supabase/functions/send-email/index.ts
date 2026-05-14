@@ -195,13 +195,18 @@ Deno.serve(async (req: Request) => {
   const notificationId = body?.notification_id;
   if (!notificationId) return jsonError("missing notification_id", 400);
 
-  // 1) Cargar notification + perfil del destinatario en una sola query.
+  // 1) Cargar notification + perfil del destinatario.
+  // Antes intentaba un embed `profile:profiles!notifications_user_id_fkey`
+  // pero la FK real de `notifications.user_id` apunta a `auth.users.id`,
+  // NO a `profiles.id` — PostgREST no puede seguir esa relación y
+  // devuelve "Could not find a relationship between 'notifications' and
+  // 'profiles' in the schema cache". Lo dividimos en dos queries
+  // (notification primero, profile después). Dos round-trips pero
+  // robusto a la estructura de FKs del proyecto.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: row, error: rowErr } = await (adminClient as any)
     .from("notifications")
-    .select(
-      "id, user_id, title, body, link, kind, profile:profiles!notifications_user_id_fkey(full_name, institutional_email)",
-    )
+    .select("id, user_id, title, body, link, kind")
     .eq("id", notificationId)
     .maybeSingle();
 
@@ -213,8 +218,15 @@ Deno.serve(async (req: Request) => {
     return jsonError(`notification not found: ${rowErr?.message ?? "unknown"}`, 404);
   }
 
-  const email: string | null = row.profile?.institutional_email ?? null;
-  const fullName: string | null = row.profile?.full_name ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile } = await (adminClient as any)
+    .from("profiles")
+    .select("full_name, institutional_email")
+    .eq("id", row.user_id)
+    .maybeSingle();
+
+  const email: string | null = profile?.institutional_email ?? null;
+  const fullName: string | null = profile?.full_name ?? null;
 
   // 2) Decidir si enviar. Cubre filtros del SQL + opt-outs del usuario.
   // userOptedOut está hardcoded a false hasta la Fase 4 (preferencias
