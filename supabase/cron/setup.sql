@@ -61,5 +61,16 @@ SELECT cron.schedule(
   $$ SELECT public.notify_teachers_daily_summary(); $$
 );
 
+-- ────────────────────────── 3) Alertas de sistema (admin)
+-- 3.a Espacio en DB/storage bajo umbral. Cada 6 horas — frecuente para
+-- detectar antes de que se llene; idempotencia 1/día por admin evita spam.
+SELECT cron.unschedule('admin-storage-threshold')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'admin-storage-threshold');
+SELECT cron.schedule(
+  'admin-storage-threshold',
+  '0 */6 * * *',
+  $$ SELECT public.notify_admins_storage_threshold(); $$
+);
+
 -- ────────────────────────── Verificación
 SELECT jobname, schedule, active FROM cron.job ORDER BY jobname;

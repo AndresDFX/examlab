@@ -170,6 +170,59 @@ async function fetchCronJobs(): Promise<CronJobInfo[] | null> {
   }
 }
 
+type StorageUsageInfo = {
+  db_size_bytes: number;
+  objects_size_bytes: number;
+  objects_count: number;
+  buckets_count: number;
+  // Cuotas configuradas por admin en system_settings.
+  db_quota_mb: number;
+  storage_quota_mb: number;
+  alert_threshold_pct: number;
+};
+
+async function fetchStorageUsage(): Promise<StorageUsageInfo | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const supa = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // Combinamos RPC system_storage_usage() (bytes reales) + tabla
+    // system_settings (cuotas + threshold). Si cualquiera falla,
+    // retornamos null y el panel pinta "no disponible".
+    const [usageRes, settingsRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supa as any).rpc("system_storage_usage"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supa as any)
+        .from("system_settings")
+        .select("db_quota_mb, storage_quota_mb, alert_threshold_pct")
+        .eq("id", 1)
+        .maybeSingle(),
+    ]);
+    if (usageRes.error || !usageRes.data?.[0]) return null;
+    const usage = usageRes.data[0];
+    const settings = settingsRes.data ?? {
+      db_quota_mb: 500,
+      storage_quota_mb: 1024,
+      alert_threshold_pct: 15,
+    };
+    return {
+      db_size_bytes: Number(usage.db_size_bytes ?? 0),
+      objects_size_bytes: Number(usage.objects_size_bytes ?? 0),
+      objects_count: Number(usage.objects_count ?? 0),
+      buckets_count: Number(usage.buckets_count ?? 0),
+      db_quota_mb: settings.db_quota_mb,
+      storage_quota_mb: settings.storage_quota_mb,
+      alert_threshold_pct: settings.alert_threshold_pct,
+    };
+  } catch {
+    return null;
+  }
+}
+
 type StorageBucketInfo = { id: string; public: boolean; file_size_limit: number | null };
 
 async function fetchStorageBuckets(): Promise<StorageBucketInfo[] | null> {
@@ -208,15 +261,23 @@ Deno.serve(async (req) => {
     }
   }
 
-  const [aiSettings, pushConfig, storageBuckets, dbExtensions, edgeFunctionStats, cronJobs] =
-    await Promise.all([
-      fetchAiSettings(),
-      fetchPushConfig(),
-      fetchStorageBuckets(),
-      fetchDbExtensions(),
-      fetchEdgeFunctionStats(),
-      fetchCronJobs(),
-    ]);
+  const [
+    aiSettings,
+    pushConfig,
+    storageBuckets,
+    dbExtensions,
+    edgeFunctionStats,
+    cronJobs,
+    storageUsage,
+  ] = await Promise.all([
+    fetchAiSettings(),
+    fetchPushConfig(),
+    fetchStorageBuckets(),
+    fetchDbExtensions(),
+    fetchEdgeFunctionStats(),
+    fetchCronJobs(),
+    fetchStorageUsage(),
+  ]);
   const secrets = checkSecrets();
 
   // El secret de IA "requerido" depende del provider activo. Si el
@@ -277,6 +338,12 @@ Deno.serve(async (req) => {
     // RPC no existe (migración 20260523000007 no aplicada) o si pg_cron
     // no está instalado. Empty array si todo OK pero no hay jobs.
     cron_jobs: cronJobs,
+    // Uso de espacio (DB + storage). Incluye los bytes actuales + las
+    // cuotas configuradas en system_settings + el threshold de alerta.
+    // El panel lo usa para mostrar barras de progreso con free/used/total
+    // y para destacar (rojo) cuando se cruza el umbral. `null` si la
+    // migración 20260523000010 no se aplicó.
+    storage_usage: storageUsage,
     secrets,
     received_payload: payload,
   };

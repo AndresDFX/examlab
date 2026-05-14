@@ -21,6 +21,7 @@ no dependemos de schedulers externos.
 | `project-due-24h` | `0 */2 * * *` (cada 2 horas) | `notify_students_project_due_soon(24)` | Aviso de proyecto que vence dentro de 24h |
 | `teacher-exam-prep-1h` | `*/10 * * * *` (cada 10 min) | `notify_teachers_pending_exam_notes_before_exam(1)` | Avisa al docente si hay notas de apoyo por aprobar y un examen del curso arranca en próx 1h |
 | `teacher-daily-summary` | `0 4 * * *` (23:00 hora Colombia / 04:00 UTC) | `notify_teachers_daily_summary()` | Resumen diario con notas pendientes, conversaciones por responder, mensajes sin responder y entregas por calificar |
+| `admin-storage-threshold` | `0 */6 * * *` (cada 6 horas) | `notify_admins_storage_threshold()` | Alerta a admins si el espacio libre de DB o storage cae bajo el umbral configurado (default 15%) |
 
 Todas tienen **idempotencia integrada**: no duplican al mismo
 destinatario para la misma entidad dentro de una ventana de 2-6h.
@@ -82,6 +83,22 @@ Eso permite cambiar la cadencia del schedule sin riesgo de spam.
 - **Caso de uso**: el docente se entera 50-60 min antes del inicio que
   todavía tiene notas por revisar. Si las aprueba a tiempo, los alumnos
   pueden usarlas durante el examen.
+
+### `admin-storage-threshold`
+
+- **Función**: `public.notify_admins_storage_threshold()` (sin parámetros)
+- **Migración**: [`20260523000010_system_storage_alerts.sql`](../supabase/migrations/20260523000010_system_storage_alerts.sql)
+- **Schedule**: `0 */6 * * *` — cada 6 horas.
+- **Idempotencia**: 1 alerta por admin por día (`created_at::date = CURRENT_DATE`).
+- **Lógica**:
+  - Lee `system_settings` (cuotas DB + storage + umbral) y `system_storage_usage()` (bytes reales)
+  - Calcula `db_used_pct` y `storage_used_pct`
+  - Si cualquiera supera `100 - alert_threshold_pct` (default 85%), notifica a TODOS los admins
+  - Body incluye los recursos en alerta con MB usados / cuota / %
+- **Notification emitida**: `kind='system'` con `link='/app/admin/system'` →
+  dispara correo + push (regla específica en `_notification_kind_emails`).
+- **Configuración**: el admin ajusta cuotas y umbral desde `system_settings`
+  (en la migración 20260523000010). Defaults razonables para Supabase free.
 
 ### `teacher-daily-summary`
 
@@ -222,6 +239,14 @@ SELECT cron.schedule(
   'teacher-daily-summary',
   '0 4 * * *',
   $$ SELECT public.notify_teachers_daily_summary(); $$
+);
+
+-- Cada 6h: chequea espacio en DB/storage; si cae bajo el umbral,
+-- avisa a los admins.
+SELECT cron.schedule(
+  'admin-storage-threshold',
+  '0 */6 * * *',
+  $$ SELECT public.notify_admins_storage_threshold(); $$
 );
 
 -- 3) Verifica

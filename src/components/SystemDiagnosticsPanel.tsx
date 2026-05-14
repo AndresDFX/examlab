@@ -82,8 +82,86 @@ type HealthCheckResponse = {
     last_status: string | null;
     last_message: string | null;
   }> | null;
+  /** Uso de espacio + cuotas. `null` si la migración 20260523000010
+   *  no se aplicó. */
+  storage_usage?: {
+    db_size_bytes: number;
+    objects_size_bytes: number;
+    objects_count: number;
+    buckets_count: number;
+    db_quota_mb: number;
+    storage_quota_mb: number;
+    alert_threshold_pct: number;
+  } | null;
   secrets: Array<{ name: string; present: boolean; expected_prefix?: string }>;
 };
+
+/** Convierte bytes a MB con 1 decimal, sin saturar el display de
+ *  números pequeños (devuelve 0.0 si bytes < 1MB). */
+function bytesToMB(b: number): number {
+  return Math.round((b / (1024 * 1024)) * 10) / 10;
+}
+
+/** Estado de una métrica de uso según el threshold de alerta:
+ *  - "danger" si usado > 100 - threshold (= libre menor que threshold)
+ *  - "warning" si usado > 60% pero todavía libre suficiente
+ *  - "ok" si libre cómodo */
+function usageState(usedPct: number, threshold: number): "ok" | "warning" | "danger" {
+  if (usedPct >= 100 - threshold) return "danger";
+  if (usedPct >= 60) return "warning";
+  return "ok";
+}
+
+/** Barra de progreso + labels "X MB usado / Y MB libre / Z MB total".
+ *  Reusable para DB + Storage en el panel. Color de la barra según
+ *  usageState. */
+function UsageBar({
+  usedMB,
+  totalMB,
+  usedPct,
+  state,
+  thresholdPct,
+}: {
+  usedMB: number;
+  totalMB: number;
+  usedPct: number;
+  state: "ok" | "warning" | "danger";
+  thresholdPct: number;
+}) {
+  const freeMB = Math.max(0, Math.round((totalMB - usedMB) * 10) / 10);
+  const barColor =
+    state === "danger" ? "bg-destructive" : state === "warning" ? "bg-amber-500" : "bg-emerald-500";
+  const labelColor =
+    state === "danger"
+      ? "text-destructive"
+      : state === "warning"
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-muted-foreground";
+  // Clamp visual entre 2% y 100% — 0% se ve como barra vacía rara,
+  // 2% mínimo deja claro que hay un poquito de uso.
+  const widthPct = Math.min(100, Math.max(2, usedPct));
+  return (
+    <div className="space-y-1.5 pt-1">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className={`font-medium ${labelColor}`}>{usedPct.toFixed(1)}% usado</span>
+        <span className="text-[10px] text-muted-foreground tabular-nums">
+          {usedMB.toFixed(1)} MB / {totalMB} MB
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full ${barColor} transition-all`} style={{ width: `${widthPct}%` }} />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>Libre: {freeMB} MB</span>
+        {state === "danger" && (
+          <span className="text-destructive font-medium">
+            Bajo el {thresholdPct}% libre — se generará alerta
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type CheckResult<T> =
   | { state: "idle" }
@@ -320,13 +398,42 @@ export function SystemDiagnosticsPanel() {
 
   const secretsState: "idle" | "ok" | "warning" | "error" = hcData ? "ok" : "idle";
 
-  const storageState: "idle" | "ok" | "warning" | "error" = storage
-    ? storage.buckets.length > 0
-      ? "ok"
-      : "warning"
-    : hc.state === "error"
-      ? "error"
-      : "idle";
+  const storageUsage = hcData?.storage_usage ?? null;
+  // Métricas derivadas del uso. Si no llegó info (migración pendiente),
+  // los % quedan en null y los componentes pintan "no disponible".
+  const dbUsedMB = storageUsage ? bytesToMB(storageUsage.db_size_bytes) : null;
+  const dbUsedPct =
+    storageUsage && storageUsage.db_quota_mb > 0
+      ? (dbUsedMB! / storageUsage.db_quota_mb) * 100
+      : null;
+  const storageUsedMB = storageUsage ? bytesToMB(storageUsage.objects_size_bytes) : null;
+  const storageUsedPct =
+    storageUsage && storageUsage.storage_quota_mb > 0
+      ? (storageUsedMB! / storageUsage.storage_quota_mb) * 100
+      : null;
+  const threshold = storageUsage?.alert_threshold_pct ?? 15;
+  const dbUsageState = dbUsedPct != null ? usageState(dbUsedPct, threshold) : null;
+  const storageUsageState = storageUsedPct != null ? usageState(storageUsedPct, threshold) : null;
+
+  // El card "Storage" ahora combina la lista de buckets + barra de uso.
+  // Estado del card: 'danger' del uso (rojo) gana sobre 'warning' del
+  // bucket vacío.
+  const storageState: "idle" | "ok" | "warning" | "error" = (() => {
+    if (storageUsageState === "danger") return "error";
+    if (!storage) return hc.state === "error" ? "error" : "idle";
+    if (storage.buckets.length === 0) return "warning";
+    if (storageUsageState === "warning") return "warning";
+    return "ok";
+  })();
+
+  // Card "Base de datos" extendido con uso.
+  const dbCardState: "idle" | "ok" | "warning" | "error" = (() => {
+    if (db.state === "error") return "error";
+    if (dbUsageState === "danger") return "error";
+    if (dbUsageState === "warning") return "warning";
+    if (db.state === "ok") return "ok";
+    return "idle";
+  })();
 
   return (
     <div className="space-y-4">
@@ -372,12 +479,12 @@ export function SystemDiagnosticsPanel() {
           )}
         </StatusCard>
 
-        {/* Database */}
+        {/* Database — latencia + tamaño + barra de uso vs cuota */}
         <StatusCard
           title="Base de datos"
-          description="Query via PostgREST con el JWT del usuario actual."
+          description="Tamaño + cuota configurada en system_settings."
           icon={<Database className="h-4 w-4 text-emerald-500" />}
-          state={db.state === "ok" ? "ok" : db.state}
+          state={dbCardState}
         >
           {db.state === "idle" && (
             <p className="text-muted-foreground">Click en "Refrescar" para iniciar.</p>
@@ -388,8 +495,16 @@ export function SystemDiagnosticsPanel() {
               <MutedLine label="Cursos" value={db.data.courses} />
             </>
           )}
-          {db.state === "error" && (
-            <p className="text-xs text-destructive">{db.message}</p>
+          {db.state === "error" && <p className="text-xs text-destructive">{db.message}</p>}
+          {/* Barra de uso. Se muestra cuando llegó info del RPC. */}
+          {storageUsage && dbUsedMB != null && dbUsedPct != null && dbUsageState && (
+            <UsageBar
+              usedMB={dbUsedMB}
+              totalMB={storageUsage.db_quota_mb}
+              usedPct={dbUsedPct}
+              state={dbUsageState}
+              thresholdPct={storageUsage.alert_threshold_pct}
+            />
           )}
         </StatusCard>
 
@@ -447,6 +562,7 @@ export function SystemDiagnosticsPanel() {
           ) : (
             <>
               <MutedLine label="Buckets" value={storage.buckets.length} />
+              {storageUsage && <MutedLine label="Objetos" value={storageUsage.objects_count} />}
               <div className="flex flex-wrap gap-1 pt-1">
                 {storage.buckets.map((b) => (
                   <Badge key={b.id} variant="outline" className="text-xs">
@@ -459,6 +575,21 @@ export function SystemDiagnosticsPanel() {
                   </Badge>
                 ))}
               </div>
+              {/* Barra de uso del storage (suma de tamaños de objetos
+                  contra storage_quota_mb). Color rojo si está por debajo
+                  del threshold de espacio libre. */}
+              {storageUsage &&
+                storageUsedMB != null &&
+                storageUsedPct != null &&
+                storageUsageState && (
+                  <UsageBar
+                    usedMB={storageUsedMB}
+                    totalMB={storageUsage.storage_quota_mb}
+                    usedPct={storageUsedPct}
+                    state={storageUsageState}
+                    thresholdPct={storageUsage.alert_threshold_pct}
+                  />
+                )}
             </>
           )}
         </StatusCard>
@@ -499,8 +630,8 @@ export function SystemDiagnosticsPanel() {
               />
               {ai.required_secret_missing && (
                 <p className="pt-1 text-xs text-destructive">
-                  Falta el secret {ai.required_secret} en Edge Function Secrets. Las llamadas
-                  de IA van a fallar hasta que lo configures.
+                  Falta el secret {ai.required_secret} en Edge Function Secrets. Las llamadas de IA
+                  van a fallar hasta que lo configures.
                 </p>
               )}
             </>
