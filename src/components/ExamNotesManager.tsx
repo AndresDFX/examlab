@@ -49,6 +49,16 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
+  /** Abre el dialog Y recarga el estado de la nota. Esto evita el caso
+   *  donde el docente rechazó después del último load() y el estudiante
+   *  abriría el dialog viendo info stale (sin razón de rechazo). El
+   *  reload es async — el dialog ya está abierto cuando llega la
+   *  respuesta, y la UI se actualiza in-place. */
+  const openDialog = async () => {
+    setOpen(true);
+    await load();
+  };
+
   const load = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -129,16 +139,30 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
-        >
-          <FileText className="h-3.5 w-3.5" />
-          {note ? "Ver / editar mis notas de apoyo" : "Subir notas de apoyo"}
-        </button>
-        {statusBadge}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => void openDialog()}
+            className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {note ? "Ver / editar mis notas de apoyo" : "Subir notas de apoyo"}
+          </button>
+          {statusBadge}
+        </div>
+        {/* Preview de la razón de rechazo en el card — visible sin
+            tener que abrir el dialog. Ayuda al alumno a entender de
+            inmediato qué corregir antes de re-enviar. Una línea con
+            truncate; el texto completo siempre vive en el dialog. */}
+        {isRejected && note?.rejection_reason && (
+          <div className="flex items-start gap-1.5 text-[11px] text-destructive border-l-2 border-destructive/40 pl-2">
+            <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+            <span className="line-clamp-2" title={note.rejection_reason}>
+              <strong>Motivo:</strong> {note.rejection_reason}
+            </span>
+          </div>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -150,8 +174,17 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
             </DialogDescription>
           </DialogHeader>
           {isRejected && note?.rejection_reason && (
-            <div className="text-[12px] rounded border border-destructive/40 bg-destructive/5 p-2 text-destructive">
-              <strong>Motivo del rechazo:</strong> {note.rejection_reason}
+            <div className="rounded border border-destructive/40 bg-destructive/5 p-3 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <XCircle className="h-3.5 w-3.5" />
+                Motivo del último rechazo
+              </div>
+              <p className="text-[12px] text-destructive whitespace-pre-wrap break-words">
+                {note.rejection_reason}
+              </p>
+              <p className="text-[10px] text-muted-foreground pt-1">
+                Corrige el contenido abajo y reenvía a revisión.
+              </p>
             </div>
           )}
           {isApproved ? (
