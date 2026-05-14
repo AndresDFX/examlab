@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, CheckCircle2, FileText, Loader2, ThumbsDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
+import { notifyExamNoteReviewed } from "@/lib/exam-notes-notify";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -164,6 +165,15 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
     }
     toast.success(`Notas de ${note.studentName ?? "estudiante"} aprobadas`);
     setRows((prev) => prev.filter((r) => r.id !== note.id));
+    // Fire-and-forget: el correo se manda por la cadena trigger + edge.
+    // Si la inserción de notif falla por algún motivo, el flujo de
+    // aprobación ya completó — no rollback.
+    void notifyExamNoteReviewed({
+      studentId: note.user_id,
+      examId: note.exam_id,
+      examTitle: note.examTitle,
+      approved: true,
+    });
     onChange?.();
   };
 
@@ -216,6 +226,13 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
     setRows((prev) => prev.filter((r) => r.id !== note.id));
     setRejectingId(null);
     setRejectReason("");
+    void notifyExamNoteReviewed({
+      studentId: note.user_id,
+      examId: note.exam_id,
+      examTitle: note.examTitle,
+      approved: false,
+      rejectionReason: reason,
+    });
     onChange?.();
   };
 

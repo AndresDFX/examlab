@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { notifyExamNoteReviewed } from "@/lib/exam-notes-notify";
 import {
   FileText,
   CheckCircle2,
@@ -265,6 +266,17 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       return;
     }
     toast.success("Notas aprobadas");
+    // Notif al estudiante → dispara correo. El examId lo tenemos en el
+    // scope; el user_id lo sacamos del row local (cargado por `load`).
+    // El helper resuelve el título del examen vía query si hace falta.
+    const noteRow = notes.find((n) => n.id === noteId);
+    if (noteRow) {
+      void notifyExamNoteReviewed({
+        studentId: noteRow.user_id,
+        examId,
+        approved: true,
+      });
+    }
     void load();
   };
 
@@ -305,7 +317,18 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       return;
     }
     toast.success("Notas rechazadas — el estudiante podrá reenviar");
+    const rejectedNoteId = rejectDialog.noteId;
+    const rejectedReason = reason.trim();
     setRejectDialog({ open: false, noteId: null });
+    const noteRow = notes.find((n) => n.id === rejectedNoteId);
+    if (noteRow) {
+      void notifyExamNoteReviewed({
+        studentId: noteRow.user_id,
+        examId,
+        approved: false,
+        rejectionReason: rejectedReason,
+      });
+    }
     void load();
   };
 
