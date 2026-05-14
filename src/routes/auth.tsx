@@ -58,24 +58,21 @@ function AuthPage() {
     e.preventDefault();
     if (!forgotEmail.trim()) return;
     setForgotLoading(true);
-    // redirectTo apunta a la ruta donde el usuario aterrizará tras
-    // hacer click en el correo. Usamos window.location.origin para
-    // que funcione en cualquier entorno (dev / staging / prod) sin
-    // hardcodear. IMPORTANTE: esta URL debe estar en el allowlist de
-    // Supabase → Auth → URL Configuration → Redirect URLs.
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+    // Reemplazo del flow nativo (supabase.auth.resetPasswordForEmail)
+    // por nuestra edge function `request-password-reset`. Razón:
+    // controlamos el envío del correo a través del pipeline send-email
+    // (Brevo + template unificado) en vez del template default de
+    // Supabase Auth. La función retorna 200 igual exista o no la
+    // cuenta — no leak.
+    const { error } = await supabase.functions.invoke("request-password-reset", {
+      body: { email: forgotEmail.trim() },
     });
     setForgotLoading(false);
     if (error) {
-      // No leakeamos si la dirección existe o no — mensaje genérico
-      // para no convertir esto en oracle de enumeración de usuarios.
-      // Solo mostramos error si es un problema técnico (network, etc.).
-      console.warn("[auth] resetPasswordForEmail", error);
+      // Solo loggeamos errores de red / función caída; mostramos el
+      // mismo mensaje genérico para no leakear estado al usuario.
+      console.warn("[auth] request-password-reset", error);
     }
-    // Siempre mostramos el mismo mensaje, exista o no la cuenta. Es
-    // la postura estándar de seguridad: el usuario solo sabe "si
-    // existe, te llegará un correo".
     setForgotSent(true);
   };
 

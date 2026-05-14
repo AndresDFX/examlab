@@ -1,25 +1,28 @@
 /**
  * Reset password — destino del link que llega al correo del usuario
- * tras pedir recuperación desde /auth.
+ * tras pedir recuperación desde /auth. FLOW CUSTOM (sin Supabase Auth
+ * recovery).
  *
- * Flujo Supabase Auth:
- *  1. Usuario hace click en "¿Olvidaste tu contraseña?" en /auth
- *  2. Modal pide email → llama supabase.auth.resetPasswordForEmail()
- *  3. Supabase envía correo con link tipo
- *     https://tudominio.com/auth/reset-password#access_token=...&type=recovery
- *  4. Usuario hace click → aterriza acá
- *  5. supabase-js detecta el hash y establece una sesión temporal
- *     de tipo "recovery". Esa sesión solo permite UPDATE de password.
- *  6. Usuario escribe nueva contraseña → updateUser({ password })
- *  7. Redirige a /app con sesión normal ya logueada.
+ * Flujo:
+ *  1. Usuario click "¿Olvidaste tu contraseña?" en /auth → modal pide email
+ *  2. Frontend llama edge function `request-password-reset`
+ *  3. Edge function genera token (32 bytes URL-safe, válido 1h) en
+ *     `password_reset_tokens` + inserta notif → pipeline send-email
+ *     manda correo con link a `/auth/reset-password?token=<token>`
+ *  4. Usuario click en el link → aterriza acá. NO hay sesión Supabase;
+ *     leemos el token del query string.
+ *  5. Usuario escribe nueva password → frontend llama edge function
+ *     `confirm-password-reset` con { token, password }
+ *  6. Edge function valida token (existe, no usado, no expirado) y
+ *     actualiza la password via auth.admin.updateUserById()
+ *  7. Marca token usado + retorna ok → frontend redirige a /auth
+ *     para que el usuario inicie sesión con la nueva password.
  *
  * Edge cases:
- *  - Link expirado (>1h por default en Supabase): no hay sesión activa
- *    cuando llega, mostramos error + link a pedir uno nuevo.
- *  - Usuario ya logueado y entra sin link: tratamos como caso normal —
- *    le permitimos cambiar password (UX redundante con el "Cambiar
- *    contraseña" del menú, pero no es bug).
- *  - Contraseñas que no coinciden: validación cliente, no llega al API.
+ *  - Sin token en la URL: estado "invalid" inmediato.
+ *  - Token inválido / expirado / ya usado: error genérico (sin distinguir
+ *    causas, para no ayudar a enumeración).
+ *  - Passwords no coinciden: validación cliente.
  */
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -49,43 +52,29 @@ function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  // Toggles independientes para cada campo — si compartieran estado,
-  // mostrar "nueva" expone también "confirmar" y se pierde la utilidad
-  // de la confirmación.
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  // sessionState distingue los 3 estados terminales del flujo:
-  //   - "checking" — esperando a que supabase-js procese el hash de URL
-  //   - "ready" — tenemos sesión válida, mostrar form de nueva password
-  //   - "invalid" — sin sesión / link expirado, mostrar error
-  const [sessionState, setSessionState] = useState<"checking" | "ready" | "invalid">("checking");
+  // Token desde el query string. Si no está, no podemos hacer nada.
+  // sessionState ahora se llama tokenState, distingue:
+  //   - "checking" — leyendo token de la URL
+  //   - "ready" — tenemos token, mostrar form
+  //   - "invalid" — sin token o token vacío (lo "real" lo valida el
+  //     backend en confirm, acá solo chequeamos presencia)
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenState, setTokenState] = useState<"checking" | "ready" | "invalid">("checking");
 
   useEffect(() => {
-    // Pequeño delay para dar tiempo a supabase-js a procesar el hash
-    // de URL (#access_token=...&type=recovery). El cliente lo hace
-    // automático en onAuthStateChange — escuchamos ese evento.
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setSessionState("ready");
-      } else if (session) {
-        // El usuario ya tenía sesión activa (caso edge: entró acá sin
-        // venir del correo). Lo dejamos cambiar password igual.
-        setSessionState("ready");
-      }
-    });
-
-    // Si pasaron 2s y no hay sesión válida, asumimos que el link expiró
-    // o es inválido. Mostramos error.
-    const timer = setTimeout(() => {
-      supabase.auth.getSession().then(({ data }) => {
-        setSessionState((prev) => (prev === "checking" ? (data.session ? "ready" : "invalid") : prev));
-      });
-    }, 2000);
-
-    return () => {
-      sub.subscription.unsubscribe();
-      clearTimeout(timer);
-    };
+    // Token viene como query string ?token=... porque la edge function
+    // construye el link así. NO usamos el hash de URL (eso era el flow
+    // viejo de Supabase Auth).
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("token")?.trim() ?? "";
+    if (!t) {
+      setTokenState("invalid");
+      return;
+    }
+    setToken(t);
+    setTokenState("ready");
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -98,17 +87,45 @@ function ResetPasswordPage() {
       toast.error(t("auth.reset.passwordsDontMatch", { defaultValue: "Las contraseñas no coinciden" }));
       return;
     }
+    if (!token) return;
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data, error } = await supabase.functions.invoke("confirm-password-reset", {
+      body: { token, password },
+    });
     setLoading(false);
-    if (error) {
-      toast.error(error.message);
+    // La edge devuelve 4xx con un "error" string en el body cuando el
+    // token es inválido / expirado / password corta. Lo mapeamos a
+    // mensajes amigables.
+    const respError = (data as { error?: string } | null)?.error;
+    if (error || respError) {
+      const code = respError ?? error?.message ?? "";
+      if (code === "token_invalid") {
+        toast.error(
+          t("auth.reset.tokenInvalid", {
+            defaultValue: "Token inválido o ya usado. Solicita un nuevo enlace.",
+          }),
+        );
+        setTokenState("invalid");
+      } else if (code === "token_expired") {
+        toast.error(
+          t("auth.reset.tokenExpired", {
+            defaultValue: "El enlace expiró (vigencia 1h). Solicita uno nuevo.",
+          }),
+        );
+        setTokenState("invalid");
+      } else if (code === "password_too_short") {
+        toast.error(t("auth.reset.passwordTooShort", { defaultValue: "Mínimo 8 caracteres" }));
+      } else {
+        toast.error(code || "No se pudo restablecer la contraseña.");
+      }
       return;
     }
     toast.success(
-      t("auth.reset.success", { defaultValue: "Contraseña actualizada. Bienvenido de vuelta." }),
+      t("auth.reset.success", {
+        defaultValue: "Contraseña actualizada. Inicia sesión con la nueva.",
+      }),
     );
-    navigate({ to: "/app" });
+    navigate({ to: "/auth" });
   };
 
   return (
@@ -132,14 +149,14 @@ function ResetPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {sessionState === "checking" && (
+          {tokenState === "checking" && (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
               <Spinner size="sm" />
               {t("auth.reset.verifying", { defaultValue: "Verificando el enlace…" })}
             </div>
           )}
 
-          {sessionState === "invalid" && (
+          {tokenState === "invalid" && (
             <div className="space-y-4">
               <div className="flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/5 text-destructive text-sm">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -158,7 +175,7 @@ function ResetPasswordPage() {
             </div>
           )}
 
-          {sessionState === "ready" && (
+          {tokenState === "ready" && (
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="rp-password" required>

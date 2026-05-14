@@ -79,6 +79,19 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Custom password reset — el usuario NO está autenticado cuando pide
+# el reset (paso 1) ni cuando lo confirma con el token (paso 2). Las
+# dos funciones se invocan con anon key + body que trae el email o el
+# token. La seguridad la dan: tokens single-use con 1h de vigencia
+# (tabla password_reset_tokens) + no-enumeration en la respuesta.
+[functions."request-password-reset"]
+enabled = true
+verify_jwt = false
+
+[functions."confirm-password-reset"]
+enabled = true
+verify_jwt = false
+
 [logging]
 vector_enabled = false
 postgres_enabled = false

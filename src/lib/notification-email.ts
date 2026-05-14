@@ -126,13 +126,23 @@ export function renderEmailHtml(params: RenderEmailParams): string {
     ? (params.appUrl.replace(/\/+$/, "") + params.link).replace(/(?<!:)\/\/+/g, "/")
     : null;
 
+  // Label del botón CTA. Default = "Ver en <brand>" (genérico para
+  // notifs de actividad). Casos especiales según el link:
+  //   - /auth/reset-password → "Restablecer contraseña" (más claro
+  //     para el destinatario que un correo de reset). Le da contexto
+  //     fuerte de la acción incluso si solo mira el botón sin leer el
+  //     body completo.
+  const ctaLabel = params.link?.startsWith("/auth/reset-password")
+    ? "Restablecer contraseña"
+    : `Ver en ${brand}`;
+
   const cta = fullLink
     ? `
       <tr>
         <td style="padding: 24px 0 8px 0; text-align: center;">
           <a href="${escapeHtml(fullLink)}"
              style="display:inline-block; background-color:#2563eb; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:500; font-size:14px;">
-            Ver en ${brand}
+            ${escapeHtml(ctaLabel)}
           </a>
         </td>
       </tr>`
