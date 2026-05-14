@@ -58,6 +58,8 @@ import {
   X,
   Check,
   CheckCheck,
+  CheckSquare,
+  Square,
   Paperclip,
 } from "lucide-react";
 import {
@@ -166,6 +168,35 @@ function MessagesPage() {
   const [attachmentsByMessageId, setAttachmentsByMessageId] = useState<
     Map<string, MessageAttachmentRow[]>
   >(new Map());
+
+  // V3: modo selección múltiple para borrado masivo. Cuando está activo:
+  //  - Las acciones inline (editar/borrar por bubble) se ocultan.
+  //  - Cada mensaje propio borrable muestra checkbox.
+  //  - Aparece un toolbar superior con "X seleccionados" + Eliminar.
+  // RLS y la lógica de `canEditOrDeleteMessage` siguen siendo la fuente
+  // de verdad — sólo se pueden seleccionar mensajes propios dentro de
+  // la ventana de edición (no leídos por el otro).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const toggleSelectMessage = (id: string) => {
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedMessageIds(new Set());
+  };
+  // Salir del modo selección automáticamente cuando se cambia de
+  // conversación — los IDs seleccionados eran de la conv anterior.
+  useEffect(() => {
+    setSelectMode(false);
+    setSelectedMessageIds(new Set());
+  }, [activeConvId]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -588,6 +619,76 @@ function MessagesPage() {
     });
   };
 
+  /** Borra todos los mensajes seleccionados a la vez. Filtra defensivo
+   *  por elegibilidad (mismo predicado que el bubble individual), aunque
+   *  el checkbox ya se renderiza solo cuando es elegible. Limpia
+   *  adjuntos de Storage en batch. Si el batch del DB falla parcialmente,
+   *  Postgres lo deshace entero (transacción implícita por `.delete().in()`). */
+  const bulkDeleteMessages = async () => {
+    const idArr = Array.from(selectedMessageIds);
+    if (idArr.length === 0) return;
+    // Construir lista de mensajes elegibles según los IDs seleccionados.
+    const eligible = messages.filter(
+      (m) =>
+        idArr.includes(m.id) &&
+        canEditOrDeleteMessage({
+          senderId: m.sender_id,
+          myUserId,
+          messageCreatedAt: m.created_at,
+          otherSideLastReadAt: otherLastReadAt,
+        }),
+    );
+    if (eligible.length === 0) {
+      toast.error("Ninguno de los mensajes seleccionados es elegible para eliminar.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Eliminar ${eligible.length} mensaje(s)`,
+      description: `Se eliminarán ${eligible.length} mensaje(s) para ambas partes. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    setBulkDeleting(true);
+    try {
+      // 1) Borrar adjuntos de Storage. El bucket también recibe CASCADE
+      //    a nivel de filas message_attachments cuando borramos mensajes,
+      //    pero los objetos físicos quedan huérfanos — limpiamos aquí.
+      const pathsToRemove: string[] = [];
+      for (const m of eligible) {
+        const atts = attachmentsByMessageId.get(m.id) ?? [];
+        for (const a of atts) if (a.path) pathsToRemove.push(a.path);
+      }
+      if (pathsToRemove.length > 0) {
+        await supabase.storage.from("message-attachments").remove(pathsToRemove);
+      }
+      // 2) Borrado batch via `.in()` — Postgres lo ejecuta como una
+      //    sola statement con rollback si algo falla.
+      const eligibleIds = eligible.map((m) => m.id);
+      const { error } = await db.from("messages").delete().in("id", eligibleIds);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setMessages((prev) => prev.filter((x) => !eligibleIds.includes(x.id)));
+      setAttachmentsByMessageId((prev) => {
+        const next = new Map(prev);
+        for (const id of eligibleIds) next.delete(id);
+        return next;
+      });
+      const skipped = idArr.length - eligible.length;
+      toast.success(
+        skipped > 0
+          ? `${eligible.length} eliminado(s) · ${skipped} omitido(s) (ya leídos por el otro)`
+          : `${eligible.length} mensaje(s) eliminado(s)`,
+      );
+      setSelectMode(false);
+      setSelectedMessageIds(new Set());
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const openConversationWith = async (otherUserId: string) => {
     if (!myUserId) return;
     const { data, error } = await db.rpc("open_conversation", { _other: otherUserId });
@@ -765,16 +866,79 @@ function MessagesPage() {
                       </p>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive shrink-0"
-                    onClick={() => void clearConversation(activeConv.conv.id)}
-                    title="Eliminar conversación (solo para mí)"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Toggle del modo selección. Cuando hay 0
+                        seleccionados y selectMode=false, muestra solo
+                        el ícono. Cuando se entra al modo, el ícono
+                        cambia y al hacer click sale. */}
+                    <Button
+                      variant={selectMode ? "secondary" : "ghost"}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => {
+                        if (selectMode) {
+                          setSelectMode(false);
+                          setSelectedMessageIds(new Set());
+                        } else {
+                          setSelectMode(true);
+                        }
+                      }}
+                      title={selectMode ? "Salir de selección" : "Seleccionar mensajes"}
+                      aria-pressed={selectMode}
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive shrink-0"
+                      onClick={() => void clearConversation(activeConv.conv.id)}
+                      title="Eliminar conversación (solo para mí)"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Toolbar de selección — solo visible cuando hay items
+                    seleccionados. Diseño consistente con MultiSelectToolbar
+                    de los grids, pero inline aquí porque la UX de mensajes
+                    es vertical y necesita estar pegada arriba del scroll. */}
+                {selectMode && selectedMessageIds.size > 0 && (
+                  <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/40 border-b">
+                    <span className="text-xs font-medium">
+                      {selectedMessageIds.size} mensaje
+                      {selectedMessageIds.size === 1 ? "" : "s"} seleccionado
+                      {selectedMessageIds.size === 1 ? "" : "s"}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectMode(false);
+                          setSelectedMessageIds(new Set());
+                        }}
+                        disabled={bulkDeleting}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => void bulkDeleteMessages()}
+                        disabled={bulkDeleting}
+                      >
+                        {bulkDeleting ? (
+                          <Spinner size="xs" className="mr-1" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Búsqueda local */}
                 <div className="px-3 py-2 border-b">
@@ -816,22 +980,69 @@ function MessagesPage() {
                           const isEditing = editingId === m.id;
                           const isSaving = savingEditId === m.id;
                           const atts = attachmentsByMessageId.get(m.id) ?? [];
+                          // Solo se pueden seleccionar mensajes propios
+                          // dentro de la ventana de edición. Otros mensajes
+                          // muestran el bubble sin checkbox.
+                          const eligibleForBulk =
+                            mine &&
+                            canEditOrDeleteMessage({
+                              senderId: m.sender_id,
+                              myUserId,
+                              messageCreatedAt: m.created_at,
+                              otherSideLastReadAt: otherLastReadAt,
+                            });
+                          const isSelected = selectedMessageIds.has(m.id);
+                          const bubbleClickable = selectMode && eligibleForBulk && !isEditing;
+                          const onBubbleClick = bubbleClickable
+                            ? () => toggleSelectMessage(m.id)
+                            : undefined;
+                          // Pre-computamos isRead aquí para no usar una
+                          // IIFE dentro del JSX (prettier se confunde
+                          // con la indentación). Solo aplica a mensajes
+                          // propios — del lado del otro no mostramos el
+                          // doble check.
+                          const isReadByOther = mine
+                            ? isMessageReadByOther(m.created_at, otherLastReadAt)
+                            : false;
                           return (
                             <div
                               key={m.id}
                               className={cn(
-                                "flex group",
+                                "flex group items-start gap-2",
                                 mine ? "justify-end" : "justify-start",
                                 stack ? "mt-0.5" : "mt-1.5",
                               )}
                             >
+                              {/* Checkbox de selección — solo en modo
+                                  selección y solo si el mensaje es
+                                  elegible para borrado masivo. */}
+                              {selectMode && eligibleForBulk && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSelectMessage(m.id)}
+                                  className="shrink-0 mt-1 text-muted-foreground hover:text-foreground transition-colors"
+                                  aria-label={
+                                    isSelected ? "Deseleccionar mensaje" : "Seleccionar mensaje"
+                                  }
+                                  aria-pressed={isSelected}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare className="h-4 w-4 text-primary" />
+                                  ) : (
+                                    <Square className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
                               <div
                                 className={cn(
                                   "max-w-[75%] rounded-lg px-3 py-1.5 text-sm shadow-sm relative",
                                   mine
                                     ? "bg-primary text-primary-foreground rounded-br-sm"
                                     : "bg-muted text-foreground rounded-bl-sm",
+                                  isSelected && "ring-2 ring-primary ring-offset-1",
+                                  selectMode && eligibleForBulk && "cursor-pointer",
                                 )}
+                                onClick={onBubbleClick}
                               >
                                 {isEditing ? (
                                   <div className="space-y-1 min-w-[200px]">
@@ -919,37 +1130,26 @@ function MessagesPage() {
                                             del foreground) cuando el otro lo
                                             leyó; ✓ gris para "enviado pero no
                                             leído todavía". Patrón WhatsApp. */}
-                                        {mine && (() => {
-                                          const isRead = isMessageReadByOther(
-                                            m.created_at,
-                                            otherLastReadAt,
-                                          );
-                                          return (
-                                            <span
-                                              className={cn(
-                                                "inline-flex",
-                                                isRead
-                                                  ? "text-primary-foreground"
-                                                  : "text-primary-foreground/50",
-                                              )}
-                                              title={isRead ? "Leído" : "Enviado"}
-                                              aria-label={isRead ? "Leído" : "Enviado"}
-                                            >
-                                              {isRead ? (
-                                                <CheckCheck className="h-3 w-3" />
-                                              ) : (
-                                                <Check className="h-3 w-3" />
-                                              )}
-                                            </span>
-                                          );
-                                        })()}
+                                        {mine && (
+                                          <span
+                                            className={cn(
+                                              "inline-flex",
+                                              isReadByOther
+                                                ? "text-primary-foreground"
+                                                : "text-primary-foreground/50",
+                                            )}
+                                            title={isReadByOther ? "Leído" : "Enviado"}
+                                            aria-label={isReadByOther ? "Leído" : "Enviado"}
+                                          >
+                                            {isReadByOther ? (
+                                              <CheckCheck className="h-3 w-3" />
+                                            ) : (
+                                              <Check className="h-3 w-3" />
+                                            )}
+                                          </span>
+                                        )}
                                       </p>
-                                      {mine && canEditOrDeleteMessage({
-                                        senderId: m.sender_id,
-                                        myUserId,
-                                        messageCreatedAt: m.created_at,
-                                        otherSideLastReadAt: otherLastReadAt,
-                                      }) && (
+                                      {!selectMode && eligibleForBulk && (
                                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <Button
                                             type="button"

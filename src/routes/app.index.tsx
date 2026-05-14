@@ -112,6 +112,21 @@ function AdminDashboard() {
   const [recentUsers, setRecentUsers] = useState<
     { full_name: string; institutional_email: string; created_at: string }[]
   >([]);
+  /** Métricas del módulo de email — últimas 24h. Reemplazo del bloque
+   *  de "Opciones rápidas" (Usuarios + Cursos eran solo atajos
+   *  duplicados del sidebar; este widget aporta info operacional real
+   *  ahora que el sistema de correo es crítico). */
+  const [emailStats, setEmailStats] = useState<{
+    delivered: number;
+    skipped: number;
+    failed: number;
+    recent: Array<{
+      action: string;
+      severity: string;
+      created_at: string;
+      metadata: Record<string, unknown>;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -136,6 +151,53 @@ function AdminDashboard() {
         .order("created_at", { ascending: false })
         .limit(5);
       setRecentUsers((ru ?? []) as any);
+
+      // Métricas de email en las últimas 24h. Un SELECT con filtros
+      // específicos por action — más eficiente que cargar todo y
+      // agrupar en cliente. Si la tabla aún no tiene la categoría
+      // 'email' (migración no aplicada en este entorno) los counts
+      // quedan en 0 sin romper.
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
+        dbAny
+          .from("audit_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("category", "email")
+          .eq("action", "email.delivered")
+          .gte("created_at", since),
+        dbAny
+          .from("audit_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("category", "email")
+          .eq("action", "email.skipped")
+          .gte("created_at", since),
+        dbAny
+          .from("audit_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("category", "email")
+          .eq("action", "email.failed")
+          .gte("created_at", since),
+        dbAny
+          .from("audit_logs")
+          .select("action, severity, created_at, metadata")
+          .eq("category", "email")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+      setEmailStats({
+        delivered: delivRes.count ?? 0,
+        skipped: skipRes.count ?? 0,
+        failed: failRes.count ?? 0,
+        recent: (recentRes.data ?? []) as Array<{
+          action: string;
+          severity: string;
+          created_at: string;
+          metadata: Record<string, unknown>;
+        }>,
+      });
     })();
   }, []);
 
@@ -203,29 +265,114 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            {t("dashboard.administration")}
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <QuickCard
-              to="/app/admin/users"
-              title={t("dashboard.cards.usersTitle")}
-              desc={t("dashboard.cards.usersDesc")}
-              icon={Users}
-              color="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-            />
-            <QuickCard
-              to="/app/admin/courses"
-              title={t("dashboard.cards.coursesTitle")}
-              desc={t("dashboard.cards.coursesDescAdmin")}
-              icon={BookOpen}
-              color="bg-blue-500/10 text-blue-600 dark:text-blue-400"
-            />
-          </div>
-        </div>
+        {/* Métricas de correo — últimas 24h. Reemplaza el bloque de
+            "Opciones rápidas" porque ese era solo un atajo duplicado del
+            sidebar. Este widget aporta info operacional real: el admin
+            ve de un vistazo si el sistema de email está sano y entra a
+            auditoría si hay fallos. */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Inbox className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
+              Correos (últimas 24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!emailStats ? (
+              <p className="text-sm text-muted-foreground py-2">Cargando…</p>
+            ) : emailStats.delivered + emailStats.skipped + emailStats.failed === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                Sin actividad de correo en las últimas 24 horas.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  <EmailStatTile
+                    label="Entregados"
+                    value={emailStats.delivered}
+                    color="text-emerald-600 dark:text-emerald-400"
+                    bg="bg-emerald-500/10"
+                  />
+                  <EmailStatTile
+                    label="Omitidos"
+                    value={emailStats.skipped}
+                    color="text-amber-600 dark:text-amber-400"
+                    bg="bg-amber-500/10"
+                  />
+                  <EmailStatTile
+                    label="Fallidos"
+                    value={emailStats.failed}
+                    color="text-destructive"
+                    bg="bg-destructive/10"
+                  />
+                </div>
+                {emailStats.recent.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Últimos eventos</p>
+                    {emailStats.recent.slice(0, 4).map((ev, i) => {
+                      const severityColor =
+                        ev.severity === "error"
+                          ? "text-destructive"
+                          : ev.severity === "warning"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-muted-foreground";
+                      const reason =
+                        typeof ev.metadata?.reason === "string"
+                          ? (ev.metadata.reason as string)
+                          : null;
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between gap-2 text-[11px] border-b last:border-b-0 pb-1"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className={`font-mono ${severityColor}`}>{ev.action}</span>
+                            {reason && <span className="text-muted-foreground"> · {reason}</span>}
+                          </div>
+                          <span className="text-muted-foreground tabular-nums shrink-0">
+                            {formatDateTime(ev.created_at)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+            <Link
+              to="/app/admin/audit-logs"
+              search={{ category: "email" } as Record<string, unknown>}
+              className="block"
+            >
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                Ver auditoría de correos <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </>
+  );
+}
+
+/** Mini-tile para mostrar un count + label con color. Usado solo por
+ *  el widget de correos del AdminDashboard. */
+function EmailStatTile({
+  label,
+  value,
+  color,
+  bg,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className={`rounded-md p-2.5 ${bg}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+    </div>
   );
 }
 

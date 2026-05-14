@@ -22,6 +22,7 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/i18n";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MessagesFab } from "@/components/MessagesFab";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -926,6 +927,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </main>
+
+      {/* FAB de mensajes — visible cuando el sidebar NO está visible
+          (mobile o sidebar de desktop colapsado). En mobile va por
+          encima del bottom-nav nativo (`bottom-20`); en desktop pega
+          a la esquina inferior (`md:bottom-4`). El bell del header
+          sigue cumpliendo el rol en desktop con sidebar expandido. */}
+      <MessagesFab sidebarCollapsed={sidebarCollapsed} />
     </div>
   );
 }
