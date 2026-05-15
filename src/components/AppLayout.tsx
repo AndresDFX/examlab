@@ -361,28 +361,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // Audit log: registra cada cambio de ruta dentro de /app/* como un
-  // evento `user.navigated`. Permite que Auditoría muestre "El docente
-  // X entró a Y a las HH:MM". Filtramos rutas no-app (/auth, /, etc.)
-  // y rutas técnicas que generan demasiado ruido (?student=… deep
-  // links). Fire-and-forget vía logEvent — nunca bloquea la UI.
-  useEffect(() => {
-    if (!user) return;
-    if (!location.pathname.startsWith("/app")) return;
-    void logEvent({
-      action: "user.navigated",
-      category: "system",
-      actorRole: activeRole ?? roles[0],
-      entityType: "page",
-      entityName: location.pathname,
-      severity: "info",
-      metadata: { path: location.pathname, search: location.search ?? null },
-    });
-    // Solo rastreamos pathname — re-disparar al cambiar `search`
-    // ensuciaría los logs (deep-links de notificación con ?student=...
-    // recargarían la misma "página").
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, user?.id]);
 
   // Web Push: una vez tenemos user, intentamos suscribir el browser.
   // Idempotente — si ya hay suscripción registrada, no hace nada. Si

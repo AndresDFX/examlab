@@ -24,6 +24,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
+import { MarkdownInline } from "@/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,
@@ -473,7 +474,7 @@ function StudentWorkshopDetail() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
-                    <div className="text-foreground whitespace-pre-wrap">{q.content}</div>
+                    <MarkdownInline>{q.content}</MarkdownInline>
                     {renderAnswer(q, ans)}
                     {ans?.ai_feedback && (
                       <div className="border-t pt-3">
@@ -481,9 +482,9 @@ function StudentWorkshopDetail() {
                           <span className="font-medium text-foreground block mb-1">
                             {t("exam.review.feedback")}
                           </span>
-                          <span className="text-muted-foreground whitespace-pre-wrap">
-                            {ans.ai_feedback}
-                          </span>
+                          <div className="text-muted-foreground">
+                            <MarkdownInline>{ans.ai_feedback}</MarkdownInline>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -499,9 +500,9 @@ function StudentWorkshopDetail() {
                         <summary className="cursor-pointer hover:text-foreground">
                           {t("exam.review.rubric")}
                         </summary>
-                        <p className="mt-2 whitespace-pre-wrap border rounded-md p-2 bg-muted/20">
-                          {q.expected_rubric}
-                        </p>
+                        <div className="mt-2 border rounded-md p-2 bg-muted/20">
+                          <MarkdownInline>{q.expected_rubric}</MarkdownInline>
+                        </div>
                       </details>
                     )}
                   </CardContent>

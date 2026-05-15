@@ -44,6 +44,7 @@ import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/procto
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/components/ExamNotesManager";
 import { logEvent } from "@/lib/audit";
+import { MarkdownInline } from "@/components/MarkdownInline";
 import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/utils/exam-session";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
@@ -1164,7 +1165,7 @@ function TakeExam() {
                   </Badge>
                   <span className="text-xs text-muted-foreground">{q.points} pt</span>
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{q.content}</p>
+                <MarkdownInline>{q.content}</MarkdownInline>
 
                 {q.type === "cerrada" && q.options?.choices ? (
                   <div className="space-y-1.5">

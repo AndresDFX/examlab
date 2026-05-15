@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
+import { MarkdownInline } from "@/components/MarkdownInline";
 import { statusLabel } from "@/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
@@ -648,6 +649,14 @@ function ExamMonitor() {
         toast.error(data?.error ?? error?.message ?? "Error al calificar con IA");
         return;
       }
+      void logEvent({
+        action: "ai_grading.completed",
+        category: "grading",
+        severity: "info",
+        entityType: "submission",
+        entityId: sub.id,
+        metadata: { examId, questionId: questionId ?? null, grade: data?.grade ?? null },
+      });
       toast.success(
         questionId ? "Pregunta recalificada con IA" : "Examen recalificado con IA correctamente",
       );
@@ -963,6 +972,14 @@ function ExamMonitor() {
       if (error) throw error;
       const summary = data as { pairs?: unknown[]; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
+      void logEvent({
+        action: "ai_plagiarism.detected",
+        category: "fraud",
+        severity: found > 0 ? "warning" : "info",
+        entityType: "exam",
+        entityId: examId,
+        metadata: { pairs_found: found },
+      });
       if (found > 0) {
         toast.success(t("integrity.detectSuccess_other", { count: found }));
       } else {
@@ -1859,7 +1876,7 @@ function ExamMonitor() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-2 text-sm">
-                            <div className="text-foreground whitespace-pre-wrap">{q.content}</div>
+                            <MarkdownInline>{q.content}</MarkdownInline>
 
                             {q.type === "cerrada" && choices && (
                               <div className="space-y-1">
@@ -1956,8 +1973,8 @@ function ExamMonitor() {
                                   <Sparkles className="h-3 w-3" />
                                   <span>{t("integrity.aiFeedbackLabel")}</span>
                                 </div>
-                                <div className="text-xs whitespace-pre-wrap text-foreground/90">
-                                  {bd.feedback}
+                                <div className="text-xs text-foreground/90">
+                                  <MarkdownInline>{bd.feedback}</MarkdownInline>
                                 </div>
                               </div>
                             )}
@@ -1967,9 +1984,9 @@ function ExamMonitor() {
                                 <summary className="cursor-pointer text-muted-foreground font-medium">
                                   {t("integrity.rubricLabel")}
                                 </summary>
-                                <p className="mt-2 whitespace-pre-wrap text-foreground/80">
-                                  {q.expected_rubric}
-                                </p>
+                                <div className="mt-2 text-foreground/80">
+                                  <MarkdownInline>{q.expected_rubric}</MarkdownInline>
+                                </div>
                               </details>
                             )}
 

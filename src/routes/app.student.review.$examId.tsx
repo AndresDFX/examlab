@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/lib/format";
 import { CodeRunOutput } from "@/components/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
+import { MarkdownInline } from "@/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -273,7 +274,7 @@ function StudentExamReview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{submission.teacher_feedback}</p>
+            <div className="text-sm"><MarkdownInline>{submission.teacher_feedback!}</MarkdownInline></div>
           </CardContent>
         </Card>
       )}
@@ -324,7 +325,7 @@ function StudentExamReview() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <div className="text-foreground whitespace-pre-wrap">{q.content}</div>
+                <MarkdownInline>{q.content}</MarkdownInline>
 
                 {q.type === "cerrada" && choices && (
                   <div className="space-y-1.5">
@@ -402,11 +403,13 @@ function StudentExamReview() {
                       <span className="font-medium text-foreground block mb-1">
                         {t("exam.review.feedback")}
                       </span>
-                      <span className="text-muted-foreground whitespace-pre-wrap">
-                        {[
-                          ...new Set([teacherFeedback, iaFeedback].filter(Boolean) as string[]),
-                        ].join("\n\n")}
-                      </span>
+                      <div className="text-muted-foreground">
+                        <MarkdownInline>
+                          {[
+                            ...new Set([teacherFeedback, iaFeedback].filter(Boolean) as string[]),
+                          ].join("\n\n")}
+                        </MarkdownInline>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -430,9 +433,9 @@ function StudentExamReview() {
                     <summary className="cursor-pointer hover:text-foreground">
                       {t("exam.review.rubric")}
                     </summary>
-                    <p className="mt-2 whitespace-pre-wrap border rounded-md p-2 bg-muted/20">
-                      {q.expected_rubric}
-                    </p>
+                    <div className="mt-2 border rounded-md p-2 bg-muted/20">
+                      <MarkdownInline>{q.expected_rubric}</MarkdownInline>
+                    </div>
                   </details>
                 )}
               </CardContent>

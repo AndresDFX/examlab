@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { logEvent } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -355,6 +356,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       if (error) throw error;
       const summary = data as { pairs?: unknown[]; groups_compared?: number; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
+      void logEvent({
+        action: "ai_plagiarism.detected",
+        category: "fraud",
+        severity: found > 0 ? "warning" : "info",
+        entityType: kind,
+        entityId: refId,
+        metadata: { pairs_found: found },
+      });
       if (found > 0) {
         toast.success(
           `Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"}.`,

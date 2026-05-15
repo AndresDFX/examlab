@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logEvent } from "@/lib/audit";
 import { friendlyUniqueViolation } from "@/lib/db-errors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -505,6 +506,14 @@ function ExamEditor() {
       if (totalInserted > 0) {
         toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
         setAiTopics("");
+        void logEvent({
+          action: "ai_questions.generated",
+          category: "grading",
+          severity: "info",
+          entityType: "exam",
+          entityId: examId,
+          metadata: { total: totalInserted, types: validRows.map((r) => r.type) },
+        });
       }
       load();
     } finally {

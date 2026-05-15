@@ -1322,6 +1322,18 @@ function TeacherWorkshops() {
             .eq("id", answer.id);
         }
       }
+      void logEvent({
+        action: "ai_grading.completed",
+        category: "grading",
+        severity: "info",
+        entityType: "workshop_submission",
+        entityId: subId,
+        metadata: {
+          workshopId: gradingWs?.id ?? null,
+          questionId: question.id,
+          grade: newGrade,
+        },
+      });
       toast.success(t("workshop.regraded"));
     } finally {
       setAiGradingAnswerId(null);
@@ -1403,6 +1415,14 @@ function TeacherWorkshops() {
       if (error) throw error;
       const summary = data as { pairs?: unknown[]; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
+      void logEvent({
+        action: "ai_plagiarism.detected",
+        category: "fraud",
+        severity: found > 0 ? "warning" : "info",
+        entityType: "workshop",
+        entityId: gradingWs.id,
+        metadata: { pairs_found: found },
+      });
       if (found > 0) {
         toast.success(
           `Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"} encontrado${found === 1 ? "" : "s"}.`,

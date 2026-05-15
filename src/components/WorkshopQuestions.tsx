@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { logEvent } from "@/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
@@ -257,6 +258,14 @@ export function TeacherWorkshopQuestionsEditor({
       if (totalInserted > 0) {
         toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
         setAiTopics("");
+        void logEvent({
+          action: "ai_questions.generated",
+          category: "grading",
+          severity: "info",
+          entityType: "workshop",
+          entityId: workshopId,
+          metadata: { total: totalInserted, types: validRows.map((r) => r.type) },
+        });
       }
       load();
     } catch (e: any) {
