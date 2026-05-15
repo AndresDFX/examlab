@@ -692,13 +692,17 @@ function ExamMonitor() {
   // ahí (otra ruta), pero no hay override global desde el monitor.
 
   // Borra TODAS las advertencias de un intento: focus_warnings=0,
-  // limpia __warning_events del JSON, y si el intento estaba en
-  // status='sospechoso' lo regresa a 'completado' (porque sospechoso
-  // se setea precisamente cuando supera el umbral de strikes).
+  // Limpia __warning_events del JSON y pone focus_warnings a 0.
+  // Si el intento estaba en 'sospechoso' (por alcanzar el umbral de strikes)
+  // lo regresa a 'en_progreso' y limpia submitted_at para que el estudiante
+  // pueda reingresar al examen.
   const clearAllWarnings = async (sub: Submission) => {
+    const restoring = sub.status === "sospechoso";
     const ok = await confirm({
       title: t("monitor.clearWarningsTitle"),
-      description: t("monitor.clearWarningsBody"),
+      description: restoring
+        ? "Se eliminarán todas las advertencias y el estudiante podrá reingresar al examen. Esta acción no se puede deshacer."
+        : t("monitor.clearWarningsBody"),
       confirmLabel: t("monitor.clearWarningsConfirm"),
       tone: "warning",
     });
@@ -707,15 +711,16 @@ function ExamMonitor() {
     const { __warning_events: _evs, ...rest } = prevAnswers;
     void _evs;
     const nextAnswers = rest;
-    const nextStatus = sub.status === "sospechoso" ? "completado" : sub.status;
-    const { error } = await supabase
-      .from("submissions")
-      .update({ focus_warnings: 0, answers: nextAnswers, status: nextStatus })
-      .eq("id", sub.id);
+    const nextStatus = restoring ? "en_progreso" : sub.status;
+    const updatePayload: Record<string, unknown> = {
+      focus_warnings: 0,
+      answers: nextAnswers,
+      status: nextStatus,
+    };
+    if (restoring) updatePayload.submitted_at = null;
+    const { error } = await supabase.from("submissions").update(updatePayload).eq("id", sub.id);
     if (error) return toast.error(error.message);
-    // Auditoría: borrar todas las advertencias es decisión sensible
-    // (puede convertir un intento "sospechoso" en válido). Lo marcamos
-    // warning con before/after para que quede rastro.
+    // Auditoría: borrar advertencias es decisión sensible — rastro con before/after.
     void logEvent({
       action: "fraud.warnings_cleared_all",
       category: "fraud",
@@ -731,10 +736,22 @@ function ExamMonitor() {
         new_status: nextStatus,
       },
     });
-    toast.success("Advertencias eliminadas");
+    toast.success(
+      restoring
+        ? "Advertencias eliminadas — el estudiante puede reingresar al examen"
+        : "Advertencias eliminadas",
+    );
     setSubmissions((prev) =>
       prev.map((s) =>
-        s.id === sub.id ? { ...s, focus_warnings: 0, answers: nextAnswers, status: nextStatus } : s,
+        s.id === sub.id
+          ? {
+              ...s,
+              focus_warnings: 0,
+              answers: nextAnswers,
+              status: nextStatus,
+              submitted_at: restoring ? null : s.submitted_at,
+            }
+          : s,
       ),
     );
   };
@@ -742,7 +759,8 @@ function ExamMonitor() {
   // Borra UNA advertencia puntual del array de eventos. focus_warnings
   // se decrementa para mantener consistencia con la longitud del array.
   // Si tras decrementar el intento ya no supera el umbral y estaba en
-  // sospechoso, lo regresamos a completado.
+  // sospechoso, lo regresamos a en_progreso (+ limpiamos submitted_at)
+  // para que el estudiante pueda reingresar al examen.
   const clearOneWarning = async (sub: Submission, idx: number) => {
     const prevAnswers = sub.answers ?? {};
     const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
@@ -751,18 +769,24 @@ function ExamMonitor() {
     const nextAnswers = { ...prevAnswers, __warning_events: nextEvents };
     const nextWarnings = Math.max(0, (sub.focus_warnings ?? 0) - 1);
     const examMax = exam?.max_warnings ?? 3;
-    const nextStatus =
-      sub.status === "sospechoso" && nextWarnings < examMax ? "completado" : sub.status;
+    const restoring = sub.status === "sospechoso" && nextWarnings < examMax;
+    const nextStatus = restoring ? "en_progreso" : sub.status;
+    const updatePayload: Record<string, unknown> = {
+      focus_warnings: nextWarnings,
+      answers: nextAnswers,
+      status: nextStatus,
+    };
+    if (restoring) updatePayload.submitted_at = null;
     const { error } = await supabase
       .from("submissions")
-      .update({
-        focus_warnings: nextWarnings,
-        answers: nextAnswers,
-        status: nextStatus,
-      })
+      .update(updatePayload)
       .eq("id", sub.id);
     if (error) return toast.error(error.message);
-    toast.success("Advertencia eliminada");
+    toast.success(
+      restoring
+        ? "Advertencia eliminada — el estudiante puede reingresar al examen"
+        : "Advertencia eliminada",
+    );
     setSubmissions((prev) =>
       prev.map((s) =>
         s.id === sub.id
@@ -771,6 +795,7 @@ function ExamMonitor() {
               focus_warnings: nextWarnings,
               answers: nextAnswers,
               status: nextStatus,
+              submitted_at: restoring ? null : s.submitted_at,
             }
           : s,
       ),
