@@ -101,10 +101,14 @@ export function TeacherWorkshopQuestionsEditor({
 
   // AI form
   const [aiTopics, setAiTopics] = useState("");
-  const [aiCount, setAiCount] = useState(3);
-  const [aiType, setAiType] = useState<WorkshopQuestion["type"]>("abierta");
-  const [aiLanguage, setAiLanguage] = useState("java");
   const [aiLoading, setAiLoading] = useState(false);
+  type AiRow = { type: WorkshopQuestion["type"]; count: number; language: string };
+  const [aiRows, setAiRows] = useState<AiRow[]>([{ type: "abierta", count: 3, language: "java" }]);
+  const updateAiRow = (i: number, patch: Partial<AiRow>) =>
+    setAiRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addAiRow = () =>
+    setAiRows((rows) => [...rows, { type: "abierta", count: 1, language: "java" }]);
+  const removeAiRow = (i: number) => setAiRows((rows) => rows.filter((_, idx) => idx !== i));
 
   const load = async () => {
     setLoading(true);
@@ -172,10 +176,9 @@ export function TeacherWorkshopQuestionsEditor({
         toast.error(error.message);
         return;
       }
-      toast.success("Pregunta agregada");
+      toast.success("Pregunta agregada — puedes continuar añadiendo");
     }
     resetForm();
-    setActiveTab("list");
     load();
   };
 
@@ -228,27 +231,33 @@ export function TeacherWorkshopQuestionsEditor({
       toast.error("Indica los temas");
       return;
     }
+    const validRows = aiRows.filter((r) => r.count > 0);
+    if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
     setAiLoading(true);
+    let totalInserted = 0;
     try {
-      const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
-        body: {
-          topics: aiTopics,
-          type: aiType,
-          count: aiCount,
-          examId: workshopId, // legacy field reused by the function as targetId
-          language: aiLanguage,
-          courseLanguage,
-          targetTable: "workshop_questions",
-        },
-      });
-      if (error) {
-        toast.error(error.message ?? "Error generando con IA");
-      } else if (data?.error) {
-        toast.error(data.error);
-      } else if (data?.inserted) {
-        toast.success(`${data.inserted.length} pregunta(s) generadas con IA`);
+      for (const row of validRows) {
+        const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
+          body: {
+            topics: aiTopics,
+            type: row.type,
+            count: row.count,
+            examId: workshopId,
+            language: row.type === "codigo" ? row.language : undefined,
+            courseLanguage,
+            targetTable: "workshop_questions",
+          },
+        });
+        if (error || data?.error) {
+          toast.error(`Error en ${row.type}: ${error?.message ?? data?.error}`);
+        } else {
+          totalInserted += data?.inserted?.length ?? 0;
+        }
       }
-      setAiTopics("");
+      if (totalInserted > 0) {
+        toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
+        setAiTopics("");
+      }
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Error IA");
@@ -325,6 +334,40 @@ export function TeacherWorkshopQuestionsEditor({
         </TabsContent>
 
         <TabsContent value="manual" className="space-y-3">
+          {questions.length > 0 && (
+            <div className="rounded-md border bg-muted/30 px-3 py-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground font-medium">
+                  {questions.length} pregunta{questions.length !== 1 ? "s" : ""} guardadas ·{" "}
+                  {questions.reduce((s, q) => s + (q.points ?? 0), 0)} pts totales
+                </span>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setActiveTab("list")}
+                >
+                  Ver lista
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {questions.slice(0, 9).map((q, i) => (
+                  <span
+                    key={q.id}
+                    className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[10px] tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
+                  >
+                    <span className="text-muted-foreground">#{i + 1}</span>
+                    <span className="capitalize">{q.type}</span>
+                    <span className="text-muted-foreground">{q.points}pt</span>
+                  </span>
+                ))}
+                {questions.length > 9 && (
+                  <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    +{questions.length - 9} más
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label required>Tipo</Label>
@@ -432,7 +475,7 @@ export function TeacherWorkshopQuestionsEditor({
           </div>
         </TabsContent>
 
-        <TabsContent value="ai" className="space-y-3">
+        <TabsContent value="ai" className="space-y-4">
           <div>
             <Label required>Temas</Label>
             <Textarea
@@ -442,56 +485,85 @@ export function TeacherWorkshopQuestionsEditor({
               placeholder="Listas enlazadas, recursión, complejidad…"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <Label required>Tipo</Label>
-              <Select value={aiType} onValueChange={(v) => setAiType(v as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="abierta">Abierta</SelectItem>
-                  <SelectItem value="cerrada">Cerrada</SelectItem>
-                  <SelectItem value="codigo">Código</SelectItem>
-                  <SelectItem value="diagrama">Diagrama</SelectItem>
-                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label required>Cantidad</Label>
-              <Input
-                type="number"
-                min={1}
-                max={10}
-                value={aiCount}
-                onChange={(e) => setAiCount(Number(e.target.value) || 3)}
-              />
-            </div>
-            {aiType === "codigo" && (
-              <div>
-                <Label required>Lenguaje</Label>
-                <Select value={aiLanguage} onValueChange={setAiLanguage}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="java">Java</SelectItem>
-                    <SelectItem value="python">Python</SelectItem>
-                    <SelectItem value="javascript">JavaScript</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="space-y-2">
+            <Label>Tipos de preguntas a generar</Label>
+            {aiRows.map((row, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select value={row.type} onValueChange={(v) => updateAiRow(i, { type: v as any })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="abierta">Abierta</SelectItem>
+                      <SelectItem value="cerrada">Opción múltiple</SelectItem>
+                      <SelectItem value="codigo">Código</SelectItem>
+                      <SelectItem value="diagrama">Diagrama</SelectItem>
+                      <SelectItem value="java_gui">Java GUI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {row.type === "codigo" && (
+                  <div className="w-28 shrink-0">
+                    <Select
+                      value={row.language}
+                      onValueChange={(v) => updateAiRow(i, { language: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="java">Java</SelectItem>
+                        <SelectItem value="python">Python</SelectItem>
+                        <SelectItem value="javascript">JavaScript</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="w-16 shrink-0">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={row.count || ""}
+                    onChange={(e) =>
+                      updateAiRow(i, {
+                        count: e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="text-center"
+                  />
+                </div>
+                {aiRows.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeAiRow(i)}
+                    className="shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-            )}
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={addAiRow}>
+              <Plus className="h-4 w-4 mr-1" /> Agregar tipo
+            </Button>
           </div>
-          <Button onClick={generateWithAI} disabled={aiLoading}>
-            {aiLoading ? (
-              <Spinner size="md" className="mr-1" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-1" />
-            )}
-            Generar con IA
-          </Button>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              Total: {aiRows.reduce((s, r) => s + (r.count || 0), 0)} preguntas
+            </span>
+            <Button onClick={generateWithAI} disabled={aiLoading}>
+              {aiLoading ? (
+                <Spinner size="md" className="mr-1" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-1" />
+              )}
+              Generar con IA
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

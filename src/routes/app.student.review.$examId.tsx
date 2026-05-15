@@ -65,6 +65,7 @@ function StudentExamReview() {
     ai_grade: number | null;
     final_override_grade: number | null;
     submitted_at: string | null;
+    teacher_feedback?: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -107,7 +108,7 @@ function StudentExamReview() {
             .single(),
           supabase
             .from("submissions")
-            .select("id, status, answers, ai_grade, final_override_grade, submitted_at")
+            .select("id, status, answers, ai_grade, final_override_grade, submitted_at, teacher_feedback")
             .eq("exam_id", examId)
             .eq("user_id", user.id)
             .maybeSingle(),
@@ -133,6 +134,7 @@ function StudentExamReview() {
             ai_grade: number | null;
             final_override_grade: number | null;
             submitted_at: string | null;
+            teacher_feedback?: string | null;
           } | null,
         );
         setQuestions((qs ?? []) as QuestionRow[]);
@@ -261,6 +263,20 @@ function StudentExamReview() {
           </div>
         </CardContent>
       </Card>
+
+      {submission.teacher_feedback && submission.teacher_feedback.trim() && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 text-primary" />
+              Retroalimentación del docente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm whitespace-pre-wrap">{submission.teacher_feedback}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {submission.status === "sospechoso" && (
         <Alert variant="destructive">

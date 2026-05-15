@@ -145,10 +145,13 @@ function ExamEditor() {
 
   // AI
   const [aiTopics, setAiTopics] = useState("");
-  const [aiCount, setAiCount] = useState(3);
-  const [aiType, setAiType] = useState("abierta");
-  const [aiLanguage, setAiLanguage] = useState("java");
   const [aiLoading, setAiLoading] = useState(false);
+  type AiRow = { type: string; count: number; language: string };
+  const [aiRows, setAiRows] = useState<AiRow[]>([{ type: "abierta", count: 3, language: "java" }]);
+  const updateAiRow = (i: number, patch: Partial<AiRow>) =>
+    setAiRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addAiRow = () => setAiRows((rows) => [...rows, { type: "abierta", count: 1, language: "java" }]);
+  const removeAiRow = (i: number) => setAiRows((rows) => rows.filter((_, idx) => idx !== i));
 
   // Evaluación de tiempo del examen con IA.
   const [timeEvalLoading, setTimeEvalLoading] = useState(false);
@@ -478,24 +481,32 @@ function ExamEditor() {
 
   const generateAI = async () => {
     if (!aiTopics.trim()) return toast.error("Ingresa los temas");
+    const validRows = aiRows.filter((r) => r.count > 0);
+    if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
     setAiLoading(true);
+    let totalInserted = 0;
     try {
-      const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
-        body: {
-          examId,
-          topics: aiTopics,
-          type: aiType,
-          count: aiCount,
-          language: aiType === "codigo" ? aiLanguage : undefined,
-        },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`${data.inserted?.length ?? 0} preguntas generadas`);
-      setAiTopics("");
+      for (const row of validRows) {
+        const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
+          body: {
+            examId,
+            topics: aiTopics,
+            type: row.type,
+            count: row.count,
+            language: row.type === "codigo" ? row.language : undefined,
+          },
+        });
+        if (error || data?.error) {
+          toast.error(`Error en ${row.type}: ${error?.message ?? data?.error}`);
+        } else {
+          totalInserted += data?.inserted?.length ?? 0;
+        }
+      }
+      if (totalInserted > 0) {
+        toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
+        setAiTopics("");
+      }
       load();
-    } catch (e: any) {
-      toast.error(e.message ?? "Error generando preguntas");
     } finally {
       setAiLoading(false);
     }
@@ -1001,7 +1012,7 @@ function ExamEditor() {
                 Generar con IA
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div>
                 <Label required>Temas</Label>
                 <Textarea
@@ -1010,56 +1021,85 @@ function ExamEditor() {
                   onChange={(e) => setAiTopics(e.target.value)}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label required>Cantidad</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={aiCount || ""}
-                    onChange={(e) => setAiCount(e.target.value === "" ? 0 : Number(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <Label required>Tipo</Label>
-                  <Select value={aiType} onValueChange={setAiType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="abierta">Abierta</SelectItem>
-                      <SelectItem value="cerrada">Opción múltiple</SelectItem>
-                      <SelectItem value="codigo">Código</SelectItem>
-                      <SelectItem value="diagrama">Diagrama</SelectItem>
-                      <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Tipos de preguntas a generar</Label>
+                {aiRows.map((row, i) => (
+                  <div key={i} className="flex items-end gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Select value={row.type} onValueChange={(v) => updateAiRow(i, { type: v })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="abierta">Abierta</SelectItem>
+                          <SelectItem value="cerrada">Opción múltiple</SelectItem>
+                          <SelectItem value="codigo">Código</SelectItem>
+                          <SelectItem value="diagrama">Diagrama</SelectItem>
+                          <SelectItem value="java_gui">Java GUI</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {row.type === "codigo" && (
+                      <div className="w-28 shrink-0">
+                        <Select
+                          value={row.language}
+                          onValueChange={(v) => updateAiRow(i, { language: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="java">Java</SelectItem>
+                            <SelectItem value="python">Python</SelectItem>
+                            <SelectItem value="javascript">JavaScript</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="w-16 shrink-0">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={row.count || ""}
+                        onChange={(e) =>
+                          updateAiRow(i, {
+                            count: e.target.value === "" ? 0 : Number(e.target.value),
+                          })
+                        }
+                        className="text-center"
+                      />
+                    </div>
+                    {aiRows.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeAiRow(i)}
+                        className="shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={addAiRow}>
+                  <Plus className="h-4 w-4 mr-1" /> Agregar tipo
+                </Button>
               </div>
-              {aiType === "codigo" && (
-                <div>
-                  <Label required>Lenguaje</Label>
-                  <Select value={aiLanguage} onValueChange={setAiLanguage}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="java">Java</SelectItem>
-                      <SelectItem value="python">Python</SelectItem>
-                      <SelectItem value="javascript">JavaScript</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <Button onClick={generateAI} disabled={aiLoading}>
-                {aiLoading ? (
-                  <Spinner size="md" className="mr-1" />
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-1" />
-                )}
-                Generar preguntas
-              </Button>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Total: {aiRows.reduce((s, r) => s + (r.count || 0), 0)} preguntas
+                </span>
+                <Button onClick={generateAI} disabled={aiLoading}>
+                  {aiLoading ? (
+                    <Spinner size="md" className="mr-1" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-1" />
+                  )}
+                  Generar preguntas
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -1070,6 +1110,44 @@ function ExamEditor() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {questions.length > 0 && (
+                <div className="rounded-md border bg-muted/30 px-3 py-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {questions.length} pregunta{questions.length !== 1 ? "s" : ""} en el examen ·{" "}
+                      {questions.reduce((s, q) => s + ((q as any).points ?? 0), 0)} pts totales
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() =>
+                        document
+                          .getElementById("exam-questions-list")
+                          ?.scrollIntoView({ behavior: "smooth" })
+                      }
+                    >
+                      Ver lista
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {questions.slice(0, 9).map((q, i) => (
+                      <span
+                        key={q.id}
+                        className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[10px] tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
+                      >
+                        <span className="text-muted-foreground">#{i + 1}</span>
+                        <span className="capitalize">{q.type}</span>
+                        <span className="text-muted-foreground">{(q as any).points}pt</span>
+                      </span>
+                    ))}
+                    {questions.length > 9 && (
+                      <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        +{questions.length - 9} más
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label required>Tipo</Label>
@@ -1168,7 +1246,7 @@ function ExamEditor() {
             </CardContent>
           </Card>
 
-          <div className="space-y-2">
+          <div id="exam-questions-list" className="space-y-2">
             {questions.map((q, i) => (
               <Card key={q.id}>
                 <CardContent className="p-4 flex justify-between items-start gap-3">

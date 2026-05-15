@@ -19,6 +19,7 @@ interface UseRealtimeTimerOptions {
   onPause?: () => void;
   onResume?: () => void;
   onTimeAdded?: (seconds: number) => void;
+  onEndTimeChanged?: (newSeconds: number) => void;
 }
 
 export function useRealtimeTimer({
@@ -29,6 +30,7 @@ export function useRealtimeTimer({
   onPause,
   onResume,
   onTimeAdded,
+  onEndTimeChanged,
 }: UseRealtimeTimerOptions) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
   const [isPaused, setIsPaused] = useState(false);
@@ -202,10 +204,20 @@ export function useRealtimeTimer({
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, [secondsLeft]);
 
+  /** Permite sincronizar el timer con una nueva cantidad de segundos
+   *  (p.ej. cuando el docente cambia end_time del examen en curso). */
+  const syncToSeconds = useCallback((newSeconds: number) => {
+    const clamped = Math.max(0, newSeconds);
+    secondsRef.current = clamped;
+    setSecondsLeft(clamped);
+    onEndTimeChanged?.(clamped);
+  }, [onEndTimeChanged]);
+
   return {
     secondsLeft,
     isPaused,
     formattedTime: formattedTime(),
     isLowTime: secondsLeft < 60,
+    syncToSeconds,
   };
 }

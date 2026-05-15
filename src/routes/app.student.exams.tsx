@@ -61,7 +61,7 @@ function StudentExams() {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, is_external, allow_exam_notes, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       // Filtramos los externos: el estudiante no debería verlos en
@@ -231,7 +231,8 @@ function StudentExams() {
                       <div className="flex items-center gap-1 mt-0.5">
                         <ShieldAlert className="h-3 w-3 text-destructive" />
                         <span className="text-destructive font-medium">
-                          {submission.focus_warnings}/{MAX_WARNINGS} strikes registrados
+                          {submission.focus_warnings}/
+                          {(exam as any).max_warnings ?? MAX_WARNINGS} strikes registrados
                         </span>
                       </div>
                     )}
@@ -289,6 +290,19 @@ function StudentExams() {
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
                       Has agotado los {maxAttempts} intento(s) permitidos para este examen.
+                    </p>
+                  </div>
+                ) : isOpen &&
+                  submission?.status === "en_progreso" &&
+                  (submission.focus_warnings ?? 0) >=
+                    ((exam as any).max_warnings ?? MAX_WARNINGS) ? (
+                  <div className="space-y-2">
+                    <Button size="sm" disabled variant="outline" className="w-full">
+                      <ShieldAlert className="h-4 w-4 mr-1" />
+                      Examen suspendido
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                      Alcanzaste el máximo de advertencias. El docente puede revisar tu caso.
                     </p>
                   </div>
                 ) : isOpen ? (

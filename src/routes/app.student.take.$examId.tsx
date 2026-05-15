@@ -43,6 +43,8 @@ import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/ut
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/components/ExamNotesManager";
+import { logEvent } from "@/lib/audit";
+import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/utils/exam-session";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -184,6 +186,9 @@ function TakeExam() {
   // en cada autosave para que el monitor del docente pueda mostrar
   // "Pregunta X de Y" en tiempo real para los intentos en curso.
   const currentIdxRef = useRef(0);
+  // Ref para datos del examen necesarios en callbacks (evita closures stale).
+  const examRef = useRef<Exam | null>(null);
+  const submissionStartedAtRef = useRef<string | null>(null);
 
   // Sidebar nav links in AppLayout dispatch this event when the exam is in progress
   // (useBlocker only intercepts router-level navigation from within the route subtree).
@@ -217,6 +222,12 @@ function TakeExam() {
   useEffect(() => {
     currentIdxRef.current = currentIdx;
   }, [currentIdx]);
+  useEffect(() => {
+    examRef.current = exam;
+  }, [exam]);
+  useEffect(() => {
+    submissionStartedAtRef.current = submissionStartedAt;
+  }, [submissionStartedAt]);
 
   // Update state AND ref synchronously so blur/suspend handlers never read
   // stale answers between a keystroke and the next render commit.
@@ -274,6 +285,20 @@ function TakeExam() {
         navigate({ to: "/app/student/exams" });
         return;
       }
+      // Calcular tiempo extra concedido a este estudiante para no expulsarlo
+      // si el docente extendió su ventana más allá del end_time original.
+      // Se hace antes del gate isExamOpen para que la comprobación use
+      // el end_time efectivo (original + extras acumulados).
+      const { data: timerCtrls } = await supabase
+        .from("exam_timer_controls")
+        .select("action, extra_seconds, target_user_id")
+        .eq("exam_id", examId)
+        .or(`target_user_id.is.null,target_user_id.eq.${user.id}`);
+      const extraSeconds = computeExtraSeconds(timerCtrls ?? []);
+      if (extraSeconds > 0) {
+        e = { ...e, end_time: applyExtraTime(e.end_time, extraSeconds) };
+      }
+
       if (!isExamOpen({ start_time: e.start_time, end_time: e.end_time })) {
         toast.error("Este examen no está disponible ahora");
         navigate({ to: "/app/student/exams" });
@@ -350,6 +375,10 @@ function TakeExam() {
           ? existingAnswers.__warning_events
           : [];
         warningEventsRef.current = persistedEvents;
+        // Restaurar la pregunta donde el estudiante se quedó
+        const persistedIdx = restoreQuestionIndex(existingAnswers);
+        setCurrentIdx(persistedIdx);
+        currentIdxRef.current = persistedIdx;
         setExam(e);
         setStarted(true);
         return;
@@ -432,6 +461,15 @@ function TakeExam() {
         setSubmissionStartedAt((data as any).started_at ?? new Date().toISOString());
         answersRef.current = initialAnswers;
         setAnswers(initialAnswers);
+        void logEvent({
+          action: "exam_started",
+          category: "exam",
+          severity: "info",
+          entityType: "submission",
+          entityId: sid,
+          entityName: exam.title,
+          metadata: { examId },
+        });
       }
     }
     // Pantalla completa forzada
@@ -589,6 +627,19 @@ function TakeExam() {
       void supabase.functions
         .invoke("ai-grade-submission", { body: { submissionId: submissionIdRef.current } })
         .catch((e) => console.error("ai-grade-submission failed:", e));
+      void logEvent({
+        action: markSuspicious ? "exam_suspended" : "exam_submitted",
+        category: "exam",
+        severity: markSuspicious ? "warning" : "info",
+        entityType: "submission",
+        entityId: submissionIdRef.current ?? undefined,
+        entityName: exam?.title,
+        metadata: {
+          examId,
+          focusWarnings: warningsRef.current,
+          maxWarnings,
+        },
+      });
       toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
       navigate({ to: "/app/student/exams" });
     },
@@ -643,7 +694,7 @@ function TakeExam() {
         )
       : computeSecondsLeft(exam?.end_time);
 
-  const { secondsLeft, isPaused, formattedTime, isLowTime } = useRealtimeTimer({
+  const { secondsLeft, isPaused, formattedTime, isLowTime, syncToSeconds } = useRealtimeTimer({
     examId,
     userId: user?.id ?? "",
     initialSeconds,
@@ -652,6 +703,53 @@ function TakeExam() {
     onResume: () => toast.info("▶ El temporizador ha sido reanudado"),
     onTimeAdded: (secs) => toast.success(`+${Math.floor(secs / 60)} minuto(s) extra añadidos`),
   });
+
+  // Suscripción realtime a cambios en el examen (end_time, time_limit_minutes).
+  // Si el docente modifica el horario mientras el examen está en curso,
+  // el temporizador del estudiante se sincroniza automáticamente.
+  useEffect(() => {
+    if (!examId || !started) return;
+    const channel = supabase
+      .channel(`exam-meta-${examId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "exams", filter: `id=eq.${examId}` },
+        (payload) => {
+          const updated = payload.new as Partial<Exam>;
+          const e = examRef.current;
+          if (!e) return;
+          const newEndTime = (updated.end_time as string | undefined) ?? e.end_time;
+          const newStartTime = (updated.start_time as string | undefined) ?? e.start_time;
+          const newLimit = (updated.time_limit_minutes as number | undefined) ?? e.time_limit_minutes;
+          const newScheduleType = (updated.schedule_type as string | undefined) ?? e.schedule_type;
+          const newSeconds =
+            newScheduleType === "relativo"
+              ? computeSecondsLeftRelative(
+                  submissionStartedAtRef.current,
+                  newLimit,
+                  newEndTime,
+                )
+              : computeSecondsLeft(newEndTime);
+          syncToSeconds(Math.max(0, newSeconds));
+          setExam((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  end_time: newEndTime,
+                  start_time: newStartTime,
+                  time_limit_minutes: newLimit,
+                  schedule_type: newScheduleType,
+                }
+              : prev,
+          );
+          toast.info("El docente actualizó el tiempo del examen");
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [examId, started, syncToSeconds]);
 
   // Auto-save answers (debounced, also runs on warning increments)
   useEffect(() => {
@@ -871,6 +969,21 @@ function TakeExam() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error ejecutando";
       setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
+      void logEvent({
+        action: "code_execution_error",
+        category: "exam",
+        severity: "error",
+        entityType: "submission",
+        entityId: submissionIdRef.current ?? undefined,
+        entityName: exam?.title,
+        metadata: {
+          examId,
+          questionId,
+          language,
+          error: msg,
+          isCheerpError: /cheerpj|cheerp|no se pudo cargar/i.test(msg),
+        },
+      });
     } finally {
       setRunningCode((prev) => ({ ...prev, [questionId]: false }));
     }

@@ -49,6 +49,8 @@ import {
   Users,
   ChevronRight,
   Pencil,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
@@ -114,6 +116,9 @@ type Submission = {
   /** Tiempo extra concedido por el docente (segundos). 0 si no se ha
    * agregado. Se suma a la fecha fin teórica del intento. */
   extra_seconds: number;
+  /** Retroalimentación general del examen escrita por el docente. Se
+   * muestra al estudiante en la vista de revisión. */
+  teacher_feedback?: string | null;
   profile?: { full_name: string; institutional_email: string };
 };
 
@@ -208,6 +213,14 @@ function ExamMonitor() {
   >({});
   const [savingQid, setSavingQid] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
+  // Retroalimentación general del examen (campo teacher_feedback de la submission).
+  // Se llena al abrir el modal de respuestas y se guarda explícitamente.
+  const [teacherFeedbackDraft, setTeacherFeedbackDraft] = useState("");
+  const [teacherFeedbackSaving, setTeacherFeedbackSaving] = useState(false);
+  // Estudiantes cuyo temporizador está actualmente pausado.
+  // Se inicializa desde exam_timer_controls al cargar y se actualiza
+  // optimísticamente al pausar/reanudar desde el monitor.
+  const [pausedUserIds, setPausedUserIds] = useState<Set<string>>(new Set());
   // Comparación de copia entre dos estudiantes para una pregunta concreta.
   // Cuando está poblado, el modal "Respuestas" se ensancha y muestra un
   // panel lateral con la entrega del compañero a esa misma pregunta —
@@ -238,7 +251,7 @@ function ExamMonitor() {
     const { data: subs } = await (supabase as any)
       .from("submissions")
       .select(
-        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at, created_at, started_at, submitted_at, extra_seconds",
+        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at, created_at, started_at, submitted_at, extra_seconds, teacher_feedback",
       )
       .eq("exam_id", examId)
       .order("created_at", { ascending: true });
@@ -271,6 +284,28 @@ function ExamMonitor() {
       .eq("kind", "exam")
       .eq("ref_id", examId);
     setSimilarityPairs((pairs ?? []) as SimilarityPair[]);
+
+    // Reconstruye qué estudiantes están pausados mirando el evento más
+    // reciente de cada usuario en exam_timer_controls. Un usuario está
+    // pausado si su última acción es "pause" (individual o heredada del
+    // global). Se ignoran controles globales aquí — el estudiante los
+    // aplica en el cliente vía realtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: timerCtrls } = await (supabase as any)
+      .from("exam_timer_controls")
+      .select("target_user_id, action")
+      .eq("exam_id", examId)
+      .order("created_at", { ascending: false });
+
+    const pausedSet = new Set<string>();
+    const seenUsers = new Set<string>();
+    for (const ctrl of (timerCtrls ?? []) as { target_user_id: string | null; action: string }[]) {
+      if (!ctrl.target_user_id) continue;
+      if (seenUsers.has(ctrl.target_user_id)) continue;
+      seenUsers.add(ctrl.target_user_id);
+      if (ctrl.action === "pause") pausedSet.add(ctrl.target_user_id);
+    }
+    setPausedUserIds(pausedSet);
   }, [examId]);
 
   const loadQuestions = useCallback(async () => {
@@ -455,6 +490,14 @@ function ExamMonitor() {
     };
   }, [viewingId, highlightQuestionId]);
 
+  // Sincroniza el draft de retroalimentación general cada vez que se
+  // abre el modal de respuestas de un estudiante distinto.
+  useEffect(() => {
+    if (!viewingId) return;
+    const sub = submissions.find((s) => s.id === viewingId);
+    setTeacherFeedbackDraft(sub?.teacher_feedback ?? "");
+  }, [viewingId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     load();
     loadQuestions();
@@ -551,14 +594,47 @@ function ExamMonitor() {
         );
       }
     }
+    // Actualiza estado de pausa optimísticamente para reflejar el cambio
+    // en el botón sin esperar al próximo load().
+    if (targetUserId) {
+      if (action === "pause") {
+        setPausedUserIds((prev) => new Set([...prev, targetUserId]));
+      } else if (action === "resume") {
+        setPausedUserIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetUserId);
+          return next;
+        });
+      }
+    }
     setLoading(null);
 
     const labels: Record<string, string> = {
-      pause: "Temporizador pausado",
-      resume: "Temporizador reanudado",
+      pause: "Examen pausado",
+      resume: "Examen reanudado",
       add_time: `+${Math.floor(extraSeconds / 60)} minuto(s) añadidos`,
     };
     toast.success(`${labels[action]} ${targetUserId ? "(estudiante)" : "(global)"}`);
+  };
+
+  const saveTeacherFeedback = async () => {
+    if (!viewingSub) return;
+    setTeacherFeedbackSaving(true);
+    const { error } = await supabase
+      .from("submissions")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ teacher_feedback: teacherFeedbackDraft.trim() || null } as any)
+      .eq("id", viewingSub.id);
+    setTeacherFeedbackSaving(false);
+    if (error) return toast.error(error.message);
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === viewingSub.id
+          ? { ...s, teacher_feedback: teacherFeedbackDraft.trim() || null }
+          : s,
+      ),
+    );
+    toast.success("Retroalimentación guardada");
   };
 
   const reGradeWithAI = async (sub: Submission, questionId?: string) => {
@@ -1411,6 +1487,33 @@ function ExamMonitor() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {inProg && (() => {
+                          const isPaused = pausedUserIds.has(row.userId);
+                          const pauseKey = isPaused ? `resume-${row.userId}` : `pause-${row.userId}`;
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                sendTimerControl(isPaused ? "resume" : "pause", row.userId)
+                              }
+                              disabled={loading === pauseKey}
+                              title={isPaused ? "Reanudar examen" : "Pausar examen"}
+                              className={isPaused ? "text-amber-600 hover:text-amber-700" : ""}
+                            >
+                              {loading === pauseKey ? (
+                                <Spinner size="sm" />
+                              ) : isPaused ? (
+                                <Play className="h-3.5 w-3.5" />
+                              ) : (
+                                <Pause className="h-3.5 w-3.5" />
+                              )}
+                              <span className="ml-1 text-[11px]">
+                                {isPaused ? "Reanudar" : "Pausar"}
+                              </span>
+                            </Button>
+                          );
+                        })()}
                         {inProg && (
                           <Button
                             variant="ghost"
@@ -1654,6 +1757,38 @@ function ExamMonitor() {
                       </Card>
                     );
                   })()}
+
+                  {/* Retroalimentación general del examen */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <MessageSquareText className="h-4 w-4 text-primary" />
+                        Retroalimentación general del examen
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <Textarea
+                        placeholder="Escribe una retroalimentación general para el estudiante sobre su desempeño en el examen…"
+                        value={teacherFeedbackDraft}
+                        onChange={(e) => setTeacherFeedbackDraft(e.target.value)}
+                        rows={3}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={saveTeacherFeedback}
+                          disabled={teacherFeedbackSaving}
+                        >
+                          {teacherFeedbackSaving ? (
+                            <Spinner size="sm" className="mr-1" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          Guardar retroalimentación
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
 
                   {questions.length === 0 && (
                     <p className="text-sm text-muted-foreground">Este examen no tiene preguntas.</p>
