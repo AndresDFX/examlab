@@ -31,7 +31,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage, JAVA_STARTER } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
-import { runJavaInBrowser } from "@/lib/run-java";
 import {
   saveAnswersLocally,
   isOnline,
@@ -46,6 +45,7 @@ import { useApprovedExamNote } from "@/components/ExamNotesManager";
 import { logEvent } from "@/lib/audit";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/utils/exam-session";
+import { runJavaInBrowser } from "@/lib/run-java";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -190,6 +190,21 @@ function TakeExam() {
   // Ref para datos del examen necesarios en callbacks (evita closures stale).
   const examRef = useRef<Exam | null>(null);
   const submissionStartedAtRef = useRef<string | null>(null);
+  // Proveedor de ejecución de código activo (leído de code_execution_settings una vez al montar).
+  const codeExecProviderRef = useRef<string>("onlinecompiler");
+
+  // Carga el proveedor de ejecución de código una vez al montar (fire-and-forget).
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("code_execution_settings")
+      .select("provider")
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(({ data }: { data: { provider: string } | null }) => {
+        if (data?.provider) codeExecProviderRef.current = data.provider;
+      });
+  }, []);
 
   // Sidebar nav links in AppLayout dispatch this event when the exam is in progress
   // (useBlocker only intercepts router-level navigation from within the route subtree).
@@ -935,9 +950,6 @@ function TakeExam() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, performSubmit, maxWarnings]);
 
-  // Run code for a question. Java se ejecuta en el browser con CheerpJ
-  // (sin cuota, sin API externa). Python/JavaScript siguen pasando por
-  // la edge function execute-code (que usa JDoodle).
   const runCode = async (questionId: string, language: CodeLanguage) => {
     const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
     if (!code.trim()) {
@@ -948,7 +960,9 @@ function TakeExam() {
     try {
       let stdout = "";
       let stderr = "";
-      if (language === "java") {
+
+      if (codeExecProviderRef.current === "cheerp" && language === "java") {
+        // CheerpJ: ejecuta Java directamente en el navegador (sin API externa ni cuota).
         const result = await runJavaInBrowser(code);
         stdout = result.stdout;
         stderr = result.stderr;
@@ -965,6 +979,7 @@ function TakeExam() {
         stdout = data?.stdout ?? "";
         stderr = data?.stderr ?? "";
       }
+
       const output = stderr ? `${stdout}\n--- ERRORES ---\n${stderr}` : stdout;
       setCodeOutputs((prev) => ({ ...prev, [questionId]: output || "(sin salida)" }));
     } catch (e: unknown) {
@@ -981,8 +996,8 @@ function TakeExam() {
           examId,
           questionId,
           language,
+          provider: codeExecProviderRef.current,
           error: msg,
-          isCheerpError: /cheerpj|cheerp|no se pudo cargar/i.test(msg),
         },
       });
     } finally {

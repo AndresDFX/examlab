@@ -1,20 +1,21 @@
 /**
- * Configuración de IA (Admin).
+ * Configuración de IA y ejecución de código (Admin).
  *
  * Tabs:
  *   - Prompts: edita los prompts globales por use_case (5 tipos).
  *   - Modelo:  selecciona el provider (Lovable / OpenAI) y el modelo activo.
+ *   - Código:  selecciona el proveedor de ejecución de código.
  *
  * Se mantiene el path `/app/admin/ai-prompts` por compatibilidad con
- * URLs y el routeTree generado, aunque el módulo ahora abarca más que
- * solo prompts.
+ * URLs y el routeTree generado.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Cpu, FileText } from "lucide-react";
+import { Sparkles, Cpu, FileText, Code2 } from "lucide-react";
 import { AdminPromptsPanel } from "@/components/admin/AdminPromptsPanel";
 import { AdminModelPanel } from "@/components/admin/AdminModelPanel";
+import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
 
 export const Route = createFileRoute("/app/admin/ai-prompts")({ component: AdminAIConfig });
 
@@ -48,12 +49,19 @@ function AdminAIConfig() {
             <Cpu className="h-3.5 w-3.5" />
             Modelo
           </TabsTrigger>
+          <TabsTrigger value="code" className="gap-1.5">
+            <Code2 className="h-3.5 w-3.5" />
+            Código
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="prompts" className="space-y-4 mt-4">
           <AdminPromptsPanel />
         </TabsContent>
         <TabsContent value="model" className="space-y-4 mt-4">
           <AdminModelPanel />
+        </TabsContent>
+        <TabsContent value="code" className="space-y-4 mt-4">
+          <AdminCodeExecutionPanel />
         </TabsContent>
       </Tabs>
     </div>
