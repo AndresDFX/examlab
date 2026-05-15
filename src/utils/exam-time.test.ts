@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { computeSecondsLeft, formatTimerMMSS, getExamAccessState, isExamOpen } from "./exam-time";
+import {
+  computeSecondsLeft,
+  computeSecondsLeftRelative,
+  formatTimerMMSS,
+  getExamAccessState,
+  isExamOpen,
+} from "./exam-time";
 
 const NOW = new Date("2026-04-20T12:00:00Z").getTime();
 const in5min = new Date(NOW + 5 * 60_000).toISOString();
@@ -39,6 +45,62 @@ describe("computeSecondsLeft", () => {
     expect(t0).toBe(3600);
     expect(t10s).toBe(3590);
     expect(t30s).toBe(3570);
+  });
+});
+
+describe("computeSecondsLeftRelative", () => {
+  it("usa timeLimit cuando vence antes que el end_time de la ventana", () => {
+    const startedAt = new Date(NOW).toISOString();
+    // 30 min de límite, ventana cierra en 1h. Vence antes el personal → 30 min.
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW)).toBe(30 * 60);
+  });
+
+  it("usa end_time cuando cierra antes que el timeLimit personal", () => {
+    const startedAt = new Date(NOW).toISOString();
+    // 60 min de límite, ventana cierra en 5 min → vence antes la ventana = 5 min.
+    expect(computeSecondsLeftRelative(startedAt, 60, in5min, NOW)).toBe(5 * 60);
+  });
+
+  it("decrementa segundos a medida que pasa el tiempo", () => {
+    const startedAt = new Date(NOW).toISOString();
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW)).toBe(30 * 60);
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW + 60_000)).toBe(29 * 60);
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW + 30 * 60_000)).toBe(0);
+  });
+
+  it("se clampa a 0 cuando ya pasó el limite personal", () => {
+    const startedAt = new Date(NOW - 60 * 60_000).toISOString(); // empezó hace 1h
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW)).toBe(0);
+  });
+
+  it("retorna 0 si no hay startedAt", () => {
+    expect(computeSecondsLeftRelative(null, 30, in1h, NOW)).toBe(0);
+    expect(computeSecondsLeftRelative(undefined, 30, in1h, NOW)).toBe(0);
+  });
+
+  it("acepta startedAt como Date object", () => {
+    const startedAt = new Date(NOW);
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW)).toBe(30 * 60);
+  });
+
+  it("ignora timeLimit negativo (lo trata como 0)", () => {
+    const startedAt = new Date(NOW).toISOString();
+    expect(computeSecondsLeftRelative(startedAt, -10, in1h, NOW)).toBe(0);
+  });
+
+  it("retorna 0 cuando startedAt es inválido", () => {
+    expect(computeSecondsLeftRelative("not-a-date", 30, in1h, NOW)).toBe(0);
+  });
+
+  it("si endTime es null/undefined, usa solo el timeLimit personal", () => {
+    const startedAt = new Date(NOW).toISOString();
+    expect(computeSecondsLeftRelative(startedAt, 30, null, NOW)).toBe(30 * 60);
+    expect(computeSecondsLeftRelative(startedAt, 30, undefined, NOW)).toBe(30 * 60);
+  });
+
+  it("endTime inválido se ignora y usa solo el personal", () => {
+    const startedAt = new Date(NOW).toISOString();
+    expect(computeSecondsLeftRelative(startedAt, 30, "not-a-date", NOW)).toBe(30 * 60);
   });
 });
 

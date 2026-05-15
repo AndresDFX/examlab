@@ -67,6 +67,7 @@ import {
   type ManualOverride as GradeManual,
 } from "@/utils/grade";
 import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
+import { applyClearOneWarning, applyClearAllWarnings } from "@/utils/exam-session";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ConversationSection } from "@/components/ConversationSection";
 import { computeIntegritySuggestion } from "@/lib/integrity";
@@ -697,27 +698,32 @@ function ExamMonitor() {
   // lo regresa a 'en_progreso' y limpia submitted_at para que el estudiante
   // pueda reingresar al examen.
   const clearAllWarnings = async (sub: Submission) => {
-    const restoring = sub.status === "sospechoso";
+    const prevAnswers = sub.answers ?? {};
+    const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
+    const result = applyClearAllWarnings({
+      status: sub.status,
+      focusWarnings: sub.focus_warnings ?? 0,
+      events,
+      examMaxWarnings: exam?.max_warnings ?? 3,
+    });
     const ok = await confirm({
       title: t("monitor.clearWarningsTitle"),
-      description: restoring
+      description: result.restoredToInProgress
         ? "Se eliminarán todas las advertencias y el estudiante podrá reingresar al examen. Esta acción no se puede deshacer."
         : t("monitor.clearWarningsBody"),
       confirmLabel: t("monitor.clearWarningsConfirm"),
       tone: "warning",
     });
     if (!ok) return;
-    const prevAnswers = sub.answers ?? {};
     const { __warning_events: _evs, ...rest } = prevAnswers;
     void _evs;
     const nextAnswers = rest;
-    const nextStatus = restoring ? "en_progreso" : sub.status;
     const updatePayload: Record<string, unknown> = {
-      focus_warnings: 0,
+      focus_warnings: result.focusWarnings,
       answers: nextAnswers,
-      status: nextStatus,
+      status: result.status,
     };
-    if (restoring) updatePayload.submitted_at = null;
+    if (result.clearSubmittedAt) updatePayload.submitted_at = null;
     const { error } = await supabase.from("submissions").update(updatePayload).eq("id", sub.id);
     if (error) return toast.error(error.message);
     // Auditoría: borrar advertencias es decisión sensible — rastro con before/after.
@@ -733,11 +739,11 @@ function ExamMonitor() {
         student_id: sub.user_id,
         previous_warnings: sub.focus_warnings,
         previous_status: sub.status,
-        new_status: nextStatus,
+        new_status: result.status,
       },
     });
     toast.success(
-      restoring
+      result.restoredToInProgress
         ? "Advertencias eliminadas — el estudiante puede reingresar al examen"
         : "Advertencias eliminadas",
     );
@@ -746,10 +752,10 @@ function ExamMonitor() {
         s.id === sub.id
           ? {
               ...s,
-              focus_warnings: 0,
+              focus_warnings: result.focusWarnings,
               answers: nextAnswers,
-              status: nextStatus,
-              submitted_at: restoring ? null : s.submitted_at,
+              status: result.status,
+              submitted_at: result.clearSubmittedAt ? null : s.submitted_at,
             }
           : s,
       ),
@@ -764,26 +770,27 @@ function ExamMonitor() {
   const clearOneWarning = async (sub: Submission, idx: number) => {
     const prevAnswers = sub.answers ?? {};
     const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
+    const result = applyClearOneWarning(
+      {
+        status: sub.status,
+        focusWarnings: sub.focus_warnings ?? 0,
+        events,
+        examMaxWarnings: exam?.max_warnings ?? 3,
+      },
+      idx,
+    );
     if (idx < 0 || idx >= events.length) return;
-    const nextEvents = events.filter((_, i) => i !== idx);
-    const nextAnswers = { ...prevAnswers, __warning_events: nextEvents };
-    const nextWarnings = Math.max(0, (sub.focus_warnings ?? 0) - 1);
-    const examMax = exam?.max_warnings ?? 3;
-    const restoring = sub.status === "sospechoso" && nextWarnings < examMax;
-    const nextStatus = restoring ? "en_progreso" : sub.status;
+    const nextAnswers = { ...prevAnswers, __warning_events: result.events };
     const updatePayload: Record<string, unknown> = {
-      focus_warnings: nextWarnings,
+      focus_warnings: result.focusWarnings,
       answers: nextAnswers,
-      status: nextStatus,
+      status: result.status,
     };
-    if (restoring) updatePayload.submitted_at = null;
-    const { error } = await supabase
-      .from("submissions")
-      .update(updatePayload)
-      .eq("id", sub.id);
+    if (result.clearSubmittedAt) updatePayload.submitted_at = null;
+    const { error } = await supabase.from("submissions").update(updatePayload).eq("id", sub.id);
     if (error) return toast.error(error.message);
     toast.success(
-      restoring
+      result.restoredToInProgress
         ? "Advertencia eliminada — el estudiante puede reingresar al examen"
         : "Advertencia eliminada",
     );
@@ -792,10 +799,10 @@ function ExamMonitor() {
         s.id === sub.id
           ? {
               ...s,
-              focus_warnings: nextWarnings,
+              focus_warnings: result.focusWarnings,
               answers: nextAnswers,
-              status: nextStatus,
-              submitted_at: restoring ? null : s.submitted_at,
+              status: result.status,
+              submitted_at: result.clearSubmittedAt ? null : s.submitted_at,
             }
           : s,
       ),

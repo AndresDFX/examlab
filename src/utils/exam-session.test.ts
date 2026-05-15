@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "./exam-session";
+import {
+  computeExtraSeconds,
+  applyExtraTime,
+  restoreQuestionIndex,
+  applyClearOneWarning,
+  applyClearAllWarnings,
+  type WarningEventLike,
+} from "./exam-session";
 
 // ─── computeExtraSeconds ───────────────────────────────────────────────────
 
@@ -128,5 +135,206 @@ describe("restoreQuestionIndex", () => {
         "q-1": "respuesta",
       }),
     ).toBe(7);
+  });
+});
+
+// ─── applyClearOneWarning ──────────────────────────────────────────────────
+
+describe("applyClearOneWarning", () => {
+  const mkEvents = (n: number): WarningEventLike[] =>
+    Array.from({ length: n }, (_, i) => ({ type: "pestaña", at: `2026-04-20T12:00:0${i}Z` }));
+
+  it("decrementa focus_warnings y borra el evento del índice indicado", () => {
+    const result = applyClearOneWarning(
+      {
+        status: "en_progreso",
+        focusWarnings: 2,
+        events: mkEvents(2),
+        examMaxWarnings: 3,
+      },
+      0,
+    );
+    expect(result.focusWarnings).toBe(1);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].at).toBe("2026-04-20T12:00:01Z");
+  });
+
+  it("no-op cuando el índice está fuera de rango (sin mutar)", () => {
+    const result = applyClearOneWarning(
+      {
+        status: "en_progreso",
+        focusWarnings: 2,
+        events: mkEvents(2),
+        examMaxWarnings: 3,
+      },
+      99,
+    );
+    expect(result.focusWarnings).toBe(2);
+    expect(result.events).toHaveLength(2);
+    expect(result.clearSubmittedAt).toBe(false);
+    expect(result.restoredToInProgress).toBe(false);
+  });
+
+  it("no-op para índice negativo", () => {
+    const result = applyClearOneWarning(
+      { status: "en_progreso", focusWarnings: 2, events: mkEvents(2), examMaxWarnings: 3 },
+      -1,
+    );
+    expect(result.focusWarnings).toBe(2);
+  });
+
+  it("restaura sospechoso → en_progreso cuando warnings cae bajo el umbral", () => {
+    const result = applyClearOneWarning(
+      {
+        status: "sospechoso",
+        focusWarnings: 3,
+        events: mkEvents(3),
+        examMaxWarnings: 3,
+      },
+      0,
+    );
+    expect(result.status).toBe("en_progreso");
+    expect(result.focusWarnings).toBe(2);
+    expect(result.clearSubmittedAt).toBe(true);
+    expect(result.restoredToInProgress).toBe(true);
+  });
+
+  it("NO restaura si sigue en o sobre el umbral después de borrar", () => {
+    const result = applyClearOneWarning(
+      {
+        status: "sospechoso",
+        focusWarnings: 5, // 5 advertencias, max 3 → cae a 4, sigue sospechoso
+        events: mkEvents(5),
+        examMaxWarnings: 3,
+      },
+      0,
+    );
+    expect(result.status).toBe("sospechoso");
+    expect(result.focusWarnings).toBe(4);
+    expect(result.clearSubmittedAt).toBe(false);
+    expect(result.restoredToInProgress).toBe(false);
+  });
+
+  it("no restaura si el status no era sospechoso (idempotente)", () => {
+    const result = applyClearOneWarning(
+      { status: "completado", focusWarnings: 1, events: mkEvents(1), examMaxWarnings: 3 },
+      0,
+    );
+    expect(result.status).toBe("completado");
+    expect(result.clearSubmittedAt).toBe(false);
+  });
+
+  it("respeta un examMax custom (más alto)", () => {
+    // Examen con max=5, estaba sospechoso con 5 → al borrar 1, cae a 4 < 5 → restaura
+    const result = applyClearOneWarning(
+      { status: "sospechoso", focusWarnings: 5, events: mkEvents(5), examMaxWarnings: 5 },
+      0,
+    );
+    expect(result.status).toBe("en_progreso");
+    expect(result.focusWarnings).toBe(4);
+  });
+
+  it("focus_warnings no baja de 0", () => {
+    const result = applyClearOneWarning(
+      { status: "en_progreso", focusWarnings: 0, events: mkEvents(1), examMaxWarnings: 3 },
+      0,
+    );
+    expect(result.focusWarnings).toBe(0);
+  });
+
+  it("no muta el input (pureza)", () => {
+    const events = mkEvents(2);
+    const input = {
+      status: "sospechoso",
+      focusWarnings: 3,
+      events,
+      examMaxWarnings: 3,
+    };
+    const snapshot = JSON.stringify(input);
+    applyClearOneWarning(input, 0);
+    expect(JSON.stringify(input)).toBe(snapshot);
+  });
+});
+
+// ─── applyClearAllWarnings ─────────────────────────────────────────────────
+
+describe("applyClearAllWarnings", () => {
+  const mkEvents = (n: number): WarningEventLike[] =>
+    Array.from({ length: n }, (_, i) => ({ type: "pestaña", at: `2026-04-20T12:00:0${i}Z` }));
+
+  it("resetea focus_warnings a 0 y vacía el array de eventos", () => {
+    const result = applyClearAllWarnings({
+      status: "en_progreso",
+      focusWarnings: 3,
+      events: mkEvents(3),
+      examMaxWarnings: 3,
+    });
+    expect(result.focusWarnings).toBe(0);
+    expect(result.events).toEqual([]);
+  });
+
+  it("restaura sospechoso → en_progreso y marca clearSubmittedAt", () => {
+    const result = applyClearAllWarnings({
+      status: "sospechoso",
+      focusWarnings: 3,
+      events: mkEvents(3),
+      examMaxWarnings: 3,
+    });
+    expect(result.status).toBe("en_progreso");
+    expect(result.clearSubmittedAt).toBe(true);
+    expect(result.restoredToInProgress).toBe(true);
+  });
+
+  it("no toca status si no era sospechoso", () => {
+    const result = applyClearAllWarnings({
+      status: "completado",
+      focusWarnings: 2,
+      events: mkEvents(2),
+      examMaxWarnings: 3,
+    });
+    expect(result.status).toBe("completado");
+    expect(result.clearSubmittedAt).toBe(false);
+    expect(result.restoredToInProgress).toBe(false);
+  });
+
+  it("funciona con array de eventos vacío (idempotente)", () => {
+    const result = applyClearAllWarnings({
+      status: "en_progreso",
+      focusWarnings: 0,
+      events: [],
+      examMaxWarnings: 3,
+    });
+    expect(result.focusWarnings).toBe(0);
+    expect(result.events).toEqual([]);
+    expect(result.clearSubmittedAt).toBe(false);
+  });
+
+  it("no muta el input (pureza)", () => {
+    const events = mkEvents(3);
+    const input = {
+      status: "sospechoso",
+      focusWarnings: 3,
+      events,
+      examMaxWarnings: 3,
+    };
+    const snapshot = JSON.stringify(input);
+    applyClearAllWarnings(input);
+    expect(JSON.stringify(input)).toBe(snapshot);
+    // El array de eventos original sigue intacto
+    expect(events).toHaveLength(3);
+  });
+
+  it("restaura aun cuando focus_warnings sea > examMax (caso histórico)", () => {
+    // Caso edge: una submission antigua con focus_warnings=10 (limite era 3 antes)
+    // → al limpiar TODAS, debe pasar a en_progreso y limpiar submitted_at.
+    const result = applyClearAllWarnings({
+      status: "sospechoso",
+      focusWarnings: 10,
+      events: mkEvents(10),
+      examMaxWarnings: 3,
+    });
+    expect(result.status).toBe("en_progreso");
+    expect(result.focusWarnings).toBe(0);
+    expect(result.clearSubmittedAt).toBe(true);
   });
 });

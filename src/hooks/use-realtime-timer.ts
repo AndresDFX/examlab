@@ -100,19 +100,18 @@ export function useRealtimeTimer({
 
       if (!data?.length) return;
 
+      // Solo recuperamos el estado de pausa/resume del historial.
+      // NO sumamos add_time aquí: el componente padre ya extendió end_time
+      // (vía computeExtraSeconds + applyExtraTime) antes de calcular
+      // initialSeconds, así que el extra ya está reflejado. Sumarlo de
+      // nuevo causaría doble conteo en cada recarga (5 min concedidos →
+      // 10 min recibidos por el estudiante).
       let paused = false;
-      let extraTime = 0;
-
       for (const ctrl of data as TimerControl[]) {
         if (ctrl.action === "pause") paused = true;
         if (ctrl.action === "resume") paused = false;
-        if (ctrl.action === "add_time") extraTime += ctrl.extra_seconds;
       }
-
       setIsPaused(paused);
-      if (extraTime > 0) {
-        setSecondsLeft((s) => s + extraTime);
-      }
     })();
   }, [examId, userId]);
 

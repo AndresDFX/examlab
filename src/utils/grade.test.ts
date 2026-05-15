@@ -4,8 +4,10 @@ import {
   computeFinalGrade,
   computeCutGrade,
   computeCourseFinalGrade,
+  computeWeightedGrade,
   type BreakdownItem,
   type CutWeights,
+  type GradedItem,
   type ManualOverride,
   type QuestionPoints,
 } from "./grade";
@@ -142,6 +144,86 @@ describe("computeCutGrade", () => {
         { workshop: 0, exam: 0, project: 0, attendance: 0 },
       ),
     ).toBeNull();
+  });
+});
+
+describe("computeWeightedGrade", () => {
+  it("retorna null para lista vacía", () => {
+    expect(computeWeightedGrade([])).toBeNull();
+  });
+
+  it("retorna null si todos los items tienen peso 0", () => {
+    const items: GradedItem[] = [
+      { weight: 0, score: 5 },
+      { weight: 0, score: 3 },
+    ];
+    expect(computeWeightedGrade(items)).toBeNull();
+  });
+
+  it("retorna null si ningún item con peso tiene score (todo null)", () => {
+    const items: GradedItem[] = [
+      { weight: 50, score: null },
+      { weight: 50, score: null },
+    ];
+    expect(computeWeightedGrade(items)).toBeNull();
+  });
+
+  it("promedio ponderado con todos los scores presentes", () => {
+    const items: GradedItem[] = [
+      { weight: 30, score: 4.0 },
+      { weight: 40, score: 3.0 },
+      { weight: 30, score: 5.0 },
+    ];
+    // (4*30 + 3*40 + 5*30) / 100 = (120 + 120 + 150) / 100 = 3.9
+    expect(computeWeightedGrade(items)).toBe(3.9);
+  });
+
+  it("items con score null cuentan como 0 con su peso original (no reescala)", () => {
+    const items: GradedItem[] = [
+      { weight: 50, score: 4.0 },
+      { weight: 50, score: null },
+    ];
+    // (4*50 + 0*50) / 100 = 2.0 — el null pesa como 0
+    expect(computeWeightedGrade(items)).toBe(2);
+  });
+
+  it("ignora items con peso 0 aunque tengan score", () => {
+    const items: GradedItem[] = [
+      { weight: 0, score: 5.0 }, // ignorado
+      { weight: 100, score: 3.0 },
+    ];
+    expect(computeWeightedGrade(items)).toBe(3);
+  });
+
+  it("redondea a dos decimales", () => {
+    const items: GradedItem[] = [
+      { weight: 33, score: 4.0 },
+      { weight: 33, score: 3.5 },
+      { weight: 34, score: 4.7 },
+    ];
+    // (4*33 + 3.5*33 + 4.7*34) / 100 = (132 + 115.5 + 159.8) / 100 = 4.073 → 4.07
+    expect(computeWeightedGrade(items)).toBe(4.07);
+  });
+
+  it("acepta pesos que no suman 100 — divide entre totalWeight", () => {
+    const items: GradedItem[] = [
+      { weight: 25, score: 4.0 },
+      { weight: 25, score: 3.0 },
+    ];
+    // total = 50, promedio = (4*25 + 3*25)/50 = 175/50 = 3.5
+    expect(computeWeightedGrade(items)).toBe(3.5);
+  });
+
+  it("un solo item con peso lo retorna como su propia nota", () => {
+    expect(computeWeightedGrade([{ weight: 100, score: 4.2 }])).toBe(4.2);
+  });
+
+  it("score 0 explícito cuenta (no es lo mismo que null)", () => {
+    const items: GradedItem[] = [
+      { weight: 50, score: 0 },
+      { weight: 50, score: 4 },
+    ];
+    expect(computeWeightedGrade(items)).toBe(2);
   });
 });
 
