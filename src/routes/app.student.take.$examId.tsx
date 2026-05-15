@@ -980,8 +980,13 @@ function TakeExam() {
         stderr = data?.stderr ?? "";
       }
 
-      const output = stderr ? `${stdout}\n--- ERRORES ---\n${stderr}` : stdout;
-      setCodeOutputs((prev) => ({ ...prev, [questionId]: output || "(sin salida)" }));
+      // Combinar stdout + stderr en el orden natural de terminal.
+      // stderr contiene el traceback completo con números de línea — se muestra tal cual.
+      const parts: string[] = [];
+      if (stdout.trimEnd()) parts.push(stdout.trimEnd());
+      if (stderr.trimEnd()) parts.push(stderr.trimEnd());
+      const output = parts.join("\n") || "(sin salida)";
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error ejecutando";
       setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));

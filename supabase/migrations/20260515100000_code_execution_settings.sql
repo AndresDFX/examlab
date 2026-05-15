@@ -36,9 +36,5 @@ CREATE POLICY "Authenticated can read code_execution_settings"
 -- Solo Admin puede escribir
 CREATE POLICY "Admin can manage code_execution_settings"
   ON code_execution_settings FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (public.has_role(auth.uid(), 'Admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'Admin'));
