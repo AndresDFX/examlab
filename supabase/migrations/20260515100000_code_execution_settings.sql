@@ -21,9 +21,10 @@ INSERT INTO code_execution_settings (provider, is_active)
 VALUES ('onlinecompiler', true);
 
 -- Trigger updated_at
-CREATE TRIGGER set_code_execution_settings_updated_at
-  BEFORE UPDATE ON code_execution_settings
-  FOR EACH ROW EXECUTE FUNCTION moddatetime(updated_at);
+DROP TRIGGER IF EXISTS trg_code_execution_settings_updated_at ON public.code_execution_settings;
+CREATE TRIGGER trg_code_execution_settings_updated_at
+  BEFORE UPDATE ON public.code_execution_settings
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 ALTER TABLE code_execution_settings ENABLE ROW LEVEL SECURITY;
 
