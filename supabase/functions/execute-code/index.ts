@@ -25,6 +25,10 @@ interface ExecutionResult {
   exitCode: number;
   executionTimeMs: number;
   signal?: number | null;
+  /** Raw API response — incluida en audit metadata cuando hay error. */
+  rawResponse?: unknown;
+  /** HTTP status del API remoto. */
+  httpStatus?: number;
 }
 
 // ──────────────────────────────────────────────
@@ -73,24 +77,47 @@ async function executeWithOnlineCompiler(
   });
 
   const executionTimeMs = Date.now() - startTime;
+  const httpStatus = response.status;
 
   if (response.status === 429) {
     throw new Error(
       "Demasiadas ejecuciones simultáneas. Espera unos segundos e intenta de nuevo.",
     );
   }
-  if (!response.ok) {
-    throw new Error(`Error del compilador remoto (OnlineCompiler.io): HTTP ${response.status}`);
+
+  // Capturamos el body siempre para incluirlo en audit aunque haya 5xx.
+  const rawText = await response.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    // Respuesta no-JSON — la incluimos cruda en rawResponse para diagnóstico
+    data = { _nonJsonBody: rawText.slice(0, 2000) };
   }
 
-  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(
+      `Error del compilador remoto (OnlineCompiler.io): HTTP ${response.status}`,
+    ) as Error & { rawResponse?: unknown; httpStatus?: number };
+    err.rawResponse = data;
+    err.httpStatus = httpStatus;
+    throw err;
+  }
+
+  const output = (data as { output?: unknown }).output;
+  const errorField = (data as { error?: unknown }).error;
+  const exitCodeRaw = (data as { exit_code?: unknown }).exit_code;
+  const statusField = (data as { status?: unknown }).status;
+  const signalField = (data as { signal?: unknown }).signal;
 
   return {
-    stdout: data.output ?? "",
-    stderr: data.error ?? "",
-    exitCode: typeof data.exit_code === "number" ? data.exit_code : (data.status === "success" ? 0 : 1),
+    stdout: typeof output === "string" ? output : "",
+    stderr: typeof errorField === "string" ? errorField : "",
+    exitCode: typeof exitCodeRaw === "number" ? exitCodeRaw : (statusField === "success" ? 0 : 1),
     executionTimeMs,
-    signal: data.signal ?? null,
+    signal: typeof signalField === "number" ? signalField : null,
+    rawResponse: data,
+    httpStatus,
   };
 }
 
@@ -143,21 +170,40 @@ async function executeWithJDoodle(
   });
 
   const executionTimeMs = Date.now() - startTime;
+  const httpStatus = response.status;
 
-  if (!response.ok) {
-    throw new Error(`Error del compilador remoto (JDoodle): HTTP ${response.status}`);
+  const rawText = await response.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = { _nonJsonBody: rawText.slice(0, 2000) };
   }
 
-  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(
+      `Error del compilador remoto (JDoodle): HTTP ${response.status}`,
+    ) as Error & { rawResponse?: unknown; httpStatus?: number };
+    err.rawResponse = data;
+    err.httpStatus = httpStatus;
+    throw err;
+  }
 
-  // JDoodle devuelve statusCode 200 pero el campo output puede incluir error del compilador
-  const isError = data.statusCode !== 200 || (data.error != null);
+  const statusCode = (data as { statusCode?: unknown }).statusCode;
+  const errorField = (data as { error?: unknown }).error;
+  const outputField = (data as { output?: unknown }).output;
+  const isError = statusCode !== 200 || errorField != null;
+  const outStr = typeof outputField === "string" ? outputField : "";
+  const errStr = typeof errorField === "string" ? errorField : "";
+
   return {
-    stdout: isError ? "" : (data.output ?? ""),
-    stderr: isError ? (data.output ?? data.error ?? "Error desconocido") : "",
+    stdout: isError ? "" : outStr,
+    stderr: isError ? (outStr || errStr || "Error desconocido") : "",
     exitCode: isError ? 1 : 0,
     executionTimeMs,
     signal: null,
+    rawResponse: data,
+    httpStatus,
   };
 }
 
@@ -167,6 +213,10 @@ async function executeWithJDoodle(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Capturamos contexto pronto para que el catch global pueda loguear con detalles
+  let actorId: string | undefined;
+  const requestContext: Record<string, unknown> = {};
+
   try {
     const {
       sourceCode,
@@ -175,6 +225,13 @@ Deno.serve(async (req) => {
       questionId,
       submissionId,
     }: ExecutionRequest = await req.json();
+
+    Object.assign(requestContext, {
+      language,
+      questionId,
+      submissionId: submissionId ?? null,
+      source_length: sourceCode?.length ?? 0,
+    });
 
     if (!sourceCode?.trim()) {
       return new Response(JSON.stringify({ error: "Código fuente requerido" }), {
@@ -208,6 +265,7 @@ Deno.serve(async (req) => {
     if (!userClient) throw new Error("No autenticado");
     const { data: u } = await userClient.auth.getUser();
     if (!u.user) throw new Error("No autenticado");
+    actorId = u.user.id;
 
     // Leer proveedor activo
     const { data: execSettings } = await admin
@@ -216,10 +274,9 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    // "cheerp" se maneja en el cliente para Java; aquí fallamos silenciosamente
-    // a onlinecompiler para otros lenguajes (o si el cliente olvidó manejarlo).
     const provider: string = execSettings?.provider ?? "onlinecompiler";
     const effectiveProvider = provider === "cheerp" ? "onlinecompiler" : provider;
+    requestContext.provider = effectiveProvider;
 
     const result = effectiveProvider === "jdoodle"
       ? await executeWithJDoodle(sourceCode, language, stdin)
@@ -240,6 +297,7 @@ Deno.serve(async (req) => {
       status: result.exitCode === 0 ? "completed" : "error",
     });
 
+    // Audit de éxito (info — para historial general)
     void auditFromEdge(admin, {
       actorId: u.user.id,
       action: "code.executed",
@@ -259,11 +317,63 @@ Deno.serve(async (req) => {
       },
     });
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Audit ADICIONAL si hubo error de compilación/runtime — incluye raw response
+    // para poder diagnosticar mensajes como "Internal error: code execution failed".
+    if (result.stderr.trim() || result.exitCode !== 0) {
+      void auditFromEdge(admin, {
+        actorId: u.user.id,
+        action: "code.compile_error",
+        category: "system",
+        severity: "warning",
+        entityType: "code_execution",
+        entityId: questionId,
+        metadata: {
+          language,
+          provider: effectiveProvider,
+          submission_id: submissionId ?? null,
+          question_id: questionId,
+          exit_code: result.exitCode,
+          http_status: result.httpStatus ?? null,
+          stderr_preview: result.stderr.slice(0, 2000),
+          stdout_preview: result.stdout.slice(0, 500),
+          raw_response: result.rawResponse,
+          source_length: sourceCode.length,
+        },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+        executionTimeMs: result.executionTimeMs,
+        signal: result.signal ?? null,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Error interno";
+    const stack = e instanceof Error ? e.stack : undefined;
+    const errWithExtras = e as { rawResponse?: unknown; httpStatus?: number };
+
+    // Log audit del fallo completo — esto se ve en /app/admin/audit-logs
+    // y permite saber qué pasó cuando el cliente muestra "Error: ..."
+    void auditFromEdge(admin, {
+      actorId,
+      action: "code.execute_failed",
+      category: "system",
+      severity: "error",
+      entityType: "code_execution",
+      metadata: {
+        ...requestContext,
+        error: msg,
+        stack: stack?.slice(0, 2000) ?? null,
+        http_status: errWithExtras.httpStatus ?? null,
+        raw_response: errWithExtras.rawResponse ?? null,
+      },
+    });
+
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
