@@ -72,5 +72,30 @@ SELECT cron.schedule(
   $$ SELECT public.notify_admins_storage_threshold(); $$
 );
 
+-- ────────────────────────── 4) Apertura de ventana de examen
+-- Notifica a los estudiantes cuando llega el start_time del examen.
+-- Idempotencia 12h en la función — el cron cada 15 min cubre la latencia
+-- sin duplicar avisos.
+SELECT cron.unschedule('exam-window-opens')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'exam-window-opens');
+SELECT cron.schedule(
+  'exam-window-opens',
+  '*/15 * * * *',
+  $$ SELECT public.notify_students_exam_window_opens(30); $$
+);
+
+-- ────────────────────────── 5) Purga de audit_logs
+-- 03:00 UTC del día 1 de cada mes. La función respeta el setting
+-- `audit_retention_settings` (días por severidad, 0 = no purgar).
+-- Default DB es 0/0/0 — hasta que el admin configure desde la UI,
+-- este job corre pero no borra nada.
+SELECT cron.unschedule('audit-logs-purge')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'audit-logs-purge');
+SELECT cron.schedule(
+  'audit-logs-purge',
+  '0 3 1 * *',
+  $$ SELECT public.purge_audit_logs(); $$
+);
+
 -- ────────────────────────── Verificación
 SELECT jobname, schedule, active FROM cron.job ORDER BY jobname;

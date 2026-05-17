@@ -2,16 +2,18 @@
  * Configuración global (Admin).
  *
  * Módulo central para parámetros operativos de la plataforma.
- * Tabs actuales:
+ * Tabs:
  *   - Correos:    kill switch global + toggles por categoría de email.
- *   - Compilador: proveedor de ejecución de código para preguntas tipo "código".
+ *   - Compilador: proveedor de ejecución de código.
+ *   - Auditoría:  retención de audit_logs por severidad.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Mail, Code2 } from "lucide-react";
+import { Settings, Mail, Code2, ScrollText } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
+import { AdminAuditRetentionPanel } from "@/components/admin/AdminAuditRetentionPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -45,12 +47,19 @@ function AdminSettings() {
             <Code2 className="h-3.5 w-3.5" />
             Compilador
           </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-1.5">
+            <ScrollText className="h-3.5 w-3.5" />
+            Auditoría
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="email" className="space-y-4 mt-4">
           <AdminEmailSettingsPanel />
         </TabsContent>
         <TabsContent value="compiler" className="space-y-4 mt-4">
           <AdminCodeExecutionPanel />
+        </TabsContent>
+        <TabsContent value="audit" className="space-y-4 mt-4">
+          <AdminAuditRetentionPanel />
         </TabsContent>
       </Tabs>
     </div>

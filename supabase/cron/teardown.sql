@@ -32,6 +32,12 @@ SELECT cron.unschedule('teacher-daily-summary')
 SELECT cron.unschedule('admin-storage-threshold')
   WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'admin-storage-threshold');
 
+SELECT cron.unschedule('exam-window-opens')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'exam-window-opens');
+
+SELECT cron.unschedule('audit-logs-purge')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'audit-logs-purge');
+
 -- Confirmar — la lista debería estar vacía (o solo con jobs externos
 -- que no son de ExamLab).
 SELECT jobname, schedule, active FROM cron.job ORDER BY jobname;
