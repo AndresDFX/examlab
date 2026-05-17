@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
+import { scoreCerradaMulti } from "@/utils/question-scoring";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
@@ -59,7 +60,14 @@ export type ProjectFile = {
   language: string | null;
   starter_code: string | null;
   points: number;
-  type: "abierta" | "cerrada" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
+  type:
+    | "abierta"
+    | "cerrada"
+    | "cerrada_multi"
+    | "codigo"
+    | "diagrama"
+    | "java_gui"
+    | "codigo_zip";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: any;
 };
@@ -86,6 +94,10 @@ export function TeacherProjectFilesEditor({
   const [qRubric, setQRubric] = useState("");
   const [qChoices, setQChoices] = useState(["", "", "", ""]);
   const [qCorrect, setQCorrect] = useState(0);
+  // Multi-select state (cerrada_multi)
+  const [qCorrectIndices, setQCorrectIndices] = useState<number[]>([]);
+  const [qMinSelections, setQMinSelections] = useState<number | "">("");
+  const [qMaxSelections, setQMaxSelections] = useState<number | "">("");
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
 
@@ -96,6 +108,9 @@ export function TeacherProjectFilesEditor({
     setQRubric("");
     setQChoices(["", "", "", ""]);
     setQCorrect(0);
+    setQCorrectIndices([]);
+    setQMinSelections("");
+    setQMaxSelections("");
     setQPoints(1);
     setQLanguage("java");
   };
@@ -108,6 +123,12 @@ export function TeacherProjectFilesEditor({
     const choices = (q.options?.choices ?? []) as string[];
     setQChoices([0, 1, 2, 3].map((i) => choices[i] ?? ""));
     setQCorrect(Number(q.options?.correct_index ?? 0));
+    const ci = (q.options as any)?.correct_indices;
+    setQCorrectIndices(Array.isArray(ci) ? ci : []);
+    const minS = (q.options as any)?.min_selections;
+    const maxS = (q.options as any)?.max_selections;
+    setQMinSelections(typeof minS === "number" ? minS : "");
+    setQMaxSelections(typeof maxS === "number" ? maxS : "");
     setQPoints(q.points);
     setQLanguage(q.language ?? "java");
     setActiveTab("manual");
@@ -174,10 +195,29 @@ export function TeacherProjectFilesEditor({
       toast.error("Escribe el enunciado");
       return;
     }
+    if (qType === "cerrada_multi") {
+      if (qCorrectIndices.length === 0) {
+        toast.error("Marca al menos una opción correcta en opción múltiple");
+        return;
+      }
+      const minN = typeof qMinSelections === "number" ? qMinSelections : 0;
+      const maxN = typeof qMaxSelections === "number" ? qMaxSelections : 0;
+      if (minN && maxN && minN > maxN) {
+        toast.error("Mínimo de marcadas no puede ser mayor al máximo");
+        return;
+      }
+    }
     const options =
       qType === "cerrada"
         ? { choices: qChoices.filter((c) => c.trim()), correct_index: qCorrect }
-        : null;
+        : qType === "cerrada_multi"
+          ? {
+              choices: qChoices.filter((c) => c.trim()),
+              correct_indices: qCorrectIndices,
+              ...(typeof qMinSelections === "number" ? { min_selections: qMinSelections } : {}),
+              ...(typeof qMaxSelections === "number" ? { max_selections: qMaxSelections } : {}),
+            }
+          : null;
     // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
     // Solo persistimos 'language' si la pregunta es realmente código —
     // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
@@ -492,7 +532,8 @@ export function TeacherProjectFilesEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abierta">Abierta</SelectItem>
-                  <SelectItem value="cerrada">Opción múltiple</SelectItem>
+                  <SelectItem value="cerrada">Selección única</SelectItem>
+                  <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
                   <SelectItem value="codigo_zip">Código (ZIP de archivos)</SelectItem>
                 </SelectContent>
@@ -537,6 +578,65 @@ export function TeacherProjectFilesEditor({
                   />
                 </div>
               ))}
+            </div>
+          )}
+          {qType === "cerrada_multi" && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label required>Opciones (marca las correctas)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Puntaje proporcional según cuántas correctas marque, sin penalización por
+                  incorrectas.
+                </p>
+                {qChoices.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={qCorrectIndices.includes(i)}
+                      onChange={(e) => {
+                        setQCorrectIndices((prev) =>
+                          e.target.checked
+                            ? Array.from(new Set([...prev, i])).sort((a, b) => a - b)
+                            : prev.filter((idx) => idx !== i),
+                        );
+                      }}
+                    />
+                    <Input
+                      value={c}
+                      onChange={(e) =>
+                        setQChoices(qChoices.map((cc, j) => (j === i ? e.target.value : cc)))
+                      }
+                      placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Mínimo de marcadas</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={qMinSelections === "" ? "" : qMinSelections}
+                    onChange={(e) =>
+                      setQMinSelections(e.target.value === "" ? "" : Number(e.target.value))
+                    }
+                    placeholder="sin mínimo"
+                  />
+                </div>
+                <div>
+                  <Label>Máximo de marcadas</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={qMaxSelections === "" ? "" : qMaxSelections}
+                    onChange={(e) =>
+                      setQMaxSelections(e.target.value === "" ? "" : Number(e.target.value))
+                    }
+                    placeholder="sin máximo"
+                  />
+                </div>
+              </div>
             </div>
           )}
           {qType === "codigo_zip" && (
@@ -674,7 +774,8 @@ export function TeacherProjectFilesEditor({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="abierta">Abierta</SelectItem>
-                      <SelectItem value="cerrada">Opción múltiple</SelectItem>
+                      <SelectItem value="cerrada">Selección única</SelectItem>
+                      <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
                       <SelectItem value="codigo_zip">Código (ZIP)</SelectItem>
                     </SelectContent>
@@ -814,7 +915,19 @@ export function StudentProjectTaker({
           .select("file_id, content, selected_option")
           .eq("submission_id", sub.id);
         const map: Record<string, any> = {};
+        const filesById = new Map((qs ?? []).map((q: any) => [q.id, q]));
         for (const a of (ans ?? []) as any[]) {
+          const q = filesById.get(a.file_id) as any;
+          if (q?.type === "cerrada_multi" && typeof a.content === "string") {
+            try {
+              const parsed = JSON.parse(a.content);
+              map[a.file_id] = Array.isArray(parsed) ? parsed : [];
+              continue;
+            } catch {
+              map[a.file_id] = [];
+              continue;
+            }
+          }
           map[a.file_id] = a.selected_option ?? a.content ?? "";
         }
         if (cancelled) return;
@@ -844,13 +957,21 @@ export function StudentProjectTaker({
     const empty: number[] = [];
     questions.forEach((q, idx) => {
       const a = answers[q.id];
-      const isCerrada = q.type === "cerrada";
-      const isCodeZip = q.type === "codigo_zip";
-      const isBlank = isCerrada
-        ? a === undefined || a === null || a === ""
-        : isCodeZip
-          ? !(a instanceof File)
-          : !String(a ?? "").trim();
+      let isBlank: boolean;
+      if (q.type === "cerrada") {
+        isBlank = a === undefined || a === null || a === "";
+      } else if (q.type === "cerrada_multi") {
+        if (!Array.isArray(a) || a.length === 0) {
+          isBlank = true;
+        } else {
+          const minS = (q.options as any)?.min_selections;
+          isBlank = typeof minS === "number" && minS > 0 && a.length < minS;
+        }
+      } else if (q.type === "codigo_zip") {
+        isBlank = !(a instanceof File);
+      } else {
+        isBlank = !String(a ?? "").trim();
+      }
       if (isBlank) empty.push(idx + 1);
     });
     return empty;
@@ -969,6 +1090,28 @@ export function StudentProjectTaker({
           payload.content = choices[Number(raw)] ?? String(raw);
           payload.ai_grade = earned;
           payload.ai_feedback = feedback;
+        } else if (q.type === "cerrada_multi") {
+          // Grading local: proporcional positivo (helper compartido).
+          const selectedArr = Array.isArray(raw) ? (raw as number[]) : [];
+          const result = scoreCerradaMulti({
+            selected: selectedArr,
+            correctIndices: ((q.options as any)?.correct_indices ?? []) as number[],
+            totalPoints: Number(q.points) || 0,
+            minSelections: (q.options as any)?.min_selections,
+            maxSelections: (q.options as any)?.max_selections,
+          });
+          earned = result.earned;
+          feedback = result.exceededMax
+            ? `Marcaste más opciones de las permitidas (${(q.options as any)?.max_selections}).`
+            : result.belowMin
+              ? `Faltó marcar al menos ${(q.options as any)?.min_selections} opciones.`
+              : selectedArr.length === 0
+                ? "Sin respuesta"
+                : `${earned} / ${q.points} pts`;
+          // Guardamos array como JSON en content (selected_option es text de 1 valor)
+          payload.content = JSON.stringify(selectedArr);
+          payload.ai_grade = earned;
+          payload.ai_feedback = feedback;
         } else if (q.type === "codigo_zip") {
           // raw debería ser un File. Si no hay file, marca 0.
           const file = raw instanceof File ? raw : null;
@@ -1014,6 +1157,14 @@ export function StudentProjectTaker({
                 payload.ai_likelihood =
                   typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
                 payload.ai_reasons = aiData?.ai_reasons ?? null;
+                // Persistir flags de truncado del ZIP — el monitor del docente
+                // los lee para mostrar badge "ZIP truncado" en la calificación.
+                if (typeof aiData?.zip_truncated === "boolean") {
+                  payload.zip_truncated = aiData.zip_truncated;
+                }
+                if (typeof aiData?.zip_chars_used === "number") {
+                  payload.zip_chars_used = aiData.zip_chars_used;
+                }
               }
             }
           }
@@ -1183,6 +1334,51 @@ export function StudentProjectTaker({
                     {c}
                   </label>
                 ))}
+              </div>
+            )}
+            {q.type === "cerrada_multi" && q.options?.choices && (
+              <div className="space-y-1.5">
+                {(() => {
+                  const sel = Array.isArray(answers[q.id]) ? (answers[q.id] as number[]) : [];
+                  const minS = (q.options as any)?.min_selections;
+                  const maxS = (q.options as any)?.max_selections;
+                  const hint =
+                    typeof minS === "number" && typeof maxS === "number"
+                      ? `Marca entre ${minS} y ${maxS} opciones`
+                      : typeof minS === "number"
+                        ? `Marca al menos ${minS}`
+                        : typeof maxS === "number"
+                          ? `Marca máximo ${maxS}`
+                          : "Marca todas las correctas";
+                  return (
+                    <>
+                      <p className="text-xs text-muted-foreground">{hint}</p>
+                      {q.options.choices.map((c: string, i: number) => {
+                        const checked = sel.includes(i);
+                        return (
+                          <label key={i} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? Array.from(new Set([...sel, i])).sort((a, b) => a - b)
+                                  : sel.filter((x) => x !== i);
+                                updateAnswer(q.id, next);
+                              }}
+                            />
+                            {c}
+                          </label>
+                        );
+                      })}
+                      {typeof maxS === "number" && sel.length > maxS && (
+                        <p className="text-xs text-destructive">
+                          Has marcado más de las permitidas ({maxS}).
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
             {q.type === "codigo" && (

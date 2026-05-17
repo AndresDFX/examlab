@@ -588,6 +588,11 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const codeFiles: { path: string; content: string }[] = [];
       let totalChars = 0;
       const MAX_CHARS = 200_000; // ~ tope para no exceder context window
+      // Trazas de truncado: el docente las verá como badge en el panel
+      // de calificación para saber que la IA no analizó todo el código.
+      let totalWhitelisted = 0;
+      let perFileTruncated = 0;
+      let totalLimitReached = false;
 
       for (const path of allPaths) {
         const lower = path.toLowerCase();
@@ -599,6 +604,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           baseName === "dockerfile" ||
           baseName === ".gitignore";
         if (!isWhitelisted) continue;
+        totalWhitelisted++;
         const data = unzipped[path];
         if (!data || data.length === 0) continue;
         // Decodifica como UTF-8. Si el archivo es binario raro, ignoramos.
@@ -609,11 +615,18 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           continue;
         }
         // Skip muy grandes individuales para no bloquear todo
-        if (text.length > 50_000) text = text.slice(0, 50_000) + "\n…[truncado]…";
-        if (totalChars + text.length > MAX_CHARS) break;
+        if (text.length > 50_000) {
+          text = text.slice(0, 50_000) + "\n…[truncado]…";
+          perFileTruncated++;
+        }
+        if (totalChars + text.length > MAX_CHARS) {
+          totalLimitReached = true;
+          break;
+        }
         totalChars += text.length;
         codeFiles.push({ path, content: text });
       }
+      const wasTruncated = totalLimitReached || perFileTruncated > 0;
 
       if (codeFiles.length === 0) {
         return new Response(
@@ -720,6 +733,13 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           ai_detected: aiLikelihood >= 0.6,
           ai_reasons: args.ai_reasons ?? "",
           files_evaluated: codeFiles.length,
+          // Flags de truncado para que el cliente persista en
+          // project_submission_files y muestre badge al docente.
+          zip_truncated: wasTruncated,
+          zip_chars_used: totalChars,
+          zip_files_total: totalWhitelisted,
+          zip_files_per_file_truncated: perFileTruncated,
+          zip_total_limit_reached: totalLimitReached,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1634,6 +1634,63 @@ function TeacherWorkshops() {
   // notas por pregunta) + cambia status a 'calificado'. Antes recibía
   // también `feedback` global, pero ese textarea fue removido — la
   // retroalimentación vive pregunta-por-pregunta dentro de `answers`.
+  /**
+   * Reabre una entrega calificada para que el estudiante pueda volver a
+   * enviarla. Estado vuelve a "entregado" (no "pendiente" para conservar
+   * `submitted_at` como referencia), limpiamos `final_grade` y `ai_grade`
+   * para que no se siga mostrando como calificado. La fila NO se borra
+   * — las respuestas (`workshop_submission_answers`) siguen ahí, así el
+   * estudiante las ve precargadas al volver a abrir el taller.
+   */
+  const reopenSubmission = async (sub: WsSub) => {
+    const ok = await confirm({
+      title: "¿Reabrir entrega del estudiante?",
+      description:
+        "El estudiante podrá volver a editar y reenviar sus respuestas. La calificación actual se borrará. Esta acción no se puede deshacer.",
+      confirmLabel: "Reabrir",
+      tone: "warning",
+    });
+    if (!ok) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
+    const { error } = await dbAny
+      .from("workshop_submissions")
+      .update({
+        status: "entregado",
+        final_grade: null,
+        ai_grade: null,
+        ai_feedback: null,
+        submitted_at: null,
+      })
+      .eq("id", sub.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    void logEvent({
+      action: "workshop.submission_reopened",
+      category: "grading",
+      actorRole: roles[0],
+      severity: "warning",
+      entityType: "workshop_submission",
+      entityId: sub.id,
+      entityName: gradingWs?.title,
+      courseId: gradingWs?.course_id,
+      metadata: {
+        previous_status: sub.status,
+        previous_grade: sub.final_grade,
+      },
+    });
+    toast.success("Entrega reabierta. El estudiante puede reenviar.");
+    setWsSubs((prev) =>
+      prev.map((s) =>
+        s.id === sub.id
+          ? { ...s, status: "entregado", final_grade: null, ai_grade: null }
+          : s,
+      ),
+    );
+  };
+
   const saveGrade = async (subId: string, grade: number) => {
     const { data, error } = await supabase
       .from("workshop_submissions")
@@ -3469,7 +3526,7 @@ function TeacherWorkshops() {
                         El botón "Guardar calificación" persiste la
                         `final_grade` recalculada; "Calificar con IA"
                         dispara la evaluación por preguntas. */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         variant="outline"
@@ -3492,6 +3549,16 @@ function TeacherWorkshops() {
                           ? "Recalificar con IA"
                           : "Calificar con IA"}
                       </Button>
+                      {(sub.status === "calificado" || sub.status === "ai_revisado") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
+                          onClick={() => reopenSubmission(sub)}
+                        >
+                          Reabrir entrega
+                        </Button>
+                      )}
                     </div>
                     </CardContent>
                   </Card>

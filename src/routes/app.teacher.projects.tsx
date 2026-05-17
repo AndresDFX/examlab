@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { scoreCerradaMulti } from "@/utils/question-scoring";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -281,6 +282,8 @@ function TeacherProjects() {
     ai_grade: number | null;
     ai_feedback: string | null;
     ai_likelihood: number | null;
+    zip_truncated?: boolean | null;
+    zip_chars_used?: number | null;
   };
   const [gradingOpen, setGradingOpen] = useState(false);
   const [gradingProject, setGradingProject] = useState<Project | null>(null);
@@ -1071,7 +1074,9 @@ function TeacherProjects() {
           db.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
           db
             .from("project_submission_files")
-            .select("id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood")
+            .select(
+              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, zip_truncated, zip_chars_used",
+            )
             .in("submission_id", subIds),
         ]);
         const profMap = new Map(((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]));
@@ -1173,6 +1178,74 @@ function TeacherProjects() {
   };
 
   /**
+   * Reabre una entrega calificada para que el estudiante pueda volver a
+   * enviar sus archivos + ZIP + link al repositorio. Vuelve status a
+   * "entregado" y limpia notas, sustentación, calificaciones globales.
+   * Las respuestas individuales (`project_submission_files`) NO se
+   * borran — se quedan precargadas para que el estudiante las edite.
+   */
+  const reopenProjectSubmission = async (subId: string) => {
+    const sub = gradingSubs.find((s) => s.id === subId);
+    if (!sub) return;
+    const ok = await confirm({
+      title: "¿Reabrir entrega del estudiante?",
+      description:
+        "El estudiante podrá editar y reenviar sus archivos. Se borrará la calificación, sustentación y nota final actuales. Esta acción no se puede deshacer.",
+      confirmLabel: "Reabrir",
+      tone: "warning",
+    });
+    if (!ok) return;
+    const { error } = await db
+      .from("project_submissions")
+      .update({
+        status: "entregado",
+        final_grade: null,
+        ai_grade: null,
+        submission_grade: null,
+        defense_factor: null,
+        defense_notes: null,
+        defense_at: null,
+        submitted_at: null,
+      })
+      .eq("id", subId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    void logEvent({
+      action: "project.submission_reopened",
+      category: "grading",
+      severity: "warning",
+      entityType: "project_submission",
+      entityId: subId,
+      entityName: gradingProject?.title,
+      courseId: gradingProject?.course_id,
+      metadata: {
+        previous_status: sub.status,
+        previous_final_grade: sub.final_grade,
+        previous_defense_factor: sub.defense_factor,
+      },
+    });
+    setGradingSubs((prev) =>
+      prev.map((s) =>
+        s.id === subId
+          ? {
+              ...s,
+              status: "entregado",
+              final_grade: null,
+              ai_grade: null,
+              submission_grade: null,
+              defense_factor: null,
+              defense_notes: null,
+              defense_at: null,
+            }
+          : s,
+      ),
+    );
+    toast.success("Entrega reabierta. El estudiante puede reenviar.");
+  };
+
+  /**
    * Persiste la sustentación: factor 0..1 + notas. Recalcula final_grade
    * como submission_grade × factor. Si factor es null/vacío, deja la
    * entrega "sin sustentar" (final_grade null, status entregado).
@@ -1256,12 +1329,48 @@ function TeacherProjects() {
     setAiRegradingId(ans.id);
     try {
       const courseLang = (gradingProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
-      // fetch expected_rubric + description for the file
+      // fetch type + options + rubric/desc para el archivo
       const { data: meta } = await db
         .from("project_files")
-        .select("description, expected_rubric")
+        .select("description, expected_rubric, type, options")
         .eq("id", file.id)
         .maybeSingle();
+
+      // Short-circuit determinístico para cerrada_multi: no llamamos a IA.
+      if (meta?.type === "cerrada_multi") {
+        let selectedArr: number[] = [];
+        try {
+          const parsed = JSON.parse(ans.content ?? "[]");
+          if (Array.isArray(parsed)) selectedArr = parsed.filter((n) => typeof n === "number");
+        } catch {
+          /* mantener vacío */
+        }
+        const result = scoreCerradaMulti({
+          selected: selectedArr,
+          correctIndices: (meta.options?.correct_indices ?? []) as number[],
+          totalPoints: file.points,
+          minSelections: meta.options?.min_selections,
+          maxSelections: meta.options?.max_selections,
+        });
+        const newFeedback = result.exceededMax
+          ? `Marcó más opciones de las permitidas (${meta.options?.max_selections}).`
+          : result.belowMin
+            ? `Marcó menos del mínimo (${meta.options?.min_selections}).`
+            : selectedArr.length === 0
+              ? "Sin respuesta"
+              : `${result.earned} / ${file.points} pts`;
+        patchSubFile(subId, file.id, {
+          ai_grade: result.earned,
+          ai_feedback: newFeedback,
+        });
+        await db
+          .from("project_submission_files")
+          .update({ ai_grade: result.earned, ai_feedback: newFeedback })
+          .eq("id", ans.id);
+        toast.success("Recalculado localmente (sin IA)");
+        return;
+      }
+
       const { data: aiData, error: aiErr } = await supabase.functions.invoke(
         "ai-grade-submission",
         {
@@ -2118,6 +2227,18 @@ function TeacherProjects() {
                             maxScore={Number(gradingProject?.max_score ?? 100)}
                             onSave={saveDefense}
                           />
+                          {(sub.status === "calificado" || sub.status === "ai_revisado") && (
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
+                                onClick={() => reopenProjectSubmission(sub.id)}
+                              >
+                                Reabrir entrega
+                              </Button>
+                            </div>
+                          )}
                           {gradingFiles.map((f) => {
                             const a = ans.find((x) => x.file_id === f.id);
                             const isHighlighted =
@@ -2129,12 +2250,21 @@ function TeacherProjects() {
                                 className={isHighlighted ? "ring-2 ring-primary/60" : undefined}
                               >
                                 <CardContent className="p-3 space-y-2">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                                     <span className="text-sm font-medium">{f.title}</span>
                                     <span className="text-[10px] text-muted-foreground">
                                       {f.points} pts
                                     </span>
+                                    {a?.zip_truncated && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                        title={`La IA analizó ${a.zip_chars_used ?? "parte"} de los caracteres del ZIP. Archivos individuales > 50KB se truncaron y/o el total excedió 200KB.`}
+                                      >
+                                        ZIP truncado · revisa manualmente
+                                      </Badge>
+                                    )}
                                     {a?.ai_likelihood != null && (
                                       <Badge variant="outline" className="text-[10px] ml-auto">
                                         IA: {Math.round(Number(a.ai_likelihood) * 100)}%
