@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListFilters } from "@/components/ui/list-filters";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -302,6 +303,9 @@ function TeacherContents() {
   // edge function. NO modifican el system prompt — solo se inyectan
   // como bloque etiquetado al final del mensaje del usuario.
   const [instructions, setInstructions] = useState("");
+  // Si true, el estudiante solo accede al contenido en/después de la
+  // fecha de la sesión asignada. Default false = visible al asignarse.
+  const [releaseAfterSessionDate, setReleaseAfterSessionDate] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -415,6 +419,7 @@ function TeacherContents() {
         course_id: courseId || null,
         author: author.trim() || null,
         instructions: instructions.trim() || null,
+        release_after_session_date: releaseAfterSessionDate,
         status: "queued",
       };
       const { data: created, error: insErr } = await db
@@ -444,6 +449,7 @@ function TeacherContents() {
       setTopic("");
       setAuthor("");
       setInstructions("");
+      setReleaseAfterSessionDate(false);
       void load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -1163,6 +1169,24 @@ function TeacherContents() {
                 onChange={(e) => setInstructions(e.target.value)}
                 placeholder={t("contents.instructionsPlaceholder")}
                 className="min-h-[100px] text-xs"
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+              <div className="space-y-1 min-w-0">
+                <Label htmlFor="release-after-session" className="text-sm font-medium">
+                  Liberar al estudiante solo desde la fecha de sesión
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Si está activo, el estudiante verá el contenido únicamente cuando llegue la
+                  fecha de la sesión a la que se asignó. Útil para evitar spoilers de talleres,
+                  ejercicios o exámenes.
+                </p>
+              </div>
+              <Switch
+                id="release-after-session"
+                checked={releaseAfterSessionDate}
+                onCheckedChange={setReleaseAfterSessionDate}
               />
             </div>
           </div>

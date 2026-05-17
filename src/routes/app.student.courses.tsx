@@ -93,6 +93,8 @@ type ContentRow = {
   duration_minutes: number | null;
   modality: "teorica" | "practica" | "teorico_practica" | null;
   files: ContentFileEntry[];
+  /** Si TRUE, los archivos solo son visibles desde la fecha de la sesión asignada. */
+  release_after_session_date: boolean;
 };
 
 type BrandRow = {
@@ -284,7 +286,9 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       if (contentIds.length > 0) {
         const { data: cs } = await db
           .from("generated_contents")
-          .select("id, topic, mode, duration_minutes, modality, files")
+          .select(
+            "id, topic, mode, duration_minutes, modality, files, release_after_session_date",
+          )
           .in("id", contentIds);
         const map: Record<string, ContentRow> = {};
         for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
@@ -338,11 +342,20 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   /** Devuelve los archivos relevantes para una sesión. Filtra:
    *   1. Archivos de uso exclusivo del docente (guía docente, solución
    *      del ejercicio) — el estudiante no debe verlos ni descargarlos.
-   *   2. Si el contenido es curso_completo y la sesión tiene class_index
+   *   2. Si el contenido tiene `release_after_session_date=true`, oculta
+   *      los archivos hasta que llegue la fecha de la sesión (ancla a
+   *      00:00 local para que cuente todo el día como liberado).
+   *   3. Si el contenido es curso_completo y la sesión tiene class_index
    *      N, filtra a archivos cuyo nombre contenga `_CLASE_N`. */
   const filesForSession = (s: SessionRow): ContentFileEntry[] => {
     const c = s.content_id ? contents[s.content_id] : null;
     if (!c) return [];
+    if (c.release_after_session_date && s.session_date) {
+      // session_date es DATE (YYYY-MM-DD). Lo anclamos al inicio del día
+      // local para liberar el material desde las 00:00 del día de clase.
+      const releaseAt = new Date(`${s.session_date}T00:00:00`).getTime();
+      if (Date.now() < releaseAt) return [];
+    }
     const visible = c.files.filter((f) => !isTeacherOnlyFile(f.name));
     if (s.content_class_index == null) return visible;
     const filtered = visible.filter(
