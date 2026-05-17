@@ -62,6 +62,7 @@ import {
   Wrench,
   MessageSquare,
   Settings,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -573,6 +574,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <DropdownMenuItem onClick={() => setPwDialogOpen(true)} className="gap-2">
                     <KeyRound className="h-4 w-4" />
                     {t("nav.changePassword")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate({ to: "/app/preferences" })}
+                    className="gap-2"
+                  >
+                    <Bell className="h-4 w-4" />
+                    {t("nav.notificationPreferences")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
