@@ -26,6 +26,7 @@ import {
   ClipboardList,
   CheckSquare,
   Copy,
+  MessageSquareText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatDateOnly, formatWeekdayName } from "@/lib/format";
@@ -498,13 +499,15 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                 </div>
               )}
             </div>
-            {/* Botón "Suscribir mi calendario" — copia al portapapeles
-                el URL del feed ICS de la edge function `calendar-ics`.
-                El estudiante lo pega UNA VEZ en Google Calendar
-                (Otros calendarios → Desde URL) y queda sincronizado:
-                cualquier sesión que el docente cree/edite/borre se
-                refleja automáticamente cada ~12h. No requiere OAuth. */}
-            <SubscribeCalendarButton />
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/app/forum/$courseId" params={{ courseId: course.id }}>
+                  <MessageSquareText className="h-4 w-4 mr-1" />
+                  Foro
+                </Link>
+              </Button>
+              <SubscribeCalendarButton />
+            </div>
           </div>
         </CardHeader>
       </Card>

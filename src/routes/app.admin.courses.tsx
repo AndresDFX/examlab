@@ -55,6 +55,7 @@ import {
   Link2,
   Upload,
   Download,
+  MessageSquareText,
 } from "lucide-react";
 import {
   Select,
@@ -1011,6 +1012,12 @@ export function AdminCourses() {
                           label: t("course.boardShort"),
                           icon: CalendarRange,
                           onClick: () => setBoardForCourse(c),
+                        },
+                        {
+                          label: "Foro",
+                          icon: MessageSquareText,
+                          to: "/app/forum/$courseId",
+                          params: { courseId: c.id },
                         },
                         {
                           label: t("course.students"),
