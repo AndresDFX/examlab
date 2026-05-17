@@ -46,6 +46,7 @@ import { logEvent } from "@/lib/audit";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/utils/exam-session";
 import { runJavaInBrowser } from "@/lib/run-java";
+import { retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -71,8 +72,12 @@ type Exam = {
   schedule_type?: string | null;
   /** Cantidad de strikes antes de marcar el intento como sospechoso. */
   max_warnings?: number | null;
+  /** Máximo de intentos permitidos (>=1). Si es 1 o null, no se muestra contador. */
+  max_attempts?: number | null;
+  /** Modo de cálculo de la nota final entre intentos: last_only / average / highest. */
+  retry_mode?: string | null;
   /** Populated via join `course:courses(language)` when available. */
-  course?: { language?: string | null } | null;
+  course?: { language?: string | null; max_exam_attempts?: number | null } | null;
 };
 
 function getOrCreateLocalSession(examId: string): string {
@@ -90,6 +95,12 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
   const v = answers[q.id];
   if (q.type === "cerrada") {
     return typeof v === "number" && v >= 0;
+  }
+  if (q.type === "cerrada_multi") {
+    if (!Array.isArray(v) || v.length === 0) return false;
+    const min = Number(q.options?.min_selections);
+    if (Number.isFinite(min) && min > 0 && v.length < min) return false;
+    return true;
   }
   if (q.type === "codigo" || q.type === "java_gui") {
     // Si no hay starter_code en la BD pero la pregunta es Java codigo,
@@ -171,6 +182,8 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
+  /** Número del intento actual (1-based) y total. Null cuando max_attempts=1. */
+  const [attemptInfo, setAttemptInfo] = useState<{ current: number; total: number } | null>(null);
   const [manualLeaveOpen, setManualLeaveOpen] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
@@ -355,6 +368,11 @@ function TakeExam() {
         1,
         Number(e.max_attempts ?? e.course?.max_exam_attempts ?? 1) || 1,
       );
+      // Persistir intento actual para mostrar badge en el header.
+      // Solo mostramos cuando maxAttempts > 1 (sin sentido si es intento único).
+      if (maxAttempts > 1) {
+        setAttemptInfo({ current: finishedCount + 1, total: maxAttempts });
+      }
 
       // Session lock: ensure only one device can present this exam at a time
       const localSessionId = getOrCreateLocalSession(examId);
@@ -488,14 +506,55 @@ function TakeExam() {
         });
       }
     }
-    // Pantalla completa forzada
+    // Pantalla completa OBLIGATORIA: si no se puede entrar, no iniciar el examen.
+    // Esto cubre: navegador sin soporte, usuario rechazó el prompt, embebido sin permiso.
     try {
       await document.documentElement.requestFullscreen?.();
     } catch (e) {
-      console.warn("requestFullscreen failed", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(
+        "Este examen requiere pantalla completa. Habilítala en tu navegador o usa otro navegador, luego vuelve a presionar Iniciar.",
+      );
+      void logEvent({
+        action: "exam_fullscreen_denied",
+        category: "exam",
+        severity: "warning",
+        entityType: "submission",
+        entityId: sid,
+        entityName: exam.title,
+        metadata: { examId, stage: "start", error: msg },
+      });
+      return;
+    }
+    // Verifica que realmente entró (algunos navegadores resuelven la promise sin activar fullscreen)
+    if (!document.fullscreenElement) {
+      toast.error(
+        "No se pudo activar pantalla completa. Verifica tu navegador y vuelve a presionar Iniciar.",
+      );
+      void logEvent({
+        action: "exam_fullscreen_denied",
+        category: "exam",
+        severity: "warning",
+        entityType: "submission",
+        entityId: sid,
+        entityName: exam.title,
+        metadata: { examId, stage: "start", reason: "no_fullscreen_element" },
+      });
+      return;
     }
     setStarted(true);
   };
+
+  // Si reanudamos un examen (recarga de página, status en_progreso) entramos
+  // a started=true sin pasar por startExam y por ende sin gesture user para
+  // requestFullscreen. En ese caso mostramos el overlay para que el estudiante
+  // re-entre vía botón (gesture válido).
+  useEffect(() => {
+    if (!started) return;
+    if (!document.fullscreenElement) {
+      setFsExited(true);
+    }
+  }, [started]);
 
   // Estado del overlay de re-entrada a pantalla completa
   const [fsExited, setFsExited] = useState(false);
@@ -1097,12 +1156,34 @@ function TakeExam() {
           </div>
         </div>
       )}
+      {isPaused && started && !fsExited && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
+            <Pause className="h-10 w-10 text-primary mx-auto animate-pulse" />
+            <h2 className="text-lg font-semibold">Examen pausado por el docente</h2>
+            <p className="text-sm text-muted-foreground">
+              El tiempo está detenido. Espera a que el docente reanude el examen para continuar
+              respondiendo. Tus respuestas están guardadas.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Sticky header with timer — full-bleed on mobile via negative margins matching AppLayout's px-4 */}
       <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">
           <div className="font-semibold truncate text-sm sm:text-base">{exam.title}</div>
-          <div className="text-[11px] sm:text-xs text-muted-foreground">
-            {t("exam.question")} {currentIdx + 1} {t("exam.of")} {questions.length}
+          <div className="text-[11px] sm:text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span>
+              {t("exam.question")} {currentIdx + 1} {t("exam.of")} {questions.length}
+            </span>
+            {attemptInfo && (
+              <span className="text-primary font-medium">
+                · Intento {attemptInfo.current}/{attemptInfo.total} ·{" "}
+                <span className="text-muted-foreground">
+                  Nota final: {retryModeLabel((exam.retry_mode ?? "last") as RetryMode)}
+                </span>
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 flex-wrap justify-end">
@@ -1209,6 +1290,61 @@ function TakeExam() {
                         </span>
                       </label>
                     ))}
+                  </div>
+                ) : q.type === "cerrada_multi" && q.options?.choices ? (
+                  <div className="space-y-1.5">
+                    {(() => {
+                      const sel = Array.isArray(answers[q.id])
+                        ? (answers[q.id] as number[])
+                        : [];
+                      const minS = q.options?.min_selections;
+                      const maxS = q.options?.max_selections;
+                      const hint =
+                        typeof minS === "number" && typeof maxS === "number"
+                          ? `Marca entre ${minS} y ${maxS} opciones`
+                          : typeof minS === "number"
+                            ? `Marca al menos ${minS}`
+                            : typeof maxS === "number"
+                              ? `Marca máximo ${maxS}`
+                              : "Marca todas las que consideres correctas";
+                      return (
+                        <>
+                          <p className="text-xs text-muted-foreground">{hint}</p>
+                          {q.options.choices.map((c: string, ci: number) => {
+                            const checked = sel.includes(ci);
+                            return (
+                              <label
+                                key={ci}
+                                className="flex items-start gap-2 p-2 rounded border hover:bg-muted/50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const next = e.target.checked
+                                      ? Array.from(new Set([...sel, ci])).sort(
+                                          (a, b) => a - b,
+                                        )
+                                      : sel.filter((x) => x !== ci);
+                                    updateAnswer(q.id, next);
+                                    saveAnswersNow();
+                                  }}
+                                  className="mt-1"
+                                />
+                                <span className="text-sm">
+                                  {String.fromCharCode(65 + ci)}. {c}
+                                </span>
+                              </label>
+                            );
+                          })}
+                          {typeof maxS === "number" && sel.length > maxS && (
+                            <p className="text-xs text-destructive">
+                              Has marcado más opciones de las permitidas ({maxS}).
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : q.type === "codigo" ? (
                   <div onBlur={saveAnswersNow}>

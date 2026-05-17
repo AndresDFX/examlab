@@ -1188,6 +1188,41 @@ Idioma de salida: ${langName}.`,
         const got = userAnswer === correctIdx ? Number(q.points) : 0;
         earned += got;
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
+      } else if (q.type === "cerrada_multi") {
+        // Opción múltiple: proporcional positivo SIN penalización.
+        // earned = (correctas_marcadas / total_correctas) * puntos.
+        // Sincronizado con src/utils/question-scoring.ts → scoreCerradaMulti.
+        const correctIndices: number[] = Array.isArray(q.options?.correct_indices)
+          ? q.options.correct_indices.filter((n: unknown) => typeof n === "number")
+          : [];
+        const selectedRaw: number[] = Array.isArray(userAnswer)
+          ? userAnswer.filter((n: unknown) => typeof n === "number")
+          : [];
+        const selected = Array.from(new Set(selectedRaw));
+        const correctSet = new Set(correctIndices);
+        const minSel = typeof q.options?.min_selections === "number" ? q.options.min_selections : 0;
+        const maxSel = typeof q.options?.max_selections === "number"
+          ? q.options.max_selections
+          : Infinity;
+
+        let got = 0;
+        const totalCorrect = correctSet.size;
+        const totalPoints = Number(q.points);
+        if (
+          selected.length > 0 &&
+          selected.length >= minSel &&
+          selected.length <= maxSel &&
+          totalCorrect > 0 &&
+          totalPoints > 0
+        ) {
+          let matched = 0;
+          for (const s of selected) {
+            if (correctSet.has(s)) matched++;
+          }
+          got = Number(((matched / totalCorrect) * totalPoints).toFixed(2));
+        }
+        earned += got;
+        breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
       } else {
         if (!userAnswer || (typeof userAnswer === "string" && !userAnswer.trim())) {
           breakdown.push({

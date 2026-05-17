@@ -56,6 +56,12 @@ export interface ClearWarningInput {
   focusWarnings: number;
   events: WarningEventLike[];
   examMaxWarnings: number;
+  /**
+   * Si el examen sigue abierto (now ∈ [start_time, end_time]).
+   * - true:  sospechoso bajo el umbral → en_progreso (estudiante puede reingresar)
+   * - false: sospechoso bajo el umbral → completado (la ventana cerró, no hay reingreso)
+   */
+  examIsOpen: boolean;
 }
 
 export interface ClearWarningResult {
@@ -66,6 +72,8 @@ export interface ClearWarningResult {
   clearSubmittedAt: boolean;
   /** True si la submission pasó de "sospechoso" → "en_progreso" en esta operación. */
   restoredToInProgress: boolean;
+  /** True si la submission pasó de "sospechoso" → "completado" (examen ya cerró). */
+  closedAsCompletado: boolean;
 }
 
 /**
@@ -84,18 +92,13 @@ export function applyClearOneWarning(
       events: safe.events,
       clearSubmittedAt: false,
       restoredToInProgress: false,
+      closedAsCompletado: false,
     };
   }
   const nextEvents = safe.events.filter((_, i) => i !== idx);
   const nextWarnings = Math.max(0, safe.focusWarnings - 1);
-  const restoring = safe.status === "sospechoso" && nextWarnings < safe.examMaxWarnings;
-  return {
-    status: restoring ? "en_progreso" : safe.status,
-    focusWarnings: nextWarnings,
-    events: nextEvents,
-    clearSubmittedAt: restoring,
-    restoredToInProgress: restoring,
-  };
+  const belowThreshold = safe.status === "sospechoso" && nextWarnings < safe.examMaxWarnings;
+  return finalizeResult(safe, belowThreshold, nextWarnings, nextEvents);
 }
 
 /**
@@ -103,13 +106,44 @@ export function applyClearOneWarning(
  */
 export function applyClearAllWarnings(input: ClearWarningInput): ClearWarningResult {
   const safe = clampWarningInput(input);
-  const restoring = safe.status === "sospechoso";
+  const wasSospechoso = safe.status === "sospechoso";
+  return finalizeResult(safe, wasSospechoso, 0, []);
+}
+
+function finalizeResult(
+  safe: ClearWarningInput,
+  shouldRestore: boolean,
+  nextWarnings: number,
+  nextEvents: WarningEventLike[],
+): ClearWarningResult {
+  if (!shouldRestore) {
+    return {
+      status: safe.status,
+      focusWarnings: nextWarnings,
+      events: nextEvents,
+      clearSubmittedAt: false,
+      restoredToInProgress: false,
+      closedAsCompletado: false,
+    };
+  }
+  if (safe.examIsOpen) {
+    return {
+      status: "en_progreso",
+      focusWarnings: nextWarnings,
+      events: nextEvents,
+      clearSubmittedAt: true,
+      restoredToInProgress: true,
+      closedAsCompletado: false,
+    };
+  }
+  // Ventana cerrada: no podemos reabrir el examen, dejamos como completado limpio.
   return {
-    status: restoring ? "en_progreso" : safe.status,
-    focusWarnings: 0,
-    events: [],
-    clearSubmittedAt: restoring,
-    restoredToInProgress: restoring,
+    status: "completado",
+    focusWarnings: nextWarnings,
+    events: nextEvents,
+    clearSubmittedAt: false,
+    restoredToInProgress: false,
+    closedAsCompletado: true,
   };
 }
 
@@ -119,5 +153,6 @@ function clampWarningInput(input: ClearWarningInput): ClearWarningInput {
     focusWarnings: Math.max(0, Number(input.focusWarnings) || 0),
     events: Array.isArray(input.events) ? input.events : [],
     examMaxWarnings: Math.max(1, Number(input.examMaxWarnings) || 3),
+    examIsOpen: Boolean(input.examIsOpen),
   };
 }

@@ -68,6 +68,7 @@ import {
 } from "@/utils/grade";
 import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
 import { applyClearOneWarning, applyClearAllWarnings } from "@/utils/exam-session";
+import { isExamOpen } from "@/utils/exam-time";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ConversationSection } from "@/components/ConversationSection";
 import { computeIntegritySuggestion } from "@/lib/integrity";
@@ -700,17 +701,23 @@ function ExamMonitor() {
   const clearAllWarnings = async (sub: Submission) => {
     const prevAnswers = sub.answers ?? {};
     const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
+    const examOpen = exam
+      ? isExamOpen({ start_time: exam.start_time, end_time: exam.end_time })
+      : false;
     const result = applyClearAllWarnings({
       status: sub.status,
       focusWarnings: sub.focus_warnings ?? 0,
       events,
       examMaxWarnings: exam?.max_warnings ?? 3,
+      examIsOpen: examOpen,
     });
     const ok = await confirm({
       title: t("monitor.clearWarningsTitle"),
       description: result.restoredToInProgress
         ? "Se eliminarán todas las advertencias y el estudiante podrá reingresar al examen. Esta acción no se puede deshacer."
-        : t("monitor.clearWarningsBody"),
+        : result.closedAsCompletado
+          ? "El examen ya cerró: se eliminarán las advertencias y la entrega quedará como 'completado' (no podrá reingresar). Esta acción no se puede deshacer."
+          : t("monitor.clearWarningsBody"),
       confirmLabel: t("monitor.clearWarningsConfirm"),
       tone: "warning",
     });
@@ -770,12 +777,16 @@ function ExamMonitor() {
   const clearOneWarning = async (sub: Submission, idx: number) => {
     const prevAnswers = sub.answers ?? {};
     const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
+    const examOpen = exam
+      ? isExamOpen({ start_time: exam.start_time, end_time: exam.end_time })
+      : false;
     const result = applyClearOneWarning(
       {
         status: sub.status,
         focusWarnings: sub.focus_warnings ?? 0,
         events,
         examMaxWarnings: exam?.max_warnings ?? 3,
+        examIsOpen: examOpen,
       },
       idx,
     );
@@ -792,7 +803,9 @@ function ExamMonitor() {
     toast.success(
       result.restoredToInProgress
         ? "Advertencia eliminada — el estudiante puede reingresar al examen"
-        : "Advertencia eliminada",
+        : result.closedAsCompletado
+          ? "Advertencia eliminada — entrega marcada como completado (examen ya cerró)"
+          : "Advertencia eliminada",
     );
     setSubmissions((prev) =>
       prev.map((s) =>
@@ -1942,6 +1955,46 @@ function ExamMonitor() {
                               </div>
                             )}
 
+                            {q.type === "cerrada_multi" && choices && (
+                              <div className="space-y-1">
+                                {(() => {
+                                  const correctIndices = Array.isArray(q.options?.correct_indices)
+                                    ? (q.options!.correct_indices as number[])
+                                    : [];
+                                  const studentMulti = Array.isArray(ans) ? (ans as number[]) : [];
+                                  return choices.map((c, i) => {
+                                    const isStudent = studentMulti.includes(i);
+                                    const isCorrect = correctIndices.includes(i);
+                                    return (
+                                      <div
+                                        key={i}
+                                        className={`text-xs p-1.5 rounded border ${
+                                          isCorrect
+                                            ? "border-success bg-success/10"
+                                            : "border-border"
+                                        } ${isStudent ? "ring-1 ring-primary" : ""}`}
+                                      >
+                                        <span className="font-mono mr-2">
+                                          {String.fromCharCode(65 + i)}.
+                                        </span>
+                                        {c}
+                                        {isStudent && (
+                                          <Badge variant="outline" className="ml-2 text-[9px]">
+                                            elegida
+                                          </Badge>
+                                        )}
+                                        {isCorrect && (
+                                          <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                            correcta
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            )}
+
                             {/* Respuesta del estudiante:
                               - codigo / java_gui → editor Monaco read-only
                                 (numeración de líneas + syntax highlighting),
@@ -1965,7 +2018,7 @@ function ExamMonitor() {
                                 height="220px"
                               />
                             ) : (
-                              q.type !== "cerrada" && (
+                              q.type !== "cerrada" && q.type !== "cerrada_multi" && (
                                 <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
                                   {ans == null || ans === "" ? (
                                     <span className="text-muted-foreground italic">
@@ -2541,6 +2594,42 @@ function ExamMonitor() {
                                 </div>
                               );
                             })}
+                          </div>
+                        ) : q.type === "cerrada_multi" && Array.isArray(q.options?.choices) ? (
+                          <div className="space-y-1">
+                            {(() => {
+                              const peerMulti = Array.isArray(peerAns) ? (peerAns as number[]) : [];
+                              const correctIndices = Array.isArray(q.options?.correct_indices)
+                                ? (q.options!.correct_indices as number[])
+                                : [];
+                              return (q.options.choices as string[]).map((c, i) => {
+                                const isStudent = peerMulti.includes(i);
+                                const isCorrect = correctIndices.includes(i);
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`text-xs p-1.5 rounded border ${
+                                      isCorrect ? "border-success bg-success/10" : "border-border"
+                                    } ${isStudent ? "ring-1 ring-primary" : ""}`}
+                                  >
+                                    <span className="font-mono mr-2">
+                                      {String.fromCharCode(65 + i)}.
+                                    </span>
+                                    {c}
+                                    {isStudent && (
+                                      <Badge variant="outline" className="ml-2 text-[9px]">
+                                        elegida
+                                      </Badge>
+                                    )}
+                                    {isCorrect && (
+                                      <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                        correcta
+                                      </Badge>
+                                    )}
+                                  </div>
+                                );
+                              });
+                            })()}
                           </div>
                         ) : q.type === "codigo" || q.type === "java_gui" ? (
                           <CodeEditor

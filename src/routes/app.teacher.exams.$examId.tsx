@@ -115,6 +115,10 @@ function ExamEditor() {
   const [qRubric, setQRubric] = useState("");
   const [qChoices, setQChoices] = useState(["", "", "", ""]);
   const [qCorrect, setQCorrect] = useState(0);
+  // Multi-select state (cerrada_multi): array de índices correctos + min/max marcadas.
+  const [qCorrectIndices, setQCorrectIndices] = useState<number[]>([]);
+  const [qMinSelections, setQMinSelections] = useState<number | "">("");
+  const [qMaxSelections, setQMaxSelections] = useState<number | "">("");
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
 
@@ -125,6 +129,9 @@ function ExamEditor() {
     setQRubric("");
     setQChoices(["", "", "", ""]);
     setQCorrect(0);
+    setQCorrectIndices([]);
+    setQMinSelections("");
+    setQMaxSelections("");
     setQPoints(1);
     setQLanguage("java");
   };
@@ -137,6 +144,12 @@ function ExamEditor() {
     const choices = ((q as any).options?.choices ?? []) as string[];
     setQChoices([0, 1, 2, 3].map((i) => choices[i] ?? ""));
     setQCorrect(Number((q as any).options?.correct_index ?? 0));
+    const correctIndices = ((q as any).options?.correct_indices ?? []) as number[];
+    setQCorrectIndices(Array.isArray(correctIndices) ? correctIndices : []);
+    const minS = (q as any).options?.min_selections;
+    const maxS = (q as any).options?.max_selections;
+    setQMinSelections(typeof minS === "number" ? minS : "");
+    setQMaxSelections(typeof maxS === "number" ? maxS : "");
     setQPoints(q.points ?? 1);
     setQLanguage((q as any).language ?? "java");
     if (typeof window !== "undefined") {
@@ -401,7 +414,28 @@ function ExamEditor() {
       !qRubric.trim()
     )
       return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI");
-    const options = qType === "cerrada" ? { choices: qChoices, correct_index: qCorrect } : null;
+    // Validaciones específicas para cerrada_multi
+    if (qType === "cerrada_multi") {
+      if (qCorrectIndices.length === 0) {
+        return toast.error("Marca al menos una opción correcta en opción múltiple");
+      }
+      const minN = typeof qMinSelections === "number" ? qMinSelections : 0;
+      const maxN = typeof qMaxSelections === "number" ? qMaxSelections : 0;
+      if (minN && maxN && minN > maxN) {
+        return toast.error("Mínimo de marcadas no puede ser mayor al máximo");
+      }
+    }
+    const options =
+      qType === "cerrada"
+        ? { choices: qChoices, correct_index: qCorrect }
+        : qType === "cerrada_multi"
+          ? {
+              choices: qChoices,
+              correct_indices: qCorrectIndices,
+              ...(typeof qMinSelections === "number" ? { min_selections: qMinSelections } : {}),
+              ...(typeof qMaxSelections === "number" ? { max_selections: qMaxSelections } : {}),
+            }
+          : null;
     const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
 
     if (editingId) {
@@ -1166,7 +1200,8 @@ function ExamEditor() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="abierta">Abierta</SelectItem>
-                      <SelectItem value="cerrada">Opción múltiple</SelectItem>
+                      <SelectItem value="cerrada">Selección única</SelectItem>
+                      <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
                       <SelectItem value="codigo">Código</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
                       <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
@@ -1201,7 +1236,7 @@ function ExamEditor() {
                   </Select>
                 </div>
               )}
-              {qType !== "cerrada" && (
+              {qType !== "cerrada" && qType !== "cerrada_multi" && (
                 <div>
                   <Label required>Rúbrica esperada</Label>
                   <Textarea
@@ -1232,6 +1267,81 @@ function ExamEditor() {
                       />
                     </div>
                   ))}
+                </div>
+              )}
+              {qType === "cerrada_multi" && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label required>
+                      Opciones{" "}
+                      <HelpHint>
+                        Marca todas las correctas. El estudiante recibe puntaje proporcional según
+                        cuántas correctas marque (sin penalización por incorrectas).
+                      </HelpHint>
+                    </Label>
+                    {qChoices.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={qCorrectIndices.includes(i)}
+                          onChange={(e) => {
+                            setQCorrectIndices((prev) =>
+                              e.target.checked
+                                ? Array.from(new Set([...prev, i])).sort((a, b) => a - b)
+                                : prev.filter((idx) => idx !== i),
+                            );
+                          }}
+                        />
+                        <Input
+                          value={c}
+                          placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                          onChange={(e) => {
+                            const nc = [...qChoices];
+                            nc[i] = e.target.value;
+                            setQChoices(nc);
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>
+                        Mínimo de marcadas{" "}
+                        <HelpHint>
+                          Si lo defines, el estudiante DEBE marcar al menos esta cantidad para
+                          que cuente como respondida.
+                        </HelpHint>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={qMinSelections === "" ? "" : qMinSelections}
+                        onChange={(e) =>
+                          setQMinSelections(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                        placeholder="sin mínimo"
+                      />
+                    </div>
+                    <div>
+                      <Label>
+                        Máximo de marcadas{" "}
+                        <HelpHint>
+                          Si lo defines, el estudiante NO puede marcar más de esta cantidad
+                          (puntaje = 0 si excede).
+                        </HelpHint>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={qMaxSelections === "" ? "" : qMaxSelections}
+                        onChange={(e) =>
+                          setQMaxSelections(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                        placeholder="sin máximo"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
               <div className="flex flex-wrap gap-2">

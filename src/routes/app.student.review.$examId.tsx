@@ -23,7 +23,13 @@ type QuestionRow = {
   id: string;
   type: string;
   content: string;
-  options: { choices?: string[]; correct_index?: number } | null;
+  options: {
+    choices?: string[];
+    correct_index?: number;
+    correct_indices?: number[];
+    min_selections?: number;
+    max_selections?: number;
+  } | null;
   points: number;
   position: number;
   expected_rubric: string | null;
@@ -299,6 +305,10 @@ function StudentExamReview() {
           const earned = override != null ? override.score : bd?.earned;
           const choices = q.options?.choices as string[] | undefined;
           const correctIdx = q.options?.correct_index;
+          const correctIndices = Array.isArray(q.options?.correct_indices)
+            ? q.options!.correct_indices!
+            : [];
+          const studentMulti = Array.isArray(ans) ? (ans as number[]) : [];
 
           const iaFeedback = bd?.feedback && String(bd.feedback).trim() ? bd.feedback : null;
           const teacherFeedback =
@@ -357,6 +367,36 @@ function StudentExamReview() {
                   </div>
                 )}
 
+                {q.type === "cerrada_multi" && choices && (
+                  <div className="space-y-1.5">
+                    {choices.map((c, i) => {
+                      const isStudent = studentMulti.includes(i);
+                      const isCorrect = correctIndices.includes(i);
+                      return (
+                        <div
+                          key={i}
+                          className={`text-xs p-2 rounded-md border ${
+                            isCorrect ? "border-success bg-success/10" : "border-border"
+                          } ${isStudent ? "ring-1 ring-primary" : ""}`}
+                        >
+                          <span className="font-mono mr-2">{String.fromCharCode(65 + i)}.</span>
+                          {c}
+                          {isStudent && (
+                            <Badge variant="outline" className="ml-2 text-[9px]">
+                              {t("exam.review.yourAnswer")}
+                            </Badge>
+                          )}
+                          {isCorrect && (
+                            <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                              {t("exam.review.correct")}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {q.type === "codigo" || q.type === "java_gui" ? (
                   <CodeEditor
                     value={
@@ -375,7 +415,7 @@ function StudentExamReview() {
                     height="220px"
                   />
                 ) : (
-                  q.type !== "cerrada" && (
+                  q.type !== "cerrada" && q.type !== "cerrada_multi" && (
                     <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono min-h-[44px]">
                       {ans == null || ans === "" ? (
                         <span className="text-muted-foreground italic font-sans">
@@ -414,7 +454,7 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {!iaFeedback && !teacherFeedback && q.type !== "cerrada" && (
+                {!iaFeedback && !teacherFeedback && q.type !== "cerrada" && q.type !== "cerrada_multi" && (
                   <p className="text-xs text-muted-foreground italic">
                     {t("exam.review.noFeedback")}
                   </p>
