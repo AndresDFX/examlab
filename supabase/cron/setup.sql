@@ -97,5 +97,16 @@ SELECT cron.schedule(
   $$ SELECT public.purge_audit_logs(); $$
 );
 
+-- ────────────────────────── 6) Email alert threshold
+-- Cada 30 min revisa si emails de últimas 24h exceden el umbral
+-- configurado en app_settings (0 = desactivado). Notifica a admins.
+SELECT cron.unschedule('email-alert-threshold')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'email-alert-threshold');
+SELECT cron.schedule(
+  'email-alert-threshold',
+  '*/30 * * * *',
+  $$ SELECT public.check_email_alert_threshold(); $$
+);
+
 -- ────────────────────────── Verificación
 SELECT jobname, schedule, active FROM cron.job ORDER BY jobname;

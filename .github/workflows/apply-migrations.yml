@@ -121,10 +121,59 @@ jobs:
         run: |
           set -euo pipefail
           echo "═══ Aplicando migrations pendientes ═══"
-          # --include-all asegura que el CLI no salte ninguna por filtros
-          # de seguridad; el push igual valida contra la tabla de tracking
-          # del remoto y solo aplica las que faltan, asi que es seguro.
-          supabase db push --db-url "$DB_URL" --include-all
+
+          # Loop con auto-repair: si push falla con "duplicate key" en
+          # schema_migrations significa que esa versión ya está aplicada en
+          # remote pero el CLI local la trata como nueva. Marcamos como
+          # aplicada con `migration repair` y reintentamos. Hasta 20
+          # iteraciones para cubrir el caso de varias filas desincronizadas.
+          MAX_REPAIRS=20
+          push_succeeded=0
+          for attempt in $(seq 1 $MAX_REPAIRS); do
+            # Capturamos stderr+stdout sin abortar (set +e local).
+            set +e
+            push_output=$(echo "y" | supabase db push --db-url "$DB_URL" --include-all 2>&1)
+            push_exit=$?
+            set -e
+
+            # Mostramos siempre la salida para que el log refleje lo que pasa.
+            echo "$push_output"
+
+            if [ $push_exit -eq 0 ]; then
+              push_succeeded=1
+              break
+            fi
+
+            # ¿Es el error de duplicate key en schema_migrations?
+            if ! echo "$push_output" | grep -q "schema_migrations_pkey"; then
+              echo "::error::Push falló por una razón distinta a duplicate key. Aborto."
+              exit $push_exit
+            fi
+
+            # Extraemos la versión duplicada de la línea
+            #   "Key (version)=(20260517100000) already exists."
+            DUP_VERSION=$(echo "$push_output" \
+              | grep -oE 'Key \(version\)=\([0-9]+\)' \
+              | grep -oE '[0-9]+' \
+              | head -1)
+
+            if [ -z "$DUP_VERSION" ]; then
+              echo "::error::Duplicate key detectado pero no se pudo extraer la versión. Aborto."
+              exit $push_exit
+            fi
+
+            echo ""
+            echo "::warning::Versión $DUP_VERSION ya existe en remote pero el CLI la trató como nueva."
+            echo "::warning::Marcándola como aplicada y reintentando (intento $attempt/$MAX_REPAIRS)..."
+            supabase migration repair --status applied "$DUP_VERSION" --db-url "$DB_URL"
+            echo ""
+          done
+
+          if [ $push_succeeded -eq 0 ]; then
+            echo "::error::No fue posible aplicar migrations tras $MAX_REPAIRS intentos de reparación."
+            exit 1
+          fi
+
           echo ""
           echo "═══ Estado tras el push ═══"
           supabase migration list --db-url "$DB_URL" | tail -20

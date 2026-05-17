@@ -3,17 +3,19 @@
  *
  * Módulo central para parámetros operativos de la plataforma.
  * Tabs:
- *   - Correos:    kill switch global + toggles por categoría de email.
+ *   - Generales: defaults de cursos/exámenes + alerta de volumen de correos.
+ *   - Correos:   kill switch global + toggles por categoría de email.
  *   - Compilador: proveedor de ejecución de código.
- *   - Auditoría:  retención de audit_logs por severidad.
+ *   - Auditoría: retención de audit_logs por severidad.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Mail, Code2, ScrollText } from "lucide-react";
+import { Settings, Mail, Code2, ScrollText, Sliders } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
 import { AdminAuditRetentionPanel } from "@/components/admin/AdminAuditRetentionPanel";
+import { AdminGeneralSettingsPanel } from "@/components/admin/AdminGeneralSettingsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -37,8 +39,12 @@ function AdminSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="email">
+      <Tabs defaultValue="general">
         <TabsList>
+          <TabsTrigger value="general" className="gap-1.5">
+            <Sliders className="h-3.5 w-3.5" />
+            Generales
+          </TabsTrigger>
           <TabsTrigger value="email" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" />
             Correos
@@ -52,6 +58,9 @@ function AdminSettings() {
             Auditoría
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="general" className="space-y-4 mt-4">
+          <AdminGeneralSettingsPanel />
+        </TabsContent>
         <TabsContent value="email" className="space-y-4 mt-4">
           <AdminEmailSettingsPanel />
         </TabsContent>

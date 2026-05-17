@@ -34,6 +34,7 @@ import {
   UserCog,
   Inbox,
   CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
@@ -110,7 +111,13 @@ function AdminDashboard() {
     workshops: 0,
   });
   const [recentUsers, setRecentUsers] = useState<
-    { full_name: string; institutional_email: string; created_at: string }[]
+    {
+      id: string;
+      full_name: string;
+      institutional_email: string;
+      created_at: string;
+      roles: string[];
+    }[]
   >([]);
   /** Métricas del módulo de email — últimas 24h. Reemplazo del bloque
    *  de "Opciones rápidas" (Usuarios + Cursos eran solo atajos
@@ -127,6 +134,13 @@ function AdminDashboard() {
       metadata: Record<string, unknown>;
     }>;
   } | null>(null);
+  // Errores últimas 3h — severity error|critical en audit_logs.
+  const [errorStats, setErrorStats] = useState<{
+    count: number;
+    topActions: Array<{ action: string; count: number }>;
+  } | null>(null);
+  // Sesiones de examen activas (status='en_progreso' ahora mismo).
+  const [activeExamSessions, setActiveExamSessions] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -145,12 +159,40 @@ function AdminDashboard() {
         workshops: w.count ?? 0,
       });
 
+      // Recent users: traemos también el id + roles para mostrar badge
+      // y ampliamos a 10. user_roles puede tener 0..N filas por usuario;
+      // hacemos JOIN client-side para no complicar la query.
       const { data: ru } = await supabase
         .from("profiles")
-        .select("full_name, institutional_email, created_at")
+        .select("id, full_name, institutional_email, created_at")
         .order("created_at", { ascending: false })
-        .limit(5);
-      setRecentUsers((ru ?? []) as any);
+        .limit(10);
+      const ruRows = (ru ?? []) as Array<{
+        id: string;
+        full_name: string;
+        institutional_email: string;
+        created_at: string;
+      }>;
+      if (ruRows.length > 0) {
+        const { data: rolesRows } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in(
+            "user_id",
+            ruRows.map((u) => u.id),
+          );
+        const rolesByUser = new Map<string, string[]>();
+        for (const r of (rolesRows ?? []) as Array<{ user_id: string; role: string }>) {
+          const arr = rolesByUser.get(r.user_id) ?? [];
+          arr.push(r.role);
+          rolesByUser.set(r.user_id, arr);
+        }
+        setRecentUsers(
+          ruRows.map((u) => ({ ...u, roles: rolesByUser.get(u.id) ?? [] })),
+        );
+      } else {
+        setRecentUsers([]);
+      }
 
       // Métricas de email en las últimas 24h. Un SELECT con filtros
       // específicos por action — más eficiente que cargar todo y
@@ -198,6 +240,41 @@ function AdminDashboard() {
           metadata: Record<string, unknown>;
         }>,
       });
+
+      // Errores últimas 3h — cualquier categoría con severity error|critical.
+      const since3h = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+      const [errCountRes, errTopRes] = await Promise.all([
+        dbAny
+          .from("audit_logs")
+          .select("id", { count: "exact", head: true })
+          .in("severity", ["error", "critical"])
+          .gte("created_at", since3h),
+        dbAny
+          .from("audit_logs")
+          .select("action")
+          .in("severity", ["error", "critical"])
+          .gte("created_at", since3h)
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ]);
+      const byAction = new Map<string, number>();
+      for (const r of (errTopRes.data ?? []) as Array<{ action: string }>) {
+        byAction.set(r.action, (byAction.get(r.action) ?? 0) + 1);
+      }
+      setErrorStats({
+        count: errCountRes.count ?? 0,
+        topActions: Array.from(byAction.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([action, count]) => ({ action, count })),
+      });
+
+      // Sesiones de examen activas ahora — submissions en_progreso
+      const { count: activeCount } = await supabase
+        .from("submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "en_progreso");
+      setActiveExamSessions(activeCount ?? 0);
     })();
   }, []);
 
@@ -244,19 +321,60 @@ function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5">
-            {recentUsers.map((u, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-md border text-sm">
-                <div className="h-7 w-7 rounded-full bg-indigo-500/10 flex items-center justify-center text-xs font-medium text-indigo-600 dark:text-indigo-400">
-                  {u.full_name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{u.full_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {u.institutional_email}
+            {recentUsers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                Sin usuarios recientes.
+              </p>
+            ) : (
+              recentUsers.map((u) => {
+                const primary =
+                  u.roles.includes("Admin")
+                    ? "Admin"
+                    : u.roles.includes("Docente")
+                      ? "Docente"
+                      : u.roles.includes("Estudiante")
+                        ? "Estudiante"
+                        : null;
+                const created = new Date(u.created_at);
+                const diffMs = Date.now() - created.getTime();
+                const diffH = Math.floor(diffMs / (60 * 60 * 1000));
+                const diffD = Math.floor(diffH / 24);
+                const relative =
+                  diffH < 1
+                    ? "hace minutos"
+                    : diffH < 24
+                      ? `hace ${diffH} h`
+                      : diffD === 1
+                        ? "ayer"
+                        : `hace ${diffD} d`;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-2 p-2 rounded-md border text-sm"
+                  >
+                    <div className="h-7 w-7 rounded-full bg-indigo-500/10 flex items-center justify-center text-xs font-medium text-indigo-600 dark:text-indigo-400 shrink-0">
+                      {u.full_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate flex items-center gap-1.5">
+                        <span className="truncate">{u.full_name}</span>
+                        {primary && (
+                          <Badge variant="outline" className="text-[9px] shrink-0">
+                            {primary}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {u.institutional_email}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                      {relative}
+                    </span>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
             <Link to="/app/admin/users" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manageUsers")} <ArrowRight className="h-3 w-3 ml-1" />
@@ -346,6 +464,109 @@ function AdminDashboard() {
             >
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 Ver auditoría de correos <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Fila adicional de salud del sistema (3h) + sesiones en vivo */}
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* Errores últimas 3h — alerta operacional */}
+        <Card
+          className={
+            errorStats && errorStats.count > 0
+              ? "border-destructive/40 bg-destructive/5"
+              : undefined
+          }
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle
+                className={`h-4 w-4 ${
+                  errorStats && errorStats.count > 0
+                    ? "text-destructive"
+                    : "text-emerald-500 dark:text-emerald-400"
+                }`}
+              />
+              Errores (últimas 3h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!errorStats ? (
+              <p className="text-sm text-muted-foreground py-2">Cargando…</p>
+            ) : errorStats.count === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                Sin errores ni eventos críticos. 🎉
+              </p>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold tabular-nums text-destructive">
+                    {errorStats.count}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    evento{errorStats.count === 1 ? "" : "s"} con severity error/critical
+                  </span>
+                </div>
+                {errorStats.topActions.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Top acciones</p>
+                    {errorStats.topActions.map((a) => (
+                      <div
+                        key={a.action}
+                        className="flex items-center justify-between gap-2 text-[11px] border-b last:border-b-0 pb-1"
+                      >
+                        <span className="font-mono truncate">{a.action}</span>
+                        <span className="text-muted-foreground tabular-nums shrink-0">
+                          {a.count}×
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            <Link
+              to="/app/admin/audit-logs"
+              search={{ severity: "error" } as Record<string, unknown>}
+              className="block"
+            >
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                Ver auditoría de errores <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Sesiones de examen activas — verde si 0, ámbar si > 0 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              Sesiones de examen activas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {activeExamSessions === null ? (
+              <p className="text-sm text-muted-foreground py-2">Cargando…</p>
+            ) : activeExamSessions === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                Nadie está presentando exámenes en este momento.
+              </p>
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                  {activeExamSessions}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  estudiante{activeExamSessions === 1 ? "" : "s"} presentando ahora
+                </span>
+              </div>
+            )}
+            <Link to="/app/admin/audit-logs" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                Ver auditoría <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>

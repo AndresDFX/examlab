@@ -57,6 +57,7 @@ Corrérlo N veces es seguro — solo re-aplica lo que cambió.
 | `teacher-daily-summary` | `notify_teachers_daily_summary()` | `0 4 * * *` (23:00 Colombia) | 20260523000008 |
 | `admin-storage-threshold` | `notify_admins_storage_threshold()` | `0 */6 * * *` | 20260523000010 |
 | `audit-logs-purge` | `purge_audit_logs()` | `0 3 1 * *` (mensual) | 20260517150000 |
+| `email-alert-threshold` | `check_email_alert_threshold()` | `*/30 * * * *` | 20260518130000 |
 
 ## Agregar un nuevo job
 
@@ -95,12 +96,23 @@ Key (version)=(20260517100000) already exists.
 (la migración corrió antes) pero el CLI local no la marca como aplicada
 y vuelve a intentar pushearla. Pasa cuando:
 - Se modifica el contenido de un archivo de migración **después** de
-  que se aplicó (no debería pasar, pero ocurre con rebase / merge raros).
+  que se aplicó.
 - Hubo un push parcial: las sentencias SQL corrieron pero falló el
   INSERT en schema_migrations.
 - Se aplicó la migración manualmente en SQL Editor sin pasar por CLI.
 
-**Fix** — marcar la migración como aplicada en el tracking del CLI:
+### Auto-repair en CI (recomendado, ya está activo)
+
+El workflow [`apply-migrations.yml`](../../.github/workflows/apply-migrations.yml)
+detecta este error automáticamente, ejecuta `supabase migration repair
+--status applied <version>` para la versión duplicada y reintenta el
+push. Hasta **20 intentos** por corrida, así que si hay varias filas
+desincronizadas en cascada, las repara todas.
+
+Solo si los 20 intentos no bastan o el error es de otro tipo, el job falla.
+Ver log para entender qué versión y por qué.
+
+### Fix manual (si necesitas correrlo desde tu máquina)
 
 ```bash
 # Una sola línea, desde tu máquina con SUPABASE_DB_URL exportado.
@@ -108,7 +120,7 @@ supabase migration repair --status applied 20260517100000 \
   --db-url "$SUPABASE_DB_URL"
 ```
 
-O directamente desde el SQL Editor (si no tenés CLI a mano):
+O directamente desde el SQL Editor:
 
 ```sql
 -- Verifica primero qué hay en la tabla de tracking:
@@ -122,9 +134,6 @@ SELECT version, name FROM supabase_migrations.schema_migrations
 DELETE FROM supabase_migrations.schema_migrations
  WHERE version = '20260517100000';
 ```
-
-Después corré el workflow `Apply DB Migrations` de nuevo y debería
-pasar limpiamente.
 
 ## Error: `pg_cron extension not found`
 
