@@ -179,6 +179,13 @@ const NAV: NavItem[] = [
     icon: CalendarDays,
     roles: ["Docente"],
   },
+  // Calendario integral del estudiante (lista unificada + sync .ics)
+  {
+    to: "/app/student/calendar",
+    labelKey: "nav.studentCalendar",
+    icon: CalendarDays,
+    roles: ["Estudiante"],
+  },
   // Estadísticas — vista por curso (Docente) y agregada (Admin).
   {
     to: "/app/teacher/statistics",
@@ -299,6 +306,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/student/courses": "text-fuchsia-300",
   "/app/student/grades": "text-emerald-300",
   "/app/student/certificates": "text-amber-400",
+  "/app/student/calendar": "text-blue-300",
   "/app/messages": "text-cyan-300",
 };
 
