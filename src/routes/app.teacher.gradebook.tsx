@@ -41,11 +41,14 @@ import {
   Inbox,
   FolderKanban,
   CalendarCheck,
+  Award,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { computeWeightedGrade, type GradedItem } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
+import { downloadCertificate, buildVerifyUrl } from "@/lib/certificate-pdf";
 
 // grade_cuts/projects pueden no estar en types.ts auto-generados
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -172,7 +175,37 @@ function Gradebook() {
   // Cuál estudiante tiene abierto el modal anidado "detalle por estudiante"
   // (se abre desde el ojo en cada fila del modal de corte).
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
+  // Certificados emitidos en este curso, indexados por user_id (solo el activo).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [certByUserId, setCertByUserId] = useState<Record<string, any>>({});
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [bulkIssuing, setBulkIssuing] = useState(false);
+  const confirm = useConfirm();
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+
+  // Carga certificados activos del curso (refresh tras emitir)
+  const reloadCertificates = useCallback(async () => {
+    if (!courseId) return;
+    const { data, error } = await db
+      .from("certificates")
+      .select("*")
+      .eq("course_id", courseId)
+      .is("revoked_at", null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const map: Record<string, any> = {};
+    for (const c of (data ?? []) as Array<{ user_id: string }>) {
+      map[c.user_id] = c;
+    }
+    setCertByUserId(map);
+  }, [courseId]);
+
+  useEffect(() => {
+    void reloadCertificates();
+  }, [reloadCertificates]);
 
   // Load courses
   useEffect(() => {
@@ -733,6 +766,104 @@ function Gradebook() {
     attRecords,
   ]);
 
+  // ── Certificados: emitir individual + bulk + descargar ──
+
+  const issueCertForStudent = useCallback(
+    async (studentId: string, finalGrade: number | null) => {
+      if (!courseId || finalGrade == null) return;
+      if (!selectedCourse) return;
+      if (finalGrade < selectedCourse.passing_grade) {
+        toast.error("La nota final es menor al mínimo de aprobación.");
+        return;
+      }
+      setIssuingId(studentId);
+      try {
+        const { error } = await db.rpc("issue_certificate", {
+          _user_id: studentId,
+          _course_id: courseId,
+          _final_grade: finalGrade,
+        });
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        toast.success("Certificado emitido");
+        await reloadCertificates();
+      } finally {
+        setIssuingId(null);
+      }
+    },
+    [courseId, reloadCertificates, selectedCourse],
+  );
+
+  const bulkIssueAll = useCallback(async () => {
+    if (!selectedCourse || !consolidated) return;
+    const candidates = consolidated.filter((r) => {
+      if (r.finalGrade == null) return false;
+      if (r.finalGrade < selectedCourse.passing_grade) return false;
+      if (certByUserId[r.student.id]) return false;
+      return true;
+    });
+    if (candidates.length === 0) {
+      toast.info("Sin estudiantes pendientes: todos los aprobados ya tienen certificado.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Emitir ${candidates.length} certificado(s)`,
+      description: `Se emitirá un certificado a cada estudiante aprobado de "${selectedCourse.name}" que aún no tenga uno activo. Esta acción no se puede deshacer (puedes revocar individualmente después).`,
+      confirmLabel: "Emitir todos",
+      tone: "warning",
+    });
+    if (!ok) return;
+    setBulkIssuing(true);
+    try {
+      let issued = 0;
+      let failed = 0;
+      for (const r of candidates) {
+        const { error } = await db.rpc("issue_certificate", {
+          _user_id: r.student.id,
+          _course_id: courseId,
+          _final_grade: r.finalGrade,
+        });
+        if (error) {
+          failed++;
+        } else {
+          issued++;
+        }
+      }
+      toast.success(`Emitidos ${issued}${failed > 0 ? ` · ${failed} fallaron` : ""}`);
+      await reloadCertificates();
+    } finally {
+      setBulkIssuing(false);
+    }
+  }, [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse]);
+
+  const downloadCertForRow = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (cert: any) => {
+      try {
+        await downloadCertificate({
+          shortCode: cert.short_code,
+          studentFullName: cert.student_full_name,
+          studentIdentification: cert.student_identification,
+          courseName: cert.course_name,
+          coursePeriod: cert.course_period,
+          finalGrade: Number(cert.final_grade),
+          gradeScaleMax: Number(cert.grade_scale_max),
+          teacherNames: cert.teacher_names ?? [],
+          universityName: cert.university_name,
+          universityLogoUrl: cert.university_logo_url,
+          issuedAt: cert.issued_at,
+          payloadHash: cert.payload_hash,
+          revokedAt: cert.revoked_at,
+        });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Error generando PDF");
+      }
+    },
+    [],
+  );
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   return (
@@ -771,6 +902,21 @@ function Gradebook() {
             <Download className="h-4 w-4 mr-1" />
             CSV
           </Button>
+          {selectedCourse && consolidated && consolidated.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void bulkIssueAll()}
+              disabled={bulkIssuing}
+            >
+              {bulkIssuing ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Award className="h-4 w-4 mr-1" />
+              )}
+              Emitir certificados
+            </Button>
+          )}
         </div>
       </div>
 
@@ -865,6 +1011,7 @@ function Gradebook() {
                   <TableHead className="text-center min-w-24 bg-muted/40">
                     {t("gradebook.finalColumn")}
                   </TableHead>
+                  <TableHead className="text-center min-w-32">Certificado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -877,7 +1024,7 @@ function Gradebook() {
                     return (
                       <TableRow>
                         <TableCell
-                          colSpan={cuts.length + 2}
+                          colSpan={cuts.length + 3}
                           className="text-center text-muted-foreground py-6 text-sm"
                         >
                           {studentSearch.trim()
@@ -913,6 +1060,60 @@ function Gradebook() {
                         }`}
                       >
                         {row.finalGrade != null ? row.finalGrade.toFixed(2) : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {(() => {
+                          const cert = certByUserId[row.student.id];
+                          if (cert) {
+                            return (
+                              <div className="flex items-center justify-center gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                                >
+                                  Emitido
+                                </Badge>
+                                <RowAction
+                                  label="Descargar PDF"
+                                  icon={Download}
+                                  onClick={() => void downloadCertForRow(cert)}
+                                />
+                                <RowAction
+                                  label="Abrir verificación"
+                                  icon={Eye}
+                                  onClick={() => {
+                                    window.open(buildVerifyUrl(cert.short_code), "_blank");
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+                          if (passes !== true) {
+                            return (
+                              <span className="text-[11px] text-muted-foreground">
+                                No aprueba
+                              </span>
+                            );
+                          }
+                          return (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px]"
+                              onClick={() =>
+                                void issueCertForStudent(row.student.id, row.finalGrade)
+                              }
+                              disabled={issuingId === row.student.id}
+                            >
+                              {issuingId === row.student.id ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Award className="h-3 w-3 mr-1" />
+                              )}
+                              Emitir
+                            </Button>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   );

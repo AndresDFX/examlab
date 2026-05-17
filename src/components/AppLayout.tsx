@@ -64,6 +64,7 @@ import {
   Settings,
   Bell,
   Library,
+  Award,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -149,6 +150,14 @@ const NAV: NavItem[] = [
     to: "/app/student/grades",
     labelKey: "nav.studentGrades",
     icon: ClipboardList,
+    roles: ["Estudiante"],
+  },
+  // Certificados — solo estudiante. Visibles aunque aún no haya emitidos
+  // (la lista vacía explica).
+  {
+    to: "/app/student/certificates",
+    labelKey: "nav.studentCertificates",
+    icon: Award,
     roles: ["Estudiante"],
   },
   // Asistencia
@@ -289,6 +298,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/student/projects": "text-rose-300",
   "/app/student/courses": "text-fuchsia-300",
   "/app/student/grades": "text-emerald-300",
+  "/app/student/certificates": "text-amber-400",
   "/app/messages": "text-cyan-300",
 };
 
