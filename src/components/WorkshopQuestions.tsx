@@ -30,8 +30,10 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Library,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { QuestionBankImportDialog } from "@/components/QuestionBankImportDialog";
 import { CodeEditor, JAVA_STARTER } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -64,6 +66,10 @@ export function TeacherWorkshopQuestionsEditor({
   const confirm = useConfirm();
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  // course_id del workshop — necesario para abrir el banco de preguntas
+  // (filtrado por curso). Se carga junto con las preguntas.
+  const [workshopCourseId, setWorkshopCourseId] = useState<string | null>(null);
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
 
   // manual question form (sirve tanto para crear como para editar:
   // cuando editingId !== null, el submit hace UPDATE en vez de INSERT)
@@ -127,12 +133,16 @@ export function TeacherWorkshopQuestionsEditor({
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("workshop_questions")
-      .select("*")
-      .eq("workshop_id", workshopId)
-      .order("position");
+    const [{ data }, { data: ws }] = await Promise.all([
+      supabase
+        .from("workshop_questions")
+        .select("*")
+        .eq("workshop_id", workshopId)
+        .order("position"),
+      supabase.from("workshops").select("course_id").eq("id", workshopId).maybeSingle(),
+    ]);
     setQuestions((data ?? []) as WorkshopQuestion[]);
+    setWorkshopCourseId((ws as { course_id?: string } | null)?.course_id ?? null);
     setLoading(false);
   };
 
@@ -563,6 +573,11 @@ export function TeacherWorkshopQuestionsEditor({
                 </>
               )}
             </Button>
+            {!editingId && workshopCourseId && (
+              <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
+                <Library className="h-4 w-4 mr-1" /> Importar del banco
+              </Button>
+            )}
             {editingId && (
               <Button
                 variant="outline"
@@ -668,6 +683,15 @@ export function TeacherWorkshopQuestionsEditor({
           </div>
         </TabsContent>
       </Tabs>
+
+      <QuestionBankImportDialog
+        open={bankDialogOpen}
+        onOpenChange={setBankDialogOpen}
+        courseId={workshopCourseId}
+        target="workshop"
+        targetId={workshopId}
+        onImported={() => void load()}
+      />
     </div>
   );
 }

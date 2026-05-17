@@ -53,6 +53,8 @@ import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { HelpHint } from "@/components/ui/help-hint";
+import { QuestionBankImportDialog } from "@/components/QuestionBankImportDialog";
+import { Library } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -107,6 +109,7 @@ function ExamEditor() {
   // matriculados (no se puede dejar enlazados a usuarios que ya no están
   // matriculados en el curso destino).
   const [originalCourseId, setOriginalCourseId] = useState<string | null>(null);
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
 
   // New question manual (sirve para crear y editar — UPDATE cuando editingId)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1356,6 +1359,14 @@ function ExamEditor() {
                     </>
                   )}
                 </Button>
+                {!editingId && exam?.course_id && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setBankDialogOpen(true)}
+                  >
+                    <Library className="h-4 w-4 mr-1" /> Importar del banco
+                  </Button>
+                )}
                 {editingId && (
                   <Button variant="outline" onClick={resetQForm}>
                     <X className="h-4 w-4 mr-1" /> Cancelar edición
@@ -1553,6 +1564,15 @@ function ExamEditor() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <QuestionBankImportDialog
+        open={bankDialogOpen}
+        onOpenChange={setBankDialogOpen}
+        courseId={exam?.course_id ?? null}
+        target="exam"
+        targetId={examId}
+        onImported={() => void load()}
+      />
     </div>
   );
 }

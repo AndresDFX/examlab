@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { DuplicateAssessmentDialog } from "@/components/DuplicateAssessmentDialog";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateTime, formatDuration, formatPercent } from "@/lib/format";
@@ -190,36 +191,14 @@ function TeacherExams() {
     }
   };
 
-  const duplicate = async (exam: Exam) => {
-    if (!user) return;
-    const { course, id: _id, ...rest } = exam as any;
-    const newTitle = `Copia de ${exam.title}`;
-    const { data: newExam, error } = await supabase
-      .from("exams")
-      .insert({
-        ...rest,
-        title: newTitle,
-        created_by: user.id,
-        parent_exam_id: null,
-      })
-      .select()
-      .single();
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
-    // Copiar preguntas
-    const { data: qs } = await supabase
-      .from("questions")
-      .select("*")
-      .eq("exam_id", exam.id)
-      .order("position");
-    if (qs?.length) {
-      const rows = (qs as any[]).map(({ id, exam_id, created_at, ...q }) => ({
-        ...q,
-        exam_id: newExam.id,
-      }));
-      await supabase.from("questions").insert(rows);
-    }
-    toast.success("Examen duplicado correctamente");
-    load();
+  // Estado del dialog de duplicar. Abre `DuplicateAssessmentDialog`
+  // que permite elegir curso destino + título + llama RPC clone_exam
+  // (con validación de permisos sobre origen y destino).
+  const [duplicateSource, setDuplicateSource] = useState<
+    { id: string; title: string; courseId: string } | null
+  >(null);
+  const openDuplicate = (exam: Exam) => {
+    setDuplicateSource({ id: exam.id, title: exam.title, courseId: exam.course_id });
   };
 
   const load = async () => {
@@ -730,7 +709,7 @@ function TeacherExams() {
                           to: "/app/teacher/exams/$examId",
                           params: { examId: e.id },
                         },
-                        { label: "Duplicar", icon: Copy, onClick: () => duplicate(e) },
+                        { label: "Duplicar", icon: Copy, onClick: () => openDuplicate(e) },
                         {
                           label: t("common.delete", { defaultValue: "Eliminar" }),
                           icon: Trash2,
@@ -1210,6 +1189,19 @@ function TeacherExams() {
         extraWarning="Se eliminarán también todas las preguntas, asignaciones y entregas de los exámenes seleccionados."
         onConfirm={handleBulkDelete}
       />
+
+      {duplicateSource && (
+        <DuplicateAssessmentDialog
+          open={!!duplicateSource}
+          onOpenChange={(o) => !o && setDuplicateSource(null)}
+          source={duplicateSource}
+          target="exam"
+          onDuplicated={() => {
+            setDuplicateSource(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

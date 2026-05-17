@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { DuplicateAssessmentDialog } from "@/components/DuplicateAssessmentDialog";
 import { useTranslation } from "react-i18next";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
@@ -753,34 +754,13 @@ function TeacherWorkshops() {
     load();
   };
 
-  const duplicateWorkshop = async (ws: Workshop) => {
-    if (!user) return;
-    const { course, id: _id, ...rest } = ws as any;
-    const { data: newWs, error } = await supabase
-      .from("workshops")
-      .insert({
-        ...rest,
-        title: `Copia de ${ws.title}`,
-        status: "draft",
-        created_by: user.id,
-      })
-      .select()
-      .single();
-    if (error) return toast.error(error.message);
-    const { data: qs } = await supabase
-      .from("workshop_questions")
-      .select("*")
-      .eq("workshop_id", ws.id)
-      .order("position");
-    if (qs?.length) {
-      const rows = (qs as any[]).map(({ id, workshop_id, created_at, ...q }) => ({
-        ...q,
-        workshop_id: newWs.id,
-      }));
-      await supabase.from("workshop_questions").insert(rows);
-    }
-    toast.success(t("workshop.duplicated"));
-    load();
+  // Estado del dialog de duplicar (reemplaza el inline INSERT por la
+  // RPC clone_workshop que permite elegir curso destino y valida permisos).
+  const [duplicateSource, setDuplicateSource] = useState<
+    { id: string; title: string; courseId: string } | null
+  >(null);
+  const duplicateWorkshop = (ws: Workshop) => {
+    setDuplicateSource({ id: ws.id, title: ws.title, courseId: ws.course_id });
   };
 
   const remove = async (id: string) => {
@@ -3608,6 +3588,19 @@ function TeacherWorkshops() {
         extraWarning="Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados."
         onConfirm={handleBulkDelete}
       />
+
+      {duplicateSource && (
+        <DuplicateAssessmentDialog
+          open={!!duplicateSource}
+          onOpenChange={(o) => !o && setDuplicateSource(null)}
+          source={duplicateSource}
+          target="workshop"
+          onDuplicated={() => {
+            setDuplicateSource(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

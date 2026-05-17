@@ -66,7 +66,9 @@ import {
   UsersRound,
   Search,
   X,
+  Copy,
 } from "lucide-react";
+import { DuplicateAssessmentDialog } from "@/components/DuplicateAssessmentDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   useMultiSelect,
@@ -163,6 +165,9 @@ function TeacherProjects() {
     Record<string, { cut_id: string | null; weight: number }>
   >({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<
+    { id: string; title: string; courseId: string } | null
+  >(null);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [cutFilter, setCutFilter] = useState<string | null>(null);
@@ -1588,6 +1593,16 @@ function TeacherProjects() {
                         },
                         { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(p) },
                         {
+                          label: "Duplicar",
+                          icon: Copy,
+                          onClick: () =>
+                            setDuplicateSource({
+                              id: p.id,
+                              title: p.title,
+                              courseId: p.course_id,
+                            }),
+                        },
+                        {
                           label: t("common.delete"),
                           icon: Trash2,
                           tone: "destructive",
@@ -2361,6 +2376,19 @@ function TeacherProjects() {
         extraWarning="Se eliminarán también las asignaciones, preguntas y entregas de los proyectos seleccionados."
         onConfirm={handleBulkDelete}
       />
+
+      {duplicateSource && (
+        <DuplicateAssessmentDialog
+          open={!!duplicateSource}
+          onOpenChange={(o) => !o && setDuplicateSource(null)}
+          source={duplicateSource}
+          target="project"
+          onDuplicated={() => {
+            setDuplicateSource(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

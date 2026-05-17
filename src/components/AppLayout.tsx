@@ -63,6 +63,7 @@ import {
   MessageSquare,
   Settings,
   Bell,
+  Library,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -181,6 +182,13 @@ const NAV: NavItem[] = [
     labelKey: "nav.statistics",
     icon: BarChart3,
     roles: ["Admin"],
+  },
+  // Banco de preguntas reutilizables por curso (Docente).
+  {
+    to: "/app/teacher/question-bank",
+    labelKey: "nav.questionBank",
+    icon: Library,
+    roles: ["Docente"],
   },
   // Prompts (config de IA): override por curso para Docente, globales
   // para Admin. Misma posición visual para no descolocar al usuario

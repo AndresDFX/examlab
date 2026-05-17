@@ -38,8 +38,10 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Library,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { QuestionBankImportDialog } from "@/components/QuestionBankImportDialog";
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
@@ -85,6 +87,8 @@ export function TeacherProjectFilesEditor({
   const confirm = useConfirm();
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
 
   // manual form (sirve para crear y para editar — UPDATE cuando editingId)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -153,12 +157,12 @@ export function TeacherProjectFilesEditor({
 
   const load = async () => {
     setLoading(true);
-    const { data } = await db
-      .from("project_files")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("position");
+    const [{ data }, { data: pr }] = await Promise.all([
+      db.from("project_files").select("*").eq("project_id", projectId).order("position"),
+      db.from("projects").select("course_id").eq("id", projectId).maybeSingle(),
+    ]);
     setQuestions((data ?? []) as ProjectFile[]);
+    setProjectCourseId((pr as { course_id?: string } | null)?.course_id ?? null);
     setLoading(false);
   };
 
@@ -690,6 +694,11 @@ export function TeacherProjectFilesEditor({
                 </>
               )}
             </Button>
+            {!editingId && projectCourseId && (
+              <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
+                <Library className="h-4 w-4 mr-1" /> Importar del banco
+              </Button>
+            )}
             {editingId && (
               <Button
                 variant="outline"
@@ -844,6 +853,15 @@ export function TeacherProjectFilesEditor({
           </div>
         </TabsContent>
       </Tabs>
+
+      <QuestionBankImportDialog
+        open={bankDialogOpen}
+        onOpenChange={setBankDialogOpen}
+        courseId={projectCourseId}
+        target="project"
+        targetId={projectId}
+        onImported={() => void load()}
+      />
     </div>
   );
 }
