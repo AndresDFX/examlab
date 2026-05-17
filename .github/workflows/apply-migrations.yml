@@ -8,28 +8,25 @@
 #   pipeline en cada push a main que toque supabase/migrations/.
 #
 # Como funciona:
-#   `supabase db push` lee las migrations locales (ordenadas por nombre)
-#   y compara contra la tabla `supabase_migrations.schema_migrations` del
-#   proyecto remoto. Solo aplica las que aun no estan en esa tabla, asi
-#   que es 100% idempotente — re-correr el workflow sin cambios no hace
-#   nada. Si agregas una migration nueva con timestamp posterior al
-#   ultimo aplicado, la corre.
+#   Por cada archivo en supabase/migrations/ (orden alfabetico), si la
+#   `version` (prefijo timestamp) NO existe en `supabase_migrations.schema_migrations`
+#   del remoto, lo aplica vía psql con `ON CONFLICT DO NOTHING` en el
+#   tracking. Esto garantiza idempotencia perfecta sin depender del
+#   estado interno del CLI de supabase.
 #
-# Secrets requeridos en GitHub (Settings -> Secrets -> Actions):
-#   - SUPABASE_PROJECT_REF: ref del proyecto Supabase destino (ya lo
-#     tienes configurado para el workflow de edge functions).
-#   - SUPABASE_DB_URL: connection string del Session Pooler (puerto 5432)
-#     con la DB password embebida. El mismo formato que usas en
-#     docker/restore.env (NEW_SUPABASE_DB_URL).
-#     Formato:
-#       postgresql://postgres.<ref>:<password>@aws-X-<region>.pooler.supabase.com:5432/postgres
-#     Dashboard del nuevo Supabase -> Project Settings -> Database ->
-#     Connection string -> tab "Session pooler".
+#   Por que NO usamos `supabase db push`:
+#   - Tuvo un bug intermitente: tras `migration repair --status applied`,
+#     el push seguia incluyendo la version "reparada" como pendiente,
+#     causando bucles infinitos.
+#   - El push trata el `statements` como hash de contenido; cualquier
+#     cambio en el archivo (espacios, comentarios) tras aplicarse hace
+#     que el CLI piense que es "otra" migration.
+#   psql + ON CONFLICT por version es mas robusto: la version es la
+#   primary key, lo demas no importa para deduplicar.
 #
-# Cuando se dispara:
-#   - Push a main que toque supabase/migrations/** (automatico).
-#   - workflow_dispatch (manual): util tras agregar una migration sin
-#     pushear todavia, o para forzar re-aplicacion despues de un rollback.
+# Secrets requeridos en GitHub:
+#   - SUPABASE_PROJECT_REF
+#   - SUPABASE_DB_URL: Session Pooler (puerto 5432), no la direct connection.
 name: Apply DB Migrations
 
 on:
@@ -46,8 +43,6 @@ on:
         type: boolean
         default: false
 
-# Una sola corrida de migrations en paralelo — evita carreras si dos
-# pushes llegan casi a la vez.
 concurrency:
   group: apply-migrations-${{ github.ref }}
   cancel-in-progress: false
@@ -55,20 +50,17 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
       - name: Validar secrets
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
+          set -euo pipefail
           missing=0
           [ -z "$DB_URL" ] && { echo "::error::SUPABASE_DB_URL no configurado."; missing=1; }
           [ -z "$REF" ] && { echo "::error::SUPABASE_PROJECT_REF no configurado."; missing=1; }
@@ -82,106 +74,126 @@ jobs:
               exit 1
               ;;
           esac
+          echo "✓ Secrets validados"
 
-      - name: Preparar config.toml minimo
-        # El supabase/config.toml del repo tiene claves de versiones viejas
-        # del CLI que la latest rechaza. Igual que en el workflow de edge
-        # functions, armamos un dir temporal con symlinks al material real
-        # y un config minimo.
-        env:
-          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      - name: Install psql client
         run: |
-          mkdir -p /tmp/sb-migrate/supabase
-          ln -sfn "$GITHUB_WORKSPACE/supabase/migrations" /tmp/sb-migrate/supabase/migrations
-          cat > /tmp/sb-migrate/supabase/config.toml <<EOF
-          project_id = "${REF}"
-          EOF
-          echo "Migrations disponibles para push:"
-          ls -1 /tmp/sb-migrate/supabase/migrations | head -50
-          echo "..."
-          echo "Total: $(ls /tmp/sb-migrate/supabase/migrations | wc -l) archivos"
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
 
-      - name: Dry run — mostrar migrations pendientes
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        working-directory: /tmp/sb-migrate
-        run: |
-          # `supabase migration list` muestra las locales vs las aplicadas
-          # en el remoto. Las que aparecen solo en "LOCAL" son las que
-          # `db push` aplicaria.
-          supabase migration list --db-url "$DB_URL"
-
-      - name: Aplicar migrations
-        # Solo corre cuando NO es dry_run (cubre push automatico + dispatch manual).
-        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        working-directory: /tmp/sb-migrate
+      - name: Listar migrations locales vs remotas
         run: |
           set -euo pipefail
-          echo "═══ Aplicando migrations pendientes ═══"
+          cd "$GITHUB_WORKSPACE/supabase/migrations"
 
-          # Loop con auto-repair: si push falla con "duplicate key" en
-          # schema_migrations significa que esa versión ya está aplicada en
-          # remote pero el CLI local la trata como nueva. Marcamos como
-          # aplicada con `migration repair` y reintentamos. Hasta 20
-          # iteraciones para cubrir el caso de varias filas desincronizadas.
-          MAX_REPAIRS=20
-          push_succeeded=0
-          for attempt in $(seq 1 $MAX_REPAIRS); do
-            # Capturamos stderr+stdout sin abortar (set +e local).
-            set +e
-            push_output=$(echo "y" | supabase db push --db-url "$DB_URL" --include-all 2>&1)
-            push_exit=$?
-            set -e
+          echo "=== Migrations LOCALES ==="
+          ls -1 *.sql 2>/dev/null | sort | nl -w3 -s'  '
+          local_count=$(ls -1 *.sql 2>/dev/null | wc -l)
+          echo "Total: $local_count archivos"
 
-            # Mostramos siempre la salida para que el log refleje lo que pasa.
-            echo "$push_output"
+          echo ""
+          echo "=== Migrations APLICADAS en remoto ==="
+          psql "$DB_URL" -t -A -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version" | tee /tmp/applied_versions.txt
+          applied_count=$(wc -l < /tmp/applied_versions.txt)
+          echo "Total: $applied_count versiones aplicadas"
 
-            if [ $push_exit -eq 0 ]; then
-              push_succeeded=1
-              break
+          echo ""
+          echo "=== PENDIENTES de aplicar ==="
+          pending=0
+          for file in $(ls -1 *.sql 2>/dev/null | sort); do
+            version=$(echo "$file" | grep -oE '^[0-9]+' | head -1)
+            [ -z "$version" ] && continue
+            if ! grep -qx "$version" /tmp/applied_versions.txt; then
+              echo "  - $file"
+              pending=$((pending + 1))
+            fi
+          done
+          if [ "$pending" -eq 0 ]; then
+            echo "  (ninguna - todo al dia)"
+          fi
+          echo "Total pendientes: $pending"
+
+      - name: Aplicar migrations
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        # Importante: NADA de heredocs aquí. El parser YAML interpreta
+        # cualquier línea sin indentación dentro del bloque como un nuevo
+        # key, y un SQL con `SELECT ...:` al margen rompe todo. Usamos
+        # archivo temporal y psql -f para mantener el SQL fuera del YAML.
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/supabase/migrations"
+
+          # Releer lista de aplicadas (puede haber cambiado entre steps)
+          psql "$DB_URL" -t -A -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version" > /tmp/applied_versions.txt
+
+          applied_now=0
+          skipped=0
+          failed=0
+          for file in $(ls -1 *.sql 2>/dev/null | sort); do
+            version=$(echo "$file" | grep -oE '^[0-9]+' | head -1)
+            if [ -z "$version" ]; then
+              echo "  Saltando $file (sin prefijo de version)"
+              continue
             fi
 
-            # ¿Es el error de duplicate key en schema_migrations?
-            if ! echo "$push_output" | grep -q "schema_migrations_pkey"; then
-              echo "::error::Push falló por una razón distinta a duplicate key. Aborto."
-              exit $push_exit
-            fi
+            name=$(basename "$file" .sql | sed "s/^${version}_//")
 
-            # Extraemos la versión duplicada de la línea
-            #   "Key (version)=(20260517100000) already exists."
-            DUP_VERSION=$(echo "$push_output" \
-              | grep -oE 'Key \(version\)=\([0-9]+\)' \
-              | grep -oE '[0-9]+' \
-              | head -1)
-
-            if [ -z "$DUP_VERSION" ]; then
-              echo "::error::Duplicate key detectado pero no se pudo extraer la versión. Aborto."
-              exit $push_exit
+            if grep -qx "$version" /tmp/applied_versions.txt; then
+              skipped=$((skipped + 1))
+              continue
             fi
 
             echo ""
-            echo "::warning::Versión $DUP_VERSION ya existe en remote pero el CLI la trató como nueva."
-            echo "::warning::Marcándola como aplicada y reintentando (intento $attempt/$MAX_REPAIRS)..."
-            supabase migration repair --status applied "$DUP_VERSION" --db-url "$DB_URL"
-            echo ""
+            echo "Aplicando ${version}_${name}..."
+
+            # Armar un archivo temporal con:
+            #   1) BEGIN;
+            #   2) contenido del .sql
+            #   3) INSERT idempotente en schema_migrations
+            #   4) COMMIT;
+            # Esto se pasa a psql con -f. Si algo falla, ROLLBACK por la transacción.
+            tmpfile=$(mktemp --suffix=.sql)
+            {
+              echo "BEGIN;"
+              cat "$file"
+              echo ""
+              echo "INSERT INTO supabase_migrations.schema_migrations(version, name, statements) VALUES ('${version}', '${name}', ARRAY[]::text[]) ON CONFLICT (version) DO NOTHING;"
+              echo "COMMIT;"
+            } > "$tmpfile"
+
+            if psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$tmpfile" > /tmp/psql_out 2>&1; then
+              applied_now=$((applied_now + 1))
+              echo "OK ${version}_${name} aplicada"
+              rm -f "$tmpfile"
+            else
+              failed=$((failed + 1))
+              echo "::error::Fallo aplicando ${version}_${name}"
+              echo "---- salida de psql ----"
+              cat /tmp/psql_out
+              echo "------------------------"
+              rm -f "$tmpfile"
+            fi
           done
 
-          if [ $push_succeeded -eq 0 ]; then
-            echo "::error::No fue posible aplicar migrations tras $MAX_REPAIRS intentos de reparación."
+          echo ""
+          echo "Resumen:"
+          echo "  Aplicadas en esta corrida: $applied_now"
+          echo "  Saltadas (ya estaban):     $skipped"
+          echo "  Fallidas:                  $failed"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed migracion(es) fallaron"
             exit 1
           fi
 
+      - name: Verificar estado final
+        run: |
           echo ""
-          echo "═══ Estado tras el push ═══"
-          supabase migration list --db-url "$DB_URL" | tail -20
+          echo "=== Versiones aplicadas (ultimas 15) ==="
+          psql "$DB_URL" -c "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version DESC LIMIT 15;"
 
       - name: Resumen
         if: ${{ always() }}
-        env:
-          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           echo ""
           echo "Migrations aplicadas al proyecto: $REF"

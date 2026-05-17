@@ -101,16 +101,28 @@ y vuelve a intentar pushearla. Pasa cuando:
   INSERT en schema_migrations.
 - Se aplicó la migración manualmente en SQL Editor sin pasar por CLI.
 
-### Auto-repair en CI (recomendado, ya está activo)
+### Resuelto en CI: psql directo + ON CONFLICT (ya activo)
 
-El workflow [`apply-migrations.yml`](../../.github/workflows/apply-migrations.yml)
-detecta este error automáticamente, ejecuta `supabase migration repair
---status applied <version>` para la versión duplicada y reintenta el
-push. Hasta **20 intentos** por corrida, así que si hay varias filas
-desincronizadas en cascada, las repara todas.
+Anteriormente el workflow usaba `supabase db push` con `migration repair`
+para auto-reparar duplicados. Eso no funcionó: el CLI seguía listando
+la versión "reparada" como pendiente y entraba en bucle infinito.
 
-Solo si los 20 intentos no bastan o el error es de otro tipo, el job falla.
-Ver log para entender qué versión y por qué.
+**La solución actual** ([`apply-migrations.yml`](../../.github/workflows/apply-migrations.yml))
+bypassea el CLI para el apply real:
+
+1. Lista las versiones aplicadas en remote vía `psql`
+2. Por cada `.sql` local NO aplicado:
+   - Lee el archivo
+   - Lo envuelve en `BEGIN; <contenido>; INSERT INTO schema_migrations
+     ... ON CONFLICT (version) DO NOTHING; COMMIT;`
+   - Lo ejecuta con `psql -f tempfile`
+3. Si hay error de SQL real, `ROLLBACK` y el job falla con el log de psql
+4. Si la versión ya estaba registrada pero el SQL se re-aplicó, el
+   `ON CONFLICT DO NOTHING` la deja sin tocar — sin error
+
+Esto da idempotencia absoluta sin depender de cómo el CLI compare
+hashes. La `version` (timestamp) es la PK; el contenido del `statements`
+no importa.
 
 ### Fix manual (si necesitas correrlo desde tu máquina)
 
