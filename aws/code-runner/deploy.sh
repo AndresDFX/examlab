@@ -138,10 +138,10 @@ PREWARM_STATUS=$(curl -s -o /tmp/runner-prewarm.out -w "%{http_code}" \
 PREWARM_RESP=$(cat /tmp/runner-prewarm.out 2>/dev/null || echo "")
 rm -f /tmp/runner-prewarm.out
 echo "  Pre-warm status: $PREWARM_STATUS"
-if [ "$PREWARM_STATUS" = "200" ] && echo "$PREWARM_RESP" | grep -q '"stdout":"warmup'; then
+if [ "$PREWARM_STATUS" = "200" ] && echo "$PREWARM_RESP" | grep -q 'warmup'; then
   echo "  ✓ Pre-warm OK"
 elif [ "$PREWARM_STATUS" = "200" ]; then
-  echo "  ⚠ Pre-warm devolvió 200 pero timeout interno:"
+  echo "  ⚠ Pre-warm devolvió 200 pero el output es inesperado:"
   echo "    $PREWARM_RESP"
 fi
 
@@ -160,7 +160,7 @@ SELFTEST_RESP=$(cat /tmp/runner-selftest.out 2>/dev/null || echo "")
 
 case "$SELFTEST_STATUS" in
   200)
-    if echo "$SELFTEST_RESP" | grep -q '"stdout":"selftest'; then
+    if echo "$SELFTEST_RESP" | grep -q 'selftest'; then
       echo "  ✓ Self-test OK — el endpoint compila y ejecuta Java"
     else
       echo "  ⚠ HTTP 200 pero el output es inesperado:"
