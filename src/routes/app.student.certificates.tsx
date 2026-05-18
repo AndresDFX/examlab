@@ -100,7 +100,7 @@ function StudentCertificates() {
       <PageHeader
         backTo="/app"
         icon={<Award className="h-6 w-6 text-amber-500" />}
-        title="Mis certificados"
+        title="Certificaciones"
         subtitle="Descarga el PDF firmado o comparte el link de verificación pública."
       />
 

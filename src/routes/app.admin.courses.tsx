@@ -56,7 +56,9 @@ import {
   Upload,
   Download,
   MessageSquareText,
+  Award,
 } from "lucide-react";
+import { CourseCertificateSettingsDialog } from "@/components/CourseCertificateSettingsDialog";
 import {
   Select,
   SelectContent,
@@ -144,6 +146,7 @@ export function AdminCourses() {
   // alumno (sesiones por fecha + contenido asignado + items vinculados),
   // y el docente puede asignar contenido a cada sesión inline.
   const [boardForCourse, setBoardForCourse] = useState<Course | null>(null);
+  const [certForCourse, setCertForCourse] = useState<Course | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Filtramos por nombre + período + descripción. Case-insensitive,
   // includes. El multi-select trabaja sobre la lista visible.
@@ -1034,6 +1037,11 @@ export function AdminCourses() {
                           icon: Copy,
                           onClick: () => openDuplicate(c),
                         },
+                        {
+                          label: "Certificaciones",
+                          icon: Award,
+                          onClick: () => setCertForCourse(c),
+                        },
                         { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
                         {
                           label: t("common.delete"),
@@ -1587,6 +1595,10 @@ export function AdminCourses() {
       />
 
       <CourseBoardDialog course={boardForCourse} onClose={() => setBoardForCourse(null)} />
+      <CourseCertificateSettingsDialog
+        course={certForCourse}
+        onClose={() => setCertForCourse(null)}
+      />
     </div>
   );
 }

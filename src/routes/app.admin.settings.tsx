@@ -11,11 +11,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Mail, Code2, ScrollText, Sliders } from "lucide-react";
+import { Settings, Mail, Code2, ScrollText, Sliders, Award } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
 import { AdminAuditRetentionPanel } from "@/components/admin/AdminAuditRetentionPanel";
 import { AdminGeneralSettingsPanel } from "@/components/admin/AdminGeneralSettingsPanel";
+import { AdminCertificateSettingsPanel } from "@/components/admin/AdminCertificateSettingsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -57,6 +58,10 @@ function AdminSettings() {
             <ScrollText className="h-3.5 w-3.5" />
             Auditoría
           </TabsTrigger>
+          <TabsTrigger value="certificates" className="gap-1.5">
+            <Award className="h-3.5 w-3.5" />
+            Certificaciones
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-4 mt-4">
           <AdminGeneralSettingsPanel />
@@ -69,6 +74,9 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="audit" className="space-y-4 mt-4">
           <AdminAuditRetentionPanel />
+        </TabsContent>
+        <TabsContent value="certificates" className="space-y-4 mt-4">
+          <AdminCertificateSettingsPanel />
         </TabsContent>
       </Tabs>
     </div>

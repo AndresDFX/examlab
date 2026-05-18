@@ -998,6 +998,28 @@ function TakeExam() {
       e.preventDefault();
       e.returnValue = "";
       if (!submissionIdRef.current || !authTokenRef.current) return;
+      // Grace period de reanudación: si el alumno todavía no entró a
+      // pantalla completa (resume tras eliminación de strike, recarga,
+      // etc.), cerrar la tab NO suma strike — está en la antesala del
+      // examen, no abusando. Misma regla que recordWarning.
+      if (!hasEverEnteredFullscreenRef.current) {
+        // Persistir respuestas sin tocar focus_warnings ni status.
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+              Authorization: `Bearer ${authTokenRef.current}`,
+              Prefer: "return=minimal",
+            },
+            body: JSON.stringify({ answers: answersRef.current }),
+            keepalive: true,
+          },
+        );
+        return;
+      }
       // If blur fired within the last 200ms it already incremented warningsRef — just persist.
       // Otherwise increment here (browser close on platforms where blur doesn't precede beforeunload).
       const blurJustFired = Date.now() - lastBlurAt < 200;

@@ -85,7 +85,7 @@
     "studentProjects": "Projects",
     "studentCourses": "Courses",
     "studentGrades": "Grades",
-    "studentCertificates": "My certificates",
+    "studentCertificates": "Certifications",
     "studentCalendar": "My calendar",
     "studentAttendance": "Attendance",
     "calendar": "Calendar",
@@ -471,7 +471,7 @@
     "parentExam": "Makeup of (optional)",
     "originalExam": "Original exam",
     "supletorio": "Makeup",
-    "liveMonitor": "Live monitor",
+    "liveMonitor": "Monitor",
     "columns": {
       "title": "Title",
       "course": "Course",

@@ -571,7 +571,7 @@ function TeacherExams() {
                   {t("exam.columns.start")}
                 </TableHead>
                 <TableHead className="hidden sm:table-cell w-28">{t("exam.columns.end")}</TableHead>
-                <TableHead className="hidden lg:table-cell w-20">
+                <TableHead className="hidden lg:table-cell w-24">
                   {t("exam.columns.duration")}
                 </TableHead>
                 <TableHead className="hidden md:table-cell w-24">
@@ -675,7 +675,11 @@ function TeacherExams() {
                       return <DateCell value={new Date(end)} variant="datetime" />;
                     })()}
                   </TableCell>
-                  <TableCell className="text-sm hidden lg:table-cell tabular-nums">
+                  <TableCell
+                    className="text-sm hidden lg:table-cell tabular-nums whitespace-nowrap"
+                    truncate
+                    title={formatDuration(e.time_limit_minutes)}
+                  >
                     {formatDuration(e.time_limit_minutes)}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
