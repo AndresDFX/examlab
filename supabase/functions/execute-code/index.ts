@@ -35,11 +35,11 @@ interface ExecutionResult {
 // OnlineCompiler.io
 // ──────────────────────────────────────────────
 const ONLINECOMPILER_MAP: Record<string, string> = {
-  // openjdk-21 (LTS) — más estable que openjdk-25 en la infra del API.
-  // Cuando usábamos openjdk-25, los compile errors devolvían "Internal
-  // error: code execution failed" con exit_code -1, sin el detalle del
-  // compilador. Con openjdk-21 ese path no se rompe.
-  java:       "openjdk-21",
+  // Versión soportada por OnlineCompiler.io. Probamos openjdk-21 antes
+  // (más LTS-friendly) pero su API responde HTTP 400 — solo aceptan
+  // openjdk-25 actualmente. Los compile errors opacos los limpiamos en
+  // el parser de respuesta (isOpaqueApiMessage) + en el cliente.
+  java:       "openjdk-25",
   python:     "python-3.14",
   javascript: "typescript-deno",
   typescript: "typescript-deno",

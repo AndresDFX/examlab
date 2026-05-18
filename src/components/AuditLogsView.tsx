@@ -147,6 +147,9 @@ const ACTION_LABELS: Record<string, string> = {
   "code.executed": "Código ejecutado",
   "code.compile_error": "Error de compilación",
   "code.execute_failed": "Error de IA — compilador",
+  // Disparado desde el cliente (app.student.take) cuando el invoke de
+  // execute-code falla (HTTP no-2xx o excepción de red).
+  "code_execution_error": "Error ejecutando código",
 
   // ── Fraude / integridad ──
   "fraud.plagiarism_run": "Análisis de plagio ejecutado",
