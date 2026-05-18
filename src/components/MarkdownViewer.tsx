@@ -4,6 +4,8 @@
  * Used in the inline preview dialogs of FilesByClassDialog and student course board.
  */
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 export function MarkdownViewer({ children }: { children: string }) {
   return (
@@ -25,6 +27,7 @@ export function MarkdownViewer({ children }: { children: string }) {
         [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1"
     >
       <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         allowedElements={[
           "h1", "h2", "h3", "h4", "h5", "h6",
           "p", "strong", "em", "del", "br",
