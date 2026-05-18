@@ -896,6 +896,44 @@ function TakeExam() {
       }
     };
 
+    // Intento de pantallazo: alerta blanda + se registra para el monitor
+    // del docente, pero NO suma strike. La detección es best-effort: el
+    // SO suele interceptar PrintScreen, Win+Shift+S y Cmd+Shift+3/4/5
+    // antes de que llegue al navegador, así que solo capturamos los
+    // casos en que el evento sí se propaga.
+    let lastScreenshotAt = 0;
+    const recordScreenshotAttempt = () => {
+      if (submittedRef.current) return;
+      const now = Date.now();
+      if (now - lastScreenshotAt < 800) return;
+      lastScreenshotAt = now;
+
+      toast.warning("No está permitido tomar pantallazos durante el examen.");
+
+      const event = {
+        type: "screenshot_attempt",
+        at: new Date(now).toISOString(),
+        questionIdx: exam?.navigation_type === "secuencial" ? currentIdx : null,
+      };
+      warningEventsRef.current = [...warningEventsRef.current, event];
+
+      const updatedAnswers = {
+        ...answersRef.current,
+        __warning_events: warningEventsRef.current,
+      };
+      answersRef.current = updatedAnswers;
+      setAnswers(updatedAnswers);
+      if (submissionIdRef.current && isOnline()) {
+        supabase
+          .from("submissions")
+          .update({ answers: updatedAnswers })
+          .eq("id", submissionIdRef.current)
+          .then(({ error }) => {
+            if (error) console.error("recordScreenshotAttempt DB save failed:", error);
+          });
+      }
+    };
+
     // Show native "Leave site?" dialog on browser/tab close (full reload/close).
     // SPA navigation is handled by useBlocker above.
     // blur may or may not fire before beforeunload depending on the browser.
@@ -966,6 +1004,27 @@ function TakeExam() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") e.preventDefault();
       if (e.altKey && (e.key === "Tab" || e.key === "F4")) e.preventDefault();
+      // Pantallazos — alerta blanda, sin strike. preventDefault es
+      // best-effort (el SO suele tomar la tecla antes).
+      if (e.key === "PrintScreen") {
+        e.preventDefault();
+        recordScreenshotAttempt();
+        return;
+      }
+      // macOS: Cmd+Shift+3 (pantalla completa), Cmd+Shift+4 (recorte),
+      // Cmd+Shift+5 (utilidad de captura).
+      if (e.metaKey && e.shiftKey && (e.key === "3" || e.key === "4" || e.key === "5")) {
+        e.preventDefault();
+        recordScreenshotAttempt();
+        return;
+      }
+      // Windows: Win+Shift+S (Snipping Tool). En la mayoría de navegadores
+      // el SO se traga este atajo, pero si llega lo registramos.
+      if (e.metaKey && e.shiftKey && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        recordScreenshotAttempt();
+        return;
+      }
       // Bloqueo Esc durante el examen: que no cierre dialogs ni
       // cancele autocomplete/selección/etc. del navegador. NOTA: no
       // podemos evitar que el navegador salga de fullscreen al pulsar
@@ -987,10 +1046,16 @@ function TakeExam() {
         setFsExited(false);
       }
     };
+    // PrintScreen no siempre dispara keydown (algunos navegadores solo
+    // emiten keyup tras la captura del SO). Cubrimos ambos.
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "PrintScreen") recordScreenshotAttempt();
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
     document.addEventListener("contextmenu", onContext);
     document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keyup", onKeyUp, true);
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("copy", onClipboard);
     document.addEventListener("paste", onClipboard);
@@ -1001,6 +1066,7 @@ function TakeExam() {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("contextmenu", onContext);
       document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("keyup", onKeyUp, true);
       document.removeEventListener("fullscreenchange", onFsChange);
       document.removeEventListener("copy", onClipboard);
       document.removeEventListener("paste", onClipboard);

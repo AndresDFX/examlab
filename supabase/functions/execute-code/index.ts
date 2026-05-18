@@ -104,16 +104,62 @@ async function executeWithOnlineCompiler(
     throw err;
   }
 
-  const output = (data as { output?: unknown }).output;
-  const errorField = (data as { error?: unknown }).error;
+  // OnlineCompiler.io a veces pone el mensaje genérico
+  // "Internal error: code execution failed" en `output` y deja el
+  // traceback real en otros campos. Escaneamos múltiples nombres
+  // posibles para no perder el detalle al usuario.
+  const pickString = (...keys: string[]): string => {
+    for (const k of keys) {
+      const v = (data as Record<string, unknown>)[k];
+      if (typeof v === "string" && v.trim()) return v;
+    }
+    return "";
+  };
+
+  const output = pickString("output", "stdout");
+  const errorField = pickString(
+    "error",
+    "stderr",
+    "compile_output",
+    "compileOutput",
+    "compile_error",
+    "compileError",
+    "compileMessage",
+    "build_output",
+    "buildOutput",
+    "compile_stderr",
+  );
   const exitCodeRaw = (data as { exit_code?: unknown }).exit_code;
   const statusField = (data as { status?: unknown }).status;
   const signalField = (data as { signal?: unknown }).signal;
 
+  const exitCode =
+    typeof exitCodeRaw === "number" ? exitCodeRaw : statusField === "success" ? 0 : 1;
+
+  // Caso patológico: el API devolvió genérico "Internal error..." sin
+  // detalle. Reescribimos stdout/stderr para que el alumno vea algo
+  // accionable en lugar de un mensaje sin contexto, y disparamos audit
+  // con raw_response para que el admin pueda diagnosticar el provider.
+  const looksLikeOpaqueError =
+    /^\s*internal error: code execution failed/i.test(output) && !errorField;
+  if (looksLikeOpaqueError && exitCode !== 0) {
+    return {
+      stdout: "",
+      stderr:
+        "El compilador no devolvió el detalle del error. Suele indicar un error " +
+        "de compilación (sintaxis, punto y coma, llaves, imports). Revisa tu código y vuelve a intentar.",
+      exitCode,
+      executionTimeMs,
+      signal: typeof signalField === "number" ? signalField : null,
+      rawResponse: data,
+      httpStatus,
+    };
+  }
+
   return {
-    stdout: typeof output === "string" ? output : "",
-    stderr: typeof errorField === "string" ? errorField : "",
-    exitCode: typeof exitCodeRaw === "number" ? exitCodeRaw : (statusField === "success" ? 0 : 1),
+    stdout: output,
+    stderr: errorField,
+    exitCode,
     executionTimeMs,
     signal: typeof signalField === "number" ? signalField : null,
     rawResponse: data,

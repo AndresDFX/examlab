@@ -37,7 +37,7 @@ max_concurrent_users = 200
 max_event_channels = 100
 
 [storage]
-file_size_limit = 52428800
+file_size_limit = "50MiB"
 s3_host = "storage.googleapis.com"
 s3_region = "auto"
 s3_access_key = "mock"

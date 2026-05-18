@@ -25,6 +25,9 @@ export type WarningType =
   | "copy"
   | "paste"
   | "context_menu"
+  // Soft signal: intento de pantallazo. NO suma strike — se registra
+  // para que el docente lo vea en el monitor de advertencias.
+  | "screenshot_attempt"
   | (string & {});
 
 export interface WarningEvent {
@@ -56,6 +59,8 @@ export function warningLabel(type: WarningType): string {
     case "menu":
     case "context_menu":
       return "Menú contextual";
+    case "screenshot_attempt":
+      return "Intento de pantallazo";
     default:
       return String(type);
   }
