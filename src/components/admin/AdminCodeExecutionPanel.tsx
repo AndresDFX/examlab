@@ -24,7 +24,7 @@ import { Save, Info, Code2, Loader2 } from "lucide-react";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type CodeProvider = "onlinecompiler" | "jdoodle" | "cheerp";
+type CodeProvider = "onlinecompiler" | "jdoodle" | "cheerp" | "aws_lambda";
 
 type ProviderRow = {
   id: string;
@@ -33,9 +33,10 @@ type ProviderRow = {
 };
 
 const PROVIDER_LABELS: Record<CodeProvider, string> = {
-  onlinecompiler: "OnlineCompiler.io (recomendado)",
-  jdoodle:        "JDoodle",
-  cheerp:         "CheerpJ — navegador (solo Java)",
+  onlinecompiler: "OnlineCompiler.io (API externa)",
+  jdoodle: "JDoodle (fallback)",
+  cheerp: "CheerpJ — navegador (solo Java)",
+  aws_lambda: "AWS Lambda — runner propio (recomendado para Java)",
 };
 
 const PROVIDER_DESCRIPTION: Record<CodeProvider, string> = {
@@ -45,20 +46,27 @@ const PROVIDER_DESCRIPTION: Record<CodeProvider, string> = {
     "API clásica de JDoodle. Cuota de 200 ejecuciones/día en el plan gratuito. Requiere JDOODLE_CLIENT_ID y JDOODLE_CLIENT_SECRET.",
   cheerp:
     "Java corre completamente en el navegador del estudiante (WebAssembly). Sin API externa ni cuota. Los demás lenguajes siguen usando OnlineCompiler.io.",
+  aws_lambda:
+    "Lambda con OpenJDK 21 desplegada en TU cuenta de AWS. Cabe en Always Free hasta ~50K execs/mes. Compile errors completos (línea + mensaje). Otros lenguajes caen automáticamente a OnlineCompiler.io. Ver aws/code-runner/README.md para el deploy.",
 };
 
 const PROVIDER_SECRETS: Record<CodeProvider, string[]> = {
   onlinecompiler: ["ONLINE_COMPILER_API_KEY"],
-  jdoodle:        ["JDOODLE_CLIENT_ID", "JDOODLE_CLIENT_SECRET"],
-  cheerp:         ["ONLINE_COMPILER_API_KEY (para lenguajes distintos a Java)"],
+  jdoodle: ["JDOODLE_CLIENT_ID", "JDOODLE_CLIENT_SECRET"],
+  cheerp: ["ONLINE_COMPILER_API_KEY (para lenguajes distintos a Java)"],
+  aws_lambda: [
+    "AWS_RUNNER_URL (Function URL)",
+    "AWS_RUNNER_API_KEY (shared secret en SSM)",
+    "ONLINE_COMPILER_API_KEY (fallback para lenguajes no-Java)",
+  ],
 };
 
 export function AdminCodeExecutionPanel() {
   const { user } = useAuth();
-  const [activeRow, setActiveRow]       = useState<ProviderRow | null>(null);
+  const [activeRow, setActiveRow] = useState<ProviderRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<CodeProvider>("onlinecompiler");
-  const [loading, setLoading]           = useState(true);
-  const [saving, setSaving]             = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -96,13 +104,19 @@ export function AdminCodeExecutionPanel() {
         .from("code_execution_settings")
         .update({ is_active: false, updated_by: user.id })
         .eq("is_active", true);
-      if (deactErr) { toast.error(deactErr.message); return; }
+      if (deactErr) {
+        toast.error(deactErr.message);
+        return;
+      }
 
       // Insertar nueva activa
       const { error: insErr } = await db
         .from("code_execution_settings")
         .insert({ provider: draftProvider, is_active: true, updated_by: user.id });
-      if (insErr) { toast.error(insErr.message); return; }
+      if (insErr) {
+        toast.error(insErr.message);
+        return;
+      }
 
       void logEvent({
         action: "code_execution.provider_changed",
@@ -146,8 +160,8 @@ export function AdminCodeExecutionPanel() {
               </Badge>
             )}
             <HelpHint>
-              Define qué motor ejecuta el código de los estudiantes en preguntas tipo "código".
-              El cambio aplica de inmediato para todos los exámenes.
+              Define qué motor ejecuta el código de los estudiantes en preguntas tipo "código". El
+              cambio aplica de inmediato para todos los exámenes.
             </HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
@@ -161,7 +175,7 @@ export function AdminCodeExecutionPanel() {
             onValueChange={(v) => setDraftProvider(v as CodeProvider)}
             className="space-y-3"
           >
-            {(["onlinecompiler", "jdoodle", "cheerp"] as CodeProvider[]).map((p) => (
+            {(["aws_lambda", "onlinecompiler", "cheerp", "jdoodle"] as CodeProvider[]).map((p) => (
               <div
                 key={p}
                 className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${

@@ -39,19 +39,19 @@ const ONLINECOMPILER_MAP: Record<string, string> = {
   // (más LTS-friendly) pero su API responde HTTP 400 — solo aceptan
   // openjdk-25 actualmente. Los compile errors opacos los limpiamos en
   // el parser de respuesta (isOpaqueApiMessage) + en el cliente.
-  java:       "openjdk-25",
-  python:     "python-3.14",
+  java: "openjdk-25",
+  python: "python-3.14",
   javascript: "typescript-deno",
   typescript: "typescript-deno",
-  c:          "gcc-15",
-  cpp:        "g++-15",
-  csharp:     "dotnet-csharp-9",
-  fsharp:     "dotnet-fsharp-9",
-  go:         "go-1.26",
-  rust:       "rust-1.93",
-  php:        "php-8.5",
-  ruby:       "ruby-4.0",
-  haskell:    "haskell-9.12",
+  c: "gcc-15",
+  cpp: "g++-15",
+  csharp: "dotnet-csharp-9",
+  fsharp: "dotnet-fsharp-9",
+  go: "go-1.26",
+  rust: "rust-1.93",
+  php: "php-8.5",
+  ruby: "ruby-4.0",
+  haskell: "haskell-9.12",
 };
 
 async function executeWithOnlineCompiler(
@@ -70,7 +70,7 @@ async function executeWithOnlineCompiler(
   const response = await fetch("https://api.onlinecompiler.io/api/run-code-sync/", {
     method: "POST",
     headers: {
-      "Authorization": apiKey,
+      Authorization: apiKey,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -84,9 +84,7 @@ async function executeWithOnlineCompiler(
   const httpStatus = response.status;
 
   if (response.status === 429) {
-    throw new Error(
-      "Demasiadas ejecuciones simultáneas. Espera unos segundos e intenta de nuevo.",
-    );
+    throw new Error("Demasiadas ejecuciones simultáneas. Espera unos segundos e intenta de nuevo.");
   }
 
   // Capturamos el body siempre para incluirlo en audit aunque haya 5xx.
@@ -183,19 +181,19 @@ async function executeWithOnlineCompiler(
 // JDoodle
 // ──────────────────────────────────────────────
 const JDOODLE_MAP: Record<string, { language: string; versionIndex: string }> = {
-  java:       { language: "java",       versionIndex: "4" },
-  python:     { language: "python3",    versionIndex: "4" },
-  javascript: { language: "nodejs",     versionIndex: "4" },
+  java: { language: "java", versionIndex: "4" },
+  python: { language: "python3", versionIndex: "4" },
+  javascript: { language: "nodejs", versionIndex: "4" },
   typescript: { language: "typescript", versionIndex: "1" },
-  c:          { language: "c",          versionIndex: "5" },
-  cpp:        { language: "cpp17",      versionIndex: "1" },
-  csharp:     { language: "csharp",     versionIndex: "4" },
-  fsharp:     { language: "fsharp",     versionIndex: "1" },
-  go:         { language: "go",         versionIndex: "4" },
-  rust:       { language: "rust",       versionIndex: "4" },
-  php:        { language: "php",        versionIndex: "4" },
-  ruby:       { language: "ruby",       versionIndex: "4" },
-  haskell:    { language: "haskell",    versionIndex: "3" },
+  c: { language: "c", versionIndex: "5" },
+  cpp: { language: "cpp17", versionIndex: "1" },
+  csharp: { language: "csharp", versionIndex: "4" },
+  fsharp: { language: "fsharp", versionIndex: "1" },
+  go: { language: "go", versionIndex: "4" },
+  rust: { language: "rust", versionIndex: "4" },
+  php: { language: "php", versionIndex: "4" },
+  ruby: { language: "ruby", versionIndex: "4" },
+  haskell: { language: "haskell", versionIndex: "3" },
 };
 
 async function executeWithJDoodle(
@@ -256,8 +254,88 @@ async function executeWithJDoodle(
 
   return {
     stdout: isError ? "" : outStr,
-    stderr: isError ? (outStr || errStr || "Error desconocido") : "",
+    stderr: isError ? outStr || errStr || "Error desconocido" : "",
     exitCode: isError ? 1 : 0,
+    executionTimeMs,
+    signal: null,
+    rawResponse: data,
+    httpStatus,
+  };
+}
+
+// ──────────────────────────────────────────────
+// AWS Lambda runner (self-hosted)
+// ──────────────────────────────────────────────
+// Lambda Function URL configurada en env vars:
+//   AWS_RUNNER_URL     — output `FunctionUrl` del stack CloudFormation
+//   AWS_RUNNER_API_KEY — shared secret (SSM Parameter `/examlab-code-runner/api-key`)
+// El handler en aws/code-runner/app.py valida el X-API-Key y compila +
+// ejecuta con OpenJDK 21. Solo soporta Java por ahora; si el alumno
+// pide otro lenguaje cae automáticamente a OnlineCompiler.io más abajo.
+async function executeWithAwsLambda(
+  sourceCode: string,
+  language: string,
+  stdin: string,
+): Promise<ExecutionResult> {
+  if (language !== "java") {
+    // Fallback transparente para lenguajes que el runner no soporta.
+    return executeWithOnlineCompiler(sourceCode, language, stdin);
+  }
+  const url = Deno.env.get("AWS_RUNNER_URL");
+  const apiKey = Deno.env.get("AWS_RUNNER_API_KEY");
+  if (!url || !apiKey) {
+    throw new Error(
+      "AWS_RUNNER_URL o AWS_RUNNER_API_KEY no configurados. Sigue las instrucciones en aws/code-runner/README.md.",
+    );
+  }
+
+  const startTime = Date.now();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": apiKey,
+    },
+    body: JSON.stringify({ sourceCode, stdin: stdin || "" }),
+  });
+
+  const executionTimeMs = Date.now() - startTime;
+  const httpStatus = response.status;
+  const rawText = await response.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = { _nonJsonBody: rawText.slice(0, 2000) };
+  }
+
+  if (!response.ok) {
+    const err = new Error(`Error del runner AWS Lambda: HTTP ${response.status}`) as Error & {
+      rawResponse?: unknown;
+      httpStatus?: number;
+    };
+    err.rawResponse = data;
+    err.httpStatus = httpStatus;
+    throw err;
+  }
+
+  const stdout =
+    typeof (data as { stdout?: unknown }).stdout === "string"
+      ? (data as { stdout: string }).stdout
+      : "";
+  const stderr =
+    typeof (data as { stderr?: unknown }).stderr === "string"
+      ? (data as { stderr: string }).stderr
+      : "";
+  const exitCode =
+    typeof (data as { exitCode?: unknown }).exitCode === "number"
+      ? (data as { exitCode: number }).exitCode
+      : 0;
+
+  return {
+    stdout,
+    stderr,
+    exitCode,
     executionTimeMs,
     signal: null,
     rawResponse: data,
@@ -298,10 +376,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const allLanguages = new Set([
-      ...Object.keys(ONLINECOMPILER_MAP),
-      ...Object.keys(JDOODLE_MAP),
-    ]);
+    const allLanguages = new Set([...Object.keys(ONLINECOMPILER_MAP), ...Object.keys(JDOODLE_MAP)]);
     if (!allLanguages.has(language)) {
       return new Response(
         JSON.stringify({
@@ -312,10 +387,10 @@ Deno.serve(async (req) => {
     }
 
     if (sourceCode.length > 100_000) {
-      return new Response(
-        JSON.stringify({ error: "Código demasiado largo (máx 100 KB)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Código demasiado largo (máx 100 KB)" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Autenticar usuario
@@ -333,12 +408,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const provider: string = execSettings?.provider ?? "onlinecompiler";
+    // 'cheerp' corre client-side, así que del lado server cae al
+    // onlinecompiler para los lenguajes no-Java (Python, C, etc.).
     const effectiveProvider = provider === "cheerp" ? "onlinecompiler" : provider;
     requestContext.provider = effectiveProvider;
 
-    const result = effectiveProvider === "jdoodle"
-      ? await executeWithJDoodle(sourceCode, language, stdin)
-      : await executeWithOnlineCompiler(sourceCode, language, stdin);
+    const result =
+      effectiveProvider === "jdoodle"
+        ? await executeWithJDoodle(sourceCode, language, stdin)
+        : effectiveProvider === "aws_lambda"
+          ? await executeWithAwsLambda(sourceCode, language, stdin)
+          : await executeWithOnlineCompiler(sourceCode, language, stdin);
 
     // Persistir ejecución
     await admin.from("code_executions").insert({

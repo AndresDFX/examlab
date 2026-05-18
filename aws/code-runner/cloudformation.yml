@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ExamLab — Java code execution Lambda runner.
+  Diseñado para correr dentro de AWS Always Free tier:
+   - Lambda: 1M invocaciones/mes + 400K GB-segundos
+   - Function URL (sin API Gateway, sin cuota de 12 meses)
+   - CloudWatch Logs con retención corta (5GB Always Free)
+  Las únicas dependencias externas son: ECR (la imagen del runner) y
+  el shared secret `ApiKey` que el edge function debe enviar en X-API-Key.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: >
+      URI completo de la imagen ECR del runner.
+      Formato: <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/examlab-code-runner:<TAG>
+  ApiKey:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: >
+      Shared secret que el edge function `execute-code` debe enviar en
+      el header X-API-Key. Si lo pierdes, redeploy el stack con uno
+      nuevo (el viejo queda inutilizable).
+  LambdaTimeoutSeconds:
+    Type: Number
+    Default: 30
+    MinValue: 10
+    MaxValue: 60
+    Description: Timeout de la función Lambda. Cubre compile + execute con holgura.
+  LambdaMemoryMB:
+    Type: Number
+    Default: 1024
+    AllowedValues: [512, 1024, 1536, 2048]
+    Description: >
+      Memoria de la función Lambda. 1024MB recomendado para que la JVM
+      tenga ~512MB de heap y el resto para SO/javac. Más memoria también
+      escala el CPU asignado (más rápido = menos GB-segundos consumidos).
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+    Description: Días de retención de logs en CloudWatch. 7 es un buen balance debug-vs-costo.
+
+Resources:
+  # ── IAM role mínimo ──
+  # Solo permisos para escribir CloudWatch Logs. SIN acceso a S3, DDB,
+  # Secrets Manager ni nada más. Si el código del alumno hace
+  # subprocess.run(["aws", "s3", "ls"]), recibe AccessDenied: no puede
+  # tocar tu cuenta AWS.
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - { Key: app, Value: examlab }
+        - { Key: component, Value: code-runner }
+
+  # ── Función Lambda (container image) ──
+  RunnerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: examlab-code-runner
+      Description: ExamLab Java code execution sandbox (OpenJDK 21 en Lambda)
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      Role: !GetAtt ExecutionRole.Arn
+      Timeout: !Ref LambdaTimeoutSeconds
+      MemorySize: !Ref LambdaMemoryMB
+      Environment:
+        Variables:
+          API_KEY: !Ref ApiKey
+      # SIN VpcConfig: el código del alumno no puede alcanzar tu VPC ni
+      # internet privada. Las llamadas DNS van por el resolver de Lambda,
+      # pero como el role no tiene permisos AWS, no puede exfiltrar nada
+      # a través de servicios autenticados.
+      Tags:
+        - { Key: app, Value: examlab }
+        - { Key: component, Value: code-runner }
+
+  # ── Function URL ──
+  # Reemplaza API Gateway (que NO está en Always Free para REST API
+  # después de 12 meses). Function URL es 100% Always Free.
+  # AuthType=NONE porque validamos con X-API-Key en el handler.
+  RunnerFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt RunnerFunction.Arn
+      AuthType: NONE
+      InvokeMode: BUFFERED
+      Cors:
+        AllowOrigins: ["*"]
+        AllowMethods: ["POST"]
+        AllowHeaders: ["content-type", "x-api-key"]
+        MaxAge: 86400
+
+  # Permiso necesario para que `*` pueda invocar la Function URL.
+  # La seguridad real la pone el X-API-Key dentro del handler.
+  RunnerFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RunnerFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  # ── Log group con retención corta ──
+  # Sin esto, CloudWatch crea uno auto con retención "never expire" y
+  # llena el free tier de 5GB en pocos días bajo carga.
+  RunnerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${RunnerFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
+Outputs:
+  FunctionUrl:
+    Description: >
+      URL para invocar el runner. Guárdala en Supabase Edge Function
+      Secrets como AWS_RUNNER_URL.
+    Value: !GetAtt RunnerFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub "${AWS::StackName}-FunctionUrl"
+  FunctionArn:
+    Description: ARN de la función Lambda.
+    Value: !GetAtt RunnerFunction.Arn
+  LogGroupName:
+    Description: CloudWatch Logs group para debug.
+    Value: !Ref RunnerLogGroup
