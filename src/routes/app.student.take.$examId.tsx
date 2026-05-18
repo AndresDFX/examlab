@@ -196,6 +196,16 @@ function TakeExam() {
   const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
     [],
   );
+  // Bandera de "el estudiante ya está properly dentro del examen". Se
+  // activa la primera vez que `document.fullscreenElement` se vuelve
+  // truthy (sea por startExam o por click en el overlay de Reanudar).
+  // Antes de que se active, los strikes se SUPRIMEN — cubre el caso de
+  // un alumno que reanuda un intento (status en_progreso, recarga, le
+  // borraron 1 strike, etc.) y todavía no entró a pantalla completa:
+  // cualquier blur/fullscreenchange/etc en esta ventana es parte del
+  // flujo de entrada, no abuso. Una vez activado, el proctoring queda
+  // estricto y suma strikes normalmente.
+  const hasEverEnteredFullscreenRef = useRef(false);
   // Indice de la pregunta visible. Se persiste en answers.__current_idx
   // en cada autosave para que el monitor del docente pueda mostrar
   // "Pregunta X de Y" en tiempo real para los intentos en curso.
@@ -542,6 +552,9 @@ function TakeExam() {
       });
       return;
     }
+    // Confirmamos entrada a FS antes de armar started → el proctoring
+    // arranca estricto desde el primer render.
+    hasEverEnteredFullscreenRef.current = true;
     setStarted(true);
   };
 
@@ -561,6 +574,10 @@ function TakeExam() {
   const reenterFullscreen = async () => {
     try {
       await document.documentElement.requestFullscreen?.();
+      // El click en "Reanudar" del overlay cuenta como entrada válida —
+      // activamos el proctoring estricto. Si el alumno sale luego, sí
+      // cuenta como strike normal.
+      hasEverEnteredFullscreenRef.current = true;
       setFsExited(false);
     } catch (e) {
       console.warn("re-enter fullscreen failed", e);
@@ -856,6 +873,12 @@ function TakeExam() {
     let lastBlurAt = 0;
     const recordWarning = (type: string) => {
       if (submittedRef.current) return;
+      // Grace period de reanudación: si el estudiante todavía no ha
+      // entrado a pantalla completa (resume tras eliminación de strike,
+      // recarga, etc.), no sumamos strike. El overlay "Reanudar" bloquea
+      // la interacción con el examen hasta que entre a FS — cualquier
+      // blur/fullscreenchange aquí es parte del flujo de entrada.
+      if (!hasEverEnteredFullscreenRef.current) return;
       const now = Date.now();
       if (now < blurLockUntil) return;
       blurLockUntil = now + 500;
@@ -1039,11 +1062,14 @@ function TakeExam() {
       }
     };
     const onFsChange = () => {
-      if (!document.fullscreenElement && started && !submittedRef.current) {
+      if (document.fullscreenElement) {
+        // Primer ingreso a FS de esta sesión → activamos el proctoring
+        // estricto. A partir de aquí los strikes cuentan.
+        hasEverEnteredFullscreenRef.current = true;
+        setFsExited(false);
+      } else if (started && !submittedRef.current) {
         recordWarning("fullscreen_exit");
         setFsExited(true);
-      } else if (document.fullscreenElement) {
-        setFsExited(false);
       }
     };
     // PrintScreen no siempre dispara keydown (algunos navegadores solo
