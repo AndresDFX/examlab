@@ -114,6 +114,172 @@ async function aiChatCompletion(body: {
   });
 }
 
+/**
+ * Califica múltiples preguntas abiertas en UNA sola llamada al modelo.
+ *
+ * Ganancia: para un examen con N preguntas abiertas pasamos de N requests
+ * a 1. Reduce latencia ~Nx, cuesta menos tokens de overhead (system prompt
+ * + warm-up no se paga N veces) y elimina los rate limits intermitentes
+ * que aparecían en exámenes largos.
+ *
+ * Retorna un Map<qid, result>. Para preguntas que la IA omitió del array
+ * de respuesta, el caller las trata como falla individual ("missing_in_batch").
+ *
+ * Si la llamada falla en bloque (HTTP error, sin tool_call, JSON inválido),
+ * retorna `{ batchError: ... }` — el caller distribuye el error a TODAS las
+ * preguntas del batch (mismo error en cada una) + audita.
+ */
+interface BatchItem {
+  qid: string;
+  content: string;
+  rubric: string;
+  userAnswer: string;
+  maxPoints: number;
+}
+interface BatchScore {
+  score: number;
+  feedback: string;
+  ai_likelihood: number;
+  ai_reasons: string;
+}
+interface BatchError {
+  batchError: {
+    kind: "http" | "no_tool_call" | "parse_failed";
+    http_status?: number;
+    response_snippet: string;
+    finish_reason?: string | null;
+  };
+}
+
+async function gradeOpenAnswersInBatch(
+  items: BatchItem[],
+  systemPrompt: string,
+  langName: string,
+): Promise<{ results: Map<string, BatchScore> } | BatchError> {
+  const itemsBlock = items
+    .map(
+      (it, idx) =>
+        `─── Pregunta #${idx + 1} (qid: ${it.qid}, puntaje máximo: ${it.maxPoints}) ───\n` +
+        `ENUNCIADO:\n${it.content}\n\n` +
+        `RÚBRICA ESPERADA:\n${it.rubric}\n\n` +
+        `RESPUESTA DEL ESTUDIANTE:\n${it.userAnswer}`,
+    )
+    .join("\n\n");
+
+  const aiRes = await aiChatCompletion({
+    messages: [
+      {
+        role: "system",
+        content:
+          `${systemPrompt}\n\n` +
+          `IMPORTANTE: vas a calificar ${items.length} respuestas en una sola llamada. ` +
+          `Devuelve UN item por cada qid recibido — no omitas ninguno. El score de cada ` +
+          `qid debe respetar SU PROPIO puntaje máximo (declarado en el ítem). ` +
+          `REGLA DE IDIOMA: responde siempre en ${langName}.`,
+      },
+      {
+        role: "user",
+        content:
+          `Califica las siguientes ${items.length} respuestas. Por cada una devuelve qid, ` +
+          `score (≤ puntaje máximo del item), feedback, ai_likelihood (0..1) y ai_reasons.\n\n` +
+          `${itemsBlock}\n\n` +
+          `Idioma de salida obligatorio: ${langName}.`,
+      },
+    ],
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "score_batch",
+          description: "Calificar un lote de respuestas en una sola llamada",
+          parameters: {
+            type: "object",
+            properties: {
+              items: {
+                type: "array",
+                description: "Array con la calificación de cada qid recibido",
+                items: {
+                  type: "object",
+                  properties: {
+                    qid: { type: "string" },
+                    score: { type: "number" },
+                    feedback: { type: "string" },
+                    ai_likelihood: {
+                      type: "number",
+                      description: "Probabilidad 0..1 de que la respuesta sea generada por IA",
+                    },
+                    ai_reasons: {
+                      type: "string",
+                      description: "Razonamiento sobre la detección de IA",
+                    },
+                  },
+                  required: ["qid", "score", "feedback", "ai_likelihood", "ai_reasons"],
+                },
+              },
+            },
+            required: ["items"],
+          },
+        },
+      },
+    ],
+    tool_choice: { type: "function", function: { name: "score_batch" } },
+  });
+
+  if (!aiRes.ok) {
+    let body = "";
+    try {
+      body = await aiRes.text();
+    } catch {
+      /* ignore */
+    }
+    return {
+      batchError: {
+        kind: "http",
+        http_status: aiRes.status,
+        response_snippet: body.slice(0, 2000),
+      },
+    };
+  }
+  const aiJson = await aiRes.json();
+  const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
+  if (!tc) {
+    return {
+      batchError: {
+        kind: "no_tool_call",
+        response_snippet: JSON.stringify(aiJson).slice(0, 2000),
+        finish_reason: aiJson.choices?.[0]?.finish_reason ?? null,
+      },
+    };
+  }
+  let parsed: { items?: unknown };
+  try {
+    parsed = JSON.parse(tc.function.arguments);
+  } catch {
+    return {
+      batchError: {
+        kind: "parse_failed",
+        response_snippet: String(tc.function.arguments).slice(0, 2000),
+      },
+    };
+  }
+  const arr = Array.isArray((parsed as { items?: unknown }).items)
+    ? ((parsed as { items: unknown[] }).items as Array<Record<string, unknown>>)
+    : [];
+
+  const results = new Map<string, BatchScore>();
+  for (const r of arr) {
+    const qid = typeof r.qid === "string" ? r.qid : "";
+    if (!qid) continue;
+    results.set(qid, {
+      score: Number(r.score) || 0,
+      feedback: typeof r.feedback === "string" ? r.feedback : "",
+      ai_likelihood: Math.max(0, Math.min(1, Number(r.ai_likelihood) || 0)),
+      ai_reasons: typeof r.ai_reasons === "string" ? r.ai_reasons : "",
+    });
+  }
+  return { results };
+}
+
 async function resolveSystemPrompt(
   useCase: string,
   courseId: string | null | undefined,
@@ -1198,6 +1364,17 @@ Idioma de salida: ${langName}.`,
     let maxAiLikelihood = Number(sub.ai_detected_score) || 0;
     const aiReasonBuckets: { qid: string; likelihood: number; reason: string }[] = [];
 
+    // Bucket de preguntas abiertas que necesitan IA — se calificará en
+    // UNA sola llamada al final del loop (gradeOpenAnswersInBatch).
+    // Antes hacíamos N requests (uno por pregunta abierta), ahora 1
+    // por estudiante. Ganancia: latencia ~Nx menor, menos rate limits,
+    // menos tokens de overhead repetidos.
+    const aiBatch: Array<{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      q: any;
+      userAnswer: string;
+    }> = [];
+
     for (const q of questions || []) {
       // If only one question is requested, skip the rest but preserve prior scores
       if (questionId && q.id !== questionId) {
@@ -1273,174 +1450,117 @@ Idioma de salida: ${langName}.`,
           });
           continue;
         }
-        const aiRes = await aiChatCompletion({
-          messages: [
-            {
-              role: "system",
-              content: `${customExamSystem}\n\nPuntaje máximo permitido: ${q.points}.\nREGLA DE IDIOMA: responde siempre en ${examLangName}.`,
-            },
-            {
-              role: "user",
-              content: `Pregunta: ${q.content}\n\nRúbrica esperada: ${q.expected_rubric}\n\nRespuesta del estudiante: ${userAnswer}\n\nPuntaje máximo: ${q.points}\n\nIdioma de salida obligatorio: ${examLangName}.`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "score_answer",
-                description: "Calificar respuesta y estimar si fue generada por IA",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number" },
-                    feedback: { type: "string" },
-                    ai_likelihood: {
-                      type: "number",
-                      description:
-                        "Probabilidad 0..1 de que la respuesta haya sido generada por IA",
-                    },
-                    ai_reasons: {
-                      type: "string",
-                      description: "Razonamiento breve sobre la detección de IA",
-                    },
-                  },
-                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
-                },
+        // Bucketea la pregunta — se califica en bloque después del loop.
+        aiBatch.push({
+          q,
+          userAnswer: typeof userAnswer === "string" ? userAnswer : JSON.stringify(userAnswer),
+        });
+      }
+    }
+
+    // ── Llamada UNICA a IA para todas las preguntas abiertas del estudiante ──
+    // Antes hacíamos una llamada por pregunta abierta. Ahora una sola con todas
+    // las preguntas, distribuyendo los scores por qid al volver. Si la llamada
+    // falla en bloque, marcamos cada pregunta del batch con el mismo error.
+    if (aiBatch.length > 0) {
+      const batchInput: BatchItem[] = aiBatch.map(({ q, userAnswer }) => ({
+        qid: q.id,
+        content: String(q.content ?? ""),
+        rubric: String(q.expected_rubric ?? ""),
+        userAnswer,
+        maxPoints: Number(q.points),
+      }));
+      const batchOut = await gradeOpenAnswersInBatch(batchInput, customExamSystem, examLangName);
+
+      if ("batchError" in batchOut) {
+        // Falla del batch entero — distribuimos el mismo error a todas las
+        // preguntas. Un solo audit log con el response completo (1 vez,
+        // no N veces) para no inundar Auditoría.
+        const err = batchOut.batchError;
+        const feedback =
+          err.kind === "http"
+            ? `Error IA (HTTP ${err.http_status}). Revisa audit logs para el detalle.`
+            : err.kind === "no_tool_call"
+              ? "El modelo no devolvió la calificación en el formato esperado (sin tool_call). Revisa audit logs."
+              : "El modelo devolvió un JSON inválido al calificar. Revisa audit logs.";
+        for (const { q } of aiBatch) {
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback,
+            ai_error: err,
+          });
+        }
+        void auditFromEdge(adminClient, {
+          actorId: auditCallerId,
+          action: "ai.grading_failed",
+          category: "grading",
+          severity: "error",
+          entityType: "submission",
+          entityId: submissionId,
+          metadata: {
+            scope: "batch",
+            batch_size: aiBatch.length,
+            kind: err.kind,
+            http_status: err.http_status ?? null,
+            response_snippet: err.response_snippet,
+            finish_reason: err.finish_reason ?? null,
+            model: auditModel,
+            provider: (await getActiveAiModel()).provider,
+          },
+        });
+      } else {
+        // Batch OK — distribuimos los resultados por qid. Las preguntas
+        // que el modelo OMITIO (no devolvió score para su qid) se marcan
+        // como missing_in_batch.
+        for (const { q } of aiBatch) {
+          const r = batchOut.results.get(q.id);
+          if (!r) {
+            breakdown.push({
+              qid: q.id,
+              type: q.type,
+              points: q.points,
+              earned: 0,
+              feedback:
+                "El modelo no incluyó esta pregunta en su respuesta. Recalifica individualmente para reintentar.",
+              ai_error: { kind: "missing_in_batch" },
+            });
+            void auditFromEdge(adminClient, {
+              actorId: auditCallerId,
+              action: "ai.grading_failed",
+              category: "grading",
+              severity: "warning",
+              entityType: "submission",
+              entityId: submissionId,
+              metadata: {
+                questionId: q.id,
+                questionType: q.type,
+                reason: "missing_in_batch",
+                model: auditModel,
               },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "score_answer" } },
-        });
-        if (!aiRes.ok) {
-          // Capturamos el body del error para diagnosticar — antes solo
-          // dejábamos "Error IA" sin contexto y el admin no podía saber
-          // qué falló (rate limit, schema rejection, key inválida, etc.).
-          let errBody = "";
-          try {
-            errBody = await aiRes.text();
-          } catch {
-            /* ignore */
+            });
+            continue;
           }
-          const errSnippet = errBody.slice(0, 2000);
-          const failureDetail = {
-            http_status: aiRes.status,
-            response_snippet: errSnippet,
-          };
+          const score = Math.max(0, Math.min(Number(q.points), Number(r.score) || 0));
+          earned += score;
           breakdown.push({
             qid: q.id,
             type: q.type,
             points: q.points,
-            earned: 0,
-            feedback: `Error IA (HTTP ${aiRes.status}). Revisa audit logs para el detalle.`,
-            ai_error: failureDetail,
+            earned: score,
+            feedback: r.feedback,
+            ai_likelihood: r.ai_likelihood,
+            ai_reasons: r.ai_reasons,
           });
-          // Audit por-pregunta con el response COMPLETO del provider — el
-          // admin lo ve en Auditoría → action: ai.grading_failed.
-          void auditFromEdge(adminClient, {
-            actorId: auditCallerId,
-            action: "ai.grading_failed",
-            category: "grading",
-            severity: "error",
-            entityType: "submission",
-            entityId: submissionId,
-            metadata: {
-              questionId: q.id,
-              questionType: q.type,
-              http_status: aiRes.status,
-              response_snippet: errSnippet,
-              model: auditModel,
-              provider: (await getActiveAiModel()).provider,
-            },
-          });
-          continue;
-        }
-        const aiJson = await aiRes.json();
-        const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
-        if (!tc) {
-          // 200 OK pero el modelo no llamó al tool — el response tiene
-          // texto plano o se quedó sin tokens. Antes silenciosamente
-          // dábamos score 0 sin feedback; ahora lo registramos.
-          const rawSnippet = JSON.stringify(aiJson).slice(0, 2000);
-          breakdown.push({
+          aiReasonBuckets.push({
             qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: 0,
-            feedback:
-              "El modelo no devolvió la calificación en el formato esperado (sin tool_call). Revisa audit logs.",
-            ai_error: { http_status: 200, no_tool_call: true, response_snippet: rawSnippet },
+            likelihood: r.ai_likelihood,
+            reason: r.ai_reasons,
           });
-          void auditFromEdge(adminClient, {
-            actorId: auditCallerId,
-            action: "ai.grading_failed",
-            category: "grading",
-            severity: "error",
-            entityType: "submission",
-            entityId: submissionId,
-            metadata: {
-              questionId: q.id,
-              questionType: q.type,
-              reason: "missing_tool_call",
-              response_snippet: rawSnippet,
-              model: auditModel,
-              provider: (await getActiveAiModel()).provider,
-              finish_reason: aiJson.choices?.[0]?.finish_reason ?? null,
-            },
-          });
-          continue;
+          if (r.ai_likelihood > maxAiLikelihood) maxAiLikelihood = r.ai_likelihood;
         }
-        let args: { score?: unknown; feedback?: unknown; ai_likelihood?: unknown; ai_reasons?: unknown };
-        try {
-          args = JSON.parse(tc.function.arguments);
-        } catch {
-          // El modelo devolvió JSON malformado dentro del tool_call.
-          breakdown.push({
-            qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: 0,
-            feedback: "El modelo devolvió un JSON inválido al calificar. Revisa audit logs.",
-            ai_error: { http_status: 200, parse_failed: true, raw: tc.function.arguments?.slice(0, 2000) },
-          });
-          void auditFromEdge(adminClient, {
-            actorId: auditCallerId,
-            action: "ai.grading_failed",
-            category: "grading",
-            severity: "error",
-            entityType: "submission",
-            entityId: submissionId,
-            metadata: {
-              questionId: q.id,
-              reason: "tool_args_parse_failed",
-              raw_arguments: tc.function.arguments?.slice(0, 2000),
-              model: auditModel,
-            },
-          });
-          continue;
-        }
-        const score = Math.max(0, Math.min(Number(q.points), Number(args.score) || 0));
-        const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
-        // Coercemos a string — el modelo puede devolver null/number si
-        // ignora el schema. typeof check evita "[object Object]" feos.
-        const feedbackStr = typeof args.feedback === "string" ? args.feedback : "";
-        const reasonsStr = typeof args.ai_reasons === "string" ? args.ai_reasons : "";
-        earned += score;
-        breakdown.push({
-          qid: q.id,
-          type: q.type,
-          points: q.points,
-          earned: score,
-          feedback: feedbackStr,
-          ai_likelihood: aiLikelihood,
-          ai_reasons: reasonsStr,
-        });
-        aiReasonBuckets.push({
-          qid: q.id,
-          likelihood: aiLikelihood,
-          reason: reasonsStr,
-        });
-        if (aiLikelihood > maxAiLikelihood) maxAiLikelihood = aiLikelihood;
       }
     }
 
