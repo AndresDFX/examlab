@@ -718,13 +718,34 @@ function ExamMonitor() {
       }
       // Single-question path (sin dryRun): la pregunta ya fue actualizada
       // en DB por el edge function — refrescamos.
+      // Auditoría enriquecida con el breakdown completo y los errores
+      // por pregunta (si los hubo) para que el admin pueda diagnosticar
+      // sin tener que entrar al modal.
+      type BreakdownItem = {
+        qid: string;
+        earned?: number;
+        points?: number;
+        feedback?: string;
+        ai_error?: unknown;
+      };
+      const bd = (data?.breakdown ?? []) as BreakdownItem[];
+      const failed = bd.filter((b) => b.ai_error != null);
       void logEvent({
         action: "ai_grading.completed",
         category: "grading",
-        severity: "info",
+        severity: failed.length > 0 ? "warning" : "info",
         entityType: "submission",
         entityId: sub.id,
-        metadata: { examId, questionId: questionId ?? null, grade: data?.grade ?? null },
+        metadata: {
+          examId,
+          questionId: questionId ?? null,
+          grade: data?.grade ?? null,
+          ai_likelihood: data?.ai_likelihood ?? null,
+          ai_reasons: data?.ai_reasons ?? null,
+          breakdown: bd,
+          failed_questions: failed,
+          failed_count: failed.length,
+        },
       });
       toast.success("Pregunta recalificada con IA");
       load();
@@ -752,10 +773,20 @@ function ExamMonitor() {
         toast.error(error.message);
         return;
       }
+      // Capturamos los errores per-pregunta del breakdown para audit.
+      type BreakdownItem = {
+        qid: string;
+        earned?: number;
+        points?: number;
+        feedback?: string;
+        ai_error?: unknown;
+      };
+      const bd = (reGradePreview.breakdown ?? []) as BreakdownItem[];
+      const failed = bd.filter((b) => b.ai_error != null);
       void logEvent({
         action: "ai_grading.completed",
         category: "grading",
-        severity: "info",
+        severity: failed.length > 0 ? "warning" : "info",
         entityType: "submission",
         entityId: reGradePreview.submissionId,
         metadata: {
@@ -763,6 +794,11 @@ function ExamMonitor() {
           questionId: null,
           grade: reGradePreview.grade,
           previous_grade: reGradePreview.previous.ai_grade,
+          ai_likelihood: reGradePreview.ai_likelihood,
+          ai_reasons: reGradePreview.ai_reasons,
+          breakdown: bd,
+          failed_questions: failed,
+          failed_count: failed.length,
           mode: "dry_run_accepted",
         },
       });

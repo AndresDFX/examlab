@@ -1302,16 +1302,23 @@ function TeacherWorkshops() {
             .eq("id", answer.id);
         }
       }
+      // Auditoría enriquecida: si el modelo no devolvió feedback (suele
+      // pasar cuando el response de Gemini falla) lo dejamos visible.
+      const aiErrored = !newFeedback || /error\s*ia/i.test(newFeedback);
       void logEvent({
         action: "ai_grading.completed",
         category: "grading",
-        severity: "info",
+        severity: aiErrored ? "warning" : "info",
         entityType: "workshop_submission",
         entityId: subId,
         metadata: {
           workshopId: gradingWs?.id ?? null,
           questionId: question.id,
           grade: newGrade,
+          ai_feedback: newFeedback,
+          ai_likelihood: aiLikelihood,
+          ai_reasons: aiReasons,
+          ai_errored: aiErrored,
         },
       });
       toast.success(t("workshop.regraded"));

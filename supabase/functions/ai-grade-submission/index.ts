@@ -1313,36 +1313,132 @@ Idioma de salida: ${langName}.`,
           tool_choice: { type: "function", function: { name: "score_answer" } },
         });
         if (!aiRes.ok) {
+          // Capturamos el body del error para diagnosticar — antes solo
+          // dejábamos "Error IA" sin contexto y el admin no podía saber
+          // qué falló (rate limit, schema rejection, key inválida, etc.).
+          let errBody = "";
+          try {
+            errBody = await aiRes.text();
+          } catch {
+            /* ignore */
+          }
+          const errSnippet = errBody.slice(0, 2000);
+          const failureDetail = {
+            http_status: aiRes.status,
+            response_snippet: errSnippet,
+          };
           breakdown.push({
             qid: q.id,
             type: q.type,
             points: q.points,
             earned: 0,
-            feedback: "Error IA",
+            feedback: `Error IA (HTTP ${aiRes.status}). Revisa audit logs para el detalle.`,
+            ai_error: failureDetail,
+          });
+          // Audit por-pregunta con el response COMPLETO del provider — el
+          // admin lo ve en Auditoría → action: ai.grading_failed.
+          void auditFromEdge(adminClient, {
+            actorId: auditCallerId,
+            action: "ai.grading_failed",
+            category: "grading",
+            severity: "error",
+            entityType: "submission",
+            entityId: submissionId,
+            metadata: {
+              questionId: q.id,
+              questionType: q.type,
+              http_status: aiRes.status,
+              response_snippet: errSnippet,
+              model: auditModel,
+              provider: (await getActiveAiModel()).provider,
+            },
           });
           continue;
         }
         const aiJson = await aiRes.json();
         const tc = aiJson.choices?.[0]?.message?.tool_calls?.[0];
-        const args = tc
-          ? JSON.parse(tc.function.arguments)
-          : { score: 0, feedback: "", ai_likelihood: 0, ai_reasons: "" };
+        if (!tc) {
+          // 200 OK pero el modelo no llamó al tool — el response tiene
+          // texto plano o se quedó sin tokens. Antes silenciosamente
+          // dábamos score 0 sin feedback; ahora lo registramos.
+          const rawSnippet = JSON.stringify(aiJson).slice(0, 2000);
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback:
+              "El modelo no devolvió la calificación en el formato esperado (sin tool_call). Revisa audit logs.",
+            ai_error: { http_status: 200, no_tool_call: true, response_snippet: rawSnippet },
+          });
+          void auditFromEdge(adminClient, {
+            actorId: auditCallerId,
+            action: "ai.grading_failed",
+            category: "grading",
+            severity: "error",
+            entityType: "submission",
+            entityId: submissionId,
+            metadata: {
+              questionId: q.id,
+              questionType: q.type,
+              reason: "missing_tool_call",
+              response_snippet: rawSnippet,
+              model: auditModel,
+              provider: (await getActiveAiModel()).provider,
+              finish_reason: aiJson.choices?.[0]?.finish_reason ?? null,
+            },
+          });
+          continue;
+        }
+        let args: { score?: unknown; feedback?: unknown; ai_likelihood?: unknown; ai_reasons?: unknown };
+        try {
+          args = JSON.parse(tc.function.arguments);
+        } catch {
+          // El modelo devolvió JSON malformado dentro del tool_call.
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback: "El modelo devolvió un JSON inválido al calificar. Revisa audit logs.",
+            ai_error: { http_status: 200, parse_failed: true, raw: tc.function.arguments?.slice(0, 2000) },
+          });
+          void auditFromEdge(adminClient, {
+            actorId: auditCallerId,
+            action: "ai.grading_failed",
+            category: "grading",
+            severity: "error",
+            entityType: "submission",
+            entityId: submissionId,
+            metadata: {
+              questionId: q.id,
+              reason: "tool_args_parse_failed",
+              raw_arguments: tc.function.arguments?.slice(0, 2000),
+              model: auditModel,
+            },
+          });
+          continue;
+        }
         const score = Math.max(0, Math.min(Number(q.points), Number(args.score) || 0));
         const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
+        // Coercemos a string — el modelo puede devolver null/number si
+        // ignora el schema. typeof check evita "[object Object]" feos.
+        const feedbackStr = typeof args.feedback === "string" ? args.feedback : "";
+        const reasonsStr = typeof args.ai_reasons === "string" ? args.ai_reasons : "";
         earned += score;
         breakdown.push({
           qid: q.id,
           type: q.type,
           points: q.points,
           earned: score,
-          feedback: args.feedback,
+          feedback: feedbackStr,
           ai_likelihood: aiLikelihood,
-          ai_reasons: args.ai_reasons ?? "",
+          ai_reasons: reasonsStr,
         });
         aiReasonBuckets.push({
           qid: q.id,
           likelihood: aiLikelihood,
-          reason: args.ai_reasons ?? "",
+          reason: reasonsStr,
         });
         if (aiLikelihood > maxAiLikelihood) maxAiLikelihood = aiLikelihood;
       }
