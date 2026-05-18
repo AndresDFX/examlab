@@ -451,7 +451,7 @@ function StudentCalendar() {
                   ? "Ajusta los filtros o escribe en el buscador."
                   : "No tienes eventos próximos con los filtros actuales. Activa 'Mostrando todos' para ver los pasados."
               }
-              icon={<CalendarIcon className="h-8 w-8 text-muted-foreground" />}
+              icon={CalendarIcon}
             />
           </CardContent>
         </Card>

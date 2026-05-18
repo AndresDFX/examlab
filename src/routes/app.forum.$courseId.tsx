@@ -227,7 +227,7 @@ function ForumList() {
                   ? "Ajusta el buscador o cambia el ordenamiento."
                   : "Sé el primero en preguntar — tu docente y compañeros podrán responder."
               }
-              icon={<MessageSquareText className="h-8 w-8 text-muted-foreground" />}
+              icon={MessageSquareText}
             />
           </CardContent>
         </Card>

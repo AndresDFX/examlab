@@ -12,10 +12,21 @@
 FROM public.ecr.aws/lambda/python:3.13
 
 # OpenJDK 21 LTS via Amazon Corretto (paquete oficial de AL2023).
-# `headless` evita libs gráficas innecesarias (~150MB de ahorro).
-RUN dnf install -y java-21-amazon-corretto-headless \
+# IMPORTANTE: usamos `-devel` (JDK completo con javac).
+# El paquete `-headless` solo trae la JRE, no el compilador.
+# El JDK completo agrega libs X11 (~30MB) — innecesarias para una
+# Lambda headless. Las borramos abajo para mantener la image bajo el
+# límite de 500MB del ECR Always Free.
+RUN dnf install -y java-21-amazon-corretto-devel \
  && dnf clean all \
- && rm -rf /var/cache/dnf /var/log/dnf*
+ && rm -rf /var/cache/dnf /var/log/dnf* \
+ # Slim: eliminamos demos/man/src/jmods (no se usan en Lambda) y
+ # las libs X11 transitivas que vienen con el JDK no-headless. javac
+ # y java siguen funcionando.
+ && JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac)))) \
+ && rm -rf "$JAVA_HOME/demo" "$JAVA_HOME/man" "$JAVA_HOME/sample" "$JAVA_HOME/jmods" \
+ && rm -rf /usr/lib/jvm/*/lib/src.zip \
+ && dnf remove -y libX11 libXext libXi libXrender libXtst 2>/dev/null || true
 
 # Sanity check — falla el build si javac no está disponible.
 RUN java -version && javac -version

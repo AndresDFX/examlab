@@ -116,7 +116,7 @@ function StudentCertificates() {
             <TableEmpty
               title="Aún no tienes certificados"
               description="Tu docente emite el certificado cuando apruebas el curso. Volverás a ver esta pantalla cuando esté disponible."
-              icon={<Award className="h-8 w-8 text-muted-foreground" />}
+              icon={Award}
             />
           </CardContent>
         </Card>
