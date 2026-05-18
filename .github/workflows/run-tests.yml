@@ -38,6 +38,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
+      # Gate explícito de lockfile ANTES de instalar. Si package.json y
+      # bun.lock están desincronizados, este step falla con un mensaje
+      # accionable (annotation visible en la pestaña Checks del PR).
+      #
+      # Causa típica: un commit modificó package.json (agregó/quitó deps)
+      # pero olvidó correr `bun install` y commitear el bun.lock resultante.
+      #
+      # Fix: en tu working tree corre `bun install` y commitea el bun.lock.
+      - name: Verify bun.lock is in sync with package.json
+        run: |
+          set -e
+          if ! bun install --frozen-lockfile --dry-run 2>/tmp/lockfile-err; then
+            cat /tmp/lockfile-err
+            echo "::error file=bun.lock,title=Lockfile desincronizado::package.json cambió pero bun.lock no fue actualizado. Corre 'bun install' localmente y commitea bun.lock."
+            exit 1
+          fi
+          echo "✓ bun.lock está en sync con package.json"
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
