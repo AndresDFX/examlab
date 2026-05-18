@@ -16,7 +16,10 @@
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1 | Out-String; $out -split \"`n\" | Where-Object { $_ -match \"CutsEditor\" } | Select-Object -First 10)",
       "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Out-File -FilePath tsc-out.tmp; Get-Content tsc-out.tmp | Where-Object { $_ -match \"CutsEditor\" } | Select-Object -First 10; Remove-Item tsc-out.tmp)",
       "Bash(cat)",
-      "Bash(bash /tmp/check_functions.sh)"
+      "Bash(bash /tmp/check_functions.sh)",
+      "Bash(cd \"d:/Projects/Personal/examlab\" && grep -n \"^      </Dialog>$\\\\|^    </div>$\" src/routes/app.teacher.monitor.\\\\$examId.tsx | tail -5)",
+      "Bash(gh run *)",
+      "PowerShell(gh run list --workflow=deploy-edge-functions.yml --limit 5)"
     ]
   }
 }
