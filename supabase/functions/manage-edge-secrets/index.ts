@@ -5,7 +5,7 @@
  * Por qué un edge function: el Management API requiere un Personal
  * Access Token (PAT con prefix sbp_) que da acceso TOTAL al proyecto.
  * Ese PAT NO puede vivir en el cliente — vive en
- * `SUPABASE_MANAGEMENT_PAT` (env del edge runtime), y este wrapper
+ * `MANAGEMENT_PAT` (env del edge runtime), y este wrapper
  * autoriza al caller, valida rol Admin, llama al Management API y
  * devuelve los valores enmascarados (excepto al setear).
  *
@@ -47,7 +47,10 @@ const RESERVED_SECRETS = new Set([
   "SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_PUBLISHABLE_DEFAULT_KEY",
   "SUPABASE_INTERNAL_JWT_SECRET",
-  "SUPABASE_MANAGEMENT_PAT", // el propio PAT — auto-protección
+  // El propio PAT — auto-protección. Si el admin lo borra desde aquí,
+  // pierde acceso para gestionar secrets y queda bloqueado de la UI
+  // hasta volver al dashboard de Supabase para resetearlo.
+  "MANAGEMENT_PAT",
 ]);
 
 function maskValue(v: string): string {
@@ -121,11 +124,11 @@ Deno.serve(async (req) => {
     }
 
     // ── Config: PAT + project ref ──
-    const pat = Deno.env.get("SUPABASE_MANAGEMENT_PAT");
+    const pat = Deno.env.get("MANAGEMENT_PAT");
     if (!pat) {
       return jsonResponse(503, {
         error:
-          "SUPABASE_MANAGEMENT_PAT no configurada en Edge Function Secrets. " +
+          "MANAGEMENT_PAT no configurada en Edge Function Secrets. " +
           "Genera un PAT en https://supabase.com/dashboard/account/tokens y agrégalo en Settings → Edge Function Secrets.",
       });
     }

@@ -170,7 +170,7 @@ export function AdminEdgeSecretsPanel() {
                 <p>
                   <strong>No se pudo cargar secrets:</strong> {configError}
                 </p>
-                {configError.includes("SUPABASE_MANAGEMENT_PAT") && (
+                {configError.includes("MANAGEMENT_PAT") && (
                   <div className="text-xs">
                     <p className="mt-1 font-medium">Setup (una sola vez):</p>
                     <ol className="list-decimal list-inside space-y-0.5 mt-1">
@@ -187,7 +187,7 @@ export function AdminEdgeSecretsPanel() {
                       </li>
                       <li>Ve a Supabase Dashboard → Project Settings → Edge Functions → Secrets</li>
                       <li>
-                        Agrega <code className="text-[11px]">SUPABASE_MANAGEMENT_PAT</code> con el
+                        Agrega <code className="text-[11px]">MANAGEMENT_PAT</code> con el
                         valor del token (empieza con <code>sbp_</code>)
                       </li>
                       <li>Recarga esta pantalla</li>
