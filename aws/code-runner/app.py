@@ -17,12 +17,44 @@ Seguridad:
 """
 
 import json
+import logging
 import os
 import re
 import shlex
 import subprocess
 import tempfile
 import time
+
+# Logger estructurado para CloudWatch. Cada invocación deja huella del
+# request (source code truncado, length, stdin) y del response (exit
+# code, time, primeros chars de stdout/stderr). Útil para diagnosticar
+# casos puntuales del alumno sin tener que reproducir local.
+#
+# Para ver los logs:
+#   aws logs tail /aws/lambda/examlab-code-runner --follow --region us-east-1
+#
+# o desde la consola AWS → CloudWatch → Log groups →
+# /aws/lambda/examlab-code-runner → cualquier log stream.
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+def _log_preview(label: str, value: str, max_chars: int = 500) -> None:
+    """Imprime un campo largo truncado de forma estructurada. CloudWatch
+    indexa cada línea por separado, así que separar reduce ruido al filtrar."""
+    if not value:
+        logger.info("[%s] (vacío)", label)
+        return
+    if len(value) <= max_chars:
+        logger.info("[%s] %s", label, value)
+    else:
+        logger.info(
+            "[%s] (truncado a %d chars de %d) %s",
+            label,
+            max_chars,
+            len(value),
+            value[:max_chars],
+        )
 
 # Shared secret — el cliente debe mandarlo en X-API-Key. Si la env var
 # está vacía rechazamos TODAS las llamadas para evitar despliegues
@@ -100,6 +132,22 @@ def handler(event, _context):
     m = CLASS_RE.search(source)
     main_class = m.group(1) if m else "Main"
 
+    # ── Log del request (CloudWatch) ──
+    # Útil para auditar qué código está corriendo el alumno cuando algo
+    # falla. El source se loguea completo (truncado a 2000 chars para
+    # que no infle storage de logs); el stdin a 500.
+    request_id = (_context.aws_request_id if _context and hasattr(_context, "aws_request_id") else "n/a")
+    logger.info(
+        "▶ REQUEST id=%s class=%s source_length=%d stdin_length=%d",
+        request_id,
+        main_class,
+        len(source),
+        len(stdin),
+    )
+    _log_preview("REQUEST.source", source, max_chars=2000)
+    if stdin:
+        _log_preview("REQUEST.stdin", stdin, max_chars=500)
+
     start = time.time()
     # /tmp es escribible en Lambda (512MB-10GB ephemeral); TemporaryDirectory
     # se borra al salir del with.
@@ -118,19 +166,33 @@ def handler(event, _context):
                 cwd=tmp,
             )
         except subprocess.TimeoutExpired:
-            return _resp(200, {
+            payload = {
                 "stdout": "",
                 "stderr": f"Compilación excedió el tiempo límite ({COMPILE_TIMEOUT_S}s).",
                 "exitCode": 124,
                 "executionTimeMs": int((time.time() - start) * 1000),
-            })
+            }
+            logger.warning(
+                "◀ RESPONSE id=%s phase=compile_timeout time_ms=%d",
+                request_id,
+                payload["executionTimeMs"],
+            )
+            return _resp(200, payload)
 
         if compile_proc.returncode != 0:
             # Compile error: stderr de javac trae línea + columna + mensaje.
             # Lo devolvemos tal cual (es exactamente lo que el alumno necesita ver).
+            stderr_text = _truncate(compile_proc.stderr or "Error de compilación")
+            logger.info(
+                "◀ RESPONSE id=%s phase=compile_error exit=%d time_ms=%d",
+                request_id,
+                compile_proc.returncode,
+                int((time.time() - start) * 1000),
+            )
+            _log_preview("RESPONSE.compile_stderr", stderr_text, max_chars=1000)
             return _resp(200, {
                 "stdout": "",
-                "stderr": _truncate(compile_proc.stderr or "Error de compilación"),
+                "stderr": stderr_text,
                 "exitCode": compile_proc.returncode,
                 "executionTimeMs": int((time.time() - start) * 1000),
             })
@@ -146,13 +208,32 @@ def handler(event, _context):
                 text=True,
                 timeout=EXECUTE_TIMEOUT_S,
             )
+            stdout_text = _truncate(run_proc.stdout)
+            stderr_text = _truncate(run_proc.stderr)
+            time_ms = int((time.time() - start) * 1000)
+            logger.info(
+                "◀ RESPONSE id=%s phase=executed exit=%d time_ms=%d stdout_len=%d stderr_len=%d",
+                request_id,
+                run_proc.returncode,
+                time_ms,
+                len(stdout_text),
+                len(stderr_text),
+            )
+            _log_preview("RESPONSE.stdout", stdout_text, max_chars=2000)
+            if stderr_text:
+                _log_preview("RESPONSE.stderr", stderr_text, max_chars=1000)
             return _resp(200, {
-                "stdout": _truncate(run_proc.stdout),
-                "stderr": _truncate(run_proc.stderr),
+                "stdout": stdout_text,
+                "stderr": stderr_text,
                 "exitCode": run_proc.returncode,
-                "executionTimeMs": int((time.time() - start) * 1000),
+                "executionTimeMs": time_ms,
             })
         except subprocess.TimeoutExpired:
+            logger.warning(
+                "◀ RESPONSE id=%s phase=execute_timeout time_ms=%d",
+                request_id,
+                EXECUTE_TIMEOUT_S * 1000,
+            )
             return _resp(200, {
                 "stdout": "",
                 "stderr": f"Ejecución excedió el tiempo límite ({EXECUTE_TIMEOUT_S}s). ¿Bucle infinito?",

@@ -1164,6 +1164,10 @@ function TakeExam() {
       return;
     }
     setRunningCode((prev) => ({ ...prev, [questionId]: true }));
+    // Limpia el output ANTES de ejecutar para que el alumno no vea el
+    // resultado del run anterior mientras espera el nuevo. Aplica a
+    // todos los providers (CheerpJ, Lambda, OnlineCompiler).
+    setCodeOutputs((prev) => ({ ...prev, [questionId]: "" }));
     try {
       let stdout = "";
       let stderr = "";
