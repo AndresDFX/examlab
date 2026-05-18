@@ -23,6 +23,7 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/i18n";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MessagesBell } from "@/components/MessagesBell";
 import { MessagesFab } from "@/components/MessagesFab";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
@@ -61,7 +62,6 @@ import {
   Monitor,
   Languages,
   Wrench,
-  MessageSquare,
   Settings,
   Bell,
   Library,
@@ -230,15 +230,11 @@ const NAV: NavItem[] = [
     icon: ShieldEllipsis,
     roles: ["Admin"],
   },
-  // Mensajería interna 1-a-1. Visible para los tres roles — la regla
-  // de "con quién puedo hablar" la enforza la RLS de conversations
-  // (compañeros de curso + Admins).
-  {
-    to: "/app/messages",
-    labelKey: "nav.messages",
-    icon: MessageSquare,
-    roles: ["Admin", "Docente", "Estudiante"],
-  },
+  // Mensajería interna 1-a-1 vive ahora en MessagesBell (header, junto
+  // al NotificationBell) en lugar de ser un item del sidebar. Mismo
+  // patrón que campana de notificaciones: badge con conteo de no leídos
+  // + popover con "Marcar todo leído" + link a /app/messages.
+  // (Item viejo del nav removido.)
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
   // Admin-only: utilidades de diagnóstico de la infraestructura
@@ -603,11 +599,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             // DropdownMenu del design system. La campana queda visible
             // aparte porque el badge de no leídas es awareness crítica.
             <div className="flex items-center justify-between gap-1">
-              <NotificationBell
-                userId={user.id}
-                variant="sidebar"
-                viewerRole={activeRole ?? roles[0]}
-              />
+              <div className="flex items-center gap-0.5">
+                <NotificationBell
+                  userId={user.id}
+                  variant="sidebar"
+                  viewerRole={activeRole ?? roles[0]}
+                />
+                <MessagesBell />
+              </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -909,8 +908,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {!isTakingExam && (
-          <div className="flex items-center">
+          <div className="flex items-center gap-0.5">
             <NotificationBell userId={user.id} viewerRole={activeRole ?? roles[0]} />
+            <MessagesBell />
           </div>
         )}
       </header>

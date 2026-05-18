@@ -170,6 +170,9 @@ const ACTION_LABELS: Record<string, string> = {
   "content.regeneration_failed": "Regeneración de contenido fallida",
 
   // ── Configuración del sistema (admin) ──
+  "edge_secrets.set": "Edge Function Secret actualizado",
+  "edge_secrets.unset": "Edge Function Secret eliminado",
+  "edge_secrets.error": "Error gestionando Edge Function Secret",
   "ai_model.activated": "Modelo de IA actualizado",
   "ai_prompt.updated": "Prompt de IA actualizado",
   "ai_prompt.restored_default": "Prompt de IA restaurado al default",
