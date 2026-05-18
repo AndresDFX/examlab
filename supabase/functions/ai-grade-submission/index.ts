@@ -1083,7 +1083,11 @@ Idioma de salida: ${langName}.`,
     }
 
     // ── Exam grading mode (original) ──
-    const { submissionId, questionId } = body;
+    const { submissionId, questionId, dryRun } = body as {
+      submissionId?: string;
+      questionId?: string | null;
+      dryRun?: boolean;
+    };
     if (!submissionId) throw new Error("submissionId requerido");
     if (typeof submissionId !== "string" || !UUID_RE.test(submissionId)) {
       throw new Error("submissionId inválido");
@@ -1377,30 +1381,62 @@ Idioma de salida: ${langName}.`,
         ? "sospechoso"
         : "completado";
 
-    await admin
-      .from("submissions")
-      .update({
-        ai_grade: grade,
-        // Si la sospecha IA ya fue revisada, no la re-marcamos: dejamos
-        // ai_detected en false aunque la likelihood haya subido.
-        ai_detected: aiAlreadyReviewed ? false : aiDetected,
-        ai_detected_score: finalAiLikelihood,
-        ai_detected_reasons: reasonsWithSpeed || null,
-        status: newStatus,
-        submitted_at: sub.submitted_at ?? new Date().toISOString(),
-        answers: { ...answers, __breakdown: breakdown },
-      })
-      .eq("id", submissionId);
+    // dryRun: el cliente pidió un preview — corremos toda la calificación
+    // pero NO escribimos al DB. El cliente decide si aplicar o descartar.
+    // En modo aplicar, el cliente persiste con un UPDATE directo (no
+    // requiere segunda llamada a IA), así no se gastan créditos doble.
+    if (!dryRun) {
+      await admin
+        .from("submissions")
+        .update({
+          ai_grade: grade,
+          // Si la sospecha IA ya fue revisada, no la re-marcamos: dejamos
+          // ai_detected en false aunque la likelihood haya subido.
+          ai_detected: aiAlreadyReviewed ? false : aiDetected,
+          ai_detected_score: finalAiLikelihood,
+          ai_detected_reasons: reasonsWithSpeed || null,
+          status: newStatus,
+          submitted_at: sub.submitted_at ?? new Date().toISOString(),
+          answers: { ...answers, __breakdown: breakdown },
+        })
+        .eq("id", submissionId);
+    }
 
     return new Response(
       JSON.stringify({
         ok: true,
+        dryRun: !!dryRun,
         grade,
         breakdown,
-        ai_detected: aiDetected,
+        ai_detected: aiAlreadyReviewed ? false : aiDetected,
         ai_likelihood: finalAiLikelihood,
         ai_reasons: reasonsWithSpeed,
         speed_boost: speedBoost,
+        // Snapshot completo del payload que se aplicaría si el cliente
+        // decide aceptar. Permite que el cliente haga un UPDATE directo
+        // sin re-invocar al edge.
+        proposed_update: {
+          ai_grade: grade,
+          ai_detected: aiAlreadyReviewed ? false : aiDetected,
+          ai_detected_score: finalAiLikelihood,
+          ai_detected_reasons: reasonsWithSpeed || null,
+          status: newStatus,
+          submitted_at: sub.submitted_at ?? new Date().toISOString(),
+          answers: { ...answers, __breakdown: breakdown },
+        },
+        // Snapshot del estado actual (antes del recálculo) para que la
+        // UI muestre OLD vs NEW sin tener que pedirlo aparte.
+        previous: {
+          ai_grade: sub.ai_grade ?? null,
+          final_override_grade:
+            (sub as { final_override_grade?: number | null }).final_override_grade ?? null,
+          status: sub.status,
+          ai_detected: (sub as { ai_detected?: boolean | null }).ai_detected ?? null,
+          ai_detected_score:
+            (sub as { ai_detected_score?: number | null }).ai_detected_score ?? null,
+          breakdown:
+            (answers as { __breakdown?: unknown }).__breakdown ?? null,
+        },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

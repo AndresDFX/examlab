@@ -200,6 +200,40 @@ function ExamMonitor() {
   const [loading, setLoading] = useState<string | null>(null);
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingQid, setAiGradingQid] = useState<string | null>(null);
+  // Preview de recálculo "Todo con IA": guardamos lo que el edge devolvió
+  // en dryRun + el snapshot anterior para mostrar OLD vs NEW en un dialog.
+  // El docente decide aplicar o descartar. Si aplica, hacemos UPDATE directo
+  // con `proposed_update` (no se vuelve a llamar a la IA).
+  const [reGradePreview, setReGradePreview] = useState<{
+    submissionId: string;
+    grade: number;
+    breakdown: Array<{
+      qid: string;
+      type?: string;
+      points?: number;
+      earned?: number;
+      feedback?: string;
+      ai_likelihood?: number;
+      ai_reasons?: string;
+    }>;
+    proposed_update: Record<string, unknown>;
+    previous: {
+      ai_grade: number | null;
+      final_override_grade: number | null;
+      status: string;
+      ai_detected: boolean | null;
+      ai_detected_score: number | null;
+      breakdown: Array<{
+        qid: string;
+        earned?: number;
+        points?: number;
+        feedback?: string;
+      }> | null;
+    };
+    ai_likelihood: number;
+    ai_reasons: string;
+  } | null>(null);
+  const [applyingReGrade, setApplyingReGrade] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [attemptsForUser, setAttemptsForUser] = useState<string | null>(null);
   // Una sola vez al cargar: si la URL trae ?student=USER_ID (link de
@@ -644,13 +678,46 @@ function ExamMonitor() {
     if (questionId) setAiGradingQid(questionId);
     else setAiGradingId(sub.id);
     try {
+      // Recalificar TODO el examen → dryRun primero. Mostramos al docente
+      // OLD vs NEW antes de pisar la nota. Recalificar una pregunta puntual
+      // se aplica de inmediato (cambio chico, fácil de revertir con override).
+      const useDryRun = !questionId;
       const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
-        body: questionId ? { submissionId: sub.id, questionId } : { submissionId: sub.id },
+        body: questionId
+          ? { submissionId: sub.id, questionId }
+          : { submissionId: sub.id, dryRun: true },
       });
       if (error || data?.error) {
         toast.error(data?.error ?? error?.message ?? "Error al calificar con IA");
         return;
       }
+      if (useDryRun && data?.dryRun) {
+        // Abrimos el dialog de preview — el docente decide si aplicar.
+        setReGradePreview({
+          submissionId: sub.id,
+          grade: Number(data.grade) || 0,
+          breakdown: data.breakdown ?? [],
+          proposed_update: data.proposed_update ?? {},
+          previous: data.previous ?? {
+            ai_grade: sub.ai_grade,
+            final_override_grade: sub.final_override_grade,
+            status: sub.status,
+            ai_detected: sub.ai_detected ?? null,
+            ai_detected_score: sub.ai_detected_score ?? null,
+            breakdown: (sub.answers?.__breakdown ?? null) as Array<{
+              qid: string;
+              earned?: number;
+              points?: number;
+              feedback?: string;
+            }> | null,
+          },
+          ai_likelihood: Number(data.ai_likelihood) || 0,
+          ai_reasons: data.ai_reasons ?? "",
+        });
+        return;
+      }
+      // Single-question path (sin dryRun): la pregunta ya fue actualizada
+      // en DB por el edge function — refrescamos.
       void logEvent({
         action: "ai_grading.completed",
         category: "grading",
@@ -659,15 +726,51 @@ function ExamMonitor() {
         entityId: sub.id,
         metadata: { examId, questionId: questionId ?? null, grade: data?.grade ?? null },
       });
-      toast.success(
-        questionId ? "Pregunta recalificada con IA" : "Examen recalificado con IA correctamente",
-      );
+      toast.success("Pregunta recalificada con IA");
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Error desconocido");
     } finally {
       setAiGradingId(null);
       setAiGradingQid(null);
+    }
+  };
+
+  // Aplica el preview cacheado: UPDATE directo a submissions con el snapshot
+  // que devolvió el edge en dryRun. NO se vuelve a invocar IA, así que es
+  // gratis e idempotente.
+  const applyReGrade = async () => {
+    if (!reGradePreview) return;
+    setApplyingReGrade(true);
+    try {
+      const { error } = await supabase
+        .from("submissions")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(reGradePreview.proposed_update as any)
+        .eq("id", reGradePreview.submissionId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      void logEvent({
+        action: "ai_grading.completed",
+        category: "grading",
+        severity: "info",
+        entityType: "submission",
+        entityId: reGradePreview.submissionId,
+        metadata: {
+          examId,
+          questionId: null,
+          grade: reGradePreview.grade,
+          previous_grade: reGradePreview.previous.ai_grade,
+          mode: "dry_run_accepted",
+        },
+      });
+      toast.success("Nueva calificación aplicada");
+      setReGradePreview(null);
+      load();
+    } finally {
+      setApplyingReGrade(false);
     }
   };
 
@@ -2783,6 +2886,160 @@ function ExamMonitor() {
                     contradiga las notas por pregunta. */}
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview de recálculo "Todo con IA". Muestra OLD vs NEW antes de
+          aplicar para que el docente revise. La aplicación es un UPDATE
+          directo con el snapshot ya calculado — NO re-invoca a la IA. */}
+      <Dialog
+        open={reGradePreview !== null}
+        onOpenChange={(open) => {
+          if (!open && !applyingReGrade) setReGradePreview(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              Revisión de recalificación con IA
+            </DialogTitle>
+            <DialogDescription>
+              La IA ya calculó la nueva nota. Revísala antes de aplicarla — si la descartas, la
+              calificación actual no se modifica.
+            </DialogDescription>
+          </DialogHeader>
+          {reGradePreview && (
+            <div className="space-y-4">
+              {/* Resumen OLD vs NEW */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                    Nota actual
+                  </div>
+                  <div className="text-2xl font-semibold tabular-nums">
+                    {reGradePreview.previous.final_override_grade ??
+                      reGradePreview.previous.ai_grade ??
+                      "—"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    {reGradePreview.previous.final_override_grade != null
+                      ? "Override manual del docente"
+                      : "Nota IA previa"}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/5 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-1">
+                    Nota propuesta por IA
+                  </div>
+                  <div className="text-2xl font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
+                    {reGradePreview.grade}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    {(() => {
+                      const prev =
+                        reGradePreview.previous.final_override_grade ??
+                        reGradePreview.previous.ai_grade;
+                      if (prev == null) return "Sin nota previa";
+                      const delta = reGradePreview.grade - Number(prev);
+                      if (Math.abs(delta) < 0.005) return "Sin cambio";
+                      const sign = delta > 0 ? "+" : "";
+                      return `Diferencia: ${sign}${delta.toFixed(2)}`;
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Señal IA actualizada */}
+              {(reGradePreview.ai_likelihood > 0 || reGradePreview.ai_reasons) && (
+                <div className="rounded-lg border p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Sospecha de IA</span>
+                    <span className="tabular-nums">
+                      {(reGradePreview.ai_likelihood * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  {reGradePreview.ai_reasons && (
+                    <p className="text-muted-foreground whitespace-pre-line">
+                      {reGradePreview.ai_reasons}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Breakdown por pregunta */}
+              {reGradePreview.breakdown.length > 0 && (
+                <div className="rounded-lg border">
+                  <div className="px-3 py-2 border-b bg-muted/30 text-xs font-medium">
+                    Detalle por pregunta
+                  </div>
+                  <ScrollArea className="max-h-64">
+                    <div className="divide-y">
+                      {reGradePreview.breakdown.map((b, i) => {
+                        const prev = reGradePreview.previous.breakdown?.find(
+                          (p) => p.qid === b.qid,
+                        );
+                        const prevEarned = prev?.earned ?? null;
+                        const newEarned = b.earned ?? 0;
+                        const changed =
+                          prevEarned == null || Math.abs(Number(prevEarned) - newEarned) > 0.005;
+                        return (
+                          <div
+                            key={b.qid}
+                            className={`px-3 py-2 text-xs ${changed ? "bg-amber-500/5" : ""}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">
+                                Pregunta {i + 1}
+                                {b.type && (
+                                  <span className="ml-1 text-muted-foreground font-normal">
+                                    · {b.type}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="tabular-nums">
+                                {prevEarned != null ? (
+                                  <span className="text-muted-foreground">
+                                    {Number(prevEarned).toFixed(2)} →{" "}
+                                  </span>
+                                ) : null}
+                                <span className={changed ? "font-semibold" : ""}>
+                                  {newEarned.toFixed(2)}
+                                </span>
+                                <span className="text-muted-foreground"> / {b.points ?? 0}</span>
+                              </span>
+                            </div>
+                            {b.feedback && (
+                              <p className="mt-1 text-muted-foreground line-clamp-3">
+                                {b.feedback}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setReGradePreview(null)}
+              disabled={applyingReGrade}
+            >
+              Descartar
+            </Button>
+            <Button onClick={() => void applyReGrade()} disabled={applyingReGrade}>
+              {applyingReGrade ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Check className="h-4 w-4 mr-1" />
+              )}
+              Aplicar nueva calificación
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
