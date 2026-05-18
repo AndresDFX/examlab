@@ -24,18 +24,24 @@ Parameters:
       nuevo (el viejo queda inutilizable).
   LambdaTimeoutSeconds:
     Type: Number
-    Default: 30
-    MinValue: 10
+    Default: 50
+    MinValue: 30
     MaxValue: 60
-    Description: Timeout de la función Lambda. Cubre compile + execute con holgura.
+    Description: >
+      Timeout duro de la Lambda. Debe cubrir cold start (~3-5s) +
+      compile (hasta 25s en cold) + execute (hasta 20s) con margen.
+      50s deja ~5s de holgura sobre el peor caso.
   LambdaMemoryMB:
     Type: Number
-    Default: 1024
-    AllowedValues: [512, 1024, 1536, 2048]
+    Default: 1769
+    AllowedValues: [1024, 1536, 1769, 2048, 3008]
     Description: >
-      Memoria de la función Lambda. 1024MB recomendado para que la JVM
-      tenga ~512MB de heap y el resto para SO/javac. Más memoria también
-      escala el CPU asignado (más rápido = menos GB-segundos consumidos).
+      Memoria de la función Lambda. AWS asigna CPU proporcional a la
+      memoria — 1769 MB es el punto exacto donde Lambda da **1 vCPU
+      completo**. Por debajo de eso, la compilación de javac (CPU-bound)
+      tarda 3-5× más, llevando cold starts a 10-15s.
+      Recomendado: 1769 (1 vCPU). 2048+ acelera más pero gasta más
+      GB-segundos del free tier.
   LogRetentionDays:
     Type: Number
     Default: 7

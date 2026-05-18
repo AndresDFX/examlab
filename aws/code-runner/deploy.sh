@@ -116,13 +116,37 @@ RUNNER_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='RunnerUrl'].OutputValue" \
   --output text --region "$REGION")
 
-# ── 8) Self-test contra el endpoint ──
-# Confirma que la infra está lista antes de pedirle al usuario que
-# pegue secrets en Supabase. Si esto falla, el problema está en AWS
-# (CF, IAM, Lambda image); no tiene sentido tocar Supabase.
+# ── 8) Pre-warm + self-test ──
+# Cold start del container + JVM init de javac toma ~5-10s. Hacemos un
+# "ping" descartable PRIMERO para absorber el cold start; el self-test
+# real corre sobre el container ya caliente y mide el caso de uso real
+# (warm = lo que verá el alumno cuando no es la primera del día).
 echo ""
-echo "▶ Self-test contra el endpoint (espera 5s para que API Gateway propague)..."
-sleep 5
+echo "▶ Pre-warm del Lambda (absorbe cold start de ~5-10s)..."
+PREWARM_BODY=$(cat <<'EOF'
+{"sourceCode":"public class Main{public static void main(String[] a){System.out.println(\"warmup\");}}"}
+EOF
+)
+PREWARM_STATUS=$(curl -s -o /tmp/runner-prewarm.out -w "%{http_code}" \
+  --max-time 55 \
+  -X POST "$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+    --query "Stacks[0].Outputs[?OutputKey=='RunnerUrl'].OutputValue" \
+    --output text --region "$REGION")" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d "$PREWARM_BODY" || echo "000")
+PREWARM_RESP=$(cat /tmp/runner-prewarm.out 2>/dev/null || echo "")
+rm -f /tmp/runner-prewarm.out
+echo "  Pre-warm status: $PREWARM_STATUS"
+if [ "$PREWARM_STATUS" = "200" ] && echo "$PREWARM_RESP" | grep -q '"stdout":"warmup'; then
+  echo "  ✓ Pre-warm OK"
+elif [ "$PREWARM_STATUS" = "200" ]; then
+  echo "  ⚠ Pre-warm devolvió 200 pero timeout interno:"
+  echo "    $PREWARM_RESP"
+fi
+
+echo ""
+echo "▶ Self-test contra el endpoint (medición warm, debería ser <2s)..."
 SELFTEST_BODY=$(cat <<'EOF'
 {"sourceCode":"public class Main{public static void main(String[] a){System.out.println(\"selftest\");}}"}
 EOF

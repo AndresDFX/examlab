@@ -29,11 +29,12 @@ import time
 # accidentales sin auth.
 API_KEY = os.environ.get("API_KEY", "")
 
-# Timeouts en segundos. La compilación raramente excede 5s; la ejecución
-# del código del alumno tiene su propio límite. Combinados deben caber
-# en el timeout de Lambda (configurable en CloudFormation).
-COMPILE_TIMEOUT_S = 15
-EXECUTE_TIMEOUT_S = 15
+# Timeouts en segundos. En warm (container ya inicializado) javac
+# compila <2s. En cold start con 1 vCPU (1769 MB) la primera invocación
+# del día puede tardar 8-12s solo en cargar el container + JVM init.
+# Combinados deben caber en el timeout de Lambda (30s por CF default).
+COMPILE_TIMEOUT_S = 25
+EXECUTE_TIMEOUT_S = 20
 MAX_SOURCE_BYTES = 100_000  # 100 KB
 MAX_STDIN_BYTES = 10_000
 
