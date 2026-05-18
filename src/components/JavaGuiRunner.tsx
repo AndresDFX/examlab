@@ -1,16 +1,21 @@
 /**
- * JavaGuiRunner — editor Monaco + ejecución client-side de Java Swing/AWT
- * mediante CheerpJ 3 (cargado lazy desde su CDN, sin dependencias npm).
+ * JavaGuiRunner — editor Monaco + ejecución de Java Swing/AWT.
  *
- * Patrón basado en https://github.com/leaningtech/javafiddle:
- *   1. cheerpjInit({status:'none'})
- *   2. cheerpjCreateDisplay(-1,-1, container)  → ventana Swing
- *   3. cheerpjAddStringFile('/str/Main.java', encoder.encode(code))
- *   4. cheerpjRunMain('com.sun.tools.javac.Main','/app/tools.jar:/files/','/str/Main.java','-d','/files/')
- *   5. cheerpjRunMain('Main','/app/tools.jar:/files/')
+ * Soporta DOS modos seleccionados globalmente desde Admin → Compilador
+ * (`code_execution_settings.java_gui_provider`):
  *
- * El código fuente se reporta vía onChange y se guarda como respuesta de
- * texto para ser calificada por la IA igual que las preguntas de "código".
+ *   - `cheerp` (default): CheerpJ 4.3 client-side. Ventana Swing real,
+ *     clicks/eventos en el browser. WebAssembly JVM. Requiere licencia
+ *     comercial para producción multi-usuario.
+ *
+ *   - `aws_screenshot`: AWS Lambda con Xvfb + ImageMagick. El runner
+ *     compila + ejecuta + captura UN PNG de la ventana y lo retorna en
+ *     base64. NO interactivo — el alumno solo VE la captura, no puede
+ *     clickear. Sin licencia comercial. Ver docs/JAVA-GUI-OPTIONS.md.
+ *
+ * En ambos modos el código fuente se reporta vía onChange y se guarda
+ * como respuesta de texto para ser calificada por la IA igual que las
+ * preguntas de tipo "código".
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
@@ -18,7 +23,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Play, Coffee, AlertTriangle, Terminal, Maximize2, RotateCcw, Info } from "lucide-react";
+import {
+  Loader2,
+  Coffee,
+  AlertTriangle,
+  Terminal,
+  Maximize2,
+  RotateCcw,
+  Info,
+  Camera,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { extractEdgeError } from "@/lib/edge-error";
+
+type JavaGuiMode = "cheerp" | "aws_screenshot";
 
 declare global {
   interface Window {
@@ -180,6 +198,42 @@ export function JavaGuiRunner({
   const [hasRun, setHasRun] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Modo activo (global, desde code_execution_settings). Default 'cheerp'
+  // mientras carga para no bloquear el render del editor.
+  const [mode, setMode] = useState<JavaGuiMode>("cheerp");
+  const [modeLoaded, setModeLoaded] = useState(false);
+
+  // Estado del modo screenshot (PNG + stdout/stderr del runner).
+  const [screenshotData, setScreenshotData] = useState<{
+    png: string;
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+    pngBytes: number;
+    executionTimeMs: number;
+  } | null>(null);
+
+  // Carga el provider una sola vez en mount. RLS permite SELECT a
+  // cualquier authenticated, así que no hace falta edge function.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("code_execution_settings")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .select("java_gui_provider" as any)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (cancelled) return;
+      const provider = (data as { java_gui_provider?: string } | null)?.java_gui_provider;
+      if (provider === "aws_screenshot") setMode("aws_screenshot");
+      setModeLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Capturamos el último value en una ref para que `run` siempre lea la
   // versión actualizada del editor sin depender de él como dependencia
   // (eso provocaría re-runs en cada tecla mientras el modal está abierto).
@@ -214,7 +268,56 @@ export function JavaGuiRunner({
     [blockClipboard],
   );
 
-  const run = async () => {
+  const runScreenshot = async () => {
+    setError(null);
+    setHasRun(false);
+    setScreenshotData(null);
+    setRunning(true);
+    try {
+      const source = valueRef.current || JAVA_GUI_STARTER;
+      // questionId no lo conocemos acá (el Runner es agnóstico). Pasamos
+      // un marcador para que el edge function lo loguee — el audit
+      // queda con entityId="java_gui_runner_preview" lo cual es OK
+      // porque la pregunta real se identifica vía submissionId si el
+      // padre la propaga (futuro).
+      const { data, error: invokeErr } = await supabase.functions.invoke(
+        "execute-java-gui-screenshot",
+        {
+          body: {
+            sourceCode: source,
+            questionId: "java_gui_runner_preview",
+          },
+        },
+      );
+      if (invokeErr || data?.error) {
+        const detail = await extractEdgeError(invokeErr, data);
+        throw new Error(detail || "Error generando captura");
+      }
+      if (!data?.screenshotBase64) {
+        throw new Error(
+          (data?.stderr as string)?.trim() ||
+            "El runner no devolvió captura. Revisa que tu código compile y abra al menos una ventana visible.",
+        );
+      }
+      setScreenshotData({
+        png: data.screenshotBase64 as string,
+        stdout: (data.stdout as string) ?? "",
+        stderr: (data.stderr as string) ?? "",
+        exitCode: typeof data.exitCode === "number" ? data.exitCode : 0,
+        pngBytes: typeof data.pngBytes === "number" ? data.pngBytes : 0,
+        executionTimeMs:
+          typeof data.executionTimeMs === "number" ? data.executionTimeMs : 0,
+      });
+      setHasRun(true);
+    } catch (e: unknown) {
+      console.error("[JavaGuiRunner:screenshot]", e);
+      setError(e instanceof Error ? e.message : "Error ejecutando Java");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const runCheerp = async () => {
     setError(null);
     setHasRun(false);
     setRunning(true);
@@ -298,34 +401,55 @@ export function JavaGuiRunner({
     }
   };
 
+  const run = () => (mode === "aws_screenshot" ? runScreenshot() : runCheerp());
+
   useEffect(() => {
-    if (dialogOpen) {
-      void run();
-    } else {
+    if (!dialogOpen) {
       // Al cerrar el modal, shadcn desmonta el DialogContent, por lo
       // que el displayRef.current actual deja de existir. La próxima
       // apertura tendrá un contenedor nuevo y necesita un createDisplay
       // fresco — sin este reset, intentaríamos reusar un canvas huérfano.
       displayCreatedRef.current = false;
+      return;
     }
+    if (mode === "aws_screenshot") void runScreenshot();
+    else void runCheerp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen]);
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <Badge variant="outline" className="text-xs flex items-center gap-1">
-          <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT) — CheerpJ
+          {mode === "aws_screenshot" ? (
+            <>
+              <Camera className="h-3 w-3" /> Java GUI — captura PNG (AWS Lambda)
+            </>
+          ) : (
+            <>
+              <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT) — CheerpJ
+            </>
+          )}
         </Badge>
         <Button
           size="sm"
           variant="outline"
           onClick={() => setDialogOpen(true)}
-          disabled={readOnly}
+          disabled={readOnly || !modeLoaded}
           className="h-8 text-xs"
           type="button"
         >
-          <Maximize2 className="h-3 w-3 mr-1" />
-          Ejecutar y abrir vista Swing
+          {mode === "aws_screenshot" ? (
+            <>
+              <Camera className="h-3 w-3 mr-1" />
+              Generar captura
+            </>
+          ) : (
+            <>
+              <Maximize2 className="h-3 w-3 mr-1" />
+              Ejecutar y abrir vista Swing
+            </>
+          )}
         </Button>
       </div>
 
@@ -335,15 +459,16 @@ export function JavaGuiRunner({
           onClick={() => setDialogOpen(true)}
           className="text-xs text-primary underline-offset-2 hover:underline"
         >
-          Volver a abrir la vista Swing
+          {mode === "aws_screenshot" ? "Volver a ver la captura" : "Volver a abrir la vista Swing"}
         </button>
       )}
 
       <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
         <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
         <span>
-          La primera ejecución tarda más porque el navegador descarga la
-          máquina virtual de Java una sola vez. Las siguientes son inmediatas.
+          {mode === "aws_screenshot"
+            ? "Tu código corre en el servidor y solo recibes una captura de pantalla — no podrás interactuar (clicks, teclas) con la ventana. Diseña la UI con valores iniciales visibles."
+            : "La primera ejecución tarda más porque el navegador descarga la máquina virtual de Java una sola vez. Las siguientes son inmediatas."}
         </span>
       </div>
 
@@ -373,12 +498,22 @@ export function JavaGuiRunner({
         <DialogContent className="max-w-[95vw] w-[95vw] sm:max-w-[95vw] h-[92vh] flex flex-col p-4 gap-3">
           <DialogHeader className="space-y-1">
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Coffee className="h-4 w-4" />
-              Java GUI — vista en vivo
+              {mode === "aws_screenshot" ? (
+                <Camera className="h-4 w-4" />
+              ) : (
+                <Coffee className="h-4 w-4" />
+              )}
+              {mode === "aws_screenshot"
+                ? "Java GUI — captura del servidor"
+                : "Java GUI — vista en vivo"}
               {(loadingCJ || running) && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  {loadingCJ ? "Cargando CheerpJ…" : "Ejecutando…"}
+                  {mode === "aws_screenshot"
+                    ? "Compilando y capturando en AWS Lambda…"
+                    : loadingCJ
+                      ? "Cargando CheerpJ…"
+                      : "Ejecutando…"}
                 </span>
               )}
             </DialogTitle>
@@ -399,23 +534,69 @@ export function JavaGuiRunner({
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
-                <pre
-                  ref={consoleRef}
-                  className="text-[11px] font-mono whitespace-pre-wrap overflow-auto h-full"
-                />
+                {mode === "aws_screenshot" ? (
+                  <pre className="text-[11px] font-mono whitespace-pre-wrap overflow-auto h-full">
+                    {screenshotData
+                      ? [
+                          screenshotData.stdout,
+                          screenshotData.stderr,
+                          `\n[runner] exit=${screenshotData.exitCode} • ${(
+                            screenshotData.pngBytes / 1024
+                          ).toFixed(1)} KB • ${screenshotData.executionTimeMs} ms`,
+                        ]
+                          .filter(Boolean)
+                          .join("\n")
+                      : running
+                        ? ""
+                        : "(sin ejecución todavía)"}
+                  </pre>
+                ) : (
+                  <pre
+                    ref={consoleRef}
+                    className="text-[11px] font-mono whitespace-pre-wrap overflow-auto h-full"
+                  />
+                )}
               </CardContent>
             </Card>
             <Card className="bg-muted/40 flex flex-col min-h-0">
               <CardHeader className="py-2 px-3 shrink-0">
                 <CardTitle className="text-xs flex items-center gap-1.5">
-                  <Coffee className="h-3 w-3" /> Ventana Swing
+                  {mode === "aws_screenshot" ? (
+                    <>
+                      <Camera className="h-3 w-3" /> Captura
+                    </>
+                  ) : (
+                    <>
+                      <Coffee className="h-3 w-3" /> Ventana Swing
+                    </>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
-                <div
-                  ref={displayRef}
-                  className="w-full h-full bg-background rounded border overflow-auto"
-                />
+                {mode === "aws_screenshot" ? (
+                  <div className="w-full h-full bg-background rounded border overflow-auto flex items-center justify-center p-2">
+                    {screenshotData?.png ? (
+                      <img
+                        src={`data:image/png;base64,${screenshotData.png}`}
+                        alt="Captura de la ventana Swing renderizada en el servidor"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : running ? (
+                      <span className="text-xs text-muted-foreground">
+                        Esperando captura…
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Sin captura disponible.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    ref={displayRef}
+                    className="w-full h-full bg-background rounded border overflow-auto"
+                  />
+                )}
               </CardContent>
             </Card>
           </div>
@@ -433,7 +614,7 @@ export function JavaGuiRunner({
               ) : (
                 <RotateCcw className="h-3 w-3 mr-1" />
               )}
-              Re-ejecutar
+              {mode === "aws_screenshot" ? "Re-generar captura" : "Re-ejecutar"}
             </Button>
             <Button size="sm" variant="default" type="button" onClick={() => setDialogOpen(false)}>
               Cerrar

@@ -1,10 +1,20 @@
 """
 AWS Lambda handler — compila y ejecuta código Java del estudiante.
 
-Invocado vía Lambda Function URL (sin API Gateway). El edge function
-`execute-code` de Supabase llama esta URL con shared secret en
-`X-API-Key`. El handler valida, compila con javac, ejecuta con java,
-y retorna stdout/stderr/exitCode.
+Invocado vía API Gateway HTTP API. El edge function `execute-code` (modo
+consola) o `execute-java-gui-screenshot` (modo GUI) de Supabase llama el
+endpoint con shared secret en `X-API-Key`.
+
+Modos (en el body, campo `mode`):
+ - `run` (default): compila con javac + ejecuta con java; retorna
+   stdout/stderr/exitCode. Es lo que usa una pregunta tipo `codigo` en
+   lenguaje Java.
+ - `gui_screenshot`: arranca Xvfb en :99, compila + ejecuta Java con
+   DISPLAY=:99 en background, duerme `delayMs` para que Swing pinte,
+   captura `import -window root` a PNG y lo retorna en base64. Es lo
+   que usa una pregunta tipo `java_gui` cuando el admin configuró
+   `java_gui_provider = aws_screenshot`. NO es interactivo — el alumno
+   solo ve la captura, no puede clickear.
 
 Seguridad:
  - Lambda corre en Firecracker microVM (sandbox real por invocación).
@@ -12,15 +22,17 @@ Seguridad:
    no puede llamar S3, DynamoDB, etc.
  - Sin VPC attachment — sin acceso a tu infra.
  - Timeout duro (Lambda timeout + subprocess timeout en Python).
- - Memoria límite (Lambda OOM-kill si pasa 1GB).
+ - Memoria límite (Lambda OOM-kill si pasa el cap).
  - Tamaño máx del código limitado para evitar bombs.
+ - En modo gui_screenshot el proceso Java se mata explícitamente con
+   SIGKILL después del screenshot, antes de salir del handler.
 """
 
+import base64
 import json
 import logging
 import os
 import re
-import shlex
 import subprocess
 import tempfile
 import time
@@ -64,11 +76,29 @@ API_KEY = os.environ.get("API_KEY", "")
 # Timeouts en segundos. En warm (container ya inicializado) javac
 # compila <2s. En cold start con 1 vCPU (1769 MB) la primera invocación
 # del día puede tardar 8-12s solo en cargar el container + JVM init.
-# Combinados deben caber en el timeout de Lambda (30s por CF default).
+# Combinados deben caber en el timeout de Lambda (50s por CF default).
 COMPILE_TIMEOUT_S = 25
 EXECUTE_TIMEOUT_S = 20
 MAX_SOURCE_BYTES = 100_000  # 100 KB
 MAX_STDIN_BYTES = 10_000
+
+# ── GUI screenshot mode ──
+# Display virtual donde corre Xvfb. :99 es la convención típica (no
+# colisiona con :0/:1 que algunos hosts/CI usan).
+GUI_DISPLAY = ":99"
+# Tamaño del framebuffer virtual. Suficiente para una ventana Swing
+# promedio. Si la JFrame es más grande, X la corta — el alumno verá
+# parte de la UI cortada (mismo que pasa en un monitor pequeño).
+GUI_SCREEN = "1024x768x24"
+# Ventana de tiempo (ms) entre que arrancamos la JVM y hacemos la
+# captura. Swing tarda en pintar la primera frame: ~500ms warm,
+# ~1500-2000ms cold. Le damos 2000ms por default. El cliente puede
+# pedir más con `delayMs` (cap a 8s para no agotar el Lambda timeout).
+GUI_DEFAULT_DELAY_MS = 2000
+GUI_MAX_DELAY_MS = 8000
+# Tope de tamaño del PNG retornado. 1024x768x24 limpio comprime a
+# ~50-200KB; le damos margen.
+GUI_MAX_PNG_BYTES = 2_000_000
 
 # Captura del nombre de la clase pública para invocar `java <Name>`.
 # Si no encuentra, asume `Main` (convención del editor del alumno).
@@ -89,6 +119,269 @@ def _truncate(s: str, limit: int = 50_000) -> str:
     if len(s) <= limit:
         return s
     return s[:limit] + f"\n... [truncado, +{len(s) - limit} caracteres]"
+
+
+def _start_xvfb() -> "subprocess.Popen[bytes]":
+    """Arranca Xvfb en GUI_DISPLAY y espera a que esté listo.
+
+    Lambda /tmp es escribible y los sockets de X (/tmp/.X11-unix/X99) caben
+    ahí — pero Xvfb por defecto crea /tmp/.X11-unix/. Le pasamos `-fbdir
+    /tmp` para forzar todos los temporales al sandbox de Lambda.
+    """
+    # +extension RANDR y -nolisten tcp evitan que Java intente abrir un
+    # socket TCP (Lambda no permite listening sockets externos pero Xvfb
+    # los abre por default y puede colgarse). -ac desactiva access control
+    # para no necesitar xauth (corre todo en el mismo container).
+    p = subprocess.Popen(
+        [
+            "Xvfb",
+            GUI_DISPLAY,
+            "-screen",
+            "0",
+            GUI_SCREEN,
+            "-ac",
+            "-nolisten",
+            "tcp",
+            "+extension",
+            "RANDR",
+            "-fbdir",
+            "/tmp",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    # Espera activa por el socket de X. xdpyinfo/xwininfo no están
+    # instalados — usamos el archivo socket directamente.
+    socket_path = f"/tmp/.X11-unix/X{GUI_DISPLAY.lstrip(':')}"
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if os.path.exists(socket_path):
+            return p
+        if p.poll() is not None:
+            raise RuntimeError(f"Xvfb murió en arranque (exit {p.returncode})")
+        time.sleep(0.05)
+    raise RuntimeError("Xvfb no abrió socket en 5s")
+
+
+def _kill_quiet(p: "subprocess.Popen[bytes]") -> None:
+    """Termina un Popen ignorando errores (ya muerto, race, etc.)."""
+    try:
+        p.kill()
+    except Exception:
+        pass
+    try:
+        p.wait(timeout=2)
+    except Exception:
+        pass
+
+
+def _handle_gui_screenshot(
+    source: str,
+    main_class: str,
+    delay_ms: int,
+    request_id: str,
+    start: float,
+) -> dict:
+    """Compila + ejecuta Java con DISPLAY=Xvfb y retorna captura PNG base64.
+
+    Flow:
+      1. Arrancar Xvfb en :99.
+      2. javac (mismo que modo run, con timeout).
+      3. java -cp tmp <Class> en BACKGROUND con DISPLAY=:99.
+      4. Sleep delay_ms (para que Swing pinte).
+      5. `import -window root -display :99 /tmp/x.png` → captura.
+      6. Kill JVM + Xvfb.
+      7. Base64-encode PNG y retornar.
+    """
+    # Cap defensivo del delay para no agotar el timeout de Lambda.
+    delay_ms = max(200, min(GUI_MAX_DELAY_MS, delay_ms))
+
+    with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
+        source_path = os.path.join(tmp, f"{main_class}.java")
+        with open(source_path, "w", encoding="utf-8") as f:
+            f.write(source)
+
+        # ── Compilar ──
+        try:
+            compile_proc = subprocess.run(
+                ["javac", "-encoding", "UTF-8", "-d", tmp, source_path],
+                capture_output=True,
+                text=True,
+                timeout=COMPILE_TIMEOUT_S,
+                cwd=tmp,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                "mode": "gui_screenshot",
+                "stdout": "",
+                "stderr": f"Compilación excedió el tiempo límite ({COMPILE_TIMEOUT_S}s).",
+                "exitCode": 124,
+                "screenshotBase64": None,
+                "executionTimeMs": int((time.time() - start) * 1000),
+            }
+
+        if compile_proc.returncode != 0:
+            stderr_text = _truncate(compile_proc.stderr or "Error de compilación")
+            logger.info(
+                "◀ RESPONSE id=%s phase=gui_compile_error exit=%d time_ms=%d",
+                request_id,
+                compile_proc.returncode,
+                int((time.time() - start) * 1000),
+            )
+            _log_preview("RESPONSE.compile_stderr", stderr_text, max_chars=1000)
+            return {
+                "mode": "gui_screenshot",
+                "stdout": "",
+                "stderr": stderr_text,
+                "exitCode": compile_proc.returncode,
+                "screenshotBase64": None,
+                "executionTimeMs": int((time.time() - start) * 1000),
+            }
+
+        # ── Arrancar Xvfb ──
+        try:
+            xvfb_proc = _start_xvfb()
+        except Exception as e:
+            return {
+                "mode": "gui_screenshot",
+                "stdout": "",
+                "stderr": f"No se pudo iniciar Xvfb: {e}",
+                "exitCode": 1,
+                "screenshotBase64": None,
+                "executionTimeMs": int((time.time() - start) * 1000),
+            }
+
+        # ── Ejecutar Java en background con DISPLAY ──
+        # -Djava.awt.headless=false: por si la JVM detecta automáticamente
+        # ausencia de DISPLAY y se pone headless. Con Xvfb arriba sí hay
+        # DISPLAY, pero el flag explícito previene sorpresas.
+        # -Xmx512m: techo de heap para evitar OOM-kill de Lambda.
+        env = os.environ.copy()
+        env["DISPLAY"] = GUI_DISPLAY
+        java_proc = subprocess.Popen(
+            [
+                "java",
+                "-Djava.awt.headless=false",
+                "-Xmx512m",
+                "-cp",
+                tmp,
+                main_class,
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        # Espera a que Swing pinte. Si el proceso muere antes (NPE en
+        # main, ClassNotFoundException, etc.) lo detectamos sin esperar
+        # los 2s completos.
+        deadline = time.time() + (delay_ms / 1000.0)
+        early_exit = None
+        while time.time() < deadline:
+            rc = java_proc.poll()
+            if rc is not None:
+                early_exit = rc
+                break
+            time.sleep(0.05)
+
+        # ── Capturar screenshot ──
+        screenshot_path = os.path.join(tmp, "screenshot.png")
+        try:
+            cap_proc = subprocess.run(
+                [
+                    "import",
+                    "-display",
+                    GUI_DISPLAY,
+                    "-window",
+                    "root",
+                    screenshot_path,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            capture_ok = cap_proc.returncode == 0 and os.path.exists(screenshot_path)
+            capture_err = cap_proc.stderr if cap_proc.returncode != 0 else ""
+        except subprocess.TimeoutExpired:
+            capture_ok = False
+            capture_err = "ImageMagick `import` excedió 10s"
+
+        # ── Cleanup: matar JVM y Xvfb ──
+        # IMPORTANTE: si no matamos la JVM, sigue corriendo en background
+        # del container y la próxima invocación warm la encuentra. El
+        # framebuffer de Xvfb queda dirty.
+        _kill_quiet(java_proc)
+        _kill_quiet(xvfb_proc)
+
+        # ── Recoger stdout/stderr de la JVM ──
+        try:
+            stdout_text, stderr_text = java_proc.communicate(timeout=2)
+        except Exception:
+            stdout_text, stderr_text = (b"", b"")
+        stdout_str = _truncate(
+            (stdout_text or b"").decode("utf-8", "replace"), limit=10_000
+        )
+        stderr_str = _truncate(
+            (stderr_text or b"").decode("utf-8", "replace"), limit=10_000
+        )
+
+        time_ms = int((time.time() - start) * 1000)
+
+        # ── Construir respuesta ──
+        if not capture_ok:
+            logger.warning(
+                "◀ RESPONSE id=%s phase=gui_capture_failed time_ms=%d err=%s",
+                request_id,
+                time_ms,
+                capture_err[:200],
+            )
+            return {
+                "mode": "gui_screenshot",
+                "stdout": stdout_str,
+                "stderr": (
+                    stderr_str
+                    + "\n[runner] No se pudo capturar la pantalla: "
+                    + (capture_err or "razón desconocida")
+                ).strip(),
+                "exitCode": early_exit if early_exit is not None else 1,
+                "screenshotBase64": None,
+                "executionTimeMs": time_ms,
+            }
+
+        with open(screenshot_path, "rb") as f:
+            png_bytes = f.read()
+
+        if len(png_bytes) > GUI_MAX_PNG_BYTES:
+            return {
+                "mode": "gui_screenshot",
+                "stdout": stdout_str,
+                "stderr": stderr_str
+                + f"\n[runner] PNG demasiado grande ({len(png_bytes)} bytes)",
+                "exitCode": 1,
+                "screenshotBase64": None,
+                "executionTimeMs": time_ms,
+            }
+
+        b64 = base64.b64encode(png_bytes).decode("ascii")
+        logger.info(
+            "◀ RESPONSE id=%s phase=gui_ok time_ms=%d png_bytes=%d early_exit=%s",
+            request_id,
+            time_ms,
+            len(png_bytes),
+            str(early_exit),
+        )
+        return {
+            "mode": "gui_screenshot",
+            "stdout": stdout_str,
+            "stderr": stderr_str,
+            # Si la JVM terminó sola antes del delay con exit != 0,
+            # propagamos ese exit para que el cliente sepa que algo
+            # falló (NPE, etc.) aunque tengamos screenshot del Xvfb vacío.
+            "exitCode": early_exit if early_exit is not None else 0,
+            "screenshotBase64": b64,
+            "pngBytes": len(png_bytes),
+            "executionTimeMs": time_ms,
+        }
 
 
 def handler(event, _context):
@@ -119,6 +412,9 @@ def handler(event, _context):
 
     source = body.get("sourceCode", "")
     stdin = body.get("stdin", "") or ""
+    mode = str(body.get("mode") or "run").lower()
+    if mode not in ("run", "gui_screenshot"):
+        return _resp(400, {"error": f"mode inválido: {mode}. Opciones: run, gui_screenshot."})
     if not isinstance(source, str) or not source.strip():
         return _resp(400, {"error": "sourceCode requerido"})
     if not isinstance(stdin, str):
@@ -138,8 +434,9 @@ def handler(event, _context):
     # que no infle storage de logs); el stdin a 500.
     request_id = (_context.aws_request_id if _context and hasattr(_context, "aws_request_id") else "n/a")
     logger.info(
-        "▶ REQUEST id=%s class=%s source_length=%d stdin_length=%d",
+        "▶ REQUEST id=%s mode=%s class=%s source_length=%d stdin_length=%d",
         request_id,
+        mode,
         main_class,
         len(source),
         len(stdin),
@@ -149,6 +446,15 @@ def handler(event, _context):
         _log_preview("REQUEST.stdin", stdin, max_chars=500)
 
     start = time.time()
+
+    # ── Dispatch GUI screenshot ──
+    if mode == "gui_screenshot":
+        try:
+            delay_ms = int(body.get("delayMs", GUI_DEFAULT_DELAY_MS))
+        except (TypeError, ValueError):
+            delay_ms = GUI_DEFAULT_DELAY_MS
+        result = _handle_gui_screenshot(source, main_class, delay_ms, request_id, start)
+        return _resp(200, result)
     # /tmp es escribible en Lambda (512MB-10GB ephemeral); TemporaryDirectory
     # se borra al salir del with.
     with tempfile.TemporaryDirectory(dir="/tmp") as tmp:

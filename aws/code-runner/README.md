@@ -4,6 +4,20 @@ Self-hosted alternativa a OnlineCompiler.io para ejecutar código Java de
 los estudiantes. Diseñada para correr 100% dentro del **AWS Always Free
 tier** (sin caducidad de 12 meses).
 
+## Dos modos
+
+El mismo Lambda atiende dos modos según el body que reciba:
+
+| Modo | Body | Uso | Tipo de pregunta |
+|------|------|-----|------------------|
+| `run` (default) | `{ sourceCode, stdin }` | Compila + ejecuta + retorna stdout/stderr | `codigo` (Java consola) |
+| `gui_screenshot` | `{ sourceCode, mode: "gui_screenshot", delayMs? }` | Compila + Xvfb + ImageMagick `import` + retorna PNG base64 | `java_gui` cuando admin elige `aws_screenshot` |
+
+El modo screenshot **no es interactivo** — el alumno solo ve la captura.
+Para Swing interactivo se usa CheerpJ en el navegador (opción 1 del
+documento `docs/JAVA-GUI-OPTIONS.md`). El modo screenshot existe como
+alternativa sin licencia comercial (opción 2 del mismo documento).
+
 ## ¿Qué se despliega?
 
 ```

@@ -25,11 +25,33 @@ import { Save, Info, Code2, Loader2, MonitorPlay, Terminal } from "lucide-react"
 const db = supabase as any;
 
 type CodeProvider = "onlinecompiler" | "jdoodle" | "cheerp" | "aws_lambda";
+type JavaGuiProvider = "cheerp" | "aws_screenshot";
 
 type ProviderRow = {
   id: string;
   provider: CodeProvider;
+  java_gui_provider: JavaGuiProvider;
   is_active: boolean;
+};
+
+const JAVA_GUI_LABELS: Record<JavaGuiProvider, string> = {
+  cheerp: "CheerpJ — navegador (interactivo)",
+  aws_screenshot: "AWS Lambda + Xvfb — captura PNG (no interactivo)",
+};
+
+const JAVA_GUI_DESCRIPTION: Record<JavaGuiProvider, string> = {
+  cheerp:
+    "Swing/AWT/JavaFX corre completamente en el navegador del estudiante (WebAssembly). El alumno puede clickear, escribir, interactuar con la ventana en tiempo real. Requiere licencia comercial para uso multi-usuario en producción — ver docs/JAVA-GUI-OPTIONS.md.",
+  aws_screenshot:
+    "AWS Lambda corre la app Swing bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Útil como modo 'submit & ver render' sin licencia. Requiere desplegar la Lambda con Xvfb + ImageMagick (ver aws/code-runner/).",
+};
+
+const JAVA_GUI_SECRETS: Record<JavaGuiProvider, string[]> = {
+  cheerp: [],
+  aws_screenshot: [
+    "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
+    "AWS_RUNNER_API_KEY",
+  ],
 };
 
 const PROVIDER_LABELS: Record<CodeProvider, string> = {
@@ -65,6 +87,7 @@ export function AdminCodeExecutionPanel() {
   const { user } = useAuth();
   const [activeRow, setActiveRow] = useState<ProviderRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<CodeProvider>("onlinecompiler");
+  const [draftJavaGui, setDraftJavaGui] = useState<JavaGuiProvider>("cheerp");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -72,7 +95,7 @@ export function AdminCodeExecutionPanel() {
     setLoading(true);
     const { data, error } = await db
       .from("code_execution_settings")
-      .select("id, provider, is_active")
+      .select("id, provider, java_gui_provider, is_active")
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
@@ -84,6 +107,7 @@ export function AdminCodeExecutionPanel() {
       const row = data as ProviderRow;
       setActiveRow(row);
       setDraftProvider(row.provider);
+      setDraftJavaGui((row.java_gui_provider as JavaGuiProvider) ?? "cheerp");
     }
     setLoading(false);
   };
@@ -93,7 +117,10 @@ export function AdminCodeExecutionPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const dirty = !activeRow || draftProvider !== activeRow.provider;
+  const dirty =
+    !activeRow ||
+    draftProvider !== activeRow.provider ||
+    draftJavaGui !== (activeRow.java_gui_provider ?? "cheerp");
 
   const handleSave = async () => {
     if (!user) return;
@@ -110,9 +137,12 @@ export function AdminCodeExecutionPanel() {
       }
 
       // Insertar nueva activa
-      const { error: insErr } = await db
-        .from("code_execution_settings")
-        .insert({ provider: draftProvider, is_active: true, updated_by: user.id });
+      const { error: insErr } = await db.from("code_execution_settings").insert({
+        provider: draftProvider,
+        java_gui_provider: draftJavaGui,
+        is_active: true,
+        updated_by: user.id,
+      });
       if (insErr) {
         toast.error(insErr.message);
         return;
@@ -123,14 +153,16 @@ export function AdminCodeExecutionPanel() {
         category: "system",
         severity: "warning",
         entityType: "code_execution_settings",
-        entityName: draftProvider,
+        entityName: `${draftProvider} / ${draftJavaGui}`,
         metadata: {
           previous_provider: activeRow?.provider ?? null,
           new_provider: draftProvider,
+          previous_java_gui_provider: activeRow?.java_gui_provider ?? null,
+          new_java_gui_provider: draftJavaGui,
         },
       });
 
-      toast.success("Proveedor de ejecución actualizado");
+      toast.success("Configuración de ejecución actualizada");
       await load();
     } finally {
       setSaving(false);
@@ -198,51 +230,87 @@ export function AdminCodeExecutionPanel() {
 
           <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
             <p className="text-xs font-medium flex items-center gap-1.5">
-              <Info className="h-3.5 w-3.5 text-indigo-500" />
-              Comportamiento por tipo de pregunta
+              <Terminal className="h-3.5 w-3.5 text-emerald-600" />
+              Tipo <code className="text-[11px]">codigo</code> (texto / consola)
             </p>
-            <div className="grid sm:grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md border bg-background p-2.5">
-                <div className="flex items-center gap-1.5 font-medium mb-1">
-                  <Terminal className="h-3.5 w-3.5 text-emerald-600" />
-                  Tipo <code className="text-[11px]">codigo</code>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Usa el proveedor configurado arriba. Para Java: corre en{" "}
+              <strong>{PROVIDER_LABELS[draftProvider]}</strong>. Para otros lenguajes (Python, JS,
+              C++…) cae a OnlineCompiler.io.
+            </p>
+          </div>
+
+          {/* Selector separado para preguntas java_gui (Swing/AWT/JavaFX) */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-1.5">
+              <MonitorPlay className="h-4 w-4 text-amber-600" />
+              Proveedor para preguntas <code className="text-[11px]">java_gui</code>
+              <HelpHint>
+                Estas preguntas piden al alumno construir una UI con Swing/AWT/JavaFX. Como ningún
+                proveedor de consola puede renderizar UI, hay un selector aparte. Ver
+                docs/JAVA-GUI-OPTIONS.md.
+              </HelpHint>
+            </Label>
+            <RadioGroup
+              value={draftJavaGui}
+              onValueChange={(v) => setDraftJavaGui(v as JavaGuiProvider)}
+              className="space-y-2"
+            >
+              {(["cheerp", "aws_screenshot"] as JavaGuiProvider[]).map((p) => (
+                <div
+                  key={p}
+                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                    draftJavaGui === p
+                      ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+                      : "hover:bg-muted/50"
+                  }`}
+                  onClick={() => setDraftJavaGui(p)}
+                >
+                  <RadioGroupItem value={p} id={`java-gui-${p}`} className="mt-0.5" />
+                  <div className="space-y-0.5">
+                    <Label htmlFor={`java-gui-${p}`} className="text-sm font-medium cursor-pointer">
+                      {JAVA_GUI_LABELS[p]}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">{JAVA_GUI_DESCRIPTION[p]}</p>
+                  </div>
                 </div>
-                <p className="text-muted-foreground leading-relaxed">
-                  Usa el proveedor configurado arriba. Para Java: corre en{" "}
-                  <strong>{PROVIDER_LABELS[draftProvider]}</strong>. Para otros lenguajes
-                  (Python, JS, C++…) cae a OnlineCompiler.io.
-                </p>
-              </div>
-              <div className="rounded-md border bg-background p-2.5">
-                <div className="flex items-center gap-1.5 font-medium mb-1">
-                  <MonitorPlay className="h-3.5 w-3.5 text-amber-600" />
-                  Tipo <code className="text-[11px]">java_gui</code>
-                </div>
-                <p className="text-muted-foreground leading-relaxed">
-                  <strong>Siempre CheerpJ</strong> (en el navegador). Ningún proveedor server-side
-                  puede renderizar Swing/AWT interactivo. Ver{" "}
-                  <code className="text-[11px]">docs/JAVA-GUI-OPTIONS.md</code>.
-                </p>
-              </div>
-            </div>
+              ))}
+            </RadioGroup>
           </div>
 
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs space-y-1">
-              <p>
-                Secrets requeridos para <strong>{PROVIDER_LABELS[draftProvider]}</strong>:
-              </p>
-              <ul className="list-disc list-inside space-y-0.5">
-                {PROVIDER_SECRETS[draftProvider].map((s) => (
-                  <li key={s}>
-                    <code className="text-[11px]">{s}</code>
-                  </li>
-                ))}
-              </ul>
+            <AlertDescription className="text-xs space-y-2">
+              <div>
+                <p>
+                  Secrets para <strong>{PROVIDER_LABELS[draftProvider]}</strong> (tipo{" "}
+                  <code className="text-[11px]">codigo</code>):
+                </p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {PROVIDER_SECRETS[draftProvider].map((s) => (
+                    <li key={s}>
+                      <code className="text-[11px]">{s}</code>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {JAVA_GUI_SECRETS[draftJavaGui].length > 0 && (
+                <div>
+                  <p>
+                    Secrets para <strong>{JAVA_GUI_LABELS[draftJavaGui]}</strong> (tipo{" "}
+                    <code className="text-[11px]">java_gui</code>):
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {JAVA_GUI_SECRETS[draftJavaGui].map((s) => (
+                      <li key={s}>
+                        <code className="text-[11px]">{s}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <p className="pt-1">
-                Configúralos en Lovable → Settings → Edge Function Secrets antes de activar este
-                proveedor.
+                Configúralos en Admin → Edge Function Secrets antes de activar.
               </p>
             </AlertDescription>
           </Alert>
@@ -252,7 +320,10 @@ export function AdminCodeExecutionPanel() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setDraftProvider(activeRow.provider)}
+                onClick={() => {
+                  setDraftProvider(activeRow.provider);
+                  setDraftJavaGui((activeRow.java_gui_provider as JavaGuiProvider) ?? "cheerp");
+                }}
                 disabled={saving}
               >
                 Cancelar
