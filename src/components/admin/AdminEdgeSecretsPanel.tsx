@@ -117,7 +117,12 @@ export function AdminEdgeSecretsPanel() {
       toast.error(detail || "Error al guardar");
       return;
     }
-    toast.success(editorIsEdit ? "Secret actualizada" : "Secret creada");
+    toast.success(editorIsEdit ? "Secret actualizada" : "Secret creada", {
+      description:
+        "Los edge functions verán el nuevo valor en ~15 min (cuando recicle el container actual) " +
+        "o inmediato si redespliegas los edge functions.",
+      duration: 8000,
+    });
     setEditorOpen(false);
     void load();
   };

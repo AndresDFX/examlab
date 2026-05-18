@@ -293,16 +293,39 @@ async function executeWithAwsLambda(
         `Ejecuta 'bash aws/code-runner/deploy.sh' y copia los valores que imprime al final.`,
     );
   }
-  // Defensa de path: el output del CloudFormation incluye /run. Si el
-  // admin copió solo el dominio (sin /run), API Gateway responde 404
-  // genérico imposible de diagnosticar. Lo detectamos aquí.
+  // Defensa de path: detecta URL mal formado y devuelve mensaje claro
+  // diferenciando los 3 casos típicos.
   const urlTrimmed = url.replace(/\/+$/, "");
-  if (!urlTrimmed.endsWith("/run") && !urlTrimmed.includes("/run?")) {
+  const isFunctionUrl = /\.lambda-url\.[a-z0-9-]+\.on\.aws/i.test(url);
+  const isApiGateway = /\.execute-api\.[a-z0-9-]+\.amazonaws\.com/i.test(url);
+  if (isFunctionUrl) {
+    // El URL que tiene es un Lambda Function URL VIEJO — ya no usamos
+    // ese modelo (causaba HTTP 403 por SCPs). Migramos a API Gateway.
     throw new Error(
-      `AWS_RUNNER_URL debe terminar en /run (es la ruta del API Gateway). ` +
+      `AWS_RUNNER_URL tiene un Lambda Function URL (*.lambda-url.*.on.aws) ` +
+        `que era el modelo VIEJO. La arquitectura actual usa API Gateway. ` +
+        `Re-ejecuta 'bash aws/code-runner/deploy.sh' y copia el nuevo AWS_RUNNER_URL ` +
+        `del output (debe terminar en /run y el dominio ser *.execute-api.*.amazonaws.com).`,
+    );
+  }
+  if (isApiGateway && !urlTrimmed.endsWith("/run") && !urlTrimmed.includes("/run?")) {
+    throw new Error(
+      `AWS_RUNNER_URL apunta al API Gateway correcto pero le falta la ruta /run al final. ` +
         `Valor actual: "${url}". Esperado: "${urlTrimmed}/run".`,
     );
   }
+  if (!isApiGateway && !urlTrimmed.endsWith("/run")) {
+    throw new Error(
+      `AWS_RUNNER_URL no parece ser un endpoint de AWS válido. ` +
+        `Esperado: "https://<api-id>.execute-api.<region>.amazonaws.com/run". ` +
+        `Valor actual: "${url}". ` +
+        `Re-ejecuta 'bash aws/code-runner/deploy.sh' y copia el output.`,
+    );
+  }
+  // NOTA: si seteaste un valor nuevo en Admin → Configuración → Secretos
+  // y sigues viendo el viejo, es cache de Supabase Edge Functions —
+  // espera ~15 min a que reciclen los containers o redespliegua los
+  // edge functions para aplicar inmediato.
 
   const startTime = Date.now();
   const response = await fetch(url, {
