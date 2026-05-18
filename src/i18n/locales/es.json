@@ -98,6 +98,7 @@
     "system": "Sistema",
     "emailSettings": "Correos",
     "settings": "Configuración",
+    "tenants": "Tenants",
     "messages": "Mensajes",
     "signOut": "Cerrar sesión",
     "changePassword": "Cambiar contraseña",
@@ -111,6 +112,7 @@
     "options": "Opciones"
   },
   "roles": {
+    "Superadmin": "Superadministrador",
     "Admin": "Administrador",
     "Docente": "Docente",
     "Estudiante": "Estudiante"

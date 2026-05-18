@@ -2,13 +2,16 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-export type AppRole = "Admin" | "Docente" | "Estudiante";
+export type AppRole = "Superadmin" | "Admin" | "Docente" | "Estudiante";
 
 export interface Profile {
   id: string;
   full_name: string;
   personal_email: string | null;
   institutional_email: string;
+  /** Multitenant: tenant al que pertenece este profile.
+   *  Null solo para Superadmin (rol global). */
+  tenant_id: string | null;
 }
 
 export function useAuth() {

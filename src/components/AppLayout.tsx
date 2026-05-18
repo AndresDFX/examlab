@@ -65,6 +65,7 @@ import {
   Bell,
   Library,
   Award,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -246,6 +247,14 @@ const NAV: NavItem[] = [
     icon: Settings,
     roles: ["Admin"],
   },
+  // Superadmin-only: gestión de tenants. Multi-tenant only — no se
+  // muestra a Admin del tenant.
+  {
+    to: "/app/superadmin/tenants",
+    labelKey: "nav.tenants",
+    icon: Building2,
+    roles: ["Superadmin"],
+  },
 ];
 
 const ROLE_CONFIG: Record<
@@ -257,6 +266,13 @@ const ROLE_CONFIG: Record<
     badgeClass: string; // light-mode badge in footer
   }
 > = {
+  Superadmin: {
+    labelKey: "roles.Superadmin",
+    icon: Building2,
+    accent: "text-fuchsia-400 dark:text-fuchsia-300",
+    badgeClass:
+      "bg-fuchsia-500/15 text-fuchsia-700 border-fuchsia-500/25 dark:bg-fuchsia-400/15 dark:text-fuchsia-300 dark:border-fuchsia-400/25",
+  },
   Admin: {
     labelKey: "roles.Admin",
     icon: ShieldCheck,
@@ -307,6 +323,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/student/grades": "text-emerald-300",
   "/app/student/certificates": "text-amber-400",
   "/app/student/calendar": "text-blue-300",
+  "/app/superadmin/tenants": "text-fuchsia-300",
   "/app/messages": "text-cyan-300",
 };
 
