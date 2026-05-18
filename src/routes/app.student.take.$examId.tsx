@@ -167,6 +167,11 @@ function TakeExam() {
   const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [started, setStarted] = useState(false);
+  // Bandera global (app_settings.require_exam_fullscreen). Si el Admin la
+  // desactivó, el examen corre en ventana normal: no se llama a
+  // requestFullscreen, no se muestra el overlay de re-entrada y los strikes
+  // por fullscreen_exit no aplican. Default true (comportamiento histórico).
+  const [requireFullscreen, setRequireFullscreen] = useState(true);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -302,12 +307,26 @@ function TakeExam() {
     if (!user) return;
     (async () => {
       // `courses.language` se introduce en migraciones recientes; cast hasta refrescar tipos.
+      // Setting global de pantalla completa. Lo leemos en paralelo al
+      // fetch del examen — si falla, asumimos true (más seguro).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: e, error: eErr } = await (supabase as any)
+      const settingsPromise = (supabase as any)
+        .from("app_settings")
+        .select("require_exam_fullscreen")
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: examData, error: eErr } = await (supabase as any)
         .from("exams")
         .select("*, course:courses(language, max_exam_attempts)")
         .eq("id", examId)
         .single();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let e: any = examData;
+      void settingsPromise.then(({ data: s }: { data: { require_exam_fullscreen?: boolean } | null }) => {
+        if (s && typeof s.require_exam_fullscreen === "boolean") {
+          setRequireFullscreen(s.require_exam_fullscreen);
+        }
+      });
       if (eErr || !e) {
         // Si el fallo es de red (offline / blip transitorio), no botamos
         // al estudiante — dejamos el spinner y reintentamos en 2s. Su
@@ -516,6 +535,16 @@ function TakeExam() {
         });
       }
     }
+    // Si el Admin desactivó el FS obligatorio (modo depuración), saltamos
+    // el flujo de fullscreen y arrancamos en ventana normal. Igualmente
+    // marcamos hasEverEnteredFullscreenRef=true para que el proctoring
+    // (blur, copy, etc.) sí funcione desde ya — solo desactivamos los
+    // strikes por fullscreen_exit en el onFsChange más abajo.
+    if (!requireFullscreen) {
+      hasEverEnteredFullscreenRef.current = true;
+      setStarted(true);
+      return;
+    }
     // Pantalla completa OBLIGATORIA: si no se puede entrar, no iniciar el examen.
     // Esto cubre: navegador sin soporte, usuario rechazó el prompt, embebido sin permiso.
     try {
@@ -562,12 +591,14 @@ function TakeExam() {
   // a started=true sin pasar por startExam y por ende sin gesture user para
   // requestFullscreen. En ese caso mostramos el overlay para que el estudiante
   // re-entre vía botón (gesture válido).
+  // Skip cuando el Admin desactivó el FS obligatorio.
   useEffect(() => {
     if (!started) return;
+    if (!requireFullscreen) return;
     if (!document.fullscreenElement) {
       setFsExited(true);
     }
-  }, [started]);
+  }, [started, requireFullscreen]);
 
   // Estado del overlay de re-entrada a pantalla completa
   const [fsExited, setFsExited] = useState(false);
@@ -1067,7 +1098,9 @@ function TakeExam() {
         // estricto. A partir de aquí los strikes cuentan.
         hasEverEnteredFullscreenRef.current = true;
         setFsExited(false);
-      } else if (started && !submittedRef.current) {
+      } else if (started && !submittedRef.current && requireFullscreen) {
+        // Solo cuenta strike por salida de FS si la institución exige FS.
+        // En modo depuración (toggle off) el FS no aplica.
         recordWarning("fullscreen_exit");
         setFsExited(true);
       }
@@ -1099,7 +1132,7 @@ function TakeExam() {
       document.removeEventListener("cut", onClipboard);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, performSubmit, maxWarnings]);
+  }, [started, performSubmit, maxWarnings, requireFullscreen]);
 
   const runCode = async (questionId: string, language: CodeLanguage) => {
     const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
@@ -1225,7 +1258,7 @@ function TakeExam() {
                   <ul className="list-disc list-inside ml-5 mt-1 space-y-0.5">
                     <li>Cambiar a otra pestaña o ventana.</li>
                     <li>Ocultar la pestaña (minimizar el navegador).</li>
-                    <li>Salir del modo pantalla completa.</li>
+                    {requireFullscreen && <li>Salir del modo pantalla completa.</li>}
                   </ul>
                 </li>
                 <li>

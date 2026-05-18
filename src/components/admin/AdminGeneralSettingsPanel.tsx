@@ -40,6 +40,7 @@ interface AppSettings {
   default_exam_max_warnings: number;
   default_exam_navigation: "libre" | "secuencial";
   default_exam_max_attempts: number;
+  require_exam_fullscreen: boolean;
   email_alert_threshold_24h: number;
   email_alert_cooldown_hours: number;
   updated_at: string;
@@ -102,6 +103,7 @@ export function AdminGeneralSettingsPanel() {
           default_exam_max_warnings: draft.default_exam_max_warnings,
           default_exam_navigation: draft.default_exam_navigation,
           default_exam_max_attempts: draft.default_exam_max_attempts,
+          require_exam_fullscreen: draft.require_exam_fullscreen,
           email_alert_threshold_24h: draft.email_alert_threshold_24h,
           email_alert_cooldown_hours: draft.email_alert_cooldown_hours,
           updated_by: user.id,
@@ -252,6 +254,33 @@ export function AdminGeneralSettingsPanel() {
                 })
               }
             />
+          </div>
+          <div className="sm:col-span-3">
+            <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={draft.require_exam_fullscreen}
+                onChange={(e) =>
+                  setDraft({ ...draft, require_exam_fullscreen: e.target.checked })
+                }
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  Requerir pantalla completa
+                  <HelpHint>
+                    Si está activo (recomendado), los exámenes exigen pantalla completa y la
+                    salida cuenta como strike. Desactívalo solo para depuración/soporte —
+                    sin pantalla completa el alumno puede tener herramientas externas a la vista.
+                  </HelpHint>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {draft.require_exam_fullscreen
+                    ? "Activo — los exámenes corren en pantalla completa obligatoria."
+                    : "Desactivado — los exámenes corren en ventana normal (modo depuración). Los strikes por fullscreen_exit NO aplican."}
+                </p>
+              </div>
+            </label>
           </div>
         </CardContent>
       </Card>
