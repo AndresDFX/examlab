@@ -136,8 +136,15 @@ const ACTION_LABELS: Record<string, string> = {
 
   // ── IA — generación + calificación ──
   "ai.grading_started": "Calificación IA iniciada",
-  "ai.grading_failed": "Calificación IA fallida",
-  "ai.questions_generation_failed": "Generación IA de preguntas fallida",
+  "ai.grading_failed": "Error de IA — calificación",
+  "ai.questions_generation_failed": "Error de IA — generación de preguntas",
+  "ai_grading.completed": "Calificación IA completada",
+  "ai_questions.generated": "Preguntas generadas con IA",
+  "ai_plagiarism.detected": "Plagio detectado por IA",
+  // ── Ejecución de código (compilador remoto) ──
+  "code.executed": "Código ejecutado",
+  "code.compile_error": "Error de compilación",
+  "code.execute_failed": "Error de IA — compilador",
 
   // ── Fraude / integridad ──
   "fraud.plagiarism_run": "Análisis de plagio ejecutado",
@@ -181,7 +188,6 @@ const ACTION_LABELS: Record<string, string> = {
   "user.logged_out": "Sesión cerrada",
   "user.login_failed": "Inicio de sesión fallido",
   "user.navigated": "Navegación interna",
-  "code.executed": "Código ejecutado",
 
   // ── Calendario externo (Google / Outlook) ──
   "calendar.connected": "Calendario conectado",

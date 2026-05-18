@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,6 +116,17 @@ const NAV: NavItem[] = [
     icon: Presentation,
     roles: ["Docente"],
   },
+  // Banco de preguntas reutilizables por curso (Docente). Va aquí —
+  // arriba — porque es el repositorio que alimenta los formularios de
+  // exam/taller/proyecto. Tenerlo cerca de Cursos refleja el flujo
+  // natural: defino curso → relleno banco → armo evaluaciones.
+  // El admin puede ocultarlo globalmente vía app_settings.question_bank_enabled.
+  {
+    to: "/app/teacher/question-bank",
+    labelKey: "nav.questionBank",
+    icon: Library,
+    roles: ["Docente"],
+  },
   // Exámenes
   { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
   {
@@ -199,13 +211,7 @@ const NAV: NavItem[] = [
     icon: BarChart3,
     roles: ["Admin"],
   },
-  // Banco de preguntas reutilizables por curso (Docente).
-  {
-    to: "/app/teacher/question-bank",
-    labelKey: "nav.questionBank",
-    icon: Library,
-    roles: ["Docente"],
-  },
+  // (Banco de preguntas movido arriba, junto a Cursos/Contenidos.)
   // Prompts (config de IA): override por curso para Docente, globales
   // para Admin. Misma posición visual para no descolocar al usuario
   // cuando cambia de rol.
@@ -388,6 +394,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  // Toggle global del Banco de preguntas (app_settings.question_bank_enabled).
+  // Si el Admin lo desactivó, ocultamos el item del nav y bloqueamos la ruta
+  // (la ruta tira a /app cuando se intenta acceder).
+  const [questionBankEnabled, setQuestionBankEnabled] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("app_settings")
+        .select("question_bank_enabled")
+        .maybeSingle();
+      if (cancelled) return;
+      if (data && typeof data.question_bank_enabled === "boolean") {
+        setQuestionBankEnabled(data.question_bank_enabled);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Web Push: una vez tenemos user, intentamos suscribir el browser.
   // Idempotente — si ya hay suscripción registrada, no hace nada. Si
@@ -432,7 +459,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
   if (!user) return null;
 
-  const visibleNav = NAV.filter((n) => (activeRole ? n.roles.includes(activeRole) : false));
+  const visibleNav = NAV.filter((n) => {
+    if (!activeRole || !n.roles.includes(activeRole)) return false;
+    // Banco de preguntas: el admin puede esconderlo globalmente.
+    if (n.to === "/app/teacher/question-bank" && !questionBankEnabled) return false;
+    return true;
+  });
   const activeCfg = activeRole ? ROLE_CONFIG[activeRole] : null;
   const ActiveIcon = activeCfg?.icon ?? GraduationCap;
 

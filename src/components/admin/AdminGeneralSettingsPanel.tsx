@@ -27,7 +27,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Save, Info, Settings as SettingsIcon, Mail, FileText, GraduationCap } from "lucide-react";
+import {
+  Save,
+  Info,
+  Settings as SettingsIcon,
+  Mail,
+  FileText,
+  GraduationCap,
+  Library,
+} from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -41,6 +49,7 @@ interface AppSettings {
   default_exam_navigation: "libre" | "secuencial";
   default_exam_max_attempts: number;
   require_exam_fullscreen: boolean;
+  question_bank_enabled: boolean;
   email_alert_threshold_24h: number;
   email_alert_cooldown_hours: number;
   updated_at: string;
@@ -104,6 +113,7 @@ export function AdminGeneralSettingsPanel() {
           default_exam_navigation: draft.default_exam_navigation,
           default_exam_max_attempts: draft.default_exam_max_attempts,
           require_exam_fullscreen: draft.require_exam_fullscreen,
+          question_bank_enabled: draft.question_bank_enabled,
           email_alert_threshold_24h: draft.email_alert_threshold_24h,
           email_alert_cooldown_hours: draft.email_alert_cooldown_hours,
           updated_by: user.id,
@@ -145,8 +155,8 @@ export function AdminGeneralSettingsPanel() {
             <GraduationCap className="h-4 w-4 text-blue-500" />
             Defaults para cursos nuevos
             <HelpHint>
-              Estos valores se aplican al crear un curso. El docente/admin puede modificarlos
-              por curso.
+              Estos valores se aplican al crear un curso. El docente/admin puede modificarlos por
+              curso.
             </HelpHint>
           </CardTitle>
         </CardHeader>
@@ -172,9 +182,7 @@ export function AdminGeneralSettingsPanel() {
                 setDraft({ ...draft, default_grade_scale_max: Number(e.target.value) })
               }
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Colombia: 0-5. Otros: 0-10.
-            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">Colombia: 0-5. Otros: 0-10.</p>
           </div>
           <div>
             <Label>Nota mínima de aprobación</Label>
@@ -261,17 +269,15 @@ export function AdminGeneralSettingsPanel() {
                 type="checkbox"
                 className="mt-0.5 h-4 w-4"
                 checked={draft.require_exam_fullscreen}
-                onChange={(e) =>
-                  setDraft({ ...draft, require_exam_fullscreen: e.target.checked })
-                }
+                onChange={(e) => setDraft({ ...draft, require_exam_fullscreen: e.target.checked })}
               />
               <div className="flex-1">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   Requerir pantalla completa
                   <HelpHint>
-                    Si está activo (recomendado), los exámenes exigen pantalla completa y la
-                    salida cuenta como strike. Desactívalo solo para depuración/soporte —
-                    sin pantalla completa el alumno puede tener herramientas externas a la vista.
+                    Si está activo (recomendado), los exámenes exigen pantalla completa y la salida
+                    cuenta como strike. Desactívalo solo para depuración/soporte — sin pantalla
+                    completa el alumno puede tener herramientas externas a la vista.
                   </HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -285,6 +291,38 @@ export function AdminGeneralSettingsPanel() {
         </CardContent>
       </Card>
 
+      {/* Módulos opcionales */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Library className="h-4 w-4 text-amber-500" />
+            Módulos opcionales
+            <HelpHint>
+              Activa o desactiva módulos visibles para docentes/estudiantes. Útil para hacer rollout
+              escalonado o esconder funciones aún en evaluación.
+            </HelpHint>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={draft.question_bank_enabled}
+              onChange={(e) => setDraft({ ...draft, question_bank_enabled: e.target.checked })}
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">Banco de preguntas</div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {draft.question_bank_enabled
+                  ? "Activo — el item 'Banco de preguntas' aparece en el nav del docente."
+                  : "Desactivado — el módulo está escondido del nav y la ruta directa muestra una pantalla 'deshabilitado'."}
+              </p>
+            </div>
+          </label>
+        </CardContent>
+      </Card>
+
       {/* Alerta de correos */}
       <Card>
         <CardHeader className="pb-3">
@@ -292,9 +330,9 @@ export function AdminGeneralSettingsPanel() {
             <Mail className="h-4 w-4 text-cyan-500" />
             Alerta de volumen de correos
             <HelpHint>
-              Si los correos enviados en las últimas 24h exceden el umbral, todos los admins
-              reciben una notificación. Útil para detectar bucles de notificación o picos de
-              actividad inesperados.
+              Si los correos enviados en las últimas 24h exceden el umbral, todos los admins reciben
+              una notificación. Útil para detectar bucles de notificación o picos de actividad
+              inesperados.
             </HelpHint>
           </CardTitle>
         </CardHeader>
@@ -341,9 +379,8 @@ export function AdminGeneralSettingsPanel() {
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
               La revisión corre automáticamente cada 30 min vía cron{" "}
-              <code className="text-[11px]">email-alert-threshold</code>. Asegúrate de que el
-              cron esté activo en{" "}
-              <strong>Admin → Sistema → Tareas programadas</strong>.
+              <code className="text-[11px]">email-alert-threshold</code>. Asegúrate de que el cron
+              esté activo en <strong>Admin → Sistema → Tareas programadas</strong>.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -352,12 +389,7 @@ export function AdminGeneralSettingsPanel() {
       {/* Save bar */}
       <div className="flex flex-wrap gap-2 justify-end">
         {dirty && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDraft(row)}
-            disabled={saving}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setDraft(row)} disabled={saving}>
             Cancelar
           </Button>
         )}

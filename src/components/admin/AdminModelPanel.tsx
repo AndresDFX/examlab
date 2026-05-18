@@ -24,23 +24,25 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Loader2, Save, Info, Cpu } from "lucide-react";
+import { Loader2, Save, Info, Cpu, Eye, EyeOff, KeyRound } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type Provider = "lovable" | "openai";
+type Provider = "lovable" | "openai" | "gemini";
 
 type ModelRow = {
   id: string;
   provider: Provider;
   model: string;
   is_active: boolean;
+  gemini_api_key: string | null;
 };
 
 const PROVIDER_LABELS: Record<Provider, string> = {
   lovable: "Lovable AI Gateway (Gemini)",
   openai: "OpenAI",
+  gemini: "Google Gemini (directo)",
 };
 
 // Sugerencias por provider — el admin puede escribir cualquier id de
@@ -48,11 +50,13 @@ const PROVIDER_LABELS: Record<Provider, string> = {
 const MODEL_SUGGESTIONS: Record<Provider, string[]> = {
   lovable: ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-2.0-flash"],
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini"],
+  gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
 };
 
 const SECRET_NAME: Record<Provider, string> = {
   lovable: "LOVABLE_API_KEY",
   openai: "OPENAI_API_KEY",
+  gemini: "GEMINI_API_KEY",
 };
 
 export function AdminModelPanel() {
@@ -60,6 +64,11 @@ export function AdminModelPanel() {
   const [activeRow, setActiveRow] = useState<ModelRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<Provider>("lovable");
   const [draftModel, setDraftModel] = useState<string>("google/gemini-2.5-flash");
+  // La API key se edita opt-in: si el admin no toca el campo, NO la cambiamos
+  // (se preserva la actual en DB). `null` = sin cambios; string vacío = limpiar
+  // y caer al env var; cualquier otro string = guardar como override.
+  const [draftGeminiKey, setDraftGeminiKey] = useState<string | null>(null);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -67,7 +76,7 @@ export function AdminModelPanel() {
     setLoading(true);
     const { data, error } = await db
       .from("ai_model_settings")
-      .select("id, provider, model, is_active")
+      .select("id, provider, model, is_active, gemini_api_key")
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
@@ -80,6 +89,7 @@ export function AdminModelPanel() {
       setActiveRow(row);
       setDraftProvider(row.provider);
       setDraftModel(row.model);
+      setDraftGeminiKey(null); // sin cambios pendientes al cargar
     }
     setLoading(false);
   };
@@ -90,7 +100,10 @@ export function AdminModelPanel() {
   }, []);
 
   const dirty =
-    !activeRow || draftProvider !== activeRow.provider || draftModel !== activeRow.model;
+    !activeRow ||
+    draftProvider !== activeRow.provider ||
+    draftModel !== activeRow.model ||
+    draftGeminiKey !== null;
 
   const handleProviderChange = (p: Provider) => {
     setDraftProvider(p);
@@ -119,10 +132,20 @@ export function AdminModelPanel() {
         toast.error(deactErr.message);
         return;
       }
-      // Paso 2: insertar la nueva como activa
+      // Paso 2: insertar la nueva como activa. Gemini API key:
+      //  - draftGeminiKey === null  → preservamos el valor anterior (sin cambios)
+      //  - draftGeminiKey === ""    → limpiamos (vuelve a usar env var)
+      //  - draftGeminiKey === "..." → guardamos como override
+      const geminiKeyToWrite =
+        draftGeminiKey === null
+          ? (activeRow?.gemini_api_key ?? null)
+          : draftGeminiKey.trim() === ""
+            ? null
+            : draftGeminiKey.trim();
       const { error: insErr } = await db.from("ai_model_settings").insert({
         provider: draftProvider,
         model: draftModel.trim(),
+        gemini_api_key: geminiKeyToWrite,
         is_active: true,
         updated_by: user.id,
       });
@@ -194,6 +217,7 @@ export function AdminModelPanel() {
               <SelectContent>
                 <SelectItem value="lovable">{PROVIDER_LABELS.lovable}</SelectItem>
                 <SelectItem value="openai">{PROVIDER_LABELS.openai}</SelectItem>
+                <SelectItem value="gemini">{PROVIDER_LABELS.gemini}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -260,6 +284,71 @@ export function AdminModelPanel() {
               Guardar configuración
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Gemini API key — solo relevante cuando el provider activo es 'gemini'.
+          Mostramos la card siempre (para que el admin pueda pre-configurar
+          antes de cambiar de provider), pero con nota explicando. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-amber-500" />
+            API key de Gemini
+            <HelpHint>
+              Override editable desde la UI. Si está vacío, la edge function usa la env var
+              <code className="text-[11px]"> GEMINI_API_KEY</code> como fallback. Solo aplica cuando
+              el provider activo es <strong>Gemini</strong>.
+            </HelpHint>
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            La key se guarda en DB (RLS Admin-only). Visible solo para administradores con sesión.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label>Clave de API</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type={showGeminiKey ? "text" : "password"}
+                value={draftGeminiKey !== null ? draftGeminiKey : (activeRow?.gemini_api_key ?? "")}
+                onChange={(e) => setDraftGeminiKey(e.target.value)}
+                placeholder={
+                  activeRow?.gemini_api_key
+                    ? "(configurada — vacía para usar env var)"
+                    : "AIza... — vacío para usar GEMINI_API_KEY del entorno"
+                }
+                className="font-mono text-sm"
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowGeminiKey((v) => !v)}
+              >
+                {showGeminiKey ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {activeRow?.gemini_api_key
+                ? "Hay una key configurada en DB. Edita para reemplazarla, deja vacío para limpiar y volver al env var."
+                : "No hay key en DB. Las llamadas Gemini usan la env var GEMINI_API_KEY."}
+            </p>
+          </div>
+          {draftProvider !== "gemini" && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Esta clave solo se usa cuando el provider activo es <strong>Gemini</strong>. El
+                provider actual es <strong>{PROVIDER_LABELS[draftProvider]}</strong>.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
     </div>

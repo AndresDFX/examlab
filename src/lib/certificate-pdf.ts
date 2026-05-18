@@ -4,10 +4,25 @@
  * Usa jspdf (sin servidor) + qrcode (QR como data URL embebido). El
  * binario NO se persiste en Storage — se reconstruye desde el snapshot
  * de la fila `certificates` cada vez que el estudiante descarga.
+ *
+ * IMPORTANTE: jspdf y qrcode tienen side effects al importarse (acceden
+ * a `window`/`document`). Si se importan al top-level, cualquier ruta
+ * que importe este módulo se rompe en escenarios SSR/build raros. Por
+ * eso los cargamos en lazy import dentro de cada función. La penalidad
+ * es despreciable: code-splitting natural y bajo demanda al primer
+ * descargar.
  */
-import jsPDF from "jspdf";
-import QRCode from "qrcode";
 import { formatDateLong } from "@/lib/format";
+
+async function loadJsPdf() {
+  const mod = await import("jspdf");
+  return mod.default;
+}
+
+async function loadQrCode() {
+  const mod = await import("qrcode");
+  return mod.default;
+}
 
 export interface CertificateData {
   shortCode: string;
@@ -36,6 +51,9 @@ export function buildVerifyUrl(shortCode: string, origin?: string): string {
  * Devuelve el Blob por si se quiere subir o adjuntar a un email.
  */
 export async function buildCertificatePdf(data: CertificateData): Promise<Blob> {
+  // Lazy load: solo al primer "Descargar PDF". Ver nota en imports.
+  const jsPDF = await loadJsPdf();
+  const QRCode = await loadQrCode();
   // A4 landscape: 297 x 210 mm
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const W = pdf.internal.pageSize.getWidth();
@@ -136,11 +154,7 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
   // ── Fecha de emisión ───────────────────────────────────────────────
   pdf.setFontSize(11);
   pdf.setTextColor(50, 50, 50);
-  pdf.text(
-    `Emitido el ${formatDateLong(new Date(data.issuedAt))}`,
-    M + 18,
-    H - M - 24,
-  );
+  pdf.text(`Emitido el ${formatDateLong(new Date(data.issuedAt))}`, M + 18, H - M - 24);
 
   // ── Bloque de verificación con QR ──────────────────────────────────
   const verifyUrl = buildVerifyUrl(data.shortCode);
@@ -173,11 +187,7 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
   // Hash de verificación (chico, abajo izquierda)
   pdf.setFontSize(6);
   pdf.setTextColor(180, 180, 180);
-  pdf.text(
-    `hash: ${data.payloadHash.slice(0, 32)}...`,
-    M + 18,
-    H - M - 14,
-  );
+  pdf.text(`hash: ${data.payloadHash.slice(0, 32)}...`, M + 18, H - M - 14);
 
   // Si está revocado, marca de agua diagonal
   if (data.revokedAt) {

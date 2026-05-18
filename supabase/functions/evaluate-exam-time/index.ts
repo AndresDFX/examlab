@@ -16,26 +16,35 @@ const adminClient = createClient(
 );
 
 type AiProvider = "lovable" | "openai" | "gemini";
-let cachedModel: { provider: AiProvider; model: string } | null = null;
-async function getActiveAiModel(): Promise<{ provider: AiProvider; model: string }> {
+interface ActiveModel {
+  provider: AiProvider;
+  model: string;
+  gemini_api_key: string | null;
+}
+let cachedModel: ActiveModel | null = null;
+async function getActiveAiModel(): Promise<ActiveModel> {
   if (cachedModel) return cachedModel;
   try {
     const { data } = await adminClient
       .from("ai_model_settings")
-      .select("provider, model")
+      .select("provider, model, gemini_api_key")
       .eq("is_active", true)
       .maybeSingle();
     if (
       data &&
       (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
     ) {
-      cachedModel = { provider: data.provider, model: data.model };
+      cachedModel = {
+        provider: data.provider,
+        model: data.model,
+        gemini_api_key: (data as { gemini_api_key?: string | null }).gemini_api_key ?? null,
+      };
       return cachedModel;
     }
   } catch (e) {
     console.warn("[ai_model_settings] resolve failed, using default:", e);
   }
-  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash" };
+  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash", gemini_api_key: null };
   return cachedModel;
 }
 
@@ -50,7 +59,7 @@ async function aiChatCompletion(body: { messages: any[]; tools?: any[]; tool_cho
     if (!key) throw new Error("OPENAI_API_KEY missing");
   } else if (m.provider === "gemini") {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = Deno.env.get("GEMINI_API_KEY");
+    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
     if (!key) throw new Error("GEMINI_API_KEY missing");
   } else {
     url = "https://ai.gateway.lovable.dev/v1/chat/completions";

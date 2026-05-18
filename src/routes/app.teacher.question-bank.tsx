@@ -50,15 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { toast } from "sonner";
-import {
-  Library,
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  X as XIcon,
-  Save,
-} from "lucide-react";
+import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -119,6 +111,28 @@ function QuestionBankPage() {
   const [courseId, setCourseId] = useState<string>("");
   const [rows, setRows] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Gate del módulo. Si el admin lo desactivó, mostramos pantalla
+  // "deshabilitado" en vez de chocar contra la tabla. También cubre el
+  // caso en que la migración 20260518100000_question_bank no se haya
+  // aplicado todavía (Lovable Publish pendiente) — al fallar el query
+  // mostramos el mismo estado para no quemar al usuario con un toast
+  // críptico de schema cache.
+  const [moduleAvailable, setModuleAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (db as any)
+        .from("app_settings")
+        .select("question_bank_enabled")
+        .maybeSingle();
+      if (cancelled) return;
+      setModuleAvailable(data?.question_bank_enabled === false ? false : true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Filtros
   const [search, setSearch] = useState("");
@@ -199,7 +213,8 @@ function QuestionBankPage() {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (filterType !== "all" && r.type !== filterType) return false;
-      if (filterDifficulty !== "all" && String(r.difficulty ?? "") !== filterDifficulty) return false;
+      if (filterDifficulty !== "all" && String(r.difficulty ?? "") !== filterDifficulty)
+        return false;
       if (q) {
         const hay =
           r.content.toLowerCase().includes(q) ||
@@ -264,10 +279,7 @@ function QuestionBankPage() {
         tags: draft.tags ?? [],
       };
       if (editing) {
-        const { error } = await db
-          .from("question_bank")
-          .update(payload)
-          .eq("id", editing.id);
+        const { error } = await db.from("question_bank").update(payload).eq("id", editing.id);
         if (error) {
           toast.error(error.message);
           return;
@@ -310,6 +322,22 @@ function QuestionBankPage() {
 
   if (!isAdmin && !isDocente) {
     return <p className="text-muted-foreground p-6">Solo docentes y admins.</p>;
+  }
+
+  if (moduleAvailable === false) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="p-8 text-center space-y-2">
+            <Library className="h-10 w-10 text-muted-foreground mx-auto" />
+            <h2 className="text-base font-semibold">Banco de preguntas deshabilitado</h2>
+            <p className="text-sm text-muted-foreground">
+              El administrador desactivó este módulo. Contacta al admin si necesitas usarlo.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -473,11 +501,7 @@ function QuestionBankPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <RowAction
-                            label="Editar"
-                            icon={Pencil}
-                            onClick={() => openEdit(r)}
-                          />
+                          <RowAction label="Editar" icon={Pencil} onClick={() => openEdit(r)} />
                           <RowAction
                             label="Eliminar"
                             icon={Trash2}
@@ -561,9 +585,7 @@ function QuestionBankPage() {
                 </Label>
                 <Textarea
                   value={draft.expected_rubric ?? ""}
-                  onChange={(e) =>
-                    setDraft({ ...draft, expected_rubric: e.target.value })
-                  }
+                  onChange={(e) => setDraft({ ...draft, expected_rubric: e.target.value })}
                   rows={2}
                 />
               </div>
