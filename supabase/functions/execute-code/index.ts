@@ -284,8 +284,23 @@ async function executeWithAwsLambda(
   const url = Deno.env.get("AWS_RUNNER_URL");
   const apiKey = Deno.env.get("AWS_RUNNER_API_KEY");
   if (!url || !apiKey) {
+    // Mensaje accionable: el admin ve EXACTAMENTE qué env var falta.
+    const missing: string[] = [];
+    if (!url) missing.push("AWS_RUNNER_URL");
+    if (!apiKey) missing.push("AWS_RUNNER_API_KEY");
     throw new Error(
-      "AWS_RUNNER_URL o AWS_RUNNER_API_KEY no configurados. Sigue las instrucciones en aws/code-runner/README.md.",
+      `Faltan env vars en Supabase Edge Function Secrets: ${missing.join(", ")}. ` +
+        `Ejecuta 'bash aws/code-runner/deploy.sh' y copia los valores que imprime al final.`,
+    );
+  }
+  // Defensa de path: el output del CloudFormation incluye /run. Si el
+  // admin copió solo el dominio (sin /run), API Gateway responde 404
+  // genérico imposible de diagnosticar. Lo detectamos aquí.
+  const urlTrimmed = url.replace(/\/+$/, "");
+  if (!urlTrimmed.endsWith("/run") && !urlTrimmed.includes("/run?")) {
+    throw new Error(
+      `AWS_RUNNER_URL debe terminar en /run (es la ruta del API Gateway). ` +
+        `Valor actual: "${url}". Esperado: "${urlTrimmed}/run".`,
     );
   }
 

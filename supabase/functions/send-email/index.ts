@@ -413,7 +413,14 @@ Deno.serve(async (req: Request) => {
       // que el docente/admin monitorea). Sin esto, Outlook penaliza
       // el trust score por ausencia de canal de respuesta.
       replyTo: from,
-      subject: row.title,
+      // Asunto branded: prefijo "<BrandName> — " antes del título de la
+      // notificación. Mejora deliverability (clientes pesan el brand al
+      // clasificar) y le da contexto inmediato al alumno cuando ve
+      // varios correos en el inbox. Idempotente: si el title ya empieza
+      // con el brand (legacy o template manual), no lo duplicamos.
+      subject: row.title.toLowerCase().startsWith(fromName.toLowerCase())
+        ? row.title
+        : `${fromName} — ${row.title}`,
       content: text,
       html,
       // Headers extra para deliverability — especialmente Outlook/
