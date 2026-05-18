@@ -136,29 +136,31 @@ async function executeWithOnlineCompiler(
   const exitCode =
     typeof exitCodeRaw === "number" ? exitCodeRaw : statusField === "success" ? 0 : 1;
 
-  // Caso patológico: el API devolvió genérico "Internal error..." sin
-  // detalle. Reescribimos stdout/stderr para que el alumno vea algo
-  // accionable en lugar de un mensaje sin contexto, y disparamos audit
-  // con raw_response para que el admin pueda diagnosticar el provider.
-  const looksLikeOpaqueError =
-    /^\s*internal error: code execution failed/i.test(output) && !errorField;
-  if (looksLikeOpaqueError && exitCode !== 0) {
-    return {
-      stdout: "",
-      stderr:
-        "El compilador no devolvió el detalle del error. Suele indicar un error " +
-        "de compilación (sintaxis, punto y coma, llaves, imports). Revisa tu código y vuelve a intentar.",
-      exitCode,
-      executionTimeMs,
-      signal: typeof signalField === "number" ? signalField : null,
-      rawResponse: data,
-      httpStatus,
-    };
+  // OnlineCompiler.io devuelve "Internal error: code execution failed"
+  // en `output` cuando hay error de compilación; el detalle real (línea,
+  // mensaje del compilador) va en `compile_output`/`error`/`stderr`/etc.
+  // El mensaje opaco no aporta nada al alumno — lo descartamos siempre
+  // que el exitCode indique error.
+  const isOpaqueApiMessage = (s: string): boolean =>
+    /^\s*internal error: code execution failed\s*\.?\s*$/i.test(s) ||
+    /^\s*error: code execution failed\s*\.?\s*$/i.test(s);
+
+  const outputIsOpaque = isOpaqueApiMessage(output);
+  const stdoutFinal = outputIsOpaque ? "" : output;
+
+  // Si el output era opaco y NO encontramos detalle en ningún otro campo
+  // pero exitCode marca error, dejamos un mensaje accionable. Si SÍ hay
+  // detalle, lo mostramos tal cual y descartamos el opaco.
+  let stderrFinal = errorField;
+  if (outputIsOpaque && !errorField && exitCode !== 0) {
+    stderrFinal =
+      "El compilador no devolvió el detalle del error. Suele indicar un error " +
+      "de compilación (sintaxis, punto y coma, llaves, imports). Revisa tu código y vuelve a intentar.";
   }
 
   return {
-    stdout: output,
-    stderr: errorField,
+    stdout: stdoutFinal,
+    stderr: stderrFinal,
     exitCode,
     executionTimeMs,
     signal: typeof signalField === "number" ? signalField : null,

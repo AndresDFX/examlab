@@ -1105,6 +1105,23 @@ function TakeExam() {
         stderr = data?.stderr ?? "";
       }
 
+      // Defense-in-depth: si el provider remoto devolvió el mensaje
+      // opaco genérico ("Internal error: code execution failed") sin
+      // ningún detalle útil, lo reemplazamos por una pista accionable.
+      // El edge function ya hace este filtro server-side, pero lo
+      // duplicamos aquí para cubrir el caso en que el edge no esté
+      // redesplegado todavía con el último fix.
+      const opaqueRe = /^\s*(internal\s+)?error:\s*code execution failed\.?\s*$/i;
+      if (opaqueRe.test(stdout) && !stderr.trim()) {
+        stdout = "";
+        stderr =
+          "El compilador no devolvió el detalle del error. Suele indicar un error " +
+          "de compilación (sintaxis, punto y coma, llaves, imports). Revisa tu código y vuelve a intentar.";
+      } else if (opaqueRe.test(stdout) && stderr.trim()) {
+        // Detalle real en stderr → descartamos el mensaje opaco redundante.
+        stdout = "";
+      }
+
       // Combinar stdout + stderr en el orden natural de terminal.
       // stderr contiene el traceback completo con números de línea — se muestra tal cual.
       const parts: string[] = [];
