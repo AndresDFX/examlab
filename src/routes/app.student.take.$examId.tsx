@@ -1193,14 +1193,17 @@ function TakeExam() {
       // duplicamos aquí para cubrir el caso en que el edge no esté
       // redesplegado todavía con el último fix.
       const opaqueRe = /^\s*(internal\s+)?error:\s*code execution failed\.?\s*$/i;
-      if (opaqueRe.test(stdout) && !stderr.trim()) {
-        stdout = "";
+      const stdoutOpaque = opaqueRe.test(stdout);
+      const stderrOpaque = opaqueRe.test(stderr);
+      if (stdoutOpaque) stdout = "";
+      if (stderrOpaque) stderr = "";
+      if (!stdout.trim() && !stderr.trim()) {
+        // Nada útil que mostrar: o el API se quedó callado o solo devolvió
+        // el mensaje opaco. Inyectamos pista accionable.
         stderr =
-          "El compilador no devolvió el detalle del error. Suele indicar un error " +
-          "de compilación (sintaxis, punto y coma, llaves, imports). Revisa tu código y vuelve a intentar.";
-      } else if (opaqueRe.test(stdout) && stderr.trim()) {
-        // Detalle real en stderr → descartamos el mensaje opaco redundante.
-        stdout = "";
+          "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
+          "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
+          "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
       }
 
       // Combinar stdout + stderr en el orden natural de terminal.

@@ -35,7 +35,11 @@ interface ExecutionResult {
 // OnlineCompiler.io
 // ──────────────────────────────────────────────
 const ONLINECOMPILER_MAP: Record<string, string> = {
-  java:       "openjdk-25",
+  // openjdk-21 (LTS) — más estable que openjdk-25 en la infra del API.
+  // Cuando usábamos openjdk-25, los compile errors devolvían "Internal
+  // error: code execution failed" con exit_code -1, sin el detalle del
+  // compilador. Con openjdk-21 ese path no se rompe.
+  java:       "openjdk-21",
   python:     "python-3.14",
   javascript: "typescript-deno",
   typescript: "typescript-deno",
@@ -145,17 +149,23 @@ async function executeWithOnlineCompiler(
     /^\s*internal error: code execution failed\s*\.?\s*$/i.test(s) ||
     /^\s*error: code execution failed\s*\.?\s*$/i.test(s);
 
+  // El mensaje opaco puede llegar tanto en `output` (stdout) como en
+  // `error` (stderr) según el caso del API. Lo limpiamos de ambos lados.
   const outputIsOpaque = isOpaqueApiMessage(output);
+  const errorIsOpaque = isOpaqueApiMessage(errorField);
   const stdoutFinal = outputIsOpaque ? "" : output;
+  let stderrFinal = errorIsOpaque ? "" : errorField;
 
-  // Si el output era opaco y NO encontramos detalle en ningún otro campo
-  // pero exitCode marca error, dejamos un mensaje accionable. Si SÍ hay
-  // detalle, lo mostramos tal cual y descartamos el opaco.
-  let stderrFinal = errorField;
-  if (outputIsOpaque && !errorField && exitCode !== 0) {
+  // Si después de limpiar no queda nada útil y el exitCode indica error
+  // (incluido el -1 que el API devuelve cuando falla internamente),
+  // sustituimos por un mensaje accionable. El raw_response completo
+  // queda en audit_logs (action: code.compile_error) para que el admin
+  // pueda diagnosticar qué devolvió el provider.
+  if (!stdoutFinal && !stderrFinal && exitCode !== 0) {
     stderrFinal =
-      "El compilador no devolvió el detalle del error. Suele indicar un error " +
-      "de compilación (sintaxis, punto y coma, llaves, imports). Revisa tu código y vuelve a intentar.";
+      "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
+      "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
+      "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
   }
 
   return {

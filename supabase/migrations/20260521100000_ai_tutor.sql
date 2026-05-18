@@ -113,6 +113,25 @@ CREATE POLICY "tutor_messages_select"
 -- Messages INSERT: NO directo del cliente. Solo edge function (service role).
 -- Esto evita inyección de mensajes "assistant" falsos.
 
+-- ── Extender el CHECK de ai_prompts.use_case para aceptar 'tutor_chat' ──
+-- Postgres no permite ALTER CHECK directo: dropear y re-crear.
+-- Idempotente: si ya existía la constraint con tutor_chat (migración re-aplicada),
+-- el DROP IF EXISTS la quita y la volvemos a crear.
+ALTER TABLE public.ai_prompts
+  DROP CONSTRAINT IF EXISTS ai_prompts_use_case_check;
+
+ALTER TABLE public.ai_prompts
+  ADD CONSTRAINT ai_prompts_use_case_check
+  CHECK (use_case IN (
+    'workshop_full',
+    'workshop_question',
+    'project_file',
+    'project_full',
+    'exam_question',
+    'exam_time_evaluation',
+    'tutor_chat'
+  ));
+
 -- ── Prompt default para use_case 'tutor_chat' ───────────────────────
 
 INSERT INTO public.ai_prompts (use_case, course_id, system_prompt)
