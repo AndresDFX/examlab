@@ -166,8 +166,18 @@ const DEFAULT_RUN_TIMEOUT_MS = 30_000;
  * para liberarlo. Si otro elemento ya tenía ese id (p.ej. una ventana
  * de JavaGuiRunner que lo dejó marcado), le quitamos el id mientras
  * dura nuestra ejecución y se lo restauramos al terminar.
+ *
+ * BUG fix: antes hacíamos `target.removeAttribute("id")` al liberar, lo
+ * que dejaba al target sin SU id original (`__cj_run_console`). En la
+ * siguiente ejecución, `ensureHiddenConsole` no lo encontraba y creaba
+ * un pre nuevo, dejando el viejo huérfano en el DOM con texto residual
+ * del run anterior. Si CheerpJ mantenía una referencia cacheada al
+ * viejo elemento, escribía ahí y `consoleEl.textContent` del nuevo
+ * leía vacío, pero el render acumulado mostraba ambos. Ahora preservamos
+ * el id original al liberar.
  */
 function claimConsole(target: HTMLElement): () => void {
+  const originalTargetId = target.id;
   const previous = document.getElementById("console");
   if (previous && previous !== target) {
     previous.removeAttribute("id");
@@ -175,7 +185,12 @@ function claimConsole(target: HTMLElement): () => void {
   }
   target.id = "console";
   return () => {
-    target.removeAttribute("id");
+    // Restauramos el id original del target (no lo dejamos sin id).
+    if (originalTargetId) {
+      target.id = originalTargetId;
+    } else {
+      target.removeAttribute("id");
+    }
     if (previous && previous.dataset.cjPrevConsole === "1") {
       delete previous.dataset.cjPrevConsole;
       previous.id = "console";
@@ -184,8 +199,22 @@ function claimConsole(target: HTMLElement): () => void {
 }
 
 function ensureHiddenConsole(): HTMLPreElement {
+  // Defense-in-depth: limpia cualquier pre huérfano que pueda haber
+  // quedado de versiones anteriores con el bug de claimConsole. Si
+  // detectamos múltiples `__cj_run_console` (no debería ocurrir pero
+  // sí ocurría antes), nos quedamos con uno y eliminamos los demás.
+  const all = document.querySelectorAll<HTMLPreElement>("pre#__cj_run_console");
+  if (all.length > 1) {
+    for (let i = 1; i < all.length; i++) all[i].remove();
+  }
   const existing = document.getElementById("__cj_run_console");
-  if (existing instanceof HTMLPreElement) return existing;
+  if (existing instanceof HTMLPreElement) {
+    // Limpia el buffer SIEMPRE al obtenerlo — garantiza que cada
+    // run arranque con un buffer vacío sin depender de quién haga
+    // el `.textContent = ""` en el caller.
+    existing.textContent = "";
+    return existing;
+  }
   const el = document.createElement("pre");
   el.id = "__cj_run_console";
   Object.assign(el.style, {
