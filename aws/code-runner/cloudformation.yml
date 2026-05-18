@@ -87,31 +87,57 @@ Resources:
         - { Key: app, Value: examlab }
         - { Key: component, Value: code-runner }
 
-  # ── Function URL ──
-  # Reemplaza API Gateway (que NO está en Always Free para REST API
-  # después de 12 meses). Function URL es 100% Always Free.
-  # AuthType=NONE porque validamos con X-API-Key en el handler.
-  RunnerFunctionUrl:
-    Type: AWS::Lambda::Url
+  # ── API Gateway HTTP API ──
+  # Reemplazamos la Lambda Function URL (que devolvía 403 en algunos
+  # AWS accounts por SCPs/account-level policies que bloquean Principal=*
+  # con AuthType=NONE). HTTP API Gateway es el camino "blessed" para
+  # exponer Lambda con auth custom. Costo: $1/M requests después de
+  # los 12 meses gratuitos, despreciable a nuestra escala.
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
     Properties:
-      TargetFunctionArn: !GetAtt RunnerFunction.Arn
-      AuthType: NONE
-      InvokeMode: BUFFERED
-      Cors:
+      Name: examlab-code-runner-api
+      ProtocolType: HTTP
+      Description: HTTP API frente al Lambda runner
+      CorsConfiguration:
         AllowOrigins: ["*"]
         AllowMethods: ["POST"]
         AllowHeaders: ["content-type", "x-api-key"]
         MaxAge: 86400
 
-  # Permiso necesario para que `*` pueda invocar la Function URL.
-  # La seguridad real la pone el X-API-Key dentro del handler.
-  RunnerFunctionUrlPermission:
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt RunnerFunction.Arn
+      PayloadFormatVersion: "2.0"
+      TimeoutInMillis: 29000  # max HTTP API timeout
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /run"
+      Target: !Sub "integrations/${HttpApiIntegration}"
+
+  # Permite que API Gateway invoque la Lambda. SourceArn lo restringe
+  # a ESTE api específicamente para que ningún otro API en la misma
+  # cuenta pueda llamarla.
+  HttpApiInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref RunnerFunction
-      Action: lambda:InvokeFunctionUrl
-      Principal: "*"
-      FunctionUrlAuthType: NONE
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/run"
 
   # ── Log group con retención corta ──
   # Sin esto, CloudWatch crea uno auto con retención "never expire" y
@@ -123,13 +149,13 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
 Outputs:
-  FunctionUrl:
+  RunnerUrl:
     Description: >
-      URL para invocar el runner. Guárdala en Supabase Edge Function
-      Secrets como AWS_RUNNER_URL.
-    Value: !GetAtt RunnerFunctionUrl.FunctionUrl
+      URL del endpoint POST /run. Guárdala en Supabase Edge Function
+      Secrets como AWS_RUNNER_URL. Termina en /run (no añadir slash final).
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/run"
     Export:
-      Name: !Sub "${AWS::StackName}-FunctionUrl"
+      Name: !Sub "${AWS::StackName}-RunnerUrl"
   FunctionArn:
     Description: ARN de la función Lambda.
     Value: !GetAtt RunnerFunction.Arn

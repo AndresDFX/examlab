@@ -112,19 +112,25 @@ echo "════════════════════════�
 echo "  ✓ Deployment completo"
 echo "═══════════════════════════════════════════════════"
 
-FUNCTION_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-  --query "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue" \
+RUNNER_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+  --query "Stacks[0].Outputs[?OutputKey=='RunnerUrl'].OutputValue" \
   --output text --region "$REGION")
 
 echo ""
-echo "Configura estos dos secrets en Supabase:"
-echo "  Settings → Edge Function Secrets:"
+echo "Configura estos dos secrets en Supabase"
+echo "(Lovable / Supabase Dashboard → Settings → Edge Function Secrets):"
 echo ""
-echo "  AWS_RUNNER_URL     = ${FUNCTION_URL}"
-echo "  AWS_RUNNER_API_KEY = (recupéralo con:"
-echo "                       aws ssm get-parameter --name $SSM_API_KEY_NAME \\"
-echo "                         --with-decryption --query Parameter.Value \\"
-echo "                         --output text --region $REGION)"
+echo "  AWS_RUNNER_URL     = ${RUNNER_URL}"
+echo "  AWS_RUNNER_API_KEY = ${API_KEY}"
+echo ""
+echo "Test rápido (debería devolver { stdout: 'hola\\n', ... }):"
+echo ""
+cat <<EOF
+  curl -s -X POST "${RUNNER_URL}" \\
+    -H "Content-Type: application/json" \\
+    -H "X-API-Key: ${API_KEY}" \\
+    -d '{"sourceCode":"public class Main{public static void main(String[] a){System.out.println(\"hola\");}}"}'
+EOF
 echo ""
 echo "Después, en Admin → Configuración → Compilador:"
 echo "  Selecciona 'AWS Lambda — runner propio' como provider activo."
