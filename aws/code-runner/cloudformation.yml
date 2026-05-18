@@ -118,26 +118,38 @@ Resources:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
       IntegrationUri: !GetAtt RunnerFunction.Arn
+      IntegrationMethod: POST
       PayloadFormatVersion: "2.0"
-      TimeoutInMillis: 29000  # max HTTP API timeout
+      TimeoutInMillis: 29000 # max HTTP API timeout
 
   HttpApiRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
       RouteKey: "POST /run"
+      AuthorizationType: NONE
       Target: !Sub "integrations/${HttpApiIntegration}"
 
-  # Permite que API Gateway invoque la Lambda. SourceArn lo restringe
-  # a ESTE api específicamente para que ningún otro API en la misma
-  # cuenta pueda llamarla.
+  # Catch-all route con $default sirve para que cualquier path/method
+  # devuelva al menos una respuesta del Lambda (sin esto, una URL mal
+  # copiada da 403 críptico de API Gateway en lugar de 404 manejable).
+  HttpApiDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "$default"
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${HttpApiIntegration}"
+
+  # Permite que API Gateway invoque la Lambda. SourceArn permisivo
+  # para cubrir tanto POST /run como el catch-all $default.
   HttpApiInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref RunnerFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/run"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*"
 
   # ── Log group con retención corta ──
   # Sin esto, CloudWatch crea uno auto con retención "never expire" y

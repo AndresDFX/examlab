@@ -116,6 +116,65 @@ RUNNER_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='RunnerUrl'].OutputValue" \
   --output text --region "$REGION")
 
+# ── 8) Self-test contra el endpoint ──
+# Confirma que la infra está lista antes de pedirle al usuario que
+# pegue secrets en Supabase. Si esto falla, el problema está en AWS
+# (CF, IAM, Lambda image); no tiene sentido tocar Supabase.
+echo ""
+echo "▶ Self-test contra el endpoint (espera 5s para que API Gateway propague)..."
+sleep 5
+SELFTEST_BODY=$(cat <<'EOF'
+{"sourceCode":"public class Main{public static void main(String[] a){System.out.println(\"selftest\");}}"}
+EOF
+)
+SELFTEST_STATUS=$(curl -s -o /tmp/runner-selftest.out -w "%{http_code}" \
+  -X POST "$RUNNER_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d "$SELFTEST_BODY" || echo "000")
+SELFTEST_RESP=$(cat /tmp/runner-selftest.out 2>/dev/null || echo "")
+
+case "$SELFTEST_STATUS" in
+  200)
+    if echo "$SELFTEST_RESP" | grep -q '"stdout":"selftest'; then
+      echo "  ✓ Self-test OK — el endpoint compila y ejecuta Java"
+    else
+      echo "  ⚠ HTTP 200 pero el output es inesperado:"
+      echo "    $SELFTEST_RESP"
+    fi
+    ;;
+  401)
+    echo "  ✗ HTTP 401 — el X-API-Key no fue validado por el handler."
+    echo "    Verifica que API_KEY env var del Lambda coincida con la del SSM."
+    echo "    Response: $SELFTEST_RESP"
+    ;;
+  403)
+    echo "  ✗ HTTP 403 — API Gateway rechazó la request. Causas comunes:"
+    echo "    1) La permission entre API GW y Lambda aún no propagó (espera 30s y reintenta)."
+    echo "    2) El stack se actualizó pero algún recurso quedó stale."
+    echo "       Solución: \"aws cloudformation delete-stack --stack-name $STACK_NAME --region $REGION\""
+    echo "                 y luego re-correr ./deploy.sh"
+    echo "    Response: $SELFTEST_RESP"
+    ;;
+  404)
+    echo "  ✗ HTTP 404 — la ruta /run no existe en la API."
+    echo "    Verifica que el output RunnerUrl termine en /run."
+    ;;
+  500|502|503|504)
+    echo "  ✗ HTTP $SELFTEST_STATUS — error del Lambda (no llegó al provider o crashed)."
+    echo "    Revisa CloudWatch: aws logs tail /aws/lambda/examlab-code-runner --since 5m --region $REGION"
+    echo "    Response: $SELFTEST_RESP"
+    ;;
+  000)
+    echo "  ✗ Sin conectividad al endpoint. Verifica que $RUNNER_URL sea válido."
+    ;;
+  *)
+    echo "  ⚠ HTTP $SELFTEST_STATUS inesperado:"
+    echo "    $SELFTEST_RESP"
+    ;;
+esac
+rm -f /tmp/runner-selftest.out
+
 echo ""
 echo "Configura estos dos secrets en Supabase"
 echo "(Lovable / Supabase Dashboard → Settings → Edge Function Secrets):"
