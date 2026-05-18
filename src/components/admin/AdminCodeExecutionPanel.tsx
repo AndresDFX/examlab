@@ -19,7 +19,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Save, Info, Code2, Loader2 } from "lucide-react";
+import { Save, Info, Code2, Loader2, MonitorPlay, Terminal } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -195,6 +195,37 @@ export function AdminCodeExecutionPanel() {
               </div>
             ))}
           </RadioGroup>
+
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-medium flex items-center gap-1.5">
+              <Info className="h-3.5 w-3.5 text-indigo-500" />
+              Comportamiento por tipo de pregunta
+            </p>
+            <div className="grid sm:grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md border bg-background p-2.5">
+                <div className="flex items-center gap-1.5 font-medium mb-1">
+                  <Terminal className="h-3.5 w-3.5 text-emerald-600" />
+                  Tipo <code className="text-[11px]">codigo</code>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  Usa el proveedor configurado arriba. Para Java: corre en{" "}
+                  <strong>{PROVIDER_LABELS[draftProvider]}</strong>. Para otros lenguajes
+                  (Python, JS, C++…) cae a OnlineCompiler.io.
+                </p>
+              </div>
+              <div className="rounded-md border bg-background p-2.5">
+                <div className="flex items-center gap-1.5 font-medium mb-1">
+                  <MonitorPlay className="h-3.5 w-3.5 text-amber-600" />
+                  Tipo <code className="text-[11px]">java_gui</code>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  <strong>Siempre CheerpJ</strong> (en el navegador). Ningún proveedor server-side
+                  puede renderizar Swing/AWT interactivo. Ver{" "}
+                  <code className="text-[11px]">docs/JAVA-GUI-OPTIONS.md</code>.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <Alert>
             <Info className="h-4 w-4" />

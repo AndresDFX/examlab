@@ -53,10 +53,15 @@ const RESERVED_SECRETS = new Set([
   "MANAGEMENT_PAT",
 ]);
 
+// El Management API de Supabase ya no devuelve el valor real del secret
+// (lo enmascara internamente por seguridad). Antes intentábamos mostrar
+// los últimos 4 chars del `value` recibido, pero NO eran los reales —
+// eran del valor enmascarado del API. Más honesto: mostrar solo
+// "configured" + length. El admin nunca puede ver el valor completo
+// post-creación (mismo modelo que AWS IAM access keys).
 function maskValue(v: string): string {
-  if (!v) return "";
-  if (v.length <= 4) return "*".repeat(v.length);
-  return `***${v.slice(-4)}`;
+  if (!v) return "(vacío)";
+  return "(configurado)";
 }
 
 function isReserved(name: string): boolean {

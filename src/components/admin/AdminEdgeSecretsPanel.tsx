@@ -162,9 +162,10 @@ export function AdminEdgeSecretsPanel() {
             </HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Los valores se muestran enmascarados (últimos 4 chars). Para ver el valor completo de un
-            secret, recupéralo de la fuente original — Supabase nunca lo devuelve en claro después
-            de creado.
+            Los valores nunca se muestran en claro — Supabase Management API los enmascara para
+            evitar leaks. Solo verás "configurado" + length + fecha. Para ver el valor real,
+            recupéralo de la fuente original (consola de AWS, dashboard de Gemini, etc.) o crea uno
+            nuevo.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
