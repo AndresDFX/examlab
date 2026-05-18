@@ -108,5 +108,26 @@ SELECT cron.schedule(
   $$ SELECT public.check_email_alert_threshold(); $$
 );
 
+-- ────────────────────────── 7) Reintento de AI gradings fallidos
+-- Cada 30 min: busca submissions con `ai_error` en el breakdown (Gemini
+-- 429 o error transitorio) y las recalifica. El cooldown de 30 min en
+-- `list_failed_ai_gradings` evita que una submission se reintente más
+-- de una vez por hora.
+--
+-- IMPORTANTE: requiere setear los siguientes parámetros de DB (una vez):
+--   ALTER DATABASE postgres SET app.settings.retry_grading_url
+--     = 'https://<PROJECT_REF>.supabase.co/functions/v1/retry-failed-ai-gradings';
+--   ALTER DATABASE postgres SET app.settings.retry_grading_secret
+--     = '<RETRY_TRIGGER_SECRET>';
+-- Y `RETRY_TRIGGER_SECRET` debe existir como env var del edge (Lovable
+-- → Settings → Edge Function Secrets) con el MISMO valor.
+SELECT cron.unschedule('retry-failed-ai-gradings')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'retry-failed-ai-gradings');
+SELECT cron.schedule(
+  'retry-failed-ai-gradings',
+  '*/30 * * * *',
+  $$ SELECT public.trigger_retry_failed_ai_gradings(); $$
+);
+
 -- ────────────────────────── Verificación
 SELECT jobname, schedule, active FROM cron.job ORDER BY jobname;

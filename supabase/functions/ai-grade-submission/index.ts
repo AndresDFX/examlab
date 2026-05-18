@@ -359,44 +359,67 @@ Deno.serve(async (req) => {
     // dueño de la submission O docente/admin del curso. El resto de
     // modos (workshop_full / project_*) se llaman desde flujos
     // server-side controlados; ahí basta con auth.
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No autenticado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: u } = await userClient.auth.getUser();
-    if (!u.user) {
-      return new Response(JSON.stringify({ error: "Token inválido" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    // Rate limit: cada call gasta créditos de IA. 120/hora por usuario
-    // = ~2 por minuto, suficiente para calificar manualmente un curso
-    // grande (30-50 entregas) sin disparar 429, pero corta scripts en
-    // loop. El helper deja pasar si el RPC SQL no está disponible.
-    const rl = await enforceRateLimit(userClient, "ai.grade_submission", {
-      max: 120,
-      windowSeconds: 3600,
-    });
-    if (!rl.ok) return rl.response;
+    // X-Trigger-Secret bypass: el cron de reintento automático
+    // (retry-failed-ai-gradings) no tiene un user JWT — se autoriza con
+    // un shared secret del entorno. Si el secret matchea, tratamos al
+    // caller como sistema con permisos de Admin/Docente. La validez del
+    // secret limita el blast radius (sin él, esta ruta sigue requiriendo
+    // user JWT como antes).
+    const triggerSecret =
+      req.headers.get("x-trigger-secret") || req.headers.get("X-Trigger-Secret");
+    const expectedTriggerSecret = Deno.env.get("RETRY_TRIGGER_SECRET");
+    const isSystemTrigger =
+      !!expectedTriggerSecret && !!triggerSecret && triggerSecret === expectedTriggerSecret;
 
-    const callerId = u.user.id;
-    auditCallerId = callerId;
-    const { data: callerRoles } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
-    const callerIsTeacherOrAdmin = (callerRoles ?? []).some(
-      (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
-    );
+    let callerId: string;
+    let callerIsTeacherOrAdmin: boolean;
+
+    if (isSystemTrigger) {
+      // Cron / sistema: sin user JWT. Saltamos rate limit (el cron ya
+      // lo throttle a MAX_PER_RUN cada 30 min) y damos permisos de admin.
+      callerId = "00000000-0000-0000-0000-000000000000"; // system sentinel
+      callerIsTeacherOrAdmin = true;
+      auditCallerId = null; // audit log con actorId null = sistema
+    } else {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "No autenticado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: u } = await userClient.auth.getUser();
+      if (!u.user) {
+        return new Response(JSON.stringify({ error: "Token inválido" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Rate limit: cada call gasta créditos de IA. 120/hora por usuario
+      // = ~2 por minuto, suficiente para calificar manualmente un curso
+      // grande (30-50 entregas) sin disparar 429, pero corta scripts en
+      // loop. El helper deja pasar si el RPC SQL no está disponible.
+      const rl = await enforceRateLimit(userClient, "ai.grade_submission", {
+        max: 120,
+        windowSeconds: 3600,
+      });
+      if (!rl.ok) return rl.response;
+
+      callerId = u.user.id;
+      auditCallerId = callerId;
+      const { data: callerRoles } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerId);
+      callerIsTeacherOrAdmin = (callerRoles ?? []).some(
+        (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+      );
+    }
 
     const body = await req.json();
     auditMode = body.workshopGrading
@@ -1417,9 +1440,8 @@ Idioma de salida: ${langName}.`,
         const selected = Array.from(new Set(selectedRaw));
         const correctSet = new Set(correctIndices);
         const minSel = typeof q.options?.min_selections === "number" ? q.options.min_selections : 0;
-        const maxSel = typeof q.options?.max_selections === "number"
-          ? q.options.max_selections
-          : Infinity;
+        const maxSel =
+          typeof q.options?.max_selections === "number" ? q.options.max_selections : Infinity;
 
         let got = 0;
         const totalCorrect = correctSet.size;
@@ -1665,8 +1687,7 @@ Idioma de salida: ${langName}.`,
           ai_detected: (sub as { ai_detected?: boolean | null }).ai_detected ?? null,
           ai_detected_score:
             (sub as { ai_detected_score?: number | null }).ai_detected_score ?? null,
-          breakdown:
-            (answers as { __breakdown?: unknown }).__breakdown ?? null,
+          breakdown: (answers as { __breakdown?: unknown }).__breakdown ?? null,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

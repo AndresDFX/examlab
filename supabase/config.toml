@@ -79,6 +79,13 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# retry-failed-ai-gradings lo invoca pg_cron via trigger SQL con
+# X-Trigger-Secret (RETRY_TRIGGER_SECRET). No hay user JWT — apagamos
+# verify_jwt y validamos con el shared secret dentro del handler.
+[functions."retry-failed-ai-gradings"]
+enabled = true
+verify_jwt = false
+
 # Custom password reset — el usuario NO está autenticado cuando pide
 # el reset (paso 1) ni cuando lo confirma con el token (paso 2). Las
 # dos funciones se invocan con anon key + body que trae el email o el

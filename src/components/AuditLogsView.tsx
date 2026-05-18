@@ -141,6 +141,8 @@ const ACTION_LABELS: Record<string, string> = {
   "ai_grading.completed": "Calificación IA completada",
   "ai_questions.generated": "Preguntas generadas con IA",
   "ai_plagiarism.detected": "Plagio detectado por IA",
+  "ai.grading_retry_run": "Reintento automático de calificación IA",
+  "ai.grading_retry_run_failed": "Reintento automático de calificación IA falló",
   // ── Ejecución de código (compilador remoto) ──
   "code.executed": "Código ejecutado",
   "code.compile_error": "Error de compilación",
