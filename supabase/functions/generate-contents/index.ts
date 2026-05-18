@@ -11,7 +11,7 @@
 // Body esperado: { id: uuid }  → id del row en `generated_contents`.
 // El cliente debe haber INSERT antes con status='queued'; este handler
 // pasa a 'processing', llama IA, parsea, sube archivos y deja 'done'.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
 
 const corsHeaders = {

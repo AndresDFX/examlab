@@ -3,7 +3,7 @@
 // Devuelve: { suggested_minutes, verdict, explanation, current_minutes }.
 // Lee el system prompt de ai_prompts use_case='exam_time_evaluation'
 // (con fallback hardcodeado al texto del seed).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

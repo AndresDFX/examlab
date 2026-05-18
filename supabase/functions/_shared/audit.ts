@@ -8,7 +8,7 @@
 // Best-effort: nunca lanza. Si la inserción falla, lo logueamos y
 // seguimos — la auditoría no debe romper el flujo principal.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 type AdminClient = ReturnType<typeof createClient>;
 

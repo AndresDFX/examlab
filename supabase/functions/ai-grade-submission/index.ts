@@ -1,5 +1,5 @@
 // AI grading: scores exam answers or workshop submissions via AI Gateway
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
@@ -517,7 +517,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const zipBuf = new Uint8Array(await zipBlob.arrayBuffer());
 
       // Descomprime
-      const fflate = await import("https://esm.sh/fflate@0.8.2");
+      const fflate = await import("npm:fflate@0.8.2");
       const unzipped = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
         fflate.unzip(zipBuf, (err, files) => (err ? reject(err) : resolve(files)));
       });
@@ -894,7 +894,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const zipBuf = new Uint8Array(await dl.data.arrayBuffer());
 
       // Descomprime con fflate
-      const fflate = await import("https://esm.sh/fflate@0.8.2");
+      const fflate = await import("npm:fflate@0.8.2");
       const unzipped = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
         fflate.unzip(zipBuf, (err, files) => (err ? reject(err) : resolve(files)));
       });

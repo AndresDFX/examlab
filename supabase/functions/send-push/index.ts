@@ -13,7 +13,7 @@
 //
 // Si la suscripción retorna 404/410 (gone), la borramos — el browser
 // la invalidó (usuario revocó permiso, desinstaló la PWA, etc.).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import * as webpush from "jsr:@negrel/webpush@0.3.0";
 
 const corsHeaders = {
