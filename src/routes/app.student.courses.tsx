@@ -178,11 +178,7 @@ function StudentCourses() {
         <p className="text-sm text-muted-foreground">{t("courseBoard.indexSubtitle")}</p>
       </div>
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por nombre o período…"
-      />
+      <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o período…" />
 
       {(() => {
         // Filtra por nombre + período. Evita el repintado del grid
@@ -216,29 +212,29 @@ function StudentCourses() {
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setSelectedId(c.id)}
-              className="text-left rounded-lg border bg-card hover:bg-muted/40 transition-colors p-4 space-y-2"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-base leading-tight">{c.name}</h3>
-                {c.period && (
-                  <Badge variant="outline" className="text-[11px]">
-                    {c.period}
-                  </Badge>
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedId(c.id)}
+                className="text-left rounded-lg border bg-card hover:bg-muted/40 transition-colors p-4 space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-base leading-tight">{c.name}</h3>
+                  {c.period && (
+                    <Badge variant="outline" className="text-[11px]">
+                      {c.period}
+                    </Badge>
+                  )}
+                </div>
+                {c.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
                 )}
-              </div>
-              {c.description && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
-              )}
-              <div className="text-[11px] text-muted-foreground tabular-nums">
-                {c.start_date ? formatDateOnly(c.start_date) : "—"}
-                {" → "}
-                {c.end_date ? formatDateOnly(c.end_date) : "—"}
-              </div>
-            </button>
+                <div className="text-[11px] text-muted-foreground tabular-nums">
+                  {c.start_date ? formatDateOnly(c.start_date) : "—"}
+                  {" → "}
+                  {c.end_date ? formatDateOnly(c.end_date) : "—"}
+                </div>
+              </button>
             ))}
           </div>
         );
@@ -287,9 +283,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       if (contentIds.length > 0) {
         const { data: cs } = await db
           .from("generated_contents")
-          .select(
-            "id, topic, mode, duration_minutes, modality, files, release_after_session_date",
-          )
+          .select("id, topic, mode, duration_minutes, modality, files, release_after_session_date")
           .in("id", contentIds);
         const map: Record<string, ContentRow> = {};
         for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
@@ -500,6 +494,12 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/app/student/tutor/$courseId" params={{ courseId: course.id }}>
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  Tutor IA
+                </Link>
+              </Button>
               <Button size="sm" variant="outline" asChild>
                 <Link to="/app/forum/$courseId" params={{ courseId: course.id }}>
                   <MessageSquareText className="h-4 w-4 mr-1" />
