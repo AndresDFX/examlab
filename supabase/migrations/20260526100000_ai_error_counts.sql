@@ -103,7 +103,10 @@ RETURNS TABLE (
   actor_email TEXT,
   actor_id UUID,
   entity_type TEXT,
-  entity_id UUID,
+  -- audit_logs.entity_id es TEXT (no UUID) en el schema actual —
+  -- algunos audits guardan ahí UUIDs y otros strings arbitrarios
+  -- (ej. "submission:examId/qid"). Devolvemos TEXT para no fallar.
+  entity_id TEXT,
   created_at TIMESTAMPTZ,
   metadata JSONB
 )
