@@ -231,6 +231,7 @@ function TeacherWorkshops() {
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
@@ -417,7 +418,7 @@ function TeacherWorkshops() {
   };
 
   const load = async () => {
-    const [{ data: cs }, { data: ws }, { data: cuts }] = await Promise.all([
+    const [{ data: cs }, { data: ws }, { data: cuts }, { data: aiErr }] = await Promise.all([
       supabase
         .from("courses")
         .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
@@ -432,10 +433,16 @@ function TeacherWorkshops() {
           "id, course_id, name, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
         )
         .order("position"),
+      (supabase as any).rpc("count_ai_errors_per_workshop"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
     setCuts((cuts ?? []) as Cut[]);
+    const errMap: Record<string, number> = {};
+    for (const row of (aiErr ?? []) as Array<{ workshop_id: string; error_count: number }>) {
+      errMap[row.workshop_id] = Number(row.error_count) || 0;
+    }
+    setAiErrorsByWorkshop(errMap);
   };
   useEffect(() => {
     load();
@@ -756,9 +763,11 @@ function TeacherWorkshops() {
 
   // Estado del dialog de duplicar (reemplaza el inline INSERT por la
   // RPC clone_workshop que permite elegir curso destino y valida permisos).
-  const [duplicateSource, setDuplicateSource] = useState<
-    { id: string; title: string; courseId: string } | null
-  >(null);
+  const [duplicateSource, setDuplicateSource] = useState<{
+    id: string;
+    title: string;
+    courseId: string;
+  } | null>(null);
   const duplicateWorkshop = (ws: Workshop) => {
     setDuplicateSource({ id: ws.id, title: ws.title, courseId: ws.course_id });
   };
@@ -1671,9 +1680,7 @@ function TeacherWorkshops() {
     toast.success("Entrega reabierta. El estudiante puede reenviar.");
     setWsSubs((prev) =>
       prev.map((s) =>
-        s.id === sub.id
-          ? { ...s, status: "entregado", final_grade: null, ai_grade: null }
-          : s,
+        s.id === sub.id ? { ...s, status: "entregado", final_grade: null, ai_grade: null } : s,
       ),
     );
   };
@@ -1908,13 +1915,14 @@ function TeacherWorkshops() {
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-28">{t("common.end")}</TableHead>
                 <TableHead className="w-24">{t("common.status")}</TableHead>
+                <TableHead className="hidden md:table-cell w-24 text-right">Errores IA</TableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {workshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={9}
+                  colSpan={10}
                   icon={Hammer}
                   text="Aún no has creado ningún taller."
                   hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
@@ -1927,7 +1935,7 @@ function TeacherWorkshops() {
                 />
               ) : filteredWorkshops.length === 0 ? (
                 <TableEmpty
-                  colSpan={9}
+                  colSpan={10}
                   icon={Hammer}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los talleres."
@@ -1982,6 +1990,19 @@ function TeacherWorkshops() {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={ws.status} />
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">
+                    {aiErrorsByWorkshop[ws.id] ? (
+                      <Badge
+                        variant="destructive"
+                        className="text-[10px]"
+                        title={`${aiErrorsByWorkshop[ws.id]} entrega(s) con error de IA. El cron reintenta cada 30 min.`}
+                      >
+                        {aiErrorsByWorkshop[ws.id]}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActionsMenu
@@ -2873,266 +2894,272 @@ function TeacherWorkshops() {
               wsSubs
                 .filter((sub) => sub.id === viewingSubId)
                 .map((sub) => {
-                // Resumen agregado de alertas de integridad para este
-                // estudiante (suma de IA + copia pendientes/totales en
-                // sus respuestas). Lo usamos para destacar la card y
-                // pintar badges en el header — el docente sabe que tiene
-                // que expandir el acordeón sin abrirlo a ciegas.
-                const aiSigsForSub = wsAiSignalsBySubmissionQuestion.get(sub.id);
-                const copyPairsForUser = wsCopyPairsByUser.get(sub.user_id) ?? [];
-                const integrity = computeWorkshopAlerts(
-                  aiSigsForSub ? aiSigsForSub.values() : [],
-                  copyPairsForUser,
-                );
-                const hasPendingAlerts = integrity.totalPending > 0;
-                return (
-                  <Card
-                    key={sub.id}
-                    id={`ws-sub-${sub.id}`}
-                    className={[
-                      // Borde rojo/ámbar prominente cuando hay alertas
-                      // PENDIENTES de revisar. Si todas están revisadas
-                      // (pero existen), volvemos al borde por status
-                      // (ai_revisado = ámbar suave).
-                      hasPendingAlerts
-                        ? "border-red-400/70 bg-red-50/30 dark:border-red-500/40 dark:bg-red-500/5"
-                        : sub.status === "ai_revisado"
-                          ? "border-amber-400/50 dark:border-amber-500/30"
-                          : "",
-                      highlightSubId === sub.id ? "ring-2 ring-primary/60" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                  >
-                    <CardContent className="p-4 space-y-3">
-                      {/* Header */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm truncate">
-                            {sub.profile?.full_name}
+                  // Resumen agregado de alertas de integridad para este
+                  // estudiante (suma de IA + copia pendientes/totales en
+                  // sus respuestas). Lo usamos para destacar la card y
+                  // pintar badges en el header — el docente sabe que tiene
+                  // que expandir el acordeón sin abrirlo a ciegas.
+                  const aiSigsForSub = wsAiSignalsBySubmissionQuestion.get(sub.id);
+                  const copyPairsForUser = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                  const integrity = computeWorkshopAlerts(
+                    aiSigsForSub ? aiSigsForSub.values() : [],
+                    copyPairsForUser,
+                  );
+                  const hasPendingAlerts = integrity.totalPending > 0;
+                  return (
+                    <Card
+                      key={sub.id}
+                      id={`ws-sub-${sub.id}`}
+                      className={[
+                        // Borde rojo/ámbar prominente cuando hay alertas
+                        // PENDIENTES de revisar. Si todas están revisadas
+                        // (pero existen), volvemos al borde por status
+                        // (ai_revisado = ámbar suave).
+                        hasPendingAlerts
+                          ? "border-red-400/70 bg-red-50/30 dark:border-red-500/40 dark:bg-red-500/5"
+                          : sub.status === "ai_revisado"
+                            ? "border-amber-400/50 dark:border-amber-500/30"
+                            : "",
+                        highlightSubId === sub.id ? "ring-2 ring-primary/60" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <CardContent className="p-4 space-y-3">
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">
+                              {sub.profile?.full_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {sub.profile?.institutional_email}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {sub.profile?.institutional_email}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          {/* Badges de alertas de integridad. Solo se
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {/* Badges de alertas de integridad. Solo se
                               muestran si HAY alertas (pendientes o
                               revisadas). Color:
                                 - destructive = pendientes
                                 - emerald = todas revisadas */}
-                          {integrity.aiTotal > 0 && (
-                            <Badge
-                              variant={integrity.aiPending > 0 ? "destructive" : "outline"}
-                              className={
-                                integrity.aiPending > 0
-                                  ? "text-[10px] flex items-center gap-1"
-                                  : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                            {integrity.aiTotal > 0 && (
+                              <Badge
+                                variant={integrity.aiPending > 0 ? "destructive" : "outline"}
+                                className={
+                                  integrity.aiPending > 0
+                                    ? "text-[10px] flex items-center gap-1"
+                                    : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                }
+                                title={
+                                  integrity.aiPending > 0
+                                    ? `IA: ${integrity.aiPending} pendiente${integrity.aiPending === 1 ? "" : "s"} de ${integrity.aiTotal}`
+                                    : `IA: ${integrity.aiTotal} revisada${integrity.aiTotal === 1 ? "" : "s"}`
+                                }
+                              >
+                                <Bot className="h-3 w-3" />
+                                {integrity.aiPending > 0
+                                  ? `${integrity.aiPending}/${integrity.aiTotal}`
+                                  : `${integrity.aiTotal} ✓`}
+                              </Badge>
+                            )}
+                            {integrity.copyTotal > 0 && (
+                              <Badge
+                                variant={integrity.copyPending > 0 ? "destructive" : "outline"}
+                                className={
+                                  integrity.copyPending > 0
+                                    ? "text-[10px] flex items-center gap-1"
+                                    : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                }
+                                title={
+                                  integrity.copyPending > 0
+                                    ? `Copia: ${integrity.copyPending} pendiente${integrity.copyPending === 1 ? "" : "s"} de ${integrity.copyTotal}`
+                                    : `Copia: ${integrity.copyTotal} revisada${integrity.copyTotal === 1 ? "" : "s"}`
+                                }
+                              >
+                                <Users className="h-3 w-3" />
+                                {integrity.copyPending > 0
+                                  ? `${integrity.copyPending}/${integrity.copyTotal}`
+                                  : `${integrity.copyTotal} ✓`}
+                              </Badge>
+                            )}
+                            <StatusBadge status={sub.status || "pendiente"} />
+                            <RowAction
+                              label="Eliminar entrega"
+                              icon={Trash2}
+                              tone="destructive"
+                              onClick={() =>
+                                deleteSubmission(
+                                  sub.id,
+                                  sub.profile?.full_name ?? "este estudiante",
+                                )
                               }
-                              title={
-                                integrity.aiPending > 0
-                                  ? `IA: ${integrity.aiPending} pendiente${integrity.aiPending === 1 ? "" : "s"} de ${integrity.aiTotal}`
-                                  : `IA: ${integrity.aiTotal} revisada${integrity.aiTotal === 1 ? "" : "s"}`
-                              }
-                            >
-                              <Bot className="h-3 w-3" />
-                              {integrity.aiPending > 0
-                                ? `${integrity.aiPending}/${integrity.aiTotal}`
-                                : `${integrity.aiTotal} ✓`}
-                            </Badge>
-                          )}
-                          {integrity.copyTotal > 0 && (
-                            <Badge
-                              variant={integrity.copyPending > 0 ? "destructive" : "outline"}
-                              className={
-                                integrity.copyPending > 0
-                                  ? "text-[10px] flex items-center gap-1"
-                                  : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                              }
-                              title={
-                                integrity.copyPending > 0
-                                  ? `Copia: ${integrity.copyPending} pendiente${integrity.copyPending === 1 ? "" : "s"} de ${integrity.copyTotal}`
-                                  : `Copia: ${integrity.copyTotal} revisada${integrity.copyTotal === 1 ? "" : "s"}`
-                              }
-                            >
-                              <Users className="h-3 w-3" />
-                              {integrity.copyPending > 0
-                                ? `${integrity.copyPending}/${integrity.copyTotal}`
-                                : `${integrity.copyTotal} ✓`}
-                            </Badge>
-                          )}
-                          <StatusBadge status={sub.status || "pendiente"} />
-                          <RowAction
-                            label="Eliminar entrega"
-                            icon={Trash2}
-                            tone="destructive"
-                            onClick={() =>
-                              deleteSubmission(sub.id, sub.profile?.full_name ?? "este estudiante")
-                            }
-                          />
+                            />
+                          </div>
                         </div>
-                      </div>
 
-                    {/* Student content */}
-                    {sub.content && (
-                      <p className="text-sm bg-muted/50 p-2.5 rounded whitespace-pre-wrap">
-                        {sub.content}
-                      </p>
-                    )}
-                    {sub.file_url && (
-                      <button
-                        onClick={async () => {
-                          const { data } = await supabase.storage
-                            .from("workshop-files")
-                            .createSignedUrl(sub.file_url!, 3600);
-                          if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                          else toast.error("No se pudo generar el enlace de descarga");
-                        }}
-                        className="flex items-center gap-1.5 text-sm text-primary hover:underline"
-                      >
-                        <FileIcon className="h-3.5 w-3.5" />
-                        <span className="truncate max-w-[200px]">
-                          {sub.file_url.split("/").pop()}
-                        </span>
-                        <Download className="h-3 w-3 shrink-0" />
-                      </button>
-                    )}
-                    {sub.external_link && (
-                      <a
-                        href={sub.external_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" /> {sub.external_link}
-                      </a>
-                    )}
-
-                    {/* AI Review pending approval */}
-                    {sub.status === "ai_revisado" && sub.ai_grade != null && (
-                      <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-amber-500" />
-                          <span className="text-sm font-medium">
-                            Calificación IA: {sub.ai_grade}/{gradingWs?.max_score ?? 100}
-                          </span>
-                        </div>
-                        {sub.ai_feedback && (
-                          <p className="text-sm text-muted-foreground">{sub.ai_feedback}</p>
+                        {/* Student content */}
+                        {sub.content && (
+                          <p className="text-sm bg-muted/50 p-2.5 rounded whitespace-pre-wrap">
+                            {sub.content}
+                          </p>
                         )}
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                            onClick={() => approveAIGrade(sub.id)}
+                        {sub.file_url && (
+                          <button
+                            onClick={async () => {
+                              const { data } = await supabase.storage
+                                .from("workshop-files")
+                                .createSignedUrl(sub.file_url!, 3600);
+                              if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                              else toast.error("No se pudo generar el enlace de descarga");
+                            }}
+                            className="flex items-center gap-1.5 text-sm text-primary hover:underline"
                           >
-                            <ThumbsUp className="h-3.5 w-3.5" /> Aprobar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5"
-                            onClick={() => rejectAIGrade(sub.id)}
+                            <FileIcon className="h-3.5 w-3.5" />
+                            <span className="truncate max-w-[200px]">
+                              {sub.file_url.split("/").pop()}
+                            </span>
+                            <Download className="h-3 w-3 shrink-0" />
+                          </button>
+                        )}
+                        {sub.external_link && (
+                          <a
+                            href={sub.external_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary flex items-center gap-1"
                           >
-                            <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                            <ExternalLink className="h-3 w-3" /> {sub.external_link}
+                          </a>
+                        )}
 
-                    {/* Per-question review & grading (editable). El
+                        {/* AI Review pending approval */}
+                        {sub.status === "ai_revisado" && sub.ai_grade != null && (
+                          <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-amber-500" />
+                              <span className="text-sm font-medium">
+                                Calificación IA: {sub.ai_grade}/{gradingWs?.max_score ?? 100}
+                              </span>
+                            </div>
+                            {sub.ai_feedback && (
+                              <p className="text-sm text-muted-foreground">{sub.ai_feedback}</p>
+                            )}
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                onClick={() => approveAIGrade(sub.id)}
+                              >
+                                <ThumbsUp className="h-3.5 w-3.5" /> Aprobar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5"
+                                onClick={() => rejectAIGrade(sub.id)}
+                              >
+                                <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Per-question review & grading (editable). El
                         Accordion se mantiene por compatibilidad con el
                         trigger visual, pero por defecto SIEMPRE arranca
                         expandido en modo detalle — el docente entró al
                         detalle precisamente para ver las preguntas. */}
-                    {wsQuestions.length > 0 && (
-                      <Accordion
-                        type="single"
-                        collapsible
-                        className="w-full"
-                        defaultValue={`per-q-${sub.id}`}
-                      >
-                        <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
-                          <AccordionTrigger className="px-3 py-2 text-sm">
-                            Revisar respuestas por pregunta ({wsQuestions.length})
-                          </AccordionTrigger>
-                          <AccordionContent className="px-3 pb-3 space-y-3">
-                            {wsQuestions.map((q, idx) => {
-                              const ans = (answersBySub[sub.id] ?? []).find(
-                                (a) => a.question_id === q.id,
-                              );
-                              const raw =
-                                ans?.code_content ??
-                                ans?.diagram_code ??
-                                ans?.selected_option ??
-                                ans?.answer_text ??
-                                "";
-                              const isHighlighted =
-                                highlightSubId === sub.id && highlightWsQuestionId === q.id;
-                              return (
-                                <div
-                                  key={q.id}
-                                  id={`ws-q-${sub.id}-${q.id}`}
-                                  className={`rounded-md border p-3 space-y-2 bg-muted/20 ${
-                                    isHighlighted ? "ring-2 ring-primary/60" : ""
-                                  }`}
-                                >
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant="outline" className="text-[10px]">
-                                      {idx + 1}
-                                    </Badge>
-                                    <Badge variant="secondary" className="text-[10px] capitalize">
-                                      {q.type}
-                                    </Badge>
-                                    <span className="text-[11px] text-muted-foreground">
-                                      máx {q.points} pts
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <MarkdownInline>{q.content}</MarkdownInline>
-                                  </div>
-                                  <div>
-                                    <Label className="text-[11px] text-muted-foreground">
-                                      Respuesta del estudiante
-                                    </Label>
-                                    {q.type === "cerrada" ? (
-                                      <div className="text-sm mt-1">
-                                        {(() => {
-                                          const i =
-                                            ans?.selected_option != null
-                                              ? Number(ans.selected_option)
-                                              : -1;
-                                          const choice = q.options?.choices?.[i];
-                                          const correct = q.options?.correct_index;
-                                          return choice != null ? (
-                                            <span
-                                              className={
-                                                correct === i
-                                                  ? "text-emerald-600 dark:text-emerald-400"
-                                                  : "text-destructive"
-                                              }
-                                            >
-                                              {String.fromCharCode(65 + i)}. {choice}
-                                            </span>
-                                          ) : (
-                                            <span className="italic text-muted-foreground">
-                                              Sin respuesta
-                                            </span>
-                                          );
-                                        })()}
+                        {wsQuestions.length > 0 && (
+                          <Accordion
+                            type="single"
+                            collapsible
+                            className="w-full"
+                            defaultValue={`per-q-${sub.id}`}
+                          >
+                            <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
+                              <AccordionTrigger className="px-3 py-2 text-sm">
+                                Revisar respuestas por pregunta ({wsQuestions.length})
+                              </AccordionTrigger>
+                              <AccordionContent className="px-3 pb-3 space-y-3">
+                                {wsQuestions.map((q, idx) => {
+                                  const ans = (answersBySub[sub.id] ?? []).find(
+                                    (a) => a.question_id === q.id,
+                                  );
+                                  const raw =
+                                    ans?.code_content ??
+                                    ans?.diagram_code ??
+                                    ans?.selected_option ??
+                                    ans?.answer_text ??
+                                    "";
+                                  const isHighlighted =
+                                    highlightSubId === sub.id && highlightWsQuestionId === q.id;
+                                  return (
+                                    <div
+                                      key={q.id}
+                                      id={`ws-q-${sub.id}-${q.id}`}
+                                      className={`rounded-md border p-3 space-y-2 bg-muted/20 ${
+                                        isHighlighted ? "ring-2 ring-primary/60" : ""
+                                      }`}
+                                    >
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {idx + 1}
+                                        </Badge>
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[10px] capitalize"
+                                        >
+                                          {q.type}
+                                        </Badge>
+                                        <span className="text-[11px] text-muted-foreground">
+                                          máx {q.points} pts
+                                        </span>
                                       </div>
-                                    ) : raw ? (
-                                      <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
-                                        {raw}
-                                      </pre>
-                                    ) : (
-                                      <p className="text-xs italic text-muted-foreground mt-1">
-                                        Sin respuesta
-                                      </p>
-                                    )}
-                                  </div>
-                                  {/* Sugerencia de penalización por integridad (IA o
+                                      <div className="text-sm">
+                                        <MarkdownInline>{q.content}</MarkdownInline>
+                                      </div>
+                                      <div>
+                                        <Label className="text-[11px] text-muted-foreground">
+                                          Respuesta del estudiante
+                                        </Label>
+                                        {q.type === "cerrada" ? (
+                                          <div className="text-sm mt-1">
+                                            {(() => {
+                                              const i =
+                                                ans?.selected_option != null
+                                                  ? Number(ans.selected_option)
+                                                  : -1;
+                                              const choice = q.options?.choices?.[i];
+                                              const correct = q.options?.correct_index;
+                                              return choice != null ? (
+                                                <span
+                                                  className={
+                                                    correct === i
+                                                      ? "text-emerald-600 dark:text-emerald-400"
+                                                      : "text-destructive"
+                                                  }
+                                                >
+                                                  {String.fromCharCode(65 + i)}. {choice}
+                                                </span>
+                                              ) : (
+                                                <span className="italic text-muted-foreground">
+                                                  Sin respuesta
+                                                </span>
+                                              );
+                                            })()}
+                                          </div>
+                                        ) : raw ? (
+                                          <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
+                                            {raw}
+                                          </pre>
+                                        ) : (
+                                          <p className="text-xs italic text-muted-foreground mt-1">
+                                            Sin respuesta
+                                          </p>
+                                        )}
+                                      </div>
+                                      {/* Sugerencia de penalización por integridad (IA o
                                       copia) por pregunta. Mismo patrón que el modal
                                       de respuestas del monitor de exámenes: cuando
                                       la pregunta tiene señal IA ≥ 0.6 o un par de
@@ -3141,234 +3168,96 @@ function TeacherWorkshops() {
                                       sugerencia" que precarga el input de IA. El
                                       docente puede ignorarla y poner el valor que
                                       quiera. */}
-                                  {(() => {
-                                    const aiSig = wsAiSignalsBySubmissionQuestion
-                                      .get(sub.id)
-                                      ?.get(q.id);
-                                    const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
-                                    const qPairs = userPairs.filter((p) => p.questionId === q.id);
-                                    const plagiarismMax =
-                                      qPairs.length > 0
-                                        ? qPairs.reduce((m, p) => Math.max(m, p.score), 0)
-                                        : null;
-                                    const currentRaw =
-                                      ans?.ai_grade != null ? Number(ans.ai_grade) : null;
-                                    if (currentRaw == null || currentRaw <= 0) return null;
-                                    const sug = computeIntegritySuggestion(
-                                      currentRaw,
-                                      aiSig?.score ?? null,
-                                      plagiarismMax,
-                                    );
-                                    if (!sug) return null;
-                                    const aiPct = Math.round((aiSig?.score ?? 0) * 100);
-                                    const cpPct = Math.round((plagiarismMax ?? 0) * 100);
-                                    return (
-                                      <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
-                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
-                                        <span className="font-medium text-amber-700 dark:text-amber-300">
-                                          {t("integrity.perQuestionSuggestion")}
-                                        </span>
-                                        <span className="font-semibold tabular-nums">
-                                          {sug.suggested.toLocaleString("es-CO")} / {q.points}
-                                        </span>
-                                        <Badge variant="outline" className="text-[10px]">
-                                          {sug.source === "ai"
-                                            ? `IA ${aiPct}%`
-                                            : sug.source === "plagio"
-                                              ? `Copia ${cpPct}%`
-                                              : `IA ${aiPct}% + Copia ${cpPct}%`}
-                                        </Badge>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
-                                          onClick={() =>
-                                            patchAnswer(sub.id, q.id, { ai_grade: sug.suggested })
-                                          }
-                                        >
-                                          {t("integrity.applySuggestion")}
-                                        </Button>
-                                      </div>
-                                    );
-                                  })()}
+                                      {(() => {
+                                        const aiSig = wsAiSignalsBySubmissionQuestion
+                                          .get(sub.id)
+                                          ?.get(q.id);
+                                        const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                                        const qPairs = userPairs.filter(
+                                          (p) => p.questionId === q.id,
+                                        );
+                                        const plagiarismMax =
+                                          qPairs.length > 0
+                                            ? qPairs.reduce((m, p) => Math.max(m, p.score), 0)
+                                            : null;
+                                        const currentRaw =
+                                          ans?.ai_grade != null ? Number(ans.ai_grade) : null;
+                                        if (currentRaw == null || currentRaw <= 0) return null;
+                                        const sug = computeIntegritySuggestion(
+                                          currentRaw,
+                                          aiSig?.score ?? null,
+                                          plagiarismMax,
+                                        );
+                                        if (!sug) return null;
+                                        const aiPct = Math.round((aiSig?.score ?? 0) * 100);
+                                        const cpPct = Math.round((plagiarismMax ?? 0) * 100);
+                                        return (
+                                          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
+                                            <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+                                            <span className="font-medium text-amber-700 dark:text-amber-300">
+                                              {t("integrity.perQuestionSuggestion")}
+                                            </span>
+                                            <span className="font-semibold tabular-nums">
+                                              {sug.suggested.toLocaleString("es-CO")} / {q.points}
+                                            </span>
+                                            <Badge variant="outline" className="text-[10px]">
+                                              {sug.source === "ai"
+                                                ? `IA ${aiPct}%`
+                                                : sug.source === "plagio"
+                                                  ? `Copia ${cpPct}%`
+                                                  : `IA ${aiPct}% + Copia ${cpPct}%`}
+                                            </Badge>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                              onClick={() =>
+                                                patchAnswer(sub.id, q.id, {
+                                                  ai_grade: sug.suggested,
+                                                })
+                                              }
+                                            >
+                                              {t("integrity.applySuggestion")}
+                                            </Button>
+                                          </div>
+                                        );
+                                      })()}
 
-                                  {/* Bloque "Sospecha IA" por pregunta. Mismo
+                                      {/* Bloque "Sospecha IA" por pregunta. Mismo
                                       patrón visual del monitor de exámenes:
                                       Collapsible amber con score badge + razones
                                       + botón "Marcar revisada" / "Reabrir".
                                       Solo aparece si el score IA es ≥ 0.6. */}
-                                  {(() => {
-                                    const aiSig = wsAiSignalsBySubmissionQuestion
-                                      .get(sub.id)
-                                      ?.get(q.id);
-                                    if (!aiSig || aiSig.score < 0.6) return null;
-                                    const reviewed = aiSig.reviewedAt != null;
-                                    return (
-                                      <Collapsible defaultOpen={false}>
-                                        <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
-                                          <CollapsibleTrigger asChild>
-                                            <button
-                                              type="button"
-                                              className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
-                                            >
-                                              <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                                              <Bot className="h-3 w-3" />
-                                              <span>{t("integrity.aiSection")}</span>
-                                              <Badge
-                                                variant={
-                                                  aiSig.score >= 0.85
-                                                    ? "destructive"
-                                                    : aiSig.score >= 0.7
-                                                      ? "default"
-                                                      : "secondary"
-                                                }
-                                                className="text-[10px] ml-auto"
-                                              >
-                                                {Math.round(aiSig.score * 100)}%
-                                              </Badge>
-                                              {reviewed && (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                      {(() => {
+                                        const aiSig = wsAiSignalsBySubmissionQuestion
+                                          .get(sub.id)
+                                          ?.get(q.id);
+                                        if (!aiSig || aiSig.score < 0.6) return null;
+                                        const reviewed = aiSig.reviewedAt != null;
+                                        return (
+                                          <Collapsible defaultOpen={false}>
+                                            <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                              <CollapsibleTrigger asChild>
+                                                <button
+                                                  type="button"
+                                                  className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
                                                 >
-                                                  <Check className="h-3 w-3 mr-1" />
-                                                  {t("integrity.reviewed", {
-                                                    defaultValue: "Revisada",
-                                                  })}
-                                                </Badge>
-                                              )}
-                                            </button>
-                                          </CollapsibleTrigger>
-                                          <CollapsibleContent className="space-y-2">
-                                            {aiSig.reasons && (
-                                              <p className="text-[11px] text-amber-700 dark:text-amber-300 whitespace-pre-wrap pt-1 border-t border-amber-300/30">
-                                                {aiSig.reasons}
-                                              </p>
-                                            )}
-                                            <div className="flex justify-end pt-1 border-t border-amber-300/30">
-                                              {reviewed ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-7 text-[11px] bg-background"
-                                                  onClick={() =>
-                                                    toggleQuestionAiReviewed(
-                                                      aiSig.answerId,
-                                                      sub.id,
-                                                      true,
-                                                    )
-                                                  }
-                                                >
-                                                  {t("integrity.reopen", {
-                                                    defaultValue: "Reabrir",
-                                                  })}
-                                                </Button>
-                                              ) : (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                                                  onClick={() =>
-                                                    toggleQuestionAiReviewed(
-                                                      aiSig.answerId,
-                                                      sub.id,
-                                                      false,
-                                                    )
-                                                  }
-                                                >
-                                                  <Check className="h-3 w-3 mr-1" />
-                                                  {t("integrity.markReviewed", {
-                                                    defaultValue: "Marcar revisada",
-                                                  })}
-                                                </Button>
-                                              )}
-                                            </div>
-                                          </CollapsibleContent>
-                                        </div>
-                                      </Collapsible>
-                                    );
-                                  })()}
-
-                                  {/* Bloque "Posibles copias" por pregunta. Lista
-                                      los pares de similarity_pairs filtrados por
-                                      esta question_id. Cada par tiene su propio
-                                      botón "Marcar revisada" (ese par específico).
-                                      El trigger muestra cuántos quedan pendientes
-                                      para que el docente decida si abrir. */}
-                                  {(() => {
-                                    const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
-                                    const qPairs = userPairs.filter((p) => p.questionId === q.id);
-                                    if (qPairs.length === 0) return null;
-                                    const sorted = [...qPairs].sort((a, b) => b.score - a.score);
-                                    const maxScore = sorted[0].score;
-                                    const pendingCount = sorted.filter((p) => !p.reviewedAt).length;
-                                    const peerName = (peerId: string) => {
-                                      const peer = wsSubs.find((s) => s.user_id === peerId);
-                                      return (
-                                        (peer as { profile?: { full_name?: string } } | undefined)
-                                          ?.profile?.full_name ?? peerId.slice(0, 8)
-                                      );
-                                    };
-                                    return (
-                                      <Collapsible defaultOpen={false}>
-                                        <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
-                                          <CollapsibleTrigger asChild>
-                                            <button
-                                              type="button"
-                                              className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
-                                            >
-                                              <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                                              <Users className="h-3 w-3" />
-                                              <span>{t("integrity.copySection")}</span>
-                                              <Badge
-                                                variant="outline"
-                                                className="text-[10px] ml-auto"
-                                              >
-                                                {qPairs.length} · {Math.round(maxScore * 100)}%
-                                              </Badge>
-                                              {pendingCount > 0 ? (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
-                                                >
-                                                  {pendingCount} pendiente
-                                                  {pendingCount === 1 ? "" : "s"}
-                                                </Badge>
-                                              ) : (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                                                >
-                                                  <Check className="h-3 w-3 mr-1" />
-                                                  Todas revisadas
-                                                </Badge>
-                                              )}
-                                            </button>
-                                          </CollapsibleTrigger>
-                                          <CollapsibleContent className="space-y-1.5 pt-1 border-t border-amber-300/30">
-                                            {sorted.map((p) => {
-                                              const isReviewed = p.reviewedAt != null;
-                                              return (
-                                                <div
-                                                  key={p.id}
-                                                  className="rounded border bg-background p-1.5 text-xs flex items-center gap-2 flex-wrap"
-                                                >
-                                                  <span className="font-medium">
-                                                    {peerName(p.peerId)}
-                                                  </span>
+                                                  <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                                                  <Bot className="h-3 w-3" />
+                                                  <span>{t("integrity.aiSection")}</span>
                                                   <Badge
                                                     variant={
-                                                      p.score >= 0.85
+                                                      aiSig.score >= 0.85
                                                         ? "destructive"
-                                                        : p.score >= 0.7
+                                                        : aiSig.score >= 0.7
                                                           ? "default"
                                                           : "secondary"
                                                     }
-                                                    className="text-[10px]"
+                                                    className="text-[10px] ml-auto"
                                                   >
-                                                    {Math.round(p.score * 100)}%
+                                                    {Math.round(aiSig.score * 100)}%
                                                   </Badge>
-                                                  {isReviewed && (
+                                                  {reviewed && (
                                                     <Badge
                                                       variant="outline"
                                                       className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
@@ -3379,131 +3268,286 @@ function TeacherWorkshops() {
                                                       })}
                                                     </Badge>
                                                   )}
-                                                  <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className={
-                                                      isReviewed
-                                                        ? "h-6 text-[10px] ml-auto bg-background"
-                                                        : "h-6 text-[10px] ml-auto bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                                                    }
-                                                    onClick={() =>
-                                                      togglePairReviewed(p.id, isReviewed)
-                                                    }
-                                                  >
-                                                    {isReviewed ? (
-                                                      t("integrity.reopen", {
+                                                </button>
+                                              </CollapsibleTrigger>
+                                              <CollapsibleContent className="space-y-2">
+                                                {aiSig.reasons && (
+                                                  <p className="text-[11px] text-amber-700 dark:text-amber-300 whitespace-pre-wrap pt-1 border-t border-amber-300/30">
+                                                    {aiSig.reasons}
+                                                  </p>
+                                                )}
+                                                <div className="flex justify-end pt-1 border-t border-amber-300/30">
+                                                  {reviewed ? (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      className="h-7 text-[11px] bg-background"
+                                                      onClick={() =>
+                                                        toggleQuestionAiReviewed(
+                                                          aiSig.answerId,
+                                                          sub.id,
+                                                          true,
+                                                        )
+                                                      }
+                                                    >
+                                                      {t("integrity.reopen", {
                                                         defaultValue: "Reabrir",
-                                                      })
-                                                    ) : (
-                                                      <>
-                                                        <Check className="h-3 w-3 mr-1" />
-                                                        {t("integrity.markReviewed", {
-                                                          defaultValue: "Marcar revisada",
-                                                        })}
-                                                      </>
-                                                    )}
-                                                  </Button>
+                                                      })}
+                                                    </Button>
+                                                  ) : (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                      onClick={() =>
+                                                        toggleQuestionAiReviewed(
+                                                          aiSig.answerId,
+                                                          sub.id,
+                                                          false,
+                                                        )
+                                                      }
+                                                    >
+                                                      <Check className="h-3 w-3 mr-1" />
+                                                      {t("integrity.markReviewed", {
+                                                        defaultValue: "Marcar revisada",
+                                                      })}
+                                                    </Button>
+                                                  )}
                                                 </div>
-                                              );
-                                            })}
-                                          </CollapsibleContent>
-                                        </div>
-                                      </Collapsible>
-                                    );
-                                  })()}
+                                              </CollapsibleContent>
+                                            </div>
+                                          </Collapsible>
+                                        );
+                                      })()}
 
-                                  <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
-                                    <div>
-                                      <Label className="text-[11px]">Calificación IA</Label>
-                                      <DecimalInput
-                                        min={0}
-                                        max={q.points}
-                                        value={ans?.ai_grade ?? null}
-                                        onChange={(v) => patchAnswer(sub.id, q.id, { ai_grade: v })}
-                                        className="h-8 text-sm mt-1"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-[11px]">Retroalimentación</Label>
-                                      <Textarea
-                                        rows={2}
-                                        value={ans?.ai_feedback ?? ""}
-                                        onChange={(e) =>
-                                          patchAnswer(sub.id, q.id, { ai_feedback: e.target.value })
-                                        }
-                                        className="text-sm mt-1"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => saveAnswerGrade(sub.id, q.id)}
-                                      disabled={savingAnswerId === ans?.id}
-                                    >
-                                      {savingAnswerId === ans?.id ? (
-                                        <Spinner size="sm" className="mr-1" />
-                                      ) : (
-                                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                      )}
-                                      Guardar pregunta
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => aiRegradeAnswer(sub.id, q, ans)}
-                                      disabled={aiGradingAnswerId === ans?.id}
-                                    >
-                                      {aiGradingAnswerId === ans?.id ? (
-                                        <Spinner size="sm" className="mr-1" />
-                                      ) : (
-                                        <Sparkles className="h-3.5 w-3.5 mr-1" />
-                                      )}
-                                      Recalificar IA
-                                    </Button>
-                                  </div>
-                                  {/* Conversación colapsable con resumen (count +
+                                      {/* Bloque "Posibles copias" por pregunta. Lista
+                                      los pares de similarity_pairs filtrados por
+                                      esta question_id. Cada par tiene su propio
+                                      botón "Marcar revisada" (ese par específico).
+                                      El trigger muestra cuántos quedan pendientes
+                                      para que el docente decida si abrir. */}
+                                      {(() => {
+                                        const userPairs = wsCopyPairsByUser.get(sub.user_id) ?? [];
+                                        const qPairs = userPairs.filter(
+                                          (p) => p.questionId === q.id,
+                                        );
+                                        if (qPairs.length === 0) return null;
+                                        const sorted = [...qPairs].sort(
+                                          (a, b) => b.score - a.score,
+                                        );
+                                        const maxScore = sorted[0].score;
+                                        const pendingCount = sorted.filter(
+                                          (p) => !p.reviewedAt,
+                                        ).length;
+                                        const peerName = (peerId: string) => {
+                                          const peer = wsSubs.find((s) => s.user_id === peerId);
+                                          return (
+                                            (
+                                              peer as
+                                                | { profile?: { full_name?: string } }
+                                                | undefined
+                                            )?.profile?.full_name ?? peerId.slice(0, 8)
+                                          );
+                                        };
+                                        return (
+                                          <Collapsible defaultOpen={false}>
+                                            <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
+                                              <CollapsibleTrigger asChild>
+                                                <button
+                                                  type="button"
+                                                  className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                                >
+                                                  <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                                                  <Users className="h-3 w-3" />
+                                                  <span>{t("integrity.copySection")}</span>
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] ml-auto"
+                                                  >
+                                                    {qPairs.length} · {Math.round(maxScore * 100)}%
+                                                  </Badge>
+                                                  {pendingCount > 0 ? (
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
+                                                    >
+                                                      {pendingCount} pendiente
+                                                      {pendingCount === 1 ? "" : "s"}
+                                                    </Badge>
+                                                  ) : (
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                    >
+                                                      <Check className="h-3 w-3 mr-1" />
+                                                      Todas revisadas
+                                                    </Badge>
+                                                  )}
+                                                </button>
+                                              </CollapsibleTrigger>
+                                              <CollapsibleContent className="space-y-1.5 pt-1 border-t border-amber-300/30">
+                                                {sorted.map((p) => {
+                                                  const isReviewed = p.reviewedAt != null;
+                                                  return (
+                                                    <div
+                                                      key={p.id}
+                                                      className="rounded border bg-background p-1.5 text-xs flex items-center gap-2 flex-wrap"
+                                                    >
+                                                      <span className="font-medium">
+                                                        {peerName(p.peerId)}
+                                                      </span>
+                                                      <Badge
+                                                        variant={
+                                                          p.score >= 0.85
+                                                            ? "destructive"
+                                                            : p.score >= 0.7
+                                                              ? "default"
+                                                              : "secondary"
+                                                        }
+                                                        className="text-[10px]"
+                                                      >
+                                                        {Math.round(p.score * 100)}%
+                                                      </Badge>
+                                                      {isReviewed && (
+                                                        <Badge
+                                                          variant="outline"
+                                                          className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                        >
+                                                          <Check className="h-3 w-3 mr-1" />
+                                                          {t("integrity.reviewed", {
+                                                            defaultValue: "Revisada",
+                                                          })}
+                                                        </Badge>
+                                                      )}
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className={
+                                                          isReviewed
+                                                            ? "h-6 text-[10px] ml-auto bg-background"
+                                                            : "h-6 text-[10px] ml-auto bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                        }
+                                                        onClick={() =>
+                                                          togglePairReviewed(p.id, isReviewed)
+                                                        }
+                                                      >
+                                                        {isReviewed ? (
+                                                          t("integrity.reopen", {
+                                                            defaultValue: "Reabrir",
+                                                          })
+                                                        ) : (
+                                                          <>
+                                                            <Check className="h-3 w-3 mr-1" />
+                                                            {t("integrity.markReviewed", {
+                                                              defaultValue: "Marcar revisada",
+                                                            })}
+                                                          </>
+                                                        )}
+                                                      </Button>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </CollapsibleContent>
+                                            </div>
+                                          </Collapsible>
+                                        );
+                                      })()}
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
+                                        <div>
+                                          <Label className="text-[11px]">Calificación IA</Label>
+                                          <DecimalInput
+                                            min={0}
+                                            max={q.points}
+                                            value={ans?.ai_grade ?? null}
+                                            onChange={(v) =>
+                                              patchAnswer(sub.id, q.id, { ai_grade: v })
+                                            }
+                                            className="h-8 text-sm mt-1"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-[11px]">Retroalimentación</Label>
+                                          <Textarea
+                                            rows={2}
+                                            value={ans?.ai_feedback ?? ""}
+                                            onChange={(e) =>
+                                              patchAnswer(sub.id, q.id, {
+                                                ai_feedback: e.target.value,
+                                              })
+                                            }
+                                            className="text-sm mt-1"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => saveAnswerGrade(sub.id, q.id)}
+                                          disabled={savingAnswerId === ans?.id}
+                                        >
+                                          {savingAnswerId === ans?.id ? (
+                                            <Spinner size="sm" className="mr-1" />
+                                          ) : (
+                                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                          )}
+                                          Guardar pregunta
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => aiRegradeAnswer(sub.id, q, ans)}
+                                          disabled={aiGradingAnswerId === ans?.id}
+                                        >
+                                          {aiGradingAnswerId === ans?.id ? (
+                                            <Spinner size="sm" className="mr-1" />
+                                          ) : (
+                                            <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                          )}
+                                          Recalificar IA
+                                        </Button>
+                                      </div>
+                                      {/* Conversación colapsable con resumen (count +
                                       pending). Reemplaza el FeedbackThread inline
                                       que se montaba siempre y disparaba 1 request
                                       por pregunta al abrir el accordion. */}
-                                  <ConversationSection
-                                    parentKind="workshop"
-                                    questionId={q.id}
-                                    submissionId={sub.id}
-                                    summary={wsThreadsByQ[`${sub.id}:${q.id}`]}
-                                    conversationLabel={t("integrity.conversation")}
-                                    pendingLabel={t("integrity.conversationPending")}
-                                  />
+                                      <ConversationSection
+                                        parentKind="workshop"
+                                        questionId={q.id}
+                                        submissionId={sub.id}
+                                        summary={wsThreadsByQ[`${sub.id}:${q.id}`]}
+                                        conversationLabel={t("integrity.conversation")}
+                                        pendingLabel={t("integrity.conversationPending")}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                                <div className="flex justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                      const newFinal = recomputeFinalGrade(sub.id);
+                                      setWsSubs((prev) =>
+                                        prev.map((s) =>
+                                          s.id === sub.id ? { ...s, final_grade: newFinal } : s,
+                                        ),
+                                      );
+                                      toast.info(
+                                        `Calificación global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar calificación" para persistir.`,
+                                      );
+                                    }}
+                                  >
+                                    Recalcular calificación global
+                                  </Button>
                                 </div>
-                              );
-                            })}
-                            <div className="flex justify-end">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => {
-                                  const newFinal = recomputeFinalGrade(sub.id);
-                                  setWsSubs((prev) =>
-                                    prev.map((s) =>
-                                      s.id === sub.id ? { ...s, final_grade: newFinal } : s,
-                                    ),
-                                  );
-                                  toast.info(
-                                    `Calificación global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar calificación" para persistir.`,
-                                  );
-                                }}
-                              >
-                                Recalcular calificación global
-                              </Button>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    )}
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        )}
 
-                    {/* Acciones de calificación. Quitamos el input
+                        {/* Acciones de calificación. Quitamos el input
                         "Calificación final" y el textarea
                         "Retroalimentación" globales: la nota final se
                         recomputa automáticamente desde las notas por
@@ -3513,44 +3557,44 @@ function TeacherWorkshops() {
                         El botón "Guardar calificación" persiste la
                         `final_grade` recalculada; "Calificar con IA"
                         dispara la evaluación por preguntas. */}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => saveGrade(sub.id, sub.final_grade ?? 0)}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => gradeOneWithAI(sub)}
-                        disabled={aiGradingId === sub.id}
-                      >
-                        {aiGradingId === sub.id ? (
-                          <Spinner size="sm" className="mr-1" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5 mr-1" />
-                        )}
-                        {sub.status === "calificado" || sub.status === "ai_revisado"
-                          ? "Recalificar con IA"
-                          : "Calificar con IA"}
-                      </Button>
-                      {(sub.status === "calificado" || sub.status === "ai_revisado") && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
-                          onClick={() => reopenSubmission(sub)}
-                        >
-                          Reabrir entrega
-                        </Button>
-                      )}
-                    </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => saveGrade(sub.id, sub.final_grade ?? 0)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => gradeOneWithAI(sub)}
+                            disabled={aiGradingId === sub.id}
+                          >
+                            {aiGradingId === sub.id ? (
+                              <Spinner size="sm" className="mr-1" />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            {sub.status === "calificado" || sub.status === "ai_revisado"
+                              ? "Recalificar con IA"
+                              : "Calificar con IA"}
+                          </Button>
+                          {(sub.status === "calificado" || sub.status === "ai_revisado") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
+                              onClick={() => reopenSubmission(sub)}
+                            >
+                              Reabrir entrega
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
           </div>
         </DialogContent>
       </Dialog>

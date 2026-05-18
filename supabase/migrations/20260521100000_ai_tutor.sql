@@ -115,8 +115,11 @@ CREATE POLICY "tutor_messages_select"
 
 -- ── Extender el CHECK de ai_prompts.use_case para aceptar 'tutor_chat' ──
 -- Postgres no permite ALTER CHECK directo: dropear y re-crear.
--- Idempotente: si ya existía la constraint con tutor_chat (migración re-aplicada),
--- el DROP IF EXISTS la quita y la volvemos a crear.
+-- IMPORTANTE: la lista debe incluir TODOS los use_cases que ya existen
+-- en la DB (migraciones previas agregaron varios). Si omitimos uno, la
+-- ADD CONSTRAINT falla con "violated by some row" cuando hay filas con
+-- ese valor. Mantener sincronizado con 20260509190000_contents_module.sql
+-- + cualquier migración futura que agregue use_cases.
 ALTER TABLE public.ai_prompts
   DROP CONSTRAINT IF EXISTS ai_prompts_use_case_check;
 
@@ -129,6 +132,11 @@ ALTER TABLE public.ai_prompts
     'project_full',
     'exam_question',
     'exam_time_evaluation',
+    'plagiarism_detection',
+    'ai_content_detection',
+    'project_description',
+    'project_questions',
+    'content_generation',
     'tutor_chat'
   ));
 

@@ -194,15 +194,18 @@ function TeacherExams() {
   // Estado del dialog de duplicar. Abre `DuplicateAssessmentDialog`
   // que permite elegir curso destino + título + llama RPC clone_exam
   // (con validación de permisos sobre origen y destino).
-  const [duplicateSource, setDuplicateSource] = useState<
-    { id: string; title: string; courseId: string } | null
-  >(null);
+  const [duplicateSource, setDuplicateSource] = useState<{
+    id: string;
+    title: string;
+    courseId: string;
+  } | null>(null);
   const openDuplicate = (exam: Exam) => {
     setDuplicateSource({ id: exam.id, title: exam.title, courseId: exam.course_id });
   };
 
+  const [aiErrorsByExam, setAiErrorsByExam] = useState<Record<string, number>>({});
   const load = async () => {
-    const [{ data: cs }, { data: es }, { data: cs2 }] = await Promise.all([
+    const [{ data: cs }, { data: es }, { data: cs2 }, { data: aiErr }] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
       supabase
         .from("exams")
@@ -212,10 +215,20 @@ function TeacherExams() {
         .from("grade_cuts")
         .select("id, course_id, name, exam_weight")
         .order("position"),
+      // RPC que retorna { exam_id, error_count } por cada examen con
+      // submissions que tengan ai_error en su breakdown. Si la migración
+      // 20260526100000 no se ha aplicado todavía, el catch deja el map vacío
+      // y la columna muestra "0" para todos.
+      (supabase as any).rpc("count_ai_errors_per_exam"),
     ]);
     setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
     setCuts((cs2 ?? []) as Cut[]);
+    const errMap: Record<string, number> = {};
+    for (const row of (aiErr ?? []) as Array<{ exam_id: string; error_count: number }>) {
+      errMap[row.exam_id] = Number(row.error_count) || 0;
+    }
+    setAiErrorsByExam(errMap);
   };
   useEffect(() => {
     load();
@@ -580,13 +593,14 @@ function TeacherExams() {
                 <TableHead className="hidden lg:table-cell w-28">
                   {t("exam.columns.navigation")}
                 </TableHead>
+                <TableHead className="hidden md:table-cell w-24 text-right">Errores IA</TableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {exams.length === 0 ? (
                 <TableEmpty
-                  colSpan={11}
+                  colSpan={12}
                   icon={FileText}
                   text="Aún no has creado ningún examen."
                   hint="Diseña tu primer examen — puedes generar preguntas con IA."
@@ -599,7 +613,7 @@ function TeacherExams() {
                 />
               ) : filteredExams.length === 0 ? (
                 <TableEmpty
-                  colSpan={11}
+                  colSpan={12}
                   icon={FileText}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los exámenes."
@@ -697,6 +711,19 @@ function TeacherExams() {
                     <Badge variant="secondary" className="text-[10px]">
                       {e.navigation_type}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">
+                    {aiErrorsByExam[e.id] ? (
+                      <Badge
+                        variant="destructive"
+                        className="text-[10px]"
+                        title={`${aiErrorsByExam[e.id]} entrega(s) con error de IA. El cron reintenta cada 30 min.`}
+                      >
+                        {aiErrorsByExam[e.id]}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActionsMenu

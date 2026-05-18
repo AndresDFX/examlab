@@ -607,7 +607,10 @@ export function TeacherWorkshopQuestionsEditor({
             {aiRows.map((row, i) => (
               <div key={i} className="flex items-end gap-2">
                 <div className="flex-1 min-w-0">
-                  <Select value={row.type} onValueChange={(v) => updateAiRow(i, { type: v as any })}>
+                  <Select
+                    value={row.type}
+                    onValueChange={(v) => updateAiRow(i, { type: v as any })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -766,9 +769,7 @@ export function StudentWorkshopTaker({
           .select("*")
           .eq("submission_id", sub.id);
         const map: Record<string, any> = {};
-        const questionsById = new Map(
-          (qs ?? []).map((q: any) => [q.id, q]),
-        );
+        const questionsById = new Map((qs ?? []).map((q: any) => [q.id, q]));
         (ans ?? []).forEach((a: any) => {
           const q = questionsById.get(a.question_id) as any;
           // cerrada_multi guarda array como JSON string en answer_text
@@ -905,10 +906,27 @@ export function StudentWorkshopTaker({
         submissionId = created.id;
       }
 
-      // Save & grade each question one-by-one
+      // ── Calificación en dos fases ──
+      // Fase 1: scorea localmente las cerradas y empty; bucketea las
+      //   abiertas (codigo/diagrama/abierta/java_gui con respuesta) para
+      //   la llamada batch.
+      // Fase 2: UNA sola llamada a IA con todas las abiertas. Antes era
+      //   una llamada por pregunta abierta. Ganancia: latencia ~Nx menor,
+      //   menos overhead de tokens, menos rate limits.
       let totalEarned = 0;
       let totalPoints = 0;
       const breakdown: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payloadsByQid: Record<string, any> = {};
+      const batchItems: Array<{
+        qid: string;
+        type: string;
+        content: string;
+        rubric: string;
+        userAnswer: string;
+        maxPoints: number;
+        language?: string | null;
+      }> = [];
 
       for (const q of questions) {
         const raw = answers[q.id] ?? "";
@@ -922,25 +940,23 @@ export function StudentWorkshopTaker({
         else if (q.type === "diagrama") payload.diagram_code = String(raw);
         else if (q.type === "cerrada") payload.selected_option = String(raw);
         else if (q.type === "cerrada_multi") {
-          // Persistimos el array como JSON string en answer_text para no
-          // requerir migración (selected_option es text y guardaría solo 1).
           payload.answer_text = JSON.stringify(Array.isArray(raw) ? raw : []);
-        }
-        else payload.answer_text = String(raw);
-
-        let earned = 0;
-        let feedback = "Sin retroalimentación";
+        } else payload.answer_text = String(raw);
 
         if (q.type === "cerrada") {
-          // Local grading for cerrada: compare with options.correct_index
           const correctIdx = q.options?.correct_index;
           const got = String(raw) === String(correctIdx) ? Number(q.points) : 0;
-          earned = got;
-          feedback = got > 0 ? "Respuesta correcta" : "Respuesta incorrecta";
-          payload.ai_grade = earned;
-          payload.ai_feedback = feedback;
+          payload.ai_grade = got;
+          payload.ai_feedback = got > 0 ? "Respuesta correcta" : "Respuesta incorrecta";
+          totalEarned += got;
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: got,
+            feedback: payload.ai_feedback,
+          });
         } else if (q.type === "cerrada_multi") {
-          // Local grading: proporcional positivo (sin penalización por incorrectas).
           const selectedArr = Array.isArray(raw) ? (raw as number[]) : [];
           const result = scoreCerradaMulti({
             selected: selectedArr,
@@ -949,60 +965,108 @@ export function StudentWorkshopTaker({
             minSelections: (q.options as any)?.min_selections,
             maxSelections: (q.options as any)?.max_selections,
           });
-          earned = result.earned;
-          feedback = result.exceededMax
+          payload.ai_grade = result.earned;
+          payload.ai_feedback = result.exceededMax
             ? `Marcaste más opciones de las permitidas (${(q.options as any)?.max_selections}).`
             : result.belowMin
               ? `Faltó marcar al menos ${(q.options as any)?.min_selections} opciones.`
               : selectedArr.length === 0
                 ? "Sin respuesta"
-                : `${earned} / ${q.points} pts`;
-          payload.ai_grade = earned;
-          payload.ai_feedback = feedback;
+                : `${result.earned} / ${q.points} pts`;
+          totalEarned += result.earned;
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: result.earned,
+            feedback: payload.ai_feedback,
+          });
         } else if (!String(raw).trim()) {
           payload.ai_grade = 0;
           payload.ai_feedback = "Sin respuesta";
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback: "Sin respuesta",
+          });
         } else {
-          // Call AI grading per question (open / code / diagram)
-          const { data: aiData, error: aiErr } = await supabase.functions.invoke(
-            "ai-grade-submission",
-            {
-              body: {
-                workshopQuestionGrading: true,
-                questionType: q.type === "java_gui" ? "codigo" : q.type,
-                questionContent: q.content,
-                expectedRubric: q.expected_rubric,
-                maxPoints: q.points,
-                studentAnswer: String(raw),
-                language: q.type === "java_gui" ? "java" : q.language,
-                courseLanguage,
-              },
+          // Abierta con respuesta → bucket para batch. NO empujamos a
+          // breakdown todavía; se completa después con el resultado IA.
+          batchItems.push({
+            qid: q.id,
+            type: q.type === "java_gui" ? "codigo" : q.type,
+            content: String(q.content ?? ""),
+            rubric: String(q.expected_rubric ?? ""),
+            userAnswer: String(raw),
+            maxPoints: Number(q.points) || 0,
+            language: q.type === "java_gui" ? "java" : q.language,
+          });
+        }
+        payloadsByQid[q.id] = payload;
+      }
+
+      // ── Fase 2: UNA llamada batch para todas las abiertas ──
+      if (batchItems.length > 0) {
+        const { data: bData, error: bErr } = await supabase.functions.invoke(
+          "ai-grade-submission",
+          {
+            body: {
+              batchGrading: true,
+              items: batchItems,
+              courseLanguage,
+              useCase: "workshop_question",
             },
-          );
-          if (aiErr || aiData?.error) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = `Error IA: ${aiErr?.message ?? aiData?.error ?? "Desconocido"}`;
-          } else {
-            earned = Number(aiData?.grade) || 0;
-            feedback = aiData?.feedback ?? feedback;
+          },
+        );
+        const batchFailed = !!(bErr || bData?.error);
+        const batchResults =
+          !batchFailed && bData?.results && typeof bData.results === "object"
+            ? (bData.results as Record<
+                string,
+                { score: number; feedback: string; ai_likelihood?: number; ai_reasons?: string }
+              >)
+            : {};
+        const errMsg = batchFailed
+          ? `Error IA: ${bErr?.message ?? bData?.error ?? "Desconocido"}`
+          : null;
+
+        for (const it of batchItems) {
+          const r = batchResults[it.qid];
+          const payload = payloadsByQid[it.qid];
+          if (r) {
+            const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
             payload.ai_grade = earned;
-            payload.ai_feedback = feedback;
+            payload.ai_feedback = r.feedback || "Sin retroalimentación";
+            totalEarned += earned;
+            breakdown.push({
+              qid: it.qid,
+              type: it.type,
+              points: it.maxPoints,
+              earned,
+              feedback: payload.ai_feedback,
+            });
+          } else {
+            // Falló el batch o el modelo omitió esta pregunta.
+            payload.ai_grade = 0;
+            payload.ai_feedback = errMsg ?? "El modelo no incluyó esta pregunta en su respuesta.";
+            breakdown.push({
+              qid: it.qid,
+              type: it.type,
+              points: it.maxPoints,
+              earned: 0,
+              feedback: payload.ai_feedback,
+            });
           }
         }
+      }
 
-        // Upsert answer
+      // ── Persistencia: upsert por qid ──
+      for (const qid of Object.keys(payloadsByQid)) {
         await supabase
           .from("workshop_submission_answers")
-          .upsert(payload, { onConflict: "submission_id,question_id" });
-
-        totalEarned += earned;
-        breakdown.push({
-          qid: q.id,
-          type: q.type,
-          points: q.points,
-          earned,
-          feedback: payload.ai_feedback,
-        });
+          .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" });
       }
 
       const finalGrade =

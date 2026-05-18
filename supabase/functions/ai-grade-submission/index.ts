@@ -422,19 +422,21 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    auditMode = body.workshopGrading
-      ? "workshop_full"
-      : body.workshopQuestionGrading
-        ? "workshop_question"
-        : body.projectGrading
-          ? "project_full"
-          : body.projectFileGrading
-            ? "project_file"
-            : body.projectCodeZipGrading
-              ? "project_code_zip"
-              : body.examQuestion
-                ? "exam_question"
-                : "exam_full";
+    auditMode = body.batchGrading
+      ? "batch"
+      : body.workshopGrading
+        ? "workshop_full"
+        : body.workshopQuestionGrading
+          ? "workshop_question"
+          : body.projectGrading
+            ? "project_full"
+            : body.projectFileGrading
+              ? "project_file"
+              : body.projectCodeZipGrading
+                ? "project_code_zip"
+                : body.examQuestion
+                  ? "exam_question"
+                  : "exam_full";
     auditEntityId =
       body.submissionId ??
       body.workshopSubmissionId ??
@@ -458,6 +460,131 @@ Deno.serve(async (req) => {
     });
     // La validación del API key vive ahora en aiChatCompletion según el
     // provider activo (LOVABLE_API_KEY o OPENAI_API_KEY).
+
+    // ── Modo batch genérico — califica N preguntas en UNA llamada ──
+    // El caller (UI de workshop, project, exam externo, etc.) manda un
+    // array `items` con todo lo necesario para evaluar cada pregunta y
+    // recibe un array de resultados. Reusa el helper gradeOpenAnswersInBatch.
+    //
+    // body: {
+    //   batchGrading: true,
+    //   items: [{ qid, type, content, rubric, userAnswer, maxPoints, language? }],
+    //   courseLanguage?: 'es'|'en',
+    //   courseId?: string,
+    //   useCase?: 'workshop_question'|'project_full'|'exam_question'  (default: workshop_question)
+    // }
+    // returns: { ok, results: { qid: { score, feedback, ai_likelihood, ai_reasons } } }
+    //          o { error, ... } en falla.
+    if (body.batchGrading) {
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (items.length === 0) {
+        return new Response(JSON.stringify({ ok: true, results: {} }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const useCase: string = typeof body.useCase === "string" ? body.useCase : "workshop_question";
+      const bLang: "es" | "en" = body.courseLanguage === "en" ? "en" : "es";
+      const bLangName = bLang === "en" ? "inglés (English)" : "español";
+
+      const customSystem = await buildGradingSystemPrompt(
+        useCase,
+        body.courseId,
+        "Eres un evaluador académico imparcial. Calificas respuestas según las rúbricas dadas. Por cada respuesta devuelves un puntaje, retroalimentación útil y una estimación 0..1 de probabilidad de que sea generada por IA.",
+      );
+
+      const batchInput: BatchItem[] = items
+        .filter(
+          (it: {
+            qid?: unknown;
+            content?: unknown;
+            rubric?: unknown;
+            userAnswer?: unknown;
+            maxPoints?: unknown;
+          }) =>
+            typeof it.qid === "string" &&
+            it.qid &&
+            (typeof it.userAnswer === "string" ? it.userAnswer.trim() : it.userAnswer) &&
+            typeof it.maxPoints === "number",
+        )
+        .map(
+          (it: {
+            qid: string;
+            content?: string;
+            rubric?: string;
+            userAnswer: string;
+            maxPoints: number;
+          }) => ({
+            qid: it.qid,
+            content: String(it.content ?? ""),
+            rubric: String(it.rubric ?? ""),
+            userAnswer: String(it.userAnswer),
+            maxPoints: Number(it.maxPoints),
+          }),
+        );
+
+      if (batchInput.length === 0) {
+        return new Response(
+          JSON.stringify({ ok: true, results: {}, note: "Sin items válidos para evaluar" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const out = await gradeOpenAnswersInBatch(batchInput, customSystem, bLangName);
+      if ("batchError" in out) {
+        void auditFromEdge(adminClient, {
+          actorId: auditCallerId,
+          action: "ai.grading_failed",
+          category: "grading",
+          severity: "error",
+          entityType: "submission",
+          entityId: auditEntityId,
+          metadata: {
+            mode: "batch",
+            scope: useCase,
+            batch_size: batchInput.length,
+            kind: out.batchError.kind,
+            http_status: out.batchError.http_status ?? null,
+            response_snippet: out.batchError.response_snippet,
+            finish_reason: out.batchError.finish_reason ?? null,
+            model: auditModel,
+          },
+        });
+        return new Response(
+          JSON.stringify({
+            error: "Fallo al calificar en bloque",
+            kind: out.batchError.kind,
+            http_status: out.batchError.http_status ?? null,
+            response_snippet: out.batchError.response_snippet,
+          }),
+          {
+            status: out.batchError.http_status ?? 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Convertimos Map → objeto { qid: result } para que sea JSON-serializable.
+      const resultsObj: Record<
+        string,
+        { score: number; feedback: string; ai_likelihood: number; ai_reasons: string }
+      > = {};
+      for (const [qid, r] of out.results.entries()) {
+        // Cap del score al maxPoints del item correspondiente.
+        const it = batchInput.find((x) => x.qid === qid);
+        const cap = it ? it.maxPoints : Number.POSITIVE_INFINITY;
+        resultsObj[qid] = {
+          score: Math.max(0, Math.min(cap, Number(r.score) || 0)),
+          feedback: r.feedback,
+          ai_likelihood: r.ai_likelihood,
+          ai_reasons: r.ai_reasons,
+        };
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, results: resultsObj, processed: batchInput.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // ── Workshop grading mode ──
     if (body.workshopGrading) {

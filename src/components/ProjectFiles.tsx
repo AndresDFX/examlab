@@ -62,14 +62,7 @@ export type ProjectFile = {
   language: string | null;
   starter_code: string | null;
   points: number;
-  type:
-    | "abierta"
-    | "cerrada"
-    | "cerrada_multi"
-    | "codigo"
-    | "diagrama"
-    | "java_gui"
-    | "codigo_zip";
+  type: "abierta" | "cerrada" | "cerrada_multi" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: any;
 };
@@ -777,7 +770,10 @@ export function TeacherProjectFilesEditor({
             {aiRows.map((row, i) => (
               <div key={i} className="flex items-end gap-2">
                 <div className="flex-1 min-w-0">
-                  <Select value={row.type} onValueChange={(v) => updateAiRow(i, { type: v as any })}>
+                  <Select
+                    value={row.type}
+                    onValueChange={(v) => updateAiRow(i, { type: v as any })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1080,8 +1076,24 @@ export function StudentProjectTaker({
         submissionId = created.id;
       }
 
+      // ── Calificación en dos fases (igual que WorkshopQuestions) ──
+      // 1) Loop: locales (cerrada/multi/empty) + codigo_zip (upload + IA
+      //    individual con su zipPath) + bucketea abiertas para batch.
+      // 2) UNA llamada batch para todas las abiertas.
+      // 3) Upsert por qid.
       let totalEarned = 0;
       let totalPoints = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payloadsByQid: Record<string, any> = {};
+      const batchItems: Array<{
+        qid: string;
+        type: string;
+        content: string;
+        rubric: string;
+        userAnswer: string;
+        maxPoints: number;
+        language?: string | null;
+      }> = [];
 
       for (const q of questions) {
         const raw = answers[q.id] ?? "";
@@ -1191,42 +1203,74 @@ export function StudentProjectTaker({
           payload.ai_grade = 0;
           payload.ai_feedback = "Sin respuesta";
         } else {
+          // Pregunta abierta con respuesta — bucketea para el batch.
           payload.content = String(raw);
-          const { data: aiData, error: aiErr } = await supabase.functions.invoke(
-            "ai-grade-submission",
-            {
-              body: {
-                workshopQuestionGrading: true,
-                questionType: q.type === "java_gui" ? "codigo" : q.type,
-                questionContent: q.title,
-                expectedRubric: q.expected_rubric,
-                maxPoints: q.points,
-                studentAnswer: String(raw),
-                language: q.type === "java_gui" ? "java" : q.language,
-                courseLanguage,
-                projectDescription,
-              },
+          batchItems.push({
+            qid: q.id,
+            type: q.type === "java_gui" ? "codigo" : q.type,
+            content: String(q.title ?? ""),
+            rubric: String(q.expected_rubric ?? ""),
+            userAnswer: String(raw),
+            maxPoints: Number(q.points) || 0,
+            language: q.type === "java_gui" ? "java" : q.language,
+          });
+        }
+        totalEarned += earned;
+        payloadsByQid[q.id] = payload;
+      }
+
+      // ── Fase 2: UNA llamada batch para todas las abiertas ──
+      if (batchItems.length > 0) {
+        const { data: bData, error: bErr } = await supabase.functions.invoke(
+          "ai-grade-submission",
+          {
+            body: {
+              batchGrading: true,
+              items: batchItems,
+              courseLanguage,
+              useCase: "workshop_question",
             },
-          );
-          if (aiErr || aiData?.error) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = `Error IA: ${aiErr?.message ?? aiData?.error ?? "Desconocido"}`;
-          } else {
-            earned = Number(aiData?.grade) || 0;
-            feedback = aiData?.feedback ?? feedback;
+          },
+        );
+        const batchFailed = !!(bErr || bData?.error);
+        const batchResults =
+          !batchFailed && bData?.results && typeof bData.results === "object"
+            ? (bData.results as Record<
+                string,
+                {
+                  score: number;
+                  feedback: string;
+                  ai_likelihood?: number;
+                  ai_reasons?: string;
+                }
+              >)
+            : {};
+        const errMsg = batchFailed
+          ? `Error IA: ${bErr?.message ?? bData?.error ?? "Desconocido"}`
+          : null;
+
+        for (const it of batchItems) {
+          const r = batchResults[it.qid];
+          const payload = payloadsByQid[it.qid];
+          if (r) {
+            const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
             payload.ai_grade = earned;
-            payload.ai_feedback = feedback;
-            payload.ai_likelihood =
-              typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
-            payload.ai_reasons = aiData?.ai_reasons ?? null;
+            payload.ai_feedback = r.feedback || "Sin retroalimentación";
+            payload.ai_likelihood = typeof r.ai_likelihood === "number" ? r.ai_likelihood : null;
+            payload.ai_reasons = r.ai_reasons ?? null;
+            totalEarned += earned;
+          } else {
+            payload.ai_grade = 0;
+            payload.ai_feedback = errMsg ?? "El modelo no incluyó esta pregunta en su respuesta.";
           }
         }
+      }
 
+      // ── Persistencia: upsert por qid ──
+      for (const qid of Object.keys(payloadsByQid)) {
         await db
           .from("project_submission_files")
-          .upsert(payload, { onConflict: "submission_id,file_id" });
-
-        totalEarned += earned;
+          .upsert(payloadsByQid[qid], { onConflict: "submission_id,file_id" });
       }
 
       const submissionScore =

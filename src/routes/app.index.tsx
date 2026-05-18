@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
 import { PendingExamNotesModal } from "@/components/PendingExamNotesModal";
 import { pendingResponsesCount } from "@/lib/feedback-stats";
+import { cn } from "@/lib/utils";
 import {
   Users,
   BookOpen,
@@ -35,6 +36,10 @@ import {
   Inbox,
   CalendarClock,
   CalendarCheck,
+  Sparkles,
+  Bot,
+  CircleCheck,
+  Search,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
@@ -119,6 +124,30 @@ function AdminDashboard() {
       roles: string[];
     }[]
   >([]);
+  // ── AI usage stats (última hora) — reemplazan los 5 cards superiores
+  // que antes solo mostraban totales agregados sin contexto temporal.
+  // El admin ahora ve de un vistazo si el sistema de IA está sano:
+  // cuántas llamadas, cuántos errores, qué se está haciendo con IA.
+  const [aiStats, setAiStats] = useState({
+    callsLastHour: 0,
+    errorsLastHour: 0,
+    gradingsLastHour: 0,
+    questionsGenLastHour: 0,
+    plagiarismLastHour: 0,
+  });
+  // Ejecuciones recientes de IA — reemplazo del card "Usuarios recientes".
+  // Lista cada llamada con su action, severity y actor para que el admin
+  // pueda inspeccionar rápido el detalle (entry → metadata.response_snippet).
+  const [recentAiExecs, setRecentAiExecs] = useState<
+    Array<{
+      id: string;
+      action: string;
+      severity: string;
+      actor_email: string | null;
+      created_at: string;
+      metadata: Record<string, unknown> | null;
+    }>
+  >([]);
   /** Métricas del módulo de email — últimas 24h. Reemplazo del bloque
    *  de "Opciones rápidas" (Usuarios + Cursos eran solo atajos
    *  duplicados del sidebar; este widget aporta info operacional real
@@ -187,9 +216,7 @@ function AdminDashboard() {
           arr.push(r.role);
           rolesByUser.set(r.user_id, arr);
         }
-        setRecentUsers(
-          ruRows.map((u) => ({ ...u, roles: rolesByUser.get(u.id) ?? [] })),
-        );
+        setRecentUsers(ruRows.map((u) => ({ ...u, roles: rolesByUser.get(u.id) ?? [] })));
       } else {
         setRecentUsers([]);
       }
@@ -200,8 +227,69 @@ function AdminDashboard() {
       // 'email' (migración no aplicada en este entorno) los counts
       // quedan en 0 sin romper.
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const sinceHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
+
+      // ── AI usage stats (última hora) ──
+      // Filtramos por las acciones que ya estaban definidas (audit log
+      // labels). Si alguna no aparece la migración no se ha aplicado y
+      // el count queda en 0 sin romper.
+      const [aiCallsRes, aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes, aiRecentRes] =
+        await Promise.all([
+          dbAny
+            .from("audit_logs")
+            .select("id", { count: "exact", head: true })
+            .in("action", [
+              "ai.grading_started",
+              "ai.grading_failed",
+              "ai_grading.completed",
+              "ai_questions.generated",
+              "ai_plagiarism.detected",
+              "ai.grading_retry_run",
+              "ai.questions_generation_failed",
+            ])
+            .gte("created_at", sinceHour),
+          dbAny
+            .from("audit_logs")
+            .select("id", { count: "exact", head: true })
+            .in("action", ["ai.grading_failed", "ai.questions_generation_failed"])
+            .gte("created_at", sinceHour),
+          dbAny
+            .from("audit_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("action", "ai_grading.completed")
+            .gte("created_at", sinceHour),
+          dbAny
+            .from("audit_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("action", "ai_questions.generated")
+            .gte("created_at", sinceHour),
+          dbAny
+            .from("audit_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("action", "ai_plagiarism.detected")
+            .gte("created_at", sinceHour),
+          dbAny.rpc("list_recent_ai_executions", { _limit: 20 }),
+        ]);
+      setAiStats({
+        callsLastHour: aiCallsRes.count ?? 0,
+        errorsLastHour: aiErrorsRes.count ?? 0,
+        gradingsLastHour: aiGradingsRes.count ?? 0,
+        questionsGenLastHour: aiQuestionsRes.count ?? 0,
+        plagiarismLastHour: aiPlagiarismRes.count ?? 0,
+      });
+      setRecentAiExecs(
+        ((aiRecentRes.data ?? []) as Array<{
+          id: string;
+          action: string;
+          severity: string;
+          actor_email: string | null;
+          created_at: string;
+          metadata: Record<string, unknown> | null;
+        }>) ?? [],
+      );
+
       const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
         dbAny
           .from("audit_logs")
@@ -280,92 +368,115 @@ function AdminDashboard() {
 
   return (
     <>
+      {/* Cards de uso de IA — última hora.
+          Reemplazan los totales agregados (Users/Courses/Exams/etc.) que
+          aportaban poco operacionalmente. Estas métricas le dicen al
+          admin en tiempo real si el sistema de IA está sano: cuántas
+          llamadas se hicieron, cuántos errores hubo, qué se está
+          calificando o generando. Los totales antiguos siguen
+          disponibles en cada módulo respectivo. */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
-          icon={Users}
-          label={t("dashboard.stats.users")}
-          value={counts.users}
+          icon={Sparkles}
+          label="Llamadas IA (1h)"
+          value={aiStats.callsLastHour}
           color="text-indigo-500 dark:text-indigo-400"
         />
         <Stat
-          icon={BookOpen}
-          label={t("dashboard.stats.courses")}
-          value={counts.courses}
-          color="text-blue-500 dark:text-blue-400"
+          icon={AlertTriangle}
+          label="Errores IA (1h)"
+          value={aiStats.errorsLastHour}
+          color={
+            aiStats.errorsLastHour > 0
+              ? "text-destructive"
+              : "text-emerald-500 dark:text-emerald-400"
+          }
         />
         <Stat
-          icon={FileText}
-          label={t("dashboard.stats.exams")}
-          value={counts.exams}
+          icon={CircleCheck}
+          label="Calificaciones IA (1h)"
+          value={aiStats.gradingsLastHour}
+          color="text-emerald-500 dark:text-emerald-400"
+        />
+        <Stat
+          icon={Bot}
+          label="Preguntas IA (1h)"
+          value={aiStats.questionsGenLastHour}
           color="text-violet-500 dark:text-violet-400"
         />
         <Stat
-          icon={Hammer}
-          label={t("dashboard.stats.workshops")}
-          value={counts.workshops}
+          icon={Search}
+          label="Plagio detectado (1h)"
+          value={aiStats.plagiarismLastHour}
           color="text-amber-500 dark:text-amber-400"
-        />
-        <Stat
-          icon={ClipboardList}
-          label={t("dashboard.stats.submissions")}
-          value={counts.submissions}
-          color="text-emerald-500 dark:text-emerald-400"
         />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
+        {/* Reemplazo de "Usuarios recientes" — lista las últimas
+            ejecuciones de IA (1h) con action + actor + severity. El
+            admin puede diagnosticar incidentes de rate limit, picos de
+            uso, errores, etc. sin tener que entrar a Auditoría completa.
+            Link al final lleva al historial filtrado. */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4 text-indigo-500" /> {t("dashboard.recentUsers")}
+              <Sparkles className="h-4 w-4 text-indigo-500" /> Ejecuciones IA recientes (1h)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5">
-            {recentUsers.length === 0 ? (
+            {recentAiExecs.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                Sin usuarios recientes.
+                Sin ejecuciones de IA en la última hora.
               </p>
             ) : (
-              recentUsers.map((u) => {
-                const primary =
-                  u.roles.includes("Admin")
-                    ? "Admin"
-                    : u.roles.includes("Docente")
-                      ? "Docente"
-                      : u.roles.includes("Estudiante")
-                        ? "Estudiante"
-                        : null;
-                const created = new Date(u.created_at);
+              recentAiExecs.map((e) => {
+                const created = new Date(e.created_at);
                 const diffMs = Date.now() - created.getTime();
-                const diffH = Math.floor(diffMs / (60 * 60 * 1000));
-                const diffD = Math.floor(diffH / 24);
+                const diffMin = Math.floor(diffMs / 60000);
                 const relative =
-                  diffH < 1
-                    ? "hace minutos"
-                    : diffH < 24
-                      ? `hace ${diffH} h`
-                      : diffD === 1
-                        ? "ayer"
-                        : `hace ${diffD} d`;
+                  diffMin < 1 ? "ahora" : diffMin < 60 ? `hace ${diffMin} min` : "hace 1h";
+                const isError = e.severity === "error";
+                const isWarning = e.severity === "warning";
+                const labelByAction: Record<string, string> = {
+                  "ai.grading_started": "Calificación iniciada",
+                  "ai.grading_failed": "Error de IA",
+                  "ai_grading.completed": "Calificación completada",
+                  "ai_questions.generated": "Preguntas generadas",
+                  "ai_plagiarism.detected": "Plagio detectado",
+                  "ai.grading_retry_run": "Reintento automático",
+                  "ai.questions_generation_failed": "Error generación preguntas",
+                };
+                const label = labelByAction[e.action] ?? e.action;
                 return (
-                  <div
-                    key={u.id}
-                    className="flex items-center gap-2 p-2 rounded-md border text-sm"
-                  >
-                    <div className="h-7 w-7 rounded-full bg-indigo-500/10 flex items-center justify-center text-xs font-medium text-indigo-600 dark:text-indigo-400 shrink-0">
-                      {u.full_name.charAt(0).toUpperCase()}
+                  <div key={e.id} className="flex items-center gap-2 p-2 rounded-md border text-sm">
+                    <div
+                      className={cn(
+                        "h-7 w-7 rounded-full flex items-center justify-center shrink-0",
+                        isError
+                          ? "bg-destructive/10 text-destructive"
+                          : isWarning
+                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+                      )}
+                    >
+                      {isError ? (
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate flex items-center gap-1.5">
-                        <span className="truncate">{u.full_name}</span>
-                        {primary && (
-                          <Badge variant="outline" className="text-[9px] shrink-0">
-                            {primary}
+                        <span className="truncate">{label}</span>
+                        {isError && (
+                          <Badge variant="destructive" className="text-[9px] shrink-0">
+                            error
                           </Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {u.institutional_email}
+                        {e.actor_email ?? "sistema (cron)"}
                       </div>
                     </div>
                     <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
@@ -375,9 +486,9 @@ function AdminDashboard() {
                 );
               })
             )}
-            <Link to="/app/admin/users" className="block">
+            <Link to="/app/admin/audit-logs" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("dashboard.manageUsers")} <ArrowRight className="h-3 w-3 ml-1" />
+                Ver auditoría completa <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -617,6 +728,10 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     openThreads: 0,
     /** Sesiones de asistencia con `session_date = today` en mis cursos. */
     todaySessions: 0,
+    /** Errores de llamada a IA disparados por este docente en la última
+     *  hora. Cuenta `audit_logs` con `action = 'ai.grading_failed'` o
+     *  `'ai.questions_generation_failed'` y `actor_id = mi user_id`. */
+    aiErrorsLastHour: 0,
   });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
@@ -664,10 +779,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           .from("exam_notes")
           .select("id", { count: "exact", head: true })
           .eq("status", "pendiente"),
-        (supabase as any)
-          .from("feedback_threads")
-          .select("id")
-          .eq("closed", false),
+        (supabase as any).from("feedback_threads").select("id").eq("closed", false),
         (supabase as any).rpc("count_unanswered_conversations"),
         (supabase as any)
           .from("attendance_sessions")
@@ -694,14 +806,23 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // 0 para que el dashboard no rompa. El bug se nota cuando el badge
       // se queda en 0 aunque haya conversaciones — el usuario sabe que
       // debe publicar la migración.
-      const unansweredCount =
-        typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
+      const unansweredCount = typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
+      // Conteo de errores de llamada a IA del docente en la última hora.
+      // RPC count_ai_errors_last_hour(actor_id) — si el docente acaba de
+      // calificar y el provider devolvió 429/5xx, ese error queda en
+      // audit_logs y aparece aquí. Si la migración no está aplicada o
+      // el RPC falla, el card muestra 0 sin romper.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: aiErrCount } = await (supabase as any).rpc("count_ai_errors_last_hour", {
+        _actor_id: userId ?? null,
+      });
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
         unansweredMessages: unansweredCount,
         pendingMyResponse,
         openThreads: openThreadIds.length,
         todaySessions: todaySess.count ?? 0,
+        aiErrorsLastHour: typeof aiErrCount === "number" ? aiErrCount : 0,
       });
 
       // Próximas clases: attendance_sessions del docente con
@@ -763,17 +884,21 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-violet-500 dark:text-violet-400"
           onClick={() => setPendingNotesModalOpen(true)}
         />
-        {/* Mensajes pendientes sin responder: conversaciones del módulo
-            /app/messages donde el último mensaje no es mío. Click → abre
-            /app/messages para que el docente vaya directo a responder. */}
+        {/* Errores llamada IA (última hora): cuántos requests del docente
+            a Gemini/OpenAI/etc. fallaron en los últimos 60 min (rate
+            limit 429, key inválida, etc.). Si > 0 el cron de reintento
+            los recoge cada 30 min. Click → abre Auditoría con filtro
+            preconfigurado. */}
         <Stat
-          icon={Inbox}
-          label={t("dashboard.stats.unansweredMessages", {
-            defaultValue: "Mensajes pendientes sin responder",
-          })}
-          value={counts.unansweredMessages}
-          color="text-amber-500 dark:text-amber-400"
-          onClick={() => void navigate({ to: "/app/messages" })}
+          icon={AlertTriangle}
+          label="Errores IA (1h)"
+          value={counts.aiErrorsLastHour}
+          color={
+            counts.aiErrorsLastHour > 0
+              ? "text-destructive"
+              : "text-emerald-500 dark:text-emerald-400"
+          }
+          onClick={() => void navigate({ to: "/app/teacher/audit-logs" })}
         />
         {/* Comentarios pendientes por respuesta del docente actual:
             threads abiertos donde el último comment lo escribió alguien

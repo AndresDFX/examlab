@@ -159,15 +159,18 @@ function TeacherProjects() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [aiErrorsByProject, setAiErrorsByProject] = useState<Record<string, number>>({});
   // Per-course cut+weight for the project being created/edited.
   // Record<courseId, { cut_id, weight }>
   const [courseCuts, setCourseCuts] = useState<
     Record<string, { cut_id: string | null; weight: number }>
   >({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [duplicateSource, setDuplicateSource] = useState<
-    { id: string; title: string; courseId: string } | null
-  >(null);
+  const [duplicateSource, setDuplicateSource] = useState<{
+    id: string;
+    title: string;
+    courseId: string;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [cutFilter, setCutFilter] = useState<string | null>(null);
@@ -462,6 +465,14 @@ function TeacherProjects() {
         };
       });
       setProjects(enriched);
+      // Cargar counts de errores IA por proyecto (mismo patrón que exam/workshop).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: aiErr } = await (supabase as any).rpc("count_ai_errors_per_project");
+      const errMap: Record<string, number> = {};
+      for (const row of (aiErr ?? []) as Array<{ project_id: string; error_count: number }>) {
+        errMap[row.project_id] = Number(row.error_count) || 0;
+      }
+      setAiErrorsByProject(errMap);
       console.info(`[projects] loaded ${enriched.length} project(s)`);
     } catch (e) {
       console.error("[projects] projects load failed", e);
@@ -1522,6 +1533,7 @@ function TeacherProjects() {
                 <TableHead className="w-24">{t("common.status")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-28">{t("common.end")}</TableHead>
+                <TableHead className="hidden md:table-cell w-24 text-right">Errores IA</TableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1567,6 +1579,19 @@ function TeacherProjects() {
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <DateCell value={p.due_date} variant="datetime" />
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">
+                    {aiErrorsByProject[p.id] ? (
+                      <Badge
+                        variant="destructive"
+                        className="text-[10px]"
+                        title={`${aiErrorsByProject[p.id]} entrega(s) con error de IA. El cron reintenta cada 30 min.`}
+                      >
+                        {aiErrorsByProject[p.id]}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActionsMenu

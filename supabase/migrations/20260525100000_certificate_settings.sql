@@ -152,6 +152,11 @@ GRANT EXECUTE ON FUNCTION public.resolve_certificate_settings(UUID) TO authentic
 -- ── Actualizar issue_certificate para usar las settings efectivas ──
 -- Reemplazamos la lectura directa de content_brand_config con un join al
 -- nuevo RPC. Preservamos el resto del comportamiento (snapshot inmutable).
+-- DROP FUNCTION explícito antes de CREATE: el cuerpo original cambió en
+-- bytes pero Postgres no permite OR REPLACE con cambios en TABLE-return
+-- o internals del prototype. DROP IF EXISTS hace la migración idempotente.
+DROP FUNCTION IF EXISTS public.issue_certificate(UUID, UUID, NUMERIC);
+
 CREATE OR REPLACE FUNCTION public.issue_certificate(
   _user_id UUID,
   _course_id UUID,
