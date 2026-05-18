@@ -45,6 +45,7 @@ import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { logEvent } from "@/lib/audit";
+import { extractEdgeError } from "@/lib/edge-error";
 import { friendlyUniqueViolation } from "@/lib/db-errors";
 import {
   Plus,
@@ -1271,7 +1272,8 @@ function TeacherWorkshops() {
         },
       });
       if (error || data?.error) {
-        toast.error(`Error IA: ${error?.message ?? data?.error}`);
+        const detail = await extractEdgeError(error, data);
+        toast.error(`Error IA: ${detail || "Desconocido"}`);
         return;
       }
       const newGrade = Number(data?.grade ?? 0);

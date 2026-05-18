@@ -310,7 +310,21 @@ async function executeWithAwsLambda(
   }
 
   if (!response.ok) {
-    const err = new Error(`Error del runner AWS Lambda: HTTP ${response.status}`) as Error & {
+    // Construimos un mensaje útil con el detalle del response, no solo
+    // "HTTP 403". Para 4xx/5xx el body de la Lambda/API Gateway suele
+    // tener un campo { error } o { message } con la causa real.
+    const detail =
+      typeof (data as { error?: unknown }).error === "string"
+        ? (data as { error: string }).error
+        : typeof (data as { message?: unknown }).message === "string"
+          ? (data as { message: string }).message
+          : typeof (data as { _nonJsonBody?: unknown })._nonJsonBody === "string"
+            ? (data as { _nonJsonBody: string })._nonJsonBody
+            : "";
+    const fullMsg = detail
+      ? `Error del runner AWS Lambda (HTTP ${response.status}): ${detail}`
+      : `Error del runner AWS Lambda: HTTP ${response.status}`;
+    const err = new Error(fullMsg) as Error & {
       rawResponse?: unknown;
       httpStatus?: number;
     };

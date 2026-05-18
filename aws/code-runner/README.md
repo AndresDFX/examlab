@@ -90,7 +90,7 @@ El script:
 5. Despliega el stack CloudFormation.
 6. Fuerza un `update-function-code` (para que tags como `:latest` se
    propaguen aunque el ImageUri no cambie en CF).
-7. Muestra la `FunctionUrl` y dónde recuperar la API key.
+7. Muestra la `RunnerUrl` y dónde recuperar la API key.
 
 ### 2) Configurar Supabase
 
@@ -128,7 +128,7 @@ A partir de ahora:
 ```bash
 URL=$(aws cloudformation describe-stacks \
   --stack-name examlab-code-runner \
-  --query "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue" \
+  --query "Stacks[0].Outputs[?OutputKey=='RunnerUrl'].OutputValue" \
   --output text --region us-east-1)
 KEY=$(aws ssm get-parameter --name /examlab-code-runner/api-key \
   --with-decryption --query Parameter.Value --output text --region us-east-1)

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/lib/audit";
+import { extractEdgeError } from "@/lib/edge-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -688,7 +689,10 @@ function ExamMonitor() {
           : { submissionId: sub.id, dryRun: true },
       });
       if (error || data?.error) {
-        toast.error(data?.error ?? error?.message ?? "Error al calificar con IA");
+        // Extrae el mensaje real del response body (no el genérico
+        // "Edge Function returned a non-2xx status code").
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || "Error al calificar con IA");
         return;
       }
       if (useDryRun && data?.dryRun) {

@@ -46,6 +46,7 @@ import { logEvent } from "@/lib/audit";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/utils/exam-session";
 import { runJavaInBrowser } from "@/lib/run-java";
+import { extractEdgeError } from "@/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
@@ -1181,7 +1182,13 @@ function TakeExam() {
             submissionId: submissionIdRef.current,
           },
         });
-        if (error) throw error;
+        if (error) {
+          // Extraemos el mensaje REAL del response body (que tiene
+          // `{ error: "detalle..." }`), no el genérico
+          // "Edge Function returned a non-2xx status code".
+          const real = await extractEdgeError(error, data);
+          throw new Error(real || "Error ejecutando código");
+        }
         stdout = data?.stdout ?? "";
         stderr = data?.stderr ?? "";
       }
