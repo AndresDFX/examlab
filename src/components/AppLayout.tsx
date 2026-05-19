@@ -68,7 +68,6 @@ import {
   Moon,
   Monitor,
   Languages,
-  Wrench,
   Settings,
   Bell,
   Library,
@@ -276,10 +275,9 @@ const NAV: NavItem[] = [
   // (Item viejo del nav removido.)
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
-  // Admin-only: utilidades de diagnóstico de la infraestructura
-  // (edge functions health-check, etc.). Va al final porque rara vez
-  // se usa — solo cuando hay sospecha de algo roto en Supabase.
-  { to: "/app/admin/system", labelKey: "nav.system", icon: Wrench, roles: ["Admin"] },
+  // Diagnóstico de infraestructura (`/app/admin/system`) ya no vive en
+  // el sidebar — está accesible como tab "Sistema" dentro de
+  // Configuración para reducir el ruido de navegación.
   // Configuración global (correos, compilador, etc.). Admin-only.
   {
     to: "/app/admin/settings",
@@ -340,7 +338,6 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/admin/statistics": "text-blue-300",
   "/app/teacher/audit-logs": "text-teal-300",
   "/app/admin/audit-logs": "text-teal-300",
-  "/app/admin/system": "text-cyan-300",
   "/app/student/exams": "text-amber-300",
   "/app/student/workshops": "text-orange-300",
   "/app/student/projects": "text-rose-300",

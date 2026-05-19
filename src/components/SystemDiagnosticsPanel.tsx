@@ -10,7 +10,6 @@ import {
   Activity,
   Database,
   Bot,
-  Bell,
   HardDrive,
   KeyRound,
   CheckCircle2,
@@ -153,6 +152,26 @@ const CRON_JOB_DESCRIPTIONS: Record<string, string> = {
     "Cada hora (minuto :05) invoca `ai-grading-worker` para drenar la cola de calificación IA pendiente.",
   "examlab-daily-notifs":
     "Diario — recuerda al estudiante exámenes/talleres próximos y al docente entregas pendientes.",
+  "admin-storage-threshold":
+    "Cada 6 horas — revisa uso de DB + Storage vs cuota y notifica al admin si pasa el umbral configurado.",
+  "audit-logs-purge":
+    "Mensual (día 1, 03:00) — purga `audit_logs` viejos según la política de retención por severidad (Admin → Configuración → Auditoría).",
+  "email-alert-threshold":
+    "Cada 30 minutos — si los correos enviados en 24h superan el umbral, alerta a admins (cooldown configurable).",
+  "exam-reminders-1h":
+    "Cada 10 minutos — notifica al estudiante 1h antes de que abra un examen ya programado, según `exams.start_time`.",
+  "exam-window-opens":
+    "Cada 15 minutos — cambia el estado de exámenes con ventana abierta a `disponible` para que el estudiante pueda iniciar.",
+  "project-due-24h":
+    "Cada 2 horas — notifica al estudiante con 24h restantes para entregar un proyecto.",
+  "retry-failed-ai-gradings":
+    "Cada 30 minutos — reintenta calificaciones IA que fallaron por rate-limit / red transitorio. Tras N intentos las marca como `failed` definitivo.",
+  "teacher-daily-summary":
+    "Diario (04:00 hora del servidor) — envía al docente un resumen del día anterior: entregas pendientes, entregas calificables, alertas.",
+  "teacher-exam-prep-1h":
+    "Cada 10 minutos — notifica al docente 1h antes de que arranque un examen para que revise el monitor.",
+  "workshop-due-24h":
+    "Cada 2 horas — notifica al estudiante con 24h restantes para entregar un taller.",
 };
 
 /** Estado de una métrica de uso según el threshold de alerta:
@@ -324,16 +343,12 @@ export function SystemDiagnosticsPanel() {
       setHc({ state: "ok", data, latencyMs });
 
       // Cuando el response llega OK pero detecta problemas internos
-      // (secret IA faltante, push apuntando al Supabase viejo, etc.),
-      // los registramos al audit como warnings. Así el admin puede
-      // revisar histórico en /app/admin/audit-logs sin tener que estar
-      // refrescando este panel.
+      // (secret IA faltante, storage vacío, etc.), los registramos al
+      // audit como warnings. Así el admin puede revisar histórico en
+      // /app/admin/audit-logs sin tener que estar refrescando este panel.
       const warnings: string[] = [];
       if (data.ai?.required_secret_missing && data.ai.required_secret) {
         warnings.push(`AI secret missing: ${data.ai.required_secret}`);
-      }
-      if (data.push && data.push.send_push_url && data.push.points_to_current_project === false) {
-        warnings.push(`push_config apunta a otro proyecto: ${data.push.send_push_url}`);
       }
       if (data.storage && data.storage.buckets.length === 0) {
         warnings.push("Storage sin buckets configurados");
@@ -396,7 +411,6 @@ export function SystemDiagnosticsPanel() {
   // Sin esto el render explota con "Cannot read properties of undefined".
   const hcData = hc.state === "ok" ? hc.data : null;
   const ai = hcData?.ai ?? null;
-  const push = hcData?.push ?? null;
   const storage = hcData?.storage ?? null;
   const secrets = hcData?.secrets ?? [];
   const extensions = hcData?.db?.extensions ?? null;
@@ -436,16 +450,6 @@ export function SystemDiagnosticsPanel() {
     ? ai.active_provider
       ? ai.required_secret_missing
         ? "error"
-        : "ok"
-      : "warning"
-    : hc.state === "error"
-      ? "error"
-      : "idle";
-
-  const pushState: "idle" | "ok" | "warning" | "error" = push
-    ? push.send_push_url
-      ? push.points_to_current_project === false
-        ? "warning"
         : "ok"
       : "warning"
     : hc.state === "error"
@@ -653,47 +657,6 @@ export function SystemDiagnosticsPanel() {
                 <p className="pt-1 text-xs text-destructive">
                   Falta el secret {ai.required_secret} en Edge Function Secrets. Las llamadas de IA
                   van a fallar hasta que lo configures.
-                </p>
-              )}
-            </>
-          )}
-        </StatusCard>
-
-        {/* Push notifications */}
-        <StatusCard
-          title="Push notifications"
-          description="URL del trigger y secret compartido (push_config)."
-          icon={<Bell className="h-4 w-4 text-orange-500" />}
-          state={pushState}
-        >
-          {!push ? (
-            <p className="text-muted-foreground">
-              {hc.state === "ok"
-                ? "La edge function no devolvió info de push (versión vieja desplegada)."
-                : "Refresca el diagnóstico para ver el estado."}
-            </p>
-          ) : !push.send_push_url ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              push_config.send_push_url está vacío.
-            </p>
-          ) : (
-            <>
-              <MutedLine label="URL" value={push.send_push_url} />
-              <MutedLine
-                label="Apunta a este proyecto"
-                value={
-                  push.points_to_current_project === false ? (
-                    <span className="text-amber-600 dark:text-amber-400">
-                      NO — apunta a otro Supabase
-                    </span>
-                  ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400">Sí</span>
-                  )
-                }
-              />
-              {push.points_to_current_project === false && (
-                <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
-                  Actualiza public.push_config.send_push_url al endpoint del proyecto actual.
                 </p>
               )}
             </>
