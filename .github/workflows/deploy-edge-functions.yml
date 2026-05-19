@@ -5,19 +5,35 @@
 #   Antes Lovable Cloud desplegaba las edge functions automaticamente al
 #   hacer "Publish". Despues de migrar a un Supabase propio, Lovable
 #   solo despliega el frontend — las edge functions las debe desplegar
-#   este pipeline en cada push a main.
+#   este pipeline.
+#
+# Optimizaciones de costo / rate-limit (2026-05-30):
+#   1) `paths` filter: el workflow SOLO corre cuando hay cambios reales
+#      en supabase/functions/** o en este propio archivo. Antes corria
+#      en CADA push, gastaba minutos de Actions y saturaba el rate limit
+#      de la API de GitHub (que supabase/setup-cli usa para resolver
+#      "latest"), causando errores tipo:
+#         "Failed to resolve latest Supabase CLI release: rate limit exceeded"
+#   2) GITHUB_TOKEN al setup-cli: aunque el filtro de paths reduce
+#      invocaciones, cuando si corre necesita autenticarse a la API de
+#      releases. Con GITHUB_TOKEN el limite sube de 60/h a 1000/h por
+#      repo.
+#   3) Deploy incremental: solo despliega las funciones cuyas carpetas
+#      cambiaron en el push. Excepciones que fuerzan deploy total:
+#       - cambios en `_shared` (modulos importados por todas las fns)
+#       - cambios en el propio workflow
+#       - workflow_dispatch con `force_all=true`
 #
 # Que hace en cada run:
-#   1. Genera un supabase/config.toml minimo en runtime (porque el del
+#   1. Detecta funciones modificadas (git diff contra commit anterior).
+#   2. Genera un supabase/config.toml minimo en runtime (porque el del
 #      repo tiene claves de versiones viejas del CLI que la latest
 #      rechaza con errores tipo "'realtime' has invalid keys: ...").
-#   2. Itera supabase/functions/* saltando carpetas auxiliares (_shared)
-#      y despliega cada funcion. Deploy es idempotente: crea si no
-#      existe, actualiza si ya existe.
-#   3. (Opcional) Si activas el input `prune_orphaned`, lista las
+#   3. Despliega solo las funciones cambiadas. Deploy es idempotente:
+#      crea si no existe, actualiza si ya existe.
+#   4. (Opcional) Si activas el input `prune_orphaned`, lista las
 #      funciones del proyecto remoto y borra las que NO existen en el
-#      repo local. Util cuando borras una funcion del codigo y quieres
-#      que desaparezca tambien del servidor.
+#      repo local.
 #
 # Secrets requeridos en GitHub (Settings -> Secrets -> Actions):
 #   - SUPABASE_PROJECT_REF: ref del proyecto Supabase destino.
@@ -25,23 +41,29 @@
 #     https://supabase.com/dashboard/account/tokens
 #
 # Cuando se dispara:
-#   - Push a main (automatico): SOLO deploy/update (sin pruning).
-#   - workflow_dispatch (manual): permite activar pruning.
+#   - Push a main + cambios en supabase/functions/** -> deploy incremental.
+#   - workflow_dispatch (manual): permite pruning y/o forzar deploy total.
 name: Deploy Edge Functions
 
 on:
   push:
-    # En CADA push a main desplegamos todas las funciones — no usamos
-    # filtro `paths` a proposito. El deploy es idempotente y preferimos
-    # "siempre desplegar todo" que filtros que se pueden saltar cambios
-    # en `_shared` u otros archivos no detectados.
     branches: [main]
+    # Solo corre cuando cambia algo en edge functions. Cambios en
+    # frontend / migraciones / docs NO disparan este workflow.
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-edge-functions.yml'
 
   workflow_dispatch:
     inputs:
       prune_orphaned:
         description: 'Borrar funciones del proyecto remoto que ya no existen en el repo'
         required: true
+        type: boolean
+        default: false
+      force_all:
+        description: 'Forzar deploy de TODAS las funciones (ignorar diff)'
+        required: false
         type: boolean
         default: false
 
@@ -56,11 +78,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Necesitamos al menos el commit anterior para `git diff` y
+          # detectar qué funciones cambiaron. fetch-depth: 0 trae todo el
+          # historial — para repos chicos es OK; si crece mucho, podemos
+          # bajar a fetch-depth: 2 (commit actual + previo).
+          fetch-depth: 2
 
       - name: Validar secrets
         env:
@@ -76,7 +99,105 @@ jobs:
             exit 1
           fi
 
+      - name: Detectar funciones a desplegar
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FORCE_ALL: ${{ inputs.force_all }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          # Lista de TODAS las funciones locales (carpetas no-helper).
+          all_fns=()
+          for dir in supabase/functions/*/; do
+            name="$(basename "$dir")"
+            case "$name" in _*) continue;; esac
+            all_fns+=("$name")
+          done
+
+          # Modo "todo" — cuando se dispara manualmente con force_all,
+          # cuando no hay commit previo (primer push), o cuando cambian
+          # archivos en _shared o el propio workflow (ambos afectan a
+          # todas las funciones).
+          deploy_mode="incremental"
+          targets=()
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FORCE_ALL" = "true" ]; then
+            echo "Force-all manual: desplegando todas."
+            deploy_mode="all"
+          elif [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "No hay commit previo (primer push o force-push): desplegando todas."
+            deploy_mode="all"
+          else
+            # Diff entre BEFORE_SHA y HEAD. Filtramos solo paths bajo
+            # supabase/functions/ y el workflow propio.
+            changed_files=$(git diff --name-only "$BEFORE_SHA" HEAD -- \
+              'supabase/functions/' \
+              '.github/workflows/deploy-edge-functions.yml' || echo "")
+
+            if [ -z "$changed_files" ]; then
+              echo "Sin cambios detectados — nada que desplegar."
+              echo "deploy_mode=skip" >> "$GITHUB_OUTPUT"
+              echo "targets=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Si el workflow propio cambio o algo en _shared cambio,
+            # forzamos deploy de todas (las _shared se importan dinamicamente).
+            if echo "$changed_files" | grep -qE '^(\.github/workflows/deploy-edge-functions\.yml|supabase/functions/_)'; then
+              echo "Cambios en workflow o en _shared — desplegando todas:"
+              echo "$changed_files" | grep -E '^(\.github|supabase/functions/_)' || true
+              deploy_mode="all"
+            else
+              # Extraer nombres unicos de funciones tocadas
+              # (path: supabase/functions/<name>/...).
+              changed_fns=$(echo "$changed_files" \
+                | grep -oE '^supabase/functions/[^/]+' \
+                | sed 's|^supabase/functions/||' \
+                | sort -u)
+              for n in $changed_fns; do
+                # Excluir _shared y carpetas que ya no existen (deleted).
+                case "$n" in _*) continue;; esac
+                if [ -d "supabase/functions/$n" ]; then
+                  targets+=("$n")
+                fi
+              done
+            fi
+          fi
+
+          if [ "$deploy_mode" = "all" ]; then
+            targets=("${all_fns[@]}")
+          fi
+
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "No quedaron funciones para desplegar (posible borrado puro)."
+            echo "deploy_mode=skip" >> "$GITHUB_OUTPUT"
+            echo "targets=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Modo: $deploy_mode"
+          echo "Funciones a desplegar (${#targets[@]}): ${targets[*]}"
+          echo "deploy_mode=$deploy_mode" >> "$GITHUB_OUTPUT"
+          # Pasamos como string separado por espacios (parseable abajo).
+          echo "targets=${targets[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Supabase CLI
+        # Skip CLI setup si no hay nada que desplegar (evita hit a la API
+        # de GitHub releases — la causa del rate-limit anterior).
+        if: steps.detect.outputs.deploy_mode != 'skip'
+        uses: supabase/setup-cli@v1
+        env:
+          # Autenticar contra la API de releases sube el limite de
+          # 60 req/h a 1000 req/h. Sin esto, el "latest" lookup se
+          # quemaba el limite y rompia el deploy.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          version: latest
+
       - name: Preparar config.toml minimo
+        if: steps.detect.outputs.deploy_mode != 'skip'
         # El supabase/config.toml del repo tiene claves de una version
         # vieja del CLI que la actual rechaza. Lo bypaseamos armando un
         # dir temporal con un config minimo y un symlink a las funciones.
@@ -97,19 +218,22 @@ jobs:
           echo "config.toml minimo generado en /tmp/sb-deploy"
 
       - name: Deploy / update functions
+        if: steps.detect.outputs.deploy_mode != 'skip'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          TARGETS: ${{ steps.detect.outputs.targets }}
         working-directory: /tmp/sb-deploy
         run: |
           set -euo pipefail
           deployed=0
           failed=0
           failed_names=()
-          for dir in supabase/functions/*/; do
-            name="$(basename "$dir")"
-            # Saltar carpetas auxiliares (modulos compartidos, no funciones).
-            case "$name" in _*) echo "Skipping helper: $name"; continue;; esac
+          # TARGETS viene como string separado por espacios desde detect.
+          read -ra fns <<< "$TARGETS"
+          echo "Desplegando ${#fns[@]} funcion(es): ${fns[*]}"
+          for name in "${fns[@]}"; do
+            [ -z "$name" ] && continue
             echo ""
             echo "═══ Deploying: $name ═══"
             if supabase functions deploy "$name" --project-ref "$REF"; then
@@ -126,6 +250,10 @@ jobs:
             echo "Funciones que fallaron: ${failed_names[*]}"
             exit 1
           fi
+
+      - name: Sin cambios — saltando deploy
+        if: steps.detect.outputs.deploy_mode == 'skip'
+        run: echo "No hay funciones modificadas. Workflow terminado sin deploys."
 
       - name: Prune orphaned functions
         # Solo corre cuando se dispara manualmente con prune_orphaned=true.
