@@ -49,6 +49,7 @@ import {
   Bot,
   Users,
   ChevronRight,
+  ChevronDown,
   Pencil,
   Pause,
   Play,
@@ -278,6 +279,12 @@ function ExamMonitor() {
   const [regradeAllLoading, setRegradeAllLoading] = useState(false);
   const [regradeAllProgress, setRegradeAllProgress] = useState({ done: 0, total: 0 });
   const [applyingBulk, setApplyingBulk] = useState(false);
+  // IDs de submissions cuya fila del dialog de recalificación está
+  // expandida. Cada fila expandida muestra el breakdown pregunta-por-
+  // pregunta: enunciado, respuesta del alumno, nota propuesta y
+  // retroalimentación IA. Permite al docente decidir el "Aplicar" con
+  // contexto en vez de apretar el botón a ciegas.
+  const [regradeExpanded, setRegradeExpanded] = useState<Set<string>>(new Set());
   // Retroalimentación general del examen (campo teacher_feedback de la submission).
   // Se llena al abrir el modal de respuestas y se guarda explícitamente.
   const [teacherFeedbackDraft, setTeacherFeedbackDraft] = useState("");
@@ -536,7 +543,6 @@ function ExamMonitor() {
       window.history.replaceState({}, "", url.toString());
     }
     setAutoOpenedFromUrl(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submissions, autoOpenedFromUrl]);
 
   // Scroll + ring temporal a la pregunta destacada cuando el modal
@@ -983,7 +989,10 @@ function ExamMonitor() {
       status: result.status,
     };
     if (result.clearSubmittedAt) updatePayload.submitted_at = null;
-    const { error } = await supabase.from("submissions").update(updatePayload as never).eq("id", sub.id);
+    const { error } = await supabase
+      .from("submissions")
+      .update(updatePayload as never)
+      .eq("id", sub.id);
     if (error) return toast.error(error.message);
     // Auditoría: borrar advertencias es decisión sensible — rastro con before/after.
     void logEvent({
@@ -1050,7 +1059,10 @@ function ExamMonitor() {
       status: result.status,
     };
     if (result.clearSubmittedAt) updatePayload.submitted_at = null;
-    const { error } = await supabase.from("submissions").update(updatePayload as never).eq("id", sub.id);
+    const { error } = await supabase
+      .from("submissions")
+      .update(updatePayload as never)
+      .eq("id", sub.id);
     if (error) return toast.error(error.message);
     toast.success(
       result.restoredToInProgress
@@ -2076,33 +2088,36 @@ function ExamMonitor() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {inProg && (() => {
-                          const isPaused = pausedUserIds.has(row.userId);
-                          const pauseKey = isPaused ? `resume-${row.userId}` : `pause-${row.userId}`;
-                          return (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                sendTimerControl(isPaused ? "resume" : "pause", row.userId)
-                              }
-                              disabled={loading === pauseKey}
-                              title={isPaused ? "Reanudar examen" : "Pausar examen"}
-                              className={isPaused ? "text-amber-600 hover:text-amber-700" : ""}
-                            >
-                              {loading === pauseKey ? (
-                                <Spinner size="sm" />
-                              ) : isPaused ? (
-                                <Play className="h-3.5 w-3.5" />
-                              ) : (
-                                <Pause className="h-3.5 w-3.5" />
-                              )}
-                              <span className="ml-1 text-[11px]">
-                                {isPaused ? "Reanudar" : "Pausar"}
-                              </span>
-                            </Button>
-                          );
-                        })()}
+                        {inProg &&
+                          (() => {
+                            const isPaused = pausedUserIds.has(row.userId);
+                            const pauseKey = isPaused
+                              ? `resume-${row.userId}`
+                              : `pause-${row.userId}`;
+                            return (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  sendTimerControl(isPaused ? "resume" : "pause", row.userId)
+                                }
+                                disabled={loading === pauseKey}
+                                title={isPaused ? "Reanudar examen" : "Pausar examen"}
+                                className={isPaused ? "text-amber-600 hover:text-amber-700" : ""}
+                              >
+                                {loading === pauseKey ? (
+                                  <Spinner size="sm" />
+                                ) : isPaused ? (
+                                  <Play className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Pause className="h-3.5 w-3.5" />
+                                )}
+                                <span className="ml-1 text-[11px]">
+                                  {isPaused ? "Reanudar" : "Pausar"}
+                                </span>
+                              </Button>
+                            );
+                          })()}
                         {inProg && (
                           <Button
                             variant="ghost"
@@ -2545,7 +2560,8 @@ function ExamMonitor() {
                                 height="220px"
                               />
                             ) : (
-                              q.type !== "cerrada" && q.type !== "cerrada_multi" && (
+                              q.type !== "cerrada" &&
+                              q.type !== "cerrada_multi" && (
                                 <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
                                   {ans == null || ans === "" ? (
                                     <span className="text-muted-foreground italic">
@@ -2641,7 +2657,9 @@ function ExamMonitor() {
                                         >
                                           <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 shrink-0" />
                                           <Bot className="h-3 w-3 shrink-0" />
-                                          <span className="truncate">{t("integrity.aiSection")}</span>
+                                          <span className="truncate">
+                                            {t("integrity.aiSection")}
+                                          </span>
                                           <Badge
                                             variant={
                                               sig.score >= 0.85
@@ -2891,178 +2909,180 @@ function ExamMonitor() {
                                 Las preguntas de opción múltiple (`cerrada`/`cerrada_multi`)
                                 se validan determinísticamente contra `correct_index` —
                                 no aplican señales de IA ni de copia, así que skip. */}
-                            {q.type !== "cerrada" && q.type !== "cerrada_multi" && (() => {
-                              const aiSig = aiSignalsBySubmissionQuestion
-                                .get(viewingSub.id)
-                                ?.get(q.id);
-                              const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
-                              const qPairs = userPairs.filter((p) => p.questionId === q.id);
-                              const plagiarismMax =
-                                qPairs.length > 0
-                                  ? qPairs.reduce((m, p) => Math.max(m, p.score), 0)
-                                  : null;
-                              const currentRaw = bd?.earned != null ? Number(bd.earned) : null;
-                              // Si la nota actual es 0 o no existe, no hay nada que
-                              // penalizar — la sugerencia sería 0 y no aporta valor.
-                              if (currentRaw == null || currentRaw <= 0) return null;
-                              const sug = computeIntegritySuggestion(
-                                currentRaw,
-                                aiSig?.score ?? null,
-                                plagiarismMax,
-                              );
-                              if (!sug) return null;
-                              const aiPct = Math.round((aiSig?.score ?? 0) * 100);
-                              const cpPct = Math.round((plagiarismMax ?? 0) * 100);
-                              // Peers a comparar inline en el banner. Solo
-                              // tiene sentido cuando la señal incluye copia
-                              // (sug.source === 'plagio' o 'ambas'). Ordenamos
-                              // por score desc y limitamos a 3 para no romper
-                              // el layout en cards angostas. Si hay más,
-                              // mostramos "+N" y el docente puede abrir la
-                              // sección de copias colapsable que lista todos.
-                              const compareablePeers =
-                                sug.source === "ai"
-                                  ? []
-                                  : qPairs
-                                      .slice()
-                                      .sort((a, b) => b.score - a.score)
-                                      .map((p) => {
-                                        const peerRow = studentRows.find(
-                                          (r) => r.userId === p.peerId,
+                            {q.type !== "cerrada" &&
+                              q.type !== "cerrada_multi" &&
+                              (() => {
+                                const aiSig = aiSignalsBySubmissionQuestion
+                                  .get(viewingSub.id)
+                                  ?.get(q.id);
+                                const userPairs = copyPairsByUser.get(viewingSub.user_id) ?? [];
+                                const qPairs = userPairs.filter((p) => p.questionId === q.id);
+                                const plagiarismMax =
+                                  qPairs.length > 0
+                                    ? qPairs.reduce((m, p) => Math.max(m, p.score), 0)
+                                    : null;
+                                const currentRaw = bd?.earned != null ? Number(bd.earned) : null;
+                                // Si la nota actual es 0 o no existe, no hay nada que
+                                // penalizar — la sugerencia sería 0 y no aporta valor.
+                                if (currentRaw == null || currentRaw <= 0) return null;
+                                const sug = computeIntegritySuggestion(
+                                  currentRaw,
+                                  aiSig?.score ?? null,
+                                  plagiarismMax,
+                                );
+                                if (!sug) return null;
+                                const aiPct = Math.round((aiSig?.score ?? 0) * 100);
+                                const cpPct = Math.round((plagiarismMax ?? 0) * 100);
+                                // Peers a comparar inline en el banner. Solo
+                                // tiene sentido cuando la señal incluye copia
+                                // (sug.source === 'plagio' o 'ambas'). Ordenamos
+                                // por score desc y limitamos a 3 para no romper
+                                // el layout en cards angostas. Si hay más,
+                                // mostramos "+N" y el docente puede abrir la
+                                // sección de copias colapsable que lista todos.
+                                const compareablePeers =
+                                  sug.source === "ai"
+                                    ? []
+                                    : qPairs
+                                        .slice()
+                                        .sort((a, b) => b.score - a.score)
+                                        .map((p) => {
+                                          const peerRow = studentRows.find(
+                                            (r) => r.userId === p.peerId,
+                                          );
+                                          if (!peerRow) return null;
+                                          return {
+                                            pair: p,
+                                            peerSubmissionId: peerRow.latest.id,
+                                            peerName: peerRow.profile?.full_name ?? "—",
+                                          };
+                                        })
+                                        .filter(
+                                          (
+                                            x,
+                                          ): x is {
+                                            pair: (typeof qPairs)[number];
+                                            peerSubmissionId: string;
+                                            peerName: string;
+                                          } => x != null,
                                         );
-                                        if (!peerRow) return null;
-                                        return {
-                                          pair: p,
-                                          peerSubmissionId: peerRow.latest.id,
-                                          peerName: peerRow.profile?.full_name ?? "—",
-                                        };
-                                      })
-                                      .filter(
-                                        (
-                                          x,
-                                        ): x is {
-                                          pair: (typeof qPairs)[number];
-                                          peerSubmissionId: string;
-                                          peerName: string;
-                                        } => x != null,
-                                      );
-                              const peersToShow = compareablePeers.slice(0, 3);
-                              const peersHidden = compareablePeers.length - peersToShow.length;
-                              return (
-                                <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
-                                  <span className="font-medium text-amber-700 dark:text-amber-300">
-                                    {t("integrity.perQuestionSuggestion")}
-                                  </span>
-                                  <span className="font-semibold tabular-nums">
-                                    {sug.suggested.toLocaleString("es-CO")} / {q.points}
-                                  </span>
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {sug.source === "ai"
-                                      ? `IA ${aiPct}%`
-                                      : sug.source === "plagio"
-                                        ? `Copia ${cpPct}%`
-                                        : `IA ${aiPct}% + Copia ${cpPct}%`}
-                                  </Badge>
-                                  {/* Comparar con peers de copia inline.
+                                const peersToShow = compareablePeers.slice(0, 3);
+                                const peersHidden = compareablePeers.length - peersToShow.length;
+                                return (
+                                  <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+                                    <span className="font-medium text-amber-700 dark:text-amber-300">
+                                      {t("integrity.perQuestionSuggestion")}
+                                    </span>
+                                    <span className="font-semibold tabular-nums">
+                                      {sug.suggested.toLocaleString("es-CO")} / {q.points}
+                                    </span>
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {sug.source === "ai"
+                                        ? `IA ${aiPct}%`
+                                        : sug.source === "plagio"
+                                          ? `Copia ${cpPct}%`
+                                          : `IA ${aiPct}% + Copia ${cpPct}%`}
+                                    </Badge>
+                                    {/* Comparar con peers de copia inline.
                                       Antes solo aparecía dentro del collapsible
                                       de "Copias por pregunta" (oculto por
                                       defecto), así que el docente tenía que
                                       abrirlo para acceder. Acá la acción está
                                       al alcance del primer scan visual. */}
-                                  {peersToShow.map(({ pair, peerSubmissionId, peerName }) => {
-                                    const isActive =
-                                      comparisonForCopy?.pairId === pair.id &&
-                                      comparisonForCopy?.questionId === q.id;
-                                    return (
-                                      <Button
-                                        key={pair.id}
-                                        size="sm"
-                                        variant={isActive ? "secondary" : "outline"}
-                                        className="h-6 text-[11px]"
-                                        onClick={() => {
-                                          if (isActive) {
-                                            setComparisonForCopy(null);
-                                          } else {
-                                            setComparisonForCopy({
-                                              peerUserId: pair.peerId,
-                                              peerSubmissionId,
-                                              questionId: q.id,
-                                              pairId: pair.id,
-                                            });
-                                          }
-                                        }}
-                                        title={`Comparar con ${peerName} (${Math.round(pair.score * 100)}%)`}
-                                      >
-                                        <Eye className="h-3 w-3 mr-1" />
-                                        {isActive
-                                          ? t("integrity.closeCompare")
-                                          : peerName.split(" ")[0]}
-                                      </Button>
-                                    );
-                                  })}
-                                  {peersHidden > 0 && (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      +{peersHidden} más
-                                    </span>
-                                  )}
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
-                                    onClick={() => {
-                                      // Compone la retroalimentación a partir de las
-                                      // razones reales de la IA y/o de copia, así
-                                      // "aplicar sugerencia" deja la nota Y el
-                                      // motivo en el textarea — antes el docente
-                                      // tenía que copiarlo a mano del banner. Si
-                                      // ya había feedback escrito, lo APENDEAMOS
-                                      // para no perder lo que el docente tipeó.
-                                      const aiReasons = aiSig?.reasons?.trim();
-                                      const copyReasons = qPairs
-                                        .map((p) => p.reasons?.trim())
-                                        .filter((r): r is string => !!r);
-                                      const prefixKey =
-                                        sug.source === "ai"
-                                          ? "integrity.aiFeedbackPrefix"
-                                          : sug.source === "plagio"
-                                            ? "integrity.copyFeedbackPrefix"
-                                            : "integrity.bothFeedbackPrefix";
-                                      const prefix = t(prefixKey, { aiPct, cpPct });
-                                      const bodyParts: string[] = [];
-                                      if (aiReasons && sug.source !== "plagio")
-                                        bodyParts.push(`• IA: ${aiReasons}`);
-                                      if (copyReasons.length > 0 && sug.source !== "ai")
-                                        bodyParts.push(`• Copia: ${copyReasons.join(" | ")}`);
-                                      const composed = [prefix, ...bodyParts]
-                                        .filter(Boolean)
-                                        .join("\n");
-                                      setQOverrides((prev) => {
-                                        const existing = prev[q.id] ?? {
-                                          score: null,
-                                          feedback: "",
-                                        };
-                                        const prior = (existing.feedback ?? "").trim();
-                                        const merged =
-                                          prior && !prior.includes(prefix)
-                                            ? `${prior}\n\n${composed}`
-                                            : composed;
-                                        return {
-                                          ...prev,
-                                          [q.id]: {
-                                            ...existing,
-                                            score: sug.suggested,
-                                            feedback: merged,
-                                          },
-                                        };
-                                      });
-                                    }}
-                                  >
-                                    {t("integrity.applySuggestion")}
-                                  </Button>
-                                </div>
-                              );
-                            })()}
+                                    {peersToShow.map(({ pair, peerSubmissionId, peerName }) => {
+                                      const isActive =
+                                        comparisonForCopy?.pairId === pair.id &&
+                                        comparisonForCopy?.questionId === q.id;
+                                      return (
+                                        <Button
+                                          key={pair.id}
+                                          size="sm"
+                                          variant={isActive ? "secondary" : "outline"}
+                                          className="h-6 text-[11px]"
+                                          onClick={() => {
+                                            if (isActive) {
+                                              setComparisonForCopy(null);
+                                            } else {
+                                              setComparisonForCopy({
+                                                peerUserId: pair.peerId,
+                                                peerSubmissionId,
+                                                questionId: q.id,
+                                                pairId: pair.id,
+                                              });
+                                            }
+                                          }}
+                                          title={`Comparar con ${peerName} (${Math.round(pair.score * 100)}%)`}
+                                        >
+                                          <Eye className="h-3 w-3 mr-1" />
+                                          {isActive
+                                            ? t("integrity.closeCompare")
+                                            : peerName.split(" ")[0]}
+                                        </Button>
+                                      );
+                                    })}
+                                    {peersHidden > 0 && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        +{peersHidden} más
+                                      </span>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                      onClick={() => {
+                                        // Compone la retroalimentación a partir de las
+                                        // razones reales de la IA y/o de copia, así
+                                        // "aplicar sugerencia" deja la nota Y el
+                                        // motivo en el textarea — antes el docente
+                                        // tenía que copiarlo a mano del banner. Si
+                                        // ya había feedback escrito, lo APENDEAMOS
+                                        // para no perder lo que el docente tipeó.
+                                        const aiReasons = aiSig?.reasons?.trim();
+                                        const copyReasons = qPairs
+                                          .map((p) => p.reasons?.trim())
+                                          .filter((r): r is string => !!r);
+                                        const prefixKey =
+                                          sug.source === "ai"
+                                            ? "integrity.aiFeedbackPrefix"
+                                            : sug.source === "plagio"
+                                              ? "integrity.copyFeedbackPrefix"
+                                              : "integrity.bothFeedbackPrefix";
+                                        const prefix = t(prefixKey, { aiPct, cpPct });
+                                        const bodyParts: string[] = [];
+                                        if (aiReasons && sug.source !== "plagio")
+                                          bodyParts.push(`• IA: ${aiReasons}`);
+                                        if (copyReasons.length > 0 && sug.source !== "ai")
+                                          bodyParts.push(`• Copia: ${copyReasons.join(" | ")}`);
+                                        const composed = [prefix, ...bodyParts]
+                                          .filter(Boolean)
+                                          .join("\n");
+                                        setQOverrides((prev) => {
+                                          const existing = prev[q.id] ?? {
+                                            score: null,
+                                            feedback: "",
+                                          };
+                                          const prior = (existing.feedback ?? "").trim();
+                                          const merged =
+                                            prior && !prior.includes(prefix)
+                                              ? `${prior}\n\n${composed}`
+                                              : composed;
+                                          return {
+                                            ...prev,
+                                            [q.id]: {
+                                              ...existing,
+                                              score: sug.suggested,
+                                              feedback: merged,
+                                            },
+                                          };
+                                        });
+                                      }}
+                                    >
+                                      {t("integrity.applySuggestion")}
+                                    </Button>
+                                  </div>
+                                );
+                              })()}
 
                             <div className="border-t pt-2 space-y-2">
                               {/* Header de sección. Antes el bloque de
@@ -3113,21 +3133,23 @@ function ExamMonitor() {
                                     correct_indices — un re-grade no aporta nada y
                                     confunde al docente. */}
                                 {q.type !== "cerrada" && q.type !== "cerrada_multi" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => reGradeWithAI(viewingSub, q.id)}
-                                  disabled={aiGradingQid === q.id || aiGradingId === viewingSub.id}
-                                  className="h-8"
-                                  title="Calificar esta pregunta con IA"
-                                >
-                                  {aiGradingQid === q.id ? (
-                                    <Spinner size="sm" className="mr-1" />
-                                  ) : (
-                                    <Sparkles className="h-3.5 w-3.5 mr-1" />
-                                  )}
-                                  IA
-                                </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => reGradeWithAI(viewingSub, q.id)}
+                                    disabled={
+                                      aiGradingQid === q.id || aiGradingId === viewingSub.id
+                                    }
+                                    className="h-8"
+                                    title="Calificar esta pregunta con IA"
+                                  >
+                                    {aiGradingQid === q.id ? (
+                                      <Spinner size="sm" className="mr-1" />
+                                    ) : (
+                                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                    )}
+                                    IA
+                                  </Button>
                                 )}
                               </div>
                               <Textarea
@@ -3475,71 +3497,183 @@ function ExamMonitor() {
                 {regradeAllRows.map((row, idx) => {
                   const prev = row.previousGrade;
                   const delta = prev != null ? row.suggestedGrade - Number(prev) : null;
+                  const isExpanded = regradeExpanded.has(row.submissionId);
+                  // Acceso a las respuestas del estudiante (el edge function
+                  // las devuelve dentro de `proposed_update.answers`). Sirve
+                  // para mostrar al docente QUÉ respondió cuando expande.
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const proposedAnswers = (row.proposedUpdate as any)?.answers ?? {};
+                  const canExpand = row.breakdown.length > 0;
+                  const toggleExpand = () =>
+                    setRegradeExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(row.submissionId)) next.delete(row.submissionId);
+                      else next.add(row.submissionId);
+                      return next;
+                    });
                   return (
-                    <div key={row.submissionId} className="px-3 py-2 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{row.studentName}</div>
-                        {row.aiLikelihood > 0 && (
-                          <div className="text-[10px] text-muted-foreground">
-                            IA fraude: {(row.aiLikelihood * 100).toFixed(0)}%
-                          </div>
-                        )}
-                        {row.status === "failed" && row.error && (
-                          <div className="text-[10px] text-destructive mt-0.5">
-                            Error: {row.error}
-                          </div>
-                        )}
+                    <div key={row.submissionId} className="text-sm">
+                      <div className="px-3 py-2 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={toggleExpand}
+                          disabled={!canExpand}
+                          className="shrink-0 p-0.5 hover:bg-muted rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                          aria-label={isExpanded ? "Colapsar" : "Expandir"}
+                          title={
+                            canExpand
+                              ? "Ver respuestas del estudiante y desglose IA"
+                              : "Sin desglose disponible"
+                          }
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{row.studentName}</div>
+                          {row.aiLikelihood > 0 && (
+                            <div className="text-[10px] text-muted-foreground">
+                              IA fraude: {(row.aiLikelihood * 100).toFixed(0)}%
+                            </div>
+                          )}
+                          {row.status === "failed" && row.error && (
+                            <div className="text-[10px] text-destructive mt-0.5">
+                              Error: {row.error}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground tabular-nums w-20 text-right">
+                          {prev != null ? Number(prev).toFixed(2) : "—"}
+                        </div>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <div
+                          className={`text-sm font-semibold tabular-nums w-16 text-right ${
+                            delta != null
+                              ? delta > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : delta < 0
+                                  ? "text-destructive"
+                                  : ""
+                              : ""
+                          }`}
+                        >
+                          {row.suggestedGrade.toFixed(2)}
+                        </div>
+                        <div className="w-28 flex justify-end">
+                          {row.status === "approved" ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Aplicada
+                            </Badge>
+                          ) : row.status === "failed" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              className="h-7 text-[11px]"
+                            >
+                              Error
+                            </Button>
+                          ) : row.status === "approving" ? (
+                            <Spinner size="sm" />
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void applyRegradeRow(idx)}
+                              disabled={applyingBulk}
+                              className="h-7 text-[11px]"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Aplicar
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground tabular-nums w-20 text-right">
-                        {prev != null ? Number(prev).toFixed(2) : "—"}
-                      </div>
-                      <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                      <div
-                        className={`text-sm font-semibold tabular-nums w-16 text-right ${
-                          delta != null
-                            ? delta > 0
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : delta < 0
-                                ? "text-destructive"
-                                : ""
-                            : ""
-                        }`}
-                      >
-                        {row.suggestedGrade.toFixed(2)}
-                      </div>
-                      <div className="w-28 flex justify-end">
-                        {row.status === "approved" ? (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Aplicada
-                          </Badge>
-                        ) : row.status === "failed" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled
-                            className="h-7 text-[11px]"
-                          >
-                            Error
-                          </Button>
-                        ) : row.status === "approving" ? (
-                          <Spinner size="sm" />
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void applyRegradeRow(idx)}
-                            disabled={applyingBulk}
-                            className="h-7 text-[11px]"
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Aplicar
-                          </Button>
-                        )}
-                      </div>
+                      {/* Desglose por pregunta — visible al expandir. El
+                          docente revisa enunciado + respuesta del alumno +
+                          nota IA + retroalimentación antes de aplicar la
+                          propuesta. No es editable acá (eso se hace luego
+                          desde "Aplicar" → modal de respuestas). */}
+                      {isExpanded && canExpand && (
+                        <div className="px-3 pb-3 pt-1 bg-muted/30 border-t space-y-2">
+                          {row.breakdown.map((b, bi) => {
+                            const qid = b.qid as string;
+                            const q = questions.find((x) => x.id === qid);
+                            const studentAnswer = proposedAnswers[qid];
+                            const studentAnswerStr =
+                              typeof studentAnswer === "string"
+                                ? studentAnswer
+                                : studentAnswer != null
+                                  ? JSON.stringify(studentAnswer)
+                                  : "";
+                            const earned = (b.earned as number | undefined) ?? 0;
+                            const points = (b.points as number | undefined) ?? q?.points ?? 0;
+                            const fb = (b.feedback as string | undefined) ?? "";
+                            const aiLike = (b.ai_likelihood as number | undefined) ?? null;
+                            return (
+                              <div
+                                key={`${row.submissionId}-${qid}-${bi}`}
+                                className="rounded-md border bg-background p-2.5 space-y-1.5"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] tabular-nums shrink-0"
+                                  >
+                                    {bi + 1}
+                                  </Badge>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                      {q?.content ?? "(pregunta no encontrada)"}
+                                    </div>
+                                  </div>
+                                  <span className="text-[11px] font-semibold tabular-nums shrink-0">
+                                    {Number(earned).toFixed(2)}/{Number(points).toFixed(2)}
+                                  </span>
+                                </div>
+                                {studentAnswerStr && (
+                                  <div className="rounded border bg-muted/40 px-2 py-1.5">
+                                    <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                                      Respuesta del estudiante
+                                    </div>
+                                    <div className="text-[11px] whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
+                                      {studentAnswerStr.slice(0, 800)}
+                                      {studentAnswerStr.length > 800 && "…"}
+                                    </div>
+                                  </div>
+                                )}
+                                {fb && (
+                                  <div className="rounded border-l-2 border-primary/40 bg-primary/5 pl-2 py-1">
+                                    <div className="text-[10px] font-medium text-foreground mb-0.5">
+                                      Retroalimentación IA
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+                                      {fb}
+                                    </div>
+                                  </div>
+                                )}
+                                {aiLike != null && aiLike >= 0.6 && (
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-[10px]"
+                                    title="La IA estima que esta respuesta tiene alta probabilidad de haber sido generada por IA."
+                                  >
+                                    <Bot className="h-2.5 w-2.5 mr-1" />
+                                    IA detectada {(aiLike * 100).toFixed(0)}%
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

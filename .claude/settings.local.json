@@ -13,7 +13,15 @@
       "Bash(grep -n \"earned\" src/routes/app.student.project.\\\\$projectId.tsx | head -10)",
       "Bash(grep -rn \"MB\\\\|KB\" src/routes/app.student.project.\\\\$projectId.tsx src/components/WorkshopQuestions.tsx 2>&1 | head -10)",
       "Bash(grep -n \"submission.status\\\\|status === \\\\\"calificado\\\\\"\\\\|status === \\\\\"entregado\\\\\"\" src/routes/app.student.project.\\\\$projectId.tsx | head -5)",
-      "Bash(grep -rn \"Submit.*disabled.*submitting\\\\|onClick={submit}\" src/components/WorkshopQuestions.tsx src/routes/app.student.take.\\\\$examId.tsx src/routes/app.student.workshops.tsx 2>&1 | head -10)"
+      "Bash(grep -rn \"Submit.*disabled.*submitting\\\\|onClick={submit}\" src/components/WorkshopQuestions.tsx src/routes/app.student.take.\\\\$examId.tsx src/routes/app.student.workshops.tsx 2>&1 | head -10)",
+      "Bash(grep -rn \"regradeAll\\\\|regradeLatest\\\\|Recalificar último\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -10)",
+      "Bash(grep -n \"regradeAllOpen.*Dialog\\\\|Dialog.*regradeAllOpen\\\\|Modal.*regradeAll\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)",
+      "Bash(grep -n \"regradeAllOpen\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -10)",
+      "Bash(grep -n \"breakdown\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -10)",
+      "Bash(grep -n \"questionsByQid\\\\|questions\\\\[\\\\]\\\\|const \\\\[questions\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -10)",
+      "Bash(grep -n \"type Question\\\\|interface Question\\\\|Question =\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)",
+      "Bash(grep -n \"ChevronDown\\\\|^import.*Bot\\\\b\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)",
+      "Bash(grep -n \"from \\\\\"lucide-react\\\\\"\\\\|ChevronRight\\\\|Bot,\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)"
     ]
   }
 }
