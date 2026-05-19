@@ -324,7 +324,20 @@ function CalendarPage() {
         }),
       );
     } catch (e) {
-      toast.error(`${t("calendar.syncError")}: ${(e as Error).message}`);
+      const msg = (e as Error).message ?? "";
+      if (msg === "calendar_not_accessible") {
+        // El calendario seleccionado ya no existe en Google (lo borraron,
+        // perdimos acceso, etc.) y el edge function limpió el binding.
+        // Refrescamos el estado para que la UI muestre el selector y el
+        // docente elija un calendario válido.
+        toast.error(
+          "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar.",
+          { duration: 10000 },
+        );
+        await loadStatus();
+      } else {
+        toast.error(`${t("calendar.syncError")}: ${msg}`);
+      }
     } finally {
       setSyncing(false);
     }

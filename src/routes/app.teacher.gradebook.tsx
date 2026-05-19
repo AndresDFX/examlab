@@ -42,6 +42,7 @@ import {
   FolderKanban,
   CalendarCheck,
   Award,
+  RotateCcw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -800,6 +801,65 @@ function Gradebook() {
     [courseId, reloadCertificates, selectedCourse],
   );
 
+  /**
+   * Regenera el certificado de un estudiante: revoca el vigente y emite
+   * uno nuevo con la nota actual. Útil cuando la nota cambió, el snapshot
+   * de settings cambió (logo/firma/mensaje) o el docente quiere forzar
+   * una nueva emisión.
+   *
+   * El proceso es atómico-ish: si la emisión nueva falla después de
+   * revocar la vieja, mostramos el error y el alumno queda sin
+   * certificado vigente (puede re-intentarse).
+   */
+  const regenerateCertForStudent = useCallback(
+    async (studentId: string, finalGrade: number | null) => {
+      if (!courseId || finalGrade == null || !selectedCourse) return;
+      if (finalGrade < selectedCourse.passing_grade) {
+        toast.error("La nota final es menor al mínimo de aprobación.");
+        return;
+      }
+      const existing = certByUserId[studentId];
+      if (!existing) {
+        toast.info("No hay certificado vigente para regenerar — usa Emitir.");
+        return;
+      }
+      const ok = await confirm({
+        title: "¿Regenerar certificado?",
+        description: `Se revocará el certificado actual de este estudiante y se emitirá uno nuevo con la nota final ${finalGrade.toFixed(2)} y la configuración (logo, firma, mensaje) vigente del curso.`,
+        tone: "warning",
+        confirmLabel: "Regenerar",
+      });
+      if (!ok) return;
+      setIssuingId(studentId);
+      try {
+        // 1) Revocar el vigente.
+        const { error: revErr } = await db
+          .from("certificates")
+          .update({ revoked_at: new Date().toISOString(), revoke_reason: "regenerado" })
+          .eq("id", existing.id);
+        if (revErr) {
+          toast.error(`Revocación falló: ${revErr.message}`);
+          return;
+        }
+        // 2) Emitir uno nuevo.
+        const { error: issueErr } = await db.rpc("issue_certificate", {
+          _user_id: studentId,
+          _course_id: courseId,
+          _final_grade: finalGrade,
+        });
+        if (issueErr) {
+          toast.error(`Emisión nueva falló: ${issueErr.message}`);
+          return;
+        }
+        toast.success("Certificado regenerado");
+        await reloadCertificates();
+      } finally {
+        setIssuingId(null);
+      }
+    },
+    [confirm, courseId, certByUserId, reloadCertificates, selectedCourse],
+  );
+
   const bulkIssueAll = useCallback(async () => {
     if (!selectedCourse || !consolidated) return;
     const candidates = consolidated.filter((r) => {
@@ -844,125 +904,155 @@ function Gradebook() {
 
   /**
    * Genera + descarga TODOS los certificados del curso en un ZIP único.
-   * Flujo completo:
-   *   1. Identifica estudiantes aprobados pendientes y emite los faltantes.
-   *   2. Recarga la lista local de certificados.
-   *   3. Construye un PDF por cada certificado vigente del curso.
-   *   4. Comprime los PDFs + un manifest CSV y dispara una sola descarga.
    *
-   * El docente confirma una sola vez al inicio. Si solo quiere emitir
-   * sin descargar (ej. flujo asíncrono), usa el botón "Emitir certificados".
+   * Dos modos:
+   *  - `regenerate = false` (default, "Generar y descargar"): emite los
+   *    pendientes y descarga el ZIP con todos los vigentes. NO toca a
+   *    los ya emitidos.
+   *  - `regenerate = true` ("Regenerar todos"): REVOCA todos los
+   *    vigentes y emite uno nuevo por cada aprobado, refrescando el
+   *    snapshot (nuevo logo/firma/mensaje + nota actual). Útil cuando
+   *    cambió la configuración del curso o las notas finales.
+   *
+   * El docente confirma una sola vez. Si solo quiere emitir sin descargar
+   * (flujo asíncrono), usa el botón "Emitir certificados".
    */
-  const bulkGenerateAndDownload = useCallback(async () => {
-    if (!selectedCourse || !consolidated) return;
-    // Aprobados pendientes (sin cert vigente).
-    const pending = consolidated.filter((r) => {
-      if (r.finalGrade == null) return false;
-      if (r.finalGrade < selectedCourse.passing_grade) return false;
-      if (certByUserId[r.student.id]) return false;
-      return true;
-    });
-    const existingCount = Object.keys(certByUserId).length;
-    if (pending.length === 0 && existingCount === 0) {
-      toast.info("No hay aprobados con certificado emitible en este curso.");
-      return;
-    }
-    const ok = await confirm({
-      title: `Generar y descargar ${pending.length + existingCount} certificado(s)`,
-      description:
-        pending.length > 0
-          ? `Se emitirán ${pending.length} certificado(s) nuevo(s) para los aprobados pendientes y se descargará un ZIP con TODOS los certificados vigentes del curso "${selectedCourse.name}" (${pending.length + existingCount} en total). Las emisiones no se pueden deshacer (revocables individualmente después).`
-          : `Se descargará un ZIP con los ${existingCount} certificado(s) ya emitidos del curso "${selectedCourse.name}".`,
-      confirmLabel: "Generar y descargar",
-      tone: "warning",
-    });
-    if (!ok) return;
-    setBulkIssuing(true);
-    try {
-      // 1) Emitir los pendientes (si los hay).
-      let issued = 0;
-      let failed = 0;
-      for (const r of pending) {
-        const { error } = await db.rpc("issue_certificate", {
-          _user_id: r.student.id,
-          _course_id: courseId,
-          _final_grade: r.finalGrade,
-        });
-        if (error) failed++;
-        else issued++;
-      }
-      // 2) Recargar la lista de certs para incluir los recién emitidos.
-      await reloadCertificates();
-      // 3) Leer la lista completa desde DB (state actualizado puede no
-      //    estar inmediato — preferimos la fuente de verdad).
-      const { data: certs, error: certsErr } = await db
-        .from("certificates")
-        .select("*")
-        .eq("course_id", courseId)
-        .is("revoked_at", null)
-        .order("student_full_name");
-      if (certsErr) {
-        toast.error(certsErr.message);
+  const bulkGenerateAndDownload = useCallback(
+    async (regenerate = false) => {
+      if (!selectedCourse || !consolidated) return;
+      // Universo de aprobados (válidos para emisión, con o sin cert vigente).
+      const approved = consolidated.filter((r) => {
+        if (r.finalGrade == null) return false;
+        if (r.finalGrade < selectedCourse.passing_grade) return false;
+        return true;
+      });
+      // En modo regenerar, todos los aprobados se vuelven a emitir.
+      // En modo normal, solo los pendientes (sin cert vigente activo).
+      const targets = regenerate ? approved : approved.filter((r) => !certByUserId[r.student.id]);
+      const existingCount = Object.keys(certByUserId).length;
+      if (targets.length === 0 && existingCount === 0) {
+        toast.info("No hay aprobados con certificado emitible en este curso.");
         return;
       }
-      const rows = (certs ?? []) as Array<{
-        short_code: string;
-        student_full_name: string;
-        student_identification: string | null;
-        course_name: string;
-        course_period: string | null;
-        final_grade: number;
-        grade_scale_max: number;
-        teacher_names: string[];
-        university_name: string | null;
-        university_logo_url: string | null;
-        certificate_message: string | null;
-        signature_name: string | null;
-        signature_title: string | null;
-        signature_image_url: string | null;
-        footer_text: string | null;
-        issued_at: string;
-        payload_hash: string;
-        revoked_at: string | null;
-      }>;
-      if (rows.length === 0) {
-        toast.info("No quedaron certificados para descargar.");
+      if (regenerate && approved.length === 0) {
+        toast.info("No hay estudiantes aprobados en este curso.");
         return;
       }
-      const items = rows.map((c) => ({
-        shortCode: c.short_code,
-        studentFullName: c.student_full_name,
-        studentIdentification: c.student_identification,
-        courseName: c.course_name,
-        coursePeriod: c.course_period,
-        finalGrade: Number(c.final_grade),
-        gradeScaleMax: Number(c.grade_scale_max),
-        teacherNames: c.teacher_names ?? [],
-        universityName: c.university_name,
-        universityLogoUrl: c.university_logo_url,
-        certificateMessage: c.certificate_message,
-        signatureName: c.signature_name,
-        signatureTitle: c.signature_title,
-        signatureImageUrl: c.signature_image_url,
-        footerText: c.footer_text,
-        issuedAt: c.issued_at,
-        payloadHash: c.payload_hash,
-        revokedAt: c.revoked_at,
-      }));
-      // 4) Generar PDFs + ZIP + descarga.
-      const safeCourse = selectedCourse.name.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
-      const today = new Date().toISOString().slice(0, 10);
-      await downloadCertificatesZip(items, `Certificados_${safeCourse}_${today}.zip`);
-      const issuedMsg = issued > 0 ? ` (${issued} emitido${issued === 1 ? "" : "s"})` : "";
-      const failedMsg = failed > 0 ? ` · ${failed} falló al emitir` : "";
-      toast.success(`ZIP con ${items.length} certificado(s) descargado${issuedMsg}${failedMsg}`);
-    } catch (e) {
-      console.error("[gradebook] bulkGenerateAndDownload failed", e);
-      toast.error(e instanceof Error ? e.message : "Error generando certificados en lote");
-    } finally {
-      setBulkIssuing(false);
-    }
-  }, [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse]);
+      const ok = await confirm({
+        title: regenerate
+          ? `¿Regenerar ${approved.length} certificado(s)?`
+          : `Generar y descargar ${targets.length + existingCount} certificado(s)`,
+        description: regenerate
+          ? `Se REVOCARÁN los certificados vigentes y se emitirán nuevos para todos los ${approved.length} aprobado(s) de "${selectedCourse.name}", aplicando la configuración (logo, firma, mensaje) y notas actuales. Se descargará el ZIP con los nuevos. Esta acción no se puede deshacer.`
+          : targets.length > 0
+            ? `Se emitirán ${targets.length} certificado(s) nuevo(s) para los aprobados pendientes y se descargará un ZIP con TODOS los certificados vigentes del curso "${selectedCourse.name}" (${targets.length + existingCount} en total). Las emisiones no se pueden deshacer (revocables individualmente después).`
+            : `Se descargará un ZIP con los ${existingCount} certificado(s) ya emitidos del curso "${selectedCourse.name}".`,
+        confirmLabel: regenerate ? "Regenerar todos" : "Generar y descargar",
+        tone: "warning",
+      });
+      if (!ok) return;
+      setBulkIssuing(true);
+      try {
+        // 1a) En modo regenerar, revocar todos los vigentes primero.
+        if (regenerate && existingCount > 0) {
+          const { error: revErr } = await db
+            .from("certificates")
+            .update({ revoked_at: new Date().toISOString(), revoke_reason: "regenerado en lote" })
+            .eq("course_id", courseId)
+            .is("revoked_at", null);
+          if (revErr) {
+            toast.error(`Revocación masiva falló: ${revErr.message}`);
+            return;
+          }
+          // Refrescamos certByUserId — los vigentes ya no están vigentes.
+          await reloadCertificates();
+        }
+        // 1) Emitir los targets.
+        let issued = 0;
+        let failed = 0;
+        for (const r of targets) {
+          const { error } = await db.rpc("issue_certificate", {
+            _user_id: r.student.id,
+            _course_id: courseId,
+            _final_grade: r.finalGrade,
+          });
+          if (error) failed++;
+          else issued++;
+        }
+        // 2) Recargar la lista de certs para incluir los recién emitidos.
+        await reloadCertificates();
+        // 3) Leer la lista completa desde DB (state actualizado puede no
+        //    estar inmediato — preferimos la fuente de verdad).
+        const { data: certs, error: certsErr } = await db
+          .from("certificates")
+          .select("*")
+          .eq("course_id", courseId)
+          .is("revoked_at", null)
+          .order("student_full_name");
+        if (certsErr) {
+          toast.error(certsErr.message);
+          return;
+        }
+        const rows = (certs ?? []) as Array<{
+          short_code: string;
+          student_full_name: string;
+          student_identification: string | null;
+          course_name: string;
+          course_period: string | null;
+          final_grade: number;
+          grade_scale_max: number;
+          teacher_names: string[];
+          university_name: string | null;
+          university_logo_url: string | null;
+          certificate_message: string | null;
+          signature_name: string | null;
+          signature_title: string | null;
+          signature_image_url: string | null;
+          footer_text: string | null;
+          issued_at: string;
+          payload_hash: string;
+          revoked_at: string | null;
+        }>;
+        if (rows.length === 0) {
+          toast.info("No quedaron certificados para descargar.");
+          return;
+        }
+        const items = rows.map((c) => ({
+          shortCode: c.short_code,
+          studentFullName: c.student_full_name,
+          studentIdentification: c.student_identification,
+          courseName: c.course_name,
+          coursePeriod: c.course_period,
+          finalGrade: Number(c.final_grade),
+          gradeScaleMax: Number(c.grade_scale_max),
+          teacherNames: c.teacher_names ?? [],
+          universityName: c.university_name,
+          universityLogoUrl: c.university_logo_url,
+          certificateMessage: c.certificate_message,
+          signatureName: c.signature_name,
+          signatureTitle: c.signature_title,
+          signatureImageUrl: c.signature_image_url,
+          footerText: c.footer_text,
+          issuedAt: c.issued_at,
+          payloadHash: c.payload_hash,
+          revokedAt: c.revoked_at,
+        }));
+        // 4) Generar PDFs + ZIP + descarga.
+        const safeCourse = selectedCourse.name.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
+        const today = new Date().toISOString().slice(0, 10);
+        await downloadCertificatesZip(items, `Certificados_${safeCourse}_${today}.zip`);
+        const issuedMsg = issued > 0 ? ` (${issued} emitido${issued === 1 ? "" : "s"})` : "";
+        const failedMsg = failed > 0 ? ` · ${failed} falló al emitir` : "";
+        toast.success(`ZIP con ${items.length} certificado(s) descargado${issuedMsg}${failedMsg}`);
+      } catch (e) {
+        console.error("[gradebook] bulkGenerateAndDownload failed", e);
+        toast.error(e instanceof Error ? e.message : "Error generando certificados en lote");
+      } finally {
+        setBulkIssuing(false);
+      }
+    },
+    [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse],
+  );
 
   const downloadCertForRow = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1051,7 +1141,7 @@ function Gradebook() {
               </Button>
               <Button
                 size="sm"
-                onClick={() => void bulkGenerateAndDownload()}
+                onClick={() => void bulkGenerateAndDownload(false)}
                 disabled={bulkIssuing}
                 title="Emite los certificados pendientes Y descarga un ZIP con TODOS los PDFs vigentes del curso (incluye un _index.csv para auditoría)."
               >
@@ -1061,6 +1151,20 @@ function Gradebook() {
                   <Download className="h-4 w-4 mr-1" />
                 )}
                 Generar y descargar (lote)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void bulkGenerateAndDownload(true)}
+                disabled={bulkIssuing || Object.keys(certByUserId).length === 0}
+                title="Revoca todos los certificados vigentes del curso y emite uno nuevo por cada aprobado con la configuración (logo, firma, mensaje) y notas actuales. Útil cuando cambió el branding o las notas."
+              >
+                {bulkIssuing ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Award className="h-4 w-4 mr-1" />
+                )}
+                Regenerar todos
               </Button>
             </>
           )}
@@ -1125,31 +1229,47 @@ function Gradebook() {
                   <TableHead className="sticky left-0 z-10 bg-card min-w-48">
                     {t("gradebook.studentColumn")}
                   </TableHead>
-                  {cuts.map((c) => {
+                  {cuts.map((c, idx) => {
                     const itemCount = (columnsByCut.get(c.id) ?? []).length;
+                    // Tinte distintivo por corte para que el ojo siga la
+                    // columna correcta cuando hay 3+ cortes. Cycle de 4
+                    // tonos suaves que funcionan en light y dark.
+                    const TINTS = [
+                      "bg-indigo-500/5 dark:bg-indigo-500/10 border-l-2 border-indigo-500/30",
+                      "bg-emerald-500/5 dark:bg-emerald-500/10 border-l-2 border-emerald-500/30",
+                      "bg-amber-500/5 dark:bg-amber-500/10 border-l-2 border-amber-500/30",
+                      "bg-cyan-500/5 dark:bg-cyan-500/10 border-l-2 border-cyan-500/30",
+                    ];
+                    const tint = TINTS[idx % TINTS.length];
                     return (
-                      <TableHead key={c.id} className="text-center min-w-32">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="truncate max-w-28" title={c.name}>
+                      <TableHead key={c.id} className={`text-center min-w-32 ${tint}`}>
+                        <div className="flex flex-col items-center gap-1 py-1">
+                          <span
+                            className="truncate max-w-28 font-semibold text-foreground"
+                            title={c.name}
+                          >
                             {c.name}
                           </span>
-                          <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                            {c.weight}%
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] py-0 h-4 px-1.5 bg-background/60"
+                          >
+                            {c.weight}% · {itemCount} item{itemCount === 1 ? "" : "s"}
                           </Badge>
                           <Button
                             size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-[10px] gap-1 mt-0.5"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px] gap-1"
                             onClick={() => setDetailCutId(c.id)}
                             disabled={itemCount === 0}
                             title={
                               itemCount === 0
                                 ? "Sin items asignados a este corte"
-                                : "Ver detalle del corte"
+                                : "Ver detalle del corte (items, notas individuales)"
                             }
                           >
                             <Eye className="h-3 w-3" />
-                            Ver detalle
+                            Detalle
                           </Button>
                         </div>
                       </TableHead>
@@ -1194,11 +1314,37 @@ function Gradebook() {
                             {row.student.institutional_email}
                           </div>
                         </TableCell>
-                        {row.cutGrades.map((cg) => (
-                          <TableCell key={cg.cutId} className="text-center text-sm tabular-nums">
-                            {cg.grade != null ? cg.grade.toFixed(2) : "—"}
-                          </TableCell>
-                        ))}
+                        {row.cutGrades.map((cg, ci) => {
+                          // Mismo orden de tintes que el header → la columna
+                          // quedar visualmente alineada con su corte.
+                          const CELL_TINTS = [
+                            "bg-indigo-500/[0.03] dark:bg-indigo-500/[0.06] border-l-2 border-indigo-500/20",
+                            "bg-emerald-500/[0.03] dark:bg-emerald-500/[0.06] border-l-2 border-emerald-500/20",
+                            "bg-amber-500/[0.03] dark:bg-amber-500/[0.06] border-l-2 border-amber-500/20",
+                            "bg-cyan-500/[0.03] dark:bg-cyan-500/[0.06] border-l-2 border-cyan-500/20",
+                          ];
+                          const cellTint = CELL_TINTS[ci % CELL_TINTS.length];
+                          // Estado pasable/no pasable de un corte: usamos la
+                          // misma referencia (passing_grade del curso) para
+                          // resaltar visualmente cuando una nota individual
+                          // está por debajo. NO afecta la lógica, solo color.
+                          const passesCut =
+                            cg.grade != null && cg.grade >= selectedCourse.passing_grade;
+                          return (
+                            <TableCell
+                              key={cg.cutId}
+                              className={`text-center text-sm tabular-nums ${cellTint} ${
+                                cg.grade == null
+                                  ? "text-muted-foreground"
+                                  : passesCut
+                                    ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                                    : "text-amber-700 dark:text-amber-400"
+                              }`}
+                            >
+                              {cg.grade != null ? cg.grade.toFixed(2) : "—"}
+                            </TableCell>
+                          );
+                        })}
                         <TableCell
                           className={`text-center text-sm font-semibold tabular-nums bg-muted/30 ${
                             passes === true
@@ -1233,6 +1379,13 @@ function Gradebook() {
                                     onClick={() => {
                                       window.open(buildVerifyUrl(cert.short_code), "_blank");
                                     }}
+                                  />
+                                  <RowAction
+                                    label="Regenerar (revoca y emite con la config actual)"
+                                    icon={RotateCcw}
+                                    onClick={() =>
+                                      void regenerateCertForStudent(row.student.id, row.finalGrade)
+                                    }
                                   />
                                 </div>
                               );

@@ -998,6 +998,10 @@ export function StudentProjectTaker({
   // projectCodeZipGrading) para que la IA evalúe con el alcance del
   // proyecto en mente, no solo la pregunta aislada.
   const [projectDescription, setProjectDescription] = useState<string>("");
+  // course_id del proyecto. Se usa al encolar jobs IA async para que el
+  // dashboard del docente filtre por curso. NULL si el proyecto no tiene
+  // course_id (proyectos legacy con vinculación solo vía project_courses).
+  const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
   // Gate de video introductorio para entregas de código. Cuando el proyecto
   // define `code_intro_video_url`, el alumno DEBE ver el video entero
   // antes de poder entregar. `videoWatched` se inicializa true si la
@@ -1025,13 +1029,14 @@ export function StudentProjectTaker({
         db.from("project_files").select("*").eq("project_id", projectId).order("position"),
         db
           .from("projects")
-          .select("description, code_intro_video_url, code_intro_video_id")
+          .select("description, course_id, code_intro_video_url, code_intro_video_id")
           .eq("id", projectId)
           .maybeSingle(),
       ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
       setProjectDescription((proj as { description?: string | null } | null)?.description ?? "");
+      setProjectCourseId((proj as { course_id?: string | null } | null)?.course_id ?? null);
       // URL del video introductorio. Si hay `code_intro_video_id` se
       // resuelve desde la biblioteca `videos` (preferido). Si no, cae
       // al campo legacy `code_intro_video_url` que vivía inline en
@@ -1527,10 +1532,54 @@ export function StudentProjectTaker({
       }
 
       // ── Persistencia: upsert por qid ──
+      // Antes hacíamos await sin chequear el error — si la migración de
+      // `code_paths` no estaba aplicada (PostgREST returns "column ...
+      // does not exist") la fila no se insertaba y la pregunta quedaba
+      // sin ai_feedback ni código para descargar. Ahora:
+      //   1. Si el primer upsert falla con PGRST204 (columna no existe),
+      //      reintentamos sin los campos opcionales nuevos (`code_paths`,
+      //      `zip_truncated`, `zip_chars_used`) para garantizar al menos
+      //      la nota y el feedback.
+      //   2. Cualquier error final se reporta por toast — el docente
+      //      verá un mensaje útil en lugar de silencio.
+      const OPTIONAL_COLS = ["code_paths", "zip_truncated", "zip_chars_used"];
       for (const qid of Object.keys(payloadsByQid)) {
-        await db
+        const payload = payloadsByQid[qid];
+
+        const { error } = await (db
           .from("project_submission_files")
-          .upsert(payloadsByQid[qid], { onConflict: "submission_id,file_id" });
+          .upsert(payload, { onConflict: "submission_id,file_id" }) as any);
+        if (error) {
+          const isSchemaErr = /column.*does not exist|PGRST204|schema cache/i.test(
+            error.message ?? "",
+          );
+          if (isSchemaErr) {
+            // Retry sin columnas nuevas. Si una migración aún no se aplicó,
+            // mejor persistir la nota que perder toda la entrega.
+            const slim: Record<string, unknown> = { ...payload };
+            for (const c of OPTIONAL_COLS) delete slim[c];
+
+            const { error: retryErr } = await (db
+              .from("project_submission_files")
+              .upsert(slim, { onConflict: "submission_id,file_id" }) as any);
+            if (retryErr) {
+              console.error("[project-submit] upsert retry failed", qid, retryErr);
+              toast.error(
+                `No se pudo guardar la calificación de una sección: ${retryErr.message}`,
+                { duration: 10000 },
+              );
+            } else {
+              console.warn(
+                "[project-submit] columnas nuevas (code_paths/zip_truncated/zip_chars_used) no disponibles — guardada nota sin esos campos. Aplica las migraciones pendientes.",
+              );
+            }
+          } else {
+            console.error("[project-submit] upsert failed", qid, error);
+            toast.error(`No se pudo guardar la calificación de una sección: ${error.message}`, {
+              duration: 10000,
+            });
+          }
+        }
       }
 
       // ── Encolado IA async (post-upsert para tener los row ids) ──

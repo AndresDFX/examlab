@@ -310,6 +310,34 @@ async function handleSync(userId: string, body: SyncBody) {
   if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
   const calId = encodeURIComponent(tok.calendar_id);
 
+  // Pre-check: ¿existe todavía el calendario? Si el docente lo borró en
+  // Google Calendar o perdió acceso, el GET de metadata responde 404
+  // y NO tiene sentido intentar crear N eventos uno por uno (cada uno
+  // dará 404 igual y la UI muestra "Total: N · Fallidas: N"). Detectamos
+  // el caso una sola vez, limpiamos el binding en DB y devolvemos un
+  // error claro pidiendo al docente que reconecte/elija calendario.
+  try {
+    await callGoogle<{ id: string }>(userId, `/calendar/v3/calendars/${calId}`, {
+      method: "GET",
+    });
+  } catch (e) {
+    if (isGoogleEventGoneError(e)) {
+      // 404/410 → el calendario seleccionado ya no es accesible.
+      // Limpiamos `calendar_id` para que la UI pida re-seleccionar.
+      await adminClient
+        .from("teacher_google_tokens")
+        .update({ calendar_id: null, calendar_name: null })
+        .eq("teacher_id", userId);
+      await audit(userId, "calendar.calendar_missing", "warning", {
+        provider: "google",
+        course_id: body.courseId,
+        calendar_id: tok.calendar_id,
+      });
+      return jsonError("calendar_not_accessible", 410);
+    }
+    throw e;
+  }
+
   // Belt-and-suspenders: aunque el cliente filtra cursos sin sesiones
   // completas, validamos también server-side. Si llegara un sync con
   // sesiones sin start_time, abortamos antes de tocar Google — evita

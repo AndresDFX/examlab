@@ -12,7 +12,7 @@
  * dedicada `revoke_certificate(_id, _reason)`).
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,14 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { SearchInput } from "@/components/ui/search-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, User as UserIcon } from "lucide-react";
 import { formatDateLong } from "@/lib/format";
@@ -36,6 +44,7 @@ interface CertificateRow {
   short_code: string;
   student_full_name: string;
   student_identification: string | null;
+  course_id: string;
   course_name: string;
   course_period: string | null;
   final_grade: number;
@@ -61,6 +70,11 @@ function CertificatesAdmin() {
   const [loading, setLoading] = useState(true);
   const isAdmin = roles.includes("Admin");
   const isDocente = roles.includes("Docente");
+  // Filtros UI (mismo patrón que otros módulos): selector de curso +
+  // search por nombre/email/código + toggle "mostrar revocados".
+  const [filterCourseId, setFilterCourseId] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [showRevoked, setShowRevoked] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -81,6 +95,39 @@ function CertificatesAdmin() {
       cancelled = true;
     };
   }, [user]);
+
+  // Lista derivada (course_id, nombre) para alimentar el selector. Como
+  // los certificados ya están filtrados por RLS al alcance del usuario,
+  // los cursos disponibles son justo los que tiene certificados emitidos.
+  const courseOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of items) {
+      if (!map.has(c.course_id)) map.set(c.course_id, c.course_name);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((c) => {
+      if (!showRevoked && c.revoked_at) return false;
+      if (filterCourseId && c.course_id !== filterCourseId) return false;
+      if (q) {
+        const hay = [
+          c.student_full_name,
+          c.short_code,
+          c.course_name,
+          c.student_identification ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [items, filterCourseId, search, showRevoked]);
 
   const handleDownload = async (cert: CertificateRow) => {
     try {
@@ -130,6 +177,57 @@ function CertificatesAdmin() {
         icon={<Award className="h-6 w-6 text-amber-500" />}
       />
 
+      {/* Filtros: mismo patrón que talleres/proyectos/exámenes. */}
+      {!loading && items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre, código, identificación…"
+            className="w-full sm:w-72"
+          />
+          <Select
+            value={filterCourseId || "__all"}
+            onValueChange={(v) => setFilterCourseId(v === "__all" ? "" : v)}
+          >
+            <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Todos los cursos</SelectItem>
+              {courseOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant={showRevoked ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowRevoked((v) => !v)}
+          >
+            {showRevoked ? "Ocultar revocados" : "Mostrar revocados"}
+          </Button>
+          {(filterCourseId || search || showRevoked) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilterCourseId("");
+                setSearch("");
+                setShowRevoked(false);
+              }}
+            >
+              Limpiar
+            </Button>
+          )}
+          <span className="text-[11px] text-muted-foreground ml-auto">
+            {filtered.length} / {items.length}
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <div className="p-8 flex items-center justify-center text-sm text-muted-foreground">
           <Spinner size="sm" className="mr-2" /> Cargando…
@@ -144,9 +242,15 @@ function CertificatesAdmin() {
               : "Aún no hay certificados emitidos en tus cursos. Se generan desde Libro de notas cuando apruebas a un estudiante."
           }
         />
+      ) : filtered.length === 0 ? (
+        <TableEmpty
+          icon={Award}
+          title="Sin resultados con esos filtros"
+          description="Ajusta el curso, la búsqueda o limpia los filtros para ver el resto."
+        />
       ) : (
         <div className="space-y-3">
-          {items.map((c) => (
+          {filtered.map((c) => (
             <Card
               key={c.id}
               className={c.revoked_at ? "border-destructive/40 bg-destructive/5" : undefined}
