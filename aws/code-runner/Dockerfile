@@ -43,7 +43,16 @@ FROM public.ecr.aws/lambda/python:3.13
 # `which javac` para derivar JAVA_HOME y el build fallaba con
 #   /bin/sh: line 1: which: command not found
 # Usamos `command -v` (built-in POSIX, disponible siempre) en su lugar.
+# IMPORTANTE — Hay que pedir EXPLÍCITAMENTE `java-21-amazon-corretto`.
+# Si solo se instala `java-21-amazon-corretto-devel`, dnf arrastra como
+# dependencia solo `java-21-amazon-corretto-headless` (JRE SIN AWT/Swing
+# nativos). En ese caso `libawt_xawt.so` NO está en el filesystem y AWT
+# explota con `UnsatisfiedLinkError`. El paquete `java-21-amazon-corretto`
+# (sin sufijo) es la JRE completa que incluye los `.so` de AWT.
+# Llamada doble: `corretto` + `corretto-devel` upgrade el headless al full
+# y agrega javac al mismo tiempo.
 RUN dnf install -y \
+      java-21-amazon-corretto \
       java-21-amazon-corretto-devel \
       xorg-x11-server-Xvfb \
       libXi \
@@ -91,14 +100,23 @@ RUN java -version \
  && javac -version \
  && command -v Xvfb \
  && command -v import \
- && AWT_XAWT="$(ls /usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so | head -n1)" \
+ && AWT_XAWT="$(ls /usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so 2>/dev/null | head -n1)" \
+ && if [ -z "$AWT_XAWT" ] || [ ! -f "$AWT_XAWT" ]; then \
+      echo "ERROR: libawt_xawt.so NO EXISTE en el filesystem." >&2 ; \
+      echo "Esto suele pasar cuando solo se instala 'java-21-amazon-corretto-devel'" >&2 ; \
+      echo "porque dnf arrastra '-headless' (JRE sin AWT). Asegúrate de tener" >&2 ; \
+      echo "'java-21-amazon-corretto' (sin sufijo) en el dnf install." >&2 ; \
+      echo "Contenido actual de /usr/lib/jvm/:" >&2 ; \
+      ls -la /usr/lib/jvm/ >&2 || true ; \
+      exit 1 ; \
+    fi \
  && echo "Validando deps de $AWT_XAWT…" \
  && if ldd "$AWT_XAWT" | grep -q "not found"; then \
       echo "ERROR: libawt_xawt.so tiene dependencias faltantes:" >&2 ; \
       ldd "$AWT_XAWT" | grep "not found" >&2 ; \
       exit 1 ; \
     else \
-      echo "✓ libawt_xawt.so resuelve todas sus deps" ; \
+      echo "✓ libawt_xawt.so existe y resuelve todas sus deps" ; \
     fi
 
 # Handler de Lambda (Python wrapper que llama a javac + java).
