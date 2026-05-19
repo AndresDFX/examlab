@@ -38,8 +38,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CalendarCheck, CheckCircle2, X, Loader2, QrCode, Keyboard, Sparkles } from "lucide-react";
+import {
+  CalendarCheck,
+  CheckCircle2,
+  X,
+  Loader2,
+  QrCode,
+  Keyboard,
+  Sparkles,
+  PlayCircle,
+  ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { buildVideoEmbedUrl } from "@/lib/video-embed";
 import { AttendanceQRScanner } from "@/components/AttendanceQRScanner";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +77,12 @@ type Session = {
   session_date: string;
   title: string | null;
   check_in_open?: boolean;
+  /** Enlace libre a la grabación (Meet/Teams/Zoom/Loom…). Se abre en
+   *  nueva pestaña — esos servicios bloquean iframe. */
+  recording_url?: string | null;
+  /** Referencia a un video de la biblioteca con la grabación. Cuando
+   *  está poblado, el estudiante puede embeberlo desde el detalle. */
+  recording_video_id?: string | null;
 };
 type OpenSession = Session & { course_name: string };
 type Record_ = {
@@ -125,6 +143,19 @@ function StudentAttendance() {
   const [manualOpen, setManualOpen] = useState<OpenSession | null>(null);
   const [manualCode, setManualCode] = useState("");
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
+  // Mapa videoId → metadata para resolver embeds en una sola query al
+  // cargar sesiones del curso.
+  const [recordingVideoMap, setRecordingVideoMap] = useState<
+    Record<string, { title: string; url: string; provider: string }>
+  >({});
+  // Sesión cuya grabación se está reproduciendo en dialog modal. Tipa con
+  // los dos campos que necesitamos para decidir embed vs link externo.
+  const [recordingDialog, setRecordingDialog] = useState<{
+    sessionTitle: string;
+    videoTitle: string;
+    embedSrc: string;
+    kind: "youtube" | "vimeo" | "direct";
+  } | null>(null);
 
   // Cursos donde el alumno está matriculado.
   useEffect(() => {
@@ -172,9 +203,13 @@ function StudentAttendance() {
     (async () => {
       setLoadingData(true);
       const [{ data: sess }, { data: recs }] = await Promise.all([
-        supabase
+        // Cast a `any` porque la columna recording_url/recording_video_id
+        // se agrega en una migración nueva y types.ts auto-generado todavía
+        // no la incluye hasta el próximo Publish en Lovable.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
           .from("attendance_sessions")
-          .select("id, course_id, session_date, title")
+          .select("id, course_id, session_date, title, recording_url, recording_video_id")
           .eq("course_id", selectedCourseId)
           .order("session_date", { ascending: false }),
         // RLS limita a auth.uid() = user_id; igual filtramos explícitamente
@@ -185,8 +220,40 @@ function StudentAttendance() {
           .eq("user_id", user.id),
       ]);
       if (cancelled) return;
-      setSessions((sess ?? []) as Session[]);
+      const sessions = (sess ?? []) as Session[];
+      setSessions(sessions);
       setRecords((recs ?? []) as Record_[]);
+      // Carga URLs de los videos referenciados en `recording_video_id`
+      // para poder embebrlos directo en el dialog sin un segundo round-trip
+      // cuando el estudiante hace click.
+      const videoIds = Array.from(
+        new Set(
+          sessions
+            .map((s) => s.recording_video_id)
+            .filter((v): v is string => typeof v === "string" && v.length > 0),
+        ),
+      );
+      if (videoIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: vids } = await (supabase as any)
+          .from("videos")
+          .select("id, title, url, provider")
+          .in("id", videoIds);
+        if (!cancelled) {
+          const map: Record<string, { title: string; url: string; provider: string }> = {};
+          for (const v of (vids ?? []) as Array<{
+            id: string;
+            title: string;
+            url: string;
+            provider: string;
+          }>) {
+            map[v.id] = { title: v.title, url: v.url, provider: v.provider };
+          }
+          setRecordingVideoMap(map);
+        }
+      } else {
+        setRecordingVideoMap({});
+      }
       setLoadingData(false);
     })();
     return () => {
@@ -510,6 +577,7 @@ function StudentAttendance() {
                         <TableHead>Fecha</TableHead>
                         <TableHead>Sesión</TableHead>
                         <TableHead>Estado</TableHead>
+                        <TableHead>Grabación</TableHead>
                         <TableHead>Nota del docente</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -518,6 +586,9 @@ function StudentAttendance() {
                         const rec = recordBySession.get(s.id);
                         const meta = statusMeta(rec?.status);
                         const Icon = meta.icon;
+                        const video = s.recording_video_id
+                          ? recordingVideoMap[s.recording_video_id]
+                          : null;
                         return (
                           <TableRow key={s.id}>
                             <TableCell className="font-medium tabular-nums">
@@ -531,6 +602,49 @@ function StudentAttendance() {
                                 {Icon && <Icon className="h-3 w-3 mr-1" />}
                                 {meta.label}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {video && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px]"
+                                    onClick={() => {
+                                      const { kind, src } = buildVideoEmbedUrl(video.url);
+                                      setRecordingDialog({
+                                        sessionTitle: s.title ?? formatDateOnly(s.session_date),
+                                        videoTitle: video.title,
+                                        embedSrc: src,
+                                        kind,
+                                      });
+                                    }}
+                                  >
+                                    <PlayCircle className="h-3 w-3 mr-1" />
+                                    Ver video
+                                  </Button>
+                                )}
+                                {s.recording_url && (
+                                  <Button
+                                    asChild
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px]"
+                                  >
+                                    <a
+                                      href={s.recording_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      Enlace
+                                    </a>
+                                  </Button>
+                                )}
+                                {!video && !s.recording_url && (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {rec?.note ? rec.note : "—"}
@@ -616,6 +730,39 @@ function StudentAttendance() {
           </div>
         </CheckInDialog>
       )}
+
+      {/* Dialog para reproducir la grabación cuando el video viene de la
+          biblioteca. MP4/WebM directo usa <video>, YouTube/Vimeo usa
+          iframe — la URL ya viene en forma embed por buildVideoEmbedUrl. */}
+      <Dialog open={!!recordingDialog} onOpenChange={(o) => !o && setRecordingDialog(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Grabación · {recordingDialog?.sessionTitle}</DialogTitle>
+          </DialogHeader>
+          {recordingDialog && (
+            <div className="space-y-2">
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-black">
+                {recordingDialog.kind === "direct" ? (
+                  <video
+                    src={recordingDialog.embedSrc}
+                    controls
+                    className="absolute inset-0 w-full h-full object-contain"
+                  />
+                ) : (
+                  <iframe
+                    src={recordingDialog.embedSrc}
+                    title={recordingDialog.videoTitle}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">{recordingDialog.videoTitle}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

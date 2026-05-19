@@ -64,6 +64,7 @@ import {
   Check,
   ChevronsUpDown,
   CalendarPlus,
+  PlayCircle,
 } from "lucide-react";
 import { toCSV } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
@@ -116,6 +117,13 @@ type Session = {
   /** Índice de clase (1-indexed) cuando el contenido es curso_completo
    *  con varios CLASE_N. Para material_individual queda null. */
   content_class_index?: number | null;
+  /** Enlace libre a la grabación (Meet, Teams, Zoom, Loom…). Se abre en
+   *  nueva pestaña — no se intenta embed porque esos servicios bloquean
+   *  iframes externos. */
+  recording_url?: string | null;
+  /** Referencia opcional a un video de la biblioteca con la grabación.
+   *  Cuando está poblado, la UI lo embebe en el detalle de la sesión. */
+  recording_video_id?: string | null;
 };
 /** Contenido generado disponible para asignar a una sesión. Solo
  *  status='done' y solo del docente actual (RLS lo asegura igual,
@@ -185,6 +193,23 @@ function TeacherAttendance() {
   // Corte explícito al que pertenece la sesión nueva. "" = sin corte
   // (la sesión queda visible pero no aporta a la nota de asistencia).
   const [newCutId, setNewCutId] = useState<string>("");
+  // Grabación de la clase. `newRecordingUrl` = enlace libre (Meet/Teams/
+  // Zoom/Loom/...); `newRecordingVideoId` = referencia a la biblioteca.
+  // Independientes — uno, ambos o ninguno pueden estar poblados.
+  const [newRecordingUrl, setNewRecordingUrl] = useState("");
+  const [newRecordingVideoId, setNewRecordingVideoId] = useState<string>("");
+  // Lista de videos disponibles para asociar a la sesión (biblioteca
+  // filtrada al curso actual + globales sin course_id). Cargada lazy
+  // cuando se abre el dialog.
+  const [sessionVideos, setSessionVideos] = useState<
+    Array<{ id: string; title: string; provider: string }>
+  >([]);
+  // Estado del dialog de edición de grabación para sesiones existentes
+  // (se declara aquí arriba porque `useEffect(loadSessionVideos)` debajo
+  // depende de `recordingEditSession`).
+  const [recordingEditSession, setRecordingEditSession] = useState<Session | null>(null);
+  const [recordingEditUrl, setRecordingEditUrl] = useState("");
+  const [recordingEditVideoId, setRecordingEditVideoId] = useState<string>("");
 
   // Check-in self-service: configuración + estado del proyector activo
   const [checkInConfigSession, setCheckInConfigSession] = useState<Session | null>(null);
@@ -249,7 +274,6 @@ function TeacherAttendance() {
     setAvailableContents(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ((gens ?? []) as any[]).map((g) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const files = (g.files ?? []) as Array<{ name: string }>;
         const set = new Set<number>();
         for (const f of files) {
@@ -297,6 +321,27 @@ function TeacherAttendance() {
     loadCourse();
   }, [loadCourse]);
 
+  // Carga lazy de los videos disponibles para asociar a sesión. Se llama
+  // cuando se abre el dialog de nueva sesión o el de editar grabación.
+  // Filtra a (videos del curso actual) ∪ (globales sin course_id).
+  const loadSessionVideos = useCallback(async () => {
+    if (!courseId) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("videos")
+      .select("id, title, provider, course_id")
+      .eq("is_archived", false)
+      .or(`course_id.eq.${courseId},course_id.is.null`)
+      .order("title");
+    setSessionVideos((data ?? []) as Array<{ id: string; title: string; provider: string }>);
+  }, [courseId]);
+
+  useEffect(() => {
+    if (newSessionOpen || recordingEditSession) {
+      void loadSessionVideos();
+    }
+  }, [newSessionOpen, recordingEditSession, loadSessionVideos]);
+
   // Create session
   const createSession = async () => {
     if (!courseId || !user || !newDate) {
@@ -317,6 +362,8 @@ function TeacherAttendance() {
       title: newTitle || null,
       created_by: user.id,
       cut_id: newCutId || null,
+      recording_url: newRecordingUrl.trim() || null,
+      recording_video_id: newRecordingVideoId || null,
     });
     if (error) {
       toast.error(error.message);
@@ -326,7 +373,49 @@ function TeacherAttendance() {
     setNewSessionOpen(false);
     setNewTitle("");
     setNewCutId("");
+    setNewRecordingUrl("");
+    setNewRecordingVideoId("");
     loadCourse();
+  };
+
+  // Persiste recording_url / recording_video_id en sesiones existentes
+  // desde la columna "Grabación" de la tabla. Se llama desde el handler
+  // del Dialog "Editar grabación" — uno solo en la página. El state
+  // mismo se declara arriba (junto a sessionVideos) porque el effect
+  // `loadSessionVideos` depende de él.
+  const openRecordingEdit = (s: Session) => {
+    setRecordingEditSession(s);
+    setRecordingEditUrl(s.recording_url ?? "");
+    setRecordingEditVideoId(s.recording_video_id ?? "");
+  };
+
+  const saveRecordingEdit = async () => {
+    if (!recordingEditSession) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("attendance_sessions")
+      .update({
+        recording_url: recordingEditUrl.trim() || null,
+        recording_video_id: recordingEditVideoId || null,
+      })
+      .eq("id", recordingEditSession.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === recordingEditSession.id
+          ? {
+              ...s,
+              recording_url: recordingEditUrl.trim() || null,
+              recording_video_id: recordingEditVideoId || null,
+            }
+          : s,
+      ),
+    );
+    setRecordingEditSession(null);
+    toast.success("Grabación actualizada");
   };
 
   // Reasignar el corte de una sesión existente (la fecha NO cambia).
@@ -1074,6 +1163,12 @@ function TeacherAttendance() {
                                 <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
                                 Reiniciar asistencia
                               </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
+                                <PlayCircle className="h-4 w-4 mr-2 text-primary" />
+                                {sess.recording_url || sess.recording_video_id
+                                  ? "Editar grabación"
+                                  : "Agregar grabación"}
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onSelect={() => deleteSession(sess.id)}
@@ -1294,12 +1389,94 @@ function TeacherAttendance() {
                 </p>
               )}
             </div>
+            <div className="border-t pt-3 space-y-2">
+              <Label>
+                Grabación de la clase (opcional){" "}
+                <HelpHint>
+                  Puedes pegar el enlace de la grabación (Meet, Teams, Zoom, Loom…), elegir un video
+                  de la biblioteca de la plataforma o ambos. Si subiste la grabación a la
+                  biblioteca, el estudiante la verá embebida en la sesión; si es un enlace externo
+                  se mostrará como botón "Ver grabación".
+                </HelpHint>
+              </Label>
+              <Input
+                value={newRecordingUrl}
+                onChange={(e) => setNewRecordingUrl(e.target.value)}
+                placeholder="https://meet.google.com/… ó https://teams.microsoft.com/…"
+              />
+              <Select
+                value={newRecordingVideoId || "__none"}
+                onValueChange={(v) => setNewRecordingVideoId(v === "__none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Video de la biblioteca (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Sin video de biblioteca</SelectItem>
+                  {sessionVideos.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewSessionOpen(false)}>
               Cancelar
             </Button>
             <Button onClick={createSession}>Crear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de edición de grabación para sesiones existentes */}
+      <Dialog
+        open={!!recordingEditSession}
+        onOpenChange={(o) => !o && setRecordingEditSession(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar grabación</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Enlace externo (Meet/Teams/Zoom/Loom…)</Label>
+              <Input
+                value={recordingEditUrl}
+                onChange={(e) => setRecordingEditUrl(e.target.value)}
+                placeholder="https://…"
+              />
+            </div>
+            <div>
+              <Label>Video de la biblioteca</Label>
+              <Select
+                value={recordingEditVideoId || "__none"}
+                onValueChange={(v) => setRecordingEditVideoId(v === "__none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin video de biblioteca" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Sin video de biblioteca</SelectItem>
+                  {sessionVideos.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Sube el video desde el módulo "Videos" y aparecerá en esta lista.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecordingEditSession(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveRecordingEdit}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1454,8 +1631,7 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
   }
 
   const selected = options.find((o) => o.value === value);
-  const triggerLabel =
-    value === "__none" || !selected ? "Sin contenido" : selected.primary;
+  const triggerLabel = value === "__none" || !selected ? "Sin contenido" : selected.primary;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -1471,7 +1647,10 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[260px]" align="start">
+      <PopoverContent
+        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[260px]"
+        align="start"
+      >
         <Command
           filter={(item, search) => {
             // cmdk pasa el `value` del CommandItem como `item`. Usamos

@@ -31,6 +31,13 @@ import { RowAction } from "@/components/ui/row-action";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -67,6 +74,14 @@ interface VideoRow {
   is_archived: boolean;
   created_at: string;
   storage_path: string | null;
+  /** Curso al que pertenece el video. NULL = global (visible en todos
+   *  los cursos cuando un módulo busca videos disponibles). */
+  course_id: string | null;
+}
+
+interface CourseOption {
+  id: string;
+  name: string;
 }
 
 // MIME types aceptados por el bucket — debe coincidir con la migración.
@@ -122,10 +137,13 @@ function VideoLibrary() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<VideoRow | null>(null);
   const [mode, setMode] = useState<"url" | "upload">("url");
-  const [form, setForm] = useState({ title: "", description: "", url: "" });
+  const [form, setForm] = useState({ title: "", description: "", url: "", courseId: "" });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
+  // Curso para filtrar la biblioteca. "" = sin filtro (todos).
+  const [filterCourseId, setFilterCourseId] = useState<string>("");
+  const [courses, setCourses] = useState<CourseOption[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -140,16 +158,33 @@ function VideoLibrary() {
 
   useEffect(() => {
     void load();
+    // Cursos del docente/admin para asociar el video. Admin ve todos los
+    // cursos; Docente solo los suyos vía RLS de `course_teachers`.
+    void (async () => {
+      const { data } = await db.from("courses").select("id, name").order("name");
+      setCourses((data ?? []) as CourseOption[]);
+    })();
   }, []);
 
   const visible = useMemo(
-    () => rows.filter((r) => showArchived || !r.is_archived),
-    [rows, showArchived],
+    () =>
+      rows.filter((r) => {
+        if (!showArchived && r.is_archived) return false;
+        if (filterCourseId && r.course_id !== filterCourseId) return false;
+        return true;
+      }),
+    [rows, showArchived, filterCourseId],
   );
+
+  const courseNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of courses) m[c.id] = c.name;
+    return m;
+  }, [courses]);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ title: "", description: "", url: "" });
+    setForm({ title: "", description: "", url: "", courseId: "" });
     setFile(null);
     setMode("url");
     setUploadPct(0);
@@ -157,7 +192,12 @@ function VideoLibrary() {
   };
   const openEdit = (v: VideoRow) => {
     setEditing(v);
-    setForm({ title: v.title, description: v.description ?? "", url: v.url });
+    setForm({
+      title: v.title,
+      description: v.description ?? "",
+      url: v.url,
+      courseId: v.course_id ?? "",
+    });
     setFile(null);
     // Si fue subido, el modo es "upload" (no se puede cambiar a URL sin
     // perder el archivo). Si era URL, queda en "url". La UI bloquea el
@@ -186,7 +226,13 @@ function VideoLibrary() {
     if (editing) {
       const { error } = await db
         .from("videos")
-        .update({ title, description: form.description.trim() || null, url, provider })
+        .update({
+          title,
+          description: form.description.trim() || null,
+          url,
+          provider,
+          course_id: form.courseId || null,
+        })
         .eq("id", editing.id);
       setSaving(false);
       if (error) {
@@ -201,6 +247,7 @@ function VideoLibrary() {
         url,
         provider,
         uploaded_by: user.id,
+        course_id: form.courseId || null,
       });
       setSaving(false);
       if (error) {
@@ -225,7 +272,11 @@ function VideoLibrary() {
       setSaving(true);
       const { error } = await db
         .from("videos")
-        .update({ title, description: form.description.trim() || null })
+        .update({
+          title,
+          description: form.description.trim() || null,
+          course_id: form.courseId || null,
+        })
         .eq("id", editing.id);
       setSaving(false);
       if (error) {
@@ -288,6 +339,7 @@ function VideoLibrary() {
           url: publicUrl,
           provider: "direct",
           storage_path: objectName,
+          course_id: form.courseId || null,
         })
         .eq("id", editing.id);
       if (error) {
@@ -310,6 +362,7 @@ function VideoLibrary() {
         provider: "direct",
         uploaded_by: user.id,
         storage_path: objectName,
+        course_id: form.courseId || null,
       });
       if (error) {
         setSaving(false);
@@ -401,6 +454,27 @@ function VideoLibrary() {
         }
       />
 
+      {/* Filtro por curso. "" = todos (incluye globales sin course_id) */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Curso:</span>
+        <Select
+          value={filterCourseId || "__all"}
+          onValueChange={(v) => setFilterCourseId(v === "__all" ? "" : v)}
+        >
+          <SelectTrigger className="h-8 w-64 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">Todos los cursos</SelectItem>
+            {courses.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
           <Spinner size="sm" /> Cargando videos…
@@ -428,6 +502,11 @@ function VideoLibrary() {
                     {v.storage_path && (
                       <Badge variant="secondary" className="text-[10px] gap-1">
                         <Upload className="h-2.5 w-2.5" /> Subido
+                      </Badge>
+                    )}
+                    {v.course_id && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {courseNameById[v.course_id] ?? "Curso"}
                       </Badge>
                     )}
                     {v.is_archived && (
@@ -522,6 +601,29 @@ function VideoLibrary() {
                   disabled={saving}
                 />
               </div>
+              <div>
+                <Label>Curso (opcional)</Label>
+                <Select
+                  value={form.courseId || "__none"}
+                  onValueChange={(v) => setForm({ ...form, courseId: v === "__none" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Global (todos los cursos)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Global (todos los cursos)</SelectItem>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Si lo asocias a un curso, los selectores de video (sesiones, talleres, exámenes,
+                  proyectos) de ese curso lo verán además de los globales.
+                </p>
+              </div>
             </TabsContent>
 
             <TabsContent value="upload" className="space-y-3 mt-3">
@@ -567,6 +669,30 @@ function VideoLibrary() {
                   rows={3}
                   disabled={saving}
                 />
+              </div>
+              <div>
+                <Label>Curso (opcional)</Label>
+                <Select
+                  value={form.courseId || "__none"}
+                  onValueChange={(v) => setForm({ ...form, courseId: v === "__none" ? "" : v })}
+                  disabled={saving}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Global (todos los cursos)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Global (todos los cursos)</SelectItem>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Si lo asocias a un curso, los selectores de video (sesiones, talleres, exámenes,
+                  proyectos) de ese curso lo verán además de los globales.
+                </p>
               </div>
               {saving && uploadPct > 0 && (
                 <div className="space-y-1">
