@@ -288,7 +288,7 @@ function AdminDashboard() {
         plagiarismLastHour: aiPlagiarismRes.count ?? 0,
       });
       setRecentAiExecs(
-        ((aiRecentRes.data ?? []) as Array<{
+        (aiRecentRes.data as Array<{
           id: string;
           action: string;
           severity: string;

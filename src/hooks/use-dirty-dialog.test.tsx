@@ -138,7 +138,7 @@ describe("useDirtyDialog — guardOpenChange", () => {
     await act(async () => {
       await result.current.guardOpenChange(setOpen)(false);
     });
-    const args = confirmMock.mock.calls[0][0] as Record<string, unknown>;
+    const args = (confirmMock.mock.calls as unknown as Array<[Record<string, unknown>]>)[0][0];
     expect(args.tone).toBe("destructive");
     expect(args.confirmLabel).toMatch(/Descartar/i);
     expect(args.cancelLabel).toMatch(/Seguir/i);
