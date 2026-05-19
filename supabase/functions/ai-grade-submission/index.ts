@@ -811,16 +811,29 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       );
     }
 
-    // ── Project CODE-ZIP grading ──
-    // Body: { projectCodeZipGrading: true, zipPath, fileTitle, fileDescription,
-    //         expectedRubric, maxPoints, courseLanguage, courseId }
-    // Descarga el ZIP de Storage (bucket project-files), filtra archivos de
-    // código por extensión, los concatena con encabezado por archivo y
-    // manda todo a la IA para evaluación. Devuelve { ok, grade, feedback,
-    // ai_likelihood, ai_reasons }.
+    // ── Project CODE grading (multi-file o ZIP legacy) ──
+    // Body: { projectCodeZipGrading: true,
+    //         codePaths?: string[],  // NUEVO: paths individuales en project-files
+    //         zipPath?: string,       // LEGACY: path único a ZIP
+    //         fileTitle, fileDescription, expectedRubric, maxPoints,
+    //         courseLanguage, courseId, projectDescription, allowedExtensions }
+    //
+    // Dos fuentes de archivos soportadas:
+    //   1) codePaths (preferido): el estudiante seleccionó N archivos
+    //      individuales y se subieron uno por uno. Descargamos cada uno y
+    //      lo agregamos al pool. No hay descompresión — los archivos vienen
+    //      ya con su nombre/extensión, así la validación previa al upload
+    //      del lado cliente es 100% confiable.
+    //   2) zipPath (legacy): se sube un único .zip que descomprimimos con
+    //      fflate. Se mantiene SOLO para no romper entregas ya hechas con
+    //      el flujo viejo si alguien recalifica.
+    //
+    // Aguas abajo el código es idéntico para los dos modos: filtra por
+    // extensión, minifica, concatena en un solo prompt y llama a IA.
     if (body.projectCodeZipGrading) {
       const {
         zipPath,
+        codePaths,
         fileTitle,
         fileDescription,
         expectedRubric,
@@ -832,12 +845,13 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         // claro el alcance del proyecto entero, no solo el slot.
         projectDescription,
         // Extensiones permitidas para esta entrega. Si el docente
-        // requiere SOLO Java, pasa ["java"] y rechazamos el ZIP si
-        // contiene .py / .js / etc. Si vacío o ausente → permitimos
+        // requiere SOLO Java, pasa ["java"] y rechazamos si encontramos
+        // archivos con otras extensiones. Si vacío o ausente → permitimos
         // todas las del whitelist global CODE_EXT.
         allowedExtensions,
       } = body as {
         zipPath?: string;
+        codePaths?: string[];
         fileTitle?: string;
         fileDescription?: string;
         expectedRubric?: string;
@@ -847,26 +861,68 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         projectDescription?: string;
         allowedExtensions?: string[];
       };
-      if (!zipPath || !fileTitle) {
-        throw new Error("zipPath y fileTitle requeridos");
+      const cleanedCodePaths = Array.isArray(codePaths)
+        ? codePaths.filter((p): p is string => typeof p === "string" && p.length > 0)
+        : [];
+      if (!fileTitle || (cleanedCodePaths.length === 0 && !zipPath)) {
+        throw new Error("fileTitle y (codePaths o zipPath) requeridos");
       }
       const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
       const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
 
-      // Descarga el zip via admin client (RLS + service role).
-      const { data: zipBlob, error: dlErr } = await adminClient.storage
-        .from("project-files")
-        .download(zipPath);
-      if (dlErr || !zipBlob) {
-        throw new Error(`No se pudo descargar el ZIP: ${dlErr?.message ?? "missing"}`);
+      // ── Carga de archivos: dos rutas según fuente ──
+      // Resultado común: `unzipped: Record<path, Uint8Array>` que el resto
+      // del pipeline ya sabe consumir.
+      const unzipped: Record<string, Uint8Array> = {};
+      if (cleanedCodePaths.length > 0) {
+        // Multi-file: descargamos cada archivo en paralelo. Usamos
+        // basename como key visible a la IA — los paths reales de Storage
+        // incluyen UUIDs que no aportan señal y empeoran el prompt.
+        const downloads = await Promise.all(
+          cleanedCodePaths.map(async (p) => {
+            const { data, error } = await adminClient.storage
+              .from("project-files")
+              .download(p);
+            if (error || !data) {
+              return { path: p, bytes: null as Uint8Array | null, error: error?.message ?? "missing" };
+            }
+            return { path: p, bytes: new Uint8Array(await data.arrayBuffer()), error: null };
+          }),
+        );
+        const failed = downloads.filter((d) => !d.bytes);
+        if (failed.length > 0) {
+          throw new Error(
+            `No se pudo descargar ${failed.length} archivo(s): ${failed.map((f) => `${f.path} (${f.error})`).slice(0, 3).join("; ")}`,
+          );
+        }
+        for (const d of downloads) {
+          if (!d.bytes) continue;
+          // Key visible = basename. Si dos archivos comparten basename
+          // (subcarpetas distintas) anteponemos un sufijo numérico.
+          const base = d.path.split("/").pop() ?? d.path;
+          let key = base;
+          let n = 1;
+          while (unzipped[key]) {
+            key = `${base}.${n}`;
+            n++;
+          }
+          unzipped[key] = d.bytes;
+        }
+      } else {
+        // Legacy ZIP: descarga + descomprime.
+        const { data: zipBlob, error: dlErr } = await adminClient.storage
+          .from("project-files")
+          .download(zipPath!);
+        if (dlErr || !zipBlob) {
+          throw new Error(`No se pudo descargar el ZIP: ${dlErr?.message ?? "missing"}`);
+        }
+        const zipBuf = new Uint8Array(await zipBlob.arrayBuffer());
+        const fflate = await import("npm:fflate@0.8.2");
+        const zipFiles = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+          fflate.unzip(zipBuf, (err, files) => (err ? reject(err) : resolve(files)));
+        });
+        for (const [k, v] of Object.entries(zipFiles)) unzipped[k] = v;
       }
-      const zipBuf = new Uint8Array(await zipBlob.arrayBuffer());
-
-      // Descomprime
-      const fflate = await import("npm:fflate@0.8.2");
-      const unzipped = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
-        fflate.unzip(zipBuf, (err, files) => (err ? reject(err) : resolve(files)));
-      });
 
       // Whitelist de extensiones de código fuente. Doc/imágenes/binarios
       // van en preguntas separadas, no aquí.
@@ -1230,7 +1286,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             ok: true,
             grade: 0,
             feedback:
-              "El ZIP no contiene archivos de código reconocidos. Verifica que estés subiendo archivos fuente (.java, .py, .js, etc).",
+              "No se reconocieron archivos de código en la entrega. Verifica que estés subiendo archivos fuente (.java, .py, .js, etc).",
             ai_likelihood: 0,
             ai_detected: false,
             ai_reasons: "",
@@ -1265,7 +1321,7 @@ Descripción: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa diseño, corrección y completitud del código."}
 Puntaje máximo: ${maxPoints}
 
-Contenido del ZIP (${codeFiles.length} archivo(s) de código):
+Código fuente entregado (${codeFiles.length} archivo(s)):
 
 ${fileSection}
 

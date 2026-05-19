@@ -54,6 +54,31 @@ import { HelpHint } from "@/components/ui/help-hint";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+// Mapeo lenguaje → extensiones aceptadas para subida multi-archivo de
+// preguntas tipo `codigo_zip` (nombre legacy — ya no son ZIP). Usado por
+// el `accept` del <input type="file"> y por la validación cliente antes
+// de subir cada archivo. El edge function recibe `allowedExtensions` y
+// las re-valida defensivamente.
+const LANG_TO_EXT: Record<string, string[]> = {
+  java: ["java"],
+  python: ["py"],
+  javascript: ["js", "jsx", "mjs", "cjs"],
+  typescript: ["ts", "tsx"],
+  c: ["c", "h"],
+  cpp: ["cpp", "cc", "cxx", "hpp", "hxx", "h"],
+  csharp: ["cs"],
+  go: ["go"],
+  rust: ["rs"],
+  php: ["php"],
+  ruby: ["rb"],
+  haskell: ["hs"],
+  kotlin: ["kt", "kts"],
+  swift: ["swift"],
+};
+
+const MAX_CODE_FILES_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB sumados.
+const MAX_CODE_FILES_COUNT = 50;
+
 export type ProjectFile = {
   id: string;
   project_id: string;
@@ -305,7 +330,7 @@ export function TeacherProjectFilesEditor({
         ? `Eliminar pregunta (${linkedCount} entrega${linkedCount === 1 ? "" : "s"} afectada${linkedCount === 1 ? "" : "s"})`
         : "Eliminar pregunta",
       description: hasSubmissions
-        ? `Esta pregunta ya tiene ${linkedCount} entrega${linkedCount === 1 ? "" : "s"} de estudiantes. Al eliminarla, sus respuestas y archivos ZIP se perderán y verán "Aún no has subido tu archivo" en la retroalimentación. Esta acción no se puede deshacer.`
+        ? `Esta pregunta ya tiene ${linkedCount} entrega${linkedCount === 1 ? "" : "s"} de estudiantes. Al eliminarla, sus respuestas y archivos de código se perderán y verán "Aún no has subido tu archivo" en la retroalimentación. Esta acción no se puede deshacer.`
         : "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
@@ -348,7 +373,7 @@ export function TeacherProjectFilesEditor({
         toast.error(data.error);
       } else if (data?.inserted) {
         toast.success(
-          `${data.inserted.length} pregunta(s) generadas — incluye 1 entrega de código (ZIP)`,
+          `${data.inserted.length} pregunta(s) generadas — incluye 1 entrega de código (archivos)`,
         );
         void logEvent({
           action: "ai_questions.generated",
@@ -532,10 +557,10 @@ export function TeacherProjectFilesEditor({
               <Label required>
                 Tipo{" "}
                 <HelpHint>
-                  En proyectos, <strong>Código</strong> significa que el estudiante sube un{" "}
-                  <strong>archivo .zip</strong> con todo su código fuente. La IA descomprime, filtra
-                  archivos por extensión (.java, .py, .ts, .cpp, etc) y los califica con la rúbrica
-                  y los puntos de esta pregunta. Diagramas y documentos van en preguntas separadas.
+                  En proyectos, <strong>Código</strong> significa que el estudiante selecciona
+                  varios archivos de código fuente directo (sin comprimir). La IA recibe todos los
+                  archivos minificados en un solo prompt y los califica con la rúbrica y los puntos
+                  de esta pregunta. Diagramas y documentos van en preguntas separadas.
                 </HelpHint>
               </Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
@@ -547,7 +572,7 @@ export function TeacherProjectFilesEditor({
                   <SelectItem value="cerrada">Selección única</SelectItem>
                   <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
-                  <SelectItem value="codigo_zip">Código (ZIP de archivos)</SelectItem>
+                  <SelectItem value="codigo_zip">Código fuente (archivos)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -674,10 +699,12 @@ export function TeacherProjectFilesEditor({
                 </Select>
               </div>
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                El estudiante subirá un <strong>archivo .zip</strong> con todo su código fuente. La
-                IA descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc)
-                según la rúbrica y los puntos de esta pregunta. Diagramas y documentos van en
-                preguntas separadas (tipo Abierta o Diagrama).
+                El estudiante seleccionará <strong>varios archivos de código fuente</strong> directo
+                (sin comprimir). Solo se aceptan archivos cuya extensión coincida con el lenguaje
+                principal; cualquier otro archivo bloquea la entrega antes de subir. La IA recibe
+                todos los archivos minificados en un solo prompt y califica el proyecto como
+                conjunto según la rúbrica y los puntos. Diagramas y documentos van en preguntas
+                separadas (tipo Abierta o Diagrama).
               </div>
             </>
           )}
@@ -735,9 +762,10 @@ export function TeacherProjectFilesEditor({
                 Auto-generar preguntas desde la descripción{" "}
                 <HelpHint>
                   La IA lee la descripción del proyecto y propone el set completo de preguntas.
-                  Siempre genera <strong>1 pregunta de código (ZIP)</strong> y entre 2 y 5 preguntas
-                  adicionales (abierta, diagrama o cerrada) para evaluar análisis y diseño por
-                  separado. El prompt se edita en Prompts (use_case <code>project_questions</code>).
+                  Siempre genera <strong>1 pregunta de código (archivos)</strong> y entre 2 y 5
+                  preguntas adicionales (abierta, diagrama o cerrada) para evaluar análisis y diseño
+                  por separado. El prompt se edita en Prompts (use_case{" "}
+                  <code>project_questions</code>).
                 </HelpHint>
               </CardTitle>
             </CardHeader>
@@ -797,7 +825,7 @@ export function TeacherProjectFilesEditor({
                       <SelectItem value="cerrada">Selección única</SelectItem>
                       <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
-                      <SelectItem value="codigo_zip">Código (ZIP)</SelectItem>
+                      <SelectItem value="codigo_zip">Código (archivos)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1041,7 +1069,8 @@ export function StudentProjectTaker({
           isBlank = typeof minS === "number" && minS > 0 && a.length < minS;
         }
       } else if (q.type === "codigo_zip") {
-        isBlank = !(a instanceof File);
+        // Acepta File[] (nuevo flujo multi-archivo) o File suelto (legacy).
+        isBlank = !((Array.isArray(a) && a.length > 0) || a instanceof File);
       } else {
         isBlank = !String(a ?? "").trim();
       }
@@ -1202,12 +1231,19 @@ export function StudentProjectTaker({
           payload.ai_grade = earned;
           payload.ai_feedback = feedback;
         } else if (q.type === "codigo_zip") {
-          // raw debería ser un File. Si no hay file, marca 0.
-          const file = raw instanceof File ? raw : null;
-          if (!file) {
+          // Multi-file: `raw` ahora es `File[]` (legacy: un único File).
+          // Normalizamos a array para soportar ambos casos sin ramas.
+          const filesArr: File[] = Array.isArray(raw)
+            ? (raw.filter((f) => f instanceof File) as File[])
+            : raw instanceof File
+              ? [raw]
+              : [];
+          const langKey = (q.language ?? "").toLowerCase().trim();
+          const allowedExtensions = LANG_TO_EXT[langKey] ?? null;
+          if (filesArr.length === 0) {
             payload.content = "";
             payload.ai_grade = 0;
-            payload.ai_feedback = "Sin archivo ZIP";
+            payload.ai_feedback = "Sin archivos de código entregados";
           } else if (!user?.id) {
             // Sin sesión auth válida el path sería "undefined/...", que
             // viola la RLS de storage. Mejor un error claro que un
@@ -1215,54 +1251,79 @@ export function StudentProjectTaker({
             payload.ai_grade = 0;
             payload.ai_feedback =
               "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
-          } else {
+          } else if (allowedExtensions) {
+            // Validación cliente-side: rechazamos ANTES de subir si alguno
+            // de los archivos no tiene extensión permitida. Evita gastar
+            // bandwidth y deja al estudiante recomponer su selección.
+            const violations = filesArr.filter((f) => {
+              const ext = (f.name.split(".").pop() ?? "").toLowerCase();
+              return !allowedExtensions.includes(ext);
+            });
+            if (violations.length > 0) {
+              const sample = violations
+                .slice(0, 5)
+                .map((f) => f.name)
+                .join(", ");
+              const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+              const allowedLabel = allowedExtensions.map((e) => `.${e}`).join(", ");
+              payload.ai_grade = 0;
+              payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
+              toast.error(payload.ai_feedback, { duration: 8000 });
+            }
+          }
+          // Validación de tamaño total (defense in depth — el input ya
+          // chequea per-archivo pero el usuario puede modificar atributos
+          // del input).
+          if (!payload.ai_feedback) {
+            const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
+            if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = `El total de archivos supera 50 MB (${(totalBytes / 1024 / 1024).toFixed(1)} MB). Reduce el contenido.`;
+              toast.error(payload.ai_feedback, { duration: 8000 });
+            } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = `Demasiados archivos (${filesArr.length}). Máximo permitido: ${MAX_CODE_FILES_COUNT}.`;
+              toast.error(payload.ai_feedback, { duration: 8000 });
+            }
+          }
+          if (filesArr.length > 0 && user?.id && !payload.ai_feedback) {
             // Carpeta raíz del path:
             //  - groupId si el proyecto es grupal (todos los miembros
             //    suben a la misma carpeta del grupo; la RLS lo permite
             //    si el caller es miembro — ver migración 20260530100000).
             //  - user.id si es individual.
-            // El edge function descarga vía service-role, no le importa
-            // la carpeta — solo necesita que persistamos zip_path
-            // correcto.
             const rootFolder = groupId ?? user.id;
-            const path = `${rootFolder}/${submissionId}/${q.id}.zip`;
-            const { error: upErr } = await supabase.storage
-              .from("project-files")
-              .upload(path, file, { upsert: true, contentType: "application/zip" });
-            if (upErr) {
+            // Subimos en paralelo. Cada archivo va a:
+            //   <root>/<submissionId>/<questionId>/<safeName>
+            // Si dos archivos comparten nombre (raro pero posible) el
+            // segundo prefija un índice para no pisarse en Storage.
+            const usedNames = new Set<string>();
+            const uploads = await Promise.all(
+              filesArr.map(async (f, idx) => {
+                let safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                if (usedNames.has(safeName)) safeName = `${idx}_${safeName}`;
+                usedNames.add(safeName);
+                const path = `${rootFolder}/${submissionId}/${q.id}/${safeName}`;
+                const { error: upErr } = await supabase.storage
+                  .from("project-files")
+                  .upload(path, f, { upsert: true, contentType: f.type || "text/plain" });
+                return { path, error: upErr };
+              }),
+            );
+            const upFailed = uploads.filter((u) => u.error);
+            if (upFailed.length > 0) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `Error al subir ZIP: ${upErr.message}`;
+              payload.ai_feedback = `Error al subir ${upFailed.length} archivo(s): ${upFailed[0].error?.message ?? ""}`;
+              toast.error(payload.ai_feedback, { duration: 8000 });
             } else {
-              payload.zip_path = path;
-              // Map `language` (texto humano) → extensión esperada.
-              // El edge function valida que el ZIP solo contenga archivos
-              // con esa extensión; rechaza ANTES de llamar a IA si encuentra
-              // archivos de código en otros lenguajes (evita gasto de
-              // tokens y obliga al alumno a recomprimir limpio).
-              const LANG_TO_EXT: Record<string, string[]> = {
-                java: ["java"],
-                python: ["py"],
-                javascript: ["js", "jsx", "mjs", "cjs"],
-                typescript: ["ts", "tsx"],
-                c: ["c", "h"],
-                cpp: ["cpp", "cc", "cxx", "hpp", "hxx", "h"],
-                csharp: ["cs"],
-                go: ["go"],
-                rust: ["rs"],
-                php: ["php"],
-                ruby: ["rb"],
-                haskell: ["hs"],
-                kotlin: ["kt", "kts"],
-                swift: ["swift"],
-              };
-              const langKey = (q.language ?? "").toLowerCase().trim();
-              const allowedExtensions = LANG_TO_EXT[langKey] ?? null;
+              const uploadedPaths = uploads.map((u) => u.path);
+              payload.code_paths = uploadedPaths;
               const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                 "ai-grade-submission",
                 {
                   body: {
                     projectCodeZipGrading: true,
-                    zipPath: path,
+                    codePaths: uploadedPaths,
                     fileTitle: q.title,
                     fileDescription: q.description,
                     expectedRubric: q.expected_rubric,
@@ -1284,7 +1345,7 @@ export function StudentProjectTaker({
                 // y el estudiante no entendía por qué su entrega tuvo 0.
                 const detail = await extractEdgeError(aiErr, aiData);
                 payload.ai_grade = 0;
-                payload.ai_feedback = detail || "Error IA al calificar el ZIP";
+                payload.ai_feedback = detail || "Error IA al calificar los archivos";
                 toast.error(payload.ai_feedback, { duration: 8000 });
               } else {
                 earned = Number(aiData?.grade) || 0;
@@ -1605,57 +1666,108 @@ export function StudentProjectTaker({
                 height="280px"
               />
             )}
-            {q.type === "codigo_zip" && (
-              <div className="space-y-2">
-                <input
-                  type="file"
-                  accept=".zip,application/zip,application/x-zip-compressed"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    if (f) {
-                      // 50MB cap (era 100MB). Reducido para mantener
-                      // tiempos de subida razonables en redes campus y
-                      // disminuir uso de bandwidth del bucket Storage.
-                      const MAX_BYTES = 50 * 1024 * 1024;
-                      if (f.size > MAX_BYTES) {
-                        toast.error(
-                          `El archivo supera 50MB (${(f.size / 1024 / 1024).toFixed(1)}MB). Comprime mejor o reduce contenido binario antes de subir.`,
-                        );
-                        e.target.value = "";
-                        return;
-                      }
-                      if (f.size === 0) {
-                        toast.error("El archivo está vacío. Verifica que se comprimió correctamente.");
-                        e.target.value = "";
-                        return;
-                      }
-                    }
-                    updateAnswer(q.id, f);
-                  }}
-                  className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Sube un archivo .zip con todo el código fuente del proyecto. Máximo 50MB. La IA
-                  descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc.) en
-                  conjunto.
-                </p>
-                {answers[q.id] instanceof File && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {(() => {
-                      const file = answers[q.id] as File;
-                      // Display inteligente: KB cuando < 1MB para no
-                      // mostrar "0.0 MB" (el caso reportado por el user
-                      // que confundía).
-                      const sizeStr =
-                        file.size < 1024 * 1024
-                          ? `${Math.max(1, Math.round(file.size / 1024))} KB`
-                          : `${(file.size / 1024 / 1024).toFixed(1)} MB`;
-                      return `${file.name} · ${sizeStr}`;
-                    })()}
-                  </Badge>
-                )}
-              </div>
-            )}
+            {q.type === "codigo_zip" &&
+              (() => {
+                const langKey = (q.language ?? "").toLowerCase().trim();
+                const allowedExts = LANG_TO_EXT[langKey] ?? null;
+                const acceptAttr = allowedExts
+                  ? allowedExts.map((e) => `.${e}`).join(",")
+                  : undefined;
+                const allowedLabel = allowedExts
+                  ? allowedExts.map((e) => `.${e}`).join(", ")
+                  : "archivos de código fuente";
+                const current: File[] = Array.isArray(answers[q.id])
+                  ? (answers[q.id] as File[])
+                  : answers[q.id] instanceof File
+                    ? [answers[q.id] as File]
+                    : [];
+                return (
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      multiple
+                      accept={acceptAttr}
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? []);
+                        if (picked.length === 0) {
+                          updateAnswer(q.id, []);
+                          return;
+                        }
+                        // Validación cliente-side ANTES de aceptar la
+                        // selección. Si hay alguna extensión no permitida,
+                        // rechazamos toda la tanda — el usuario debe
+                        // reseleccionar con archivos válidos.
+                        if (allowedExts) {
+                          const bad = picked.filter((f) => {
+                            const ext = (f.name.split(".").pop() ?? "").toLowerCase();
+                            return !allowedExts.includes(ext);
+                          });
+                          if (bad.length > 0) {
+                            const sample = bad
+                              .slice(0, 5)
+                              .map((f) => f.name)
+                              .join(", ");
+                            const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
+                            toast.error(
+                              `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+                              { duration: 8000 },
+                            );
+                            e.target.value = "";
+                            return;
+                          }
+                        }
+                        // Validación de tamaño total + cuenta.
+                        const totalBytes = picked.reduce((a, f) => a + f.size, 0);
+                        if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
+                          toast.error(
+                            `Los archivos suman ${(totalBytes / 1024 / 1024).toFixed(1)} MB y superan el tope de 50 MB.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        if (picked.length > MAX_CODE_FILES_COUNT) {
+                          toast.error(
+                            `Seleccionaste ${picked.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        if (picked.some((f) => f.size === 0)) {
+                          toast.error(
+                            "Hay archivos vacíos en la selección. Verifica que no estés subiendo archivos rotos.",
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        updateAnswer(q.id, picked);
+                      }}
+                      className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Selecciona varios archivos de código fuente directamente desde tu equipo — sin
+                      comprimir. Extensiones aceptadas:{" "}
+                      <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB en total y
+                      hasta {MAX_CODE_FILES_COUNT} archivos. La IA evalúa todos los archivos en un
+                      solo prompt para calificar el proyecto como conjunto.
+                    </p>
+                    {current.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {current.map((f, i) => {
+                          const sizeStr =
+                            f.size < 1024 * 1024
+                              ? `${Math.max(1, Math.round(f.size / 1024))} KB`
+                              : `${(f.size / 1024 / 1024).toFixed(1)} MB`;
+                          return (
+                            <Badge key={i} variant="secondary" className="text-[10px]">
+                              {f.name} · {sizeStr}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
           </CardContent>
         </Card>
       ))}

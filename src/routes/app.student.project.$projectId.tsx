@@ -88,9 +88,14 @@ type AnswerRow = {
   ai_feedback: string | null;
   ai_likelihood: number | null;
   ai_reasons: string | null;
-  /** Ruta en bucket `project-files` cuando la pregunta es `codigo_zip`.
+  /** Ruta en bucket `project-files` cuando la pregunta es `codigo_zip` y
+   *  fue entregada con el flujo viejo (un único ZIP).
    *  Format: `<user_id|group_id>/<submission_id>/<question_id>.zip`. */
   zip_path: string | null;
+  /** Rutas en bucket `project-files` cuando la pregunta es `codigo_zip` y
+   *  fue entregada con el flujo nuevo (varios archivos sueltos).
+   *  Format: `<user_id|group_id>/<submission_id>/<question_id>/<filename>`. */
+  code_paths: string[] | null;
 };
 
 function StudentProjectDetail() {
@@ -224,7 +229,7 @@ function StudentProjectDetail() {
           const { data: ans } = await db
             .from("project_submission_files")
             .select(
-              "file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_path",
+              "file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_path, code_paths",
             )
             .eq("submission_id", sub.id);
           const map: Record<string, AnswerRow> = {};
@@ -404,48 +409,80 @@ function StudentProjectDetail() {
                       </div>
                     )}
                     {f.type === "codigo_zip" ? (
-                      // Pregunta de código: la entrega vive en storage
-                      // (zip_path apunta a project-files/<root>/<sub>/<q>.zip).
-                      // Antes mostrábamos "Sin respuesta" porque `content`
-                      // siempre estaba vacío para este tipo — confundía al
-                      // alumno. Ahora ofrecemos el botón de descarga si hay
-                      // zip_path, o un mensaje "no entregado" si no.
-                      ans?.zip_path ? (
-                        <div className="rounded-md border bg-muted/30 p-3 flex items-center gap-3">
-                          <FileArchive className="h-6 w-6 text-primary shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">Código entregado (ZIP)</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {ans.zip_path.split("/").pop()}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              if (!ans.zip_path) return;
-                              const { data, error } = await supabase.storage
-                                .from("project-files")
-                                .createSignedUrl(ans.zip_path, 60);
-                              if (error || !data?.signedUrl) {
-                                toast.error(
-                                  error?.message ?? "No se pudo generar enlace de descarga.",
-                                );
-                                return;
-                              }
-                              // Abrir signed URL en nueva pestaña (browsers
-                              // disparan download automático para
-                              // application/zip).
-                              window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-                            }}
-                          >
-                            <Download className="h-3.5 w-3.5 mr-1" />
-                            Descargar
-                          </Button>
+                      // Pregunta de código: la entrega vive en storage.
+                      // Dos formas posibles según cuándo se entregó:
+                      //   - `code_paths` (flujo nuevo): array de paths a
+                      //     archivos individuales. Mostramos un botón de
+                      //     descarga por archivo.
+                      //   - `zip_path` (flujo viejo): un único path a ZIP.
+                      // Si ambos son null, no se entregó nada.
+                      (ans?.code_paths && ans.code_paths.length > 0) || ans?.zip_path ? (
+                        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                          {ans?.code_paths && ans.code_paths.length > 0
+                            ? ans.code_paths.map((p) => (
+                                <div key={p} className="flex items-center gap-3">
+                                  <FileArchive className="h-5 w-5 text-primary shrink-0" />
+                                  <p className="text-[12px] truncate flex-1">
+                                    {p.split("/").pop()}
+                                  </p>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={async () => {
+                                      const { data, error } = await supabase.storage
+                                        .from("project-files")
+                                        .createSignedUrl(p, 60);
+                                      if (error || !data?.signedUrl) {
+                                        toast.error(
+                                          error?.message ??
+                                            "No se pudo generar enlace de descarga.",
+                                        );
+                                        return;
+                                      }
+                                      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                                    }}
+                                  >
+                                    <Download className="h-3.5 w-3.5 mr-1" />
+                                    Descargar
+                                  </Button>
+                                </div>
+                              ))
+                            : ans?.zip_path && (
+                                <div className="flex items-center gap-3">
+                                  <FileArchive className="h-6 w-6 text-primary shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium">Código entregado (ZIP)</p>
+                                    <p className="text-[11px] text-muted-foreground truncate">
+                                      {ans.zip_path.split("/").pop()}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={async () => {
+                                      if (!ans.zip_path) return;
+                                      const { data, error } = await supabase.storage
+                                        .from("project-files")
+                                        .createSignedUrl(ans.zip_path, 60);
+                                      if (error || !data?.signedUrl) {
+                                        toast.error(
+                                          error?.message ??
+                                            "No se pudo generar enlace de descarga.",
+                                        );
+                                        return;
+                                      }
+                                      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                                    }}
+                                  >
+                                    <Download className="h-3.5 w-3.5 mr-1" />
+                                    Descargar
+                                  </Button>
+                                </div>
+                              )}
                         </div>
                       ) : (
                         <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                          Aún no has subido tu archivo ZIP para esta sección.
+                          Aún no has subido los archivos de código para esta sección.
                         </div>
                       )
                     ) : (
