@@ -99,7 +99,15 @@ RUN dnf install -y \
  # vacíos, solo el rectángulo de fondo). Generar el cache acá lo deja
  # listo en /var/cache/fontconfig/ — read-only en runtime pero como ya
  # existe no necesita regenerarse.
- && fc-cache -fv >/dev/null 2>&1 \
+ #
+ # IMPORTANTE — en Amazon Linux 2023, el paquete `fontconfig` NO crea
+ # `/var/cache/fontconfig/` automáticamente; el primer `fc-cache` lo
+ # crea solo si tiene permisos. Forzamos `mkdir -p` antes para evitar
+ # el race "fc-cache OK pero chmod falla porque el dir no existe".
+ # NO redirigimos a /dev/null para que cualquier error de fc-cache
+ # quede visible en el log del build.
+ && mkdir -p /var/cache/fontconfig \
+ && fc-cache -fv \
  && chmod -R a+rX /var/cache/fontconfig \
  # Slim: demos/man/src/jmods (no se usan en Lambda).
  && JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" \

@@ -42,11 +42,12 @@ interface Counts {
 interface QueueJob {
   id: string;
   kind: string;
-  status: "pending" | "processing";
+  status: "pending" | "processing" | "failed";
   target_table: string;
   target_row_id: string;
   course_id: string | null;
   created_at: string;
+  last_error: string | null;
   // Resolución best-effort (se llena tras queries secundarias)
   examTitle?: string;
   workshopTitle?: string;
@@ -101,6 +102,10 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const [jobs, setJobs] = useState<QueueJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  // ID del job que el usuario está reintentando (para deshabilitar su
+  // botón mientras está en flight). Set en lugar de string para
+  // soportar clicks rápidos sobre varios jobs sin pisarse.
+  const [retrying, setRetrying] = useState<Set<string>>(new Set());
 
   /** Resuelve la ruta destino al hacer click en una fila del job. Si el
    *  tipo no tiene destino conocido (target_row no resuelto, kind raro),
@@ -152,10 +157,19 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
           .order("completed_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Trae pending + processing + failed-reciente. Los failed se
+        // muestran junto a los activos con un botón "Reintentar" — el
+        // docente puede re-encolar sin esperar al admin. Limitamos a
+        // failed del último día para no inundar la lista con jobs
+        // viejos abandonados.
         db
           .from("ai_grading_queue")
-          .select("id, kind, status, target_table, target_row_id, course_id, created_at")
-          .in("status", ["pending", "processing"])
+          .select(
+            "id, kind, status, target_table, target_row_id, course_id, created_at, last_error",
+          )
+          .or(
+            `status.eq.pending,status.eq.processing,and(status.eq.failed,completed_at.gte.${since24})`,
+          )
           .order("created_at", { ascending: false })
           .limit(MAX_VISIBLE_JOBS),
       ]);
@@ -313,6 +327,33 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
     }
   };
 
+  /** Re-encola un job `failed` para que el worker lo retome. La RPC
+   *  `requeue_ai_grading_job` valida permisos server-side (admin O owner
+   *  del job O docente del curso). Optimistic UI: removemos el job de
+   *  la lista al instante y refrescamos al toast.success. */
+  const retryJob = async (jobId: string) => {
+    if (retrying.has(jobId)) return;
+    setRetrying((prev) => new Set(prev).add(jobId));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("requeue_ai_grading_job", {
+        _job_id: jobId,
+      });
+      if (error) {
+        toast.error(error.message ?? "No se pudo re-encolar el job");
+        return;
+      }
+      toast.success("Job re-encolado — el worker lo retomará en su próxima corrida");
+      await load();
+    } finally {
+      setRetrying((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -377,11 +418,19 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 {jobs.slice(0, MAX_VISIBLE_JOBS).map((j) => {
                   const kindLabel = KIND_LABELS[j.kind] ?? j.kind;
                   const isProcessing = j.status === "processing";
+                  const isFailed = j.status === "failed";
                   const route = targetRouteForJob(j);
-                  const rowContent = (
+                  const isRetrying = retrying.has(j.id);
+
+                  // Header de la fila — siempre se renderiza igual.
+                  // El estado (icono + color) cambia según pending /
+                  // processing / failed.
+                  const header = (
                     <>
                       {isProcessing ? (
                         <Cpu className="h-3 w-3 text-amber-500 shrink-0 animate-pulse" />
+                      ) : isFailed ? (
+                        <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
                       ) : (
                         <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
                       )}
@@ -398,11 +447,51 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                       </span>
                     </>
                   );
-                  // Si tenemos ruta destino conocida (exam → monitor,
-                  // project → lista de proyectos), la fila es un botón
-                  // clickable. Si no, es un div estático — para no dar
-                  // afordance falsa de "click me" sobre algo que no
-                  // navega a ningún lado.
+
+                  // Failed: NO se hace clickable la fila completa porque
+                  // la acción primaria es el botón "Reintentar" — no
+                  // queremos que click sobre el title navegue a otro
+                  // lado y se pierda el contexto de error. Mostramos el
+                  // last_error truncado en una segunda línea + botón
+                  // retry inline.
+                  if (isFailed) {
+                    return (
+                      <div
+                        key={j.id}
+                        className="px-2 py-1 rounded text-[11px] bg-destructive/5 border border-destructive/20"
+                      >
+                        <div className="flex items-center gap-2">{header}</div>
+                        {j.last_error && (
+                          <div
+                            className="text-[10px] text-destructive/80 mt-1 truncate"
+                            title={j.last_error}
+                          >
+                            {j.last_error}
+                          </div>
+                        )}
+                        <div className="flex justify-end mt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] px-2"
+                            disabled={isRetrying}
+                            onClick={() => void retryJob(j.id)}
+                          >
+                            {isRetrying ? (
+                              <Spinner size="sm" className="mr-1" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                            )}
+                            Reintentar
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Pending / processing: si tenemos ruta destino conocida
+                  // (exam → monitor, project → lista), la fila entera es
+                  // clickable. Si no, queda como div estático.
                   if (route) {
                     return (
                       <button
@@ -417,7 +506,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                         title={`Abrir detalle: ${j.examTitle ?? j.projectTitle ?? kindLabel}`}
                         className="w-full flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-muted/60 cursor-pointer transition-colors"
                       >
-                        {rowContent}
+                        {header}
                       </button>
                     );
                   }
@@ -426,7 +515,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                       key={j.id}
                       className="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-muted/40"
                     >
-                      {rowContent}
+                      {header}
                     </div>
                   );
                 })}

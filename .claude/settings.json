@@ -19,7 +19,8 @@
       "Bash(bash /tmp/check_functions.sh)",
       "Bash(cd \"d:/Projects/Personal/examlab\" && grep -n \"^      </Dialog>$\\\\|^    </div>$\" src/routes/app.teacher.monitor.\\\\$examId.tsx | tail -5)",
       "Bash(gh run *)",
-      "PowerShell(gh run list --workflow=deploy-edge-functions.yml --limit 5)"
+      "PowerShell(gh run list --workflow=deploy-edge-functions.yml --limit 5)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
