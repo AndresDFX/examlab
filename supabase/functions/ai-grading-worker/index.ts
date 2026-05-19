@@ -55,11 +55,26 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Reclama batch atómicamente.
-  const { data: jobs, error: claimErr } = await adminClient.rpc(
-    "claim_pending_ai_grading",
-    { _limit: MAX_PER_RUN },
-  );
+  // Body opcional con `jobId` — para procesamiento individual desde el
+  // widget. Si viene, procesamos SOLO ese job. Si no, drenamos el batch
+  // como siempre (modo cron + botón "Procesar ahora" admin).
+  let singleJobId: string | undefined;
+  if (req.method === "POST") {
+    try {
+      const body = await req.json();
+      if (body && typeof body.jobId === "string") {
+        singleJobId = body.jobId;
+      }
+    } catch {
+      /* body vacío o no-JSON — ignorar, modo batch */
+    }
+  }
+
+  // Reclama: si vino jobId, usa claim_one_ai_grading (procesa 1).
+  // Si no, claim_pending_ai_grading (procesa hasta MAX_PER_RUN, oldest-first).
+  const { data: jobs, error: claimErr } = singleJobId
+    ? await adminClient.rpc("claim_one_ai_grading", { _job_id: singleJobId })
+    : await adminClient.rpc("claim_pending_ai_grading", { _limit: MAX_PER_RUN });
   if (claimErr) {
     console.error("[ai-grading-worker] claim failed", claimErr);
     return new Response(JSON.stringify({ ok: false, error: claimErr.message }), {

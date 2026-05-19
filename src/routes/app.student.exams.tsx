@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,9 +56,12 @@ function StudentExams() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
+  // Carga la lista de exámenes asignados. Extraído como useCallback para
+  // poder reutilizarlo en el listener `visibilitychange` — antes el
+  // fetch vivía inline en el useEffect y no se podía rellamar.
+  const loadExams = useCallback(async () => {
     if (!user) return;
-    (async () => {
+    {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
@@ -122,8 +126,20 @@ function StudentExams() {
           };
         }),
       );
-    })();
+    }
   }, [user]);
+
+  useEffect(() => {
+    void loadExams();
+  }, [loadExams]);
+
+  // Refetch al volver al tab — si el docente extendió/recortó las
+  // fechas de un examen mientras el alumno tenía la pestaña en
+  // background, los estados (abierto/próximo/cerrado) se recalculan
+  // al instante con los datos nuevos. Antes el cliente se quedaba con
+  // el snapshot del mount inicial y seguía marcando "cerrado" aunque
+  // el docente hubiera extendido el end_time.
+  useReloadOnVisible(loadExams);
 
   // Filtramos por título del examen + nombre del curso. Case-insensitive,
   // includes. La búsqueda es local al cliente — la lista del estudiante

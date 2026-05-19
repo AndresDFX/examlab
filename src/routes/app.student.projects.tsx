@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -246,6 +247,15 @@ function StudentProjects() {
     if (!user) return;
     void reload(user.id);
   }, [user]);
+
+  // Refetch al volver al tab — si el docente extendió el due_date del
+  // proyecto mientras el alumno tenía la pestaña en background, el
+  // `isOverdue` se recalcula con los datos nuevos. Antes el cliente se
+  // quedaba con el snapshot del mount inicial y seguía marcando
+  // "vencido" aunque el due_date ya hubiera cambiado.
+  useReloadOnVisible(() => {
+    if (user) void reload(user.id);
+  });
 
   const now = Date.now();
   // Filtra por título del proyecto + nombre del curso.

@@ -20,9 +20,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Play } from "lucide-react";
+import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Play, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -88,6 +89,7 @@ function relativeAge(iso: string): string {
 
 export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [counts, setCounts] = useState<Counts>({
     pending: 0,
     processing: 0,
@@ -102,10 +104,13 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const [jobs, setJobs] = useState<QueueJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  // ID del job que el usuario está reintentando (para deshabilitar su
-  // botón mientras está en flight). Set en lugar de string para
-  // soportar clicks rápidos sobre varios jobs sin pisarse.
+  // IDs en flight por acción — Set para soportar clicks paralelos.
+  // Antes solo había retry; ahora tenemos 3 acciones por job (retry,
+  // cancel, process-now) y necesitamos rastrear cada una por separado
+  // para deshabilitar SU botón sin bloquear los demás.
   const [retrying, setRetrying] = useState<Set<string>>(new Set());
+  const [cancelling, setCancelling] = useState<Set<string>>(new Set());
+  const [processingOne, setProcessingOne] = useState<Set<string>>(new Set());
 
   /** Resuelve la ruta destino al hacer click en una fila del job. Si el
    *  tipo no tiene destino conocido (target_row no resuelto, kind raro),
@@ -203,59 +208,114 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
         new Set(baseJobs.map((j) => j.course_id).filter((c): c is string => !!c)),
       );
 
-      const [examLookup, projectLookup, courseLookup] = await Promise.all([
+      // Paso 1: queries primarias para descubrir IDs intermedios.
+      // - submissions: tenemos los IDs directos, pedimos user_id + exam_id
+      //   sin embed (las FKs de submissions.user_id apuntan a auth.users
+      //   NO a profiles, así que el embed PostgREST `profile:profiles!...`
+      //   fallaba silenciosamente y nos quedábamos sin nombre).
+      // - project_submission_files: pedimos submission_id sin embed; en
+      //   el paso 2 lookup-eamos las project_submissions por separado.
+      const [submissionsLookup, projectFilesLookup, courseLookup] = await Promise.all([
         examIds.length > 0
-          ? db
-              .from("submissions")
-              .select(
-                "id, user_id, exam_id, exam:exams(title), profile:profiles!submissions_user_id_fkey(full_name)",
-              )
-              .in("id", examIds)
+          ? db.from("submissions").select("id, user_id, exam_id").in("id", examIds)
           : Promise.resolve({ data: [] as unknown[] }),
         projectFileIds.length > 0
-          ? db
-              .from("project_submission_files")
-              .select(
-                "id, submission:project_submissions(user_id, project_id, project:projects(title), profile:profiles!project_submissions_user_id_fkey(full_name))",
-              )
-              .in("id", projectFileIds)
+          ? db.from("project_submission_files").select("id, submission_id").in("id", projectFileIds)
           : Promise.resolve({ data: [] as unknown[] }),
         courseIds.length > 0
           ? db.from("courses").select("id, name").in("id", courseIds)
           : Promise.resolve({ data: [] as unknown[] }),
       ]);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const examMap = new Map<string, any>();
-      for (const row of (examLookup.data ?? []) as Array<{ id: string }>) {
-        examMap.set(row.id, row);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const projectFileMap = new Map<string, any>();
-      for (const row of (projectLookup.data ?? []) as Array<{ id: string }>) {
-        projectFileMap.set(row.id, row);
-      }
+      const submissionsRows = (submissionsLookup.data ?? []) as Array<{
+        id: string;
+        user_id: string;
+        exam_id: string;
+      }>;
+      const projectFileRows = (projectFilesLookup.data ?? []) as Array<{
+        id: string;
+        submission_id: string;
+      }>;
       const courseMap = new Map<string, string>();
       for (const c of (courseLookup.data ?? []) as Array<{ id: string; name: string }>) {
         courseMap.set(c.id, c.name);
       }
 
+      // Paso 2: lookups secundarios con los IDs descubiertos arriba.
+      // Esto cuesta 2-3 round-trips extra pero es robusto a cualquier
+      // configuración de FK (auth.users vs profiles, naming custom, etc.).
+      const projectSubmissionIds = Array.from(new Set(projectFileRows.map((r) => r.submission_id)));
+      const allUserIds = new Set<string>();
+      for (const s of submissionsRows) allUserIds.add(s.user_id);
+      const examIdsForLookup = Array.from(new Set(submissionsRows.map((s) => s.exam_id)));
+
+      const [projectSubsLookup, examsLookup] = await Promise.all([
+        projectSubmissionIds.length > 0
+          ? db
+              .from("project_submissions")
+              .select("id, user_id, project_id")
+              .in("id", projectSubmissionIds)
+          : Promise.resolve({ data: [] as unknown[] }),
+        examIdsForLookup.length > 0
+          ? db.from("exams").select("id, title").in("id", examIdsForLookup)
+          : Promise.resolve({ data: [] as unknown[] }),
+      ]);
+
+      const projectSubsRows = (projectSubsLookup.data ?? []) as Array<{
+        id: string;
+        user_id: string;
+        project_id: string;
+      }>;
+      for (const s of projectSubsRows) allUserIds.add(s.user_id);
+
+      const projectIdsForLookup = Array.from(new Set(projectSubsRows.map((s) => s.project_id)));
+
+      // Paso 3: profiles + projects (necesitamos all_user_ids ya completo).
+      const [profilesLookup, projectsLookup] = await Promise.all([
+        allUserIds.size > 0
+          ? db.from("profiles").select("id, full_name").in("id", Array.from(allUserIds))
+          : Promise.resolve({ data: [] as unknown[] }),
+        projectIdsForLookup.length > 0
+          ? db.from("projects").select("id, title").in("id", projectIdsForLookup)
+          : Promise.resolve({ data: [] as unknown[] }),
+      ]);
+
+      const profileMap = new Map<string, string>();
+      for (const p of (profilesLookup.data ?? []) as Array<{ id: string; full_name: string }>) {
+        profileMap.set(p.id, p.full_name);
+      }
+      const examTitleMap = new Map<string, string>();
+      for (const e of (examsLookup.data ?? []) as Array<{ id: string; title: string }>) {
+        examTitleMap.set(e.id, e.title);
+      }
+      const projectTitleMap = new Map<string, string>();
+      for (const p of (projectsLookup.data ?? []) as Array<{ id: string; title: string }>) {
+        projectTitleMap.set(p.id, p.title);
+      }
+      const submissionMap = new Map<string, { user_id: string; exam_id: string }>();
+      for (const s of submissionsRows) submissionMap.set(s.id, s);
+      const projectSubMap = new Map<string, { user_id: string; project_id: string }>();
+      for (const s of projectSubsRows) projectSubMap.set(s.id, s);
+      const projectFileToSub = new Map<string, string>();
+      for (const f of projectFileRows) projectFileToSub.set(f.id, f.submission_id);
+
       const enriched = baseJobs.map((j) => {
         const out: QueueJob = { ...j };
         if (j.course_id) out.courseName = courseMap.get(j.course_id);
         if (j.target_table === "submissions") {
-          const sub = examMap.get(j.target_row_id);
+          const sub = submissionMap.get(j.target_row_id);
           if (sub) {
-            out.examTitle = sub.exam?.title ?? undefined;
-            out.studentName = sub.profile?.full_name ?? undefined;
-            out.examId = sub.exam_id ?? undefined;
+            out.examId = sub.exam_id;
+            out.examTitle = examTitleMap.get(sub.exam_id);
+            out.studentName = profileMap.get(sub.user_id);
           }
         } else if (j.target_table === "project_submission_files") {
-          const pf = projectFileMap.get(j.target_row_id);
-          if (pf?.submission) {
-            out.projectTitle = pf.submission.project?.title ?? undefined;
-            out.studentName = pf.submission.profile?.full_name ?? undefined;
-            out.projectId = pf.submission.project_id ?? undefined;
+          const subId = projectFileToSub.get(j.target_row_id);
+          const ps = subId ? projectSubMap.get(subId) : undefined;
+          if (ps) {
+            out.projectId = ps.project_id;
+            out.projectTitle = projectTitleMap.get(ps.project_id);
+            out.studentName = profileMap.get(ps.user_id);
           }
         }
         return out;
@@ -324,6 +384,81 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
       await load();
     } finally {
       setRunning(false);
+    }
+  };
+
+  /** Cancela un job (status='cancelled'). Solo aplica a pending/failed —
+   *  processing y done no se cancelan. Pide confirmación destructiva. */
+  const cancelJob = async (jobId: string, label: string) => {
+    if (cancelling.has(jobId)) return;
+    const ok = await confirm({
+      title: `¿Cancelar este job de IA?`,
+      description:
+        `"${label}" — el job no se procesará. Si la entrega del estudiante necesita ` +
+        `nota IA después, deberás encolarla manualmente (ej. desde el monitor del examen). ` +
+        `Esta acción no se puede deshacer.`,
+      tone: "destructive",
+      confirmLabel: "Cancelar job",
+    });
+    if (!ok) return;
+    setCancelling((prev) => new Set(prev).add(jobId));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("cancel_ai_grading_job", {
+        _job_id: jobId,
+      });
+      if (error) {
+        toast.error(error.message ?? "No se pudo cancelar el job");
+        return;
+      }
+      toast.success("Job cancelado");
+      await load();
+    } finally {
+      setCancelling((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
+  /** Procesa UN job específico ahora — bypassea la espera al cron
+   *  hourly. Invoca al worker con `{ jobId }` para que reclame y procese
+   *  solo ese job. Útil cuando el docente entregó nota IA urgente y no
+   *  quiere esperar la próxima ventana. */
+  const processOne = async (jobId: string) => {
+    if (processingOne.has(jobId)) return;
+    setProcessingOne((prev) => new Set(prev).add(jobId));
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-grading-worker", {
+        body: { jobId },
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = data as any;
+      if (d?.ok === false) {
+        toast.error(d?.error ?? "Error procesando el job");
+        return;
+      }
+      if (d?.processed === 0) {
+        toast.info(
+          "El job ya no estaba en estado pending — quizás el worker hourly lo levantó primero.",
+        );
+      } else if (d?.failed > 0) {
+        toast.error("El job se procesó pero falló — revisa el error en la cola.");
+      } else {
+        toast.success("Job procesado");
+      }
+      await load();
+    } finally {
+      setProcessingOne((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
     }
   };
 
@@ -419,8 +554,12 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                   const kindLabel = KIND_LABELS[j.kind] ?? j.kind;
                   const isProcessing = j.status === "processing";
                   const isFailed = j.status === "failed";
+                  const isPending = j.status === "pending";
                   const route = targetRouteForJob(j);
                   const isRetrying = retrying.has(j.id);
+                  const isCancelling = cancelling.has(j.id);
+                  const isProcessingNow = processingOne.has(j.id);
+                  const label = j.examTitle ?? j.workshopTitle ?? j.projectTitle ?? kindLabel;
 
                   // Header de la fila — siempre se renderiza igual.
                   // El estado (icono + color) cambia según pending /
@@ -448,20 +587,30 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                     </>
                   );
 
-                  // Failed: NO se hace clickable la fila completa porque
-                  // la acción primaria es el botón "Reintentar" — no
-                  // queremos que click sobre el title navegue a otro
-                  // lado y se pierda el contexto de error. Mostramos el
-                  // last_error truncado en una segunda línea + botón
-                  // retry inline.
-                  if (isFailed) {
+                  // Acciones disponibles por estado:
+                  //   - pending  → "Procesar ahora" (bypass cron) + "Cancelar".
+                  //   - failed   → "Reintentar" + "Cancelar" + (preserva el
+                  //                last_error truncado).
+                  //   - processing → sin acciones (ya está en flight; cancelar
+                  //                a mitad de fetch a Gemini deja la edge en
+                  //                estado inconsistente).
+                  // La fila completa NO es clickable cuando hay botones de
+                  // acción — el click sobre el title navegaría y se perdería
+                  // el contexto. Para abrir el detalle, agregamos un botón
+                  // chico "Abrir" cuando hay route.
+                  if (isFailed || isPending) {
+                    const busy = isRetrying || isCancelling || isProcessingNow;
                     return (
                       <div
                         key={j.id}
-                        className="px-2 py-1 rounded text-[11px] bg-destructive/5 border border-destructive/20"
+                        className={
+                          isFailed
+                            ? "px-2 py-1 rounded text-[11px] bg-destructive/5 border border-destructive/20"
+                            : "px-2 py-1 rounded text-[11px] hover:bg-muted/40"
+                        }
                       >
                         <div className="flex items-center gap-2">{header}</div>
-                        {j.last_error && (
+                        {isFailed && j.last_error && (
                           <div
                             className="text-[10px] text-destructive/80 mt-1 truncate"
                             title={j.last_error}
@@ -469,29 +618,76 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                             {j.last_error}
                           </div>
                         )}
-                        <div className="flex justify-end mt-1">
+                        <div className="flex flex-wrap justify-end gap-1 mt-1">
+                          {route && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px] px-2"
+                              onClick={() =>
+                                navigate({
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  to: route as any,
+                                })
+                              }
+                            >
+                              Abrir
+                            </Button>
+                          )}
+                          {isFailed && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              disabled={busy}
+                              onClick={() => void retryJob(j.id)}
+                            >
+                              {isRetrying ? (
+                                <Spinner size="sm" className="mr-1" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                              )}
+                              Reintentar
+                            </Button>
+                          )}
+                          {isPending && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              disabled={busy}
+                              onClick={() => void processOne(j.id)}
+                              title="Procesa este job ahora sin esperar al cron hourly"
+                            >
+                              {isProcessingNow ? (
+                                <Spinner size="sm" className="mr-1" />
+                              ) : (
+                                <Zap className="h-3 w-3 mr-1" />
+                              )}
+                              Procesar
+                            </Button>
+                          )}
                           <Button
                             size="sm"
-                            variant="outline"
-                            className="h-6 text-[10px] px-2"
-                            disabled={isRetrying}
-                            onClick={() => void retryJob(j.id)}
+                            variant="ghost"
+                            className="h-6 text-[10px] px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            disabled={busy}
+                            onClick={() => void cancelJob(j.id, label)}
                           >
-                            {isRetrying ? (
+                            {isCancelling ? (
                               <Spinner size="sm" className="mr-1" />
                             ) : (
-                              <RefreshCw className="h-3 w-3 mr-1" />
+                              <X className="h-3 w-3 mr-1" />
                             )}
-                            Reintentar
+                            Cancelar
                           </Button>
                         </div>
                       </div>
                     );
                   }
 
-                  // Pending / processing: si tenemos ruta destino conocida
-                  // (exam → monitor, project → lista), la fila entera es
-                  // clickable. Si no, queda como div estático.
+                  // Processing: sin acciones. Si tenemos route, la fila
+                  // entera es clickable para abrir el detalle.
                   if (route) {
                     return (
                       <button
@@ -503,7 +699,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                             to: route as any,
                           })
                         }
-                        title={`Abrir detalle: ${j.examTitle ?? j.projectTitle ?? kindLabel}`}
+                        title={`Abrir detalle: ${label}`}
                         className="w-full flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-muted/60 cursor-pointer transition-colors"
                       >
                         {header}

@@ -86,14 +86,17 @@ MAX_STDIN_BYTES = 10_000
 # Display virtual donde corre Xvfb. :99 es la convención típica (no
 # colisiona con :0/:1 que algunos hosts/CI usan).
 GUI_DISPLAY = ":99"
-# Tamaño del framebuffer virtual. Suficiente para una ventana Swing
-# promedio. Si la JFrame es más grande, X la corta — el alumno verá
+# Tamaño del framebuffer virtual. 800x600 da buena proporción para
+# JFrames típicos de estudiantes (300x200 a 500x400) — ocupan ~25-50%
+# del frame, suficiente para leer el contenido. Antes era 1024x768
+# pero los JFrames pequeños se veían perdidos en una esquina del card
+# de captura. Si la JFrame es más grande, X la corta — el alumno verá
 # parte de la UI cortada (mismo que pasa en un monitor pequeño).
-GUI_SCREEN = "1024x768x24"
+GUI_SCREEN = "800x600x24"
 # Dimensiones desempacadas — se usan al convertir el framebuffer raw
 # a PNG (necesita -size WxH para interpretar los bytes).
-GUI_WIDTH = 1024
-GUI_HEIGHT = 768
+GUI_WIDTH = 800
+GUI_HEIGHT = 600
 # Ventana de tiempo (ms) entre que arrancamos la JVM y hacemos la
 # captura. Swing tarda en pintar la primera frame: ~500ms warm,
 # ~2000-3000ms cold (JVM init + Toolkit init + EDT pump). 3500ms le

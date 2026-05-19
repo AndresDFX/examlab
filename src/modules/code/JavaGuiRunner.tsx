@@ -605,7 +605,17 @@ export function JavaGuiRunner({
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
                 {mode === "aws_screenshot" ? (
-                  <div className="w-full h-full bg-background rounded border overflow-auto flex items-center justify-center p-2 relative">
+                  // Fondo CLARO (no `bg-background`). Antes el contenedor
+                  // heredaba el dark-mode oscuro y la captura de Xvfb
+                  // (que también tiene fondo oscuro X11 default) se
+                  // fundía: solo veías un cuadro borroso con el texto
+                  // del JFrame casi invisible. El blanco sólido garantiza
+                  // contraste con cualquier frame Swing, igual que un
+                  // visor de imágenes estándar (Figma, Preview, etc.).
+                  // `bg-zinc-100` en dark mode evita un blanco puro que
+                  // resulte hiriente — tono apenas más claro que el card.
+                  // El frame del JFrame queda con bordes visibles.
+                  <div className="w-full h-full bg-white dark:bg-zinc-100 rounded border overflow-auto flex items-start justify-start p-2 relative">
                     {screenshotData?.png ? (
                       <>
                         <img
