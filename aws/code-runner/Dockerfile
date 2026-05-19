@@ -110,10 +110,23 @@ RUN java -version \
       ls -la /usr/lib/jvm/ >&2 || true ; \
       exit 1 ; \
     fi \
- && echo "Validando deps de $AWT_XAWT…" \
- && if ldd "$AWT_XAWT" | grep -q "not found"; then \
+ # libjvm.so vive en <JDK>/lib/server/, no en <JDK>/lib/. El ldd directo
+ # falla con "libjvm.so => not found" porque no tiene el LD_LIBRARY_PATH
+ # que la JVM setea al arrancar. Esto es FALSO POSITIVO — en runtime
+ # Java carga libjvm primero (es ELLA), así que cuando dlopen carga
+ # libawt_xawt la dependencia ya está resuelta. Para validar las DEMÁS
+ # deps (libXi, libXtst, etc.) replicamos el LD_LIBRARY_PATH real.
+ && JDK_LIB_DIR="$(dirname "$AWT_XAWT")" \
+ && if [ ! -f "$JDK_LIB_DIR/server/libjvm.so" ]; then \
+      echo "ERROR: libjvm.so no está en $JDK_LIB_DIR/server/" >&2 ; \
+      ls -la "$JDK_LIB_DIR" >&2 || true ; \
+      exit 1 ; \
+    fi \
+ && echo "Validando deps de $AWT_XAWT (LD_LIBRARY_PATH=$JDK_LIB_DIR:$JDK_LIB_DIR/server)…" \
+ && LDD_OUT="$(LD_LIBRARY_PATH="$JDK_LIB_DIR:$JDK_LIB_DIR/server" ldd "$AWT_XAWT")" \
+ && if echo "$LDD_OUT" | grep -q "not found"; then \
       echo "ERROR: libawt_xawt.so tiene dependencias faltantes:" >&2 ; \
-      ldd "$AWT_XAWT" | grep "not found" >&2 ; \
+      echo "$LDD_OUT" | grep "not found" >&2 ; \
       exit 1 ; \
     else \
       echo "✓ libawt_xawt.so existe y resuelve todas sus deps" ; \
