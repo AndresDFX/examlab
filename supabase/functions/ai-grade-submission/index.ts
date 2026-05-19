@@ -1012,6 +1012,24 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             .map((e) => e.toLowerCase().replace(/^\./, "").trim())
             .filter(Boolean)
         : [];
+      // Veto explícito de archivos config/metadata (rechazar incluso si la
+      // extensión coincide o si la subida es legacy ZIP). Espejo de la
+      // lista del frontend (`isBlockedFile`).
+      const BLOCKED_FILENAMES_EDGE = new Set([
+        ".gitignore",
+        ".gitattributes",
+        ".dockerignore",
+        ".editorconfig",
+        ".prettierrc",
+        ".eslintrc",
+        ".npmignore",
+        ".env",
+        ".env.local",
+        ".env.example",
+        "thumbs.db",
+        "desktop.ini",
+        ".ds_store",
+      ]);
       if (cleanedAllowed.length > 0) {
         const allowedSet = new Set(cleanedAllowed);
         // Helper: ¿este path es ruido auto-generado que toleramos?
@@ -1043,6 +1061,13 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           const baseName = lower.split("/").pop() ?? "";
           // Ruido del SO/IDE/build: ni pasa al grading ni cuenta como violación.
           if (isToleratedNoise(lower, baseName)) continue;
+          // Archivos config explícitamente vetados (.gitignore, .env…) —
+          // cuentan como violación aunque la extensión técnicamente "exista"
+          // o esté vacía.
+          if (BLOCKED_FILENAMES_EDGE.has(baseName)) {
+            violations.push(p);
+            continue;
+          }
           // Archivos en la whitelist explícita: pasan.
           if (allowedSet.has(ext)) continue;
           // Todo lo demás cuenta como violación — incluye .md, .txt, .xml,

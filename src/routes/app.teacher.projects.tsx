@@ -58,6 +58,8 @@ import {
   Trash2,
   Users,
   FileText,
+  FileArchive,
+  Download,
   ClipboardList,
   Sparkles,
   Save,
@@ -324,11 +326,17 @@ function TeacherProjects() {
     ai_reasons?: string | null;
     zip_truncated?: boolean | null;
     zip_chars_used?: number | null;
+    // Entregas tipo `codigo_zip`: paths en bucket `project-files`.
+    // `code_paths` (flujo nuevo, varios archivos sueltos) o `zip_path`
+    // (flujo legacy, un único ZIP). Pueden coexistir vacíos si la
+    // pregunta no es de código.
+    code_paths?: string[] | null;
+    zip_path?: string | null;
   };
   const [gradingOpen, setGradingOpen] = useState(false);
   const [gradingProject, setGradingProject] = useState<Project | null>(null);
   const [gradingFiles, setGradingFiles] = useState<
-    Array<{ id: string; title: string; points: number }>
+    Array<{ id: string; title: string; points: number; type: string | null }>
   >([]);
   const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
   const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
@@ -522,7 +530,6 @@ function TeacherProjects() {
   useEffect(() => {
     if (!isTeacher) return;
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher]);
 
   // Deep-link desde notificación o modal de Conversaciones abiertas:
@@ -1123,7 +1130,7 @@ function TeacherProjects() {
       const [{ data: files }, { data: subs }] = await Promise.all([
         db
           .from("project_files")
-          .select("id, title, points, position")
+          .select("id, title, points, position, type")
           .eq("project_id", p.id)
           .order("position"),
         db
@@ -1134,7 +1141,9 @@ function TeacherProjects() {
           .eq("project_id", p.id)
           .order("submitted_at", { ascending: false }),
       ]);
-      setGradingFiles((files ?? []) as Array<{ id: string; title: string; points: number }>);
+      setGradingFiles(
+        (files ?? []) as Array<{ id: string; title: string; points: number; type: string | null }>,
+      );
 
       const subsList = (subs ?? []) as Submission[];
       if (subsList.length) {
@@ -1145,7 +1154,7 @@ function TeacherProjects() {
           db
             .from("project_submission_files")
             .select(
-              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_truncated, zip_chars_used",
+              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_truncated, zip_chars_used, code_paths, zip_path",
             )
             .in("submission_id", subIds),
         ]);
@@ -1915,8 +1924,8 @@ function TeacherProjects() {
                   <HelpHint>
                     Elige un video de la biblioteca o pega una URL ad-hoc. Si vacío, no se exige
                     video. Solo aplica si el proyecto tiene una pregunta tipo "código (ZIP)".
-                    YouTube/Vimeo se reproducen vía iframe (sin control de seek). Para forzar que
-                    el alumno NO pueda adelantar, sube un MP4 directo.
+                    YouTube/Vimeo se reproducen vía iframe (sin control de seek). Para forzar que el
+                    alumno NO pueda adelantar, sube un MP4 directo.
                   </HelpHint>
                 </Label>
                 {/* Selector de biblioteca — opcional. Si el docente
@@ -1957,8 +1966,8 @@ function TeacherProjects() {
                   />
                 )}
                 <p className="text-[11px] text-muted-foreground">
-                  Tip: registra los videos en{" "}
-                  <strong>Videos</strong> (sidebar) y referénciálos aquí — evita re-pegar URLs.
+                  Tip: registra los videos en <strong>Videos</strong> (sidebar) y referénciálos aquí
+                  — evita re-pegar URLs.
                 </p>
               </div>
             )}
@@ -2535,12 +2544,93 @@ function TeacherProjects() {
                                         <div className="whitespace-pre-line">{a.ai_reasons}</div>
                                       </div>
                                     )}
-                                  <Textarea
-                                    value={a?.content ?? ""}
-                                    readOnly
-                                    rows={6}
-                                    className="font-mono text-xs"
-                                  />
+                                  {f.type === "codigo_zip" &&
+                                    ((a?.code_paths && a.code_paths.length > 0) || a?.zip_path) && (
+                                      <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
+                                        <div className="text-[11px] font-medium text-muted-foreground">
+                                          Archivos entregados
+                                        </div>
+                                        {a?.code_paths && a.code_paths.length > 0
+                                          ? a.code_paths.map((p) => (
+                                              <div key={p} className="flex items-center gap-2">
+                                                <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
+                                                <span className="text-[11px] font-mono truncate flex-1">
+                                                  {p.split("/").pop()}
+                                                </span>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="h-6 px-2 text-[10px]"
+                                                  onClick={async () => {
+                                                    const { data, error } = await supabase.storage
+                                                      .from("project-files")
+                                                      .createSignedUrl(p, 60);
+                                                    if (error || !data?.signedUrl) {
+                                                      toast.error(
+                                                        error?.message ??
+                                                          "No se pudo generar enlace de descarga.",
+                                                      );
+                                                      return;
+                                                    }
+                                                    window.open(
+                                                      data.signedUrl,
+                                                      "_blank",
+                                                      "noopener,noreferrer",
+                                                    );
+                                                  }}
+                                                >
+                                                  <Download className="h-3 w-3 mr-1" />
+                                                  Descargar
+                                                </Button>
+                                              </div>
+                                            ))
+                                          : a?.zip_path && (
+                                              <div className="flex items-center gap-2">
+                                                <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
+                                                <span className="text-[11px] font-mono truncate flex-1">
+                                                  {a.zip_path.split("/").pop()} (ZIP legacy)
+                                                </span>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="h-6 px-2 text-[10px]"
+                                                  onClick={async () => {
+                                                    if (!a.zip_path) return;
+                                                    const { data, error } = await supabase.storage
+                                                      .from("project-files")
+                                                      .createSignedUrl(a.zip_path, 60);
+                                                    if (error || !data?.signedUrl) {
+                                                      toast.error(
+                                                        error?.message ??
+                                                          "No se pudo generar enlace de descarga.",
+                                                      );
+                                                      return;
+                                                    }
+                                                    window.open(
+                                                      data.signedUrl,
+                                                      "_blank",
+                                                      "noopener,noreferrer",
+                                                    );
+                                                  }}
+                                                >
+                                                  <Download className="h-3 w-3 mr-1" />
+                                                  Descargar
+                                                </Button>
+                                              </div>
+                                            )}
+                                      </div>
+                                    )}
+                                  {/* Para `codigo_zip` el `content` está vacío:
+                                      ocultamos el Textarea para no mostrar un
+                                      cajón vacío y confundir al docente. */}
+                                  {f.type !== "codigo_zip" && (
+                                    <Textarea
+                                      value={a?.content ?? ""}
+                                      readOnly
+                                      rows={6}
+                                      className="font-mono text-xs"
+                                    />
+                                  )}
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div>
                                       <Label className="text-[10px]">

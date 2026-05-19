@@ -59,10 +59,15 @@ const db = supabase as any;
 // el `accept` del <input type="file"> y por la validación cliente antes
 // de subir cada archivo. El edge function recibe `allowedExtensions` y
 // las re-valida defensivamente.
+//
+// Una entrada por opción del Select de lenguaje. Cada lenguaje fija las
+// extensiones permitidas — Java → solo .java, Python → solo .py, etc. Los
+// lenguajes con headers/variantes (.h junto a .c, .tsx junto a .ts) listan
+// el conjunto completo porque el código real se reparte entre los dos.
 const LANG_TO_EXT: Record<string, string[]> = {
   java: ["java"],
   python: ["py"],
-  javascript: ["js", "jsx", "mjs", "cjs"],
+  javascript: ["js", "mjs", "cjs"],
   typescript: ["ts", "tsx"],
   c: ["c", "h"],
   cpp: ["cpp", "cc", "cxx", "hpp", "hxx", "h"],
@@ -71,13 +76,62 @@ const LANG_TO_EXT: Record<string, string[]> = {
   rust: ["rs"],
   php: ["php"],
   ruby: ["rb"],
-  haskell: ["hs"],
   kotlin: ["kt", "kts"],
   swift: ["swift"],
+  sql: ["sql"],
 };
+
+// Opciones del Select de lenguaje. ORDEN = orden visible en el dropdown.
+// El label incluye las extensiones para que el docente vea claramente qué
+// se aceptará en la subida del estudiante.
+const LANG_OPTIONS: Array<{ value: keyof typeof LANG_TO_EXT; label: string }> = [
+  { value: "java", label: "Java (.java)" },
+  { value: "python", label: "Python (.py)" },
+  { value: "javascript", label: "JavaScript (.js, .mjs, .cjs)" },
+  { value: "typescript", label: "TypeScript (.ts, .tsx)" },
+  { value: "c", label: "C (.c, .h)" },
+  { value: "cpp", label: "C++ (.cpp, .cc, .h, .hpp)" },
+  { value: "csharp", label: "C# (.cs)" },
+  { value: "go", label: "Go (.go)" },
+  { value: "rust", label: "Rust (.rs)" },
+  { value: "php", label: "PHP (.php)" },
+  { value: "ruby", label: "Ruby (.rb)" },
+  { value: "kotlin", label: "Kotlin (.kt, .kts)" },
+  { value: "swift", label: "Swift (.swift)" },
+  { value: "sql", label: "SQL (.sql)" },
+];
 
 const MAX_CODE_FILES_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB sumados.
 const MAX_CODE_FILES_COUNT = 50;
+
+// Archivos vetados aunque su extensión coincida con allowedExtensions.
+// .gitignore y similares son metadata de VCS/IDE — no aportan código y
+// generan ruido en el prompt de la IA. El estudiante recibe toast y debe
+// quitarlos de la selección.
+const BLOCKED_FILENAMES = new Set([
+  ".gitignore",
+  ".gitattributes",
+  ".dockerignore",
+  ".editorconfig",
+  ".prettierrc",
+  ".eslintrc",
+  ".npmignore",
+  ".env",
+  ".env.local",
+  ".env.example",
+  "thumbs.db",
+  "desktop.ini",
+  ".ds_store",
+]);
+
+function isBlockedFile(name: string): boolean {
+  const lower = name.toLowerCase().split("/").pop() ?? "";
+  if (BLOCKED_FILENAMES.has(lower)) return true;
+  // Archivos hidden con punto inicial sin extensión real (.gitkeep, etc.):
+  // si el nombre empieza por "." y no tiene una segunda extensión, rechazar.
+  if (lower.startsWith(".") && !lower.slice(1).includes(".")) return true;
+  return false;
+}
 
 export type ProjectFile = {
   id: string;
@@ -679,12 +733,12 @@ export function TeacherProjectFilesEditor({
           {qType === "codigo_zip" && (
             <>
               <div>
-                <Label>
+                <Label required>
                   Lenguaje principal{" "}
                   <HelpHint>
-                    Lenguaje esperado del proyecto. La IA puede calificar archivos de cualquier
-                    lenguaje permitido (.java, .py, .ts, .cpp, etc.); este valor solo guía la
-                    generación con IA y los mensajes al estudiante.
+                    El lenguaje fija qué extensiones aceptará el selector de archivos del
+                    estudiante. Java → .java, Python → .py, etc. Cualquier archivo con otra
+                    extensión queda bloqueado antes de subir.
                   </HelpHint>
                 </Label>
                 <Select value={qLanguage} onValueChange={setQLanguage}>
@@ -692,9 +746,11 @@ export function TeacherProjectFilesEditor({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="java">Java</SelectItem>
-                    <SelectItem value="python">Python</SelectItem>
-                    <SelectItem value="javascript">JavaScript</SelectItem>
+                    {LANG_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -830,7 +886,7 @@ export function TeacherProjectFilesEditor({
                   </Select>
                 </div>
                 {row.type === "codigo_zip" && (
-                  <div className="w-28 shrink-0">
+                  <div className="w-40 shrink-0">
                     <Select
                       value={row.language}
                       onValueChange={(v) => updateAiRow(i, { language: v })}
@@ -839,9 +895,11 @@ export function TeacherProjectFilesEditor({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="java">Java</SelectItem>
-                        <SelectItem value="python">Python</SelectItem>
-                        <SelectItem value="javascript">JavaScript</SelectItem>
+                        {LANG_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1251,24 +1309,37 @@ export function StudentProjectTaker({
             payload.ai_grade = 0;
             payload.ai_feedback =
               "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
-          } else if (allowedExtensions) {
-            // Validación cliente-side: rechazamos ANTES de subir si alguno
-            // de los archivos no tiene extensión permitida. Evita gastar
-            // bandwidth y deja al estudiante recomponer su selección.
-            const violations = filesArr.filter((f) => {
-              const ext = (f.name.split(".").pop() ?? "").toLowerCase();
-              return !allowedExtensions.includes(ext);
-            });
-            if (violations.length > 0) {
-              const sample = violations
+          } else {
+            // Validación cliente-side defense-in-depth (el picker ya
+            // filtra al elegir, pero un estado React stale o un archivo
+            // legacy podrían colarse aquí).
+            const blocked = filesArr.filter((f) => isBlockedFile(f.name));
+            if (blocked.length > 0) {
+              const sample = blocked
                 .slice(0, 5)
                 .map((f) => f.name)
                 .join(", ");
-              const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
-              const allowedLabel = allowedExtensions.map((e) => `.${e}`).join(", ");
+              const more = blocked.length > 5 ? ` (+${blocked.length - 5} más)` : "";
               payload.ai_grade = 0;
-              payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
+              payload.ai_feedback = `Archivos no permitidos (config/metadata): ${sample}${more}.`;
               toast.error(payload.ai_feedback, { duration: 8000 });
+            } else if (allowedExtensions) {
+              const violations = filesArr.filter((f) => {
+                const ext = (f.name.split(".").pop() ?? "").toLowerCase();
+                if (!f.name.includes(".") || f.name.startsWith(".")) return true;
+                return !allowedExtensions.includes(ext);
+              });
+              if (violations.length > 0) {
+                const sample = violations
+                  .slice(0, 5)
+                  .map((f) => f.name)
+                  .join(", ");
+                const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+                const allowedLabel = allowedExtensions.map((e) => `.${e}`).join(", ");
+                payload.ai_grade = 0;
+                payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
+                toast.error(payload.ai_feedback, { duration: 8000 });
+              }
             }
           }
           // Validación de tamaño total (defense in depth — el input ya
@@ -1693,13 +1764,36 @@ export function StudentProjectTaker({
                           updateAnswer(q.id, []);
                           return;
                         }
-                        // Validación cliente-side ANTES de aceptar la
+                        // 1) Veto a archivos hidden / config (.gitignore,
+                        // .editorconfig, .env, .DS_Store…) aunque la
+                        // extensión coincida o sea "vacía". No aportan
+                        // código y ensucian el prompt de la IA.
+                        const blocked = picked.filter((f) => isBlockedFile(f.name));
+                        if (blocked.length > 0) {
+                          const sample = blocked
+                            .slice(0, 5)
+                            .map((f) => f.name)
+                            .join(", ");
+                          const more = blocked.length > 5 ? ` (+${blocked.length - 5} más)` : "";
+                          toast.error(
+                            `Archivos no permitidos (config/metadata): ${sample}${more}. Quítalos de la selección y vuelve a intentar.`,
+                            { duration: 8000 },
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        // 2) Validación de extensión ANTES de aceptar la
                         // selección. Si hay alguna extensión no permitida,
                         // rechazamos toda la tanda — el usuario debe
                         // reseleccionar con archivos válidos.
                         if (allowedExts) {
                           const bad = picked.filter((f) => {
                             const ext = (f.name.split(".").pop() ?? "").toLowerCase();
+                            // Sin extensión real (file.name sin "." o
+                            // empieza por "."): rechazamos. Ya cubrimos
+                            // los conocidos en isBlockedFile, esto cierra
+                            // el resto.
+                            if (!f.name.includes(".") || f.name.startsWith(".")) return true;
                             return !allowedExts.includes(ext);
                           });
                           if (bad.length > 0) {
@@ -1716,7 +1810,7 @@ export function StudentProjectTaker({
                             return;
                           }
                         }
-                        // Validación de tamaño total + cuenta.
+                        // 3) Validación de tamaño total + cuenta.
                         const totalBytes = picked.reduce((a, f) => a + f.size, 0);
                         if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
