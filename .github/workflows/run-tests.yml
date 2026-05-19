@@ -5,13 +5,37 @@
 # quedan para workflows separados (no en esta fase).
 #
 # Tiempo aprox: 1-2 min total (instalacion + 5s de tests).
+#
+# `paths` filter (optimizacion 2026-05-30):
+#   Antes corria en TODO push (incluso commits de docs, SQL migrations,
+#   YAML workflows) — gastaba minutos de Actions sin valor. Ahora solo
+#   dispara cuando hay cambios en codigo que los tests cubren:
+#   src/, lockfile, configs de build/test, tsconfig, vitest.config.
+#   PRs ven el check si tocan esos paths; commits puros de docs/SQL
+#   no disparan el job.
 name: Run Tests
 
 on:
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig*.json"
+      - "vite.config.*"
+      - "vitest.config.*"
+      - ".github/workflows/run-tests.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "src/**"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig*.json"
+      - "vite.config.*"
+      - "vitest.config.*"
+      - ".github/workflows/run-tests.yml"
 
 concurrency:
   group: run-tests-${{ github.ref }}
