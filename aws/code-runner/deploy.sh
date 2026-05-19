@@ -306,28 +306,86 @@ GUI_STATUS=$(curl -s -o /tmp/runner-gui.out -w "%{http_code}" \
   -H "X-API-Key: $API_KEY" \
   -d "$GUI_TEST_BODY" || echo "000")
 GUI_RESP=$(cat /tmp/runner-gui.out 2>/dev/null || echo "")
-HAS_PNG=$(echo "$GUI_RESP" | grep -c '"screenshotBase64"[[:space:]]*:[[:space:]]*"[A-Za-z0-9]' || true)
-HAS_XAWT_ERR=$(echo "$GUI_RESP" | grep -c 'libawt_xawt.so' || true)
+# Criterios STRICT — antes solo verificábamos que existiera
+# `screenshotBase64`, pero el Lambda SIEMPRE devuelve uno (al menos un
+# PNG vacío de 233 bytes del Xvfb sin ventana). Eso permitía que el
+# self-test "pasara" aunque Java crasheara con UnsatisfiedLinkError. Las
+# tres condiciones nuevas atrapan el caso real:
+#   - exit_code = 0 → la JVM terminó normal (no crashed)
+#   - png_bytes > 1000 → la captura tiene contenido real (no Xvfb vacío)
+#   - sin "UnsatisfiedLinkError" o "libawt_xawt" en cualquier campo
+HAS_XAWT_ERR=$(echo "$GUI_RESP" | grep -c -E 'libawt_xawt\.so|UnsatisfiedLinkError' || true)
+PNG_BYTES=$(echo "$GUI_RESP" | python3 -c '
+import sys, json
+try:
+  d = json.loads(sys.stdin.read())
+  print(d.get("pngBytes", 0))
+except Exception:
+  print(0)
+' 2>/dev/null || echo "0")
+EXIT_CODE=$(echo "$GUI_RESP" | python3 -c '
+import sys, json
+try:
+  d = json.loads(sys.stdin.read())
+  print(d.get("exitCode", -1))
+except Exception:
+  print(-1)
+' 2>/dev/null || echo "-1")
 
-if [ "$GUI_STATUS" = "200" ] && [ "$HAS_PNG" -gt 0 ]; then
-  echo "  ✓ GUI self-test OK — Xvfb + AWT + ImageMagick funcionan"
+print_diagnose() {
+  echo ""
+  echo "▶ Ejecutando diagnose en el runtime del Lambda (mode=diagnose)…"
+  DIAG_RESP=$(curl -s --max-time 20 \
+    -X POST "$RUNNER_URL" \
+    -H "Content-Type: application/json" \
+    -H "X-API-Key: $API_KEY" \
+    -d '{"mode":"diagnose"}' || echo "{}")
+  if command -v jq >/dev/null 2>&1; then
+    echo "$DIAG_RESP" | jq -r '
+      "── Java -version ─────\n" + (.java_version // "") +
+      "\n── libawt_xawt path ──\n" + (.libawt_xawt_path // "(no encontrado)") +
+      "\n── ldd libawt_xawt.so ──\n" + (.libawt_xawt_ldd // "") +
+      "\n── Listing del directorio JDK lib ──\n" + (.libawt_xawt_listing // "") +
+      "\n── Libs X11 en /usr/lib64 ──\n" + (.x11_libs_present // "") +
+      "\n── LD_LIBRARY_PATH ──\n" + (.ld_library_path // "(unset)") +
+      "\n── JAVA_HOME ──\n" + (.java_home_env // "(unset)") +
+      "\n── DISPLAY ──\n" + (.display_env // "(unset)")
+    '
+  else
+    # Sin jq: imprimimos el JSON crudo recortado. Suficiente para copiar
+    # y pegar al equipo.
+    echo "$DIAG_RESP" | head -c 4000
+    echo ""
+  fi
+}
+
+if [ "$GUI_STATUS" = "200" ] && [ "$HAS_XAWT_ERR" -eq 0 ] && [ "$EXIT_CODE" = "0" ] && [ "$PNG_BYTES" -gt 1000 ]; then
+  echo "  ✓ GUI self-test OK — exit=0, PNG=${PNG_BYTES} bytes, AWT funcional"
 elif [ "$HAS_XAWT_ERR" -gt 0 ]; then
-  echo "  ✗ FALLA CRÍTICA: libawt_xawt.so no cargó."
+  echo "  ✗ FALLA CRÍTICA: libawt_xawt.so no cargó en el RUNTIME del Lambda."
   echo ""
-  echo "    Eso significa que el AWT no puede crear ventanas porque le"
-  echo "    faltan dependencias nativas X11 (libXi/libXtst/libXrender…)."
-  echo "    El Dockerfile debería instalarlas; revisa que el build haya"
-  echo "    incluido el RUN dnf install -y libXi libXtst … sin error."
+  echo "    El ldd al build pasó (libs X11 estaban presentes) pero al"
+  echo "    correr el Lambda el linker dinámico no las encuentra. Causas"
+  echo "    posibles: paths de búsqueda distintos en Lambda, ldconfig no"
+  echo "    se ejecutó, o el JDK busca en una ubicación que Lambda no"
+  echo "    expone. Ejecutamos diagnose para confirmar el detalle."
   echo ""
-  echo "    Stderr (recortado):"
+  echo "    Stderr del Java (recortado):"
   echo "$GUI_RESP" | head -c 800
   echo ""
+  print_diagnose
   echo ""
   echo "    Reintenta:"
   echo "      ./deploy.sh --no-cache   # bypass docker cache, re-instala todo"
   exit 1
+elif [ "$EXIT_CODE" != "0" ] || [ "$PNG_BYTES" -le 1000 ]; then
+  echo "  ✗ FALLA: el Lambda devolvió 200 pero la ejecución no produjo una ventana real."
+  echo "    exit_code=$EXIT_CODE   png_bytes=$PNG_BYTES   (Xvfb vacío = 233 bytes)"
+  echo "    Esto suele ser libawt_xawt fallando silenciosamente. Diagnostico:"
+  print_diagnose
+  exit 1
 else
-  echo "  ⚠ GUI self-test HTTP $GUI_STATUS sin PNG visible. Revisa CloudWatch:"
+  echo "  ⚠ GUI self-test HTTP $GUI_STATUS inesperado. Revisa CloudWatch:"
   echo "    aws logs tail /aws/lambda/examlab-code-runner --since 5m --region $REGION"
   echo "    Respuesta cortada:"
   echo "$GUI_RESP" | head -c 600

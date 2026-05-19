@@ -384,6 +384,59 @@ def _handle_gui_screenshot(
         }
 
 
+def _handle_diagnose() -> dict:
+    """Devuelve un snapshot del runtime para debugar issues de carga de
+    .so como `UnsatisfiedLinkError: libawt_xawt.so`. Lo invoca
+    `./deploy.sh` después del GUI self-test cuando éste falla.
+
+    Información que recoge:
+      - `java -version`
+      - `ls /usr/lib/jvm/*/lib/libawt*.so` para confirmar que las libs
+        de AWT están instaladas.
+      - `ldd libawt_xawt.so` en RUNTIME (no en build) para detectar deps
+        faltantes que sí existían en el momento del docker build.
+      - Variables de entorno relevantes: LD_LIBRARY_PATH, DISPLAY,
+        JAVA_HOME.
+      - `ls /usr/lib64/libX*.so*` para verificar que los paquetes X11
+        instalados via dnf están presentes en runtime.
+    """
+    import glob
+
+    def run(cmd: list) -> str:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            return (
+                (r.stdout or "")
+                + ("\n[stderr]\n" + r.stderr if r.stderr else "")
+                + f"\n[exit] {r.returncode}"
+            )
+        except Exception as e:  # noqa: BLE001
+            return f"[error] {type(e).__name__}: {e}"
+
+    libawt_xawt_path = None
+    for candidate in glob.glob("/usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so"):
+        libawt_xawt_path = candidate
+        break
+
+    return {
+        "mode": "diagnose",
+        "java_version": run(["java", "-version"]),
+        "javac_version": run(["javac", "-version"]),
+        "libawt_xawt_path": libawt_xawt_path,
+        "libawt_xawt_ldd": run(["ldd", libawt_xawt_path]) if libawt_xawt_path else "(no encontrado)",
+        "libawt_xawt_listing": run(
+            ["ls", "-la", os.path.dirname(libawt_xawt_path)] if libawt_xawt_path else ["true"]
+        ),
+        "x11_libs_present": run(["bash", "-c", "ls /usr/lib64/libX*.so* 2>&1 | head -40"]),
+        "ld_library_path": os.environ.get("LD_LIBRARY_PATH", "(unset)"),
+        "java_home_env": os.environ.get("JAVA_HOME", "(unset)"),
+        "display_env": os.environ.get("DISPLAY", "(unset)"),
+        "xvfb_path": run(["bash", "-c", "command -v Xvfb"]),
+        "import_path": run(["bash", "-c", "command -v import"]),
+        "uname": run(["uname", "-a"]),
+    }
+
+
 def handler(event, _context):
     # ── Auth: X-API-Key ──
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
@@ -413,8 +466,14 @@ def handler(event, _context):
     source = body.get("sourceCode", "")
     stdin = body.get("stdin", "") or ""
     mode = str(body.get("mode") or "run").lower()
+    # `diagnose` no requiere sourceCode — inspecciona el entorno del
+    # runtime de Lambda y devuelve datos útiles para debuggear el caso
+    # "el build pasó el ldd check pero en runtime el .so no carga".
+    # Lo dispara `./deploy.sh` después del GUI self-test cuando éste falla.
+    if mode == "diagnose":
+        return _resp(200, _handle_diagnose())
     if mode not in ("run", "gui_screenshot"):
-        return _resp(400, {"error": f"mode inválido: {mode}. Opciones: run, gui_screenshot."})
+        return _resp(400, {"error": f"mode inválido: {mode}. Opciones: run, gui_screenshot, diagnose."})
     if not isinstance(source, str) or not source.strip():
         return _resp(400, {"error": "sourceCode requerido"})
     if not isinstance(stdin, str):
