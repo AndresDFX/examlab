@@ -323,27 +323,55 @@ def _handle_gui_screenshot(
                 break
             time.sleep(0.05)
 
-        # ── Capturar screenshot ──
+        # ── Capturar screenshot (xwd → PNG vía ImageMagick convert) ──
+        # Antes usábamos `import -window root` de ImageMagick, pero se
+        # colgaba > 10s en Lambda porque `import` intenta inicializar
+        # MIT-SHM (shared memory X) y /dev/shm no está completo en el
+        # sandbox de Firecracker. Solución estándar: `xwd` usa
+        # XGetImage directo (sin SHM) y emite formato xwd por stdout;
+        # ImageMagick lo convierte a PNG con `convert xwd:- out.png`.
+        # Cada subprocess tiene su propio timeout porque si uno cuelga
+        # queremos saber CUÁL (xwd vs convert) en el stderr.
         screenshot_path = os.path.join(tmp, "screenshot.png")
+        capture_ok = False
+        capture_err = ""
         try:
-            cap_proc = subprocess.run(
-                [
-                    "import",
-                    "-display",
-                    GUI_DISPLAY,
-                    "-window",
-                    "root",
-                    screenshot_path,
-                ],
+            xwd_proc = subprocess.run(
+                ["xwd", "-root", "-silent", "-display", GUI_DISPLAY],
                 capture_output=True,
-                text=True,
-                timeout=10,
+                timeout=8,
             )
-            capture_ok = cap_proc.returncode == 0 and os.path.exists(screenshot_path)
-            capture_err = cap_proc.stderr if cap_proc.returncode != 0 else ""
-        except subprocess.TimeoutExpired:
-            capture_ok = False
-            capture_err = "ImageMagick `import` excedió 10s"
+            if xwd_proc.returncode != 0:
+                capture_err = (
+                    "xwd failed (exit "
+                    + str(xwd_proc.returncode)
+                    + "): "
+                    + xwd_proc.stderr.decode("utf-8", "replace").strip()
+                )
+            elif not xwd_proc.stdout:
+                capture_err = "xwd produjo 0 bytes — el display X está vacío o no respondió"
+            else:
+                conv_proc = subprocess.run(
+                    ["convert", "xwd:-", screenshot_path],
+                    input=xwd_proc.stdout,
+                    capture_output=True,
+                    timeout=8,
+                )
+                if conv_proc.returncode != 0:
+                    capture_err = (
+                        "convert xwd→png failed (exit "
+                        + str(conv_proc.returncode)
+                        + "): "
+                        + conv_proc.stderr.decode("utf-8", "replace").strip()
+                    )
+                elif not os.path.exists(screenshot_path):
+                    capture_err = "convert no creó el archivo PNG de salida"
+                else:
+                    capture_ok = True
+        except subprocess.TimeoutExpired as e:
+            # `e.cmd[0]` tiene el binario que colgó — útil para diagnóstico.
+            colgado = e.cmd[0] if isinstance(e.cmd, list) and e.cmd else "subprocess"
+            capture_err = f"{colgado} excedió su timeout de captura"
 
         # ── Cleanup: matar JVM y Xvfb ──
         # IMPORTANTE: si no matamos la JVM, sigue corriendo en background
@@ -471,7 +499,8 @@ def _handle_diagnose() -> dict:
         "java_home_env": os.environ.get("JAVA_HOME", "(unset)"),
         "display_env": os.environ.get("DISPLAY", "(unset)"),
         "xvfb_path": run(["bash", "-c", "command -v Xvfb"]),
-        "import_path": run(["bash", "-c", "command -v import"]),
+        "xwd_path": run(["bash", "-c", "command -v xwd"]),
+        "convert_path": run(["bash", "-c", "command -v convert"]),
         "uname": run(["uname", "-a"]),
     }
 
