@@ -52,6 +52,7 @@ import {
   Pencil,
   Pause,
   Play,
+  BrainCircuit,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
@@ -251,6 +252,32 @@ function ExamMonitor() {
   >({});
   const [savingQid, setSavingQid] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
+  // ── Recalificación batch del último intento de TODOS los estudiantes ──
+  // El handler `runRegradeLatestAll` invoca el edge function en modo
+  // dryRun por cada último-intento finalizado, junta las propuestas en
+  // este array y abre el modal `regradeAllOpen` para que el docente
+  // apruebe en lote. `applyingBulk` evita doble-click mientras corren
+  // los UPDATEs en serie.
+  type RegradeRow = {
+    submissionId: string;
+    userId: string;
+    studentName: string;
+    previousGrade: number | null;
+    suggestedGrade: number;
+    aiLikelihood: number;
+    aiReasons: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    proposedUpdate: Record<string, any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    breakdown: Array<Record<string, any>>;
+    status: "pending" | "approving" | "approved" | "failed";
+    error?: string;
+  };
+  const [regradeAllOpen, setRegradeAllOpen] = useState(false);
+  const [regradeAllRows, setRegradeAllRows] = useState<RegradeRow[]>([]);
+  const [regradeAllLoading, setRegradeAllLoading] = useState(false);
+  const [regradeAllProgress, setRegradeAllProgress] = useState({ done: 0, total: 0 });
+  const [applyingBulk, setApplyingBulk] = useState(false);
   // Retroalimentación general del examen (campo teacher_feedback de la submission).
   // Se llena al abrir el modal de respuestas y se guarda explícitamente.
   const [teacherFeedbackDraft, setTeacherFeedbackDraft] = useState("");
@@ -1233,11 +1260,36 @@ function ExamMonitor() {
   );
   const gradeMax = Number(exam.course?.grade_scale_max ?? 5) || 5;
 
+  // Selecciona el último intento finalizado por estudiante. "Finalizado"
+  // incluye calificado, ai_revisado, entregado, sospechoso, suspendido —
+  // cualquier estado que NO sea en_progreso ni iniciado. El docente puede
+  // querer recalificar incluso un "sospechoso" para regenerar feedback.
+  const FINAL_FOR_REGRADE = new Set([
+    "entregado",
+    "calificado",
+    "ai_revisado",
+    "sospechoso",
+    "suspendido",
+    "requiere_revision",
+  ]);
+  const pickLatestFinalized = (): Submission[] => {
+    const out: Submission[] = [];
+    for (const r of studentRows) {
+      if (r.latest && FINAL_FOR_REGRADE.has(r.latest.status)) out.push(r.latest);
+    }
+    return out;
+  };
+
   const runDetectFraud = async () => {
     setDetecting(true);
     try {
+      // Solo el último intento de cada estudiante. Si un alumno tuvo 3
+      // intentos y mejoró en el tercero, comparar contra el primer borrador
+      // genera falsos positivos. El edge function respeta este filtro.
+      const latest = pickLatestFinalized();
+      const submissionIds = latest.map((s) => s.id);
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
-        body: { kind: "exam", refId: examId },
+        body: { kind: "exam", refId: examId, submissionIds },
       });
       if (error) throw error;
       const summary = data as { pairs?: unknown[]; message?: string };
@@ -1261,6 +1313,192 @@ function ExamMonitor() {
       toast.error(t("integrity.detectError", { error: msg }));
     } finally {
       setDetecting(false);
+    }
+  };
+
+  // ── Recalificar último intento (batch) ──
+  // Itera el último intento finalizado de cada estudiante, invoca
+  // `ai-grade-submission` en dryRun para obtener la propuesta SIN
+  // aplicarla, y abre un modal donde el docente revisa y aprueba en
+  // lote. Costo IA: 1 llamada por estudiante con intento finalizado.
+  const runRegradeLatestAll = async () => {
+    const targets = pickLatestFinalized();
+    if (targets.length === 0) {
+      toast.message("No hay intentos finalizados para recalificar.");
+      return;
+    }
+    setRegradeAllRows([]);
+    setRegradeAllProgress({ done: 0, total: targets.length });
+    setRegradeAllLoading(true);
+    setRegradeAllOpen(true);
+    const rows: RegradeRow[] = [];
+    for (const sub of targets) {
+      const studentName =
+        studentRows.find((r) => r.userId === sub.user_id)?.profile?.full_name ?? "—";
+      try {
+        const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
+          body: { submissionId: sub.id, dryRun: true },
+        });
+        if (error || (data && (data as { error?: string }).error)) {
+          const detail = await extractEdgeError(error, data);
+          rows.push({
+            submissionId: sub.id,
+            userId: sub.user_id,
+            studentName,
+            previousGrade: sub.final_override_grade ?? sub.ai_grade ?? null,
+            suggestedGrade: 0,
+            aiLikelihood: 0,
+            aiReasons: "",
+            proposedUpdate: {},
+            breakdown: [],
+            status: "failed",
+            error: detail || "Error desconocido",
+          });
+        } else {
+          const d = data as {
+            grade?: number;
+            ai_likelihood?: number;
+            ai_reasons?: string;
+            proposed_update?: Record<string, unknown>;
+            breakdown?: Array<Record<string, unknown>>;
+          };
+          rows.push({
+            submissionId: sub.id,
+            userId: sub.user_id,
+            studentName,
+            previousGrade: sub.final_override_grade ?? sub.ai_grade ?? null,
+            suggestedGrade: Number(d.grade) || 0,
+            aiLikelihood: Number(d.ai_likelihood) || 0,
+            aiReasons: d.ai_reasons ?? "",
+            proposedUpdate: d.proposed_update ?? {},
+            breakdown: d.breakdown ?? [],
+            status: "pending",
+          });
+        }
+      } catch (e) {
+        rows.push({
+          submissionId: sub.id,
+          userId: sub.user_id,
+          studentName,
+          previousGrade: sub.final_override_grade ?? sub.ai_grade ?? null,
+          suggestedGrade: 0,
+          aiLikelihood: 0,
+          aiReasons: "",
+          proposedUpdate: {},
+          breakdown: [],
+          status: "failed",
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+      // Actualizamos incrementalmente para que el docente vea progreso
+      // sin esperar a que terminen todos.
+      setRegradeAllRows([...rows]);
+      setRegradeAllProgress((p) => ({ ...p, done: p.done + 1 }));
+    }
+    setRegradeAllLoading(false);
+    const failed = rows.filter((r) => r.status === "failed").length;
+    if (failed > 0) {
+      toast.warning(`Recalificación lista. ${rows.length - failed} ok, ${failed} con error.`);
+    } else {
+      toast.success(`Recalificación lista. ${rows.length} propuestas para revisar.`);
+    }
+    void logEvent({
+      action: "ai_grading.batch_dryrun",
+      category: "grading",
+      severity: "info",
+      entityType: "exam",
+      entityId: examId,
+      metadata: {
+        total: rows.length,
+        failed,
+        ok: rows.length - failed,
+      },
+    });
+  };
+
+  // Aplica UNA fila del preview batch. Reutiliza la lógica de merge de
+  // __manual_overrides con feedback IA que ya implementamos en
+  // `applyReGrade` (single).
+  const applyRegradeRow = async (idx: number) => {
+    const row = regradeAllRows[idx];
+    if (!row || row.status !== "pending") return false;
+    setRegradeAllRows((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, status: "approving" } : r)),
+    );
+    try {
+      const proposedAnswers = (row.proposedUpdate.answers ?? {}) as Record<string, unknown> & {
+        __breakdown?: Array<{ qid: string; feedback?: string }>;
+        __manual_overrides?: Record<string, { score: number; feedback?: string }>;
+      };
+      const overrides: Record<string, { score: number; feedback?: string }> = {
+        ...(proposedAnswers.__manual_overrides ?? {}),
+      };
+      const SEP = "\n\n— Recalificación con IA —\n";
+      for (const b of proposedAnswers.__breakdown ?? []) {
+        const aiFb = b.feedback?.trim();
+        if (!aiFb) continue;
+        const cur = overrides[b.qid];
+        if (!cur) continue;
+        const prior = (cur.feedback ?? "").trim();
+        cur.feedback =
+          !prior || prior === aiFb
+            ? aiFb
+            : prior.includes(SEP.trim())
+              ? `${prior.split(SEP)[0].trim()}${SEP}${aiFb}`
+              : `${prior}${SEP}${aiFb}`;
+      }
+      const payload = {
+        ...row.proposedUpdate,
+        answers: { ...proposedAnswers, __manual_overrides: overrides },
+      };
+      const { error } = await supabase
+        .from("submissions")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(payload as any)
+        .eq("id", row.submissionId);
+      if (error) {
+        setRegradeAllRows((prev) =>
+          prev.map((r, i) => (i === idx ? { ...r, status: "failed", error: error.message } : r)),
+        );
+        return false;
+      }
+      setRegradeAllRows((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, status: "approved" } : r)),
+      );
+      return true;
+    } catch (e) {
+      setRegradeAllRows((prev) =>
+        prev.map((r, i) =>
+          i === idx
+            ? { ...r, status: "failed", error: e instanceof Error ? e.message : String(e) }
+            : r,
+        ),
+      );
+      return false;
+    }
+  };
+
+  const applyAllRegrade = async () => {
+    setApplyingBulk(true);
+    try {
+      let ok = 0;
+      for (let i = 0; i < regradeAllRows.length; i++) {
+        if (regradeAllRows[i].status !== "pending") continue;
+        const r = await applyRegradeRow(i);
+        if (r) ok++;
+      }
+      void logEvent({
+        action: "ai_grading.batch_applied",
+        category: "grading",
+        severity: "warning",
+        entityType: "exam",
+        entityId: examId,
+        metadata: { applied: ok, total: regradeAllRows.length },
+      });
+      if (ok > 0) toast.success(`${ok} nota(s) aplicada(s).`);
+      await load();
+    } finally {
+      setApplyingBulk(false);
     }
   };
 
@@ -1503,20 +1741,37 @@ function ExamMonitor() {
                   );
                 })()}
               </div>
-              <Button
-                size="sm"
-                variant="default"
-                onClick={runDetectFraud}
-                disabled={detecting}
-                className="shrink-0"
-              >
-                {detecting ? (
-                  <Spinner size="sm" className="mr-1.5" />
-                ) : (
-                  <Search className="h-3.5 w-3.5 mr-1.5" />
-                )}
-                {detecting ? t("integrity.detecting") : t("integrity.detectButton")}
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void runRegradeLatestAll()}
+                  disabled={regradeAllLoading || detecting}
+                  title="Recalifica con IA el último intento finalizado de cada estudiante. Abre un modal con las notas propuestas para que aprueben en lote."
+                >
+                  {regradeAllLoading ? (
+                    <Spinner size="sm" className="mr-1.5" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                  )}
+                  {regradeAllLoading
+                    ? `Recalificando ${regradeAllProgress.done}/${regradeAllProgress.total}…`
+                    : "Recalificar último intento"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={runDetectFraud}
+                  disabled={detecting || regradeAllLoading}
+                >
+                  {detecting ? (
+                    <Spinner size="sm" className="mr-1.5" />
+                  ) : (
+                    <BrainCircuit className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  {detecting ? t("integrity.detecting") : t("integrity.detectButton")}
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -2324,78 +2579,79 @@ function ExamMonitor() {
                                 // si quiere leer las razones de la IA.
                                 <Collapsible defaultOpen={false}>
                                   <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-2">
-                                    <CollapsibleTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
-                                      >
-                                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                                        <Bot className="h-3 w-3" />
-                                        <span>{t("integrity.aiSection")}</span>
-                                        <Badge
-                                          variant={
-                                            sig.score >= 0.85
-                                              ? "destructive"
-                                              : sig.score >= 0.7
-                                                ? "default"
-                                                : "secondary"
-                                          }
-                                          className="text-[10px] ml-auto"
+                                    {/* Header: trigger del collapsible + acción
+                                        "Marcar revisada" SIEMPRE visible al lado
+                                        del título — antes vivía dentro del
+                                        CollapsibleContent y el docente tenía que
+                                        expandir el panel solo para llegar al
+                                        botón. Mismo patrón que las copias por
+                                        pregunta (Users icon). */}
+                                    <div className="flex items-center gap-2">
+                                      <CollapsibleTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="flex-1 flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group min-w-0"
                                         >
-                                          {Math.round(sig.score * 100)}%
-                                        </Badge>
-                                        {reviewed && (
+                                          <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 shrink-0" />
+                                          <Bot className="h-3 w-3 shrink-0" />
+                                          <span className="truncate">{t("integrity.aiSection")}</span>
                                           <Badge
-                                            variant="outline"
-                                            className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                            variant={
+                                              sig.score >= 0.85
+                                                ? "destructive"
+                                                : sig.score >= 0.7
+                                                  ? "default"
+                                                  : "secondary"
+                                            }
+                                            className="text-[10px] ml-auto shrink-0"
                                           >
-                                            <Check className="h-3 w-3 mr-1" />
-                                            {t("integrity.reviewed")}
+                                            {Math.round(sig.score * 100)}%
                                           </Badge>
-                                        )}
-                                      </button>
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent className="space-y-2">
-                                      <CollapsibleReasons text={sig.reasons} />
-                                      {/* Botón con outline + fondo del bg
-                                          contrarestando el card amber, así
-                                          se ve claro en dark + light. Antes
-                                          era `variant="ghost"` y desaparecía
-                                          contra el fondo ámbar de la sección. */}
-                                      <div className="flex justify-end pt-1 border-t border-amber-300/30">
-                                        {reviewed ? (
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-[11px] bg-background"
-                                            onClick={() =>
+                                        </button>
+                                      </CollapsibleTrigger>
+                                      {reviewed ? (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300 h-7 px-2 shrink-0"
+                                        >
+                                          <Check className="h-3 w-3 mr-1" />
+                                          {t("integrity.reviewed")}
+                                          <button
+                                            type="button"
+                                            className="ml-2 underline text-muted-foreground hover:text-foreground"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
                                               toggleQuestionAiReviewedHandler(
                                                 sig.submissionId,
                                                 q.id,
                                                 true,
-                                              )
-                                            }
+                                              );
+                                            }}
                                           >
                                             {t("integrity.reopen")}
-                                          </Button>
-                                        ) : (
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                                            onClick={() =>
-                                              toggleQuestionAiReviewedHandler(
-                                                sig.submissionId,
-                                                q.id,
-                                                false,
-                                              )
-                                            }
-                                          >
-                                            <Check className="h-3 w-3 mr-1" />
-                                            {t("integrity.markReviewed")}
-                                          </Button>
-                                        )}
-                                      </div>
+                                          </button>
+                                        </Badge>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleQuestionAiReviewedHandler(
+                                              sig.submissionId,
+                                              q.id,
+                                              false,
+                                            );
+                                          }}
+                                        >
+                                          <Check className="h-3 w-3 mr-1" />
+                                          {t("integrity.markReviewed")}
+                                        </Button>
+                                      )}
+                                    </div>
+                                    <CollapsibleContent>
+                                      <CollapsibleReasons text={sig.reasons} />
                                     </CollapsibleContent>
                                   </div>
                                 </Collapsible>
@@ -2610,6 +2866,41 @@ function ExamMonitor() {
                               if (!sug) return null;
                               const aiPct = Math.round((aiSig?.score ?? 0) * 100);
                               const cpPct = Math.round((plagiarismMax ?? 0) * 100);
+                              // Peers a comparar inline en el banner. Solo
+                              // tiene sentido cuando la señal incluye copia
+                              // (sug.source === 'plagio' o 'ambas'). Ordenamos
+                              // por score desc y limitamos a 3 para no romper
+                              // el layout en cards angostas. Si hay más,
+                              // mostramos "+N" y el docente puede abrir la
+                              // sección de copias colapsable que lista todos.
+                              const compareablePeers =
+                                sug.source === "ai"
+                                  ? []
+                                  : qPairs
+                                      .slice()
+                                      .sort((a, b) => b.score - a.score)
+                                      .map((p) => {
+                                        const peerRow = studentRows.find(
+                                          (r) => r.userId === p.peerId,
+                                        );
+                                        if (!peerRow) return null;
+                                        return {
+                                          pair: p,
+                                          peerSubmissionId: peerRow.latest.id,
+                                          peerName: peerRow.profile?.full_name ?? "—",
+                                        };
+                                      })
+                                      .filter(
+                                        (
+                                          x,
+                                        ): x is {
+                                          pair: (typeof qPairs)[number];
+                                          peerSubmissionId: string;
+                                          peerName: string;
+                                        } => x != null,
+                                      );
+                              const peersToShow = compareablePeers.slice(0, 3);
+                              const peersHidden = compareablePeers.length - peersToShow.length;
                               return (
                                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
@@ -2626,6 +2917,48 @@ function ExamMonitor() {
                                         ? `Copia ${cpPct}%`
                                         : `IA ${aiPct}% + Copia ${cpPct}%`}
                                   </Badge>
+                                  {/* Comparar con peers de copia inline.
+                                      Antes solo aparecía dentro del collapsible
+                                      de "Copias por pregunta" (oculto por
+                                      defecto), así que el docente tenía que
+                                      abrirlo para acceder. Acá la acción está
+                                      al alcance del primer scan visual. */}
+                                  {peersToShow.map(({ pair, peerSubmissionId, peerName }) => {
+                                    const isActive =
+                                      comparisonForCopy?.pairId === pair.id &&
+                                      comparisonForCopy?.questionId === q.id;
+                                    return (
+                                      <Button
+                                        key={pair.id}
+                                        size="sm"
+                                        variant={isActive ? "secondary" : "outline"}
+                                        className="h-6 text-[11px]"
+                                        onClick={() => {
+                                          if (isActive) {
+                                            setComparisonForCopy(null);
+                                          } else {
+                                            setComparisonForCopy({
+                                              peerUserId: pair.peerId,
+                                              peerSubmissionId,
+                                              questionId: q.id,
+                                              pairId: pair.id,
+                                            });
+                                          }
+                                        }}
+                                        title={`Comparar con ${peerName} (${Math.round(pair.score * 100)}%)`}
+                                      >
+                                        <Eye className="h-3 w-3 mr-1" />
+                                        {isActive
+                                          ? t("integrity.closeCompare")
+                                          : peerName.split(" ")[0]}
+                                      </Button>
+                                    );
+                                  })}
+                                  {peersHidden > 0 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      +{peersHidden} más
+                                    </span>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -2653,9 +2986,7 @@ function ExamMonitor() {
                                       if (aiReasons && sug.source !== "plagio")
                                         bodyParts.push(`• IA: ${aiReasons}`);
                                       if (copyReasons.length > 0 && sug.source !== "ai")
-                                        bodyParts.push(
-                                          `• Copia: ${copyReasons.join(" | ")}`,
-                                        );
+                                        bodyParts.push(`• Copia: ${copyReasons.join(" | ")}`);
                                       const composed = [prefix, ...bodyParts]
                                         .filter(Boolean)
                                         .join("\n");
@@ -3056,6 +3387,141 @@ function ExamMonitor() {
                     contradiga las notas por pregunta. */}
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de recalificación batch del último intento de TODOS los
+          estudiantes. Para cada uno, dryRun de `ai-grade-submission` →
+          lista con nota previa / nota propuesta / approve por fila o en
+          lote. Reduce el costo de tokens vs. recalificar uno por uno y
+          le da al docente una vista consolidada antes de aceptar. */}
+      <Dialog
+        open={regradeAllOpen}
+        onOpenChange={(open) => {
+          if (!open && !regradeAllLoading && !applyingBulk) {
+            setRegradeAllOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[88vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              Recalificar último intento con IA
+              {regradeAllLoading && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  · {regradeAllProgress.done}/{regradeAllProgress.total}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto -mx-4 px-4">
+            {regradeAllRows.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-6 text-center">
+                {regradeAllLoading
+                  ? "Generando propuestas con IA…"
+                  : "No hay propuestas para mostrar."}
+              </div>
+            ) : (
+              <div className="border rounded-md divide-y">
+                {regradeAllRows.map((row, idx) => {
+                  const prev = row.previousGrade;
+                  const delta = prev != null ? row.suggestedGrade - Number(prev) : null;
+                  return (
+                    <div key={row.submissionId} className="px-3 py-2 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{row.studentName}</div>
+                        {row.aiLikelihood > 0 && (
+                          <div className="text-[10px] text-muted-foreground">
+                            IA fraude: {(row.aiLikelihood * 100).toFixed(0)}%
+                          </div>
+                        )}
+                        {row.status === "failed" && row.error && (
+                          <div className="text-[10px] text-destructive mt-0.5">
+                            Error: {row.error}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground tabular-nums w-20 text-right">
+                        {prev != null ? Number(prev).toFixed(2) : "—"}
+                      </div>
+                      <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <div
+                        className={`text-sm font-semibold tabular-nums w-16 text-right ${
+                          delta != null
+                            ? delta > 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : delta < 0
+                                ? "text-destructive"
+                                : ""
+                            : ""
+                        }`}
+                      >
+                        {row.suggestedGrade.toFixed(2)}
+                      </div>
+                      <div className="w-28 flex justify-end">
+                        {row.status === "approved" ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Aplicada
+                          </Badge>
+                        ) : row.status === "failed" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled
+                            className="h-7 text-[11px]"
+                          >
+                            Error
+                          </Button>
+                        ) : row.status === "approving" ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void applyRegradeRow(idx)}
+                            disabled={applyingBulk}
+                            className="h-7 text-[11px]"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Aplicar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-shrink-0 pt-2 border-t">
+            <Button
+              variant="ghost"
+              onClick={() => setRegradeAllOpen(false)}
+              disabled={regradeAllLoading || applyingBulk}
+            >
+              Cerrar
+            </Button>
+            <Button
+              onClick={() => void applyAllRegrade()}
+              disabled={
+                regradeAllLoading ||
+                applyingBulk ||
+                !regradeAllRows.some((r) => r.status === "pending")
+              }
+            >
+              {applyingBulk ? (
+                <Spinner size="sm" className="mr-1.5" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Aprobar todas
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

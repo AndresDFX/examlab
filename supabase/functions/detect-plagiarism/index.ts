@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     }
 
     auditActorId = u.user.id;
-    const { kind, refId } = await req.json();
+    const { kind, refId, submissionIds } = await req.json();
     if (!kind || !refId) throw new Error("kind y refId requeridos");
     if (!["exam", "workshop", "project"].includes(kind)) {
       throw new Error("kind inválido");
@@ -136,6 +136,19 @@ Deno.serve(async (req) => {
     if (typeof refId !== "string" || !UUID_RE.test(refId)) {
       throw new Error("refId inválido");
     }
+    // Filtro opcional: si el cliente manda submissionIds, solo se
+    // analizan esas entregas (típicamente el último intento de cada
+    // alumno). Reduce el cap de 30 items/llamada y evita comparar contra
+    // intentos viejos donde el alumno ya corrigió. Si no se manda,
+    // comportamiento histórico (todas las entregas válidas).
+    const submissionFilter: Set<string> | null =
+      Array.isArray(submissionIds) && submissionIds.length > 0
+        ? new Set(
+            submissionIds.filter(
+              (id: unknown): id is string => typeof id === "string" && UUID_RE.test(id),
+            ),
+          )
+        : null;
     auditKind = kind;
     auditRefId = refId;
     void auditFromEdge(admin, {
@@ -164,7 +177,13 @@ Deno.serve(async (req) => {
         .order("position");
       if (qErr) throw qErr;
 
-      const valid = (subs ?? []).filter((s: any) => s.status !== "iniciado" && s.answers);
+      const valid = (subs ?? []).filter(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (s: any) =>
+          s.status !== "iniciado" &&
+          s.answers &&
+          (!submissionFilter || submissionFilter.has(s.id)),
+      );
       for (const q of questions ?? []) {
         if (q.type === "cerrada" || q.type === "cerrada_multi") continue;
         const items: Item[] = valid
