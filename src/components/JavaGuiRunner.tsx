@@ -98,7 +98,7 @@ import java.awt.*;
 public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Hola CheerpJ");
+            JFrame frame = new JFrame("Hola Swing");
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
             frame.setSize(420, 240);
 
@@ -442,11 +442,11 @@ export function JavaGuiRunner({
         <Badge variant="outline" className="text-xs flex items-center gap-1">
           {mode === "aws_screenshot" ? (
             <>
-              <Camera className="h-3 w-3" /> Java GUI — captura PNG (AWS Lambda)
+              <Camera className="h-3 w-3" /> Java GUI — captura PNG
             </>
           ) : (
             <>
-              <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT) — CheerpJ
+              <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT)
             </>
           )}
         </Badge>
@@ -529,9 +529,9 @@ export function JavaGuiRunner({
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   {mode === "aws_screenshot"
-                    ? "Compilando y capturando en AWS Lambda…"
+                    ? "Compilando y capturando…"
                     : loadingCJ
-                      ? "Cargando CheerpJ…"
+                      ? "Cargando entorno Java…"
                       : "Ejecutando…"}
                 </span>
               )}

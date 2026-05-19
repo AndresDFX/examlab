@@ -21,11 +21,22 @@ FROM public.ecr.aws/lambda/python:3.13
 
 # OpenJDK 21 LTS + Xvfb (X virtual framebuffer) + ImageMagick (binario
 # `import` para capturar el root window) + fuentes (Swing necesita al
-# menos una font genérica o pinta vacío).
+# menos una font genérica o pinta vacío) + libs X11 nativas para AWT.
 #
 # A diferencia del modo solo-consola, NO removemos las libs X11 — son
 # necesarias para que la JVM pueda crear ventanas Swing/AWT contra el
 # DISPLAY virtual.
+#
+# Por qué libXi/libXtst son OBLIGATORIOS — antes el build pasaba pero
+# en runtime aparecía:
+#   java.lang.UnsatisfiedLinkError: Can't load library:
+#     /usr/lib/jvm/.../lib/libawt_xawt.so
+# El `libawt_xawt.so` que despacha AWT al display X requiere
+#   libXi.so.6  (input device extension — punteros / teclados)
+#   libXtst.so.6 (test extension — synthetic events; Swing lo usa
+#     internamente aunque la app no genere eventos sintéticos)
+# Ambos NO vienen como dependencia transitiva de
+# `xorg-x11-server-Xvfb`. Hay que pedirlos explícitamente.
 #
 # Nota: la imagen base `public.ecr.aws/lambda/python:3.13` (Amazon Linux
 # 2023 minimal) NO incluye el binario `which`. Antes intentábamos
@@ -35,6 +46,19 @@ FROM public.ecr.aws/lambda/python:3.13
 RUN dnf install -y \
       java-21-amazon-corretto-devel \
       xorg-x11-server-Xvfb \
+      libXi \
+      libXtst \
+      libXrender \
+      libXrandr \
+      libXcomposite \
+      libXcursor \
+      libXfixes \
+      libXft \
+      libXt \
+      libXext \
+      libX11 \
+      freetype \
+      fontconfig \
       ImageMagick \
       dejavu-sans-fonts \
       dejavu-serif-fonts \
