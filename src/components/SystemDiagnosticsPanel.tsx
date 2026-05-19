@@ -13,7 +13,6 @@ import {
   Bell,
   HardDrive,
   KeyRound,
-  Shield,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -101,6 +100,60 @@ type HealthCheckResponse = {
 function bytesToMB(b: number): number {
   return Math.round((b / (1024 * 1024)) * 10) / 10;
 }
+
+/** Descripción humana de cada edge function — explica qué hace en una
+ *  línea para que el admin no tenga que leer el código. Si una función
+ *  nueva no está aquí, el panel cae al fallback "(sin descripción)". */
+const EDGE_FUNCTION_DESCRIPTIONS: Record<string, string> = {
+  "admin-update-password":
+    "Admin restablece la contraseña de cualquier usuario sin necesidad de su email actual.",
+  "ai-generate-questions":
+    "Genera preguntas de examen/taller/proyecto a partir del tema o descripción del docente.",
+  "ai-grade-submission":
+    "Califica entregas (examen, taller, proyecto) con IA. Punto de entrada único para grading sync y batch.",
+  "ai-grading-worker":
+    "Worker invocado por pg_cron hourly que drena `ai_grading_queue` y aplica resultados.",
+  "broadcast-course-message":
+    "Envío masivo de mensaje + notificación + email a los matriculados de un curso.",
+  "bulk-import-users": "Importa usuarios desde CSV creándolos en auth.users + profiles + roles.",
+  calendar: "Conecta Google/Outlook con el docente y sincroniza sesiones del curso como eventos.",
+  "calendar-ics":
+    "Genera el ICS de los eventos del docente para suscribirse desde calendarios externos.",
+  "calendar-oauth-callback":
+    "Recibe el código OAuth de Google/Outlook al final del flujo de conexión.",
+  "confirm-password-reset":
+    "Cierra el flujo de reset de contraseña: valida token y actualiza la credencial.",
+  "detect-plagiarism": "Compara entregas pares con IA para reportar pares sospechosos de copia.",
+  "evaluate-exam-time":
+    "Estima si la duración asignada a un examen es razonable dadas sus preguntas.",
+  "execute-code":
+    "Compila y ejecuta código por consola via el provider activo (OnlineCompiler/JDoodle/AWS).",
+  "execute-java-gui-screenshot":
+    "Compila Java Swing/AWT en Xvfb y devuelve PNG de la ventana. Usa el provider `aws_screenshot`.",
+  "generate-contents": "Genera materiales del módulo Contenidos (PPTX/MD) con IA según modalidad.",
+  "health-check": "Diagnóstico de la infraestructura: alimenta este panel.",
+  "manage-edge-secrets": "CRUD de Edge Function Secrets desde el panel admin (set/unset/list).",
+  "request-password-reset": "Genera y envía un link de reset al email institucional del usuario.",
+  "retry-failed-ai-gradings":
+    "Cron job (cada 30 min) que reintenta calificaciones IA que fallaron por red/rate-limit.",
+  "send-email":
+    "Despacho centralizado de correos al SMTP configurado (un solo punto de trazabilidad).",
+  "send-push": "Push notifications a service workers registrados (web/PWA).",
+  "student-calendar-ics":
+    "ICS público para que el estudiante se suscriba al calendario del curso desde su app.",
+  "tutor-chat":
+    "Endpoint del Tutor IA por curso: arma el prompt con `course_content_topics` y orquesta la conversación.",
+};
+
+/** Descripción humana de cada cron job programado en pg_cron — explica
+ *  para qué corre y con qué frecuencia, sin que el admin tenga que ir
+ *  al SQL editor. */
+const CRON_JOB_DESCRIPTIONS: Record<string, string> = {
+  "ai-grading-worker-hourly":
+    "Cada hora (minuto :05) invoca `ai-grading-worker` para drenar la cola de calificación IA pendiente.",
+  "examlab-daily-notifs":
+    "Diario — recuerda al estudiante exámenes/talleres próximos y al docente entregas pendientes.",
+};
 
 /** Estado de una métrica de uso según el threshold de alerta:
  *  - "danger" si usado > 100 - threshold (= libre menor que threshold)
@@ -249,7 +302,10 @@ function MutedLine({ label, value }: { label: string; value: React.ReactNode }) 
 
 // ─── Componente principal ───────────────────────────────────────
 export function SystemDiagnosticsPanel() {
-  const { user, profile, roles } = useAuth();
+  // Solo necesitamos `user` para audit del refresh; ya removimos el
+  // card "Autenticación" porque el admin no necesita ver su propia
+  // sesión aquí (Sistema es para infraestructura, no introspección).
+  const { user } = useAuth();
 
   const [hc, setHc] = useState<CheckResult<HealthCheckResponse>>({ state: "idle" });
   const [db, setDb] = useState<CheckResult<{ courses: number }>>({ state: "idle" });
@@ -474,9 +530,7 @@ export function SystemDiagnosticsPanel() {
               <MutedLine label="Timestamp" value={hcData?.timestamp ?? "—"} />
             </>
           )}
-          {hc.state === "error" && (
-            <p className="text-xs text-destructive">{hc.message}</p>
-          )}
+          {hc.state === "error" && <p className="text-xs text-destructive">{hc.message}</p>}
         </StatusCard>
 
         {/* Database — latencia + tamaño + barra de uso vs cuota */}
@@ -508,39 +562,6 @@ export function SystemDiagnosticsPanel() {
           )}
         </StatusCard>
 
-        {/* Auth */}
-        <StatusCard
-          title="Autenticación"
-          description="Sesión actual del usuario."
-          icon={<Shield className="h-4 w-4 text-indigo-500" />}
-          state={user ? "ok" : "warning"}
-        >
-          {user ? (
-            <>
-              <MutedLine label="User ID" value={user.id} />
-              <MutedLine label="Email" value={user.email ?? "—"} />
-              <MutedLine
-                label="Nombre"
-                value={profile?.full_name ?? "—"}
-              />
-              <MutedLine
-                label="Roles"
-                value={
-                  roles.length > 0
-                    ? roles.map((r) => (
-                        <Badge key={r} variant="outline" className="mr-1 text-xs">
-                          {r}
-                        </Badge>
-                      ))
-                    : "—"
-                }
-              />
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">No hay sesión activa.</p>
-          )}
-        </StatusCard>
-
         {/* Storage */}
         <StatusCard
           title="Storage"
@@ -556,8 +577,8 @@ export function SystemDiagnosticsPanel() {
             </p>
           ) : storage.buckets.length === 0 ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              No hay buckets en el proyecto. Si esperabas verlos, revisa que el restore haya
-              creado workshop-files, project-files y generated-contents.
+              No hay buckets en el proyecto. Si esperabas verlos, revisa que el restore haya creado
+              workshop-files, project-files y generated-contents.
             </p>
           ) : (
             <>
@@ -736,7 +757,8 @@ export function SystemDiagnosticsPanel() {
               <MutedLine label="Total" value={extensions.length} />
               {missingExtensions.length > 0 && (
                 <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
-                  Faltantes críticas: <span className="font-mono">{missingExtensions.join(", ")}</span>
+                  Faltantes críticas:{" "}
+                  <span className="font-mono">{missingExtensions.join(", ")}</span>
                 </p>
               )}
               <div className="max-h-44 overflow-y-auto pt-2 -mr-2 pr-2 space-y-1">
@@ -782,26 +804,32 @@ export function SystemDiagnosticsPanel() {
                     : fn.last_severity === "warning"
                       ? "text-amber-600 dark:text-amber-400"
                       : "text-emerald-600 dark:text-emerald-400";
+                const desc = EDGE_FUNCTION_DESCRIPTIONS[fn.function_name];
                 return (
                   <div
                     key={fn.function_name}
-                    className="flex items-start justify-between gap-2 text-xs border-b last:border-b-0 pb-1.5 last:pb-0"
+                    className="text-xs border-b last:border-b-0 pb-1.5 last:pb-0 space-y-0.5"
                   >
-                    <div className="min-w-0">
-                      <div className="font-mono truncate" title={fn.function_name}>
-                        {fn.function_name}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-mono truncate" title={fn.function_name}>
+                          {fn.function_name}
+                        </div>
+                        {fn.last_action && (
+                          <div className={`text-[10px] ${severityColor}`}>{fn.last_action}</div>
+                        )}
                       </div>
-                      {fn.last_action && (
-                        <div className={`text-[10px] ${severityColor}`}>{fn.last_action}</div>
-                      )}
+                      <span className="text-muted-foreground tabular-nums shrink-0 text-right">
+                        {fn.last_invoked_at ? (
+                          formatDateTime(fn.last_invoked_at)
+                        ) : (
+                          <span className="italic">sin registros</span>
+                        )}
+                      </span>
                     </div>
-                    <span className="text-muted-foreground tabular-nums shrink-0 text-right">
-                      {fn.last_invoked_at ? (
-                        formatDateTime(fn.last_invoked_at)
-                      ) : (
-                        <span className="italic">sin registros</span>
-                      )}
-                    </span>
+                    {desc && (
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
+                    )}
                   </div>
                 );
               })}
@@ -840,6 +868,7 @@ export function SystemDiagnosticsPanel() {
                     : j.last_status === "failed"
                       ? "text-destructive"
                       : "text-muted-foreground";
+                const desc = CRON_JOB_DESCRIPTIONS[j.jobname];
                 return (
                   <div
                     key={j.jobname}
@@ -866,6 +895,9 @@ export function SystemDiagnosticsPanel() {
                         {j.last_run_at ? formatDateTime(j.last_run_at) : "—"}
                       </span>
                     </div>
+                    {desc && (
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
+                    )}
                   </div>
                 );
               })}

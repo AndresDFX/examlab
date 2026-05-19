@@ -124,9 +124,27 @@ Deno.serve(async (req) => {
           : typeof (data as { _nonJsonBody?: unknown })._nonJsonBody === "string"
             ? (data as { _nonJsonBody: string })._nonJsonBody
             : "";
-      const msg = detail
-        ? `Runner AWS Lambda HTTP ${lambdaRes.status}: ${detail}`
-        : `Runner AWS Lambda HTTP ${lambdaRes.status}`;
+      // 401/403 desde API Gateway → API key inválida o ausente. La causa
+      // típica es que el admin redeployó el Lambda y la nueva URL/API_KEY
+      // no se actualizó en Supabase Edge Function Secrets. Damos un
+      // mensaje específico con el paso a seguir en lugar del HTTP code crudo.
+      let msg: string;
+      if (lambdaRes.status === 401 || lambdaRes.status === 403) {
+        msg =
+          `El runner AWS Lambda rechazó la autenticación (HTTP ${lambdaRes.status}). ` +
+          `Probablemente las Edge Function Secrets de Supabase no coinciden con la última ` +
+          `corrida de \`./deploy.sh\`. Ve a Supabase Dashboard → Settings → Edge Function ` +
+          `Secrets y actualiza AWS_RUNNER_URL y AWS_RUNNER_API_KEY con los valores que imprimió ` +
+          `el script al final del deploy.`;
+      } else if (lambdaRes.status === 404) {
+        msg =
+          `El endpoint del runner AWS no existe (HTTP 404). Verifica que AWS_RUNNER_URL en ` +
+          `Edge Function Secrets termine en "/run" y apunte a la API Gateway actual.`;
+      } else {
+        msg = detail
+          ? `Runner AWS Lambda HTTP ${lambdaRes.status}: ${detail}`
+          : `Runner AWS Lambda HTTP ${lambdaRes.status}`;
+      }
       void auditFromEdge(admin, {
         actorId,
         action: "java_gui.screenshot_failed",

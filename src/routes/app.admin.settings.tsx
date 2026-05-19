@@ -21,6 +21,7 @@ import {
   KeyRound,
   Layers,
   Cpu,
+  Wrench,
 } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
@@ -30,6 +31,7 @@ import { AdminCertificateSettingsPanel } from "@/components/admin/AdminCertifica
 import { AdminEdgeSecretsPanel } from "@/components/admin/AdminEdgeSecretsPanel";
 import { AdminModuleVisibilityPanel } from "@/components/admin/AdminModuleVisibilityPanel";
 import { AdminAiGradingPanel } from "@/components/admin/AdminAiGradingPanel";
+import { SystemDiagnosticsPanel } from "@/components/SystemDiagnosticsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -85,6 +87,10 @@ function AdminSettings() {
             <Layers className="h-3.5 w-3.5" />
             Módulos
           </TabsTrigger>
+          <TabsTrigger value="system" className="gap-1.5">
+            <Wrench className="h-3.5 w-3.5" />
+            Sistema
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-4 mt-4">
           <AdminGeneralSettingsPanel />
@@ -109,6 +115,9 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="modules" className="space-y-4 mt-4">
           <AdminModuleVisibilityPanel />
+        </TabsContent>
+        <TabsContent value="system" className="space-y-4 mt-4">
+          <SystemDiagnosticsPanel />
         </TabsContent>
       </Tabs>
     </div>
