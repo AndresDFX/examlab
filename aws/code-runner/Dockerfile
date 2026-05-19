@@ -91,10 +91,26 @@ RUN dnf install -y \
       liberation-sans-fonts \
  && dnf clean all \
  && rm -rf /var/cache/dnf /var/log/dnf* \
+ # Pre-popular el cache de fontconfig durante BUILD. Lambda monta el
+ # filesystem como read-only en runtime — si fontconfig intenta escribir
+ # su cache la primera vez que Java/AWT carga fonts, falla con
+ #   "Fontconfig error: No writable cache directories"
+ # Resultado: Swing pinta el JFrame pero sin texto (los JLabel quedan
+ # vacíos, solo el rectángulo de fondo). Generar el cache acá lo deja
+ # listo en /var/cache/fontconfig/ — read-only en runtime pero como ya
+ # existe no necesita regenerarse.
+ && fc-cache -fv >/dev/null 2>&1 \
+ && chmod -R a+rX /var/cache/fontconfig \
  # Slim: demos/man/src/jmods (no se usan en Lambda).
  && JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" \
  && rm -rf "$JAVA_HOME/demo" "$JAVA_HOME/man" "$JAVA_HOME/sample" "$JAVA_HOME/jmods" \
  && rm -rf /usr/lib/jvm/*/lib/src.zip
+
+# XDG_CACHE_HOME apunta a /tmp (única ruta writable en Lambda runtime)
+# para que si fontconfig insiste en regenerar el cache por una razón
+# X, caiga en /tmp/fontconfig/ en lugar de fallar. Combinado con el
+# cache pre-populado del build, fontconfig encuentra fonts sin escribir.
+ENV XDG_CACHE_HOME=/tmp
 
 # Pillow (PIL) — encoder de PNG en Python puro, reemplaza el `convert`
 # de ImageMagick que se colgaba codificando los 3MB del framebuffer
