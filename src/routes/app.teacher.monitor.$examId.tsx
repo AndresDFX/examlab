@@ -73,7 +73,7 @@ import { applyClearOneWarning, applyClearAllWarnings } from "@/utils/exam-sessio
 import { isExamOpen } from "@/utils/exam-time";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ConversationSection } from "@/components/ConversationSection";
-import { computeIntegritySuggestion } from "@/lib/integrity";
+import { computeIntegritySuggestion, mentionsAiPenalty } from "@/lib/integrity";
 import {
   countPendingByUser,
   rpcMarkAiReviewed,
@@ -1272,12 +1272,35 @@ function ExamMonitor() {
     "suspendido",
     "requiere_revision",
   ]);
-  const pickLatestFinalized = (): Submission[] => {
-    const out: Submission[] = [];
-    for (const r of studentRows) {
-      if (r.latest && FINAL_FOR_REGRADE.has(r.latest.status)) out.push(r.latest);
+
+  // Detecta si una submission YA tiene feedback que documenta penalidad
+  // por uso de IA — en cuyo caso re-escanear con IA es desperdicio de
+  // tokens (el docente ya decidió). Revisa el feedback global de la
+  // submission y el feedback manual de cada pregunta dentro del JSON
+  // `__manual_overrides`.
+  const submissionHasAiPenaltyFeedback = (sub: Submission): boolean => {
+    if (mentionsAiPenalty(sub.teacher_feedback ?? null)) return true;
+    const manual = (sub.answers?.__manual_overrides ?? {}) as Record<string, { feedback?: string }>;
+    for (const qid in manual) {
+      if (mentionsAiPenalty(manual[qid]?.feedback)) return true;
     }
-    return out;
+    return false;
+  };
+
+  const pickLatestFinalized = (
+    opts: { skipAiPenalized?: boolean } = {},
+  ): { targets: Submission[]; skipped: Submission[] } => {
+    const targets: Submission[] = [];
+    const skipped: Submission[] = [];
+    for (const r of studentRows) {
+      if (!r.latest || !FINAL_FOR_REGRADE.has(r.latest.status)) continue;
+      if (opts.skipAiPenalized && submissionHasAiPenaltyFeedback(r.latest)) {
+        skipped.push(r.latest);
+        continue;
+      }
+      targets.push(r.latest);
+    }
+    return { targets, skipped };
   };
 
   const runDetectFraud = async () => {
@@ -1286,8 +1309,16 @@ function ExamMonitor() {
       // Solo el último intento de cada estudiante. Si un alumno tuvo 3
       // intentos y mejoró en el tercero, comparar contra el primer borrador
       // genera falsos positivos. El edge function respeta este filtro.
-      const latest = pickLatestFinalized();
-      const submissionIds = latest.map((s) => s.id);
+      // Omitimos además las entregas donde el docente YA documentó
+      // penalidad por IA en el feedback — no aporta nada re-escanear
+      // y gasta tokens.
+      const { targets, skipped } = pickLatestFinalized({ skipAiPenalized: true });
+      const submissionIds = targets.map((s) => s.id);
+      if (skipped.length > 0) {
+        toast.message(
+          `${skipped.length} entrega(s) omitida(s) — el feedback ya menciona penalidad por IA.`,
+        );
+      }
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
         body: { kind: "exam", refId: examId, submissionIds },
       });
@@ -1322,10 +1353,26 @@ function ExamMonitor() {
   // aplicarla, y abre un modal donde el docente revisa y aprueba en
   // lote. Costo IA: 1 llamada por estudiante con intento finalizado.
   const runRegradeLatestAll = async () => {
-    const targets = pickLatestFinalized();
+    // Saltamos entregas cuyo feedback YA documenta penalidad por IA —
+    // ahí el docente ya decidió y re-escanear con IA es gasto puro de
+    // tokens (1 call Gemini ≈ ~1.5K tokens). Si el docente quiere
+    // forzar el re-escaneo, basta con que cambie el texto del feedback
+    // (ej. agregue "(re-evaluar)") para que la heurística falle.
+    const { targets, skipped } = pickLatestFinalized({ skipAiPenalized: true });
     if (targets.length === 0) {
-      toast.message("No hay intentos finalizados para recalificar.");
+      if (skipped.length > 0) {
+        toast.message(
+          `Todas las entregas ya tienen feedback con penalidad por IA. ${skipped.length} omitida(s).`,
+        );
+      } else {
+        toast.message("No hay intentos finalizados para recalificar.");
+      }
       return;
+    }
+    if (skipped.length > 0) {
+      toast.message(
+        `${skipped.length} entrega(s) omitida(s) — el feedback ya menciona penalidad por IA.`,
+      );
     }
     setRegradeAllRows([]);
     setRegradeAllProgress({ done: 0, total: targets.length });
