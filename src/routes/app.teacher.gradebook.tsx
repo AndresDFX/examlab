@@ -48,7 +48,11 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { computeWeightedGrade, type GradedItem } from "@/utils/grade";
 import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
-import { downloadCertificate, buildVerifyUrl } from "@/lib/certificate-pdf";
+import {
+  downloadCertificate,
+  downloadCertificatesZip,
+  buildVerifyUrl,
+} from "@/lib/certificate-pdf";
 
 // grade_cuts/projects pueden no estar en types.ts auto-generados
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -838,6 +842,128 @@ function Gradebook() {
     }
   }, [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse]);
 
+  /**
+   * Genera + descarga TODOS los certificados del curso en un ZIP único.
+   * Flujo completo:
+   *   1. Identifica estudiantes aprobados pendientes y emite los faltantes.
+   *   2. Recarga la lista local de certificados.
+   *   3. Construye un PDF por cada certificado vigente del curso.
+   *   4. Comprime los PDFs + un manifest CSV y dispara una sola descarga.
+   *
+   * El docente confirma una sola vez al inicio. Si solo quiere emitir
+   * sin descargar (ej. flujo asíncrono), usa el botón "Emitir certificados".
+   */
+  const bulkGenerateAndDownload = useCallback(async () => {
+    if (!selectedCourse || !consolidated) return;
+    // Aprobados pendientes (sin cert vigente).
+    const pending = consolidated.filter((r) => {
+      if (r.finalGrade == null) return false;
+      if (r.finalGrade < selectedCourse.passing_grade) return false;
+      if (certByUserId[r.student.id]) return false;
+      return true;
+    });
+    const existingCount = Object.keys(certByUserId).length;
+    if (pending.length === 0 && existingCount === 0) {
+      toast.info("No hay aprobados con certificado emitible en este curso.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Generar y descargar ${pending.length + existingCount} certificado(s)`,
+      description:
+        pending.length > 0
+          ? `Se emitirán ${pending.length} certificado(s) nuevo(s) para los aprobados pendientes y se descargará un ZIP con TODOS los certificados vigentes del curso "${selectedCourse.name}" (${pending.length + existingCount} en total). Las emisiones no se pueden deshacer (revocables individualmente después).`
+          : `Se descargará un ZIP con los ${existingCount} certificado(s) ya emitidos del curso "${selectedCourse.name}".`,
+      confirmLabel: "Generar y descargar",
+      tone: "warning",
+    });
+    if (!ok) return;
+    setBulkIssuing(true);
+    try {
+      // 1) Emitir los pendientes (si los hay).
+      let issued = 0;
+      let failed = 0;
+      for (const r of pending) {
+        const { error } = await db.rpc("issue_certificate", {
+          _user_id: r.student.id,
+          _course_id: courseId,
+          _final_grade: r.finalGrade,
+        });
+        if (error) failed++;
+        else issued++;
+      }
+      // 2) Recargar la lista de certs para incluir los recién emitidos.
+      await reloadCertificates();
+      // 3) Leer la lista completa desde DB (state actualizado puede no
+      //    estar inmediato — preferimos la fuente de verdad).
+      const { data: certs, error: certsErr } = await db
+        .from("certificates")
+        .select("*")
+        .eq("course_id", courseId)
+        .is("revoked_at", null)
+        .order("student_full_name");
+      if (certsErr) {
+        toast.error(certsErr.message);
+        return;
+      }
+      const rows = (certs ?? []) as Array<{
+        short_code: string;
+        student_full_name: string;
+        student_identification: string | null;
+        course_name: string;
+        course_period: string | null;
+        final_grade: number;
+        grade_scale_max: number;
+        teacher_names: string[];
+        university_name: string | null;
+        university_logo_url: string | null;
+        certificate_message: string | null;
+        signature_name: string | null;
+        signature_title: string | null;
+        signature_image_url: string | null;
+        footer_text: string | null;
+        issued_at: string;
+        payload_hash: string;
+        revoked_at: string | null;
+      }>;
+      if (rows.length === 0) {
+        toast.info("No quedaron certificados para descargar.");
+        return;
+      }
+      const items = rows.map((c) => ({
+        shortCode: c.short_code,
+        studentFullName: c.student_full_name,
+        studentIdentification: c.student_identification,
+        courseName: c.course_name,
+        coursePeriod: c.course_period,
+        finalGrade: Number(c.final_grade),
+        gradeScaleMax: Number(c.grade_scale_max),
+        teacherNames: c.teacher_names ?? [],
+        universityName: c.university_name,
+        universityLogoUrl: c.university_logo_url,
+        certificateMessage: c.certificate_message,
+        signatureName: c.signature_name,
+        signatureTitle: c.signature_title,
+        signatureImageUrl: c.signature_image_url,
+        footerText: c.footer_text,
+        issuedAt: c.issued_at,
+        payloadHash: c.payload_hash,
+        revokedAt: c.revoked_at,
+      }));
+      // 4) Generar PDFs + ZIP + descarga.
+      const safeCourse = selectedCourse.name.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
+      const today = new Date().toISOString().slice(0, 10);
+      await downloadCertificatesZip(items, `Certificados_${safeCourse}_${today}.zip`);
+      const issuedMsg = issued > 0 ? ` (${issued} emitido${issued === 1 ? "" : "s"})` : "";
+      const failedMsg = failed > 0 ? ` · ${failed} falló al emitir` : "";
+      toast.success(`ZIP con ${items.length} certificado(s) descargado${issuedMsg}${failedMsg}`);
+    } catch (e) {
+      console.error("[gradebook] bulkGenerateAndDownload failed", e);
+      toast.error(e instanceof Error ? e.message : "Error generando certificados en lote");
+    } finally {
+      setBulkIssuing(false);
+    }
+  }, [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse]);
+
   const downloadCertForRow = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async (cert: any) => {
@@ -908,19 +1034,35 @@ function Gradebook() {
             CSV
           </Button>
           {selectedCourse && consolidated && consolidated.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void bulkIssueAll()}
-              disabled={bulkIssuing}
-            >
-              {bulkIssuing ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Award className="h-4 w-4 mr-1" />
-              )}
-              Emitir certificados
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void bulkIssueAll()}
+                disabled={bulkIssuing}
+                title="Emite el certificado en DB para cada aprobado pendiente. No descarga PDFs — el alumno y el docente pueden bajarlos uno a uno desde el listado."
+              >
+                {bulkIssuing ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Award className="h-4 w-4 mr-1" />
+                )}
+                Emitir certificados
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void bulkGenerateAndDownload()}
+                disabled={bulkIssuing}
+                title="Emite los certificados pendientes Y descarga un ZIP con TODOS los PDFs vigentes del curso (incluye un _index.csv para auditoría)."
+              >
+                {bulkIssuing ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-1" />
+                )}
+                Generar y descargar (lote)
+              </Button>
+            </>
           )}
         </div>
       </div>

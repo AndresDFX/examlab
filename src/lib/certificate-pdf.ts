@@ -275,22 +275,77 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
   return pdf.output("blob");
 }
 
-/** Descarga directa con nombre estándar.
- *  Formato: `Certificado_<curso>_<periodo>_<estudiante>_<YYYY-MM-DD>_<short>.pdf`
- *  El periodo y la fecha facilitan ordenar masivamente cuando el docente
- *  emite/descarga muchos certificados en lote.
+/** Nombre de archivo estándar para un certificado.
+ *  `Certificado_<curso>_<periodo>_<estudiante>_<YYYY-MM-DD>_<short>.pdf`
  */
-export async function downloadCertificate(data: CertificateData): Promise<void> {
-  const blob = await buildCertificatePdf(data);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
+export function certificateFileName(data: CertificateData): string {
   const safeStudent = data.studentFullName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
   const safeCourse = data.courseName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
   const safePeriod = (data.coursePeriod ?? "").replace(/[^a-z0-9]+/gi, "_").slice(0, 20);
   const issuedDate = new Date(data.issuedAt).toISOString().slice(0, 10);
   const periodPart = safePeriod ? `${safePeriod}_` : "";
-  a.download = `Certificado_${safeCourse}_${periodPart}${safeStudent}_${issuedDate}_${data.shortCode}.pdf`;
+  return `Certificado_${safeCourse}_${periodPart}${safeStudent}_${issuedDate}_${data.shortCode}.pdf`;
+}
+
+/** Descarga directa con nombre estándar. */
+export async function downloadCertificate(data: CertificateData): Promise<void> {
+  const blob = await buildCertificatePdf(data);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = certificateFileName(data);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Construye un ZIP con N certificados y dispara una sola descarga. Usa
+ * fflate (ya instalado como transitive dep) en modo síncrono — para
+ * cursos típicos (10-300 alumnos) la generación de PDFs cliente-side es
+ * el cuello de botella, no el ZIP.
+ */
+export async function downloadCertificatesZip(
+  items: CertificateData[],
+  zipFileName: string,
+): Promise<void> {
+  if (items.length === 0) return;
+  const { zipSync, strToU8 } = await import("fflate");
+  // Construye cada PDF en serie para no saturar memoria con N jspdf
+  // instances concurrentes. ~100ms por PDF — para 100 alumnos serializa
+  // en ~10s vs eventual OOM si se paralelizan.
+  const entries: Record<string, Uint8Array> = {};
+  for (const item of items) {
+    const blob = await buildCertificatePdf(item);
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let name = certificateFileName(item);
+    // Si dos alumnos comparten nombre (raro pero posible), prefija índice.
+    if (entries[name]) {
+      const dot = name.lastIndexOf(".");
+      name = `${name.slice(0, dot)}_${item.shortCode}${name.slice(dot)}`;
+    }
+    entries[name] = buf;
+  }
+  // Manifest CSV opcional dentro del ZIP — útil para que el docente
+  // tenga un índice rápido sin abrir cada PDF.
+  const csv = [
+    "estudiante,nota,short_code,emitido",
+    ...items.map(
+      (i) =>
+        `"${i.studentFullName.replace(/"/g, '""')}",${i.finalGrade},${i.shortCode},${i.issuedAt}`,
+    ),
+  ].join("\n");
+  entries["_index.csv"] = strToU8(csv);
+
+  const zipped = zipSync(entries, { level: 6 });
+  // En navegadores modernos zipSync devuelve Uint8Array — lo envolvemos
+  // en Blob para que createObjectURL lo trate como descarga binaria.
+  const blob = new Blob([zipped as BlobPart], { type: "application/zip" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = zipFileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
