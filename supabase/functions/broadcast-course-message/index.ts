@@ -103,10 +103,17 @@ function renderBroadcastHtml(params: {
     </tr>
     ${cta}
     <tr>
-      <td style="padding-top:24px; font-size:11px; color:#94a3b8;">
+      <td style="padding-top:20px; padding-bottom:10px;">
+        <div style="padding:10px 12px; font-size:12px; color:#92400e; background-color:#fef3c7; border-left:3px solid #f59e0b; line-height:1.5;">
+          <strong>⚠️ Notificación automática.</strong> No respondas a este correo —
+          las respuestas no se procesan. Si necesitas contestar al docente,
+          hazlo directamente en la plataforma: <strong>Mensajes → Nueva conversación</strong>.
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding-top:8px; font-size:11px; color:#94a3b8;">
         Enviado por <strong>${senderName}</strong> a través de ${brand}.
-        Si necesitas responder, hazlo directamente al docente — este correo
-        es un anuncio masivo y no recibirá respuestas.
       </td>
     </tr>
   </table>

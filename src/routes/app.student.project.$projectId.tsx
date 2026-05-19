@@ -17,7 +17,16 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, MessageSquareText, Bot, ExternalLink } from "lucide-react";
+import {
+  ArrowLeft,
+  FileText,
+  MessageSquareText,
+  Bot,
+  ExternalLink,
+  Download,
+  FileArchive,
+} from "lucide-react";
+import { toast } from "sonner";
 import { FeedbackThread } from "@/components/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -66,6 +75,10 @@ type ProjectFile = {
   description: string | null;
   expected_rubric: string | null;
   points: number;
+  /** Tipo de pregunta. Para `codigo_zip` el alumno entrega un archivo
+   *  comprimido y la review muestra botón de descarga en vez del
+   *  textarea con `content`. */
+  type: string | null;
 };
 
 type AnswerRow = {
@@ -75,6 +88,9 @@ type AnswerRow = {
   ai_feedback: string | null;
   ai_likelihood: number | null;
   ai_reasons: string | null;
+  /** Ruta en bucket `project-files` cuando la pregunta es `codigo_zip`.
+   *  Format: `<user_id|group_id>/<submission_id>/<question_id>.zip`. */
+  zip_path: string | null;
 };
 
 function StudentProjectDetail() {
@@ -116,7 +132,7 @@ function StudentProjectDetail() {
             .maybeSingle(),
           db
             .from("project_files")
-            .select("id, position, title, description, expected_rubric, points")
+            .select("id, position, title, description, expected_rubric, points, type")
             .eq("project_id", projectId)
             .order("position"),
           db
@@ -207,7 +223,9 @@ function StudentProjectDetail() {
         if (sub?.id) {
           const { data: ans } = await db
             .from("project_submission_files")
-            .select("file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons")
+            .select(
+              "file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_path",
+            )
             .eq("submission_id", sub.id);
           const map: Record<string, AnswerRow> = {};
           for (const a of (ans ?? []) as AnswerRow[]) map[a.file_id] = a;
@@ -283,14 +301,16 @@ function StudentProjectDetail() {
         </Card>
       )}
 
+      {/* Antes la descripción se renderizaba dos veces — una con
+          t("common.description") y otra con "Descripción del proyecto".
+          Dejamos solo una para evitar el doble render que reportaron los
+          alumnos. */}
       {project.description && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t("common.description")}</CardTitle>
+            <CardTitle className="text-base">Descripción del proyecto</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {project.description}
-          </CardContent>
+          <CardContent className="text-sm whitespace-pre-wrap">{project.description}</CardContent>
         </Card>
       )}
 
@@ -303,15 +323,6 @@ function StudentProjectDetail() {
         >
           <ExternalLink className="h-4 w-4" /> Abrir recurso del proyecto
         </a>
-      )}
-
-      {project.description && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Descripción del proyecto</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm whitespace-pre-wrap">{project.description}</CardContent>
-        </Card>
       )}
 
       {submission && (
@@ -392,11 +403,58 @@ function StudentProjectDetail() {
                         {f.description}
                       </div>
                     )}
-                    <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
-                      {ans?.content && ans.content.trim()
-                        ? ans.content
-                        : t("project.review.noAnswer")}
-                    </div>
+                    {f.type === "codigo_zip" ? (
+                      // Pregunta de código: la entrega vive en storage
+                      // (zip_path apunta a project-files/<root>/<sub>/<q>.zip).
+                      // Antes mostrábamos "Sin respuesta" porque `content`
+                      // siempre estaba vacío para este tipo — confundía al
+                      // alumno. Ahora ofrecemos el botón de descarga si hay
+                      // zip_path, o un mensaje "no entregado" si no.
+                      ans?.zip_path ? (
+                        <div className="rounded-md border bg-muted/30 p-3 flex items-center gap-3">
+                          <FileArchive className="h-6 w-6 text-primary shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">Código entregado (ZIP)</p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {ans.zip_path.split("/").pop()}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              if (!ans.zip_path) return;
+                              const { data, error } = await supabase.storage
+                                .from("project-files")
+                                .createSignedUrl(ans.zip_path, 60);
+                              if (error || !data?.signedUrl) {
+                                toast.error(
+                                  error?.message ?? "No se pudo generar enlace de descarga.",
+                                );
+                                return;
+                              }
+                              // Abrir signed URL en nueva pestaña (browsers
+                              // disparan download automático para
+                              // application/zip).
+                              window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                            }}
+                          >
+                            <Download className="h-3.5 w-3.5 mr-1" />
+                            Descargar
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                          Aún no has subido tu archivo ZIP para esta sección.
+                        </div>
+                      )
+                    ) : (
+                      <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono max-h-72 overflow-y-auto">
+                        {ans?.content && ans.content.trim()
+                          ? ans.content
+                          : t("project.review.noAnswer")}
+                      </div>
+                    )}
                     {ans?.ai_feedback && (
                       <div className="border-t pt-3">
                         <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">

@@ -128,6 +128,10 @@ function AdminDashboard() {
   // que antes solo mostraban totales agregados sin contexto temporal.
   // El admin ahora ve de un vistazo si el sistema de IA está sano:
   // cuántas llamadas, cuántos errores, qué se está haciendo con IA.
+  // Renombramos a *Last24h porque el filtro de fecha pasó de 1h a 24h
+  // (más informativo para un dashboard que se mira un par de veces al
+  // día). Los nombres preservan el tag de ventana temporal para que
+  // cualquier display pueda mostrarlo sin lookup adicional.
   const [aiStats, setAiStats] = useState({
     callsLastHour: 0,
     errorsLastHour: 0,
@@ -227,7 +231,11 @@ function AdminDashboard() {
       // 'email' (migración no aplicada en este entorno) los counts
       // quedan en 0 sin romper.
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const sinceHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      // Ventana de 24h para todas las métricas de IA — antes era 1h, lo
+      // que dejaba el dashboard frecuentemente "vacío" cuando el admin
+      // entraba fuera de pico de uso. 24h captura el patrón completo de
+      // una jornada típica.
+      const sinceHour = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
 
@@ -378,13 +386,13 @@ function AdminDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat
           icon={Sparkles}
-          label="Llamadas IA (1h)"
+          label="Llamadas IA (24h)"
           value={aiStats.callsLastHour}
           color="text-indigo-500 dark:text-indigo-400"
         />
         <Stat
           icon={AlertTriangle}
-          label="Errores IA (1h)"
+          label="Errores IA (24h)"
           value={aiStats.errorsLastHour}
           color={
             aiStats.errorsLastHour > 0
@@ -394,19 +402,19 @@ function AdminDashboard() {
         />
         <Stat
           icon={CircleCheck}
-          label="Calificaciones IA (1h)"
+          label="Calificaciones IA (24h)"
           value={aiStats.gradingsLastHour}
           color="text-emerald-500 dark:text-emerald-400"
         />
         <Stat
           icon={Bot}
-          label="Preguntas IA (1h)"
+          label="Preguntas IA (24h)"
           value={aiStats.questionsGenLastHour}
           color="text-violet-500 dark:text-violet-400"
         />
         <Stat
           icon={Search}
-          label="Plagio detectado (1h)"
+          label="Plagio detectado (24h)"
           value={aiStats.plagiarismLastHour}
           color="text-amber-500 dark:text-amber-400"
         />
@@ -425,13 +433,37 @@ function AdminDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-500" /> Ejecuciones IA recientes (1h)
+              <Sparkles className="h-4 w-4 text-indigo-500" /> Ejecuciones IA (24h)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-3">
+            {/* Mini tiles ok/fallidas — mismo patrón visual que el card
+                de "Correos" para que el admin escanee health en una
+                pasada vertical. Ok = ejecuciones con severity != 'error';
+                Fallidas = severity === 'error'. */}
+            {(() => {
+              const okCount = recentAiExecs.filter((e) => e.severity !== "error").length;
+              const failedCount = recentAiExecs.filter((e) => e.severity === "error").length;
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md p-2.5 bg-emerald-500/10">
+                    <div className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                      {okCount}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">Exitosas</div>
+                  </div>
+                  <div className="rounded-md p-2.5 bg-destructive/10">
+                    <div className="text-2xl font-semibold tabular-nums text-destructive">
+                      {failedCount}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">Fallidas</div>
+                  </div>
+                </div>
+              );
+            })()}
             {recentAiExecs.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                Sin ejecuciones de IA en la última hora.
+                Sin ejecuciones de IA en las últimas 24 horas.
               </p>
             ) : (
               recentAiExecs.slice(0, 3).map((e) => {

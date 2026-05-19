@@ -138,6 +138,9 @@ type Project = {
   description: string | null;
   instructions: string | null;
   external_link: string | null;
+  /** Video explicativo obligatorio antes de la entrega de código. URL
+   *  pública (YouTube/Vimeo iframe, o MP4/WebM en CDN). Si null, sin gate. */
+  code_intro_video_url?: string | null;
   max_files: number;
   start_date: string | null;
   due_date: string | null;
@@ -600,6 +603,7 @@ function TeacherProjects() {
       title: "",
       description: "",
       external_link: "",
+      code_intro_video_url: "",
       course_id: first,
       cut_id: null,
       max_score: 100,
@@ -692,6 +696,9 @@ function TeacherProjects() {
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
     } else {
       payload.external_link = form.external_link || null;
+      // Video introductorio obligatorio. Vacío → null (sin gate); URL →
+      // se renderiza al alumno antes de la entrega de código.
+      payload.code_intro_video_url = form.code_intro_video_url?.trim() || null;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
       // Modo de trabajo (individual / grupal / mixto). Solo aplica si NO
@@ -1841,6 +1848,28 @@ function TeacherProjects() {
                   value={form.external_link ?? ""}
                   onChange={(e) => setForm({ ...form, external_link: e.target.value })}
                 />
+              </div>
+            )}
+            {!(form as any).is_external && (
+              <div>
+                <Label className="flex items-center gap-1.5">
+                  Video introductorio obligatorio (opcional)
+                  <HelpHint>
+                    URL pública del video que el alumno DEBE ver antes de poder entregar código.
+                    Soporta YouTube/Vimeo (iframe) y MP4/WebM directo (control estricto: no se puede
+                    adelantar). Si vacío, no se exige video. Solo aplica si el proyecto tiene una
+                    pregunta tipo "código (ZIP)".
+                  </HelpHint>
+                </Label>
+                <Input
+                  placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                  value={form.code_intro_video_url ?? ""}
+                  onChange={(e) => setForm({ ...form, code_intro_video_url: e.target.value })}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  YouTube/Vimeo se renderizan con iframe (sin control de seek). Para forzar que el
+                  alumno NO pueda adelantar, sube un MP4 directo (Storage / CDN).
+                </p>
               </div>
             )}
             <div className="space-y-2">

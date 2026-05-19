@@ -142,16 +142,20 @@ function renderEmailHtml(params: {
           </tr>${cta}
           <tr>
             <td style="padding: 16px 32px 24px 32px; border-top:1px solid #e5e7eb; margin-top:16px;">
+              <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#92400e; background-color:#fef3c7; border-left:3px solid #f59e0b; line-height:1.5;">
+                <strong>⚠️ Notificación automática.</strong> No respondas a este correo —
+                las respuestas no se procesan. Si necesitas contestar a un docente,
+                administrador o compañero, hazlo directamente en la plataforma:
+                <strong>Mensajes → Nueva conversación</strong>.
+              </p>
               <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af; line-height:1.5;">
                 Recibiste este correo porque tienes una cuenta en ${brand} y se generó una
-                notificación dirigida a ti. Este es un mensaje automático del sistema; si
-                contestas, llegará al administrador.
+                notificación dirigida a ti.
               </p>
               <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
                 ¿No quieres recibir más correos de notificaciones?
-                Responde a este mensaje con el asunto
-                <strong>"Cancelar notificaciones ExamLab"</strong> y el administrador desactivará
-                el envío para tu cuenta.
+                Ingresa a la plataforma → <strong>Preferencias</strong> → desactiva las
+                notificaciones por correo.
               </p>
             </td>
           </tr>

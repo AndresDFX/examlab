@@ -45,6 +45,7 @@ import { QuestionBankImportDialog } from "@/components/QuestionBankImportDialog"
 import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
+import { ProjectIntroVideoGate } from "@/components/ProjectIntroVideoGate";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -895,7 +896,20 @@ export function StudentProjectTaker({
   // projectCodeZipGrading) para que la IA evalúe con el alcance del
   // proyecto en mente, no solo la pregunta aislada.
   const [projectDescription, setProjectDescription] = useState<string>("");
+  // Gate de video introductorio para entregas de código. Cuando el proyecto
+  // define `code_intro_video_url`, el alumno DEBE ver el video entero
+  // antes de poder entregar. `videoWatched` se inicializa true si la
+  // submission previa ya tenía `video_watched_at` (compatibilidad con
+  // sesiones reanudadas).
+  const [introVideoUrl, setIntroVideoUrl] = useState<string | null>(null);
+  const [videoWatched, setVideoWatched] = useState(false);
   const loadedForRef = useRef<string | null>(null);
+
+  // ¿La entrega tiene archivos de código (codigo_zip)? Si no, el gate
+  // de video no aplica para esta pantalla — los proyectos sin componente
+  // de código no necesitan el video.
+  const hasCodeQuestion = questions.some((q) => q.type === "codigo_zip");
+  const videoGateBlocking = !!introVideoUrl && hasCodeQuestion && !videoWatched;
 
   useEffect(() => {
     if (!user) return;
@@ -907,22 +921,35 @@ export function StudentProjectTaker({
       setLoading(true);
       const [{ data: qs }, { data: proj }] = await Promise.all([
         db.from("project_files").select("*").eq("project_id", projectId).order("position"),
-        db.from("projects").select("description").eq("id", projectId).maybeSingle(),
+        db
+          .from("projects")
+          .select("description, code_intro_video_url")
+          .eq("id", projectId)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
       setProjectDescription((proj as { description?: string | null } | null)?.description ?? "");
+      // URL del video introductorio (puede ser null/empty → sin gate).
+      const url =
+        (proj as { code_intro_video_url?: string | null } | null)?.code_intro_video_url ?? null;
+      setIntroVideoUrl(url && url.trim() ? url.trim() : null);
 
       // Si hay grupo, la submission pertenece al grupo (cualquier
       // miembro la ve y edita). Si no, comportamiento individual normal.
       const subQuery = db
         .from("project_submissions")
-        .select("id, final_grade, status, repository_url")
+        .select("id, final_grade, status, repository_url, video_watched_at")
         .eq("project_id", projectId);
       const { data: sub } = await (groupId
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.repository_url) setRepositoryUrl(sub.repository_url);
+      // Si la submission previa ya marcó el video como visto, saltamos
+      // el gate. Si el alumno cierra y reabre, no tiene que re-ver el video.
+      if ((sub as { video_watched_at?: string | null } | null)?.video_watched_at) {
+        setVideoWatched(true);
+      }
       if (sub?.id) {
         const { data: ans } = await db
           .from("project_submission_files")
@@ -1175,6 +1202,29 @@ export function StudentProjectTaker({
               payload.ai_feedback = `Error al subir ZIP: ${upErr.message}`;
             } else {
               payload.zip_path = path;
+              // Map `language` (texto humano) → extensión esperada.
+              // El edge function valida que el ZIP solo contenga archivos
+              // con esa extensión; rechaza ANTES de llamar a IA si encuentra
+              // archivos de código en otros lenguajes (evita gasto de
+              // tokens y obliga al alumno a recomprimir limpio).
+              const LANG_TO_EXT: Record<string, string[]> = {
+                java: ["java"],
+                python: ["py"],
+                javascript: ["js", "jsx", "mjs", "cjs"],
+                typescript: ["ts", "tsx"],
+                c: ["c", "h"],
+                cpp: ["cpp", "cc", "cxx", "hpp", "hxx", "h"],
+                csharp: ["cs"],
+                go: ["go"],
+                rust: ["rs"],
+                php: ["php"],
+                ruby: ["rb"],
+                haskell: ["hs"],
+                kotlin: ["kt", "kts"],
+                swift: ["swift"],
+              };
+              const langKey = (q.language ?? "").toLowerCase().trim();
+              const allowedExtensions = LANG_TO_EXT[langKey] ?? null;
               const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                 "ai-grade-submission",
                 {
@@ -1188,6 +1238,9 @@ export function StudentProjectTaker({
                     courseLanguage,
                     courseId: undefined,
                     projectDescription,
+                    // Si el docente NO fijó language (langKey vacío),
+                    // omitimos el filtro — comportamiento histórico.
+                    ...(allowedExtensions ? { allowedExtensions } : {}),
                   },
                 },
               );
@@ -1352,6 +1405,41 @@ export function StudentProjectTaker({
     <div className="space-y-4">
       <h3 className="font-semibold">{projectTitle}</h3>
 
+      {/* Video introductorio obligatorio antes de entregar código.
+          Solo se renderiza si el docente subió un `code_intro_video_url`
+          en el proyecto Y hay al menos una pregunta de tipo codigo_zip.
+          Si el alumno ya lo vio antes, el componente arranca en estado
+          "Visto" y no bloquea. */}
+      {introVideoUrl && hasCodeQuestion && (
+        <ProjectIntroVideoGate
+          videoUrl={introVideoUrl}
+          initialWatched={videoWatched}
+          onWatched={async () => {
+            setVideoWatched(true);
+            // Persistir en DB para que sobrevivan reloads. Si aún no hay
+            // submission (primer ingreso al proyecto sin entregas previas),
+            // el RPC fallará silenciosamente — se persistirá en el primer
+            // submit cuando ya exista la fila.
+            try {
+              if (user) {
+                const subQuery = db
+                  .from("project_submissions")
+                  .select("id")
+                  .eq("project_id", projectId);
+                const { data: subRow } = await (groupId
+                  ? subQuery.eq("group_id", groupId).maybeSingle()
+                  : subQuery.eq("user_id", user.id).maybeSingle());
+                if (subRow?.id) {
+                  await db.rpc("mark_project_video_watched", { _submission_id: subRow.id });
+                }
+              }
+            } catch {
+              /* silencioso — el state local es suficiente para la sesión */
+            }
+          }}
+        />
+      )}
+
       {/* Link al repositorio: obligatorio. Permite al docente verificar
           fechas de modificación contra la fecha de entrega. */}
       <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10">
@@ -1483,18 +1571,48 @@ export function StudentProjectTaker({
                 <input
                   type="file"
                   accept=".zip,application/zip,application/x-zip-compressed"
-                  onChange={(e) => updateAnswer(q.id, e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    if (f) {
+                      // 50MB cap (era 100MB). Reducido para mantener
+                      // tiempos de subida razonables en redes campus y
+                      // disminuir uso de bandwidth del bucket Storage.
+                      const MAX_BYTES = 50 * 1024 * 1024;
+                      if (f.size > MAX_BYTES) {
+                        toast.error(
+                          `El archivo supera 50MB (${(f.size / 1024 / 1024).toFixed(1)}MB). Comprime mejor o reduce contenido binario antes de subir.`,
+                        );
+                        e.target.value = "";
+                        return;
+                      }
+                      if (f.size === 0) {
+                        toast.error("El archivo está vacío. Verifica que se comprimió correctamente.");
+                        e.target.value = "";
+                        return;
+                      }
+                    }
+                    updateAnswer(q.id, f);
+                  }}
                   className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Sube un archivo .zip con todo el código fuente del proyecto. Máximo 100MB. La IA
+                  Sube un archivo .zip con todo el código fuente del proyecto. Máximo 50MB. La IA
                   descomprime y evalúa los archivos de código (.java, .py, .js, .ts, .cpp, etc.) en
                   conjunto.
                 </p>
                 {answers[q.id] instanceof File && (
                   <Badge variant="secondary" className="text-[10px]">
-                    {(answers[q.id] as File).name} ·{" "}
-                    {Math.round(((answers[q.id] as File).size / 1024 / 1024) * 10) / 10} MB
+                    {(() => {
+                      const file = answers[q.id] as File;
+                      // Display inteligente: KB cuando < 1MB para no
+                      // mostrar "0.0 MB" (el caso reportado por el user
+                      // que confundía).
+                      const sizeStr =
+                        file.size < 1024 * 1024
+                          ? `${Math.max(1, Math.round(file.size / 1024))} KB`
+                          : `${(file.size / 1024 / 1024).toFixed(1)} MB`;
+                      return `${file.name} · ${sizeStr}`;
+                    })()}
                   </Badge>
                 )}
               </div>
@@ -1503,7 +1621,12 @@ export function StudentProjectTaker({
         </Card>
       ))}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
-        <Button onClick={submit} disabled={submitting} className="w-full">
+        {videoGateBlocking && (
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-1.5 text-center">
+            Termina de ver el video introductorio para habilitar la entrega.
+          </p>
+        )}
+        <Button onClick={submit} disabled={submitting || videoGateBlocking} className="w-full">
           {submitting ? <Spinner size="md" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
           Enviar proyecto y calificar con IA
         </Button>

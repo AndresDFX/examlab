@@ -831,7 +831,22 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         // inyecta para que la IA califique este componente teniendo
         // claro el alcance del proyecto entero, no solo el slot.
         projectDescription,
-      } = body;
+        // Extensiones permitidas para esta entrega. Si el docente
+        // requiere SOLO Java, pasa ["java"] y rechazamos el ZIP si
+        // contiene .py / .js / etc. Si vacío o ausente → permitimos
+        // todas las del whitelist global CODE_EXT.
+        allowedExtensions,
+      } = body as {
+        zipPath?: string;
+        fileTitle?: string;
+        fileDescription?: string;
+        expectedRubric?: string;
+        maxPoints?: number;
+        courseLanguage?: string;
+        courseId?: string;
+        projectDescription?: string;
+        allowedExtensions?: string[];
+      };
       if (!zipPath || !fileTitle) {
         throw new Error("zipPath y fileTitle requeridos");
       }
@@ -916,6 +931,62 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       ]);
 
       const allPaths = Object.keys(unzipped).filter((p) => !p.endsWith("/"));
+
+      // ── Validación de extensiones permitidas ──
+      // Si el docente parametrizó allowedExtensions (e.g. ["java"]) y el
+      // ZIP contiene archivos de CÓDIGO con extensiones distintas (ej.
+      // .py, .js), rechazamos ANTES de llamar a IA — evita gastar tokens
+      // en entregas inválidas y le da feedback claro al alumno para
+      // recomprimir solo con los archivos correctos. Archivos no-código
+      // (.txt, .md, imágenes, etc.) se ignoran tanto para la validación
+      // como para el grading.
+      const cleanedAllowed = Array.isArray(allowedExtensions)
+        ? allowedExtensions
+            .filter((e): e is string => typeof e === "string")
+            .map((e) => e.toLowerCase().replace(/^\./, "").trim())
+            .filter(Boolean)
+        : [];
+      if (cleanedAllowed.length > 0) {
+        const allowedSet = new Set(cleanedAllowed);
+        const violations: string[] = [];
+        for (const p of allPaths) {
+          const lower = p.toLowerCase();
+          const ext = lower.split(".").pop() ?? "";
+          // OS/IDE noise files siempre OK (los descomprimen alumnos sin
+          // querer): .ds_store, __macosx, .gitignore. Filtramos esos
+          // antes de marcar violación para no penalizar artefactos del
+          // sistema.
+          const baseName = lower.split("/").pop() ?? "";
+          if (lower.includes("__macosx/") || baseName === ".ds_store") continue;
+          // Solo verificamos archivos que parezcan código (los demás
+          // como txt/md/png no son violación, simplemente no se evalúan).
+          if (!CODE_EXT.has(ext)) continue;
+          if (!allowedSet.has(ext)) {
+            violations.push(p);
+          }
+        }
+        if (violations.length > 0) {
+          const sample = violations.slice(0, 5).join(", ");
+          const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+          const allowedLabel = cleanedAllowed.map((e) => `.${e}`).join(", ");
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: `El ZIP contiene archivos de código no permitidos para esta entrega. Solo se aceptan: ${allowedLabel}. Encontrados: ${sample}${more}. Recomprime solo con los archivos correctos.`,
+              grade: 0,
+              feedback: "",
+              ai_likelihood: 0,
+              ai_detected: false,
+              ai_reasons: "",
+              rejected_reason: "extension_mismatch",
+              rejected_files: violations.slice(0, 50),
+              allowed_extensions: cleanedAllowed,
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+
       const codeFiles: { path: string; content: string }[] = [];
       let totalChars = 0;
       const MAX_CHARS = 200_000; // ~ tope para no exceder context window
