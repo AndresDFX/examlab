@@ -12,7 +12,8 @@
       "Read(//d/Projects/Personal/examlab/src/routes/**)",
       "Bash(grep -n \"earned\" src/routes/app.student.project.\\\\$projectId.tsx | head -10)",
       "Bash(grep -rn \"MB\\\\|KB\" src/routes/app.student.project.\\\\$projectId.tsx src/components/WorkshopQuestions.tsx 2>&1 | head -10)",
-      "Bash(grep -n \"submission.status\\\\|status === \\\\\"calificado\\\\\"\\\\|status === \\\\\"entregado\\\\\"\" src/routes/app.student.project.\\\\$projectId.tsx | head -5)"
+      "Bash(grep -n \"submission.status\\\\|status === \\\\\"calificado\\\\\"\\\\|status === \\\\\"entregado\\\\\"\" src/routes/app.student.project.\\\\$projectId.tsx | head -5)",
+      "Bash(grep -rn \"Submit.*disabled.*submitting\\\\|onClick={submit}\" src/components/WorkshopQuestions.tsx src/routes/app.student.take.\\\\$examId.tsx src/routes/app.student.workshops.tsx 2>&1 | head -10)"
     ]
   }
 }

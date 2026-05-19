@@ -1998,7 +1998,7 @@ export function StudentProjectTaker({
         )}
         <Button onClick={submit} disabled={submitting || videoGateBlocking} className="w-full">
           {submitting ? <Spinner size="md" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-          Enviar proyecto y calificar con IA
+          Entregar
         </Button>
       </div>
     </div>

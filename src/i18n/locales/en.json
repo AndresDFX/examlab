@@ -439,7 +439,7 @@
     "availableSubtitle": "{{count}} available exams",
     "start": "Start exam",
     "resume": "Resume exam",
-    "submit": "Submit exam",
+    "submit": "Submit",
     "submitConfirm": "Do you want to submit the exam?",
     "submitConfirmUnanswered": "Some questions are unanswered. Submit anyway?",
     "timeUp": "Time is up",
@@ -523,7 +523,7 @@
     }
   },
   "project": {
-    "start": "Start project submission",
+    "start": "Start submission",
     "update": "Update submission",
     "submitted": "Submitted",
     "available": "Available",

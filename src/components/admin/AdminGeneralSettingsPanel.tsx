@@ -27,15 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import {
-  Save,
-  Info,
-  Settings as SettingsIcon,
-  Mail,
-  FileText,
-  GraduationCap,
-  Library,
-} from "lucide-react";
+import { Save, Info, Settings as SettingsIcon, Mail, FileText, GraduationCap } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -83,7 +75,6 @@ export function AdminGeneralSettingsPanel() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dirty = !!draft && !!row && JSON.stringify(draft) !== JSON.stringify(row);
@@ -298,8 +289,8 @@ export function AdminGeneralSettingsPanel() {
             <Label className="flex items-center gap-1.5">
               Intentos máx. proyectos
               <HelpHint>
-                Cuántas veces puede entregar un alumno un proyecto. Default global; el docente
-                puede sobreescribirlo por proyecto.
+                Cuántas veces puede entregar un alumno un proyecto. Default global; el docente puede
+                sobreescribirlo por proyecto.
               </HelpHint>
             </Label>
             <Input
@@ -371,37 +362,12 @@ export function AdminGeneralSettingsPanel() {
         </CardContent>
       </Card>
 
-      {/* Módulos opcionales */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Library className="h-4 w-4 text-amber-500" />
-            Módulos opcionales
-            <HelpHint>
-              Activa o desactiva módulos visibles para docentes/estudiantes. Útil para hacer rollout
-              escalonado o esconder funciones aún en evaluación.
-            </HelpHint>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4"
-              checked={draft.question_bank_enabled}
-              onChange={(e) => setDraft({ ...draft, question_bank_enabled: e.target.checked })}
-            />
-            <div className="flex-1">
-              <div className="text-sm font-medium">Banco de preguntas</div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {draft.question_bank_enabled
-                  ? "Activo — el item 'Banco de preguntas' aparece en el nav del docente."
-                  : "Desactivado — el módulo está escondido del nav y la ruta directa muestra una pantalla 'deshabilitado'."}
-              </p>
-            </div>
-          </label>
-        </CardContent>
-      </Card>
+      {/* Módulos opcionales — gestión movida al tab "Módulos" del panel.
+          Antes había acá un toggle individual para Banco de preguntas y
+          se planeaba extender con más; pero la matriz módulo × rol +
+          display_order del tab Módulos ya cubre el caso de forma
+          consistente con el resto de toggles. Mantener dos UIs llevaba
+          a confusión sobre cuál ganaba. */}
 
       {/* Alerta de correos */}
       <Card>

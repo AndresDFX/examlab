@@ -15,11 +15,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
+import { RowAction } from "@/components/ui/row-action";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Layers } from "lucide-react";
+import { Layers, ChevronUp, ChevronDown } from "lucide-react";
 import { invalidateModuleVisibility } from "@/hooks/use-module-visibility";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -232,47 +233,35 @@ export function AdminModuleVisibilityPanel() {
                               disabled={saving === key}
                               onCheckedChange={(v) => void toggle(m.key, r.key, v)}
                             />
-                            <Input
-                              type="number"
-                              min={0}
-                              max={9999}
-                              step={1}
-                              value={ord}
-                              disabled={saving === ordKey}
-                              onChange={(e) => {
-                                // Optimistic local-only update mientras
-                                // el usuario escribe; persistimos en blur
-                                // para no spamear UPDATEs por cada tecla.
-                                const next = Number(e.target.value);
-                                if (!Number.isFinite(next)) return;
-                                setRows((rs) => {
-                                  const idx = rs.findIndex(
-                                    (x) => x.module_key === m.key && x.role === r.key,
-                                  );
-                                  if (idx >= 0) {
-                                    const copy = rs.slice();
-                                    copy[idx] = { ...copy[idx], display_order: next };
-                                    return copy;
-                                  }
-                                  return [
-                                    ...rs,
-                                    {
-                                      module_key: m.key,
-                                      role: r.key,
-                                      enabled: true,
-                                      display_order: next,
-                                    },
-                                  ];
-                                });
-                              }}
-                              onBlur={(e) => {
-                                const next = Number(e.target.value);
-                                if (!Number.isFinite(next)) return;
-                                void saveOrder(m.key, r.key, next);
-                              }}
-                              className="h-7 w-14 text-xs text-center tabular-nums"
-                              title="Orden en el sidebar (menor = arriba)"
-                            />
+                            {/* Mismo patrón visual que las flechas de
+                                orden en otras tablas (workshops/projects
+                                question-bank/etc.): ChevronUp / ChevronDown
+                                con badge tabular en el medio. Reemplaza el
+                                input numérico pelado que rompía la estética
+                                del resto del admin panel. */}
+                            <div className="inline-flex items-center gap-0.5">
+                              <RowAction
+                                label="Subir"
+                                icon={ChevronUp}
+                                disabled={saving === ordKey || ord <= 0}
+                                onClick={() => void saveOrder(m.key, r.key, Math.max(0, ord - 10))}
+                              />
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] tabular-nums min-w-[2.25rem] justify-center"
+                                title="Orden en el sidebar (menor = arriba)"
+                              >
+                                {ord}
+                              </Badge>
+                              <RowAction
+                                label="Bajar"
+                                icon={ChevronDown}
+                                disabled={saving === ordKey || ord >= 9999}
+                                onClick={() =>
+                                  void saveOrder(m.key, r.key, Math.min(9999, ord + 10))
+                                }
+                              />
+                            </div>
                           </div>
                         </td>
                       );

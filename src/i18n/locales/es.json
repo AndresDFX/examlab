@@ -439,7 +439,7 @@
     "availableSubtitle": "{{count}} exámenes disponibles",
     "start": "Iniciar examen",
     "resume": "Reanudar examen",
-    "submit": "Entregar examen",
+    "submit": "Entregar",
     "submitConfirm": "¿Deseas entregar el examen?",
     "submitConfirmUnanswered": "Hay preguntas sin responder. ¿Deseas entregar de todos modos?",
     "timeUp": "Tiempo agotado",
@@ -523,7 +523,7 @@
     }
   },
   "project": {
-    "start": "Iniciar entrega de proyecto",
+    "start": "Iniciar entrega",
     "update": "Actualizar entrega",
     "submitted": "Entregado",
     "available": "Disponible",
