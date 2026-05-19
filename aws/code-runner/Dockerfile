@@ -26,6 +26,12 @@ FROM public.ecr.aws/lambda/python:3.13
 # A diferencia del modo solo-consola, NO removemos las libs X11 — son
 # necesarias para que la JVM pueda crear ventanas Swing/AWT contra el
 # DISPLAY virtual.
+#
+# Nota: la imagen base `public.ecr.aws/lambda/python:3.13` (Amazon Linux
+# 2023 minimal) NO incluye el binario `which`. Antes intentábamos
+# `which javac` para derivar JAVA_HOME y el build fallaba con
+#   /bin/sh: line 1: which: command not found
+# Usamos `command -v` (built-in POSIX, disponible siempre) en su lugar.
 RUN dnf install -y \
       java-21-amazon-corretto-devel \
       xorg-x11-server-Xvfb \
@@ -36,7 +42,7 @@ RUN dnf install -y \
  && dnf clean all \
  && rm -rf /var/cache/dnf /var/log/dnf* \
  # Slim: demos/man/src/jmods (no se usan en Lambda).
- && JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac)))) \
+ && JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" \
  && rm -rf "$JAVA_HOME/demo" "$JAVA_HOME/man" "$JAVA_HOME/sample" "$JAVA_HOME/jmods" \
  && rm -rf /usr/lib/jvm/*/lib/src.zip
 
@@ -48,11 +54,12 @@ RUN if [ -f /etc/ImageMagick-7/policy.xml ]; then \
       sed -i 's|<policy domain="coder" rights="none" pattern="PNG"|<policy domain="coder" rights="read\|write" pattern="PNG"|g' /etc/ImageMagick-7/policy.xml || true; \
     fi
 
-# Sanity check — falla el build si algo falta.
+# Sanity check — falla el build si algo falta. `command -v` reemplaza a
+# `which` porque la imagen base AL2023 minimal no lo trae.
 RUN java -version \
  && javac -version \
- && which Xvfb \
- && which import
+ && command -v Xvfb \
+ && command -v import
 
 # Handler de Lambda (Python wrapper que llama a javac + java).
 COPY app.py ${LAMBDA_TASK_ROOT}/

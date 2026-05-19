@@ -239,25 +239,41 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
     width: 200,
   });
 
-  // QR en esquina inferior derecha
-  const qrSize = 32;
-  const qrX = W - M - qrSize - 12;
-  const qrY = H - M - qrSize - 12;
+  // QR en esquina inferior derecha. Bumpeamos el padding interno de la
+  // derecha de 12 a 16mm para que el URL completo debajo del short_code
+  // no se salga del marco — antes con dominios largos como
+  // `examlab.lovable.app/verify/<code>` el texto a 7pt rebasaba el border
+  // y aparecía cortado en la esquina.
+  const qrSize = 30;
+  const qrRightPad = 16;
+  const qrX = W - M - qrSize - qrRightPad;
+  const qrY = H - M - qrSize - 14;
   pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize, undefined, "FAST");
 
-  // Etiquetas debajo del QR
+  // Etiqueta encima del QR.
   pdf.setFontSize(8);
   pdf.setTextColor(100, 116, 139);
   pdf.text("Verifica este certificado en:", qrX + qrSize / 2, qrY - 4, { align: "center" });
+
+  // Short code centrado, mismo ancho de columna que el QR.
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(10);
   pdf.setTextColor(30, 64, 175);
   pdf.text(data.shortCode, qrX + qrSize / 2, qrY + qrSize + 5, { align: "center" });
 
+  // URL: usamos splitTextToSize con un ancho máximo conservador
+  // (qrSize + 28mm a cada lado del centro = ~58mm) para forzar wrap si
+  // el dominio es largo. Eso garantiza que jamás se salga del marco.
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7);
   pdf.setTextColor(120, 120, 120);
-  pdf.text(verifyUrl, qrX + qrSize / 2, qrY + qrSize + 9, { align: "center" });
+  const urlMaxWidth = qrSize + 28;
+  const urlLines: string[] = pdf.splitTextToSize(verifyUrl, urlMaxWidth);
+  let urlY = qrY + qrSize + 9;
+  for (const line of urlLines) {
+    pdf.text(line, qrX + qrSize / 2, urlY, { align: "center" });
+    urlY += 3;
+  }
 
   // Hash de verificación (chico, abajo izquierda)
   pdf.setFontSize(6);
