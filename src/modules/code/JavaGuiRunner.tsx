@@ -613,40 +613,32 @@ export function JavaGuiRunner({
                           alt="Captura de la ventana Swing renderizada en el servidor"
                           className="max-w-full max-h-full object-contain"
                         />
-                        {/* Overlay informativo cuando el PNG es prácticamente
+                        {/* Banner inferior cuando el PNG es prácticamente
                             un framebuffer vacío (~3-4KB de Xvfb sin contenido).
                             Patrón típico: el código del estudiante hace
                             `setVisible(true)` y main termina antes de que el
                             EDT pinte. La JVM cierra y Xvfb queda con el frame
                             vacío. El runner sí devuelve un PNG válido, pero
-                            es solo color de fondo sólido. Antes solo lo
-                            mostrábamos como hint en la consola — ahora va
-                            como overlay sobre la imagen para que el alumno
-                            entienda por qué su ventana no aparece. */}
+                            es solo color de fondo sólido.
+                            Usa una banda inferior compacta semi-transparente
+                            en lugar de overlay centrado — antes tapaba la
+                            imagen, ahora deja ver lo que SÍ alcanzó a pintar
+                            (a veces el header del JFrame, el cursor, etc.). */}
                         {screenshotData.exitCode === 0 &&
                           screenshotData.pngBytes > 0 &&
                           screenshotData.pngBytes < 4000 && (
-                            <div className="absolute inset-2 flex items-center justify-center p-3 pointer-events-none">
-                              <div className="max-w-md bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 rounded-md p-3 text-[11px] leading-relaxed shadow-md pointer-events-auto">
-                                <p className="font-semibold text-amber-700 dark:text-amber-300 mb-1">
-                                  La ventana no alcanzó a pintarse
-                                </p>
-                                <p className="text-amber-900 dark:text-amber-200">
-                                  Tu <code className="font-mono">main</code> terminó antes de que
-                                  Swing pintara. Agrega al final de{" "}
-                                  <code className="font-mono">main</code>:
-                                </p>
-                                <pre className="mt-2 p-2 bg-amber-100 dark:bg-amber-900/60 rounded font-mono text-[10px] overflow-x-auto">
-                                  {"Thread.sleep(5000);"}
-                                </pre>
-                                <p className="mt-2 text-amber-900 dark:text-amber-200">
-                                  O envuelve la creación del JFrame en{" "}
-                                  <code className="font-mono">
-                                    SwingUtilities.invokeAndWait(...)
-                                  </code>
-                                  .
-                                </p>
-                              </div>
+                            <div className="absolute inset-x-2 bottom-2 bg-amber-50/95 dark:bg-amber-950/95 border border-amber-300 dark:border-amber-700 rounded-md p-2 text-[10px] leading-snug shadow-md">
+                              <p className="font-semibold text-amber-700 dark:text-amber-300">
+                                La ventana no alcanzó a pintarse — el PNG quedó casi vacío.
+                              </p>
+                              <p className="text-amber-900 dark:text-amber-200 mt-0.5">
+                                Tu <code className="font-mono">main</code> terminó antes de que
+                                Swing pintara. Agrega <code className="font-mono">Thread.sleep(5000);</code>{" "}
+                                al final de <code className="font-mono">main</code> (con{" "}
+                                <code className="font-mono">throws Exception</code> en la firma), o
+                                envuelve la creación del JFrame en{" "}
+                                <code className="font-mono">SwingUtilities.invokeAndWait(...)</code>.
+                              </p>
                             </div>
                           )}
                       </>
