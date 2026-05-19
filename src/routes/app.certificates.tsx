@@ -43,6 +43,11 @@ interface CertificateRow {
   teacher_names: string[];
   university_name: string | null;
   university_logo_url: string | null;
+  certificate_message: string | null;
+  signature_name: string | null;
+  signature_title: string | null;
+  signature_image_url: string | null;
+  footer_text: string | null;
   issued_at: string;
   revoked_at: string | null;
   revoke_reason: string | null;
@@ -90,6 +95,11 @@ function CertificatesAdmin() {
         teacherNames: cert.teacher_names,
         universityName: cert.university_name,
         universityLogoUrl: cert.university_logo_url,
+        certificateMessage: cert.certificate_message,
+        signatureName: cert.signature_name,
+        signatureTitle: cert.signature_title,
+        signatureImageUrl: cert.signature_image_url,
+        footerText: cert.footer_text,
         issuedAt: cert.issued_at,
         payloadHash: cert.payload_hash,
         revokedAt: cert.revoked_at,

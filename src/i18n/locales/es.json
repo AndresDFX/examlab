@@ -881,7 +881,7 @@
   "integrity": {
     "title": "Análisis de fraude",
     "subtitle": "Sospechas de IA y posibles copias entre estudiantes. Las señales se recalculan al calificar; ejecuta la detección de copias cuando todos hayan entregado.",
-    "detectButton": "Analizar fraudes",
+    "detectButton": "Analizar fraudes último intento",
     "detecting": "Analizando…",
     "summaryEmpty": "Sin señales detectadas todavía.",
     "summaryAi_one": "{{count}} sospecha de IA",

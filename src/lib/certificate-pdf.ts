@@ -35,6 +35,14 @@ export interface CertificateData {
   teacherNames: string[];
   universityName?: string | null;
   universityLogoUrl?: string | null;
+  /** Texto principal personalizable (admin/curso). Soporta placeholders
+   *  {student} {course} {grade} {period} {teacher} {date}. Si está vacío
+   *  se usa el cuerpo por defecto. */
+  certificateMessage?: string | null;
+  signatureName?: string | null;
+  signatureTitle?: string | null;
+  signatureImageUrl?: string | null;
+  footerText?: string | null;
   issuedAt: string;
   payloadHash: string;
   revokedAt?: string | null;
@@ -89,72 +97,139 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
     pdf.text(data.universityName.toUpperCase(), W / 2, M + 18, { align: "center" });
   }
 
-  // ── Título ─────────────────────────────────────────────────────────
-  pdf.setFontSize(36);
+  // ── Título — incluye el nombre del curso como subtítulo del header ──
+  pdf.setFontSize(32);
   pdf.setTextColor(30, 64, 175);
-  pdf.text("CERTIFICADO DE FINALIZACIÓN", W / 2, M + 38, { align: "center" });
+  pdf.text("CERTIFICADO DE FINALIZACIÓN", W / 2, M + 36, { align: "center" });
+  pdf.setFont("helvetica", "italic");
+  pdf.setFontSize(16);
+  pdf.setTextColor(50, 50, 50);
+  pdf.text(data.courseName.toUpperCase(), W / 2, M + 46, { align: "center" });
 
   // Línea decorativa
   pdf.setDrawColor(30, 64, 175);
   pdf.setLineWidth(0.6);
-  pdf.line(W / 2 - 40, M + 42, W / 2 + 40, M + 42);
+  pdf.line(W / 2 - 40, M + 50, W / 2 + 40, M + 50);
 
   // ── Cuerpo: certifica que… ────────────────────────────────────────
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(13);
   pdf.setTextColor(50, 50, 50);
-  pdf.text("Se certifica que", W / 2, M + 60, { align: "center" });
+  pdf.text("Se certifica que", W / 2, M + 64, { align: "center" });
 
   // Nombre del estudiante
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(28);
+  pdf.setFontSize(26);
   pdf.setTextColor(20, 20, 20);
-  pdf.text(data.studentFullName, W / 2, M + 76, { align: "center" });
+  pdf.text(data.studentFullName, W / 2, M + 80, { align: "center" });
 
   if (data.studentIdentification) {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(11);
     pdf.setTextColor(100, 116, 139);
-    pdf.text(`Identificación: ${data.studentIdentification}`, W / 2, M + 84, { align: "center" });
+    pdf.text(`Identificación: ${data.studentIdentification}`, W / 2, M + 88, { align: "center" });
   }
 
-  // Cuerpo del enunciado
+  // Cuerpo del enunciado — usa `certificateMessage` si está configurado,
+  // sustituyendo placeholders. Si no, usa el texto por defecto.
+  const issuedDateStr = formatDateLong(new Date(data.issuedAt));
+  const primaryTeacher = data.teacherNames[0] ?? "el docente";
+  const renderedMessage =
+    data.certificateMessage && data.certificateMessage.trim()
+      ? data.certificateMessage
+          .replace(/\{student\}/g, data.studentFullName)
+          .replace(/\{course\}/g, data.courseName)
+          .replace(/\{grade\}/g, Number(data.finalGrade).toFixed(2))
+          .replace(/\{period\}/g, data.coursePeriod ?? "")
+          .replace(/\{teacher\}/g, primaryTeacher)
+          .replace(/\{date\}/g, issuedDateStr)
+      : null;
+
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(13);
   pdf.setTextColor(50, 50, 50);
-  const periodSuffix = data.coursePeriod ? ` durante el periodo ${data.coursePeriod}` : "";
-  const body = `aprobó satisfactoriamente el curso${periodSuffix}`;
-  pdf.text(body, W / 2, M + 96, { align: "center" });
+  if (renderedMessage) {
+    // Wrap el mensaje custom a ancho útil para que multi-linea no se salga.
+    const wrapped = pdf.splitTextToSize(renderedMessage, W - 2 * M - 30);
+    pdf.text(wrapped, W / 2, M + 100, { align: "center" });
+  } else {
+    const periodSuffix = data.coursePeriod ? ` durante el periodo ${data.coursePeriod}` : "";
+    pdf.text(`aprobó satisfactoriamente el curso${periodSuffix}`, W / 2, M + 100, {
+      align: "center",
+    });
+    pdf.setFont("helvetica", "bolditalic");
+    pdf.setFontSize(18);
+    pdf.setTextColor(30, 64, 175);
+    pdf.text(`"${data.courseName}"`, W / 2, M + 112, { align: "center" });
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(13);
+    pdf.setTextColor(50, 50, 50);
+    pdf.text(
+      `con una calificación final de ${Number(data.finalGrade).toFixed(2)} / ${data.gradeScaleMax}`,
+      W / 2,
+      M + 122,
+      { align: "center" },
+    );
+  }
 
-  // Nombre del curso
-  pdf.setFont("helvetica", "bolditalic");
-  pdf.setFontSize(20);
-  pdf.setTextColor(30, 64, 175);
-  pdf.text(`"${data.courseName}"`, W / 2, M + 108, { align: "center" });
-
-  // Nota final
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(13);
-  pdf.setTextColor(50, 50, 50);
-  pdf.text(
-    `con una calificación final de ${Number(data.finalGrade).toFixed(2)} / ${data.gradeScaleMax}`,
-    W / 2,
-    M + 120,
-    { align: "center" },
-  );
-
-  // ── Docentes ────────────────────────────────────────────────────────
+  // ── Docente(s) responsables del curso ──────────────────────────────
   if (data.teacherNames.length > 0) {
     pdf.setFontSize(10);
     pdf.setTextColor(100, 116, 139);
     const label = data.teacherNames.length === 1 ? "Docente:" : "Docentes:";
-    pdf.text(`${label} ${data.teacherNames.join(", ")}`, W / 2, M + 132, { align: "center" });
+    pdf.text(`${label} ${data.teacherNames.join(", ")}`, W / 2, M + 134, { align: "center" });
   }
 
-  // ── Fecha de emisión ───────────────────────────────────────────────
+  // ── Fecha de generación + periodo (siempre visibles) ───────────────
   pdf.setFontSize(11);
   pdf.setTextColor(50, 50, 50);
-  pdf.text(`Emitido el ${formatDateLong(new Date(data.issuedAt))}`, M + 18, H - M - 24);
+  pdf.text(`Generado el ${issuedDateStr}`, M + 18, H - M - 24);
+  if (data.coursePeriod) {
+    pdf.setFontSize(10);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text(`Periodo: ${data.coursePeriod}`, M + 18, H - M - 18);
+  }
+
+  // ── Firma (centro abajo) ────────────────────────────────────────────
+  if (data.signatureName || data.signatureImageUrl) {
+    const sigCx = W / 2;
+    const sigY = H - M - 32;
+    if (data.signatureImageUrl) {
+      try {
+        const sigBytes = await fetchAsDataUrl(data.signatureImageUrl);
+        if (sigBytes) {
+          pdf.addImage(sigBytes, "PNG", sigCx - 25, sigY - 20, 50, 18, undefined, "FAST");
+        }
+      } catch {
+        /* logo opcional */
+      }
+    }
+    // Línea sobre la firma
+    pdf.setDrawColor(80, 80, 80);
+    pdf.setLineWidth(0.3);
+    pdf.line(sigCx - 35, sigY, sigCx + 35, sigY);
+    if (data.signatureName) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(50, 50, 50);
+      pdf.text(data.signatureName, sigCx, sigY + 5, { align: "center" });
+    }
+    if (data.signatureTitle) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(data.signatureTitle, sigCx, sigY + 10, { align: "center" });
+    }
+  }
+
+  // ── Pie de página personalizado (opcional) ────────────────────────
+  if (data.footerText && data.footerText.trim()) {
+    pdf.setFont("helvetica", "italic");
+    pdf.setFontSize(8);
+    pdf.setTextColor(120, 120, 120);
+    const wrapped = pdf.splitTextToSize(data.footerText.trim(), W - 2 * M - 30);
+    pdf.text(wrapped, W / 2, H - M - 6, { align: "center" });
+  }
 
   // ── Bloque de verificación con QR ──────────────────────────────────
   const verifyUrl = buildVerifyUrl(data.shortCode);
@@ -200,7 +275,11 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
   return pdf.output("blob");
 }
 
-/** Descarga directa con nombre estándar. */
+/** Descarga directa con nombre estándar.
+ *  Formato: `Certificado_<curso>_<periodo>_<estudiante>_<YYYY-MM-DD>_<short>.pdf`
+ *  El periodo y la fecha facilitan ordenar masivamente cuando el docente
+ *  emite/descarga muchos certificados en lote.
+ */
 export async function downloadCertificate(data: CertificateData): Promise<void> {
   const blob = await buildCertificatePdf(data);
   const url = URL.createObjectURL(blob);
@@ -208,7 +287,10 @@ export async function downloadCertificate(data: CertificateData): Promise<void> 
   a.href = url;
   const safeStudent = data.studentFullName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
   const safeCourse = data.courseName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
-  a.download = `Certificado_${safeStudent}_${safeCourse}_${data.shortCode}.pdf`;
+  const safePeriod = (data.coursePeriod ?? "").replace(/[^a-z0-9]+/gi, "_").slice(0, 20);
+  const issuedDate = new Date(data.issuedAt).toISOString().slice(0, 10);
+  const periodPart = safePeriod ? `${safePeriod}_` : "";
+  a.download = `Certificado_${safeCourse}_${periodPart}${safeStudent}_${issuedDate}_${data.shortCode}.pdf`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

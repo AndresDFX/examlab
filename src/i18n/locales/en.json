@@ -881,7 +881,7 @@
   "integrity": {
     "title": "Fraud analysis",
     "subtitle": "AI suspicions and possible copies between students. Signals are recomputed when grading; run copy detection once everyone has submitted.",
-    "detectButton": "Analyze fraud",
+    "detectButton": "Analyze last attempt fraud",
     "detecting": "Analyzing…",
     "summaryEmpty": "No signals detected yet.",
     "summaryAi_one": "{{count}} AI suspicion",

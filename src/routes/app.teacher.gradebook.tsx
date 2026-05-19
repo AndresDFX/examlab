@@ -853,6 +853,11 @@ function Gradebook() {
           teacherNames: cert.teacher_names ?? [],
           universityName: cert.university_name,
           universityLogoUrl: cert.university_logo_url,
+          certificateMessage: cert.certificate_message,
+          signatureName: cert.signature_name,
+          signatureTitle: cert.signature_title,
+          signatureImageUrl: cert.signature_image_url,
+          footerText: cert.footer_text,
           issuedAt: cert.issued_at,
           payloadHash: cert.payload_hash,
           revokedAt: cert.revoked_at,
@@ -1035,88 +1040,90 @@ function Gradebook() {
                     );
                   }
                   return visible.map((row) => {
-                  const passes =
-                    row.finalGrade != null ? row.finalGrade >= selectedCourse.passing_grade : null;
-                  return (
-                    <TableRow key={row.student.id}>
-                      <TableCell className="sticky left-0 z-10 bg-card">
-                        <div className="font-medium text-sm">{row.student.full_name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {row.student.institutional_email}
-                        </div>
-                      </TableCell>
-                      {row.cutGrades.map((cg) => (
-                        <TableCell key={cg.cutId} className="text-center text-sm tabular-nums">
-                          {cg.grade != null ? cg.grade.toFixed(2) : "—"}
+                    const passes =
+                      row.finalGrade != null
+                        ? row.finalGrade >= selectedCourse.passing_grade
+                        : null;
+                    return (
+                      <TableRow key={row.student.id}>
+                        <TableCell className="sticky left-0 z-10 bg-card">
+                          <div className="font-medium text-sm">{row.student.full_name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.student.institutional_email}
+                          </div>
                         </TableCell>
-                      ))}
-                      <TableCell
-                        className={`text-center text-sm font-semibold tabular-nums bg-muted/30 ${
-                          passes === true
-                            ? "text-success"
-                            : passes === false
-                              ? "text-destructive"
-                              : ""
-                        }`}
-                      >
-                        {row.finalGrade != null ? row.finalGrade.toFixed(2) : "—"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {(() => {
-                          const cert = certByUserId[row.student.id];
-                          if (cert) {
+                        {row.cutGrades.map((cg) => (
+                          <TableCell key={cg.cutId} className="text-center text-sm tabular-nums">
+                            {cg.grade != null ? cg.grade.toFixed(2) : "—"}
+                          </TableCell>
+                        ))}
+                        <TableCell
+                          className={`text-center text-sm font-semibold tabular-nums bg-muted/30 ${
+                            passes === true
+                              ? "text-success"
+                              : passes === false
+                                ? "text-destructive"
+                                : ""
+                          }`}
+                        >
+                          {row.finalGrade != null ? row.finalGrade.toFixed(2) : "—"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const cert = certByUserId[row.student.id];
+                            if (cert) {
+                              return (
+                                <div className="flex items-center justify-center gap-1">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                                  >
+                                    Emitido
+                                  </Badge>
+                                  <RowAction
+                                    label="Descargar PDF"
+                                    icon={Download}
+                                    onClick={() => void downloadCertForRow(cert)}
+                                  />
+                                  <RowAction
+                                    label="Abrir verificación"
+                                    icon={Eye}
+                                    onClick={() => {
+                                      window.open(buildVerifyUrl(cert.short_code), "_blank");
+                                    }}
+                                  />
+                                </div>
+                              );
+                            }
+                            if (passes !== true) {
+                              return (
+                                <span className="text-[11px] text-muted-foreground">
+                                  No aprueba
+                                </span>
+                              );
+                            }
                             return (
-                              <div className="flex items-center justify-center gap-1">
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
-                                >
-                                  Emitido
-                                </Badge>
-                                <RowAction
-                                  label="Descargar PDF"
-                                  icon={Download}
-                                  onClick={() => void downloadCertForRow(cert)}
-                                />
-                                <RowAction
-                                  label="Abrir verificación"
-                                  icon={Eye}
-                                  onClick={() => {
-                                    window.open(buildVerifyUrl(cert.short_code), "_blank");
-                                  }}
-                                />
-                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px]"
+                                onClick={() =>
+                                  void issueCertForStudent(row.student.id, row.finalGrade)
+                                }
+                                disabled={issuingId === row.student.id}
+                              >
+                                {issuingId === row.student.id ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <Award className="h-3 w-3 mr-1" />
+                                )}
+                                Emitir
+                              </Button>
                             );
-                          }
-                          if (passes !== true) {
-                            return (
-                              <span className="text-[11px] text-muted-foreground">
-                                No aprueba
-                              </span>
-                            );
-                          }
-                          return (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px]"
-                              onClick={() =>
-                                void issueCertForStudent(row.student.id, row.finalGrade)
-                              }
-                              disabled={issuingId === row.student.id}
-                            >
-                              {issuingId === row.student.id ? (
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              ) : (
-                                <Award className="h-3 w-3 mr-1" />
-                              )}
-                              Emitir
-                            </Button>
-                          );
-                        })()}
-                      </TableCell>
-                    </TableRow>
-                  );
+                          })()}
+                        </TableCell>
+                      </TableRow>
+                    );
                   });
                 })()}
               </TableBody>
