@@ -519,6 +519,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/certificates", "certificates"],
     ["/app/teacher/question-bank", "question_bank"],
     ["/app/teacher/ai-prompts", "ai_prompts"],
+    ["/app/teacher/contents", "contents"],
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],
   ];

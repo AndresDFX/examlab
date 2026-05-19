@@ -25,6 +25,7 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/teacher/calendar", "calendar"],
   ["/app/teacher/question-bank", "question_bank"],
   ["/app/teacher/ai-prompts", "ai_prompts"],
+  ["/app/teacher/contents", "contents"],
 
   // Rutas estudiante
   ["/app/student/workshops", "workshops"],

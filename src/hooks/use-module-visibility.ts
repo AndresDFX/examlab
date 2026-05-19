@@ -33,7 +33,8 @@ export type ModuleKey =
   | "ai_prompts"
   | "messages"
   | "dashboard"
-  | "videos";
+  | "videos"
+  | "contents";
 
 export type RoleKey = "Admin" | "Docente" | "Estudiante";
 
@@ -49,6 +50,23 @@ interface CombinedMaps {
 
 let cached: CombinedMaps | null = null;
 let pending: Promise<CombinedMaps> | null = null;
+// Pub/sub mínimo para notificar a los consumidores activos (Sidebar,
+// guards de ruta) cuando el admin guarda cambios desde el panel. Antes
+// la cache se invalidaba pero los componentes ya montados seguían con
+// el snapshot viejo en su useState — el admin tenía que recargar la
+// pestaña entera. Ahora cualquier llamada a `invalidateModuleVisibility`
+// dispara una re-carga y `notifyListeners()` cuando termina, forzando
+// re-render con los datos frescos.
+const listeners = new Set<() => void>();
+function notifyListeners(): void {
+  for (const fn of listeners) {
+    try {
+      fn();
+    } catch (e) {
+      console.warn("[module-visibility] listener throw:", e);
+    }
+  }
+}
 
 async function fetchVisibilityMap(): Promise<CombinedMaps> {
   if (cached) return cached;
@@ -92,13 +110,17 @@ async function fetchVisibilityMap(): Promise<CombinedMaps> {
 }
 
 /**
- * Limpia el cache. Útil tras editar la tabla desde el panel admin —
- * lo llamamos después de un UPDATE exitoso para que el nav refresque
- * sin recarga.
+ * Limpia el cache + re-fetcha + notifica a todos los consumidores. Tras
+ * `invalidateModuleVisibility()` cualquier hook montado recibe el nuevo
+ * snapshot via su listener, sin requerir recarga manual.
  */
 export function invalidateModuleVisibility(): void {
   cached = null;
   pending = null;
+  // Disparamos la re-fetch en background y notificamos a los listeners
+  // cuando el nuevo snapshot llega. Si el fetch falla (red caída, RLS),
+  // cached queda null y la próxima lectura volverá a intentar.
+  void fetchVisibilityMap().then(() => notifyListeners());
 }
 
 /**
@@ -149,21 +171,32 @@ export function useModuleVisibility(): {
   const [order, setOrder] = useState<OrderMap>(cached?.order ?? {});
   const [loading, setLoading] = useState(cached == null);
   useEffect(() => {
+    let cancelled = false;
+    // Helper: re-lee de DB y empuja al state. Se llama (a) en mount y
+    // (b) cuando un listener notifica que la cache cambió.
+    const refresh = () => {
+      void fetchVisibilityMap().then((m) => {
+        if (cancelled) return;
+        setMap(m.visibility);
+        setOrder(m.order);
+        setLoading(false);
+      });
+    };
+    // Carga inicial.
     if (cached) {
       setMap(cached.visibility);
       setOrder(cached.order);
       setLoading(false);
-      return;
+    } else {
+      refresh();
     }
-    let cancelled = false;
-    void fetchVisibilityMap().then((m) => {
-      if (cancelled) return;
-      setMap(m.visibility);
-      setOrder(m.order);
-      setLoading(false);
-    });
+    // Suscripción al pub/sub. `invalidateModuleVisibility` lo dispara
+    // tras guardar cambios desde el panel — re-fetchamos y re-render
+    // sin que el usuario tenga que recargar.
+    listeners.add(refresh);
     return () => {
       cancelled = true;
+      listeners.delete(refresh);
     };
   }, []);
   return { map, order, loading };

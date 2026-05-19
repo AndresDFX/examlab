@@ -50,6 +50,7 @@ const MODULES: Array<{ key: string; label: string }> = [
   { key: "calendar", label: "Calendario" },
   { key: "certificates", label: "Certificados" },
   { key: "tutor", label: "Tutor IA" },
+  { key: "contents", label: "Contenidos (Docente)" },
   { key: "question_bank", label: "Banco de preguntas" },
   { key: "ai_prompts", label: "Prompts IA" },
   { key: "messages", label: "Mensajes" },

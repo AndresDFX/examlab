@@ -174,8 +174,6 @@ function AdminDashboard() {
     count: number;
     topActions: Array<{ action: string; count: number }>;
   } | null>(null);
-  // Sesiones de examen activas (status='en_progreso' ahora mismo).
-  const [activeExamSessions, setActiveExamSessions] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -366,13 +364,6 @@ function AdminDashboard() {
           .slice(0, 3)
           .map(([action, count]) => ({ action, count })),
       });
-
-      // Sesiones de examen activas ahora — submissions en_progreso
-      const { count: activeCount } = await supabase
-        .from("submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "en_progreso");
-      setActiveExamSessions(activeCount ?? 0);
     })();
   }, []);
 
@@ -437,7 +428,7 @@ function AdminDashboard() {
           vertical disponible y los CTA quedan alineados abajo. Antes
           unas cards quedaban con espacio en blanco al final por las
           diferencias de contenido. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 auto-rows-fr">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 auto-rows-fr">
         {/* Ejecuciones IA recientes — vista compacta para que el
             dashboard quepa en una pantalla. Antes mostrábamos hasta
             20 items con tile circular + 2 líneas (~3000px), ahora 3
@@ -673,39 +664,6 @@ function AdminDashboard() {
             >
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 Ver auditoría de errores <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Sesiones de examen activas — verde si 0, ámbar si > 0 */}
-        <Card className="h-full flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-              Sesiones de examen activas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 flex-1 flex flex-col">
-            {activeExamSessions === null ? (
-              <p className="text-sm text-muted-foreground py-2">Cargando…</p>
-            ) : activeExamSessions === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Nadie está presentando exámenes en este momento.
-              </p>
-            ) : (
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-semibold tabular-nums text-amber-600 dark:text-amber-400">
-                  {activeExamSessions}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  estudiante{activeExamSessions === 1 ? "" : "s"} presentando ahora
-                </span>
-              </div>
-            )}
-            <Link to="/app/admin/audit-logs" className="block mt-auto">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver auditoría <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
