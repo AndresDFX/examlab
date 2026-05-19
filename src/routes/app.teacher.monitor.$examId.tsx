@@ -3582,8 +3582,8 @@ function ExamMonitor() {
           if (!open && !applyingReGrade) setReGradePreview(null);
         }}
       >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" />
               Revisión de recalificación con IA
@@ -3594,7 +3594,12 @@ function ExamMonitor() {
             </DialogDescription>
           </DialogHeader>
           {reGradePreview && (
-            <div className="space-y-4">
+            // flex-1 + overflow-y-auto: si el examen tiene 20+ preguntas
+            // el detalle por pregunta crece y antes desbordaba la
+            // ventana, recortando preguntas del final. Ahora el modal
+            // tiene altura fija (max-h-[90vh]) con scroll interno; el
+            // header y el footer quedan pinned.
+            <div className="space-y-4 flex-1 overflow-y-auto -mx-6 px-6 pb-2">
               {/* Resumen OLD vs NEW */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border bg-muted/30 p-3">
@@ -3651,13 +3656,20 @@ function ExamMonitor() {
                 </div>
               )}
 
-              {/* Breakdown por pregunta */}
+              {/* Breakdown por pregunta. ScrollArea max-h-[45vh] permite
+                  ver hasta ~10-12 preguntas sin desbordar; el resto se
+                  recorre con su propio scroll interno. Combinado con el
+                  scroll del modal, la lista nunca esconde preguntas. */}
               {reGradePreview.breakdown.length > 0 && (
                 <div className="rounded-lg border">
-                  <div className="px-3 py-2 border-b bg-muted/30 text-xs font-medium">
-                    Detalle por pregunta
+                  <div className="px-3 py-2 border-b bg-muted/30 text-xs font-medium flex items-center justify-between">
+                    <span>Detalle por pregunta</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      {reGradePreview.breakdown.length}{" "}
+                      {reGradePreview.breakdown.length === 1 ? "pregunta" : "preguntas"}
+                    </span>
                   </div>
-                  <ScrollArea className="max-h-64">
+                  <ScrollArea className="max-h-[45vh]">
                     <div className="divide-y">
                       {reGradePreview.breakdown.map((b, i) => {
                         const prev = reGradePreview.previous.breakdown?.find(
@@ -3707,7 +3719,7 @@ function ExamMonitor() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t pt-3">
             <Button
               variant="ghost"
               onClick={() => setReGradePreview(null)}
