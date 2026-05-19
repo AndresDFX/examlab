@@ -13,6 +13,12 @@
  *     base64. NO interactivo — el alumno solo VE la captura, no puede
  *     clickear. Sin licencia comercial. Ver docs/JAVA-GUI-OPTIONS.md.
  *
+ * Herencia automática: si el admin eligió `provider = aws_lambda` (el
+ * "judge" AWS) como compilador general Y no fijó `java_gui_provider`
+ * explícitamente, el runner asume `aws_screenshot` — el mismo Lambda
+ * sabe correr ambos endpoints (text execution + screenshot). Evita que
+ * el admin tenga que setear DOS campos para usar el judge AWS.
+ *
  * En ambos modos el código fuente se reporta vía onChange y se guarda
  * como respuesta de texto para ser calificada por la IA igual que las
  * preguntas de tipo "código".
@@ -41,11 +47,7 @@ type JavaGuiMode = "cheerp" | "aws_screenshot";
 declare global {
   interface Window {
     cheerpjInit?: (opts?: any) => Promise<void>;
-    cheerpjCreateDisplay?: (
-      width: number,
-      height: number,
-      container?: HTMLElement,
-    ) => void;
+    cheerpjCreateDisplay?: (width: number, height: number, container?: HTMLElement) => void;
     cheerpjRunMain?: (cls: string, cp: string, ...args: string[]) => Promise<number>;
     cheerpOSAddStringFile?: (path: string, contents: Uint8Array) => void;
     cheerpjAddStringFile?: (path: string, contents: Uint8Array) => void;
@@ -133,9 +135,7 @@ function loadCheerpJ(): Promise<void> {
         reject(e);
       }
     };
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${CHEERPJ_SRC}"]`,
-    );
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHEERPJ_SRC}"]`);
     if (existing) {
       if (window.cheerpjInit) void ready();
       else existing.addEventListener("load", ready, { once: true });
@@ -213,8 +213,17 @@ export function JavaGuiRunner({
     executionTimeMs: number;
   } | null>(null);
 
-  // Carga el provider una sola vez en mount. RLS permite SELECT a
-  // cualquier authenticated, así que no hace falta edge function.
+  // Resolución del modo Java GUI con dos campos en `code_execution_settings`:
+  //
+  //   1) `java_gui_provider` — explícito (cheerp | aws_screenshot). Si el
+  //      admin lo setea a `aws_screenshot`, gana SIEMPRE.
+  //   2) `provider` (el compilador general) — cuando el admin elige
+  //      `aws_lambda` ("judge"), heredamos automáticamente la lógica de
+  //      imagen para Swing: el runner se ejecuta server-side y la
+  //      respuesta es UN PNG (no embed CheerpJ). Esto evita que el admin
+  //      tenga que setear DOS campos para usar el judge AWS.
+  //
+  // Default `cheerp` si ningún criterio aplica (modo previo).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -222,12 +231,21 @@ export function JavaGuiRunner({
       const sb = supabase as any;
       const { data } = await sb
         .from("code_execution_settings")
-        .select("java_gui_provider")
+        .select("provider, java_gui_provider")
         .eq("is_active", true)
         .maybeSingle();
       if (cancelled) return;
-      const provider = (data as { java_gui_provider?: string } | null)?.java_gui_provider;
-      if (provider === "aws_screenshot") setMode("aws_screenshot");
+      const row = data as { provider?: string; java_gui_provider?: string } | null;
+      const explicit = row?.java_gui_provider;
+      if (explicit === "aws_screenshot") {
+        setMode("aws_screenshot");
+      } else if (explicit === "cheerp") {
+        setMode("cheerp");
+      } else if (row?.provider === "aws_lambda") {
+        // Admin eligió el "judge" AWS como compilador general — heredamos
+        // la lógica de imagen para Swing automáticamente.
+        setMode("aws_screenshot");
+      }
       setModeLoaded(true);
     })();
     return () => {
@@ -306,8 +324,7 @@ export function JavaGuiRunner({
         stderr: (data.stderr as string) ?? "",
         exitCode: typeof data.exitCode === "number" ? data.exitCode : 0,
         pngBytes: typeof data.pngBytes === "number" ? data.pngBytes : 0,
-        executionTimeMs:
-          typeof data.executionTimeMs === "number" ? data.executionTimeMs : 0,
+        executionTimeMs: typeof data.executionTimeMs === "number" ? data.executionTimeMs : 0,
       });
       setHasRun(true);
     } catch (e: unknown) {
@@ -583,13 +600,9 @@ export function JavaGuiRunner({
                         className="max-w-full max-h-full object-contain"
                       />
                     ) : running ? (
-                      <span className="text-xs text-muted-foreground">
-                        Esperando captura…
-                      </span>
+                      <span className="text-xs text-muted-foreground">Esperando captura…</span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">
-                        Sin captura disponible.
-                      </span>
+                      <span className="text-xs text-muted-foreground">Sin captura disponible.</span>
                     )}
                   </div>
                 ) : (

@@ -104,33 +104,33 @@ const LANG_OPTIONS: Array<{ value: keyof typeof LANG_TO_EXT; label: string }> = 
 const MAX_CODE_FILES_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB sumados.
 const MAX_CODE_FILES_COUNT = 50;
 
-// Archivos vetados aunque su extensión coincida con allowedExtensions.
-// .gitignore y similares son metadata de VCS/IDE — no aportan código y
-// generan ruido en el prompt de la IA. El estudiante recibe toast y debe
-// quitarlos de la selección.
-const BLOCKED_FILENAMES = new Set([
-  ".gitignore",
-  ".gitattributes",
-  ".dockerignore",
-  ".editorconfig",
-  ".prettierrc",
-  ".eslintrc",
-  ".npmignore",
-  ".env",
-  ".env.local",
-  ".env.example",
-  "thumbs.db",
-  "desktop.ini",
-  ".ds_store",
-]);
-
-function isBlockedFile(name: string): boolean {
-  const lower = name.toLowerCase().split("/").pop() ?? "";
-  if (BLOCKED_FILENAMES.has(lower)) return true;
-  // Archivos hidden con punto inicial sin extensión real (.gitkeep, etc.):
-  // si el nombre empieza por "." y no tiene una segunda extensión, rechazar.
-  if (lower.startsWith(".") && !lower.slice(1).includes(".")) return true;
-  return false;
+/**
+ * Política de subida = WHITELIST estricto. Un archivo es válido si y
+ * solo si su extensión está en `allowedExts` del lenguaje (Java → solo
+ * `.java`, Python → `.py`, etc.). No usamos blacklist auxiliar porque
+ * cualquier cosa fuera del whitelist ya queda rechazada por definición:
+ *
+ *   `.gitignore` → ext "gitignore" no está en ["java"] → rechaza.
+ *   `.env`       → ext "env"       no está en ["java"] → rechaza.
+ *   `pom.xml`    → ext "xml"       no está en ["java"] → rechaza.
+ *   `README.md`  → ext "md"        no está en ["java"] → rechaza.
+ *   `Main`       → sin extensión real → rechaza (regla abajo).
+ *
+ * Esta función también dice "rechazar" cuando:
+ *   - El nombre no tiene punto en absoluto (binario sin extensión).
+ *   - El nombre arranca con punto y NO tiene segunda extensión real
+ *     (`.gitignore`, `.env`, `.gitkeep`, etc.).
+ *
+ * Devuelve true si el archivo pasa el whitelist.
+ */
+function isFileAllowed(name: string, allowedExts: string[] | null): boolean {
+  // Sin restricción de lenguaje configurada → no validamos extensión.
+  if (!allowedExts || allowedExts.length === 0) return true;
+  const base = name.split("/").pop() ?? name;
+  // Hidden / sin extensión real: rechaza.
+  if (!base.includes(".") || base.startsWith(".")) return false;
+  const ext = (base.split(".").pop() ?? "").toLowerCase();
+  return allowedExts.includes(ext);
 }
 
 export type ProjectFile = {
@@ -1311,24 +1311,11 @@ export function StudentProjectTaker({
               "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
           } else {
             // Validación cliente-side defense-in-depth (el picker ya
-            // filtra al elegir, pero un estado React stale o un archivo
-            // legacy podrían colarse aquí).
-            const blocked = filesArr.filter((f) => isBlockedFile(f.name));
-            if (blocked.length > 0) {
-              const sample = blocked
-                .slice(0, 5)
-                .map((f) => f.name)
-                .join(", ");
-              const more = blocked.length > 5 ? ` (+${blocked.length - 5} más)` : "";
-              payload.ai_grade = 0;
-              payload.ai_feedback = `Archivos no permitidos (config/metadata): ${sample}${more}.`;
-              toast.error(payload.ai_feedback, { duration: 8000 });
-            } else if (allowedExtensions) {
-              const violations = filesArr.filter((f) => {
-                const ext = (f.name.split(".").pop() ?? "").toLowerCase();
-                if (!f.name.includes(".") || f.name.startsWith(".")) return true;
-                return !allowedExtensions.includes(ext);
-              });
+            // filtra al elegir, pero un estado React stale podría colar
+            // archivos viejos). Whitelist puro: anything no permitido
+            // por extensión rechaza, incluye `.gitignore`/`.env`/etc.
+            if (allowedExtensions) {
+              const violations = filesArr.filter((f) => !isFileAllowed(f.name, allowedExtensions));
               if (violations.length > 0) {
                 const sample = violations
                   .slice(0, 5)
@@ -1761,41 +1748,18 @@ export function StudentProjectTaker({
                       onChange={(e) => {
                         const picked = Array.from(e.target.files ?? []);
                         if (picked.length === 0) {
-                          updateAnswer(q.id, []);
+                          // El usuario abrió el picker y canceló — no
+                          // pisamos la selección actual.
                           return;
                         }
-                        // 1) Veto a archivos hidden / config (.gitignore,
-                        // .editorconfig, .env, .DS_Store…) aunque la
-                        // extensión coincida o sea "vacía". No aportan
-                        // código y ensucian el prompt de la IA.
-                        const blocked = picked.filter((f) => isBlockedFile(f.name));
-                        if (blocked.length > 0) {
-                          const sample = blocked
-                            .slice(0, 5)
-                            .map((f) => f.name)
-                            .join(", ");
-                          const more = blocked.length > 5 ? ` (+${blocked.length - 5} más)` : "";
-                          toast.error(
-                            `Archivos no permitidos (config/metadata): ${sample}${more}. Quítalos de la selección y vuelve a intentar.`,
-                            { duration: 8000 },
-                          );
-                          e.target.value = "";
-                          return;
-                        }
-                        // 2) Validación de extensión ANTES de aceptar la
-                        // selección. Si hay alguna extensión no permitida,
-                        // rechazamos toda la tanda — el usuario debe
-                        // reseleccionar con archivos válidos.
+                        // 1) Whitelist estricta por extensión. Cualquier
+                        // archivo cuya extensión no esté en `allowedExts`
+                        // (Java → ["java"]) queda rechazado. Esto incluye
+                        // hidden/config (.gitignore, .env, .DS_Store) y
+                        // archivos sin extensión, sin necesidad de
+                        // mantener una blacklist aparte.
                         if (allowedExts) {
-                          const bad = picked.filter((f) => {
-                            const ext = (f.name.split(".").pop() ?? "").toLowerCase();
-                            // Sin extensión real (file.name sin "." o
-                            // empieza por "."): rechazamos. Ya cubrimos
-                            // los conocidos en isBlockedFile, esto cierra
-                            // el resto.
-                            if (!f.name.includes(".") || f.name.startsWith(".")) return true;
-                            return !allowedExts.includes(ext);
-                          });
+                          const bad = picked.filter((f) => !isFileAllowed(f.name, allowedExts));
                           if (bad.length > 0) {
                             const sample = bad
                               .slice(0, 5)
@@ -1810,8 +1774,21 @@ export function StudentProjectTaker({
                             return;
                           }
                         }
-                        // 3) Validación de tamaño total + cuenta.
-                        const totalBytes = picked.reduce((a, f) => a + f.size, 0);
+                        // 2) Mezcla con la selección actual — el estudiante
+                        // puede agregar más archivos sin perder los previos.
+                        // Si pica el mismo nombre dos veces, el nuevo
+                        // reemplaza al viejo (key = nombre + tamaño).
+                        const merged: File[] = [...current];
+                        for (const f of picked) {
+                          const idx = merged.findIndex(
+                            (m) => m.name === f.name && m.size === f.size,
+                          );
+                          if (idx >= 0) merged[idx] = f;
+                          else merged.push(f);
+                        }
+                        // 3) Validación de tamaño total + cuenta sobre el
+                        // resultado merged.
+                        const totalBytes = merged.reduce((a, f) => a + f.size, 0);
                         if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
                             `Los archivos suman ${(totalBytes / 1024 / 1024).toFixed(1)} MB y superan el tope de 50 MB.`,
@@ -1819,9 +1796,9 @@ export function StudentProjectTaker({
                           e.target.value = "";
                           return;
                         }
-                        if (picked.length > MAX_CODE_FILES_COUNT) {
+                        if (merged.length > MAX_CODE_FILES_COUNT) {
                           toast.error(
-                            `Seleccionaste ${picked.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+                            `Seleccionaste ${merged.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
                           );
                           e.target.value = "";
                           return;
@@ -1833,30 +1810,66 @@ export function StudentProjectTaker({
                           e.target.value = "";
                           return;
                         }
-                        updateAnswer(q.id, picked);
+                        // Limpiamos el input para que volver a seleccionar
+                        // el mismo archivo dispare onChange (algunos
+                        // browsers no lo hacen si value es igual).
+                        e.target.value = "";
+                        updateAnswer(q.id, merged);
                       }}
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Selecciona varios archivos de código fuente directamente desde tu equipo — sin
-                      comprimir. Extensiones aceptadas:{" "}
+                      Selecciona uno o varios archivos de código fuente directamente desde tu equipo
+                      — sin comprimir. Extensiones aceptadas:{" "}
                       <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB en total y
-                      hasta {MAX_CODE_FILES_COUNT} archivos. La IA evalúa todos los archivos en un
-                      solo prompt para calificar el proyecto como conjunto.
+                      hasta {MAX_CODE_FILES_COUNT} archivos. Puedes quitar archivos antes de enviar.
                     </p>
                     {current.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {current.map((f, i) => {
-                          const sizeStr =
-                            f.size < 1024 * 1024
-                              ? `${Math.max(1, Math.round(f.size / 1024))} KB`
-                              : `${(f.size / 1024 / 1024).toFixed(1)} MB`;
-                          return (
-                            <Badge key={i} variant="secondary" className="text-[10px]">
-                              {f.name} · {sizeStr}
-                            </Badge>
-                          );
-                        })}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span>
+                            {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
+                            {(current.reduce((a, f) => a + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateAnswer(q.id, [])}
+                            className="text-destructive hover:underline"
+                          >
+                            Quitar todos
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {current.map((f, i) => {
+                            const sizeStr =
+                              f.size < 1024 * 1024
+                                ? `${Math.max(1, Math.round(f.size / 1024))} KB`
+                                : `${(f.size / 1024 / 1024).toFixed(1)} MB`;
+                            return (
+                              <Badge
+                                key={`${f.name}-${f.size}-${i}`}
+                                variant="secondary"
+                                className="text-[10px] gap-1 pr-1"
+                              >
+                                <span className="truncate max-w-[12rem]">{f.name}</span>
+                                <span className="text-muted-foreground">· {sizeStr}</span>
+                                <button
+                                  type="button"
+                                  aria-label={`Quitar ${f.name}`}
+                                  className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
+                                  onClick={() =>
+                                    updateAnswer(
+                                      q.id,
+                                      current.filter((_, j) => j !== i),
+                                    )
+                                  }
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
