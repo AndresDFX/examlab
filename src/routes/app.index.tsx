@@ -141,19 +141,6 @@ function AdminDashboard() {
     questionsGenLastHour: 0,
     plagiarismLastHour: 0,
   });
-  // Ejecuciones recientes de IA — reemplazo del card "Usuarios recientes".
-  // Lista cada llamada con su action, severity y actor para que el admin
-  // pueda inspeccionar rápido el detalle (entry → metadata.response_snippet).
-  const [recentAiExecs, setRecentAiExecs] = useState<
-    Array<{
-      id: string;
-      action: string;
-      severity: string;
-      actor_email: string | null;
-      created_at: string;
-      metadata: Record<string, unknown> | null;
-    }>
-  >([]);
   /** Métricas del módulo de email — últimas 24h. Reemplazo del bloque
    *  de "Opciones rápidas" (Usuarios + Cursos eran solo atajos
    *  duplicados del sidebar; este widget aporta info operacional real
@@ -243,7 +230,11 @@ function AdminDashboard() {
       // Filtramos por las acciones que ya estaban definidas (audit log
       // labels). Si alguna no aparece la migración no se ha aplicado y
       // el count queda en 0 sin romper.
-      const [aiCallsRes, aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes, aiRecentRes] =
+      // `list_recent_ai_executions` se quitó del Promise.all junto con su
+      // setter — la card "Ejecuciones IA" se removió del dashboard porque
+      // duplicaba lo que la cola IA full-width ya expone. Si en el futuro
+      // se necesita el listado detallado, está en /app/admin/audit-logs.
+      const [aiCallsRes, aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes] =
         await Promise.all([
           dbAny
             .from("audit_logs")
@@ -278,7 +269,6 @@ function AdminDashboard() {
             .select("id", { count: "exact", head: true })
             .eq("action", "ai_plagiarism.detected")
             .gte("created_at", sinceHour),
-          dbAny.rpc("list_recent_ai_executions", { _limit: 20 }),
         ]);
       setAiStats({
         callsLastHour: aiCallsRes.count ?? 0,
@@ -287,16 +277,6 @@ function AdminDashboard() {
         questionsGenLastHour: aiQuestionsRes.count ?? 0,
         plagiarismLastHour: aiPlagiarismRes.count ?? 0,
       });
-      setRecentAiExecs(
-        (aiRecentRes.data as Array<{
-          id: string;
-          action: string;
-          severity: string;
-          actor_email: string | null;
-          created_at: string;
-          metadata: Record<string, unknown> | null;
-        }>) ?? [],
-      );
 
       const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
         dbAny
@@ -413,108 +393,23 @@ function AdminDashboard() {
         />
       </div>
 
-      {/* Widget de cola IA — Admin ve botón "Procesar ahora" para
-          drenar la cola manualmente sin esperar al cron hourly. */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <AiGradingQueueWidget isAdmin />
-      </div>
+      {/* Cola IA full-width — Admin ve botón "Procesar ahora" para
+          drenar la cola sin esperar al cron hourly. Antes ocupaba una
+          de 3 columnas; lo extendimos a todo el ancho porque la
+          observabilidad de la cola es la métrica operacional más
+          importante en el dashboard (job pending, retries, throughput)
+          y le faltaba espacio horizontal para mostrar todo lo que tiene
+          que mostrar. La card "Ejecuciones IA" que vivía aquí se quitó
+          — duplicaba info que la cola ya expone y no aportaba acción
+          accionable distinta. */}
+      <AiGradingQueueWidget isAdmin />
 
-      {/* Grilla de 4 columnas en lg+ para que las 4 cards operacionales
-          (Ejecuciones IA, Correos, Errores, Sesiones) quepan en una
-          sola fila. En md son 2 columnas, en mobile 1.
-          `auto-rows-fr` fuerza que TODAS las filas tengan la misma
-          altura (= la del item más alto). Combinado con `h-full` en
-          cada Card y el footer `mt-auto`, las 4 cards llenan el espacio
-          vertical disponible y los CTA quedan alineados abajo. Antes
-          unas cards quedaban con espacio en blanco al final por las
-          diferencias de contenido. */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 auto-rows-fr">
-        {/* Ejecuciones IA recientes — vista compacta para que el
-            dashboard quepa en una pantalla. Antes mostrábamos hasta
-            20 items con tile circular + 2 líneas (~3000px), ahora 3
-            items en una sola línea cada uno con icono inline. Link al
-            final mantiene el acceso a la auditoría completa. */}
-        <Card className="h-full flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-500" /> Ejecuciones IA (24h)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 flex-1 flex flex-col">
-            {/* Mini tiles ok/fallidas — mismo patrón visual que el card
-                de "Correos" para que el admin escanee health en una
-                pasada vertical. Ok = ejecuciones con severity != 'error';
-                Fallidas = severity === 'error'. */}
-            {(() => {
-              const okCount = recentAiExecs.filter((e) => e.severity !== "error").length;
-              const failedCount = recentAiExecs.filter((e) => e.severity === "error").length;
-              return (
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-md p-2.5 bg-emerald-500/10">
-                    <div className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                      {okCount}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">Exitosas</div>
-                  </div>
-                  <div className="rounded-md p-2.5 bg-destructive/10">
-                    <div className="text-2xl font-semibold tabular-nums text-destructive">
-                      {failedCount}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">Fallidas</div>
-                  </div>
-                </div>
-              );
-            })()}
-            {recentAiExecs.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Sin ejecuciones de IA en las últimas 24 horas.
-              </p>
-            ) : (
-              recentAiExecs.slice(0, 3).map((e) => {
-                const created = new Date(e.created_at);
-                const diffMs = Date.now() - created.getTime();
-                const diffMin = Math.floor(diffMs / 60000);
-                const relative = diffMin < 1 ? "ahora" : diffMin < 60 ? `${diffMin}m` : "1h";
-                const isError = e.severity === "error";
-                const labelByAction: Record<string, string> = {
-                  "ai.grading_started": "Calificación iniciada",
-                  "ai.grading_failed": "Error de IA",
-                  "ai_grading.completed": "Calificación completada",
-                  "ai_questions.generated": "Preguntas generadas",
-                  "ai_plagiarism.detected": "Plagio detectado",
-                  "ai.grading_retry_run": "Reintento automático",
-                  "ai.questions_generation_failed": "Error generación preguntas",
-                };
-                const label = labelByAction[e.action] ?? e.action;
-                return (
-                  <div
-                    key={e.id}
-                    className="flex items-center gap-2 px-2 py-1 rounded text-xs hover:bg-muted/40"
-                  >
-                    {isError ? (
-                      <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-                    ) : (
-                      <Sparkles className="h-3 w-3 text-indigo-500 shrink-0" />
-                    )}
-                    <span className="truncate flex-1 font-medium">{label}</span>
-                    <span className="text-muted-foreground truncate hidden sm:inline max-w-[140px]">
-                      {e.actor_email ?? "cron"}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums w-10 text-right">
-                      {relative}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-            <Link to="/app/admin/audit-logs" className="block mt-auto">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1 h-7">
-                Ver auditoría completa <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
+      {/* Grilla operacional de 2 columnas: Correos + Errores. Antes era
+          de 3 (incluía "Ejecuciones IA"); con la card removida el grid
+          se balancea a 2 cols extendidas, cada card duplica su ancho
+          horizontal en pantallas md+ — más legible. En mobile sigue
+          siendo 1 columna. `auto-rows-fr` mantiene alineación vertical. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 auto-rows-fr">
         {/* Métricas de correo — últimas 24h. Reemplaza el bloque de
             "Opciones rápidas" porque ese era solo un atajo duplicado del
             sidebar. Este widget aporta info operacional real: el admin

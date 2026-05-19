@@ -294,9 +294,16 @@ rm -f /tmp/runner-selftest.out
 # y el stderr contiene el stacktrace.
 echo ""
 echo "▶ Self-test GUI (modo gui_screenshot — valida deps de AWT/Xvfb)…"
-GUI_TEST_SOURCE='import javax.swing.*;public class Main{public static void main(String[] a){SwingUtilities.invokeLater(()->{JFrame f=new JFrame("ok");f.setSize(200,80);f.setVisible(true);});try{Thread.sleep(800);}catch(Exception e){}}}'
-GUI_TEST_BODY=$(jq -n --arg src "$GUI_TEST_SOURCE" '{mode:"gui_screenshot", sourceCode:$src, delayMs:1000}' 2>/dev/null || cat <<EOF
-{"mode":"gui_screenshot","sourceCode":$(printf '%s' "$GUI_TEST_SOURCE" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))'),"delayMs":1000}
+# Patrón canónico — usa invokeAndWait para garantizar que Swing pinte
+# ANTES de que main termine. invokeLater + Thread.sleep(800) era frágil:
+# en cold start (>2s solo Toolkit init), el sleep terminaba antes de
+# que el EDT procesara el Runnable y Xvfb quedaba vacío. Con
+# invokeAndWait el main bloquea hasta que la ventana esté visible.
+# Después un Thread.sleep extra de 2s garantiza que la captura tenga
+# margen incluso si la JVM empieza a hacer GC justo en ese momento.
+GUI_TEST_SOURCE='import javax.swing.*;public class Main{public static void main(String[] a) throws Exception{SwingUtilities.invokeAndWait(()->{JFrame f=new JFrame("ok");f.setSize(200,80);f.setVisible(true);});Thread.sleep(2000);}}'
+GUI_TEST_BODY=$(jq -n --arg src "$GUI_TEST_SOURCE" '{mode:"gui_screenshot", sourceCode:$src, delayMs:3500}' 2>/dev/null || cat <<EOF
+{"mode":"gui_screenshot","sourceCode":$(printf '%s' "$GUI_TEST_SOURCE" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))'),"delayMs":3500}
 EOF
 )
 GUI_STATUS=$(curl -s -o /tmp/runner-gui.out -w "%{http_code}" \

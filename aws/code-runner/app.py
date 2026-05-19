@@ -96,9 +96,11 @@ GUI_WIDTH = 1024
 GUI_HEIGHT = 768
 # Ventana de tiempo (ms) entre que arrancamos la JVM y hacemos la
 # captura. Swing tarda en pintar la primera frame: ~500ms warm,
-# ~1500-2000ms cold. Le damos 2000ms por default. El cliente puede
-# pedir más con `delayMs` (cap a 8s para no agotar el Lambda timeout).
-GUI_DEFAULT_DELAY_MS = 2000
+# ~2000-3000ms cold (JVM init + Toolkit init + EDT pump). 3500ms le
+# da margen para que Swing termine antes de la captura. El cliente
+# puede pedir más con `delayMs` (cap a 8s para no agotar el Lambda
+# timeout de 50s).
+GUI_DEFAULT_DELAY_MS = 3500
 GUI_MAX_DELAY_MS = 8000
 # Tope de tamaño del PNG retornado. 1024x768x24 limpio comprime a
 # ~50-200KB; le damos margen.
@@ -315,16 +317,43 @@ def _handle_gui_screenshot(
             stderr=subprocess.PIPE,
         )
 
-        # Espera a que Swing pinte. Si el proceso muere antes (NPE en
-        # main, ClassNotFoundException, etc.) lo detectamos sin esperar
-        # los 2s completos.
+        # Espera SIEMPRE el delay completo. Antes rompíamos el loop
+        # apenas la JVM terminaba (early_exit) y capturábamos
+        # inmediatamente — eso causaba el bug "captura vacía" cuando
+        # el código del estudiante hace:
+        #
+        #   SwingUtilities.invokeLater(() -> { JFrame ... });
+        #   // main termina aquí → JVM sale antes de que el EDT pinte
+        #
+        # `invokeLater` es ASÍNCRONO: encola el Runnable en el Event
+        # Dispatch Thread y retorna. Si `main` no espera (Thread.sleep,
+        # invokeAndWait, JOptionPane.showMessageDialog, etc.), la JVM
+        # se cierra antes de que el EDT procese el Runnable, y Xvfb
+        # queda con su framebuffer vacío (frame negro de ~3-4KB).
+        #
+        # Fix: ya no rompemos el wait. Esperamos delayMs completos:
+        #  - Si Java sigue corriendo: Swing pinta y Xvfb actualiza
+        #    el framebuffer.
+        #  - Si Java murió pero alcanzó a pintar antes: el framebuffer
+        #    mantiene la última frame pintada (Xvfb no la borra al
+        #    desconectar el cliente). Capturamos eso.
+        #  - Si Java murió sin pintar nada: el framebuffer queda
+        #    vacío. La condición `pngBytes < 4000` del cliente lo
+        #    detecta y muestra mensaje "agrega Thread.sleep al final
+        #    de main".
+        #
+        # Loggeamos si la JVM terminó temprano para diagnóstico
+        # (early_exit != None) sin afectar el flujo.
         deadline = time.time() + (delay_ms / 1000.0)
         early_exit = None
         while time.time() < deadline:
             rc = java_proc.poll()
-            if rc is not None:
+            if rc is not None and early_exit is None:
                 early_exit = rc
-                break
+                # NO break — seguimos esperando que se cumpla el
+                # deadline para que Swing termine de pintar (si
+                # alcanzó a empezar) o para que el framebuffer
+                # quede estable antes de capturar.
             time.sleep(0.05)
 
         # ── Capturar screenshot (framebuffer raw → PNG con Pillow) ──

@@ -560,6 +560,20 @@ export function JavaGuiRunner({
                           screenshotData.stdout,
                           screenshotData.stderr,
                           `\n[runner] exit=${screenshotData.exitCode} • ${formatFileSize(screenshotData.pngBytes)} • ${screenshotData.executionTimeMs} ms`,
+                          // Hint cuando la captura sale prácticamente
+                          // vacía (~3-4KB es Xvfb sin contenido). El
+                          // patrón típico es: SwingUtilities.invokeLater
+                          // es ASÍNCRONO, y si main termina antes de
+                          // que el EDT pinte, la JVM se cierra con el
+                          // framebuffer en negro. Sugerimos el fix.
+                          screenshotData.exitCode === 0 &&
+                          screenshotData.pngBytes > 0 &&
+                          screenshotData.pngBytes < 4000
+                            ? "\n[hint] La captura quedó vacía. Probablemente tu main terminó antes\n" +
+                              "       de que Swing pintara la ventana. Agrega al final de main:\n" +
+                              "         Thread.sleep(5000);  // o más, hasta que veas la ventana\n" +
+                              "       O usa SwingUtilities.invokeAndWait(...) en lugar de invokeLater."
+                            : "",
                         ]
                           .filter(Boolean)
                           .join("\n")
