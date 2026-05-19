@@ -67,7 +67,9 @@ function shouldSendEmail(params: {
     params.kind === "system" &&
     typeof params.link === "string" &&
     params.link.startsWith("/auth/reset-password");
-  if (!isCriticalKind && !isMessage && !isPasswordReset) return { send: false, reason: "kind_not_critical" };
+  if (!isCriticalKind && !isMessage && !isPasswordReset) {
+    return { send: false, reason: "kind_not_critical" };
+  }
   if (params.userOptedOut) return { send: false, reason: "user_opted_out" };
   return { send: true, reason: null };
 }
@@ -100,10 +102,15 @@ function renderEmailHtml(params: {
     ? (params.appUrl.replace(/\/+$/, "") + params.link).replace(/(?<!:)\/\/+/g, "/")
     : null;
   // Mantener sincronizado con src/lib/notification-email.ts:
-  // /auth/reset-password → CTA "Restablecer contraseña".
+  //   /auth/reset-password         → "Restablecer contraseña".
+  //   /auth/confirm-email-change   → "Confirmar nuevo correo".
+  // Cada rama de link especial obtiene un CTA propio; el resto cae al
+  // genérico "Ver en <Brand>".
   const ctaLabel = params.link?.startsWith("/auth/reset-password")
     ? "Restablecer contraseña"
-    : `Ver en ${brand}`;
+    : params.link?.startsWith("/auth/confirm-email-change")
+      ? "Confirmar nuevo correo"
+      : `Ver en ${brand}`;
   const cta = fullLink
     ? `
       <tr>
@@ -417,14 +424,37 @@ Deno.serve(async (req: Request) => {
       // que el docente/admin monitorea). Sin esto, Outlook penaliza
       // el trust score por ausencia de canal de respuesta.
       replyTo: from,
-      // Asunto branded: prefijo "<BrandName> — " antes del título de la
+      // Asunto branded: prefijo "<BrandName>: " antes del título de la
       // notificación. Mejora deliverability (clientes pesan el brand al
       // clasificar) y le da contexto inmediato al alumno cuando ve
       // varios correos en el inbox. Idempotente: si el title ya empieza
-      // con el brand (legacy o template manual), no lo duplicamos.
-      subject: row.title.toLowerCase().startsWith(fromName.toLowerCase())
-        ? row.title
-        : `${fromName} — ${row.title}`,
+      // con el brand, no lo duplicamos.
+      //
+      // IMPORTANTE — uso ":" (ASCII) y NO "—" (em-dash U+2014):
+      //   denomailer 1.6.0 codifica el subject con RFC 2047 encoded-word
+      //   (=?UTF-8?Q?...?=) cuando detecta cualquier char > 0x7F. Si el
+      //   resultado supera 75 bytes lo parte con \n+TAB en lugar de
+      //   CRLF+SPACE, y algunos relays SMTP (notablemente Gmail outbound)
+      //   re-encoden esa partición mal. El cliente final ve un trozo
+      //   suelto del subject ("n II?=") arriba de los otros headers y
+      //   pierde sincronía con el parseo MIME del cuerpo (queda como
+      //   texto crudo). Forzando ":" mantenemos el prefijo en ASCII puro
+      //   — solo el title del row entra al encoded-word y suele caber.
+      //
+      // Sanitización del título: si el title viene con chars de control
+      // o saltos de línea (raro pero posible si el docente inyecta
+      // metadata), los limpiamos. Newlines en headers SMTP son una de
+      // las clásicas inyecciones (header injection attack).
+      subject: (() => {
+        const cleanTitle = (row.title ?? "")
+          .replace(/[\r\n\t]+/g, " ")
+          .trim()
+          .slice(0, 200); // tope defensivo para no sobrepasar límites SMTP
+        if (cleanTitle.toLowerCase().startsWith(fromName.toLowerCase())) {
+          return cleanTitle;
+        }
+        return `${fromName}: ${cleanTitle}`;
+      })(),
       content: text,
       html,
       // Headers extra para deliverability — especialmente Outlook/

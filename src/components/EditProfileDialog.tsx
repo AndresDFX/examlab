@@ -9,11 +9,16 @@
  *  - El UPDATE a profiles lo gobierna la RLS "Users update own profile"
  *    (auth.uid() = id) que ya existe — no requiere SECURITY DEFINER ni
  *    edge function.
- *  - Cuando cambia institutional_email, Supabase Auth envía un correo
- *    de confirmación al NUEVO email. Hasta que el usuario lo confirme,
- *    auth.users.email sigue siendo el anterior; pero profiles ya queda
- *    actualizado. Se lo avisamos en un toast info para que no se
- *    confunda viendo el viejo email en su sesión.
+ *  - Cuando cambia institutional_email, NO actualizamos auth.users.email
+ *    directamente. Llamamos a la edge function `request-email-change`
+ *    que genera un token y dispara un correo de confirmación por
+ *    NUESTRO SMTP (en lugar del SMTP opaco de Supabase Auth). Hasta que
+ *    el usuario clickee el link del correo, auth.users.email sigue
+ *    siendo el anterior y profiles.institutional_email NO se cambia.
+ *    Esto evita el estado desync que teníamos antes con
+ *    `auth.updateUser({email})` (donde el profile se actualizaba pero
+ *    el login seguía con el viejo). Ver
+ *    [supabase/functions/request-email-change](supabase/functions/request-email-change/index.ts).
  *  - La contraseña sigue viviendo en ChangePasswordDialog aparte — son
  *    dos flujos distintos y combinarlos forza al usuario a re-escribir
  *    la password aun cuando solo edita su nombre.
@@ -117,40 +122,76 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       const pers = personal.trim().toLowerCase();
       if (pers && (await checkEmail(pers, "personal"))) return;
 
-      // 1) UPDATE de profiles (gobernado por RLS own-row). Mandamos solo
-      //    los campos editables.
+      // 1) UPDATE de profiles. NO incluimos institutional_email si
+      //    cambió — ese pasa por el flujo custom de confirmación (paso 2).
+      //    Hacerlo aquí desync-aría profile vs auth.users hasta que el
+      //    usuario clickee el link. Los demás campos sí van.
+      const profilePatch: Record<string, unknown> = {
+        full_name: fullName.trim(),
+        personal_email: pers ? pers : null,
+      };
+      if (!institutionalChanged) {
+        profilePatch.institutional_email = inst;
+      }
       const { error: profErr } = await supabase
         .from("profiles")
-        .update({
-          full_name: fullName.trim(),
-          institutional_email: inst,
-          personal_email: pers ? pers : null,
-        })
+        .update(profilePatch)
         .eq("id", profile.id);
       if (profErr) {
         toast.error(profErr.message);
         return;
       }
 
-      // 2) Si cambió el email institucional, sincronizar auth.users.email
-      //    para que el LOGIN funcione con el nuevo correo. Supabase dispara
-      //    confirmación por correo al nuevo email — el cambio en auth no
-      //    es efectivo hasta que el usuario clickea el link.
+      // 2) Si cambió el email institucional, dispara el flujo custom de
+      //    confirmación via edge `request-email-change`. La edge genera
+      //    un token (1h), guarda en email_change_tokens y manda el
+      //    correo por NUESTRO SMTP (no por Supabase Auth). Cuando el
+      //    usuario clickee el link, auth.users.email +
+      //    profiles.institutional_email se actualizan atómicamente vía
+      //    `confirm-email-change` con service_role.
       if (institutionalChanged) {
-        const { error: authErr } = await supabase.auth.updateUser({
-          email: institutional.trim().toLowerCase(),
-        });
-        if (authErr) {
-          // El profile ya quedó actualizado; informamos del fallo del auth
-          // sin revertir — el admin puede intervenir si la cuenta queda
-          // desync. Casos comunes: email ya tomado por otra cuenta.
-          toast.error(`${t("profile.authEmailError")}: ${authErr.message}`);
+        const { data, error: reqErr } = await supabase.functions.invoke(
+          "request-email-change",
+          { body: { newEmail: institutional.trim().toLowerCase() } },
+        );
+        const respError = (data as { error?: string } | null)?.error;
+        if (reqErr || respError) {
+          const code = respError ?? reqErr?.message ?? "unknown";
+          // Mensajes amigables para los códigos esperados de la edge.
+          if (code === "email_already_taken") {
+            toast.error(t("profile.errorInstitutionalTaken"));
+          } else if (code === "same_as_current_email") {
+            // El usuario tipeó el mismo email actual. No deberíamos
+            // llegar acá porque `institutionalChanged` ya lo filtra,
+            // pero por defensa: no es un error realmente.
+            toast.info(
+              t("profile.emailSameAsCurrent", {
+                defaultValue: "El correo nuevo es igual al actual.",
+              }),
+            );
+          } else if (code === "invalid_email_format") {
+            toast.error(t("profile.errorInstitutionalInvalid"));
+          } else {
+            toast.error(
+              t("profile.authEmailError", { defaultValue: "Error solicitando el cambio" }) +
+                `: ${code}`,
+            );
+          }
           return;
         }
-        toast.success(t("profile.savedWithEmailConfirm"), {
-          description: t("profile.emailConfirmHint"),
-          duration: 10000,
-        });
+        toast.success(
+          t("profile.emailChangeRequested", {
+            defaultValue: "Solicitud enviada",
+          }),
+          {
+            description: t("profile.emailChangeRequestedHint", {
+              defaultValue:
+                "Te enviamos un correo a la nueva dirección. Tu correo actual seguirá activo hasta que confirmes el cambio (el enlace es válido 1 hora).",
+              email: institutional.trim().toLowerCase(),
+            }),
+            duration: 10000,
+          },
+        );
       } else {
         toast.success(t("profile.savedToast"));
       }
