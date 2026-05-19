@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/use-theme";
 import { useMessagingToasts } from "@/hooks/use-messaging-toasts";
+import {
+  isModuleEnabled,
+  useModuleVisibility,
+  type ModuleKey,
+  type RoleKey,
+} from "@/hooks/use-module-visibility";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/i18n";
 // ThemeToggle + LanguageSwitcher se siguen usando en el drawer mobile
 // (Sheet más abajo), donde sí hay espacio para botones inline. En el
@@ -394,6 +400,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // Si el Admin lo desactivó, ocultamos el item del nav y bloqueamos la ruta
   // (la ruta tira a /app cuando se intenta acceder).
   const [questionBankEnabled, setQuestionBankEnabled] = useState(true);
+  // Matriz módulo × rol — el sidebar la usa abajo para filtrar items
+  // hidden por el admin. El hook hace fetch + cache global, así que
+  // múltiples instancias de AppLayout (en navegación SPA) reutilizan
+  // el mismo mapa sin re-queries.
+  const { map: moduleMap } = useModuleVisibility();
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -455,10 +466,38 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
   if (!user) return null;
 
+  // Mapeo path → módulo para que el sidebar respete el toggle por
+  // rol de `module_visibility`. Si una entrada no está en este mapa,
+  // se considera "siempre visible" (no controlada por toggles).
+  const NAV_PATH_TO_MODULE: Array<[string, ModuleKey]> = [
+    ["/app/teacher/workshops", "workshops"],
+    ["/app/student/workshops", "workshops"],
+    ["/app/teacher/projects", "projects"],
+    ["/app/student/projects", "projects"],
+    ["/app/teacher/exams", "exams"],
+    ["/app/student/exams", "exams"],
+    ["/app/teacher/gradebook", "gradebook"],
+    ["/app/student/grades", "grades"],
+    ["/app/teacher/attendance", "attendance"],
+    ["/app/student/attendance", "attendance"],
+    ["/app/teacher/calendar", "calendar"],
+    ["/app/student/calendar", "calendar"],
+    ["/app/student/certificates", "certificates"],
+    ["/app/teacher/question-bank", "question_bank"],
+    ["/app/teacher/ai-prompts", "ai_prompts"],
+  ];
   const visibleNav = NAV.filter((n) => {
     if (!activeRole || !n.roles.includes(activeRole)) return false;
-    // Banco de preguntas: el admin puede esconderlo globalmente.
+    // Banco de preguntas legacy: el admin puede esconderlo globalmente.
     if (n.to === "/app/teacher/question-bank" && !questionBankEnabled) return false;
+    // Admin bypassa los toggles de visibilidad (siempre ve todo en el nav).
+    if (activeRole === "Admin") return true;
+    // Filtro por module_visibility para Docente / Estudiante.
+    const mapped = NAV_PATH_TO_MODULE.find(([prefix]) => n.to === prefix);
+    if (mapped) {
+      const [, modKey] = mapped;
+      if (!isModuleEnabled(moduleMap, modKey, activeRole as RoleKey)) return false;
+    }
     return true;
   });
   const activeCfg = activeRole ? ROLE_CONFIG[activeRole] : null;

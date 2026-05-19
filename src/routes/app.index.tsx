@@ -422,21 +422,26 @@ function AdminDashboard() {
 
       {/* Grilla de 4 columnas en lg+ para que las 4 cards operacionales
           (Ejecuciones IA, Correos, Errores, Sesiones) quepan en una
-          sola fila. En md son 2 columnas, en mobile 1. Eso evita que
-          el dashboard scrollee en pantallas típicas de 1080p/laptop. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          sola fila. En md son 2 columnas, en mobile 1.
+          `auto-rows-fr` fuerza que TODAS las filas tengan la misma
+          altura (= la del item más alto). Combinado con `h-full` en
+          cada Card y el footer `mt-auto`, las 4 cards llenan el espacio
+          vertical disponible y los CTA quedan alineados abajo. Antes
+          unas cards quedaban con espacio en blanco al final por las
+          diferencias de contenido. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 auto-rows-fr">
         {/* Ejecuciones IA recientes — vista compacta para que el
             dashboard quepa en una pantalla. Antes mostrábamos hasta
             20 items con tile circular + 2 líneas (~3000px), ahora 3
             items en una sola línea cada uno con icono inline. Link al
             final mantiene el acceso a la auditoría completa. */}
-        <Card>
+        <Card className="h-full flex flex-col">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" /> Ejecuciones IA (24h)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 flex-1 flex flex-col">
             {/* Mini tiles ok/fallidas — mismo patrón visual que el card
                 de "Correos" para que el admin escanee health en una
                 pasada vertical. Ok = ejecuciones con severity != 'error';
@@ -503,7 +508,7 @@ function AdminDashboard() {
                 );
               })
             )}
-            <Link to="/app/admin/audit-logs" className="block">
+            <Link to="/app/admin/audit-logs" className="block mt-auto">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1 h-7">
                 Ver auditoría completa <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -516,14 +521,14 @@ function AdminDashboard() {
             sidebar. Este widget aporta info operacional real: el admin
             ve de un vistazo si el sistema de email está sano y entra a
             auditoría si hay fallos. */}
-        <Card>
+        <Card className="h-full flex flex-col">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Inbox className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
               Correos (últimas 24h)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 flex-1 flex flex-col">
             {!emailStats ? (
               <p className="text-sm text-muted-foreground py-2">Cargando…</p>
             ) : emailStats.delivered + emailStats.skipped + emailStats.failed === 0 ? (
@@ -588,7 +593,7 @@ function AdminDashboard() {
             <Link
               to="/app/admin/audit-logs"
               search={{ category: "email" } as Record<string, unknown>}
-              className="block"
+              className="block mt-auto"
             >
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 Ver auditoría de correos <ArrowRight className="h-3 w-3 ml-1" />
@@ -602,11 +607,9 @@ function AdminDashboard() {
             que las 4 cards operacionales caigan en una sola fila en
             pantallas grandes. */}
         <Card
-          className={
-            errorStats && errorStats.count > 0
-              ? "border-destructive/40 bg-destructive/5"
-              : undefined
-          }
+          className={`h-full flex flex-col ${
+            errorStats && errorStats.count > 0 ? "border-destructive/40 bg-destructive/5" : ""
+          }`}
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -620,7 +623,7 @@ function AdminDashboard() {
               Errores (últimas 3h)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 flex-1 flex flex-col">
             {!errorStats ? (
               <p className="text-sm text-muted-foreground py-2">Cargando…</p>
             ) : errorStats.count === 0 ? (
@@ -658,7 +661,7 @@ function AdminDashboard() {
             <Link
               to="/app/admin/audit-logs"
               search={{ severity: "error" } as Record<string, unknown>}
-              className="block"
+              className="block mt-auto"
             >
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 Ver auditoría de errores <ArrowRight className="h-3 w-3 ml-1" />
@@ -668,14 +671,14 @@ function AdminDashboard() {
         </Card>
 
         {/* Sesiones de examen activas — verde si 0, ámbar si > 0 */}
-        <Card>
+        <Card className="h-full flex flex-col">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-amber-500 dark:text-amber-400" />
               Sesiones de examen activas
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 flex-1 flex flex-col">
             {activeExamSessions === null ? (
               <p className="text-sm text-muted-foreground py-2">Cargando…</p>
             ) : activeExamSessions === 0 ? (
@@ -692,7 +695,7 @@ function AdminDashboard() {
                 </span>
               </div>
             )}
-            <Link to="/app/admin/audit-logs" className="block">
+            <Link to="/app/admin/audit-logs" className="block mt-auto">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 Ver auditoría <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -1186,19 +1189,51 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .slice(0, 8);
       setUpcomingExams(exams);
 
-      // Assigned workshops
+      // Assigned workshops — "por entregar" = published + open
+      // (due_date >= hoy) + el alumno aún no entregó. Antes incluíamos
+      // talleres ya cerrados y ya entregados, lo que inflaba el count
+      // y confundía al alumno.
       const { data: wasg } = await supabase
         .from("workshop_assignments")
-        .select("workshop:workshops(id, title, due_date, status, course:courses(name))")
+        .select(
+          "workshop:workshops(id, title, due_date, status, start_date, course:courses(name))",
+        )
         .eq("user_id", userId);
-      const ws = (wasg ?? [])
+      const todayISO = new Date().toISOString();
+      const candidateWs = (wasg ?? [])
         .map((a: any) => a.workshop)
         .filter(
           (w: any) =>
             w &&
             w.status === "published" &&
-            (!w.start_date || new Date(w.start_date) <= new Date()),
-        )
+            (!w.start_date || new Date(w.start_date) <= new Date()) &&
+            // Cierre futuro (o sin cierre — entonces siempre "open").
+            (!w.due_date || new Date(w.due_date) >= new Date(todayISO)),
+        );
+      const candidateWsIds = candidateWs.map((w: any) => w.id);
+      // Excluye los que YA entregó el alumno. Estados finales = entregado/
+      // calificado/ai_revisado/requiere_revision. "iniciado" no cuenta
+      // como entregado — sigue siendo "por entregar".
+      const { data: doneWsSubs } = candidateWsIds.length
+        ? await supabase
+            .from("workshop_submissions")
+            .select("workshop_id, status")
+            .eq("user_id", userId)
+            .in("workshop_id", candidateWsIds)
+        : { data: [] as Array<{ workshop_id: string; status: string }> };
+      const finalSubStates = new Set([
+        "entregado",
+        "calificado",
+        "ai_revisado",
+        "requiere_revision",
+      ]);
+      const submittedWsIds = new Set(
+        ((doneWsSubs ?? []) as Array<{ workshop_id: string; status: string }>)
+          .filter((s) => finalSubStates.has(s.status))
+          .map((s) => s.workshop_id),
+      );
+      const ws = candidateWs
+        .filter((w: any) => !submittedWsIds.has(w.id))
         .sort(
           (a: any, b: any) =>
             new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
@@ -1250,9 +1285,14 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           .filter((s) => ["entregado", "calificado", "ai_revisado"].includes(s.status))
           .map((s) => s.project_id),
       );
+      // Mismo criterio que workshops: published + start_date pasado
+      // + due_date futuro (o sin due_date) + no entregado por el alumno.
       const pjs = ((pjData ?? []) as any[])
         .filter(
-          (p) => !submittedIds.has(p.id) && (!p.start_date || new Date(p.start_date) <= new Date()),
+          (p) =>
+            !submittedIds.has(p.id) &&
+            (!p.start_date || new Date(p.start_date) <= new Date()) &&
+            (!p.due_date || new Date(p.due_date) >= new Date()),
         )
         .sort(
           (a: any, b: any) =>

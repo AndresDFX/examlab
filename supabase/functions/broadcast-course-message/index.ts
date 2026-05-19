@@ -179,22 +179,36 @@ Deno.serve(async (req) => {
     if (!course) return jsonError("Curso no encontrado", 404);
 
     // ── Estudiantes inscritos ──
-    // Hacemos JOIN explícito porque queremos contacto del profile, no
-    // solo el user_id. El profile guarda institutional + personal email.
+    // Antes hacíamos JOIN implícito con `profile:profiles!course_enrollments_user_id_fkey(...)`
+    // pero PostgREST no encuentra la relación (no hay FK declarada o el
+    // nombre auto-generado difiere). Más robusto: dos queries
+    // independientes — primero los user_id, luego los profiles. Cuesta
+    // un round-trip extra pero NO depende del schema cache.
     const { data: enrollRows, error: enrollErr } = await admin
       .from("course_enrollments")
-      .select("user_id, profile:profiles!course_enrollments_user_id_fkey(id, full_name, institutional_email, personal_email)")
+      .select("user_id")
       .eq("course_id", courseId);
     if (enrollErr) return jsonError(`No se pudo leer matrículas: ${enrollErr.message}`, 500);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const students: StudentProfile[] = (enrollRows ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((row: any) => row.profile as StudentProfile | null)
-      .filter((p: StudentProfile | null): p is StudentProfile => p != null);
+    const userIds = (enrollRows ?? [])
+      .map((r: { user_id?: string | null }) => r.user_id)
+      .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+
+    if (userIds.length === 0) {
+      return jsonError("El curso no tiene estudiantes inscritos", 400);
+    }
+
+    const { data: profileRows, error: profileErr } = await admin
+      .from("profiles")
+      .select("id, full_name, institutional_email, personal_email")
+      .in("id", userIds);
+    if (profileErr) {
+      return jsonError(`No se pudieron leer perfiles: ${profileErr.message}`, 500);
+    }
+    const students: StudentProfile[] = (profileRows ?? []) as StudentProfile[];
 
     if (students.length === 0) {
-      return jsonError("El curso no tiene estudiantes inscritos", 400);
+      return jsonError("El curso no tiene estudiantes inscritos con perfil válido", 400);
     }
 
     // ── Bulk-insert de notificaciones (kind='broadcast' evita auto-email) ──
