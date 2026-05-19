@@ -5,7 +5,7 @@ import { renderHook, act } from "@testing-library/react";
 // El test que verifica "no cerrar si cancela" lo cambia a false.
 const confirmMock = vi.fn(() => Promise.resolve(true));
 
-vi.mock("@/components/ConfirmDialog", () => ({
+vi.mock("@/shared/components/ConfirmDialog", () => ({
   useConfirm: () => confirmMock,
 }));
 

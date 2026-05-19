@@ -2,7 +2,7 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 // Size variants use responsive heights: slightly taller on mobile for
 // easier tapping, compact on desktop. The global `@media (pointer: coarse)`

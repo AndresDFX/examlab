@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { LanguageSwitcher } from "@/shared/components/LanguageSwitcher";
 import { toast } from "sonner";
 import { GraduationCap, KeyRound, Mail, Eye, EyeOff } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";

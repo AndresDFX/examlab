@@ -21,7 +21,16 @@
       "Bash(grep -n \"questionsByQid\\\\|questions\\\\[\\\\]\\\\|const \\\\[questions\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -10)",
       "Bash(grep -n \"type Question\\\\|interface Question\\\\|Question =\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)",
       "Bash(grep -n \"ChevronDown\\\\|^import.*Bot\\\\b\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)",
-      "Bash(grep -n \"from \\\\\"lucide-react\\\\\"\\\\|ChevronRight\\\\|Bot,\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)"
+      "Bash(grep -n \"from \\\\\"lucide-react\\\\\"\\\\|ChevronRight\\\\|Bot,\" src/routes/app.teacher.monitor.\\\\$examId.tsx | head -5)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Personal\\\\examlab\\\\src\" -Recurse -Include \"*.test.tsx\",\"*.test.ts\",\"*.spec.ts\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs grep -l \"use-module-visibility\\\\|computeAttendanceCode\\\\|shouldSendEmail\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(awk -F/ '{print $1}')",
+      "Bash(cd /d/Projects/Personal/examlab && pwd && ls src/components/*.tsx 2>/dev/null | wc -l)",
+      "Read(//d/d/Projects/Personal/examlab/src/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep 'monitor\\\\.\\\\$examId')"
     ]
   }
 }

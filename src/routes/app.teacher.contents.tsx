@@ -41,7 +41,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
 import { PageHeader } from "@/components/ui/page-header";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Plus,
@@ -68,11 +68,11 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { MarkdownEditorDialog } from "@/components/MarkdownEditorDialog";
-import { PptxViewerDialog } from "@/components/PptxViewerDialog";
-import { RegenerateContentDialog } from "@/components/RegenerateContentDialog";
-import { ContentPromptsOverridesDialog } from "@/components/ContentPromptsOverridesDialog";
-import { GenerateSessionsDialog } from "@/components/GenerateSessionsDialog";
+import { MarkdownEditorDialog } from "@/modules/contents/MarkdownEditorDialog";
+import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
+import { RegenerateContentDialog } from "@/modules/contents/RegenerateContentDialog";
+import { ContentPromptsOverridesDialog } from "@/modules/contents/ContentPromptsOverridesDialog";
+import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import {
   availableClassNumbers,
   classNumberFromFilename,
@@ -81,10 +81,10 @@ import {
   extractContentText,
   groupFilesByClass,
   type ContentFile,
-} from "@/lib/contents-extract";
+} from "@/modules/contents/contents-extract";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
-import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
+import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 
 export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
 
@@ -1591,7 +1591,7 @@ function CreateAssessmentDialog({
 
   return (
     <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("contents.createAssessmentTitle")}</DialogTitle>
           <DialogDescription>{t("contents.createAssessmentSubtitle")}</DialogDescription>
@@ -2382,7 +2382,7 @@ function AssignToSessionsDialog({
 
   return (
     <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("contents.assignDialogTitle")}</DialogTitle>
           <DialogDescription>{t("contents.assignDialogSubtitle")}</DialogDescription>

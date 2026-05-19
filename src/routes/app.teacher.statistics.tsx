@@ -54,8 +54,8 @@ import {
   computeGradeDistribution,
   type CourseDataset,
   type SubmissionLike,
-} from "@/lib/statistics";
-import { formatDateShort } from "@/lib/format";
+} from "@/shared/lib/statistics";
+import { formatDateShort } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/teacher/statistics")({
   component: TeacherStatistics,

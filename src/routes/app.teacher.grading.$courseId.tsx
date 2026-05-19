@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { DatePicker } from "@/components/ui/date-picker";
 
 // The grade_* tables are introduced in migration 20260423000000 and are not

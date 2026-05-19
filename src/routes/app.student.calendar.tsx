@@ -36,7 +36,7 @@ import {
   Loader2,
   ExternalLink,
 } from "lucide-react";
-import { formatDateTime, formatWeekday } from "@/lib/format";
+import { formatDateTime, formatWeekday } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/student/calendar")({ component: StudentCalendar });
 

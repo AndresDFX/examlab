@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionLoader } from "@/components/ui/loaders";
-import { formatDateOnly } from "@/lib/format";
+import { formatDateOnly } from "@/shared/lib/format";
 import {
   Select,
   SelectContent,
@@ -51,8 +51,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { buildVideoEmbedUrl } from "@/lib/video-embed";
-import { AttendanceQRScanner } from "@/components/AttendanceQRScanner";
+import { buildVideoEmbedUrl } from "@/shared/lib/video-embed";
+import { AttendanceQRScanner } from "@/modules/attendance/AttendanceQRScanner";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;

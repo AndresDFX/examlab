@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, User as UserIcon } from "lucide-react";
-import { formatDateLong } from "@/lib/format";
-import { downloadCertificate, buildVerifyUrl } from "@/lib/certificate-pdf";
+import { formatDateLong } from "@/shared/lib/format";
+import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 
 export const Route = createFileRoute("/app/certificates")({ component: CertificatesAdmin });
 

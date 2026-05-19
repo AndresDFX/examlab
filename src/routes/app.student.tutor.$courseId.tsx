@@ -18,9 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { MarkdownInline } from "@/components/MarkdownInline";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { RowAction } from "@/components/ui/row-action";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import {
   Sparkles,
@@ -32,7 +32,7 @@ import {
   User as UserIcon,
   AlertTriangle,
 } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/student/tutor/$courseId")({ component: TutorChat });
 

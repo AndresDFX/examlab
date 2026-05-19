@@ -20,8 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { MarkdownInline } from "@/components/MarkdownInline";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import {
   MessageSquareText,
@@ -36,7 +36,7 @@ import {
   X,
   Save,
 } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/forum/$courseId/$threadId")({ component: ThreadDetail });
 

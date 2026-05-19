@@ -13,8 +13,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles, Cpu, FileText } from "lucide-react";
-import { AdminPromptsPanel } from "@/components/admin/AdminPromptsPanel";
-import { AdminModelPanel } from "@/components/admin/AdminModelPanel";
+import { AdminPromptsPanel } from "@/modules/admin/AdminPromptsPanel";
+import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 
 export const Route = createFileRoute("/app/admin/ai-prompts")({ component: AdminAIConfig });
 

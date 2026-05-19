@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { MarkdownInline } from "@/components/MarkdownInline";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +46,7 @@ import {
   ArrowUp,
   MessageSquare,
 } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/forum/$courseId")({ component: ForumList });
 
@@ -188,7 +188,7 @@ function ForumList() {
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-48">
+            <div className="relative flex-1 min-w-[180px] sm:min-w-48">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
@@ -213,7 +213,7 @@ function ForumList() {
 
       {loading ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             <Spinner size="md" /> Cargando hilos…
           </CardContent>
         </Card>
@@ -240,7 +240,7 @@ function ForumList() {
       )}
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Nueva pregunta</DialogTitle>
           </DialogHeader>

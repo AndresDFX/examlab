@@ -8,7 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MAX_WARNINGS, shouldMarkSuspicious, type WarningEvent } from "@/utils/proctoring";
+import { MAX_WARNINGS, shouldMarkSuspicious, type WarningEvent } from "@/modules/exams/proctoring";
 
 interface ProctorState {
   warnings: number;

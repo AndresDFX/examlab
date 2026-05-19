@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { scoreCerradaMulti } from "@/utils/question-scoring";
+import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +47,11 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
-import { ProjectGroupsEditor } from "@/components/ProjectGroupsEditor";
+import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
+import { ProjectGroupsEditor } from "@/modules/projects/ProjectGroupsEditor";
 import { toast } from "sonner";
-import { logEvent } from "@/lib/audit";
-import { friendlyUniqueViolation } from "@/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
+import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import {
   Plus,
   Pencil,
@@ -70,8 +70,8 @@ import {
   X,
   Copy,
 } from "lucide-react";
-import { DuplicateAssessmentDialog } from "@/components/DuplicateAssessmentDialog";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -81,20 +81,20 @@ import {
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
 import { CourseListCell } from "@/components/ui/course-list-cell";
-import { TeacherProjectFilesEditor } from "@/components/ProjectFiles";
-import { AssignSelector } from "@/components/AssignSelector";
-import { FeedbackThread } from "@/components/FeedbackThread";
-import { FraudPanel } from "@/components/FraudPanel";
+import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
+import { AssignSelector } from "@/shared/components/AssignSelector";
+import { FeedbackThread } from "@/modules/grading/FeedbackThread";
+import { FraudPanel } from "@/modules/exams/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
-import { statusLabel } from "@/utils/status-labels";
+import { statusLabel } from "@/shared/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
-import { formatDateTime, formatPercent } from "@/lib/format";
+import { formatDateTime, formatPercent } from "@/shared/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
   Accordion,

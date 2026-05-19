@@ -26,8 +26,8 @@ import {
   School,
   Hash,
 } from "lucide-react";
-import { formatDateLong } from "@/lib/format";
-import { downloadCertificate } from "@/lib/certificate-pdf";
+import { formatDateLong } from "@/shared/lib/format";
+import { downloadCertificate } from "@/modules/certificates/certificate-pdf";
 
 export const Route = createFileRoute("/verify/$shortCode")({
   head: ({ params }) => ({

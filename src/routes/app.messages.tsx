@@ -42,7 +42,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import {
   MessageSquare,
@@ -63,7 +63,7 @@ import {
   Paperclip,
   Megaphone,
 } from "lucide-react";
-import { extractEdgeError } from "@/lib/edge-error";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import {
   Select,
   SelectContent,
@@ -83,7 +83,7 @@ import {
   isMessageReadByOther,
   canEditOrDeleteMessage,
   type MessageLite,
-} from "@/lib/messaging";
+} from "@/modules/messaging/messaging";
 import {
   buildMessageAttachmentPath,
   MESSAGE_ATTACHMENT_MAX_COUNT,
@@ -91,10 +91,10 @@ import {
   safeAttachmentName,
   validateAttachmentFile,
   type MessageAttachmentRow,
-} from "@/lib/message-attachments";
-import { MessageAttachments } from "@/components/MessageAttachments";
-import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
+} from "@/modules/messaging/message-attachments";
+import { MessageAttachments } from "@/modules/messaging/MessageAttachments";
+import { formatDateTime } from "@/shared/lib/format";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/app/messages")({ component: MessagesPage });
 
@@ -1524,7 +1524,7 @@ function MessagesPage() {
           if (!broadcastSending) setBroadcastDialogOpen(open);
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Megaphone className="h-4 w-4 text-cyan-500" />

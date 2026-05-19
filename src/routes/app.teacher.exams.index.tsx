@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { friendlyUniqueViolation } from "@/lib/db-errors";
+import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
+import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,13 +40,13 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { DuplicateAssessmentDialog } from "@/components/DuplicateAssessmentDialog";
+import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
-import { formatDateTime, formatDuration, formatPercent } from "@/lib/format";
-import { ImportExportMenu } from "@/components/ImportExportMenu";
-import { toCSV } from "@/lib/csv";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { formatDateTime, formatDuration, formatPercent } from "@/shared/lib/format";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
+import { toCSV } from "@/shared/lib/csv";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,

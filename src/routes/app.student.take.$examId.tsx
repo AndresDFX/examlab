@@ -28,26 +28,26 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { CodeEditor, type CodeLanguage, JAVA_STARTER } from "@/components/CodeEditor";
-import { DiagramEditor } from "@/components/DiagramEditor";
-import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
+import { CodeEditor, type CodeLanguage, JAVA_STARTER } from "@/modules/code/CodeEditor";
+import { DiagramEditor } from "@/modules/code/DiagramEditor";
+import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
 import {
   saveAnswersLocally,
   isOnline,
   setupOfflineSync,
   clearLocalAnswers,
-} from "@/lib/offline-sync";
+} from "@/modules/exams/offline-sync";
 import { useTranslation } from "react-i18next";
-import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/utils/exam-time";
-import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/utils/proctoring";
+import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/modules/exams/exam-time";
+import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/modules/exams/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
-import { useApprovedExamNote } from "@/components/ExamNotesManager";
-import { logEvent } from "@/lib/audit";
-import { MarkdownInline } from "@/components/MarkdownInline";
-import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/utils/exam-session";
-import { runJavaInBrowser } from "@/lib/run-java";
-import { extractEdgeError } from "@/lib/edge-error";
-import { retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
+import { useApprovedExamNote } from "@/modules/exams/ExamNotesManager";
+import { logEvent } from "@/shared/lib/audit";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/modules/exams/exam-session";
+import { runJavaInBrowser } from "@/modules/code/run-java";
+import { extractEdgeError } from "@/shared/lib/edge-error";
+import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 

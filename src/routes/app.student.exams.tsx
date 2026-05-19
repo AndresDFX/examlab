@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert } from "lucide-react";
-import { StudentExamNotes } from "@/components/ExamNotesManager";
-import { MAX_WARNINGS } from "@/utils/proctoring";
-import { formatDateTime } from "@/lib/format";
+import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
+import { MAX_WARNINGS } from "@/modules/exams/proctoring";
+import { formatDateTime } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 

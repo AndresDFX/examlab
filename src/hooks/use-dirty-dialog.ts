@@ -19,7 +19,7 @@
  * múltiples useStates, agrúpalos en un memo: `useMemo(() => ({ a, b, c }), [a,b,c])`.
  */
 import { useEffect, useRef } from "react";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 export function useDirtyDialog<T>(open: boolean, formState: T) {
   const confirm = useConfirm();

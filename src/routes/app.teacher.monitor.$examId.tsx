@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
-import { extractEdgeError } from "@/lib/edge-error";
+import { logEvent } from "@/shared/lib/audit";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,25 +56,25 @@ import {
   BrainCircuit,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/utils/proctoring";
-import { MarkdownInline } from "@/components/MarkdownInline";
-import { statusLabel } from "@/utils/status-labels";
+import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/modules/exams/proctoring";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { statusLabel } from "@/shared/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/shared/lib/format";
 import {
   computeFinalGrade,
   type BreakdownItem as GradeBreakdown,
   type ManualOverride as GradeManual,
-} from "@/utils/grade";
-import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/utils/exam-attempts";
-import { applyClearOneWarning, applyClearAllWarnings } from "@/utils/exam-session";
-import { isExamOpen } from "@/utils/exam-time";
-import { useConfirm } from "@/components/ConfirmDialog";
-import { ConversationSection } from "@/components/ConversationSection";
-import { computeIntegritySuggestion, mentionsAiPenalty } from "@/lib/integrity";
+} from "@/modules/grading/grade";
+import { computeAttemptGrade, retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
+import { applyClearOneWarning, applyClearAllWarnings } from "@/modules/exams/exam-session";
+import { isExamOpen } from "@/modules/exams/exam-time";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { ConversationSection } from "@/modules/grading/ConversationSection";
+import { computeIntegritySuggestion, mentionsAiPenalty } from "@/modules/exams/integrity";
 import {
   countPendingByUser,
   rpcMarkAiReviewed,
@@ -82,12 +82,12 @@ import {
   CollapsibleReasons,
   type IntegrityCopyPair,
   type IntegrityAiSignal,
-} from "@/components/IntegrityReviewDialog";
+} from "@/modules/exams/IntegrityReviewDialog";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
 import { RowAction } from "@/components/ui/row-action";
-import { CodeRunOutput } from "@/components/CodeRunOutput";
-import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
+import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
+import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({
   component: ExamMonitor,
@@ -3031,48 +3031,37 @@ function ExamMonitor() {
                                       variant="outline"
                                       className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
                                       onClick={() => {
-                                        // Compone la retroalimentación a partir de las
-                                        // razones reales de la IA y/o de copia, así
-                                        // "aplicar sugerencia" deja la nota Y el
-                                        // motivo en el textarea — antes el docente
-                                        // tenía que copiarlo a mano del banner. Si
-                                        // ya había feedback escrito, lo APENDEAMOS
-                                        // para no perder lo que el docente tipeó.
+                                        // Compone la retroalimentación SOLO con las
+                                        // razones reales (IA y/o copia), sin prefijo
+                                        // "Sugerencia automática por integridad" ni
+                                        // etiquetas "IA:"/"Copia:". El docente luego
+                                        // puede editar el texto libremente. Si ya
+                                        // había feedback, lo REEMPLAZAMOS — la
+                                        // sugerencia es la nueva fuente de verdad y
+                                        // acumular era confuso visualmente.
                                         const aiReasons = aiSig?.reasons?.trim();
                                         const copyReasons = qPairs
                                           .map((p) => p.reasons?.trim())
                                           .filter((r): r is string => !!r);
-                                        const prefixKey =
-                                          sug.source === "ai"
-                                            ? "integrity.aiFeedbackPrefix"
-                                            : sug.source === "plagio"
-                                              ? "integrity.copyFeedbackPrefix"
-                                              : "integrity.bothFeedbackPrefix";
-                                        const prefix = t(prefixKey, { aiPct, cpPct });
-                                        const bodyParts: string[] = [];
-                                        if (aiReasons && sug.source !== "plagio")
-                                          bodyParts.push(`• IA: ${aiReasons}`);
-                                        if (copyReasons.length > 0 && sug.source !== "ai")
-                                          bodyParts.push(`• Copia: ${copyReasons.join(" | ")}`);
-                                        const composed = [prefix, ...bodyParts]
-                                          .filter(Boolean)
-                                          .join("\n");
+                                        const parts: string[] = [];
+                                        if (aiReasons && sug.source !== "plagio") {
+                                          parts.push(aiReasons);
+                                        }
+                                        if (copyReasons.length > 0 && sug.source !== "ai") {
+                                          parts.push(copyReasons.join("\n"));
+                                        }
+                                        const composed = parts.join("\n\n");
                                         setQOverrides((prev) => {
                                           const existing = prev[q.id] ?? {
                                             score: null,
                                             feedback: "",
                                           };
-                                          const prior = (existing.feedback ?? "").trim();
-                                          const merged =
-                                            prior && !prior.includes(prefix)
-                                              ? `${prior}\n\n${composed}`
-                                              : composed;
                                           return {
                                             ...prev,
                                             [q.id]: {
                                               ...existing,
                                               score: sug.suggested,
-                                              feedback: merged,
+                                              feedback: composed,
                                             },
                                           };
                                         });

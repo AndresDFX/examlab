@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Calendar } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatDate, formatDateOnly, formatDateTime, formatDateShort } from "@/lib/format";
+import { cn } from "@/shared/lib/utils";
+import { formatDate, formatDateOnly, formatDateTime, formatDateShort } from "@/shared/lib/format";
 
 /**
  * Celda estandarizada para mostrar una fecha en grids/tablas. Unifica:

@@ -174,6 +174,21 @@ Outputs:
     Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/run"
     Export:
       Name: !Sub "${AWS::StackName}-RunnerUrl"
+  ApiKey:
+    Description: >
+      Shared secret X-API-Key que el edge function debe enviar al endpoint.
+      Guárdalo en Supabase Edge Function Secrets como AWS_RUNNER_API_KEY.
+      OJO — al estar en Outputs queda visible en CloudFormation Console y
+      en `describe-stacks` (no marcable con NoEcho en outputs). La fuente
+      canónica sigue siendo SSM Parameter Store (ver ApiKeySsmParameter).
+    Value: !Ref ApiKey
+  ApiKeySsmParameter:
+    Description: >
+      Nombre del SSM Parameter Store que custodia el API key con cifrado
+      KMS. El deploy.sh lo crea (SecureString) y lo reusa entre deploys
+      para no rotar el secret. Lectura con:
+        aws ssm get-parameter --name <valor> --with-decryption
+    Value: !Sub "/${AWS::StackName}/api-key"
   FunctionArn:
     Description: ARN de la función Lambda.
     Value: !GetAtt RunnerFunction.Arn

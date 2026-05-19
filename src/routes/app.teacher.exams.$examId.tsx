@@ -2,8 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
-import { friendlyUniqueViolation } from "@/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
+import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { AssignSelector } from "@/components/AssignSelector";
+import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import {
@@ -35,7 +35,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -44,16 +44,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TeacherExamNotes } from "@/components/ExamNotesManager";
-import { JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
-import { JAVA_STARTER } from "@/components/CodeEditor";
+import { TeacherExamNotes } from "@/modules/exams/ExamNotesManager";
+import { JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
+import { JAVA_STARTER } from "@/modules/code/CodeEditor";
 import { DecimalInput } from "@/components/ui/decimal-input";
-import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
+import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { HelpHint } from "@/components/ui/help-hint";
-import { QuestionBankImportDialog } from "@/components/QuestionBankImportDialog";
+import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { Library } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });

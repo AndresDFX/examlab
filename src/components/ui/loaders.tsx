@@ -1,5 +1,5 @@
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * SectionLoader y PageLoader — placeholders reutilizables para

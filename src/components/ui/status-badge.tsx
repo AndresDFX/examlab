@@ -7,8 +7,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { statusLabel } from "@/utils/status-labels";
-import { cn } from "@/lib/utils";
+import { statusLabel } from "@/shared/utils/status-labels";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * StatusBadge — representación visual unificada de estados de

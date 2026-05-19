@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
+import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +18,7 @@ import {
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/teacher/ai-prompts")({

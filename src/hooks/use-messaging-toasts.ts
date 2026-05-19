@@ -12,7 +12,7 @@ import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { previewBody } from "@/lib/messaging";
+import { previewBody } from "@/modules/messaging/messaging";
 
 // `messages`/`conversations` aún no están en types.ts generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

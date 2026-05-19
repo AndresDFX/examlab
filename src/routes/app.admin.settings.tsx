@@ -23,15 +23,15 @@ import {
   Cpu,
   Wrench,
 } from "lucide-react";
-import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
-import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
-import { AdminAuditRetentionPanel } from "@/components/admin/AdminAuditRetentionPanel";
-import { AdminGeneralSettingsPanel } from "@/components/admin/AdminGeneralSettingsPanel";
-import { AdminCertificateSettingsPanel } from "@/components/admin/AdminCertificateSettingsPanel";
-import { AdminEdgeSecretsPanel } from "@/components/admin/AdminEdgeSecretsPanel";
-import { AdminModuleVisibilityPanel } from "@/components/admin/AdminModuleVisibilityPanel";
-import { AdminAiGradingPanel } from "@/components/admin/AdminAiGradingPanel";
-import { SystemDiagnosticsPanel } from "@/components/SystemDiagnosticsPanel";
+import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
+import { AdminCodeExecutionPanel } from "@/modules/admin/AdminCodeExecutionPanel";
+import { AdminAuditRetentionPanel } from "@/modules/admin/AdminAuditRetentionPanel";
+import { AdminGeneralSettingsPanel } from "@/modules/admin/AdminGeneralSettingsPanel";
+import { AdminCertificateSettingsPanel } from "@/modules/admin/AdminCertificateSettingsPanel";
+import { AdminEdgeSecretsPanel } from "@/modules/admin/AdminEdgeSecretsPanel";
+import { AdminModuleVisibilityPanel } from "@/modules/admin/AdminModuleVisibilityPanel";
+import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
+import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 

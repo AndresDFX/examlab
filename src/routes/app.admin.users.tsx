@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
+import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -30,8 +30,8 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Upload, Download, Trash2, Pencil, Loader2, Users as UsersIcon } from "lucide-react";
-import { downloadCSV, parseCSV, toCSV } from "@/lib/csv";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { downloadCSV, parseCSV, toCSV } from "@/shared/lib/csv";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import {
   useMultiSelect,

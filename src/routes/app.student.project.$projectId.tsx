@@ -27,11 +27,11 @@ import {
   FileArchive,
 } from "lucide-react";
 import { toast } from "sonner";
-import { FeedbackThread } from "@/components/FeedbackThread";
+import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/shared/lib/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;

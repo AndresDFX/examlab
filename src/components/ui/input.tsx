@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 // Mobile-first height: 44px on touch devices (hit-area compliant), 36px on
 // desktop. `text-base` (16px) on mobile prevents iOS auto-zoom on focus;

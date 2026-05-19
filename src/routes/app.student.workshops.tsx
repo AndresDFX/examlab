@@ -32,9 +32,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { StudentWorkshopTaker } from "@/components/WorkshopQuestions";
-import { formatDateTime } from "@/lib/format";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
+import { formatDateTime } from "@/shared/lib/format";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 

@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
-import { friendlyUniqueViolation } from "@/lib/db-errors";
-import { toCSV, downloadCSV } from "@/lib/csv";
+import { logEvent } from "@/shared/lib/audit";
+import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { toCSV, downloadCSV } from "@/shared/lib/csv";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -58,7 +58,7 @@ import {
   MessageSquareText,
   Award,
 } from "lucide-react";
-import { CourseCertificateSettingsDialog } from "@/components/CourseCertificateSettingsDialog";
+import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
 import {
   Select,
   SelectContent,
@@ -68,7 +68,7 @@ import {
 } from "@/components/ui/select";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -76,7 +76,7 @@ import {
   MultiSelectToolbar,
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
-import { AssignSelector } from "@/components/AssignSelector";
+import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
@@ -1110,7 +1110,7 @@ export function AdminCourses() {
 
               <div className="rounded-md border p-3 space-y-3">
                 <p className="text-sm font-medium">Escala de calificación</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs">Calificación mínima</Label>
                     <Input
@@ -1456,7 +1456,7 @@ export function AdminCourses() {
 
       {/* ── Student Enrollment Dialog ── */}
       <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Estudiantes — {enrollCourse?.name}</DialogTitle>
           </DialogHeader>
@@ -2277,7 +2277,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                 className="h-8 text-xs w-20"
               />
             </div>
-            <div className="space-y-1 flex-1 min-w-48">
+            <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
               <Label className="text-[11px]">{t("common.title")}</Label>
               <Input
                 value={editingId ? "" : draftTitle}
@@ -2289,7 +2289,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                 className="h-8 text-xs"
               />
             </div>
-            <div className="space-y-1 flex-1 min-w-48">
+            <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
               <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
               <Input
                 type="url"
@@ -2373,7 +2373,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             className="h-8 text-xs w-20"
                           />
                         </div>
-                        <div className="space-y-1 flex-1 min-w-48">
+                        <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
                           <Label className="text-[11px]">{t("common.title")}</Label>
                           <Input
                             value={draftTitle}
@@ -2382,7 +2382,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             className="h-8 text-xs"
                           />
                         </div>
-                        <div className="space-y-1 flex-1 min-w-48">
+                        <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
                           <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
                           <Input
                             type="url"

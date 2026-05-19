@@ -29,7 +29,7 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { formatDateOnly, formatWeekdayName } from "@/lib/format";
+import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -43,15 +43,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Eye } from "lucide-react";
-import { MarkdownViewer } from "@/components/MarkdownViewer";
-import { MeetingLink } from "@/components/MeetingLink";
+import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
+import { MeetingLink } from "@/shared/components/MeetingLink";
 import {
   classNumberFromFilename,
   extractContentText,
   isTeacherOnlyFile,
   type ContentFile,
-} from "@/lib/contents-extract";
-import { buildPptxBlob, type PptxBrand } from "@/lib/contents-pptx";
+} from "@/modules/contents/contents-extract";
+import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 

@@ -35,18 +35,18 @@ import { Switch } from "@/components/ui/switch";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { DuplicateAssessmentDialog } from "@/components/DuplicateAssessmentDialog";
+import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { useTranslation } from "react-i18next";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
-import { ExternalGradesEditor } from "@/components/ExternalGradesEditor";
-import { WorkshopGroupsEditor } from "@/components/WorkshopGroupsEditor";
+import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
+import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
-import { logEvent } from "@/lib/audit";
-import { extractEdgeError } from "@/lib/edge-error";
-import { friendlyUniqueViolation } from "@/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
+import { extractEdgeError } from "@/shared/lib/edge-error";
+import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import {
   Plus,
   Pencil,
@@ -75,8 +75,8 @@ import {
   Eye,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { formatDate, formatPercent } from "@/lib/format";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { formatDate, formatPercent } from "@/shared/lib/format";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -84,17 +84,17 @@ import {
   MultiSelectToolbar,
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
-import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { ListFilters } from "@/components/ui/list-filters";
 import { CourseListCell } from "@/components/ui/course-list-cell";
-import { toCSV } from "@/lib/csv";
-import { TeacherWorkshopQuestionsEditor } from "@/components/WorkshopQuestions";
-import { MarkdownInline } from "@/components/MarkdownInline";
-import { ConversationSection } from "@/components/ConversationSection";
+import { toCSV } from "@/shared/lib/csv";
+import { TeacherWorkshopQuestionsEditor } from "@/modules/workshops/WorkshopQuestions";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { ConversationSection } from "@/modules/grading/ConversationSection";
 // FraudPanel quitado: la detección de IA y copia ahora se muestra POR
 // pregunta dentro del Accordion (mismo patrón del monitor de exámenes).
-import { computeIntegritySuggestion } from "@/lib/integrity";
-import { computeWorkshopAlerts } from "@/lib/workshop-integrity-alerts";
+import { computeIntegritySuggestion } from "@/modules/exams/integrity";
+import { computeWorkshopAlerts } from "@/modules/workshops/workshop-integrity-alerts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";

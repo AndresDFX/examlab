@@ -48,7 +48,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save } from "lucide-react";
 
@@ -521,7 +521,7 @@ function QuestionBankPage() {
 
       {/* Dialog crear/editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Editar pregunta del banco" : "Nueva pregunta para el banco"}

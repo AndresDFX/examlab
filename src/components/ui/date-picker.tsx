@@ -18,7 +18,7 @@ import { format, parse, isValid } from "date-fns";
 import { es, enUS, type Locale } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";

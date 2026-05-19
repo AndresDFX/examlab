@@ -15,8 +15,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash } from "lucide-react";
-import { formatDateLong } from "@/lib/format";
-import { downloadCertificate, buildVerifyUrl } from "@/lib/certificate-pdf";
+import { formatDateLong } from "@/shared/lib/format";
+import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 
 export const Route = createFileRoute("/app/student/certificates")({
   component: StudentCertificates,
@@ -120,7 +120,7 @@ function StudentCertificates() {
 
       {loading ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             <Spinner size="md" /> Cargando…
           </CardContent>
         </Card>

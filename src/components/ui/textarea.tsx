@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 // Same mobile-first pattern as Input: 16px on mobile (anti-zoom on iOS),
 // 14px on desktop. Taller min-height on mobile for comfortable multi-line

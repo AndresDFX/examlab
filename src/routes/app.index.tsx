@@ -4,18 +4,18 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/shared/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
-import { PendingExamNotesModal } from "@/components/PendingExamNotesModal";
-import { pendingResponsesCount } from "@/lib/feedback-stats";
-import { AiGradingQueueWidget } from "@/components/AiGradingQueueWidget";
-import { AiOverrideDialog } from "@/components/AiOverrideDialog";
-import { cn } from "@/lib/utils";
+import { OpenFeedbackModal } from "@/modules/grading/OpenFeedbackModal";
+import { PendingExamNotesModal } from "@/modules/exams/PendingExamNotesModal";
+import { pendingResponsesCount } from "@/modules/grading/feedback-stats";
+import { AiGradingQueueWidget } from "@/modules/ai/AiGradingQueueWidget";
+import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
+import { cn } from "@/shared/lib/utils";
 import {
   Users,
   BookOpen,

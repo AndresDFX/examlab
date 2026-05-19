@@ -7,7 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Mail } from "lucide-react";
-import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
+import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
 
 export const Route = createFileRoute("/app/admin/email-settings")({
   component: AdminEmailSettings,

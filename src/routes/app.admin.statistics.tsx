@@ -46,7 +46,7 @@ import {
   computeAttendanceBySession,
   computeFraudStats,
   type CourseDataset,
-} from "@/lib/statistics";
+} from "@/shared/lib/statistics";
 import { CourseDashboard } from "./app.teacher.statistics";
 
 export const Route = createFileRoute("/app/admin/statistics")({

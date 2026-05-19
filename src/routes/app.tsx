@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { AppLayout } from "@/components/AppLayout";
-import { ModuleRouteGuard } from "@/components/ModuleRouteGuard";
+import { AppLayout } from "@/shared/components/AppLayout";
+import { ModuleRouteGuard } from "@/shared/components/ModuleRouteGuard";
 
 export const Route = createFileRoute("/app")({
   component: () => (

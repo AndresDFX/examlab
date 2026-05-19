@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
+import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -45,15 +45,15 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useConfirm } from "@/components/ConfirmDialog";
-import { downloadCSV, toCSV } from "@/lib/csv";
-import { computeWeightedGrade, type GradedItem } from "@/utils/grade";
-import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { downloadCSV, toCSV } from "@/shared/lib/csv";
+import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
+import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import {
   downloadCertificate,
   downloadCertificatesZip,
   buildVerifyUrl,
-} from "@/lib/certificate-pdf";
+} from "@/modules/certificates/certificate-pdf";
 
 // grade_cuts/projects pueden no estar en types.ts auto-generados
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1226,7 +1226,7 @@ function Gradebook() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
                     {t("gradebook.studentColumn")}
                   </TableHead>
                   {cuts.map((c, idx) => {
@@ -1242,7 +1242,7 @@ function Gradebook() {
                     ];
                     const tint = TINTS[idx % TINTS.length];
                     return (
-                      <TableHead key={c.id} className={`text-center min-w-32 ${tint}`}>
+                      <TableHead key={c.id} className={`text-center min-w-28 sm:min-w-32 ${tint}`}>
                         <div className="flex flex-col items-center gap-1 py-1">
                           <span
                             className="truncate max-w-28 font-semibold text-foreground"
@@ -1278,7 +1278,7 @@ function Gradebook() {
                   <TableHead className="text-center min-w-24 bg-muted/40">
                     {t("gradebook.finalColumn")}
                   </TableHead>
-                  <TableHead className="text-center min-w-32">Certificado</TableHead>
+                  <TableHead className="text-center min-w-28 sm:min-w-32">Certificado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1308,9 +1308,14 @@ function Gradebook() {
                         : null;
                     return (
                       <TableRow key={row.student.id}>
-                        <TableCell className="sticky left-0 z-10 bg-card">
-                          <div className="font-medium text-sm">{row.student.full_name}</div>
-                          <div className="text-xs text-muted-foreground">
+                        <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
+                          <div className="font-medium text-sm truncate" title={row.student.full_name}>
+                            {row.student.full_name}
+                          </div>
+                          <div
+                            className="text-xs text-muted-foreground truncate"
+                            title={row.student.institutional_email}
+                          >
                             {row.student.institutional_email}
                           </div>
                         </TableCell>

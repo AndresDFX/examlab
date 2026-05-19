@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
-import { FeedbackThread } from "@/components/FeedbackThread";
+import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateTime } from "@/lib/format";
-import { CodeRunOutput } from "@/components/CodeRunOutput";
-import { CodeEditor, type CodeLanguage } from "@/components/CodeEditor";
-import { MarkdownInline } from "@/components/MarkdownInline";
+import { formatDateTime } from "@/shared/lib/format";
+import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
+import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,

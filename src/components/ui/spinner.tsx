@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * Spinner — wrapper sobre Loader2 de lucide con variantes de tamaño

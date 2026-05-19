@@ -26,9 +26,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { StudentProjectTaker } from "@/components/ProjectFiles";
-import { formatDateTime } from "@/lib/format";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
+import { formatDateTime } from "@/shared/lib/format";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;

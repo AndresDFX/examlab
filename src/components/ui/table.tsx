@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 // El wrapper se queda con el scroll horizontal para que las tablas
 // anchas no rompan el layout en mobile. `-webkit-overflow-scrolling`

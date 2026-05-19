@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/ui/page-header";
-import { SystemDiagnosticsPanel } from "@/components/SystemDiagnosticsPanel";
+import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { Wrench } from "lucide-react";
 
 export const Route = createFileRoute("/app/admin/system")({

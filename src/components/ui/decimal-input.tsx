@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useState, type KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * DecimalInput — input numérico que SIEMPRE muestra/acepta coma como

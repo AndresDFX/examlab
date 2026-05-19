@@ -19,12 +19,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, MessageSquareText } from "lucide-react";
-import { FeedbackThread } from "@/components/FeedbackThread";
+import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateTime } from "@/lib/format";
-import { MarkdownInline } from "@/components/MarkdownInline";
+import { formatDateTime } from "@/shared/lib/format";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
   component: StudentWorkshopDetail,

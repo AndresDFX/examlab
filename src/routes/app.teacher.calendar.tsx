@@ -32,7 +32,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { CalendarDays, Link2, Unlink, RefreshCw, CheckCircle2 } from "lucide-react";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/teacher/calendar")({ component: CalendarPage });

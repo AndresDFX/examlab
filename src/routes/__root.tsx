@@ -1,9 +1,9 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Toaster } from "@/components/ui/sonner";
-import { ConfirmProvider } from "@/components/ConfirmDialog";
+import { ConfirmProvider } from "@/shared/components/ConfirmDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 
 import "@/i18n";
 import appCss from "../styles.css?url";

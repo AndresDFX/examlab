@@ -1,6 +1,6 @@
 import { type ComponentType, type ReactNode } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * EmptyState — caja centrada para "sin datos" en cards / contenedores

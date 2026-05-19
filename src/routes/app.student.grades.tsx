@@ -44,8 +44,8 @@ import {
   FolderKanban,
   CalendarCheck,
 } from "lucide-react";
-import { computeWeightedGrade } from "@/utils/grade";
-import { computeAttemptGrade, type RetryMode } from "@/utils/exam-attempts";
+import { computeWeightedGrade } from "@/modules/grading/grade";
+import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 

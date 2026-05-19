@@ -31,7 +31,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ListFilters } from "@/components/ui/list-filters";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -67,7 +67,7 @@ import {
   Link as LinkIcon,
   Edit2,
 } from "lucide-react";
-import { formatFileSize } from "@/lib/format";
+import { formatFileSize } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 

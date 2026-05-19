@@ -69,6 +69,39 @@ Locale es-CO hardcodeado en `Intl.DateTimeFormat` para que la app se vea igual i
 - **Modales con muchas columnas o flex-row**: usar `max-w-5xl`/`max-w-6xl`/`max-w-7xl` según necesidad. NO insistir con `max-w-3xl` cuando el contenido obviamente no cabe — eso es lo que causa scroll horizontal del modal.
 - **Columnas progresivas**: las columnas secundarias del grid deben ir con `hidden sm:table-cell` / `hidden md:table-cell` / `hidden lg:table-cell` para que en pantallas chicas se oculten antes de forzar scroll.
 
+### Responsive (target 375-428px / iPhone Pro / Pixel grandes)
+
+Cuatro reglas universales — aplicar siempre que se añada layout nuevo:
+
+1. **Modales**: `max-w-2xl` etc. rebasan 375px porque el viewport es más chico que el `max-w-`. Patrón obligatorio:
+   ```tsx
+   <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+   ```
+   En mobile usa el viewport menos 2rem de margen; en sm+ aplica el cap deseado.
+
+2. **Grids**: empezar siempre en 1 columna y expandir con breakpoints:
+   ```tsx
+   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+   ```
+   Nunca `grid-cols-2` o `grid-cols-3` sin prefijo — fuerza columnas chicas e ilegibles en mobile.
+
+3. **Tablas anchas**: wrapper con scroll horizontal **dentro** del Card + columnas secundarias ocultas:
+   ```tsx
+   <CardContent className="p-0 overflow-x-auto">
+     <Table>
+       <TableHead className="min-w-32">Estudiante</TableHead>
+       <TableHead className="hidden sm:table-cell">Email</TableHead>
+       ...
+   ```
+   Las columnas con datos largos (emails, descripciones) van `hidden sm:table-cell` o `md:table-cell`. Para tablas con `sticky left-0` (gradebook), bajar el `min-w-` de la sticky col en mobile (`min-w-36 sm:min-w-48`).
+
+4. **Inputs con flex-1 + min-w**: el `min-w-48` (192px) en flex containers fuerza wrap raro a 375px. Bajar el piso en mobile:
+   ```tsx
+   <div className="flex-1 min-w-[160px] sm:min-w-48">
+   ```
+
+5. **Padding generoso**: `p-8` come 64px de cada lado a 375px. Usar `p-4 sm:p-8` cuando el padding sea decorativo (empty states, loaders).
+
 ### Patrones de comportamiento
 
 - **`useConfirm()`** (de `ConfirmDialog`): para confirmaciones destructivas o de cambio importante. Retorna `Promise<boolean>`. NO construir Dialogs custom para esto.

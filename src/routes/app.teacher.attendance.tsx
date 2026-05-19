@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { logEvent } from "@/lib/audit";
+import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -66,22 +66,22 @@ import {
   CalendarPlus,
   PlayCircle,
 } from "lucide-react";
-import { toCSV } from "@/lib/csv";
-import { formatDateShort } from "@/lib/format";
-import { cn } from "@/lib/utils";
-import { useConfirm } from "@/components/ConfirmDialog";
+import { toCSV } from "@/shared/lib/csv";
+import { formatDateShort } from "@/shared/lib/format";
+import { cn } from "@/shared/lib/utils";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
-import { ImportExportMenu } from "@/components/ImportExportMenu";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   AttendanceCheckInProjector,
   type CheckInState,
-} from "@/components/AttendanceCheckInProjector";
+} from "@/modules/attendance/AttendanceCheckInProjector";
 import {
   ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   ATTENDANCE_CODE_ROTATION_DEFAULT,
-} from "@/lib/attendance-code";
-import { GenerateSessionsDialog } from "@/components/GenerateSessionsDialog";
+} from "@/modules/attendance/attendance-code";
+import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 
 // Columna `cut_name` es OPCIONAL: si está vacía, la sesión queda sin
 // corte (no aporta a la nota de asistencia hasta que el docente la
