@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/lib/edge-error";
+import { formatFileSize } from "@/lib/format";
 
 type JavaGuiMode = "cheerp" | "aws_screenshot";
 
@@ -558,9 +559,7 @@ export function JavaGuiRunner({
                       ? [
                           screenshotData.stdout,
                           screenshotData.stderr,
-                          `\n[runner] exit=${screenshotData.exitCode} • ${(
-                            screenshotData.pngBytes / 1024
-                          ).toFixed(1)} KB • ${screenshotData.executionTimeMs} ms`,
+                          `\n[runner] exit=${screenshotData.exitCode} • ${formatFileSize(screenshotData.pngBytes)} • ${screenshotData.executionTimeMs} ms`,
                         ]
                           .filter(Boolean)
                           .join("\n")

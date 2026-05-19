@@ -50,6 +50,7 @@ import { extractEdgeError } from "@/lib/edge-error";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
+import { formatFileSize, formatFileSizeShort } from "@/lib/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -1336,7 +1337,7 @@ export function StudentProjectTaker({
             const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
             if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `El total de archivos supera 50 MB (${(totalBytes / 1024 / 1024).toFixed(1)} MB). Reduce el contenido.`;
+              payload.ai_feedback = `El total de archivos supera el tope de 50 MB (${formatFileSize(totalBytes)}). Reduce el contenido.`;
               toast.error(payload.ai_feedback, { duration: 8000 });
             } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
               payload.ai_grade = 0;
@@ -1791,7 +1792,7 @@ export function StudentProjectTaker({
                         const totalBytes = merged.reduce((a, f) => a + f.size, 0);
                         if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
-                            `Los archivos suman ${(totalBytes / 1024 / 1024).toFixed(1)} MB y superan el tope de 50 MB.`,
+                            `Los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
                           );
                           e.target.value = "";
                           return;
@@ -1829,7 +1830,7 @@ export function StudentProjectTaker({
                         <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span>
                             {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
-                            {(current.reduce((a, f) => a + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                            {formatFileSize(current.reduce((a, f) => a + f.size, 0))}
                           </span>
                           <button
                             type="button"
@@ -1841,10 +1842,7 @@ export function StudentProjectTaker({
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {current.map((f, i) => {
-                            const sizeStr =
-                              f.size < 1024 * 1024
-                                ? `${Math.max(1, Math.round(f.size / 1024))} KB`
-                                : `${(f.size / 1024 / 1024).toFixed(1)} MB`;
+                            const sizeStr = formatFileSizeShort(f.size);
                             return (
                               <Badge
                                 key={`${f.name}-${f.size}-${i}`}

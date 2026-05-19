@@ -56,7 +56,7 @@ import {
   Link as LinkIcon,
   Edit2,
 } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatFileSize } from "@/lib/format";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -110,13 +110,6 @@ function detectProvider(url: string): "youtube" | "vimeo" | "direct" | null {
   } catch {
     return null;
   }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function extFromMime(mime: string): string {
@@ -299,7 +292,7 @@ function VideoLibrary() {
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      toast.error(`Archivo demasiado grande (${formatBytes(file.size)}). El máximo es 500 MB.`);
+      toast.error(`Archivo demasiado grande (${formatFileSize(file.size)}). El máximo es 500 MB.`);
       return;
     }
     setSaving(true);
@@ -648,7 +641,7 @@ function VideoLibrary() {
                 />
                 {file && (
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    {file.name} · {formatBytes(file.size)}
+                    {file.name} · {formatFileSize(file.size)}
                   </p>
                 )}
                 {editing?.storage_path && !file && (

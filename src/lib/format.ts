@@ -181,3 +181,46 @@ export function formatPercent(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "0";
   return n.toLocaleString("es-CO", { maximumFractionDigits: 2 });
 }
+
+/**
+ * Formatea bytes con escalonamiento binario (1024-based) — siempre
+ * en KB hasta que se llega a 1 MB, luego MB hasta GB, etc. Es la
+ * convención que el usuario reporta como "1024 KB = 1 MB y así
+ * sucesivamente". Antes la app mezclaba dos estilos:
+ *   - "0.5 MB" (mostrado como MB incluso siendo < 1 MB → engaña)
+ *   - "512 KB" (KB sólo por debajo de 1 MB)
+ *
+ * Reglas:
+ *   - < 1 KB: "X B"          (raro pero respetamos)
+ *   - < 1024 KB (= 1 MB): "X KB"     (un solo decimal si no es entero)
+ *   - < 1024 MB (= 1 GB): "X.X MB"   (un decimal)
+ *   - resto:               "X.XX GB" (dos decimales)
+ *
+ * `formatFileSizeShort` es la variante sin decimales bajo 1 MB —
+ * útil para chips/badges donde el espacio es escaso.
+ */
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "0 KB";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    // KB con decimal solo si el redondeo entero pierde precisión visible.
+    return Number.isInteger(kb) ? `${kb} KB` : `${kb.toFixed(1)} KB`;
+  }
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+}
+
+/** Versión compacta para chips: redondea a entero por debajo de 1 MB. */
+export function formatFileSizeShort(bytes: number | null | undefined): string {
+  if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "0 KB";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+}

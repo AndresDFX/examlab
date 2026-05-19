@@ -481,8 +481,20 @@ function StudentProjectDetail() {
                               )}
                         </div>
                       ) : (
+                        // Sin archivos en esta pregunta: matiza el mensaje
+                        // según el contexto para que el alumno no confunda
+                        // "no entregué" con "ya califiqué sin archivos".
+                        //
+                        //  - Hay `ans` con `ai_feedback` o `ai_grade` → la
+                        //    IA ya corrió (probablemente con 0 por entrega
+                        //    vacía). El feedback se muestra debajo; aquí
+                        //    aclaramos que la entrega no incluyó archivos.
+                        //  - No hay `ans` o todo es null → realmente no se
+                        //    subió nada todavía.
                         <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                          Aún no has subido los archivos de código para esta sección.
+                          {ans && (ans.ai_feedback || ans.ai_grade != null)
+                            ? "Tu entrega no incluyó archivos de código para esta sección. Revisa la retroalimentación abajo."
+                            : "Aún no has subido los archivos de código para esta sección."}
                         </div>
                       )
                     ) : (
@@ -492,7 +504,7 @@ function StudentProjectDetail() {
                           : t("project.review.noAnswer")}
                       </div>
                     )}
-                    {ans?.ai_feedback && (
+                    {ans?.ai_feedback && ans.ai_feedback.trim() && (
                       <div className="border-t pt-3">
                         <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
                           <span className="font-medium text-foreground block mb-1">
@@ -504,6 +516,21 @@ function StudentProjectDetail() {
                         </div>
                       </div>
                     )}
+                    {/* Caso intermedio: la entrega ya fue calificada (status
+                        calificado/ai_revisado) pero la IA dejó esta pregunta
+                        sin `ai_feedback`. Esto pasa cuando hubo timeout o
+                        falla silenciosa en el edge function — antes el alumno
+                        veía la Card sin ningún texto y creía que faltaba algo.
+                        Ahora mostramos una nota explícita. */}
+                    {(submission?.status === "calificado" ||
+                      submission?.status === "ai_revisado") &&
+                      ans &&
+                      (!ans.ai_feedback || !ans.ai_feedback.trim()) && (
+                        <div className="border-t pt-3 text-[11px] text-amber-700 dark:text-amber-300">
+                          La IA no generó retroalimentación para esta sección. Pide a tu docente que
+                          recalifique con IA o que revise manualmente.
+                        </div>
+                      )}
                     {submission && (
                       <FeedbackThread
                         parentKind="project"

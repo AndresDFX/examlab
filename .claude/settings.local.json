@@ -7,7 +7,12 @@
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Personal\\\\examlab\\\\src\\\\routes\" -Filter \"*.tsx\" -File)",
       "Bash(Select-Object Name)",
       "Bash(Sort-Object Name)",
-      "Bash(grep -rn \"course.boardLabel\\\\|course\\\\\\\\.boardShort\" src/)"
+      "Bash(grep -rn \"course.boardLabel\\\\|course\\\\\\\\.boardShort\" src/)",
+      "Bash(grep -n \"ai_feedback\\\\|f.type === \\\\\"codigo_zip\\\\\"\" src/routes/app.student.project.\\\\$projectId.tsx | head -10)",
+      "Read(//d/Projects/Personal/examlab/src/routes/**)",
+      "Bash(grep -n \"earned\" src/routes/app.student.project.\\\\$projectId.tsx | head -10)",
+      "Bash(grep -rn \"MB\\\\|KB\" src/routes/app.student.project.\\\\$projectId.tsx src/components/WorkshopQuestions.tsx 2>&1 | head -10)",
+      "Bash(grep -n \"submission.status\\\\|status === \\\\\"calificado\\\\\"\\\\|status === \\\\\"entregado\\\\\"\" src/routes/app.student.project.\\\\$projectId.tsx | head -5)"
     ]
   }
 }
