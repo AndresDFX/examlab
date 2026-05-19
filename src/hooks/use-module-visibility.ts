@@ -38,36 +38,49 @@ export type RoleKey = "Admin" | "Docente" | "Estudiante";
 
 export type VisibilityMap = Partial<Record<ModuleKey, Partial<Record<RoleKey, boolean>>>>;
 
-let cached: VisibilityMap | null = null;
-let pending: Promise<VisibilityMap> | null = null;
+/** Mapa de orden por (módulo, rol). Default 100 si no hay fila. */
+export type OrderMap = Partial<Record<ModuleKey, Partial<Record<RoleKey, number>>>>;
 
-async function fetchVisibilityMap(): Promise<VisibilityMap> {
+interface CombinedMaps {
+  visibility: VisibilityMap;
+  order: OrderMap;
+}
+
+let cached: CombinedMaps | null = null;
+let pending: Promise<CombinedMaps> | null = null;
+
+async function fetchVisibilityMap(): Promise<CombinedMaps> {
   if (cached) return cached;
   if (pending) return pending;
   pending = (async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("module_visibility")
-      .select("module_key, role, enabled");
+      .select("module_key, role, enabled, display_order");
     if (error) {
       // En error caemos a mapa vacío → todos los módulos visibles
       // (default true). Mejor mostrar de más que romper la app por una
       // tabla no migrada todavía.
       console.warn("[module-visibility] fetch failed, defaulting to all-enabled:", error.message);
-      cached = {};
+      cached = { visibility: {}, order: {} };
       return cached;
     }
-    const map: VisibilityMap = {};
+    const visibility: VisibilityMap = {};
+    const order: OrderMap = {};
     for (const row of (data ?? []) as Array<{
       module_key: ModuleKey;
       role: RoleKey;
       enabled: boolean;
+      display_order?: number | null;
     }>) {
-      const slot = map[row.module_key] ?? {};
+      const slot = visibility[row.module_key] ?? {};
       slot[row.role] = row.enabled;
-      map[row.module_key] = slot;
+      visibility[row.module_key] = slot;
+      const ord = order[row.module_key] ?? {};
+      ord[row.role] = typeof row.display_order === "number" ? row.display_order : 100;
+      order[row.module_key] = ord;
     }
-    cached = map;
+    cached = { visibility, order };
     return cached;
   })();
   try {
@@ -106,29 +119,51 @@ export function isModuleEnabled(
 }
 
 /**
- * Hook React. Devuelve `{ map, loading }`. `map` arranca vacío y se
- * llena tras el fetch. Mientras `loading` es true, llamadas a
- * isModuleEnabled siempre devuelven true (no bloquear navegación
- * antes de saber).
+ * Helper para leer el orden de un módulo para un rol dado. Default 100
+ * si no hay fila — coherente con la columna `display_order DEFAULT 100`
+ * en SQL.
  */
-export function useModuleVisibility(): { map: VisibilityMap; loading: boolean } {
-  const [map, setMap] = useState<VisibilityMap>(cached ?? {});
+export function getModuleOrder(
+  orderMap: OrderMap,
+  module: ModuleKey,
+  role: RoleKey | null | undefined,
+): number {
+  if (!role) return 100;
+  return orderMap[module]?.[role] ?? 100;
+}
+
+/**
+ * Hook React. Devuelve `{ map, order, loading }`. Mientras `loading`
+ * es true, llamadas a isModuleEnabled siempre devuelven true (no
+ * bloquear navegación antes de saber). `map` mantiene su nombre para
+ * compat con código existente — apunta a la visibilidad. `order`
+ * expone el display_order por (módulo, rol).
+ */
+export function useModuleVisibility(): {
+  map: VisibilityMap;
+  order: OrderMap;
+  loading: boolean;
+} {
+  const [map, setMap] = useState<VisibilityMap>(cached?.visibility ?? {});
+  const [order, setOrder] = useState<OrderMap>(cached?.order ?? {});
   const [loading, setLoading] = useState(cached == null);
   useEffect(() => {
     if (cached) {
-      setMap(cached);
+      setMap(cached.visibility);
+      setOrder(cached.order);
       setLoading(false);
       return;
     }
     let cancelled = false;
     void fetchVisibilityMap().then((m) => {
       if (cancelled) return;
-      setMap(m);
+      setMap(m.visibility);
+      setOrder(m.order);
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
   }, []);
-  return { map, loading };
+  return { map, order, loading };
 }

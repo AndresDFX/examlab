@@ -95,6 +95,26 @@ interface DiagramEditorProps {
   readOnly?: boolean;
 }
 
+/**
+ * Mermaid v10/v11 monta elementos auxiliares en `document.body` mientras
+ * renderiza (los usa para medir tamaños sin afectar el layout). Cuando
+ * el código tiene error, esos elementos quedan huérfanos y a veces se
+ * vuelven visibles fuera del componente — el alumno ve "Syntax error in
+ * text · mermaid version 11.x.x" pegado en alguna esquina aún cuando
+ * navega a otra ruta. Esta limpieza elimina los nodos que mermaid no
+ * borró por sí mismo, identificándolos por id `dmermaid*` o `mermaid-*`.
+ */
+function cleanupMermaidArtifacts(): void {
+  if (typeof document === "undefined") return;
+  document
+    .querySelectorAll<HTMLElement>('body > [id^="dmermaid"], body > [id^="mermaid-"]')
+    .forEach((el) => {
+      // No borrar el container del propio editor (vive dentro de un
+      // elemento padre con su propio id, no como hijo directo de body).
+      el.remove();
+    });
+}
+
 export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEditorProps) {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [svgHtml, setSvgHtml] = useState("");
@@ -107,6 +127,12 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
     if (!code.trim()) {
       setSvgHtml("");
       setError(null);
+      // Mermaid deja elementos huérfanos (`#dmermaid-*`) en document.body
+      // cuando una renderización previa falló. Si el diagrama queda vacío
+      // y no limpiamos, esos elementos siguen visibles en algunas
+      // pantallas mostrando "Syntax error in text mermaid version
+      // 11.x.x" en la UI del estudiante.
+      cleanupMermaidArtifacts();
       return;
     }
     try {
@@ -118,12 +144,30 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
         fontFamily: "Inter, sans-serif",
       });
       const { svg } = await mermaid.render(idRef.current, code);
+      // Mermaid v11 NO siempre throw cuando el código tiene error: en
+      // ocasiones retorna un SVG con el mensaje "Syntax error in text".
+      // Lo detectamos por contenido y lo tratamos como fallo en vez
+      // de pintarlo (UX confusa, ensucia la pantalla del alumno).
+      const looksLikeError =
+        /syntax\s*error\s*in\s*text/i.test(svg) ||
+        /aria-roledescription="error"/i.test(svg) ||
+        svg.includes("mermaid version");
+      if (looksLikeError) {
+        setError("Sintaxis Mermaid inválida");
+        setSvgHtml("");
+        cleanupMermaidArtifacts();
+        return;
+      }
       setSvgHtml(svg);
       setError(null);
       // Generate a new ID for next render (mermaid reuses IDs)
       idRef.current = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
     } catch (e: any) {
       setError(e.message ?? "Error de sintaxis en el diagrama");
+      // Limpieza adicional: cuando mermaid throws, también deja restos
+      // en el body. Sin esto, el alumno ve el error pegado al margen
+      // inferior de la pantalla aún en otras rutas.
+      cleanupMermaidArtifacts();
       // Don't clear SVG on error — keep last valid render
     }
   }, []);

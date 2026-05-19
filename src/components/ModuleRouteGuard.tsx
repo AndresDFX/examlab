@@ -38,6 +38,7 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/student/attendance", "attendance"],
   ["/app/student/calendar", "calendar"],
   ["/app/student/certificates", "certificates"],
+  ["/app/certificates", "certificates"],
   ["/app/student/tutor/", "tutor"],
 
   // Rutas comunes

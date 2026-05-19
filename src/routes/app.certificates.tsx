@@ -1,0 +1,213 @@
+/**
+ * Vista unificada de certificados emitidos para Docente / Admin.
+ *
+ * RLS de `public.certificates` ya filtra por rol:
+ *   - Estudiante: ve los suyos (esa vista vive aparte en app.student.certificates).
+ *   - Docente: ve los emitidos en cursos donde es teacher (`course_teachers`).
+ *   - Admin: ve todos.
+ *
+ * Acá NO hay filtro `user_id` — la RLS hace el trabajo. Las acciones
+ * (download del PDF + copy link de verificación) son las mismas que en
+ * la vista estudiante. Revocar quedó como follow-up (requiere RPC
+ * dedicada `revoke_certificate(_id, _reason)`).
+ */
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { PageHeader } from "@/components/ui/page-header";
+import { TableEmpty } from "@/components/ui/empty-state";
+import { toast } from "sonner";
+import { Award, Download, Copy, ExternalLink, Hash, User as UserIcon } from "lucide-react";
+import { formatDateLong } from "@/lib/format";
+import { downloadCertificate, buildVerifyUrl } from "@/lib/certificate-pdf";
+
+export const Route = createFileRoute("/app/certificates")({ component: CertificatesAdmin });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+
+interface CertificateRow {
+  id: string;
+  short_code: string;
+  student_full_name: string;
+  student_identification: string | null;
+  course_name: string;
+  course_period: string | null;
+  final_grade: number;
+  grade_scale_max: number;
+  teacher_names: string[];
+  university_name: string | null;
+  university_logo_url: string | null;
+  issued_at: string;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  payload_hash: string;
+  user_id: string;
+}
+
+function CertificatesAdmin() {
+  const { user, roles } = useAuth();
+  const [items, setItems] = useState<CertificateRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const isAdmin = roles.includes("Admin");
+  const isDocente = roles.includes("Docente");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      // Sin filtro por user_id — RLS limita el scope al rol activo.
+      const { data, error } = await db
+        .from("certificates")
+        .select("*")
+        .order("issued_at", { ascending: false });
+      if (cancelled) return;
+      if (error) toast.error(error.message);
+      else setItems((data ?? []) as CertificateRow[]);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const handleDownload = async (cert: CertificateRow) => {
+    try {
+      await downloadCertificate({
+        shortCode: cert.short_code,
+        studentFullName: cert.student_full_name,
+        studentIdentification: cert.student_identification,
+        courseName: cert.course_name,
+        coursePeriod: cert.course_period,
+        finalGrade: Number(cert.final_grade),
+        gradeScaleMax: Number(cert.grade_scale_max),
+        teacherNames: cert.teacher_names,
+        universityName: cert.university_name,
+        universityLogoUrl: cert.university_logo_url,
+        issuedAt: cert.issued_at,
+        payloadHash: cert.payload_hash,
+        revokedAt: cert.revoked_at,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error generando PDF");
+    }
+  };
+
+  const handleCopyLink = (cert: CertificateRow) => {
+    void navigator.clipboard.writeText(buildVerifyUrl(cert.short_code));
+    toast.success("Link de verificación copiado");
+  };
+
+  if (!isAdmin && !isDocente) {
+    return <p className="text-muted-foreground p-6">Necesitas rol Docente o Admin.</p>;
+  }
+
+  return (
+    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+      <PageHeader
+        title="Certificaciones"
+        subtitle={
+          isAdmin
+            ? "Todos los certificados emitidos en la plataforma."
+            : "Certificados emitidos en los cursos que dictas."
+        }
+        icon={<Award className="h-6 w-6 text-amber-500" />}
+      />
+
+      {loading ? (
+        <div className="p-8 flex items-center justify-center text-sm text-muted-foreground">
+          <Spinner size="sm" className="mr-2" /> Cargando…
+        </div>
+      ) : items.length === 0 ? (
+        <TableEmpty
+          icon={Award}
+          title="Sin certificados"
+          description={
+            isAdmin
+              ? "Aún no se han emitido certificados en la plataforma. Se generan desde Libro de notas → curso → 'Emitir certificado' cuando un alumno aprueba."
+              : "Aún no hay certificados emitidos en tus cursos. Se generan desde Libro de notas cuando apruebas a un estudiante."
+          }
+        />
+      ) : (
+        <div className="space-y-3">
+          {items.map((c) => (
+            <Card
+              key={c.id}
+              className={c.revoked_at ? "border-destructive/40 bg-destructive/5" : undefined}
+            >
+              <CardContent className="p-4 flex flex-wrap items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Award className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <UserIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium text-sm">{c.student_full_name}</span>
+                    {c.revoked_at && (
+                      <Badge variant="destructive" className="text-[10px]">
+                        Revocado
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {c.course_name}
+                    {c.course_period ? ` · ${c.course_period}` : ""}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                    <span className="tabular-nums">
+                      Nota: {Number(c.final_grade).toFixed(2)} / {c.grade_scale_max}
+                    </span>
+                    <span>·</span>
+                    <span>Emitido: {formatDateLong(c.issued_at)}</span>
+                    <span>·</span>
+                    <Hash className="h-3 w-3" />
+                    <code className="text-[10px]">{c.short_code}</code>
+                  </div>
+                  {c.revoked_at && c.revoke_reason && (
+                    <p className="text-[11px] text-destructive mt-1">
+                      Motivo de revocación: {c.revoke_reason}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleDownload(c)}
+                    title="Descargar PDF"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleCopyLink(c)}
+                    title="Copiar link de verificación"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <a
+                    href={buildVerifyUrl(c.short_code)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir verificación pública"
+                  >
+                    <Button size="sm" variant="ghost">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

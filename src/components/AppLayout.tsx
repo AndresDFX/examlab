@@ -18,6 +18,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useMessagingToasts } from "@/hooks/use-messaging-toasts";
 import {
   isModuleEnabled,
+  getModuleOrder,
   useModuleVisibility,
   type ModuleKey,
   type RoleKey,
@@ -170,13 +171,23 @@ const NAV: NavItem[] = [
     icon: ClipboardList,
     roles: ["Estudiante"],
   },
-  // Certificados — solo estudiante. Visibles aunque aún no haya emitidos
-  // (la lista vacía explica).
+  // Certificados — visible para los 3 roles. La vista compartida en
+  // `/app/certificates` (sin user_id filter) deja a RLS limitar el
+  // scope: estudiante ve los suyos, docente los de sus cursos, admin
+  // todos. La ruta legacy `/app/student/certificates` se mantiene por
+  // backward-compat de links viejos, pero el nav ya apunta a la
+  // unificada.
   {
     to: "/app/student/certificates",
     labelKey: "nav.studentCertificates",
     icon: Award,
     roles: ["Estudiante"],
+  },
+  {
+    to: "/app/certificates",
+    labelKey: "nav.studentCertificates",
+    icon: Award,
+    roles: ["Docente", "Admin"],
   },
   // Asistencia
   {
@@ -404,7 +415,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // hidden por el admin. El hook hace fetch + cache global, así que
   // múltiples instancias de AppLayout (en navegación SPA) reutilizan
   // el mismo mapa sin re-queries.
-  const { map: moduleMap } = useModuleVisibility();
+  const { map: moduleMap, order: moduleOrder } = useModuleVisibility();
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -483,9 +494,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/teacher/calendar", "calendar"],
     ["/app/student/calendar", "calendar"],
     ["/app/student/certificates", "certificates"],
+    ["/app/certificates", "certificates"],
     ["/app/teacher/question-bank", "question_bank"],
     ["/app/teacher/ai-prompts", "ai_prompts"],
   ];
+  // Resuelve módulo para un path (helper local). Si no hay match,
+  // null (no controlado por toggles, no participa en sort).
+  const moduleForNav = (to: string): ModuleKey | null => {
+    const found = NAV_PATH_TO_MODULE.find(([prefix]) => to === prefix);
+    return found ? found[1] : null;
+  };
   const visibleNav = NAV.filter((n) => {
     if (!activeRole || !n.roles.includes(activeRole)) return false;
     // Banco de preguntas legacy: el admin puede esconderlo globalmente.
@@ -493,12 +511,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Admin bypassa los toggles de visibilidad (siempre ve todo en el nav).
     if (activeRole === "Admin") return true;
     // Filtro por module_visibility para Docente / Estudiante.
-    const mapped = NAV_PATH_TO_MODULE.find(([prefix]) => n.to === prefix);
-    if (mapped) {
-      const [, modKey] = mapped;
+    const modKey = moduleForNav(n.to);
+    if (modKey) {
       if (!isModuleEnabled(moduleMap, modKey, activeRole as RoleKey)) return false;
     }
     return true;
+  });
+  // Aplicamos el orden configurado por el Admin desde el panel "Módulos".
+  // Si dos items mapean al mismo módulo (raro), o el item no tiene
+  // módulo asociado (ej. /app/admin/users), conservan su posición
+  // relativa por orden de declaración en NAV (sort estable en JS).
+  visibleNav.sort((a, b) => {
+    const ma = moduleForNav(a.to);
+    const mb = moduleForNav(b.to);
+    const oa = ma ? getModuleOrder(moduleOrder, ma, activeRole as RoleKey) : 9999;
+    const ob = mb ? getModuleOrder(moduleOrder, mb, activeRole as RoleKey) : 9999;
+    return oa - ob;
   });
   const activeCfg = activeRole ? ROLE_CONFIG[activeRole] : null;
   const ActiveIcon = activeCfg?.icon ?? GraduationCap;

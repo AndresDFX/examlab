@@ -1791,7 +1791,7 @@ function ExamMonitor() {
               <div className="flex items-center gap-2 shrink-0">
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="default"
                   onClick={() => void runRegradeLatestAll()}
                   disabled={regradeAllLoading || detecting}
                   title="Recalifica con IA el último intento finalizado de cada estudiante. Abre un modal con las notas propuestas para que aprueben en lote."
@@ -1799,7 +1799,7 @@ function ExamMonitor() {
                   {regradeAllLoading ? (
                     <Spinner size="sm" className="mr-1.5" />
                   ) : (
-                    <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                   )}
                   {regradeAllLoading
                     ? `Recalificando ${regradeAllProgress.done}/${regradeAllProgress.total}…`

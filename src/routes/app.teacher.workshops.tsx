@@ -147,6 +147,9 @@ type Workshop = {
   status: string;
   is_external?: boolean | null;
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+  /** Intentos máximos para este taller. NULL → usa el default global
+   *  (app_settings.default_workshop_max_attempts). */
+  max_attempts?: number | null;
   course?: { name: string; period: string | null };
 };
 type Cut = {
@@ -618,6 +621,11 @@ function TeacherWorkshops() {
         : null,
       due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
       max_score: Number(form.max_score) || 100,
+      // Override de intentos máximos. NULL → hereda app_settings.default_workshop_max_attempts.
+      max_attempts:
+        form.max_attempts != null && Number(form.max_attempts) > 0
+          ? Number(form.max_attempts)
+          : null,
       status: isExternal ? "closed" : (form.status ?? "draft"),
       rubric: form.rubric ?? null,
       created_by: user.id,
@@ -2448,21 +2456,45 @@ function TeacherWorkshops() {
               </div>
             </div>
             {!(form as any).is_external && (
-              <div>
-                <Label>Estado</Label>
-                <Select
-                  value={form.status ?? "draft"}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Borrador</SelectItem>
-                    <SelectItem value="published">Publicado</SelectItem>
-                    <SelectItem value="closed">Cerrado</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Estado</Label>
+                  <Select
+                    value={form.status ?? "draft"}
+                    onValueChange={(v) => setForm({ ...form, status: v })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Borrador</SelectItem>
+                      <SelectItem value="published">Publicado</SelectItem>
+                      <SelectItem value="closed">Cerrado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="flex items-center gap-1.5">
+                    Intentos máximos
+                    <HelpHint>
+                      {`Cuántas veces puede entregar el alumno este taller. Vacío → usa el default de Admin → Configuración → Generales.`}
+                    </HelpHint>
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    placeholder="Hereda del default"
+                    value={form.max_attempts ?? ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        max_attempts: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    className="mt-1"
+                  />
+                </div>
               </div>
             )}
             {!(form as any).is_external && (

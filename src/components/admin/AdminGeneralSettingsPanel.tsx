@@ -48,6 +48,8 @@ interface AppSettings {
   default_exam_max_warnings: number;
   default_exam_navigation: "libre" | "secuencial";
   default_exam_max_attempts: number;
+  default_workshop_max_attempts: number;
+  default_project_max_attempts: number;
   require_exam_fullscreen: boolean;
   question_bank_enabled: boolean;
   max_open_answer_chars: number;
@@ -117,6 +119,8 @@ export function AdminGeneralSettingsPanel() {
           default_exam_max_warnings: draft.default_exam_max_warnings,
           default_exam_navigation: draft.default_exam_navigation,
           default_exam_max_attempts: draft.default_exam_max_attempts,
+          default_workshop_max_attempts: draft.default_workshop_max_attempts,
+          default_project_max_attempts: draft.default_project_max_attempts,
           require_exam_fullscreen: draft.require_exam_fullscreen,
           question_bank_enabled: draft.question_bank_enabled,
           max_open_answer_chars: draft.max_open_answer_chars,
@@ -255,7 +259,7 @@ export function AdminGeneralSettingsPanel() {
             </Select>
           </div>
           <div>
-            <Label>Intentos máximos</Label>
+            <Label>Intentos máximos exámenes</Label>
             <Input
               type="number"
               min={1}
@@ -265,6 +269,48 @@ export function AdminGeneralSettingsPanel() {
                 setDraft({
                   ...draft,
                   default_exam_max_attempts: Number(e.target.value),
+                })
+              }
+            />
+          </div>
+          <div>
+            <Label className="flex items-center gap-1.5">
+              Intentos máx. talleres
+              <HelpHint>
+                Cuántas veces puede entregar un alumno un taller. Default global; el docente puede
+                sobreescribirlo por taller individual.
+              </HelpHint>
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={draft.default_workshop_max_attempts}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  default_workshop_max_attempts: Number(e.target.value),
+                })
+              }
+            />
+          </div>
+          <div>
+            <Label className="flex items-center gap-1.5">
+              Intentos máx. proyectos
+              <HelpHint>
+                Cuántas veces puede entregar un alumno un proyecto. Default global; el docente
+                puede sobreescribirlo por proyecto.
+              </HelpHint>
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={draft.default_project_max_attempts}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  default_project_max_attempts: Number(e.target.value),
                 })
               }
             />

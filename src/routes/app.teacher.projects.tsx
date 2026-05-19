@@ -145,6 +145,9 @@ type Project = {
   start_date: string | null;
   due_date: string | null;
   max_score: number;
+  /** Intentos máximos para este proyecto. NULL → usa el default global
+   *  (app_settings.default_project_max_attempts). */
+  max_attempts?: number | null;
   status: "draft" | "published" | "closed";
   is_external?: boolean;
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
@@ -688,6 +691,12 @@ function TeacherProjects() {
       title: form.title,
       description: form.description ?? null,
       max_score: Number(form.max_score) || 100,
+      // null → hereda del default global. Si el docente pone valor
+      // explícito, override por proyecto.
+      max_attempts:
+        form.max_attempts != null && Number(form.max_attempts) > 0
+          ? Number(form.max_attempts)
+          : null,
       status: form.status ?? "draft",
     };
     if (isExternal) {
@@ -1847,6 +1856,29 @@ function TeacherProjects() {
                   placeholder="https://..."
                   value={form.external_link ?? ""}
                   onChange={(e) => setForm({ ...form, external_link: e.target.value })}
+                />
+              </div>
+            )}
+            {!(form as any).is_external && (
+              <div>
+                <Label className="flex items-center gap-1.5">
+                  Intentos máximos (opcional)
+                  <HelpHint>
+                    {`Cuántas veces puede entregar el alumno este proyecto. Si lo dejas vacío usa el default global definido en Admin → Configuración → Generales.`}
+                  </HelpHint>
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  placeholder="Hereda del default global"
+                  value={form.max_attempts ?? ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      max_attempts: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
                 />
               </div>
             )}
