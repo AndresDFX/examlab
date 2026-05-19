@@ -327,24 +327,23 @@ def _handle_gui_screenshot(
                 break
             time.sleep(0.05)
 
-        # ── Capturar screenshot (framebuffer raw → PNG vía convert) ──
-        # Antes intentamos dos enfoques que no funcionaron en Lambda:
-        #   1. `import -window root` (ImageMagick) → colgaba > 10s
-        #      porque inicializa MIT-SHM y /dev/shm no está completo.
-        #   2. `xwd` → el binario vive en `xorg-x11-apps`, paquete que
+        # ── Capturar screenshot (framebuffer raw → PNG con Pillow) ──
+        # Historia de iteraciones que no funcionaron antes de Pillow:
+        #   1. `import -window root` (ImageMagick): se colgaba > 10s
+        #      inicializando MIT-SHM (Lambda no expone /dev/shm completo).
+        #   2. `xwd | convert`: xwd vive en `xorg-x11-apps`, paquete que
         #      NO existe en el repo de Amazon Linux 2023.
+        #   3. `convert -size WxH -depth 8 BGRA:- out.png` leyendo el
+        #      framebuffer raw: convert se colgaba codificando PNG —
+        #      probablemente la policy.xml de ImageMagick (AL2023
+        #      restringe coders raw por CVE-2016-3714) o el pipe stdin
+        #      con 3MB atascándose en el sandbox.
         #
-        # Solución actual: Xvfb arranca con `-fbdir /tmp`, lo que hace
-        # que mantenga su framebuffer como archivo mmap en
-        # `/tmp/Xvfb_screen0`. Es bytes crudos (4 bytes por pixel BGRA,
-        # depth 24 padded a 32-bit en x86) sin header. ImageMagick lo
-        # lee directo con `-size WxH -depth 8 BGRA:- out.png`.
-        # Ventajas:
-        #  - Cero proceso X11 client (no hablamos con el X server, solo
-        #    leemos su backing store). Sin riesgo de cuelgue.
-        #  - Sin paquetes extra (`convert` viene de ImageMagick que ya
-        #    teníamos).
-        #  - Un solo subprocess → un solo timeout.
+        # Solución actual: leer `/tmp/Xvfb_screen0` (framebuffer mmap de
+        # Xvfb arrancado con `-fbdir /tmp`) y codificar a PNG con Pillow
+        # IN-PROCESS. Sin subprocess, sin ImageMagick, sin policy.xml,
+        # sin shell, sin pipes. PIL convierte BGRA → RGBA y codifica
+        # PNG en una sola llamada.
         screenshot_path = os.path.join(tmp, "screenshot.png")
         fb_path = "/tmp/Xvfb_screen0"
         capture_ok = False
@@ -366,35 +365,31 @@ def _handle_gui_screenshot(
                 else:
                     with open(fb_path, "rb") as fh:
                         fb_data = fh.read(expected_bytes)
-                    conv_proc = subprocess.run(
-                        [
-                            "convert",
-                            "-size",
-                            f"{GUI_WIDTH}x{GUI_HEIGHT}",
-                            "-depth",
-                            "8",
-                            "BGRA:-",
-                            screenshot_path,
-                        ],
-                        input=fb_data,
-                        capture_output=True,
-                        timeout=8,
+                    # Pillow lee bytes BGRA directo y emite PNG. El
+                    # parámetro "raw" + "BGRA" dice "estos son píxeles
+                    # crudos en orden B,G,R,A por pixel" — PIL los
+                    # reordena internamente a RGBA y luego comprime PNG.
+                    # Import diferido para que el modo `run` (que no
+                    # toca GUI) no pague el costo de cargar PIL.
+                    from PIL import Image  # noqa: PLC0415
+                    img = Image.frombytes(
+                        "RGBA",
+                        (GUI_WIDTH, GUI_HEIGHT),
+                        fb_data,
+                        "raw",
+                        "BGRA",
                     )
-                    if conv_proc.returncode != 0:
-                        capture_err = (
-                            "convert BGRA→png failed (exit "
-                            + str(conv_proc.returncode)
-                            + "): "
-                            + conv_proc.stderr.decode("utf-8", "replace").strip()
-                        )
-                    elif not os.path.exists(screenshot_path):
-                        capture_err = "convert no creó el archivo PNG de salida"
-                    else:
-                        capture_ok = True
-        except subprocess.TimeoutExpired:
-            capture_err = "convert excedió su timeout (8s) al codificar PNG"
+                    img.save(screenshot_path, "PNG", optimize=True)
+                    capture_ok = os.path.exists(screenshot_path)
+                    if not capture_ok:
+                        capture_err = "Pillow no creó el archivo PNG de salida"
         except OSError as e:
             capture_err = f"Error de I/O leyendo framebuffer: {e}"
+        except Exception as e:  # noqa: BLE001
+            # PIL puede tirar excepciones varias (ValueError por size
+            # mismatch, etc.). Capturamos todo para que un bug en la
+            # captura no tumbe la respuesta del Lambda.
+            capture_err = f"Pillow PNG encode failed: {type(e).__name__}: {e}"
 
         # ── Cleanup: matar JVM y Xvfb ──
         # IMPORTANTE: si no matamos la JVM, sigue corriendo en background
@@ -522,7 +517,9 @@ def _handle_diagnose() -> dict:
         "java_home_env": os.environ.get("JAVA_HOME", "(unset)"),
         "display_env": os.environ.get("DISPLAY", "(unset)"),
         "xvfb_path": run(["bash", "-c", "command -v Xvfb"]),
-        "convert_path": run(["bash", "-c", "command -v convert"]),
+        "pillow_version": run(
+            ["python3", "-c", "from PIL import Image; print(Image.__version__)"]
+        ),
         # /tmp/Xvfb_screen0 solo existe si Xvfb arrancó alguna vez en
         # este container warm. En frío puede no existir todavía — la
         # ausencia no es bug, solo el caso "no se ha hecho captura aún".

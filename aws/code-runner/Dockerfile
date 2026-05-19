@@ -19,24 +19,27 @@
 
 FROM public.ecr.aws/lambda/python:3.13
 
-# OpenJDK 21 LTS + Xvfb (X virtual framebuffer) + ImageMagick (binario
-# `convert` para pasar el framebuffer raw → PNG) + fuentes (Swing
+# OpenJDK 21 LTS + Xvfb (X virtual framebuffer) + Pillow (PIL — encoder
+# de PNG en Python puro, instalado via pip más abajo) + fuentes (Swing
 # necesita al menos una font genérica o pinta vacío) + libs X11 nativas
 # para AWT.
 #
-# Por qué NO usamos `import` ni `xwd`:
+# Por qué llegamos hasta acá (iteraciones previas que fallaron):
 #  - `import -window root` (ImageMagick) se colgaba > 10s en Lambda
 #    porque intenta inicializar MIT-SHM y /dev/shm no está completo en
 #    Firecracker.
 #  - `xwd` viene en `xorg-x11-apps`, que NO existe en el repo de
 #    Amazon Linux 2023 (es paquete específico de Fedora/RHEL).
+#  - `convert -size WxH -depth 8 BGRA:- out.png` tomando el framebuffer
+#    raw de Xvfb se colgaba codificando — la policy.xml de AL2023
+#    restringe coders raw por CVE-2016-3714, y el pipe stdin con 3MB
+#    parece atascarse en el sandbox.
 #
-# Solución que sí funciona en AL2023 sin paquetes adicionales: Xvfb con
-# `-fbdir /tmp` persiste el framebuffer como archivo mmap raw en
-# `/tmp/Xvfb_screen0`. Es bytes crudos (BGRA 4 bytes/pixel para depth
-# 24) sin header. `convert -size WxH -depth 8 BGRA:- out.png` lo
-# convierte a PNG en una sola llamada. Cero dependencia X11 client
-# (no necesitamos hablar con el server, leemos su backing store).
+# Solución final: Xvfb persiste el framebuffer como archivo mmap raw en
+# `/tmp/Xvfb_screen0` (BGRA 4 bytes/pixel para depth 24). Python con
+# Pillow lo lee y codifica a PNG in-process — sin subprocess, sin
+# ImageMagick, sin policy.xml, sin shell. Una sola llamada:
+#   Image.frombytes("RGBA", (W, H), data, "raw", "BGRA").save(path)
 #
 # A diferencia del modo solo-consola, NO removemos las libs X11 — son
 # necesarias para que la JVM pueda crear ventanas Swing/AWT contra el
@@ -83,7 +86,6 @@ RUN dnf install -y \
       libX11 \
       freetype \
       fontconfig \
-      ImageMagick \
       dejavu-sans-fonts \
       dejavu-serif-fonts \
       liberation-sans-fonts \
@@ -94,13 +96,14 @@ RUN dnf install -y \
  && rm -rf "$JAVA_HOME/demo" "$JAVA_HOME/man" "$JAVA_HOME/sample" "$JAVA_HOME/jmods" \
  && rm -rf /usr/lib/jvm/*/lib/src.zip
 
-# ImageMagick 7 viene con policy.xml restrictiva por CVE-2016-3714
-# (ghostscript / PS / EPS / PDF). Para `import -window root → PNG` no
-# tocamos esos formatos, pero a veces el binario falla si la policy
-# bloquea coders genéricos. Permitimos PNG explícitamente.
-RUN if [ -f /etc/ImageMagick-7/policy.xml ]; then \
-      sed -i 's|<policy domain="coder" rights="none" pattern="PNG"|<policy domain="coder" rights="read\|write" pattern="PNG"|g' /etc/ImageMagick-7/policy.xml || true; \
-    fi
+# Pillow (PIL) — encoder de PNG en Python puro, reemplaza el `convert`
+# de ImageMagick que se colgaba codificando los 3MB del framebuffer
+# raw. La policy.xml de AL2023 restringe los coders raw (BGRA, RGB) por
+# CVE-2016-3714, así que convert podía rechazarlos silenciosamente o
+# pipe stdin se atascaba. Pillow lo hace en una sola llamada in-process:
+#   Image.frombytes("RGBA", (W, H), data, "raw", "BGRA").save(path, "PNG")
+# Sin subprocess, sin timeout, sin shell, sin policy. ~10MB extra.
+RUN pip install --no-cache-dir Pillow
 
 # Sanity check — falla el build si algo falta. `command -v` reemplaza a
 # `which` porque la imagen base AL2023 minimal no lo trae.
@@ -114,7 +117,7 @@ RUN if [ -f /etc/ImageMagick-7/policy.xml ]; then \
 RUN java -version \
  && javac -version \
  && command -v Xvfb \
- && command -v convert \
+ && python3 -c "from PIL import Image; print('PIL OK:', Image.__version__)" \
  && AWT_XAWT="$(ls /usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so 2>/dev/null | head -n1)" \
  && if [ -z "$AWT_XAWT" ] || [ ! -f "$AWT_XAWT" ]; then \
       echo "ERROR: libawt_xawt.so NO EXISTE en el filesystem." >&2 ; \

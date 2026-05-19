@@ -522,12 +522,21 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         }
       />
 
-      {/* ── Filtros ── */}
+      {/* ── Filtros ──
+          Layout en 2 filas explícitas:
+          - Fila 1: búsqueda (flex-1) + 4 selects principales (categoría,
+            evento, nivel, rol). Antes todo iba en un solo flex-wrap, lo
+            que truncaba placeholders ("Todas las categor…") y partía la
+            fila en lugares random según el ancho de viewport.
+          - Fila 2: filtros secundarios (curso + rango fechas) +
+            botón limpiar + contador alineado a la derecha. El contador
+            antes flotaba debajo de la card sin separación visual; pegado
+            a la fila 2 sirve como cierre del bloque de filtros. */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-2 items-end">
-            {/* Búsqueda */}
-            <div className="relative flex-1 min-w-48">
+        <CardContent className="p-4 space-y-3">
+          {/* Fila 1 — búsqueda + filtros principales */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder={t("audit.filters.searchPlaceholder")}
@@ -537,9 +546,8 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               />
             </div>
 
-            {/* Categoría */}
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-40 h-9">
+              <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder={t("audit.filters.categoryPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -574,9 +582,8 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </SelectContent>
             </Select>
 
-            {/* Nivel */}
             <Select value={severity} onValueChange={setSeverity}>
-              <SelectTrigger className="w-36 h-9">
+              <SelectTrigger className="w-40 h-9">
                 <SelectValue placeholder={t("audit.filters.severityPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -596,7 +603,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 Anónimo). El admin también necesita ver "Sistema"
                 (triggers internos como flagged_suspicious). */}
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-36 h-9">
+              <SelectTrigger className="w-40 h-9">
                 <SelectValue placeholder={t("audit.filters.rolePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -608,11 +615,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 <SelectItem value="Anónimo">{t("audit.filters.roleAnonymous")}</SelectItem>
               </SelectContent>
             </Select>
+          </div>
 
-            {/* Curso (solo admin) */}
+          {/* Fila 2 — filtros secundarios + acciones + contador */}
+          <div className="flex flex-wrap gap-2 items-center">
             {mode === "admin" && (
               <Select value={courseFilter} onValueChange={setCourseFilter}>
-                <SelectTrigger className="w-44 h-9">
+                <SelectTrigger className="w-48 h-9">
                   <SelectValue placeholder={t("audit.filters.coursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -626,13 +635,15 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </Select>
             )}
 
-            {/* Rango de fechas */}
-            <div className="flex items-center gap-1">
+            {/* Rango de fechas — envueltos en un div con borde sutil
+                para que se entiendan como un par (desde/hasta) y no como
+                dos inputs sueltos. */}
+            <div className="flex items-center gap-1 rounded-md border border-input bg-background h-9 px-1.5">
               <Input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 w-36 text-sm"
+                className="h-7 w-36 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
                 title={t("audit.filters.from")}
               />
               <span className="text-muted-foreground text-xs">–</span>
@@ -640,7 +651,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 w-36 text-sm"
+                className="h-7 w-36 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
                 title={t("audit.filters.to")}
               />
             </div>
@@ -656,15 +667,19 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 {t("audit.filters.clear")}
               </Button>
             )}
-          </div>
 
-          {total !== null && (
-            <p className="text-xs text-muted-foreground mt-2">
-              {t("audit.totalEvents", { count: total })}
-              {filtered.length !== logs.length &&
-                ` · ${t("audit.visibleWithSearch", { count: filtered.length })}`}
-            </p>
-          )}
+            {/* Contador alineado a la derecha. `ml-auto` lo empuja al
+                final de la fila aprovechando el espacio sobrante. En
+                viewport angosto el flex-wrap lo baja a una tercera fila
+                pero ya sin verse "flotante". */}
+            {total !== null && (
+              <p className="ml-auto text-xs text-muted-foreground tabular-nums">
+                {t("audit.totalEvents", { count: total })}
+                {filtered.length !== logs.length &&
+                  ` · ${t("audit.visibleWithSearch", { count: filtered.length })}`}
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
