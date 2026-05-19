@@ -38,11 +38,19 @@ type Row = { module_key: string; role: string; enabled: boolean; display_order: 
 
 // Lista canónica de módulos toggleables. Si agregas un módulo nuevo y
 // quieres que el admin lo controle, agrégalo acá + en la migración.
+//
+// `dashboard` se incluye aunque por convención sea siempre el primer
+// item del sidebar — algunos admins prefieren mandarlo al final cuando
+// la institución usa la app como "lista de tareas" en vez de "panel".
+// Permitirlo reordenar es coherente con que el panel maneje TODO el
+// sidebar, no solo "lo opcional".
 const MODULES: Array<{ key: string; label: string }> = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "courses", label: "Cursos" },
+  { key: "contents", label: "Contenidos (Docente)" },
+  { key: "exams", label: "Exámenes" },
   { key: "workshops", label: "Talleres" },
   { key: "projects", label: "Proyectos" },
-  { key: "exams", label: "Exámenes" },
-  { key: "courses", label: "Cursos" },
   { key: "gradebook", label: "Calificaciones (Docente)" },
   { key: "grades", label: "Calificaciones (Estudiante)" },
   { key: "attendance", label: "Asistencia" },
@@ -50,7 +58,6 @@ const MODULES: Array<{ key: string; label: string }> = [
   { key: "calendar", label: "Calendario" },
   { key: "certificates", label: "Certificados" },
   { key: "tutor", label: "Tutor IA" },
-  { key: "contents", label: "Contenidos (Docente)" },
   { key: "question_bank", label: "Banco de preguntas" },
   { key: "ai_prompts", label: "Prompts IA" },
   { key: "messages", label: "Mensajes" },

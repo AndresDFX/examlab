@@ -507,6 +507,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // las variantes admin/teacher/student. Si falta el mapping, el
   // item NO respeta el orden del panel.
   const NAV_PATH_TO_MODULE: Array<[string, ModuleKey]> = [
+    // Dashboard — única ruta sin sufijo de rol. Se puede reordenar
+    // desde el panel admin (algunos admins prefieren tenerlo al final).
+    ["/app", "dashboard"],
     // Cursos — visible en los 3 roles, mismo módulo conceptual.
     ["/app/admin/courses", "courses"],
     ["/app/teacher/courses", "courses"],
