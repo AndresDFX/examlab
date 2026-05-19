@@ -205,6 +205,11 @@ const ACTION_LABELS: Record<string, string> = {
   "user.password_change_failed": "Cambio de contraseña fallido",
   "user.password_reset_by_admin": "Contraseña restablecida por admin",
   "user.password_reset_failed": "Reset de contraseña fallido",
+  // Flow custom de cambio de correo (edge functions request/confirm-email-change).
+  // Reemplaza el correo opaco que disparaba Supabase Auth — ahora el correo
+  // sale por nuestro SMTP y el cambio queda en audit con ambos eventos.
+  "user.email_change_requested": "Cambio de correo solicitado",
+  "user.email_changed": "Correo actualizado",
   "user.logged_out": "Sesión cerrada",
   "user.login_failed": "Inicio de sesión fallido",
   "user.navigated": "Navegación interna",
