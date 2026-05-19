@@ -174,9 +174,10 @@ function TakeExam() {
   // por fullscreen_exit no aplican. Default true (comportamiento histórico).
   const [requireFullscreen, setRequireFullscreen] = useState(true);
   // Tope global (app_settings.max_open_answer_chars) para el Textarea de
-  // respuestas tipo `abierta`. Default 5000 — alcanza para una respuesta
-  // argumentativa larga. El admin lo modifica desde Settings.
-  const [maxOpenChars, setMaxOpenChars] = useState(5000);
+  // respuestas tipo `abierta`. Default 500 — fuerza respuestas concisas
+  // y mantiene bajo el costo de tokens de la IA. El admin lo modifica
+  // desde Settings (rango 100..50000).
+  const [maxOpenChars, setMaxOpenChars] = useState(500);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);

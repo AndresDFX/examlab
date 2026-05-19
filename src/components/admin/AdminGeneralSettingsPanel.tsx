@@ -274,10 +274,9 @@ export function AdminGeneralSettingsPanel() {
               Máx. caracteres en respuesta abierta
               <HelpHint>
                 Tope de caracteres que el alumno puede escribir en una pregunta tipo "abierta".
-                Aplica a nivel frontend (Textarea con maxLength). Default 5000 — alcanza para una
-                respuesta argumentativa larga o un fragmento de código. Subir si necesitas ensayos
-                largos; bajar si quieres respuestas concisas (y limitar costo de tokens de la IA).
-                Rango permitido: 100..50000.
+                Aplica a nivel frontend (Textarea con maxLength). Default 500 — fuerza respuestas
+                concisas (1-2 párrafos) y mantiene bajo el costo de tokens de la IA al calificar.
+                Subir hasta 50000 si necesitas ensayos largos. Rango permitido: 100..50000.
               </HelpHint>
             </Label>
             <Input
