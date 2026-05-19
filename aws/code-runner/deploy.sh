@@ -10,32 +10,77 @@
 #   - openssl (para generar API key aleatoria)
 #
 # Uso:
-#   ./deploy.sh                # imagen :latest
-#   ./deploy.sh v1.2           # tag custom
+#   ./deploy.sh                # build con cache + push :latest + tag único
+#   ./deploy.sh v1.2           # tag custom (legacy — antes era $1)
+#   ./deploy.sh --no-cache     # build sin cache (re-instala todas las deps)
+#   ./deploy.sh --recreate     # destruye y recrea el stack desde cero
 #   AWS_REGION=sa-east-1 ./deploy.sh
+#
+# Cómo se evita el "Lambda no re-pulla" cuando solo cambian capas internas:
+#   Cada deploy genera un tag único `:YYYYMMDD-HHMMSS-<gitsha7>` y lo usa
+#   para `update-function-code`. AWS Lambda resuelve la URI a un digest
+#   inmutable y SIEMPRE re-pulla porque el digest del tag único es nuevo.
+#   El tag `:latest` se mantiene en paralelo para `docker pull` manual.
 
 set -euo pipefail
+
+# ── Flags ──
+NO_CACHE=""
+RECREATE=""
+CUSTOM_TAG=""
+for arg in "$@"; do
+  case "$arg" in
+    --no-cache) NO_CACHE="--no-cache" ;;
+    --recreate) RECREATE="1" ;;
+    --*) echo "Flag desconocido: $arg" >&2 ; exit 1 ;;
+    *) CUSTOM_TAG="$arg" ;;
+  esac
+done
 
 # ── Config ──
 REGION="${AWS_REGION:-us-east-1}"
 REPO_NAME="examlab-code-runner"
 STACK_NAME="examlab-code-runner"
-IMAGE_TAG="${1:-latest}"
+# Tag único por deploy — fuerza a Lambda a re-resolver el digest. Si
+# el caller pasa un tag explícito (legacy: v1.2, prod), se usa ese
+# como tag "humano" pero igual generamos uno único para el deploy.
+GIT_SHA="$(git rev-parse --short=7 HEAD 2>/dev/null || echo nogit)"
+TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
+UNIQUE_TAG="${TIMESTAMP}-${GIT_SHA}"
+PRIMARY_TAG="${CUSTOM_TAG:-latest}"
 SSM_API_KEY_NAME="/${STACK_NAME}/api-key"
 
 # ── Cuenta + URI ──
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-IMAGE_URI="${ECR_REGISTRY}/${REPO_NAME}:${IMAGE_TAG}"
+IMAGE_URI_PRIMARY="${ECR_REGISTRY}/${REPO_NAME}:${PRIMARY_TAG}"
+IMAGE_URI_UNIQUE="${ECR_REGISTRY}/${REPO_NAME}:${UNIQUE_TAG}"
 
 echo "═══════════════════════════════════════════════════"
 echo "  ExamLab — Java Code Runner deploy"
 echo "═══════════════════════════════════════════════════"
-echo "  Account:  ${ACCOUNT_ID}"
-echo "  Region:   ${REGION}"
-echo "  Image:    ${IMAGE_URI}"
+echo "  Account:       ${ACCOUNT_ID}"
+echo "  Region:        ${REGION}"
+echo "  Primary tag:   ${PRIMARY_TAG}"
+echo "  Unique tag:    ${UNIQUE_TAG}  (forces Lambda re-pull)"
+[ -n "$NO_CACHE" ] && echo "  Cache:         disabled (--no-cache)"
+[ -n "$RECREATE" ] && echo "  Recreate:      YES (will delete stack first)"
 echo "═══════════════════════════════════════════════════"
 echo ""
+
+# ── 0) Recrear stack (opt-in) ──
+# Útil cuando un recurso quedó stale (permisos API GW, alias Lambda con
+# config inválida, etc.) y un `cloudformation deploy` no lo limpia.
+if [ -n "$RECREATE" ]; then
+  if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" >/dev/null 2>&1; then
+    echo "▶ Destruyendo stack existente ($STACK_NAME) — esto toma ~1 min…"
+    aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
+    aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$REGION"
+    echo "  ✓ Stack borrado"
+  else
+    echo "  (no había stack previo)"
+  fi
+fi
 
 # ── 1) Repositorio ECR ──
 echo "▶ Asegurando ECR repository..."
@@ -55,16 +100,22 @@ aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$ECR_REGISTRY" >/dev/null
 echo "  ✓ Login OK"
 
-# ── 3) Build + push imagen ──
+# ── 3) Build + push imagen (dos tags: único + primary) ──
 echo "▶ Building image (linux/amd64)..."
 # --platform fuerza AMD64 incluso desde Mac M1/M2 (Lambda x86_64 por defecto).
 # --provenance=false reduce el tamaño del manifest.
-docker build --platform linux/amd64 --provenance=false -t "$IMAGE_URI" .
+# Construimos UNA vez con el tag único y le agregamos el primary tag
+# (típicamente :latest) — Docker no rebuildea, solo aplica otro tag al
+# mismo digest.
+docker build $NO_CACHE --platform linux/amd64 --provenance=false \
+  -t "$IMAGE_URI_UNIQUE" .
+docker tag "$IMAGE_URI_UNIQUE" "$IMAGE_URI_PRIMARY"
 echo "  ✓ Image built"
 
-echo "▶ Pushing to ECR..."
-docker push "$IMAGE_URI"
-echo "  ✓ Image pushed"
+echo "▶ Pushing tags a ECR (${UNIQUE_TAG} + ${PRIMARY_TAG})…"
+docker push "$IMAGE_URI_UNIQUE"
+docker push "$IMAGE_URI_PRIMARY"
+echo "  ✓ Imágenes pushed"
 
 # ── 4) API key en SSM (single source of truth) ──
 echo "▶ Asegurando API key en SSM Parameter Store..."
@@ -83,28 +134,32 @@ else
 fi
 
 # ── 5) Deploy CloudFormation ──
+# Pasamos el tag ÚNICO como ImageUri para que CF detecte el cambio (de
+# otro modo, con :latest el manifest hash no cambia y CF salta el deploy).
 echo "▶ Deploying CloudFormation stack..."
 aws cloudformation deploy \
   --template-file cloudformation.yml \
   --stack-name "$STACK_NAME" \
-  --parameter-overrides "ImageUri=$IMAGE_URI" "ApiKey=$API_KEY" \
+  --parameter-overrides "ImageUri=$IMAGE_URI_UNIQUE" "ApiKey=$API_KEY" \
   --capabilities CAPABILITY_IAM \
   --region "$REGION" \
   --no-fail-on-empty-changeset
 
 echo "  ✓ Stack OK"
 
-# ── 6) Force-update Lambda (si solo cambió la image y CF no lo detecta) ──
-# Esto es necesario porque CF solo detecta cambio si el parameter cambió.
-# Si pushaste una imagen con el MISMO tag, CF ve `:latest` igual y no
-# actualiza. Hacemos un update directo de la function code.
-echo "▶ Forzando actualización del código Lambda..."
+# ── 6) Force-update Lambda con el tag ÚNICO ──
+# Aunque CF deploy actualice la function, hacemos un update-function-code
+# explícito con la URI del tag único: AWS Lambda resuelve el tag a un
+# digest concreto y siempre re-pulla cuando ese digest es nuevo. Esto
+# elimina el modo de falla "pushé pero Lambda sigue corriendo el digest
+# viejo" que ocurría con :latest.
+echo "▶ Forzando actualización del código Lambda con tag único…"
 aws lambda update-function-code \
   --function-name examlab-code-runner \
-  --image-uri "$IMAGE_URI" \
+  --image-uri "$IMAGE_URI_UNIQUE" \
   --region "$REGION" >/dev/null
 aws lambda wait function-updated --function-name examlab-code-runner --region "$REGION"
-echo "  ✓ Lambda actualizada"
+echo "  ✓ Lambda actualizada al digest del tag ${UNIQUE_TAG}"
 
 # ── 7) Mostrar outputs ──
 echo ""
@@ -198,6 +253,58 @@ case "$SELFTEST_STATUS" in
     ;;
 esac
 rm -f /tmp/runner-selftest.out
+
+# ── 9) Self-test GUI (modo gui_screenshot) ──
+# Atrapa el "UnsatisfiedLinkError: libawt_xawt.so" ANTES de que el alumno
+# lo vea. El runner debe:
+#   - arrancar Xvfb,
+#   - cargar libawt_xawt.so (← este es el .so que requiere libXi/libXtst/etc.),
+#   - pintar el JFrame,
+#   - capturar el PNG con `import`.
+# Si cualquiera de esos pasos falla, la respuesta no tiene screenshotBase64
+# y el stderr contiene el stacktrace.
+echo ""
+echo "▶ Self-test GUI (modo gui_screenshot — valida deps de AWT/Xvfb)…"
+GUI_TEST_SOURCE='import javax.swing.*;public class Main{public static void main(String[] a){SwingUtilities.invokeLater(()->{JFrame f=new JFrame("ok");f.setSize(200,80);f.setVisible(true);});try{Thread.sleep(800);}catch(Exception e){}}}'
+GUI_TEST_BODY=$(jq -n --arg src "$GUI_TEST_SOURCE" '{mode:"gui_screenshot", sourceCode:$src, delayMs:1000}' 2>/dev/null || cat <<EOF
+{"mode":"gui_screenshot","sourceCode":$(printf '%s' "$GUI_TEST_SOURCE" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))'),"delayMs":1000}
+EOF
+)
+GUI_STATUS=$(curl -s -o /tmp/runner-gui.out -w "%{http_code}" \
+  --max-time 30 \
+  -X POST "$RUNNER_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d "$GUI_TEST_BODY" || echo "000")
+GUI_RESP=$(cat /tmp/runner-gui.out 2>/dev/null || echo "")
+HAS_PNG=$(echo "$GUI_RESP" | grep -c '"screenshotBase64"[[:space:]]*:[[:space:]]*"[A-Za-z0-9]' || true)
+HAS_XAWT_ERR=$(echo "$GUI_RESP" | grep -c 'libawt_xawt.so' || true)
+
+if [ "$GUI_STATUS" = "200" ] && [ "$HAS_PNG" -gt 0 ]; then
+  echo "  ✓ GUI self-test OK — Xvfb + AWT + ImageMagick funcionan"
+elif [ "$HAS_XAWT_ERR" -gt 0 ]; then
+  echo "  ✗ FALLA CRÍTICA: libawt_xawt.so no cargó."
+  echo ""
+  echo "    Eso significa que el AWT no puede crear ventanas porque le"
+  echo "    faltan dependencias nativas X11 (libXi/libXtst/libXrender…)."
+  echo "    El Dockerfile debería instalarlas; revisa que el build haya"
+  echo "    incluido el RUN dnf install -y libXi libXtst … sin error."
+  echo ""
+  echo "    Stderr (recortado):"
+  echo "$GUI_RESP" | head -c 800
+  echo ""
+  echo ""
+  echo "    Reintenta:"
+  echo "      ./deploy.sh --no-cache   # bypass docker cache, re-instala todo"
+  exit 1
+else
+  echo "  ⚠ GUI self-test HTTP $GUI_STATUS sin PNG visible. Revisa CloudWatch:"
+  echo "    aws logs tail /aws/lambda/examlab-code-runner --since 5m --region $REGION"
+  echo "    Respuesta cortada:"
+  echo "$GUI_RESP" | head -c 600
+  echo ""
+fi
+rm -f /tmp/runner-gui.out
 
 echo ""
 echo "Configura estos dos secrets en Supabase"

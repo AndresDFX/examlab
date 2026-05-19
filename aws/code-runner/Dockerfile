@@ -80,10 +80,26 @@ RUN if [ -f /etc/ImageMagick-7/policy.xml ]; then \
 
 # Sanity check — falla el build si algo falta. `command -v` reemplaza a
 # `which` porque la imagen base AL2023 minimal no lo trae.
+#
+# Verificación CRÍTICA: `ldd libawt_xawt.so` lista las dependencias
+# dinámicas que el .so necesita. Si alguna aparece como "not found",
+# el AWT explota en runtime con UnsatisfiedLinkError aunque el binario
+# exista. Fallamos el build si pasa eso para no enviar una imagen rota
+# a ECR. La JVM está bajo /usr/lib/jvm/java-21-amazon-corretto.<arch>/
+# — descubrimos el path con un glob en lugar de hardcodearlo.
 RUN java -version \
  && javac -version \
  && command -v Xvfb \
- && command -v import
+ && command -v import \
+ && AWT_XAWT="$(ls /usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so | head -n1)" \
+ && echo "Validando deps de $AWT_XAWT…" \
+ && if ldd "$AWT_XAWT" | grep -q "not found"; then \
+      echo "ERROR: libawt_xawt.so tiene dependencias faltantes:" >&2 ; \
+      ldd "$AWT_XAWT" | grep "not found" >&2 ; \
+      exit 1 ; \
+    else \
+      echo "✓ libawt_xawt.so resuelve todas sus deps" ; \
+    fi
 
 # Handler de Lambda (Python wrapper que llama a javac + java).
 COPY app.py ${LAMBDA_TASK_ROOT}/
