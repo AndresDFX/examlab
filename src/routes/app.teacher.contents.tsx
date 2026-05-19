@@ -40,6 +40,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
+import { PageHeader } from "@/components/ui/page-header";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -637,19 +638,17 @@ function TeacherContents() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Presentation className="h-5 w-5 text-primary" />
-            {t("contents.title")}
-          </h1>
-          <p className="text-sm text-muted-foreground">{t("contents.subtitle")}</p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          {t("contents.newContent")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("contents.title")}
+        subtitle={t("contents.subtitle")}
+        icon={<Presentation className="h-6 w-6 text-pink-500" />}
+        actions={
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            {t("contents.newContent")}
+          </Button>
+        }
+      />
 
       <ListFilters
         search={search}

@@ -496,10 +496,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
   if (!user) return null;
 
-  // Mapeo path → módulo para que el sidebar respete el toggle por
-  // rol de `module_visibility`. Si una entrada no está en este mapa,
-  // se considera "siempre visible" (no controlada por toggles).
+  // Mapeo path → módulo. Cumple dos funciones:
+  //   1. Filtro de visibilidad: el sidebar oculta items cuyo módulo
+  //      esté apagado por rol (matriz `module_visibility`).
+  //   2. Ordenamiento: el sidebar ordena por `display_order` del
+  //      módulo asociado. Items NO mapeados van con 9999 (al final).
+  //
+  // IMPORTANTE: TODO item del NAV que represente un módulo gestionado
+  // desde el panel "Visibilidad y orden" debe estar acá, incluyendo
+  // las variantes admin/teacher/student. Si falta el mapping, el
+  // item NO respeta el orden del panel.
   const NAV_PATH_TO_MODULE: Array<[string, ModuleKey]> = [
+    // Cursos — visible en los 3 roles, mismo módulo conceptual.
+    ["/app/admin/courses", "courses"],
+    ["/app/teacher/courses", "courses"],
+    ["/app/student/courses", "courses"],
     ["/app/teacher/workshops", "workshops"],
     ["/app/student/workshops", "workshops"],
     ["/app/teacher/projects", "projects"],
@@ -515,7 +526,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/student/certificates", "certificates"],
     ["/app/certificates", "certificates"],
     ["/app/teacher/question-bank", "question_bank"],
+    // Prompts IA — variante admin y docente apuntan al mismo módulo.
     ["/app/teacher/ai-prompts", "ai_prompts"],
+    ["/app/admin/ai-prompts", "ai_prompts"],
     ["/app/teacher/contents", "contents"],
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],

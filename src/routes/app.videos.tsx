@@ -27,9 +27,20 @@ import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { RowAction } from "@/components/ui/row-action";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { ListFilters } from "@/components/ui/list-filters";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { DateCell } from "@/components/ui/date-cell";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -56,7 +67,7 @@ import {
   Link as LinkIcon,
   Edit2,
 } from "lucide-react";
-import { formatDateTime, formatFileSize } from "@/lib/format";
+import { formatFileSize } from "@/lib/format";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -134,8 +145,10 @@ function VideoLibrary() {
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
-  // Curso para filtrar la biblioteca. "" = sin filtro (todos).
-  const [filterCourseId, setFilterCourseId] = useState<string>("");
+  // Filtros del grid — search (título/descripción) + curso. null = sin filtro
+  // de curso (incluye videos globales y de cualquier curso).
+  const [search, setSearch] = useState("");
+  const [filterCourseId, setFilterCourseId] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseOption[]>([]);
 
   const load = async () => {
@@ -164,9 +177,16 @@ function VideoLibrary() {
       rows.filter((r) => {
         if (!showArchived && r.is_archived) return false;
         if (filterCourseId && r.course_id !== filterCourseId) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          const hay =
+            r.title.toLowerCase().includes(q) ||
+            (r.description?.toLowerCase().includes(q) ?? false);
+          if (!hay) return false;
+        }
         return true;
       }),
-    [rows, showArchived, filterCourseId],
+    [rows, showArchived, filterCourseId, search],
   );
 
   const courseNameById = useMemo(() => {
@@ -423,7 +443,7 @@ function VideoLibrary() {
   }
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         title="Biblioteca de videos"
         subtitle="Videos reutilizables. Referenciados desde proyectos, talleres y módulos que exijan reproducción obligatoria."
@@ -447,101 +467,148 @@ function VideoLibrary() {
         }
       />
 
-      {/* Filtro por curso. "" = todos (incluye globales sin course_id) */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Curso:</span>
-        <Select
-          value={filterCourseId || "__all"}
-          onValueChange={(v) => setFilterCourseId(v === "__all" ? "" : v)}
-        >
-          <SelectTrigger className="h-8 w-64 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all">Todos los cursos</SelectItem>
-            {courses.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por título o descripción…"
+        courseId={filterCourseId}
+        onCourseChange={setFilterCourseId}
+        courses={courses}
+      />
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-          <Spinner size="sm" /> Cargando videos…
-        </div>
-      ) : visible.length === 0 ? (
-        <TableEmpty
-          icon={VideoIcon}
-          title="Sin videos en la biblioteca"
-          description="Agrega un video por URL (YouTube, Vimeo, MP4 directo) o súbelo desde tu equipo para reutilizarlo en varios proyectos o módulos."
-        />
-      ) : (
-        <div className="space-y-2">
-          {visible.map((v) => (
-            <Card key={v.id} className={v.is_archived ? "opacity-60 border-dashed" : undefined}>
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
-                  <VideoIcon className="h-4 w-4 text-cyan-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{v.title}</span>
-                    <Badge variant="outline" className="text-[10px] uppercase">
-                      {v.provider === "direct" ? "MP4" : v.provider}
-                    </Badge>
-                    {v.storage_path && (
-                      <Badge variant="secondary" className="text-[10px] gap-1">
-                        <Upload className="h-2.5 w-2.5" /> Subido
-                      </Badge>
-                    )}
-                    {v.course_id && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {courseNameById[v.course_id] ?? "Curso"}
-                      </Badge>
-                    )}
-                    {v.is_archived && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        Archivado
-                      </Badge>
-                    )}
-                  </div>
-                  {v.description && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{v.description}</p>
-                  )}
-                  <a
-                    href={v.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5"
-                  >
-                    <ExternalLink className="h-2.5 w-2.5" /> {v.url}
-                  </a>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Agregado: {formatDateTime(v.created_at)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <RowAction label="Editar" icon={Edit2} onClick={() => openEdit(v)} />
-                  <RowAction
-                    label={v.is_archived ? "Restaurar" : "Archivar"}
-                    icon={v.is_archived ? RotateCcw : Archive}
-                    onClick={() => void toggleArchive(v)}
-                  />
-                  <RowAction
-                    label="Eliminar"
-                    icon={Trash2}
-                    tone="destructive"
-                    onClick={() => void remove(v)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          {loading ? (
+            <TableSkeleton rows={5} cols={5} />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Video</TableHead>
+                  <TableHead className="w-24">Tipo</TableHead>
+                  <TableHead className="w-40 hidden md:table-cell">Curso</TableHead>
+                  <TableHead className="w-32 hidden lg:table-cell">Agregado</TableHead>
+                  <TableHead className="w-16 text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.length === 0 ? (
+                  (() => {
+                    const filterActive = !!search || filterCourseId != null;
+                    const noMatch = filterActive && rows.length > 0;
+                    return (
+                      <TableEmpty
+                        colSpan={5}
+                        text={noMatch ? "Sin coincidencias" : "Sin videos en la biblioteca"}
+                        hint={
+                          noMatch
+                            ? "Ajusta el buscador o el filtro de curso para ver más resultados."
+                            : "Agrega un video por URL (YouTube, Vimeo, MP4 directo) o súbelo desde tu equipo para reutilizarlo en varios proyectos o módulos."
+                        }
+                        action={
+                          noMatch ? undefined : (
+                            <Button onClick={openNew}>
+                              <Plus className="h-4 w-4 mr-1" />
+                              Nuevo video
+                            </Button>
+                          )
+                        }
+                      />
+                    );
+                  })()
+                ) : (
+                  visible.map((v) => (
+                    <TableRow key={v.id} className={v.is_archived ? "opacity-60" : undefined}>
+                      <TableCell className="max-w-md">
+                        <div className="flex items-start gap-3">
+                          <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
+                            <VideoIcon className="h-4 w-4 text-cyan-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate" title={v.title}>
+                              {v.title}
+                            </div>
+                            {v.description && (
+                              <p
+                                className="text-xs text-muted-foreground truncate mt-0.5"
+                                title={v.description}
+                              >
+                                {v.description}
+                              </p>
+                            )}
+                            <a
+                              href={v.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5 max-w-full"
+                              title={v.url}
+                            >
+                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate">{v.url}</span>
+                            </a>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className="text-[10px] uppercase w-fit">
+                            {v.provider === "direct" ? "MP4" : v.provider}
+                          </Badge>
+                          {v.storage_path && (
+                            <Badge variant="secondary" className="text-[10px] gap-1 w-fit">
+                              <Upload className="h-2.5 w-2.5" /> Subido
+                            </Badge>
+                          )}
+                          {v.is_archived && (
+                            <Badge variant="secondary" className="text-[10px] w-fit">
+                              Archivado
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {v.course_id ? (
+                          <span className="text-xs">{courseNameById[v.course_id] ?? "—"}</span>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">
+                            Global
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <DateCell value={v.created_at} variant="datetime" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu
+                          actions={[
+                            {
+                              label: "Editar",
+                              icon: Edit2,
+                              onClick: () => openEdit(v),
+                            },
+                            {
+                              label: v.is_archived ? "Restaurar" : "Archivar",
+                              icon: v.is_archived ? RotateCcw : Archive,
+                              onClick: () => void toggleArchive(v),
+                            },
+                            {
+                              label: "Eliminar",
+                              icon: Trash2,
+                              tone: "destructive",
+                              separatorBefore: true,
+                              onClick: () => void remove(v),
+                            },
+                          ]}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
         <DialogContent className="max-w-lg">
