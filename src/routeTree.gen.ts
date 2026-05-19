@@ -12,11 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
+import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
+import { Route as AppTeacherQuestionBankRouteImport } from './routes/app.teacher.question-bank'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
@@ -30,10 +35,15 @@ import { Route as AppStudentProjectsRouteImport } from './routes/app.student.pro
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
 import { Route as AppStudentExamsRouteImport } from './routes/app.student.exams'
 import { Route as AppStudentCoursesRouteImport } from './routes/app.student.courses'
+import { Route as AppStudentCertificatesRouteImport } from './routes/app.student.certificates'
+import { Route as AppStudentCalendarRouteImport } from './routes/app.student.calendar'
 import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.attendance'
+import { Route as AppForumCourseIdRouteImport } from './routes/app.forum.$courseId'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
+import { Route as AppAdminSettingsRouteImport } from './routes/app.admin.settings'
+import { Route as AppAdminEmailSettingsRouteImport } from './routes/app.admin.email-settings'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
@@ -42,9 +52,11 @@ import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teache
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
 import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
 import { Route as AppStudentWorkshopWorkshopIdRouteImport } from './routes/app.student.workshop.$workshopId'
+import { Route as AppStudentTutorCourseIdRouteImport } from './routes/app.student.tutor.$courseId'
 import { Route as AppStudentTakeExamIdRouteImport } from './routes/app.student.take.$examId'
 import { Route as AppStudentReviewExamIdRouteImport } from './routes/app.student.review.$examId'
 import { Route as AppStudentProjectProjectIdRouteImport } from './routes/app.student.project.$projectId'
+import { Route as AppForumCourseIdThreadIdRouteImport } from './routes/app.forum.$courseId.$threadId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -61,14 +73,34 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthIndexRoute = AuthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const VerifyShortCodeRoute = VerifyShortCodeRouteImport.update({
+  id: '/verify/$shortCode',
+  path: '/verify/$shortCode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
   id: '/unauthorized',
   path: '/unauthorized',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPreferencesRoute = AppPreferencesRouteImport.update({
+  id: '/preferences',
+  path: '/preferences',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMessagesRoute = AppMessagesRouteImport.update({
@@ -84,6 +116,11 @@ const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
 const AppTeacherStatisticsRoute = AppTeacherStatisticsRouteImport.update({
   id: '/teacher/statistics',
   path: '/teacher/statistics',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherQuestionBankRoute = AppTeacherQuestionBankRouteImport.update({
+  id: '/teacher/question-bank',
+  path: '/teacher/question-bank',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherProjectsRoute = AppTeacherProjectsRouteImport.update({
@@ -151,9 +188,24 @@ const AppStudentCoursesRoute = AppStudentCoursesRouteImport.update({
   path: '/student/courses',
   getParentRoute: () => AppRoute,
 } as any)
+const AppStudentCertificatesRoute = AppStudentCertificatesRouteImport.update({
+  id: '/student/certificates',
+  path: '/student/certificates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudentCalendarRoute = AppStudentCalendarRouteImport.update({
+  id: '/student/calendar',
+  path: '/student/calendar',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStudentAttendanceRoute = AppStudentAttendanceRouteImport.update({
   id: '/student/attendance',
   path: '/student/attendance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppForumCourseIdRoute = AppForumCourseIdRouteImport.update({
+  id: '/forum/$courseId',
+  path: '/forum/$courseId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
@@ -169,6 +221,16 @@ const AppAdminSystemRoute = AppAdminSystemRouteImport.update({
 const AppAdminStatisticsRoute = AppAdminStatisticsRouteImport.update({
   id: '/admin/statistics',
   path: '/admin/statistics',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminEmailSettingsRoute = AppAdminEmailSettingsRouteImport.update({
+  id: '/admin/email-settings',
+  path: '/admin/email-settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAdminCoursesRoute = AppAdminCoursesRouteImport.update({
@@ -213,6 +275,11 @@ const AppStudentWorkshopWorkshopIdRoute =
     path: '/student/workshop/$workshopId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppStudentTutorCourseIdRoute = AppStudentTutorCourseIdRouteImport.update({
+  id: '/student/tutor/$courseId',
+  path: '/student/tutor/$courseId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStudentTakeExamIdRoute = AppStudentTakeExamIdRouteImport.update({
   id: '/student/take/$examId',
   path: '/student/take/$examId',
@@ -229,21 +296,36 @@ const AppStudentProjectProjectIdRoute =
     path: '/student/project/$projectId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppForumCourseIdThreadIdRoute =
+  AppForumCourseIdThreadIdRouteImport.update({
+    id: '/$threadId',
+    path: '/$threadId',
+    getParentRoute: () => AppForumCourseIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/app/messages': typeof AppMessagesRoute
+  '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
+  '/auth/': typeof AuthIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
+  '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
+  '/app/student/calendar': typeof AppStudentCalendarRoute
+  '/app/student/certificates': typeof AppStudentCertificatesRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
   '/app/student/grades': typeof AppStudentGradesRoute
@@ -257,11 +339,14 @@ export interface FileRoutesByFullPath {
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
+  '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/forum/$courseId/$threadId': typeof AppForumCourseIdThreadIdRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
+  '/app/student/tutor/$courseId': typeof AppStudentTutorCourseIdRoute
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
@@ -270,17 +355,25 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
   '/app/messages': typeof AppMessagesRoute
+  '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
+  '/auth': typeof AuthIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
+  '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
+  '/app/student/calendar': typeof AppStudentCalendarRoute
+  '/app/student/certificates': typeof AppStudentCertificatesRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
   '/app/student/grades': typeof AppStudentGradesRoute
@@ -294,11 +387,14 @@ export interface FileRoutesByTo {
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
+  '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/forum/$courseId/$threadId': typeof AppForumCourseIdThreadIdRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
+  '/app/student/tutor/$courseId': typeof AppStudentTutorCourseIdRoute
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
@@ -309,17 +405,26 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/app/messages': typeof AppMessagesRoute
+  '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
+  '/auth/': typeof AuthIndexRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
+  '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
+  '/app/student/calendar': typeof AppStudentCalendarRoute
+  '/app/student/certificates': typeof AppStudentCertificatesRoute
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
   '/app/student/grades': typeof AppStudentGradesRoute
@@ -333,11 +438,14 @@ export interface FileRoutesById {
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
+  '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
+  '/app/forum/$courseId/$threadId': typeof AppForumCourseIdThreadIdRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
+  '/app/student/tutor/$courseId': typeof AppStudentTutorCourseIdRoute
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
@@ -351,15 +459,24 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/app/messages'
+    | '/app/preferences'
     | '/app/unauthorized'
+    | '/auth/reset-password'
+    | '/verify/$shortCode'
     | '/app/'
+    | '/auth/'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
+    | '/app/admin/email-settings'
+    | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
+    | '/app/forum/$courseId'
     | '/app/student/attendance'
+    | '/app/student/calendar'
+    | '/app/student/certificates'
     | '/app/student/courses'
     | '/app/student/exams'
     | '/app/student/grades'
@@ -373,11 +490,14 @@ export interface FileRouteTypes {
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
+    | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/workshops'
+    | '/app/forum/$courseId/$threadId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
+    | '/app/student/tutor/$courseId'
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
@@ -386,17 +506,25 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/auth'
     | '/app/messages'
+    | '/app/preferences'
     | '/app/unauthorized'
+    | '/auth/reset-password'
+    | '/verify/$shortCode'
     | '/app'
+    | '/auth'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
+    | '/app/admin/email-settings'
+    | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
+    | '/app/forum/$courseId'
     | '/app/student/attendance'
+    | '/app/student/calendar'
+    | '/app/student/certificates'
     | '/app/student/courses'
     | '/app/student/exams'
     | '/app/student/grades'
@@ -410,11 +538,14 @@ export interface FileRouteTypes {
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
+    | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/workshops'
+    | '/app/forum/$courseId/$threadId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
+    | '/app/student/tutor/$courseId'
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
@@ -426,15 +557,24 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/app/messages'
+    | '/app/preferences'
     | '/app/unauthorized'
+    | '/auth/reset-password'
+    | '/verify/$shortCode'
     | '/app/'
+    | '/auth/'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
+    | '/app/admin/email-settings'
+    | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
+    | '/app/forum/$courseId'
     | '/app/student/attendance'
+    | '/app/student/calendar'
+    | '/app/student/certificates'
     | '/app/student/courses'
     | '/app/student/exams'
     | '/app/student/grades'
@@ -448,11 +588,14 @@ export interface FileRouteTypes {
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
+    | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/workshops'
+    | '/app/forum/$courseId/$threadId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
+    | '/app/student/tutor/$courseId'
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
@@ -463,7 +606,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
+  VerifyShortCodeRoute: typeof VerifyShortCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -489,6 +633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/': {
+      id: '/auth/'
+      path: '/'
+      fullPath: '/auth/'
+      preLoaderRoute: typeof AuthIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/app/': {
       id: '/app/'
       path: '/'
@@ -496,11 +647,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/verify/$shortCode': {
+      id: '/verify/$shortCode'
+      path: '/verify/$shortCode'
+      fullPath: '/verify/$shortCode'
+      preLoaderRoute: typeof VerifyShortCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/app/unauthorized': {
       id: '/app/unauthorized'
       path: '/unauthorized'
       fullPath: '/app/unauthorized'
       preLoaderRoute: typeof AppUnauthorizedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/preferences': {
+      id: '/app/preferences'
+      path: '/preferences'
+      fullPath: '/app/preferences'
+      preLoaderRoute: typeof AppPreferencesRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/messages': {
@@ -522,6 +694,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/statistics'
       fullPath: '/app/teacher/statistics'
       preLoaderRoute: typeof AppTeacherStatisticsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/question-bank': {
+      id: '/app/teacher/question-bank'
+      path: '/teacher/question-bank'
+      fullPath: '/app/teacher/question-bank'
+      preLoaderRoute: typeof AppTeacherQuestionBankRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/projects': {
@@ -615,11 +794,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentCoursesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/student/certificates': {
+      id: '/app/student/certificates'
+      path: '/student/certificates'
+      fullPath: '/app/student/certificates'
+      preLoaderRoute: typeof AppStudentCertificatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/student/calendar': {
+      id: '/app/student/calendar'
+      path: '/student/calendar'
+      fullPath: '/app/student/calendar'
+      preLoaderRoute: typeof AppStudentCalendarRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/student/attendance': {
       id: '/app/student/attendance'
       path: '/student/attendance'
       fullPath: '/app/student/attendance'
       preLoaderRoute: typeof AppStudentAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/forum/$courseId': {
+      id: '/app/forum/$courseId'
+      path: '/forum/$courseId'
+      fullPath: '/app/forum/$courseId'
+      preLoaderRoute: typeof AppForumCourseIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/admin/users': {
@@ -641,6 +841,20 @@ declare module '@tanstack/react-router' {
       path: '/admin/statistics'
       fullPath: '/app/admin/statistics'
       preLoaderRoute: typeof AppAdminStatisticsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/admin/settings': {
+      id: '/app/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/app/admin/settings'
+      preLoaderRoute: typeof AppAdminSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/admin/email-settings': {
+      id: '/app/admin/email-settings'
+      path: '/admin/email-settings'
+      fullPath: '/app/admin/email-settings'
+      preLoaderRoute: typeof AppAdminEmailSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/admin/courses': {
@@ -699,6 +913,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentWorkshopWorkshopIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/student/tutor/$courseId': {
+      id: '/app/student/tutor/$courseId'
+      path: '/student/tutor/$courseId'
+      fullPath: '/app/student/tutor/$courseId'
+      preLoaderRoute: typeof AppStudentTutorCourseIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/student/take/$examId': {
       id: '/app/student/take/$examId'
       path: '/student/take/$examId'
@@ -720,20 +941,44 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentProjectProjectIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/forum/$courseId/$threadId': {
+      id: '/app/forum/$courseId/$threadId'
+      path: '/$threadId'
+      fullPath: '/app/forum/$courseId/$threadId'
+      preLoaderRoute: typeof AppForumCourseIdThreadIdRouteImport
+      parentRoute: typeof AppForumCourseIdRoute
+    }
   }
 }
 
+interface AppForumCourseIdRouteChildren {
+  AppForumCourseIdThreadIdRoute: typeof AppForumCourseIdThreadIdRoute
+}
+
+const AppForumCourseIdRouteChildren: AppForumCourseIdRouteChildren = {
+  AppForumCourseIdThreadIdRoute: AppForumCourseIdThreadIdRoute,
+}
+
+const AppForumCourseIdRouteWithChildren =
+  AppForumCourseIdRoute._addFileChildren(AppForumCourseIdRouteChildren)
+
 interface AppRouteChildren {
   AppMessagesRoute: typeof AppMessagesRoute
+  AppPreferencesRoute: typeof AppPreferencesRoute
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
   AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
+  AppAdminEmailSettingsRoute: typeof AppAdminEmailSettingsRoute
+  AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
   AppAdminSystemRoute: typeof AppAdminSystemRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppForumCourseIdRoute: typeof AppForumCourseIdRouteWithChildren
   AppStudentAttendanceRoute: typeof AppStudentAttendanceRoute
+  AppStudentCalendarRoute: typeof AppStudentCalendarRoute
+  AppStudentCertificatesRoute: typeof AppStudentCertificatesRoute
   AppStudentCoursesRoute: typeof AppStudentCoursesRoute
   AppStudentExamsRoute: typeof AppStudentExamsRoute
   AppStudentGradesRoute: typeof AppStudentGradesRoute
@@ -747,11 +992,13 @@ interface AppRouteChildren {
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
   AppTeacherProjectsRoute: typeof AppTeacherProjectsRoute
+  AppTeacherQuestionBankRoute: typeof AppTeacherQuestionBankRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
   AppStudentProjectProjectIdRoute: typeof AppStudentProjectProjectIdRoute
   AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
   AppStudentTakeExamIdRoute: typeof AppStudentTakeExamIdRoute
+  AppStudentTutorCourseIdRoute: typeof AppStudentTutorCourseIdRoute
   AppStudentWorkshopWorkshopIdRoute: typeof AppStudentWorkshopWorkshopIdRoute
   AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
   AppTeacherGradingCourseIdRoute: typeof AppTeacherGradingCourseIdRoute
@@ -761,15 +1008,21 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppMessagesRoute: AppMessagesRoute,
+  AppPreferencesRoute: AppPreferencesRoute,
   AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppIndexRoute: AppIndexRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
   AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
+  AppAdminEmailSettingsRoute: AppAdminEmailSettingsRoute,
+  AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
   AppAdminSystemRoute: AppAdminSystemRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
+  AppForumCourseIdRoute: AppForumCourseIdRouteWithChildren,
   AppStudentAttendanceRoute: AppStudentAttendanceRoute,
+  AppStudentCalendarRoute: AppStudentCalendarRoute,
+  AppStudentCertificatesRoute: AppStudentCertificatesRoute,
   AppStudentCoursesRoute: AppStudentCoursesRoute,
   AppStudentExamsRoute: AppStudentExamsRoute,
   AppStudentGradesRoute: AppStudentGradesRoute,
@@ -783,11 +1036,13 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
   AppTeacherProjectsRoute: AppTeacherProjectsRoute,
+  AppTeacherQuestionBankRoute: AppTeacherQuestionBankRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
   AppStudentProjectProjectIdRoute: AppStudentProjectProjectIdRoute,
   AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
   AppStudentTakeExamIdRoute: AppStudentTakeExamIdRoute,
+  AppStudentTutorCourseIdRoute: AppStudentTutorCourseIdRoute,
   AppStudentWorkshopWorkshopIdRoute: AppStudentWorkshopWorkshopIdRoute,
   AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
   AppTeacherGradingCourseIdRoute: AppTeacherGradingCourseIdRoute,
@@ -797,10 +1052,23 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface AuthRouteChildren {
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+  AuthIndexRoute: typeof AuthIndexRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
+  AuthIndexRoute: AuthIndexRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
+  VerifyShortCodeRoute: VerifyShortCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
