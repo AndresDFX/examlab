@@ -381,7 +381,25 @@ elif [ "$HAS_XAWT_ERR" -gt 0 ]; then
 elif [ "$EXIT_CODE" != "0" ] || [ "$PNG_BYTES" -le 1000 ]; then
   echo "  ✗ FALLA: el Lambda devolvió 200 pero la ejecución no produjo una ventana real."
   echo "    exit_code=$EXIT_CODE   png_bytes=$PNG_BYTES   (Xvfb vacío = 233 bytes)"
-  echo "    Esto suele ser libawt_xawt fallando silenciosamente. Diagnostico:"
+  echo ""
+  echo "    ── stdout/stderr de la JVM (del handler GUI) ──"
+  # Imprimimos los campos stdout, stderr, mode del response para ver
+  # POR QUÉ falló el flow GUI específicamente. Antes íbamos directo a
+  # `diagnose` (que solo lee el entorno) sin mostrar el stderr del run,
+  # que es donde están los stacktraces de Java / mensajes de Xvfb.
+  if command -v jq >/dev/null 2>&1; then
+    echo "$GUI_RESP" | jq -r '
+      "mode: " + (.mode // "?") + "\n" +
+      "executionTimeMs: " + ((.executionTimeMs // 0) | tostring) + "\n" +
+      "── stdout ──\n" + (.stdout // "(vacío)") + "\n" +
+      "── stderr ──\n" + (.stderr // "(vacío)")
+    '
+  else
+    echo "$GUI_RESP" | head -c 2000
+    echo ""
+  fi
+  echo ""
+  echo "    Diagnóstico del runtime:"
   print_diagnose
   exit 1
 else

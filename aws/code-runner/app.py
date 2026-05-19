@@ -125,9 +125,26 @@ def _start_xvfb() -> "subprocess.Popen[bytes]":
     """Arranca Xvfb en GUI_DISPLAY y espera a que esté listo.
 
     Lambda /tmp es escribible y los sockets de X (/tmp/.X11-unix/X99) caben
-    ahí — pero Xvfb por defecto crea /tmp/.X11-unix/. Le pasamos `-fbdir
-    /tmp` para forzar todos los temporales al sandbox de Lambda.
+    ahí — pero Xvfb necesita que el directorio /tmp/.X11-unix EXISTA antes
+    de arrancar (no lo crea él). En containers limpios típicamente está,
+    pero Lambda /tmp arranca vacío por invocación si no es warm — lo
+    creamos defensivamente con 1777 (sticky) como en /tmp.
     """
+    # Xvfb falla con "Could not create server socket" si /tmp/.X11-unix
+    # no existe. mkdir(exist_ok=True) es idempotente entre invocaciones
+    # warm (donde el dir ya quedó del run anterior).
+    try:
+        os.makedirs("/tmp/.X11-unix", mode=0o1777, exist_ok=True)
+        # makedirs respeta umask — forzamos chmod para garantizar sticky+w.
+        os.chmod("/tmp/.X11-unix", 0o1777)
+    except OSError as e:
+        raise RuntimeError(f"No se pudo crear /tmp/.X11-unix: {e}") from e
+
+    # Stderr de Xvfb se redirige a un archivo en /tmp para poder leerlo
+    # si arranca mal. Antes íbamos a DEVNULL y al fallar Xvfb el error
+    # quedaba invisible ("Xvfb murió en arranque (exit 1)" sin contexto).
+    xvfb_log = "/tmp/xvfb.log"
+    log_fd = open(xvfb_log, "wb")
     # +extension RANDR y -nolisten tcp evitan que Java intente abrir un
     # socket TCP (Lambda no permite listening sockets externos pero Xvfb
     # los abre por default y puede colgarse). -ac desactiva access control
@@ -147,8 +164,8 @@ def _start_xvfb() -> "subprocess.Popen[bytes]":
             "-fbdir",
             "/tmp",
         ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_fd,
+        stderr=subprocess.STDOUT,
     )
     # Espera activa por el socket de X. xdpyinfo/xwininfo no están
     # instalados — usamos el archivo socket directamente.
@@ -158,9 +175,31 @@ def _start_xvfb() -> "subprocess.Popen[bytes]":
         if os.path.exists(socket_path):
             return p
         if p.poll() is not None:
-            raise RuntimeError(f"Xvfb murió en arranque (exit {p.returncode})")
+            log_fd.close()
+            stderr_msg = ""
+            try:
+                with open(xvfb_log, "r", encoding="utf-8", errors="replace") as fh:
+                    stderr_msg = fh.read().strip()
+            except OSError:
+                pass
+            raise RuntimeError(
+                f"Xvfb murió en arranque (exit {p.returncode})"
+                + (f" — log:\n{stderr_msg}" if stderr_msg else "")
+            )
         time.sleep(0.05)
-    raise RuntimeError("Xvfb no abrió socket en 5s")
+    # Timeout — capturamos lo que haya escrito en stderr para diagnóstico.
+    log_fd.close()
+    stderr_msg = ""
+    try:
+        with open(xvfb_log, "r", encoding="utf-8", errors="replace") as fh:
+            stderr_msg = fh.read().strip()
+    except OSError:
+        pass
+    _kill_quiet(p)
+    raise RuntimeError(
+        "Xvfb no abrió socket en 5s"
+        + (f" — log:\n{stderr_msg}" if stderr_msg else "")
+    )
 
 
 def _kill_quiet(p: "subprocess.Popen[bytes]") -> None:
