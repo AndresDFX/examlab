@@ -983,7 +983,7 @@ function ExamMonitor() {
       status: result.status,
     };
     if (result.clearSubmittedAt) updatePayload.submitted_at = null;
-    const { error } = await supabase.from("submissions").update(updatePayload).eq("id", sub.id);
+    const { error } = await supabase.from("submissions").update(updatePayload as never).eq("id", sub.id);
     if (error) return toast.error(error.message);
     // Auditoría: borrar advertencias es decisión sensible — rastro con before/after.
     void logEvent({
@@ -1050,7 +1050,7 @@ function ExamMonitor() {
       status: result.status,
     };
     if (result.clearSubmittedAt) updatePayload.submitted_at = null;
-    const { error } = await supabase.from("submissions").update(updatePayload).eq("id", sub.id);
+    const { error } = await supabase.from("submissions").update(updatePayload as never).eq("id", sub.id);
     if (error) return toast.error(error.message);
     toast.success(
       result.restoredToInProgress

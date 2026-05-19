@@ -277,6 +277,7 @@ describe("applyClearOneWarning", () => {
       focusWarnings: 3,
       events,
       examMaxWarnings: 3,
+      examIsOpen: true,
     };
     const snapshot = JSON.stringify(input);
     applyClearOneWarning(input, 0);

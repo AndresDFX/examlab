@@ -502,8 +502,8 @@ function MessagesPage() {
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "messages" },
-        (payload: { old: { id: string; conversation_id?: string } }) => {
-          const m = payload.old;
+        (rawPayload: { old: Record<string, unknown> }) => {
+          const m = rawPayload.old as { id: string; conversation_id?: string };
           setMessages((prev) => prev.filter((x) => x.id !== m.id));
           void loadAll();
         },

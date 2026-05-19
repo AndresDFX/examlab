@@ -1154,6 +1154,7 @@ function TeacherWorkshops() {
         list[idx] = { ...list[idx], ...patch };
       } else {
         list.push({
+          ai_review_at: null,
           id: "",
           submission_id: subId,
           question_id: questionId,

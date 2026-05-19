@@ -218,10 +218,11 @@ export function JavaGuiRunner({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data } = await sb
         .from("code_execution_settings")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .select("java_gui_provider" as any)
+        .select("java_gui_provider")
         .eq("is_active", true)
         .maybeSingle();
       if (cancelled) return;
