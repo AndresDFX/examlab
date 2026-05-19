@@ -1149,9 +1149,24 @@ export function StudentProjectTaker({
             payload.content = "";
             payload.ai_grade = 0;
             payload.ai_feedback = "Sin archivo ZIP";
+          } else if (!user?.id) {
+            // Sin sesión auth válida el path sería "undefined/...", que
+            // viola la RLS de storage. Mejor un error claro que un
+            // "new row violates row-level security policy" críptico.
+            payload.ai_grade = 0;
+            payload.ai_feedback =
+              "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
           } else {
-            // Upload a Storage en <user_id>/<submission_id>/<file_id>.zip
-            const path = `${user.id}/${submissionId}/${q.id}.zip`;
+            // Carpeta raíz del path:
+            //  - groupId si el proyecto es grupal (todos los miembros
+            //    suben a la misma carpeta del grupo; la RLS lo permite
+            //    si el caller es miembro — ver migración 20260530100000).
+            //  - user.id si es individual.
+            // El edge function descarga vía service-role, no le importa
+            // la carpeta — solo necesita que persistamos zip_path
+            // correcto.
+            const rootFolder = groupId ?? user.id;
+            const path = `${rootFolder}/${submissionId}/${q.id}.zip`;
             const { error: upErr } = await supabase.storage
               .from("project-files")
               .upload(path, file, { upsert: true, contentType: "application/zip" });
