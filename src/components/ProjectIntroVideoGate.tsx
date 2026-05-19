@@ -42,8 +42,21 @@ interface Props {
 function isHostedVideo(url: string): "youtube" | "vimeo" | "direct" {
   try {
     const u = new URL(url);
-    if (/(^|\.)youtube\.com$|^youtu\.be$/.test(u.hostname)) return "youtube";
-    if (/(^|\.)vimeo\.com$/.test(u.hostname)) return "vimeo";
+    const host = u.hostname.toLowerCase();
+    // Acepta: youtube.com, www.youtube.com, m.youtube.com, music.youtube.com,
+    // youtube-nocookie.com (variantes con/sin punto inicial), youtu.be.
+    if (
+      host === "youtube.com" ||
+      host.endsWith(".youtube.com") ||
+      host === "youtube-nocookie.com" ||
+      host.endsWith(".youtube-nocookie.com") ||
+      host === "youtu.be"
+    ) {
+      return "youtube";
+    }
+    if (host === "vimeo.com" || host.endsWith(".vimeo.com") || host === "player.vimeo.com") {
+      return "vimeo";
+    }
     return "direct";
   } catch {
     return "direct";
@@ -53,15 +66,40 @@ function isHostedVideo(url: string): "youtube" | "vimeo" | "direct" {
 function toEmbedUrl(url: string, kind: "youtube" | "vimeo"): string {
   try {
     const u = new URL(url);
+    const host = u.hostname.toLowerCase();
     if (kind === "youtube") {
-      // youtu.be/<id> ó youtube.com/watch?v=<id>
-      const id = u.hostname === "youtu.be" ? u.pathname.slice(1) : u.searchParams.get("v");
-      return id ? `https://www.youtube.com/embed/${id}` : url;
+      // Soporta los formatos comunes:
+      //   youtu.be/<id>
+      //   youtube.com/watch?v=<id>
+      //   youtube.com/shorts/<id>
+      //   youtube.com/embed/<id>     (ya está en forma de embed)
+      //   youtube.com/v/<id>
+      let id: string | null = null;
+      if (host === "youtu.be") {
+        id = u.pathname.slice(1).split("/")[0] || null;
+      } else {
+        // /shorts/<id>, /embed/<id>, /v/<id>
+        const m = u.pathname.match(/^\/(?:shorts|embed|v)\/([A-Za-z0-9_-]+)/);
+        if (m) id = m[1];
+        if (!id) id = u.searchParams.get("v");
+      }
+      if (!id) return url;
+      // youtube-nocookie no requiere cookies de tracking — mejor para
+      // entornos educativos con políticas estrictas. El comportamiento
+      // de reproducción es idéntico.
+      return `https://www.youtube-nocookie.com/embed/${id}?modestbranding=1&rel=0`;
     }
     if (kind === "vimeo") {
-      // vimeo.com/<id>
-      const id = u.pathname.split("/").filter(Boolean)[0];
-      return id ? `https://player.vimeo.com/video/${id}` : url;
+      // vimeo.com/<id> o vimeo.com/<id>/<hash>
+      const segs = u.pathname.split("/").filter(Boolean);
+      const id = segs[0] ?? null;
+      if (!id) return url;
+      // Si hay un hash de privacidad (vimeo.com/<id>/<hash>), lo
+      // adjuntamos como `h=<hash>` que es el formato que requiere el
+      // player para videos privados.
+      const hash = segs[1] ?? null;
+      const base = `https://player.vimeo.com/video/${id}`;
+      return hash ? `${base}?h=${hash}` : base;
     }
   } catch {
     /* fall through */

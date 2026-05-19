@@ -44,6 +44,7 @@ const MODULES: Array<{ key: string; label: string; description?: string }> = [
   { key: "question_bank", label: "Banco de preguntas" },
   { key: "ai_prompts", label: "Prompts IA" },
   { key: "messages", label: "Mensajes" },
+  { key: "videos", label: "Biblioteca de videos" },
 ];
 
 const ROLES: Array<{ key: "Admin" | "Docente" | "Estudiante"; label: string }> = [

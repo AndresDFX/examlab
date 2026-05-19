@@ -32,7 +32,8 @@ export type ModuleKey =
   | "question_bank"
   | "ai_prompts"
   | "messages"
-  | "dashboard";
+  | "dashboard"
+  | "videos";
 
 export type RoleKey = "Admin" | "Docente" | "Estudiante";
 

@@ -46,6 +46,7 @@ import { CodeEditor } from "@/components/CodeEditor";
 import { DiagramEditor } from "@/components/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/components/JavaGuiRunner";
 import { ProjectIntroVideoGate } from "@/components/ProjectIntroVideoGate";
+import { extractEdgeError } from "@/lib/edge-error";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -936,17 +937,35 @@ export function StudentProjectTaker({
         db.from("project_files").select("*").eq("project_id", projectId).order("position"),
         db
           .from("projects")
-          .select("description, code_intro_video_url")
+          .select("description, code_intro_video_url, code_intro_video_id")
           .eq("id", projectId)
           .maybeSingle(),
       ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
       setProjectDescription((proj as { description?: string | null } | null)?.description ?? "");
-      // URL del video introductorio (puede ser null/empty → sin gate).
-      const url =
-        (proj as { code_intro_video_url?: string | null } | null)?.code_intro_video_url ?? null;
-      setIntroVideoUrl(url && url.trim() ? url.trim() : null);
+      // URL del video introductorio. Si hay `code_intro_video_id` se
+      // resuelve desde la biblioteca `videos` (preferido). Si no, cae
+      // al campo legacy `code_intro_video_url` que vivía inline en
+      // proyectos antes de la biblioteca.
+      const videoId =
+        (proj as { code_intro_video_id?: string | null } | null)?.code_intro_video_id ?? null;
+      let resolvedUrl: string | null = null;
+      if (videoId) {
+        const { data: vrow } = await db
+          .from("videos")
+          .select("url, is_archived")
+          .eq("id", videoId)
+          .maybeSingle();
+        const v = vrow as { url?: string | null; is_archived?: boolean } | null;
+        if (v && !v.is_archived && v.url) resolvedUrl = v.url.trim();
+      }
+      if (!resolvedUrl) {
+        const legacy =
+          (proj as { code_intro_video_url?: string | null } | null)?.code_intro_video_url ?? null;
+        if (legacy && legacy.trim()) resolvedUrl = legacy.trim();
+      }
+      setIntroVideoUrl(resolvedUrl);
 
       // Si hay grupo, la submission pertenece al grupo (cualquier
       // miembro la ve y edita). Si no, comportamiento individual normal.
@@ -1258,8 +1277,15 @@ export function StudentProjectTaker({
                 },
               );
               if (aiErr || aiData?.error) {
+                // El edge function devuelve el detalle real en
+                // `data.error` cuando es rechazo de validación
+                // (extension_mismatch, etc.). Sin extractEdgeError caía
+                // al wrapper genérico "Edge Function returned non-2xx"
+                // y el estudiante no entendía por qué su entrega tuvo 0.
+                const detail = await extractEdgeError(aiErr, aiData);
                 payload.ai_grade = 0;
-                payload.ai_feedback = `Error IA: ${aiErr?.message ?? aiData?.error ?? "Desconocido"}`;
+                payload.ai_feedback = detail || "Error IA al calificar el ZIP";
+                toast.error(payload.ai_feedback, { duration: 8000 });
               } else {
                 earned = Number(aiData?.grade) || 0;
                 feedback = aiData?.feedback ?? feedback;

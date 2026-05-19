@@ -141,6 +141,10 @@ type Project = {
   /** Video explicativo obligatorio antes de la entrega de código. URL
    *  pública (YouTube/Vimeo iframe, o MP4/WebM en CDN). Si null, sin gate. */
   code_intro_video_url?: string | null;
+  /** FK al row de la biblioteca de videos. Si está poblado, el frontend
+   *  resuelve el URL desde la tabla `videos` e ignora
+   *  `code_intro_video_url` (legacy). */
+  code_intro_video_id?: string | null;
   max_files: number;
   start_date: string | null;
   due_date: string | null;
@@ -222,6 +226,23 @@ function TeacherProjects() {
     [filteredProjects, sel],
   );
   const [open, setOpen] = useState(false);
+  // Biblioteca de videos para el selector del form de proyecto. Carga
+  // perezosa: solo cuando el dialog se abre, evita query al entrar a
+  // la lista de proyectos.
+  const [videoLibrary, setVideoLibrary] = useState<
+    Array<{ id: string; title: string; provider: string }>
+  >([]);
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      const { data } = await db
+        .from("videos")
+        .select("id, title, provider")
+        .eq("is_archived", false)
+        .order("title");
+      setVideoLibrary((data ?? []) as Array<{ id: string; title: string; provider: string }>);
+    })();
+  }, [open]);
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState<Partial<Project>>({});
   const projectDirty = useDirtyDialog(open, form);
@@ -607,6 +628,7 @@ function TeacherProjects() {
       description: "",
       external_link: "",
       code_intro_video_url: "",
+      code_intro_video_id: null,
       course_id: first,
       cut_id: null,
       max_score: 100,
@@ -708,6 +730,10 @@ function TeacherProjects() {
       // Video introductorio obligatorio. Vacío → null (sin gate); URL →
       // se renderiza al alumno antes de la entrega de código.
       payload.code_intro_video_url = form.code_intro_video_url?.trim() || null;
+      // FK a biblioteca de videos. Si está poblada el frontend resuelve
+      // el URL desde la tabla `videos` y `code_intro_video_url` queda
+      // como fallback histórico.
+      payload.code_intro_video_id = form.code_intro_video_id || null;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
       // Modo de trabajo (individual / grupal / mixto). Solo aplica si NO
@@ -1883,24 +1909,56 @@ function TeacherProjects() {
               </div>
             )}
             {!(form as any).is_external && (
-              <div>
+              <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   Video introductorio obligatorio (opcional)
                   <HelpHint>
-                    URL pública del video que el alumno DEBE ver antes de poder entregar código.
-                    Soporta YouTube/Vimeo (iframe) y MP4/WebM directo (control estricto: no se puede
-                    adelantar). Si vacío, no se exige video. Solo aplica si el proyecto tiene una
-                    pregunta tipo "código (ZIP)".
+                    Elige un video de la biblioteca o pega una URL ad-hoc. Si vacío, no se exige
+                    video. Solo aplica si el proyecto tiene una pregunta tipo "código (ZIP)".
+                    YouTube/Vimeo se reproducen vía iframe (sin control de seek). Para forzar que
+                    el alumno NO pueda adelantar, sube un MP4 directo.
                   </HelpHint>
                 </Label>
-                <Input
-                  placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
-                  value={form.code_intro_video_url ?? ""}
-                  onChange={(e) => setForm({ ...form, code_intro_video_url: e.target.value })}
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  YouTube/Vimeo se renderizan con iframe (sin control de seek). Para forzar que el
-                  alumno NO pueda adelantar, sube un MP4 directo (Storage / CDN).
+                {/* Selector de biblioteca — opcional. Si el docente
+                    elige uno, el id se guarda en `code_intro_video_id`
+                    y el frontend resuelve la URL desde `videos`. La
+                    opción "URL personalizada" libera el input de abajo
+                    para uso ad-hoc (no reusable). */}
+                <Select
+                  value={form.code_intro_video_id ?? "__custom"}
+                  onValueChange={(v) =>
+                    setForm({
+                      ...form,
+                      code_intro_video_id: v === "__custom" ? null : v,
+                      // Si elige biblioteca, limpiamos la URL ad-hoc
+                      // para evitar ambigüedad. El frontend del alumno
+                      // resuelve URL desde el id en `videos`.
+                      code_intro_video_url: v === "__custom" ? form.code_intro_video_url : "",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un video de la biblioteca…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom">URL personalizada (no reusable)</SelectItem>
+                    {videoLibrary.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.title} · {v.provider.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!form.code_intro_video_id && (
+                  <Input
+                    placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                    value={form.code_intro_video_url ?? ""}
+                    onChange={(e) => setForm({ ...form, code_intro_video_url: e.target.value })}
+                  />
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Tip: registra los videos en{" "}
+                  <strong>Videos</strong> (sidebar) y referénciálos aquí — evita re-pegar URLs.
                 </p>
               </div>
             )}

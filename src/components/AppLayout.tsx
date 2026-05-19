@@ -73,6 +73,7 @@ import {
   Bell,
   Library,
   Award,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -189,6 +190,16 @@ const NAV: NavItem[] = [
     icon: Award,
     roles: ["Docente", "Admin"],
   },
+  // Biblioteca de videos: contenedor reusable de URLs (YouTube/Vimeo/
+  // MP4) referenciadas desde proyectos/talleres con video gate. Solo
+  // staff — los alumnos no tocan la biblioteca, ven el video embebido
+  // dentro del módulo que lo usa.
+  {
+    to: "/app/videos",
+    labelKey: "nav.videos",
+    icon: Video,
+    roles: ["Docente", "Admin"],
+  },
   // Asistencia
   {
     to: "/app/teacher/attendance",
@@ -213,6 +224,17 @@ const NAV: NavItem[] = [
     to: "/app/student/calendar",
     labelKey: "nav.studentCalendar",
     icon: CalendarDays,
+    roles: ["Estudiante"],
+  },
+  // Tutor IA: ruta índice que lista cursos del alumno y enlaza al chat
+  // específico de cada curso (`/app/student/tutor/$courseId`). Antes no
+  // había entrada en el sidebar porque el chat exige courseId y no se
+  // puede poner una URL parametrizada en el menú; la nueva ruta index
+  // sirve como punto de entrada.
+  {
+    to: "/app/student/tutor",
+    labelKey: "nav.tutor",
+    icon: Sparkles,
     roles: ["Estudiante"],
   },
   // Estadísticas — vista por curso (Docente) y agregada (Admin).
@@ -497,6 +519,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/certificates", "certificates"],
     ["/app/teacher/question-bank", "question_bank"],
     ["/app/teacher/ai-prompts", "ai_prompts"],
+    ["/app/videos", "videos"],
+    ["/app/student/tutor", "tutor"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

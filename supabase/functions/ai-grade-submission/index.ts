@@ -948,22 +948,50 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         : [];
       if (cleanedAllowed.length > 0) {
         const allowedSet = new Set(cleanedAllowed);
+        // Archivos NO-código que toleramos como artefactos del proyecto:
+        // documentación, metadata de build/IDE y archivos sin extensión
+        // útiles para describir el repo. Cualquier otro archivo distinto
+        // a las extensiones permitidas se rechaza — antes solo verificamos
+        // archivos en CODE_EXT (otro lenguaje), pero el docente reportó
+        // que aún se subían PDFs/imágenes/binarios y la IA los ignoraba
+        // sin avisar.
+        const TOLERATED_NON_CODE = new Set([
+          "md",
+          "txt",
+          "readme",
+          "license",
+          "gitignore",
+          "gitattributes",
+          "editorconfig",
+          "properties",
+          "xml",
+          "json",
+          "yml",
+          "yaml",
+        ]);
         const violations: string[] = [];
         for (const p of allPaths) {
           const lower = p.toLowerCase();
           const ext = lower.split(".").pop() ?? "";
-          // OS/IDE noise files siempre OK (los descomprimen alumnos sin
-          // querer): .ds_store, __macosx, .gitignore. Filtramos esos
-          // antes de marcar violación para no penalizar artefactos del
-          // sistema.
           const baseName = lower.split("/").pop() ?? "";
+          // OS/IDE noise siempre OK.
           if (lower.includes("__macosx/") || baseName === ".ds_store") continue;
-          // Solo verificamos archivos que parezcan código (los demás
-          // como txt/md/png no son violación, simplemente no se evalúan).
-          if (!CODE_EXT.has(ext)) continue;
-          if (!allowedSet.has(ext)) {
-            violations.push(p);
-          }
+          if (baseName === "thumbs.db" || baseName === "desktop.ini") continue;
+          // Archivos en la whitelist explícita: pasan.
+          if (allowedSet.has(ext)) continue;
+          // Archivos no-código tolerados (docs, metadata): pasan.
+          if (TOLERATED_NON_CODE.has(ext)) continue;
+          // Carpetas no-código tipo .git/, node_modules/ — el archivo
+          // adentro no se evalúa pero tampoco rechaza (típico que aparezcan
+          // en ZIPs hechos con un click en VSCode).
+          if (lower.includes("/.git/") || lower.startsWith(".git/")) continue;
+          if (lower.includes("/node_modules/") || lower.startsWith("node_modules/")) continue;
+          if (lower.includes("/.idea/") || lower.startsWith(".idea/")) continue;
+          if (lower.includes("/target/") || lower.startsWith("target/")) continue;
+          if (lower.includes("/bin/") && (ext === "class" || ext === "exe")) continue;
+          // Todo lo demás: violación. PDFs, imágenes, código en otro
+          // lenguaje, binarios, etc.
+          violations.push(p);
         }
         if (violations.length > 0) {
           const sample = violations.slice(0, 5).join(", ");
@@ -996,6 +1024,162 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       let perFileTruncated = 0;
       let totalLimitReached = false;
 
+      // ── Minificación de código fuente ──
+      // Reduce tokens enviados a la IA sin perder señal:
+      //   - Comentarios de bloque /* ... */ y de línea //
+      //   - Strings de docstring de Python (triple comilla)
+      //   - Líneas en blanco consecutivas → 1 sola
+      //   - Trailing whitespace por línea
+      //   - Indentación >4 espacios colapsada a 1 tab visual (\t)
+      // Mantenemos string literals intactos (delimitamos con " ' o `).
+      // Tipos cubiertos: java, py, js/ts/tsx/jsx, c/cpp, cs, go, kt, rs.
+      // Para tipos que la IA "lee" estructura por sangría (Python: la
+      // identamos pero conservamos jerarquía) no agresivar las regex.
+      //
+      // Trade-off documentado: si el alumno tiene un comentario CRÍTICO
+      // explicando una decisión, lo perdemos. Aceptable porque la IA
+      // evalúa CÓDIGO (correctness/structure/style), no metadocumentación.
+      // El comentario de cabecera con autoría tampoco aporta a la nota.
+      const MINIFIABLE_EXT = new Set([
+        "java",
+        "kt",
+        "scala",
+        "groovy",
+        "js",
+        "jsx",
+        "ts",
+        "tsx",
+        "mjs",
+        "cjs",
+        "c",
+        "cpp",
+        "cc",
+        "cxx",
+        "h",
+        "hpp",
+        "hxx",
+        "cs",
+        "go",
+        "rs",
+        "swift",
+        "dart",
+      ]);
+      const minifyCStyle = (src: string): string => {
+        // Parser pequeño que respeta strings. Recorre char por char.
+        let out = "";
+        let i = 0;
+        const len = src.length;
+        while (i < len) {
+          const c = src[i];
+          const next = src[i + 1];
+          // String literals: copiar tal cual.
+          if (c === '"' || c === "'" || c === "`") {
+            const quote = c;
+            out += c;
+            i++;
+            while (i < len) {
+              const ch = src[i];
+              out += ch;
+              if (ch === "\\" && i + 1 < len) {
+                out += src[i + 1];
+                i += 2;
+                continue;
+              }
+              i++;
+              if (ch === quote) break;
+            }
+            continue;
+          }
+          // Block comment /* ... */
+          if (c === "/" && next === "*") {
+            const end = src.indexOf("*/", i + 2);
+            i = end < 0 ? len : end + 2;
+            continue;
+          }
+          // Line comment //
+          if (c === "/" && next === "/") {
+            const eol = src.indexOf("\n", i + 2);
+            i = eol < 0 ? len : eol; // dejamos el \n para no pegar líneas
+            continue;
+          }
+          out += c;
+          i++;
+        }
+        return out;
+      };
+      const collapseWhitespace = (src: string): string => {
+        return (
+          src
+            // Trim trailing whitespace por línea
+            .replace(/[ \t]+$/gm, "")
+            // Múltiples líneas vacías → una sola
+            .replace(/\n{3,}/g, "\n\n")
+            // Indentación de >8 espacios (cuando hay nesting profundo)
+            // se colapsa a 4 — la estructura sigue legible pero ahorra
+            // bytes. NO normalizamos tabs porque algunos lenguajes (Py)
+            // dependen de consistencia.
+            .replace(/^ {8,}/gm, "    ")
+        );
+      };
+      const minifyPython = (src: string): string => {
+        // Remove # comments fuera de strings.
+        let out = "";
+        let i = 0;
+        const len = src.length;
+        while (i < len) {
+          const c = src[i];
+          if (c === '"' || c === "'") {
+            // Posible triple-quoted string.
+            const triple = src.slice(i, i + 3);
+            if (triple === '"""' || triple === "'''") {
+              const end = src.indexOf(triple, i + 3);
+              if (end < 0) {
+                out += src.slice(i);
+                i = len;
+                break;
+              }
+              // Docstring → DESCARTAR (suelen ser narrativos largos).
+              i = end + 3;
+              continue;
+            }
+            // Single-line string.
+            const quote = c;
+            out += c;
+            i++;
+            while (i < len) {
+              const ch = src[i];
+              out += ch;
+              if (ch === "\\" && i + 1 < len) {
+                out += src[i + 1];
+                i += 2;
+                continue;
+              }
+              i++;
+              if (ch === quote) break;
+            }
+            continue;
+          }
+          if (c === "#") {
+            const eol = src.indexOf("\n", i + 1);
+            i = eol < 0 ? len : eol;
+            continue;
+          }
+          out += c;
+          i++;
+        }
+        return out;
+      };
+      const minify = (path: string, ext: string, src: string): string => {
+        try {
+          if (MINIFIABLE_EXT.has(ext)) return collapseWhitespace(minifyCStyle(src));
+          if (ext === "py") return collapseWhitespace(minifyPython(src));
+        } catch (e) {
+          console.warn("[minify] failed for", path, e);
+        }
+        return collapseWhitespace(src);
+      };
+
+      let totalSavedChars = 0;
       for (const path of allPaths) {
         const lower = path.toLowerCase();
         const ext = lower.split(".").pop() ?? "";
@@ -1016,6 +1200,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         } catch {
           continue;
         }
+        const rawLen = text.length;
+        text = minify(path, ext, text);
+        totalSavedChars += Math.max(0, rawLen - text.length);
         // Skip muy grandes individuales para no bloquear todo
         if (text.length > 50_000) {
           text = text.slice(0, 50_000) + "\n…[truncado]…";
@@ -1027,6 +1214,13 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         }
         totalChars += text.length;
         codeFiles.push({ path, content: text });
+      }
+      // Log de ahorro — útil para auditar el impacto de la minificación
+      // en el costo de tokens. CloudWatch / Supabase logs lo muestran.
+      if (totalSavedChars > 0) {
+        console.log(
+          `[zip-grading] minified saved ${totalSavedChars} chars (${codeFiles.length} files, ${totalChars} chars total)`,
+        );
       }
       const wasTruncated = totalLimitReached || perFileTruncated > 0;
 
