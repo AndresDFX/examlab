@@ -4,19 +4,23 @@ import { cn } from "@/lib/utils";
 
 /**
  * EmptyState — caja centrada para "sin datos" en cards / contenedores
- * grandes. TableEmpty — variante para usar como fila de una `<Table>`.
+ * grandes. TableEmpty — variante para usar como fila de una `<Table>`,
+ * o como bloque suelto dentro de un `<CardContent>` cuando no se pasa
+ * `colSpan` (entonces se renderiza sin `<tr>/<td>`).
  *
- * Antes cada pantalla escribía su propio "sin datos" con clases
- * distintas (algunas con `text-muted-foreground py-8`, otras con
- * `text-center text-sm py-10`, otras con un `<p>` desnudo). Estos
- * helpers fijan el espaciado y el tono.
+ * Aceptamos tanto `text/hint` (API original) como `title/description`
+ * (alias usado por varias pantallas) para no fragmentar el design system.
  */
 
 interface EmptyStateProps {
   /** Texto principal. Manténlo corto: una frase. */
-  text: string;
+  text?: string;
+  /** Alias de `text`. */
+  title?: string;
   /** Línea secundaria opcional, para sugerir la siguiente acción. */
   hint?: string;
+  /** Alias de `hint`. */
+  description?: string;
   /** Ícono opcional para reforzar el tipo de vacío. */
   icon?: ComponentType<{ className?: string }>;
   /** CTA opcional (botón, link, etc.). */
@@ -26,11 +30,15 @@ interface EmptyStateProps {
 
 export function EmptyState({
   text,
+  title,
   hint,
+  description,
   icon: Icon,
   action,
   className,
 }: Readonly<EmptyStateProps>) {
+  const primary = text ?? title ?? "";
+  const secondary = hint ?? description;
   return (
     <div
       className={cn(
@@ -43,17 +51,24 @@ export function EmptyState({
           <Icon className="h-5 w-5 text-muted-foreground" />
         </div>
       ) : null}
-      <p className="text-sm font-medium text-foreground">{text}</p>
-      {hint ? <p className="text-xs text-muted-foreground max-w-sm">{hint}</p> : null}
+      <p className="text-sm font-medium text-foreground">{primary}</p>
+      {secondary ? (
+        <p className="text-xs text-muted-foreground max-w-sm">{secondary}</p>
+      ) : null}
       {action ? <div className="mt-1">{action}</div> : null}
     </div>
   );
 }
 
 interface TableEmptyProps {
-  colSpan: number;
-  text: string;
+  /** Cuando se pasa, se renderiza como fila `<tr><td colSpan>`.
+   *  Cuando se omite, se renderiza como bloque centrado (útil dentro
+   *  de un `<CardContent>` sin `<table>`). */
+  colSpan?: number;
+  text?: string;
+  title?: string;
   hint?: string;
+  description?: string;
   icon?: ComponentType<{ className?: string }>;
   /** CTA opcional (botón / link). Solo cuando hay una acción primaria
    *  obvia para llenar la lista — "Crear primer examen", etc. */
@@ -68,19 +83,31 @@ interface TableEmptyProps {
 export function TableEmpty({
   colSpan,
   text,
+  title,
   hint,
+  description,
   icon: Icon,
   action,
 }: Readonly<TableEmptyProps>) {
+  const primary = text ?? title ?? "";
+  const secondary = hint ?? description;
+  const inner = (
+    <div className="flex flex-col items-center gap-1.5">
+      {Icon ? <Icon className="h-5 w-5 text-muted-foreground" /> : null}
+      <p className="text-sm text-muted-foreground">{primary}</p>
+      {secondary ? (
+        <p className="text-xs text-muted-foreground/80">{secondary}</p>
+      ) : null}
+      {action ? <div className="mt-2">{action}</div> : null}
+    </div>
+  );
+  if (colSpan === undefined) {
+    return <div className="py-8 text-center">{inner}</div>;
+  }
   return (
     <TableRow>
       <TableCell colSpan={colSpan} className="text-center py-8">
-        <div className="flex flex-col items-center gap-1.5">
-          {Icon ? <Icon className="h-5 w-5 text-muted-foreground" /> : null}
-          <p className="text-sm text-muted-foreground">{text}</p>
-          {hint ? <p className="text-xs text-muted-foreground/80">{hint}</p> : null}
-          {action ? <div className="mt-2">{action}</div> : null}
-        </div>
+        {inner}
       </TableCell>
     </TableRow>
   );
