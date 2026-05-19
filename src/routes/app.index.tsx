@@ -413,31 +413,30 @@ function AdminDashboard() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Reemplazo de "Usuarios recientes" — lista las últimas
-            ejecuciones de IA (1h) con action + actor + severity. El
-            admin puede diagnosticar incidentes de rate limit, picos de
-            uso, errores, etc. sin tener que entrar a Auditoría completa.
-            Link al final lleva al historial filtrado. */}
+        {/* Ejecuciones IA recientes — vista compacta para que el
+            dashboard quepa en una pantalla. Antes mostrábamos hasta
+            20 items con tile circular + 2 líneas (~3000px), ahora 5
+            items en una sola línea cada uno con icono inline. Link al
+            final mantiene el acceso a la auditoría completa. */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" /> Ejecuciones IA recientes (1h)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1.5">
+          <CardContent className="space-y-1">
             {recentAiExecs.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
                 Sin ejecuciones de IA en la última hora.
               </p>
             ) : (
-              recentAiExecs.map((e) => {
+              recentAiExecs.slice(0, 5).map((e) => {
                 const created = new Date(e.created_at);
                 const diffMs = Date.now() - created.getTime();
                 const diffMin = Math.floor(diffMs / 60000);
                 const relative =
-                  diffMin < 1 ? "ahora" : diffMin < 60 ? `hace ${diffMin} min` : "hace 1h";
+                  diffMin < 1 ? "ahora" : diffMin < 60 ? `${diffMin}m` : "1h";
                 const isError = e.severity === "error";
-                const isWarning = e.severity === "warning";
                 const labelByAction: Record<string, string> = {
                   "ai.grading_started": "Calificación iniciada",
                   "ai.grading_failed": "Error de IA",
@@ -449,37 +448,20 @@ function AdminDashboard() {
                 };
                 const label = labelByAction[e.action] ?? e.action;
                 return (
-                  <div key={e.id} className="flex items-center gap-2 p-2 rounded-md border text-sm">
-                    <div
-                      className={cn(
-                        "h-7 w-7 rounded-full flex items-center justify-center shrink-0",
-                        isError
-                          ? "bg-destructive/10 text-destructive"
-                          : isWarning
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
-                      )}
-                    >
-                      {isError ? (
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate flex items-center gap-1.5">
-                        <span className="truncate">{label}</span>
-                        {isError && (
-                          <Badge variant="destructive" className="text-[9px] shrink-0">
-                            error
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {e.actor_email ?? "sistema (cron)"}
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                  <div
+                    key={e.id}
+                    className="flex items-center gap-2 px-2 py-1 rounded text-xs hover:bg-muted/40"
+                  >
+                    {isError ? (
+                      <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                    ) : (
+                      <Sparkles className="h-3 w-3 text-indigo-500 shrink-0" />
+                    )}
+                    <span className="truncate flex-1 font-medium">{label}</span>
+                    <span className="text-muted-foreground truncate hidden sm:inline max-w-[140px]">
+                      {e.actor_email ?? "cron"}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums w-10 text-right">
                       {relative}
                     </span>
                   </div>
@@ -487,7 +469,7 @@ function AdminDashboard() {
               })
             )}
             <Link to="/app/admin/audit-logs" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1 h-7">
                 Ver auditoría completa <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>

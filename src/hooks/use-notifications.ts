@@ -94,8 +94,22 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
       // Toast solo para notificaciones genuinamente nuevas y solo
       // una vez por id (gate global del módulo, ver arriba).
       const n = items[0];
+      // Los mensajes directos del módulo "Mensajes" disparan un toast
+      // dedicado (use-messaging-toasts, formato "💬 Nombre Apellido")
+      // que es más informativo: trae avatar implícito por el emoji y
+      // el nombre del remitente como título. Si dejamos también este
+      // toast genérico, el destinatario ve DOS toasts por el mismo
+      // mensaje. Filtramos para que el bell siga incrementando el
+      // contador pero no duplique el popup.
+      //
+      // El trigger SQL `notify_on_message_insert` inserta con
+      // kind='info' + link='/app/messages' — mismo identifier que usa
+      // send-email/index.ts (isMessage) para distinguir notificaciones
+      // de mensajería de otras "info".
+      const isMessageKind = n.kind === "info" && n.link?.startsWith("/app/messages") === true;
       const shouldToast =
         !isInitialLoad &&
+        !isMessageKind &&
         !TOASTED_NOTIFICATION_IDS.has(n.id) &&
         typeof document !== "undefined" &&
         document.visibilityState === "visible";
