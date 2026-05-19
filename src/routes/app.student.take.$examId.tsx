@@ -173,6 +173,10 @@ function TakeExam() {
   // requestFullscreen, no se muestra el overlay de re-entrada y los strikes
   // por fullscreen_exit no aplican. Default true (comportamiento histórico).
   const [requireFullscreen, setRequireFullscreen] = useState(true);
+  // Tope global (app_settings.max_open_answer_chars) para el Textarea de
+  // respuestas tipo `abierta`. Default 5000 — alcanza para una respuesta
+  // argumentativa larga. El admin lo modifica desde Settings.
+  const [maxOpenChars, setMaxOpenChars] = useState(5000);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -313,7 +317,7 @@ function TakeExam() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const settingsPromise = (supabase as any)
         .from("app_settings")
-        .select("require_exam_fullscreen")
+        .select("require_exam_fullscreen, max_open_answer_chars")
         .maybeSingle();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: examData, error: eErr } = await (supabase as any)
@@ -323,11 +327,23 @@ function TakeExam() {
         .single();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let e: any = examData;
-      void settingsPromise.then(({ data: s }: { data: { require_exam_fullscreen?: boolean } | null }) => {
-        if (s && typeof s.require_exam_fullscreen === "boolean") {
-          setRequireFullscreen(s.require_exam_fullscreen);
-        }
-      });
+      void settingsPromise.then(
+        ({
+          data: s,
+        }: {
+          data: {
+            require_exam_fullscreen?: boolean;
+            max_open_answer_chars?: number;
+          } | null;
+        }) => {
+          if (s && typeof s.require_exam_fullscreen === "boolean") {
+            setRequireFullscreen(s.require_exam_fullscreen);
+          }
+          if (s && typeof s.max_open_answer_chars === "number" && s.max_open_answer_chars > 0) {
+            setMaxOpenChars(s.max_open_answer_chars);
+          }
+        },
+      );
       if (eErr || !e) {
         // Si el fallo es de red (offline / blip transitorio), no botamos
         // al estudiante — dejamos el spinner y reintentamos en 2s. Su
@@ -1556,13 +1572,40 @@ function TakeExam() {
                     />
                   </div>
                 ) : (
-                  <Textarea
-                    rows={4}
-                    placeholder="Tu respuesta…"
-                    value={answers[q.id] ?? ""}
-                    onChange={(e) => updateAnswer(q.id, e.target.value)}
-                    onBlur={saveAnswersNow}
-                  />
+                  (() => {
+                    const current = String(answers[q.id] ?? "");
+                    const len = current.length;
+                    // Umbral ámbar a 90% para que el alumno sepa que se
+                    // acerca al tope antes de chocarse con el maxLength
+                    // (el browser ignora el input pero sin feedback el
+                    // alumno cree que el teclado falló).
+                    const warn = len >= Math.floor(maxOpenChars * 0.9);
+                    const atMax = len >= maxOpenChars;
+                    return (
+                      <div className="space-y-1">
+                        <Textarea
+                          rows={4}
+                          placeholder="Tu respuesta…"
+                          value={current}
+                          maxLength={maxOpenChars}
+                          onChange={(e) => updateAnswer(q.id, e.target.value)}
+                          onBlur={saveAnswersNow}
+                        />
+                        <div
+                          className={`text-[11px] text-right tabular-nums ${
+                            atMax
+                              ? "text-destructive"
+                              : warn
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-muted-foreground"
+                          }`}
+                        >
+                          {len.toLocaleString("es-CO")} / {maxOpenChars.toLocaleString("es-CO")}
+                          {atMax ? " — límite alcanzado" : ""}
+                        </div>
+                      </div>
+                    );
+                  })()
                 )}
               </CardContent>
             </Card>

@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
 
       const valid = (subs ?? []).filter((s: any) => s.status !== "iniciado" && s.answers);
       for (const q of questions ?? []) {
-        if (q.type === "cerrada") continue;
+        if (q.type === "cerrada" || q.type === "cerrada_multi") continue;
         const items: Item[] = valid
           .map((s: any) => {
             const ans = s.answers?.[q.id];
@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
       }
 
       for (const q of qs ?? []) {
-        if ((q as any).type === "cerrada") continue;
+        if ((q as any).type === "cerrada" || (q as any).type === "cerrada_multi") continue;
         const list = ansByQ.get((q as any).id) ?? [];
         const items: Item[] = list
           .map((a: any) => {

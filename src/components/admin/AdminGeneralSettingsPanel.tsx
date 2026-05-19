@@ -50,6 +50,7 @@ interface AppSettings {
   default_exam_max_attempts: number;
   require_exam_fullscreen: boolean;
   question_bank_enabled: boolean;
+  max_open_answer_chars: number;
   email_alert_threshold_24h: number;
   email_alert_cooldown_hours: number;
   updated_at: string;
@@ -101,6 +102,10 @@ export function AdminGeneralSettingsPanel() {
       toast.error("La nota máxima debe ser mayor a la mínima");
       return;
     }
+    if (draft.max_open_answer_chars < 100 || draft.max_open_answer_chars > 50000) {
+      toast.error("Máx. caracteres de respuesta abierta debe estar entre 100 y 50000");
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await db
@@ -114,6 +119,7 @@ export function AdminGeneralSettingsPanel() {
           default_exam_max_attempts: draft.default_exam_max_attempts,
           require_exam_fullscreen: draft.require_exam_fullscreen,
           question_bank_enabled: draft.question_bank_enabled,
+          max_open_answer_chars: draft.max_open_answer_chars,
           email_alert_threshold_24h: draft.email_alert_threshold_24h,
           email_alert_cooldown_hours: draft.email_alert_cooldown_hours,
           updated_by: user.id,
@@ -262,6 +268,35 @@ export function AdminGeneralSettingsPanel() {
                 })
               }
             />
+          </div>
+          <div className="sm:col-span-3">
+            <Label className="flex items-center gap-1.5">
+              Máx. caracteres en respuesta abierta
+              <HelpHint>
+                Tope de caracteres que el alumno puede escribir en una pregunta tipo "abierta".
+                Aplica a nivel frontend (Textarea con maxLength). Default 5000 — alcanza para una
+                respuesta argumentativa larga o un fragmento de código. Subir si necesitas ensayos
+                largos; bajar si quieres respuestas concisas (y limitar costo de tokens de la IA).
+                Rango permitido: 100..50000.
+              </HelpHint>
+            </Label>
+            <Input
+              type="number"
+              min={100}
+              max={50000}
+              step={100}
+              value={draft.max_open_answer_chars}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  max_open_answer_chars: Number(e.target.value),
+                })
+              }
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Solo afecta preguntas <code className="text-[10px]">abierta</code>. Las de código,
+              diagrama, java_gui y opción múltiple tienen sus propios límites.
+            </p>
           </div>
           <div className="sm:col-span-3">
             <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">

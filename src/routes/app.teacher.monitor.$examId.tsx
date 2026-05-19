@@ -751,6 +751,29 @@ function ExamMonitor() {
           failed_count: failed.length,
         },
       });
+      // Recalificación por pregunta: además de mostrar el AI feedback en
+      // `bd.feedback` (panel "Retroalimentación IA"), precargamos la
+      // retroalimentación manual del docente con ese mismo texto, así
+      // puede editarlo y guardarlo como feedback oficial sin retipear.
+      // Si el textarea ya tenía algo distinto, APENDEAMOS para no perder
+      // lo que el docente había escrito.
+      if (questionId) {
+        const newAiFeedback = bd.find((b) => b.qid === questionId)?.feedback?.trim();
+        if (newAiFeedback) {
+          setQOverrides((prev) => {
+            const existing = prev[questionId] ?? { score: null, feedback: "" };
+            const prior = (existing.feedback ?? "").trim();
+            const merged =
+              !prior || prior === newAiFeedback
+                ? newAiFeedback
+                : `${prior}\n\n— Recalificación con IA —\n${newAiFeedback}`;
+            return {
+              ...prev,
+              [questionId]: { ...existing, feedback: merged },
+            };
+          });
+        }
+      }
       toast.success("Pregunta recalificada con IA");
       load();
     } catch (e: any) {
@@ -768,10 +791,69 @@ function ExamMonitor() {
     if (!reGradePreview) return;
     setApplyingReGrade(true);
     try {
+      // El proposed_update viene del edge function con el nuevo
+      // __breakdown (incluye feedback IA por pregunta) pero NO toca
+      // __manual_overrides. Para que el textarea "Retroalimentación
+      // manual" del docente quede precargado con el comentario IA
+      // (mismo patrón que el regrade por-pregunta), apilamos los
+      // feedbacks de cada breakdown sobre los overrides existentes.
+      //
+      // Reglas:
+      //  - Si no había override para esa pregunta → creamos uno con
+      //    el feedback IA y el score AI como nota propuesta.
+      //  - Si había override con feedback vacío → solo seteamos feedback.
+      //  - Si había feedback distinto → APENDEAMOS bajo un separador
+      //    para no perder lo que el docente había escrito.
+      const proposed = reGradePreview.proposed_update as {
+        answers?: Record<string, unknown> & {
+          __breakdown?: Array<{
+            qid: string;
+            earned?: number;
+            feedback?: string;
+          }>;
+          __manual_overrides?: Record<string, { score: number; feedback?: string }>;
+        };
+        [k: string]: unknown;
+      };
+      const proposedAnswers = (proposed.answers ?? {}) as Record<string, unknown> & {
+        __breakdown?: Array<{ qid: string; earned?: number; feedback?: string }>;
+        __manual_overrides?: Record<string, { score: number; feedback?: string }>;
+      };
+      const newBreakdown = proposedAnswers.__breakdown ?? [];
+      const prevOverrides: Record<string, { score: number; feedback?: string }> = {
+        ...(proposedAnswers.__manual_overrides ?? {}),
+      };
+      const SEP = "\n\n— Recalificación con IA —\n";
+      for (const b of newBreakdown) {
+        const aiFb = b.feedback?.trim();
+        if (!aiFb) continue;
+        const cur = prevOverrides[b.qid];
+        if (!cur) {
+          // No había override — no creamos uno con score (eso fuerza
+          // un final_override_grade que cambia el ranking). Solo
+          // creamos override SI el docente ya había puesto algo.
+          // El feedback IA seguirá visible vía bd.feedback (panel
+          // "Retroalimentación IA"). Esto evita pisar la nota
+          // automática del breakdown con un override accidental.
+          continue;
+        }
+        const prior = (cur.feedback ?? "").trim();
+        cur.feedback =
+          !prior || prior === aiFb
+            ? aiFb
+            : prior.includes(SEP.trim())
+              ? `${prior.split(SEP)[0].trim()}${SEP}${aiFb}`
+              : `${prior}${SEP}${aiFb}`;
+      }
+      const payload = {
+        ...proposed,
+        answers: { ...proposedAnswers, __manual_overrides: prevOverrides },
+      };
+
       const { error } = await supabase
         .from("submissions")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update(reGradePreview.proposed_update as any)
+        .update(payload as any)
         .eq("id", reGradePreview.submissionId);
       if (error) {
         toast.error(error.message);
@@ -2502,8 +2584,11 @@ function ExamMonitor() {
                                 y muestra un botón para precargar el input manual.
                                 Antes esta sugerencia solo existía a nivel submission;
                                 el docente tenía que estimar a ojo qué descontar de
-                                cada pregunta. */}
-                            {(() => {
+                                cada pregunta.
+                                Las preguntas de opción múltiple (`cerrada`/`cerrada_multi`)
+                                se validan determinísticamente contra `correct_index` —
+                                no aplican señales de IA ni de copia, así que skip. */}
+                            {q.type !== "cerrada" && q.type !== "cerrada_multi" && (() => {
                               const aiSig = aiSignalsBySubmissionQuestion
                                 .get(viewingSub.id)
                                 ?.get(q.id);
@@ -2545,18 +2630,55 @@ function ExamMonitor() {
                                     size="sm"
                                     variant="outline"
                                     className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
-                                    onClick={() =>
-                                      setQOverrides((prev) => ({
-                                        ...prev,
-                                        [q.id]: {
-                                          ...(prev[q.id] ?? {
-                                            score: null,
-                                            feedback: "",
-                                          }),
-                                          score: sug.suggested,
-                                        },
-                                      }))
-                                    }
+                                    onClick={() => {
+                                      // Compone la retroalimentación a partir de las
+                                      // razones reales de la IA y/o de copia, así
+                                      // "aplicar sugerencia" deja la nota Y el
+                                      // motivo en el textarea — antes el docente
+                                      // tenía que copiarlo a mano del banner. Si
+                                      // ya había feedback escrito, lo APENDEAMOS
+                                      // para no perder lo que el docente tipeó.
+                                      const aiReasons = aiSig?.reasons?.trim();
+                                      const copyReasons = qPairs
+                                        .map((p) => p.reasons?.trim())
+                                        .filter((r): r is string => !!r);
+                                      const prefixKey =
+                                        sug.source === "ai"
+                                          ? "integrity.aiFeedbackPrefix"
+                                          : sug.source === "plagio"
+                                            ? "integrity.copyFeedbackPrefix"
+                                            : "integrity.bothFeedbackPrefix";
+                                      const prefix = t(prefixKey, { aiPct, cpPct });
+                                      const bodyParts: string[] = [];
+                                      if (aiReasons && sug.source !== "plagio")
+                                        bodyParts.push(`• IA: ${aiReasons}`);
+                                      if (copyReasons.length > 0 && sug.source !== "ai")
+                                        bodyParts.push(
+                                          `• Copia: ${copyReasons.join(" | ")}`,
+                                        );
+                                      const composed = [prefix, ...bodyParts]
+                                        .filter(Boolean)
+                                        .join("\n");
+                                      setQOverrides((prev) => {
+                                        const existing = prev[q.id] ?? {
+                                          score: null,
+                                          feedback: "",
+                                        };
+                                        const prior = (existing.feedback ?? "").trim();
+                                        const merged =
+                                          prior && !prior.includes(prefix)
+                                            ? `${prior}\n\n${composed}`
+                                            : composed;
+                                        return {
+                                          ...prev,
+                                          [q.id]: {
+                                            ...existing,
+                                            score: sug.suggested,
+                                            feedback: merged,
+                                          },
+                                        };
+                                      });
+                                    }}
                                   >
                                     {t("integrity.applySuggestion")}
                                   </Button>
@@ -2606,6 +2728,13 @@ function ExamMonitor() {
                                   )}
                                   Guardar
                                 </Button>
+                                {/* Recalificar con IA solo aplica a preguntas que SE
+                                    califican con IA (abierta, código, diagrama,
+                                    java_gui, codigo_zip). Las de opción múltiple se
+                                    validan determinísticamente contra correct_index/
+                                    correct_indices — un re-grade no aporta nada y
+                                    confunde al docente. */}
+                                {q.type !== "cerrada" && q.type !== "cerrada_multi" && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -2621,6 +2750,7 @@ function ExamMonitor() {
                                   )}
                                   IA
                                 </Button>
+                                )}
                               </div>
                               <Textarea
                                 placeholder="Retroalimentación manual (opcional)"
