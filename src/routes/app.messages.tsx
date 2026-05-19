@@ -61,7 +61,17 @@ import {
   CheckSquare,
   Square,
   Paperclip,
+  Megaphone,
 } from "lucide-react";
+import { extractEdgeError } from "@/lib/edge-error";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   groupMessagesByDay,
   formatMessageTime,
@@ -154,6 +164,20 @@ function MessagesPage() {
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
 
+  // ── Broadcast a curso (Docente/Admin) ──
+  // Solo carga cuando se detecta rol Docente o Admin en mount; el botón
+  // y diálogo se ocultan para Estudiantes (no son destinatarios válidos
+  // ni autorizados a enviar masivos).
+  const [isStaff, setIsStaff] = useState(false);
+  const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
+  const [broadcastCourses, setBroadcastCourses] = useState<
+    Array<{ id: string; name: string; student_count?: number }>
+  >([]);
+  const [broadcastCourseId, setBroadcastCourseId] = useState<string>("");
+  const [broadcastSubject, setBroadcastSubject] = useState("");
+  const [broadcastBody, setBroadcastBody] = useState("");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+
   // V2: búsqueda dentro de la conversación activa.
   const [searchQuery, setSearchQuery] = useState("");
   // V2: edición de mensaje. `editingId === m.id` reemplaza el render del
@@ -202,8 +226,26 @@ function MessagesPage() {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, activeConvId]);
+    // Scroll al fondo en cada cambio de mensajes o de conversación.
+    // Antes hacíamos solo `el.scrollTop = el.scrollHeight` una vez, pero:
+    //   1) En el primer render de una conversación, el browser todavía no
+    //      había calculado el layout final (imágenes/adjuntos cargando
+    //      asincrónicamente desplazaban scrollHeight). Resultado: el
+    //      usuario abría una conv y veía el mensaje 1 arriba, no el
+    //      ultimo abajo.
+    //   2) requestAnimationFrame + setTimeout reaseguran el snap al
+    //      fondo después del primer paint y de cargas tardías de imgs.
+    const snap = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    snap();
+    const rafId = requestAnimationFrame(snap);
+    const timeoutId = window.setTimeout(snap, 150);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
+    };
+  }, [messages, activeConvId, loadingMessages]);
 
   /** Carga contactos + conversaciones + previews + conteo "no leídos". */
   const loadAll = async () => {
@@ -289,6 +331,119 @@ function MessagesPage() {
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId]);
+
+  // ── Detección de rol: el botón de broadcast solo aparece para
+  // Docente o Admin. Lo cargamos una sola vez en mount (no cambia
+  // durante la sesión a no ser que el admin re-promote roles —
+  // raro, una recarga lo refresca).
+  useEffect(() => {
+    if (!myUserId) return;
+    void (async () => {
+      const { data } = await db
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", myUserId);
+      const roles = (data ?? []) as Array<{ role: string }>;
+      setIsStaff(roles.some((r) => r.role === "Docente" || r.role === "Admin"));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myUserId]);
+
+  // Carga la lista de cursos cuando se abre el diálogo de broadcast.
+  // Admin → todos los cursos. Docente → solo los que dicta (course_teachers).
+  // Solo se ejecuta al abrir el diálogo para no consumir queries en cada
+  // entrada al módulo de mensajes — el 95% de las veces el usuario
+  // entra a leer su inbox, no a enviar masivos.
+  useEffect(() => {
+    if (!broadcastDialogOpen || !myUserId) return;
+    void (async () => {
+      // 1) Cursos según rol.
+      const { data: roleRows } = await db
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", myUserId);
+      const roles = ((roleRows ?? []) as Array<{ role: string }>).map((r) => r.role);
+      const isAdminLocal = roles.includes("Admin");
+
+      let coursesQuery = db.from("courses").select("id, name").order("name");
+      if (!isAdminLocal) {
+        // Filtra por cursos donde es teacher.
+        const { data: ctRows } = await db
+          .from("course_teachers")
+          .select("course_id")
+          .eq("user_id", myUserId);
+        const courseIds = ((ctRows ?? []) as Array<{ course_id: string }>).map(
+          (r) => r.course_id,
+        );
+        if (courseIds.length === 0) {
+          setBroadcastCourses([]);
+          return;
+        }
+        coursesQuery = db.from("courses").select("id, name").in("id", courseIds).order("name");
+      }
+      const { data: coursesData } = await coursesQuery;
+      const courses = (coursesData ?? []) as Array<{ id: string; name: string }>;
+
+      // 2) Conteo de estudiantes por curso (1 query agregada usando count).
+      // Hacemos N queries individuales — N suele ser <20 cursos, vale la
+      // pena por simplicidad vs. una RPC dedicada.
+      const enriched = await Promise.all(
+        courses.map(async (c) => {
+          const { count } = await db
+            .from("course_enrollments")
+            .select("user_id", { count: "exact", head: true })
+            .eq("course_id", c.id);
+          return { ...c, student_count: count ?? 0 };
+        }),
+      );
+      setBroadcastCourses(enriched);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcastDialogOpen, myUserId]);
+
+  const sendBroadcast = async () => {
+    if (!broadcastCourseId) {
+      toast.error("Selecciona un curso.");
+      return;
+    }
+    if (!broadcastSubject.trim() || !broadcastBody.trim()) {
+      toast.error("Asunto y mensaje son obligatorios.");
+      return;
+    }
+    setBroadcastSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("broadcast-course-message", {
+        body: {
+          courseId: broadcastCourseId,
+          subject: broadcastSubject.trim(),
+          body: broadcastBody.trim(),
+        },
+      });
+      if (error || data?.error) {
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || "Error al enviar el mensaje.");
+        return;
+      }
+      const notified = typeof data?.notified === "number" ? data.notified : 0;
+      const bcc = typeof data?.bcc_count === "number" ? data.bcc_count : 0;
+      const emailSent = data?.email_sent === true;
+      if (emailSent) {
+        toast.success(
+          `Mensaje enviado a ${notified} estudiante(s). Correo con ${bcc} BCC despachado.`,
+        );
+      } else {
+        toast.warning(
+          data?.warning ?? `Notificaciones a ${notified} estudiante(s) creadas, pero el correo no salió.`,
+        );
+      }
+      setBroadcastDialogOpen(false);
+      setBroadcastCourseId("");
+      setBroadcastSubject("");
+      setBroadcastBody("");
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
 
   // Deep-link desde notificaciones/correo: si la URL trae ?conv=<id>,
   // auto-selecciona esa conversación cuando esté en la lista cargada.
@@ -757,10 +912,23 @@ function MessagesPage() {
           <MessageSquare className="h-6 w-6 text-cyan-400 dark:text-cyan-300" />
           Mensajes
         </h1>
-        <Button size="sm" onClick={() => setNewDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Nueva conversación
-        </Button>
+        <div className="flex items-center gap-2">
+          {isStaff && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setBroadcastDialogOpen(true)}
+              title="Enviar un mensaje a todos los estudiantes de un curso. Genera notificación in-app y correo (con todos los alumnos en BCC)."
+            >
+              <Megaphone className="h-4 w-4 mr-1" />
+              Enviar a todos los estudiantes
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setNewDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nueva conversación
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -1340,6 +1508,131 @@ function MessagesPage() {
                 </ul>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Broadcast a curso (Docente/Admin) ──
+          Envía un mensaje a TODOS los estudiantes de un curso. Edge
+          function: broadcast-course-message. Crea notificación in-app
+          por cada alumno (kind='broadcast', no dispara correo
+          automático) y manda UN solo correo con todos en BCC para
+          que ninguno vea la lista del resto. */}
+      <Dialog
+        open={broadcastDialogOpen}
+        onOpenChange={(open) => {
+          if (!broadcastSending) setBroadcastDialogOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-cyan-500" />
+              Enviar a todos los estudiantes
+            </DialogTitle>
+            <DialogDescription>
+              Crea una notificación in-app para cada estudiante del curso y envía un correo con
+              todos los alumnos en copia oculta (BCC). Ningún estudiante verá la lista del resto.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Curso</Label>
+              <Select
+                value={broadcastCourseId}
+                onValueChange={setBroadcastCourseId}
+                disabled={broadcastSending || broadcastCourses.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      broadcastCourses.length === 0 ? "Cargando cursos…" : "Selecciona un curso"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {broadcastCourses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      {typeof c.student_count === "number" && (
+                        <span className="ml-2 text-[11px] text-muted-foreground">
+                          · {c.student_count} estudiante{c.student_count === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {broadcastCourses.length === 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  No tienes cursos donde enviar mensajes masivos.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs">Asunto</Label>
+              <Input
+                value={broadcastSubject}
+                onChange={(e) => setBroadcastSubject(e.target.value)}
+                placeholder="Ej. Recordatorio: entrega del taller 2 mañana"
+                maxLength={200}
+                disabled={broadcastSending}
+              />
+              <p className="text-[10px] text-muted-foreground text-right mt-0.5">
+                {broadcastSubject.length} / 200
+              </p>
+            </div>
+
+            <div>
+              <Label className="text-xs">Mensaje</Label>
+              <Textarea
+                value={broadcastBody}
+                onChange={(e) => setBroadcastBody(e.target.value)}
+                placeholder="Escribe el mensaje que recibirán todos los estudiantes del curso…"
+                rows={5}
+                maxLength={10000}
+                disabled={broadcastSending}
+              />
+              <p className="text-[10px] text-muted-foreground text-right mt-0.5">
+                {broadcastBody.length} / 10000
+              </p>
+            </div>
+
+            <div className="rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/50 p-2 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-2">
+              <Megaphone className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Los estudiantes <strong>no podrán responder este correo</strong> — es solo un
+                anuncio. Si necesitan contactarte, deben usar "Mensajes" → "Nueva conversación".
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setBroadcastDialogOpen(false)}
+              disabled={broadcastSending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => void sendBroadcast()}
+              disabled={
+                broadcastSending ||
+                !broadcastCourseId ||
+                !broadcastSubject.trim() ||
+                !broadcastBody.trim()
+              }
+            >
+              {broadcastSending ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Send className="h-4 w-4 mr-1" />
+              )}
+              Enviar a todos
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

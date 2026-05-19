@@ -412,10 +412,14 @@ function AdminDashboard() {
         />
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      {/* Grilla de 4 columnas en lg+ para que las 4 cards operacionales
+          (Ejecuciones IA, Correos, Errores, Sesiones) quepan en una
+          sola fila. En md son 2 columnas, en mobile 1. Eso evita que
+          el dashboard scrollee en pantallas típicas de 1080p/laptop. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Ejecuciones IA recientes — vista compacta para que el
             dashboard quepa en una pantalla. Antes mostrábamos hasta
-            20 items con tile circular + 2 líneas (~3000px), ahora 5
+            20 items con tile circular + 2 líneas (~3000px), ahora 3
             items en una sola línea cada uno con icono inline. Link al
             final mantiene el acceso a la auditoría completa. */}
         <Card>
@@ -430,12 +434,11 @@ function AdminDashboard() {
                 Sin ejecuciones de IA en la última hora.
               </p>
             ) : (
-              recentAiExecs.slice(0, 5).map((e) => {
+              recentAiExecs.slice(0, 3).map((e) => {
                 const created = new Date(e.created_at);
                 const diffMs = Date.now() - created.getTime();
                 const diffMin = Math.floor(diffMs / 60000);
-                const relative =
-                  diffMin < 1 ? "ahora" : diffMin < 60 ? `${diffMin}m` : "1h";
+                const relative = diffMin < 1 ? "ahora" : diffMin < 60 ? `${diffMin}m` : "1h";
                 const isError = e.severity === "error";
                 const labelByAction: Record<string, string> = {
                   "ai.grading_started": "Calificación iniciada",
@@ -520,7 +523,7 @@ function AdminDashboard() {
                 {emailStats.recent.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Últimos eventos</p>
-                    {emailStats.recent.slice(0, 4).map((ev, i) => {
+                    {emailStats.recent.slice(0, 2).map((ev, i) => {
                       const severityColor =
                         ev.severity === "error"
                           ? "text-destructive"
@@ -561,11 +564,11 @@ function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Fila adicional de salud del sistema (3h) + sesiones en vivo */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {/* Errores últimas 3h — alerta operacional */}
+        {/* Errores últimas 3h — alerta operacional. Antes vivía en una
+            segunda fila aparte; lo movimos a la grilla principal para
+            que las 4 cards operacionales caigan en una sola fila en
+            pantallas grandes. */}
         <Card
           className={
             errorStats && errorStats.count > 0
@@ -605,7 +608,7 @@ function AdminDashboard() {
                 {errorStats.topActions.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Top acciones</p>
-                    {errorStats.topActions.map((a) => (
+                    {errorStats.topActions.slice(0, 3).map((a) => (
                       <div
                         key={a.action}
                         className="flex items-center justify-between gap-2 text-[11px] border-b last:border-b-0 pb-1"

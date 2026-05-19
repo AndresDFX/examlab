@@ -290,6 +290,11 @@ function TeacherProjects() {
     ai_grade: number | null;
     ai_feedback: string | null;
     ai_likelihood: number | null;
+    // Texto explicativo de por qué la IA estima que la entrega es generada
+    // por IA. Se persiste por archivo desde el edge function (mismo patrón
+    // que workshops). Se muestra inline bajo el % cuando ai_likelihood >= 0.6
+    // para que el docente entienda la marca sin ir a auditoría.
+    ai_reasons?: string | null;
     zip_truncated?: boolean | null;
     zip_chars_used?: number | null;
   };
@@ -322,6 +327,13 @@ function TeacherProjects() {
   const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [aiRegradingId, setAiRegradingId] = useState<string | null>(null);
+  // Bulk re-grade del proyecto entero. Itera todas las entregas filtradas
+  // (respeta el buscador del modal) × todas las preguntas y llama el
+  // edge per-file. Progreso visible en el botón (X/Y). Para volúmenes
+  // grandes (200 alumnos × 5 archivos = 1000 calls IA) el docente puede
+  // filtrar primero para regrade-batch parcial.
+  const [bulkRegrading, setBulkRegrading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
 
   /** Auto-assign a project to all students enrolled in any of the linked courses. */
   const autoAssignProject = async (projectId: string, courseIds: string[]) => {
@@ -1091,7 +1103,7 @@ function TeacherProjects() {
           db
             .from("project_submission_files")
             .select(
-              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, zip_truncated, zip_chars_used",
+              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_truncated, zip_chars_used",
             )
             .in("submission_id", subIds),
         ]);
@@ -1407,14 +1419,67 @@ function TeacherProjects() {
       }
       const newGrade = Number(aiData?.grade ?? 0);
       const newFeedback = String(aiData?.feedback ?? "");
-      patchSubFile(subId, file.id, { ai_grade: newGrade, ai_feedback: newFeedback });
+      // Capturamos ai_likelihood + ai_reasons cuando vienen del edge
+      // function. Antes solo guardábamos grade+feedback y perdíamos la
+      // razón del posible uso de IA, lo que obligaba al docente a entrar
+      // a auditoría para ver el detalle.
+      const newAiLikelihood =
+        typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
+      const newAiReasons = typeof aiData?.ai_reasons === "string" ? aiData.ai_reasons : null;
+      patchSubFile(subId, file.id, {
+        ai_grade: newGrade,
+        ai_feedback: newFeedback,
+        ai_likelihood: newAiLikelihood,
+        ai_reasons: newAiReasons,
+      });
       await db
         .from("project_submission_files")
-        .update({ ai_grade: newGrade, ai_feedback: newFeedback })
+        .update({
+          ai_grade: newGrade,
+          ai_feedback: newFeedback,
+          ai_likelihood: newAiLikelihood,
+          ai_reasons: newAiReasons,
+        })
         .eq("id", ans.id);
       toast.success("Archivo recalificado con IA");
     } finally {
       setAiRegradingId(null);
+    }
+  };
+
+  // ── Bulk regrade: recalifica TODOS los archivos de TODAS las entregas
+  //    filtradas (respetando el buscador). Llama `aiRegradeSubFile` en
+  //    serie por archivo. NO paraleliza para evitar gatillar rate-limits
+  //    del provider IA — la velocidad bottleneck es el ratio, no la
+  //    concurrencia. Progreso visible vía `bulkProgress`.
+  const bulkRegradeProject = async () => {
+    if (gradingFiles.length === 0 || filteredGradingSubs.length === 0) return;
+    const ok = await confirm({
+      title: "Recalificar entregas con IA",
+      description: `Vas a llamar IA por cada archivo de cada entrega filtrada: ${filteredGradingSubs.length} entrega(s) × ${gradingFiles.length} archivo(s) = ${filteredGradingSubs.length * gradingFiles.length} llamadas. Esto puede tardar varios minutos y consume tokens del proveedor IA.`,
+      confirmLabel: "Recalificar todas",
+      tone: "warning",
+    });
+    if (!ok) return;
+    const total = filteredGradingSubs.length * gradingFiles.length;
+    setBulkProgress({ done: 0, total });
+    setBulkRegrading(true);
+    try {
+      let done = 0;
+      for (const sub of filteredGradingSubs) {
+        for (const f of gradingFiles) {
+          // aiRegradeSubFile saltea entregas sin contenido (`Sin contenido
+          // para recalificar`) y muestra su propio toast por error —
+          // dejamos que continúe el loop sin abortar el batch. Serial a
+          // propósito para no gatillar rate-limit del proveedor IA.
+          await aiRegradeSubFile(sub.id, f);
+          done++;
+          setBulkProgress({ done, total });
+        }
+      }
+      toast.success(`Recalificación batch completada (${done}/${total}).`);
+    } finally {
+      setBulkRegrading(false);
     }
   };
 
@@ -2179,10 +2244,31 @@ function TeacherProjects() {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
-                <span className="font-medium">decimales con coma (ej. 4,5)</span>
-              </p>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
+                  <span className="font-medium">decimales con coma (ej. 4,5)</span>
+                </p>
+                {/* Bulk regrade con IA — recalifica todos los archivos de
+                    todas las entregas filtradas. Acelera la corrección
+                    cuando se cambian rúbricas o se cambia el modelo IA. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void bulkRegradeProject()}
+                  disabled={bulkRegrading || filteredGradingSubs.length === 0}
+                  title="Recalifica con IA todos los archivos de todas las entregas filtradas en serie. Útil tras cambiar rúbricas o modelo."
+                >
+                  {bulkRegrading ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                  )}
+                  {bulkRegrading
+                    ? `Recalificando ${bulkProgress.done}/${bulkProgress.total}…`
+                    : "Recalificar todas con IA"}
+                </Button>
+              </div>
               {filteredGradingSubs.length === 0 && (
                 <p className="text-sm text-muted-foreground p-2 text-center">
                   Ningún estudiante coincide con la búsqueda.
@@ -2306,11 +2392,30 @@ function TeacherProjects() {
                                       </Badge>
                                     )}
                                     {a?.ai_likelihood != null && (
-                                      <Badge variant="outline" className="text-[10px] ml-auto">
+                                      <Badge
+                                        variant={
+                                          Number(a.ai_likelihood) >= 0.6 ? "destructive" : "outline"
+                                        }
+                                        className="text-[10px] ml-auto"
+                                      >
                                         IA: {Math.round(Number(a.ai_likelihood) * 100)}%
                                       </Badge>
                                     )}
                                   </div>
+                                  {/* Razones IA inline — visibles solo cuando el
+                                      likelihood supera el umbral 0.6 para no
+                                      ensuciar la UI con texto explicativo
+                                      cuando la firma es baja. El docente puede
+                                      copiar/pegar esto al feedback con un click
+                                      si quiere documentar la penalización. */}
+                                  {a?.ai_reasons &&
+                                    a?.ai_likelihood != null &&
+                                    Number(a.ai_likelihood) >= 0.6 && (
+                                      <div className="rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                                        <div className="font-medium mb-0.5">Razones IA:</div>
+                                        <div className="whitespace-pre-line">{a.ai_reasons}</div>
+                                      </div>
+                                    )}
                                   <Textarea
                                     value={a?.content ?? ""}
                                     readOnly
