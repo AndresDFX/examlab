@@ -51,6 +51,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { MarkdownInline } from "@/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatFileSize, formatFileSizeShort } from "@/lib/format";
+import { getProcessingMode, readOverrideExpiry, PENDING_AI_FEEDBACK } from "@/lib/ai-grading";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -1223,6 +1224,17 @@ export function StudentProjectTaker({
         submissionId = created.id;
       }
 
+      // ── Resolución del modo IA ──
+      // `processing_mode = async` (default) + sin override = encolar las
+      // llamadas IA en `ai_grading_queue`. La fila destino se inserta con
+      // ai_grade=null y ai_feedback="Pendiente IA…"; el worker hourly
+      // las drena y actualiza los rows. `processing_mode = sync` o tener
+      // un código override activo en localStorage → llamada IA inmediata
+      // (comportamiento legacy).
+      const aiMode = await getProcessingMode();
+      const aiOverrideActive = !!readOverrideExpiry();
+      const useAsyncAi = aiMode === "async" && !aiOverrideActive;
+
       // ── Calificación en dos fases (igual que WorkshopQuestions) ──
       // 1) Loop: locales (cerrada/multi/empty) + codigo_zip (upload + IA
       //    individual con su zipPath) + bucketea abiertas para batch.
@@ -1232,6 +1244,14 @@ export function StudentProjectTaker({
       let totalPoints = 0;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payloadsByQid: Record<string, any> = {};
+      // En modo async, después del upsert principal vamos a encolar los
+      // jobs IA — guardamos {qid, kind, body} acá y enrolamos al final.
+      const pendingEnqueues: Array<{
+        qid: string;
+        kind: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        body: Record<string, any>;
+      }> = [];
       const batchItems: Array<{
         qid: string;
         type: string;
@@ -1377,24 +1397,37 @@ export function StudentProjectTaker({
             } else {
               const uploadedPaths = uploads.map((u) => u.path);
               payload.code_paths = uploadedPaths;
+              const aiBody = {
+                projectCodeZipGrading: true,
+                codePaths: uploadedPaths,
+                fileTitle: q.title,
+                fileDescription: q.description,
+                expectedRubric: q.expected_rubric,
+                maxPoints: q.points,
+                courseLanguage,
+                courseId: undefined,
+                projectDescription,
+                // Si el docente NO fijó language (langKey vacío), omitimos
+                // el filtro — comportamiento histórico.
+                ...(allowedExtensions ? { allowedExtensions } : {}),
+              };
+              if (useAsyncAi) {
+                // Modo async: marcamos placeholder, encolamos al final
+                // del submit (necesitamos el row id de la upsert).
+                payload.ai_grade = null;
+                payload.ai_feedback = PENDING_AI_FEEDBACK;
+                pendingEnqueues.push({
+                  qid: q.id,
+                  kind: "project_codigo_zip",
+                  body: aiBody,
+                });
+                // Saltamos el resto del bloque (que era el inline AI call).
+                payloadsByQid[q.id] = payload;
+                continue;
+              }
               const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                 "ai-grade-submission",
-                {
-                  body: {
-                    projectCodeZipGrading: true,
-                    codePaths: uploadedPaths,
-                    fileTitle: q.title,
-                    fileDescription: q.description,
-                    expectedRubric: q.expected_rubric,
-                    maxPoints: q.points,
-                    courseLanguage,
-                    courseId: undefined,
-                    projectDescription,
-                    // Si el docente NO fijó language (langKey vacío),
-                    // omitimos el filtro — comportamiento histórico.
-                    ...(allowedExtensions ? { allowedExtensions } : {}),
-                  },
-                },
+                { body: aiBody },
               );
               if (aiErr || aiData?.error) {
                 // El edge function devuelve el detalle real en
@@ -1498,6 +1531,38 @@ export function StudentProjectTaker({
         await db
           .from("project_submission_files")
           .upsert(payloadsByQid[qid], { onConflict: "submission_id,file_id" });
+      }
+
+      // ── Encolado IA async (post-upsert para tener los row ids) ──
+      // En modo `processing_mode = async`, las IA calls quedaron diferidas.
+      // Acá leemos los row ids recién upserteados y encolamos un job por
+      // cada uno. El worker `ai-grading-worker` (cron horario) los drena.
+      if (pendingEnqueues.length > 0) {
+        for (const job of pendingEnqueues) {
+          const { data: row } = await db
+            .from("project_submission_files")
+            .select("id")
+            .eq("submission_id", submissionId)
+            .eq("file_id", job.qid)
+            .maybeSingle();
+          if (!row?.id) continue;
+          await db.rpc("enqueue_ai_grading", {
+            _kind: job.kind,
+            _invoke_target: "ai-grade-submission",
+            _body: job.body,
+            _target_table: "project_submission_files",
+            _target_row_id: row.id,
+            _field_grade: "ai_grade",
+            _field_feedback: "ai_feedback",
+            _field_likelihood: "ai_likelihood",
+            _field_reasons: "ai_reasons",
+            _course_id: projectCourseId ?? null,
+          });
+        }
+        toast.info(
+          `${pendingEnqueues.length} entrega(s) en cola para calificación IA — el sistema las procesa en lote cada hora.`,
+          { duration: 8000 },
+        );
       }
 
       const submissionScore =

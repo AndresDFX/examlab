@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { OpenFeedbackModal } from "@/components/OpenFeedbackModal";
 import { PendingExamNotesModal } from "@/components/PendingExamNotesModal";
 import { pendingResponsesCount } from "@/lib/feedback-stats";
+import { AiGradingQueueWidget } from "@/components/AiGradingQueueWidget";
+import { AiOverrideDialog } from "@/components/AiOverrideDialog";
 import { cn } from "@/lib/utils";
 import {
   Users,
@@ -420,6 +422,12 @@ function AdminDashboard() {
         />
       </div>
 
+      {/* Widget de cola IA — Admin ve botón "Procesar ahora" para
+          drenar la cola manualmente sin esperar al cron hourly. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <AiGradingQueueWidget isAdmin />
+      </div>
+
       {/* Grilla de 4 columnas en lg+ para que las 4 cards operacionales
           (Ejecuciones IA, Correos, Errores, Sesiones) quepan en una
           sola fila. En md son 2 columnas, en mobile 1.
@@ -764,6 +772,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    *  card "Comentarios pendientes por respuesta". */
   const [pendingResponseModalOpen, setPendingResponseModalOpen] = useState(false);
   const [pendingNotesModalOpen, setPendingNotesModalOpen] = useState(false);
+  // Dialog para activar/gestionar el código override de IA inmediata —
+  // saltea la cola async durante una ventana corta.
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
   // Cuenta de exam_notes (notas de apoyo) en estado 'pendiente' — chuletas
   // que el estudiante subió y esperan revisión del docente. Se llama
@@ -955,6 +966,32 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
+      {/* Cola IA + atajo "Activar IA inmediata" — el docente ve si hay
+          jobs en su cola y, si necesita una nota IA YA, pega el código
+          override que le pasó el admin para abrir ventana sincrónica. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <AiGradingQueueWidget />
+        <Card className="md:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              IA inmediata (override)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Por defecto las calificaciones IA pasan por la cola async (procesada cada hora). Si
+              necesitas una nota IA ahora, pídele al administrador un código y actívalo aquí — abre
+              una ventana sincrónica corta sin tocar la configuración global.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setOverrideDialogOpen(true)}>
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              Activar / gestionar IA inmediata
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* `flex-1 min-h-0` permite que la grid de 4 cards crezca hasta
           el final del viewport cuando no hay tarjeta de notificaciones
           abajo, y se encoja sin desbordar cuando sí la hay. Cada card
@@ -1129,6 +1166,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         onOpenChange={setPendingNotesModalOpen}
         onChange={refreshPendingExamNotes}
       />
+      <AiOverrideDialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen} />
     </div>
   );
 }
@@ -1195,9 +1233,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // y confundía al alumno.
       const { data: wasg } = await supabase
         .from("workshop_assignments")
-        .select(
-          "workshop:workshops(id, title, due_date, status, start_date, course:courses(name))",
-        )
+        .select("workshop:workshops(id, title, due_date, status, start_date, course:courses(name))")
         .eq("user_id", userId);
       const todayISO = new Date().toISOString();
       const candidateWs = (wasg ?? [])

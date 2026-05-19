@@ -20,6 +20,7 @@ import {
   Award,
   KeyRound,
   Layers,
+  Cpu,
 } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/components/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/components/admin/AdminCodeExecutionPanel";
@@ -28,6 +29,7 @@ import { AdminGeneralSettingsPanel } from "@/components/admin/AdminGeneralSettin
 import { AdminCertificateSettingsPanel } from "@/components/admin/AdminCertificateSettingsPanel";
 import { AdminEdgeSecretsPanel } from "@/components/admin/AdminEdgeSecretsPanel";
 import { AdminModuleVisibilityPanel } from "@/components/admin/AdminModuleVisibilityPanel";
+import { AdminAiGradingPanel } from "@/components/admin/AdminAiGradingPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -45,9 +47,7 @@ function AdminSettings() {
             <Settings className="h-6 w-6 text-indigo-500" />
             Configuración
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Parámetros operativos de la plataforma.
-          </p>
+          <p className="text-sm text-muted-foreground">Parámetros operativos de la plataforma.</p>
         </div>
       </div>
 
@@ -64,6 +64,10 @@ function AdminSettings() {
           <TabsTrigger value="compiler" className="gap-1.5">
             <Code2 className="h-3.5 w-3.5" />
             Compilador
+          </TabsTrigger>
+          <TabsTrigger value="ai-grading" className="gap-1.5">
+            <Cpu className="h-3.5 w-3.5" />
+            IA / Cola
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />
@@ -90,6 +94,9 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="compiler" className="space-y-4 mt-4">
           <AdminCodeExecutionPanel />
+        </TabsContent>
+        <TabsContent value="ai-grading" className="space-y-4 mt-4">
+          <AdminAiGradingPanel />
         </TabsContent>
         <TabsContent value="audit" className="space-y-4 mt-4">
           <AdminAuditRetentionPanel />
