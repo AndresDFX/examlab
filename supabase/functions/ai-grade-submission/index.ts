@@ -2132,6 +2132,13 @@ Idioma de salida: ${langName}.`,
       JSON.stringify({
         ok: true,
         dryRun: !!dryRun,
+        // Flag para el ai-grading-worker. Cuando no es dryRun, este edge
+        // YA escribió submissions.answers + ai_grade + ai_detected_* via
+        // el UPDATE de arriba (líneas 2114-2128). El worker debe NO
+        // hacer un segundo UPDATE — solo marca el job como done. En
+        // dryRun no escribe, así que el flag queda false y el caller
+        // sync usa los campos `proposed_update` para persistir él.
+        persistedInternally: !dryRun,
         grade,
         breakdown,
         ai_detected: aiAlreadyReviewed ? false : aiDetected,

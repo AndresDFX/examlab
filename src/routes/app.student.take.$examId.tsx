@@ -48,6 +48,7 @@ import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/mod
 import { runJavaInBrowser } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
+import { aiGradeOrEnqueue } from "@/modules/ai/ai-grading";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -762,12 +763,35 @@ function TakeExam() {
       try {
         if (document.fullscreenElement) await document.exitFullscreen();
       } catch {}
-      // Disparamos el grading IA sin esperar — corre en background en el
-      // edge function. El docente verá la calificación cuando el modelo
-      // termine; el alumno no tiene que mirar un spinner mientras tanto.
-      void supabase.functions
-        .invoke("ai-grade-submission", { body: { submissionId: submissionIdRef.current } })
-        .catch((e) => console.error("ai-grade-submission failed:", e));
+      // Dispara el grading IA respetando el setting global async/sync.
+      // - `processing_mode = 'async'` (default): encola en
+      //   `ai_grading_queue`; el worker hourly drena la cola.
+      // - `processing_mode = 'sync'` o el docente tiene un override
+      //   código activo: invoca a `ai-grade-submission` directo.
+      //
+      // Antes llamábamos siempre directo (`supabase.functions.invoke`)
+      // ignorando el toggle del admin — el feature de cola IA no
+      // aplicaba a entregas de examen aunque el admin tuviera 'async'
+      // activo. Ver `src/modules/ai/ai-grading.ts` para el helper.
+      //
+      // Fire-and-forget: el alumno no espera ni en sync ni en async.
+      // En sync la edge corre en background del Lambda Supabase (~5-15s);
+      // en async el worker la procesará en la próxima ventana hourly.
+      void aiGradeOrEnqueue({
+        kind: "exam_submission",
+        body: { submissionId: submissionIdRef.current },
+        target: {
+          table: "submissions",
+          rowId: submissionIdRef.current ?? "",
+          // El edge function exam_full escribe submissions internamente
+          // (answers JSONB + ai_grade + ai_detected_score) y devuelve
+          // `persistedInternally: true`. El worker detecta el flag y NO
+          // sobreescribe esas columnas — solo marca el job done.
+          fieldGrade: "ai_grade",
+          fieldFeedback: "ai_detected_reasons",
+          fieldLikelihood: "ai_detected_score",
+        },
+      }).catch((e) => console.error("aiGradeOrEnqueue failed:", e));
       void logEvent({
         action: markSuspicious ? "exam_suspended" : "exam_submitted",
         category: "exam",

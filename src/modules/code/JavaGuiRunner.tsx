@@ -605,13 +605,51 @@ export function JavaGuiRunner({
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
                 {mode === "aws_screenshot" ? (
-                  <div className="w-full h-full bg-background rounded border overflow-auto flex items-center justify-center p-2">
+                  <div className="w-full h-full bg-background rounded border overflow-auto flex items-center justify-center p-2 relative">
                     {screenshotData?.png ? (
-                      <img
-                        src={`data:image/png;base64,${screenshotData.png}`}
-                        alt="Captura de la ventana Swing renderizada en el servidor"
-                        className="max-w-full max-h-full object-contain"
-                      />
+                      <>
+                        <img
+                          src={`data:image/png;base64,${screenshotData.png}`}
+                          alt="Captura de la ventana Swing renderizada en el servidor"
+                          className="max-w-full max-h-full object-contain"
+                        />
+                        {/* Overlay informativo cuando el PNG es prácticamente
+                            un framebuffer vacío (~3-4KB de Xvfb sin contenido).
+                            Patrón típico: el código del estudiante hace
+                            `setVisible(true)` y main termina antes de que el
+                            EDT pinte. La JVM cierra y Xvfb queda con el frame
+                            vacío. El runner sí devuelve un PNG válido, pero
+                            es solo color de fondo sólido. Antes solo lo
+                            mostrábamos como hint en la consola — ahora va
+                            como overlay sobre la imagen para que el alumno
+                            entienda por qué su ventana no aparece. */}
+                        {screenshotData.exitCode === 0 &&
+                          screenshotData.pngBytes > 0 &&
+                          screenshotData.pngBytes < 4000 && (
+                            <div className="absolute inset-2 flex items-center justify-center p-3 pointer-events-none">
+                              <div className="max-w-md bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 rounded-md p-3 text-[11px] leading-relaxed shadow-md pointer-events-auto">
+                                <p className="font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                                  La ventana no alcanzó a pintarse
+                                </p>
+                                <p className="text-amber-900 dark:text-amber-200">
+                                  Tu <code className="font-mono">main</code> terminó antes de que
+                                  Swing pintara. Agrega al final de{" "}
+                                  <code className="font-mono">main</code>:
+                                </p>
+                                <pre className="mt-2 p-2 bg-amber-100 dark:bg-amber-900/60 rounded font-mono text-[10px] overflow-x-auto">
+                                  {"Thread.sleep(5000);"}
+                                </pre>
+                                <p className="mt-2 text-amber-900 dark:text-amber-200">
+                                  O envuelve la creación del JFrame en{" "}
+                                  <code className="font-mono">
+                                    SwingUtilities.invokeAndWait(...)
+                                  </code>
+                                  .
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                      </>
                     ) : running ? (
                       <span className="text-xs text-muted-foreground">Esperando captura…</span>
                     ) : (

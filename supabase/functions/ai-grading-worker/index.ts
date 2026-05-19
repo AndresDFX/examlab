@@ -106,28 +106,41 @@ Deno.serve(async (req) => {
         throw new Error(String(aiData.error).slice(0, 300));
       }
 
-      // Mapear respuesta IA a las columnas configuradas en el job.
-      // La respuesta estándar de ai-grade-submission trae
-      //   { grade, feedback, ai_likelihood, ai_reasons, ... }
-      // pero usamos field_grade/feedback configurables porque algunas
-      // tablas usan otros nombres.
-      // deno-lint-ignore no-explicit-any
-      const updatePayload: Record<string, any> = {};
-      updatePayload[job.field_grade] = typeof aiData.grade === "number" ? aiData.grade : 0;
-      updatePayload[job.field_feedback] = aiData.feedback ?? "";
-      if (job.field_likelihood && typeof aiData.ai_likelihood === "number") {
-        updatePayload[job.field_likelihood] = aiData.ai_likelihood;
-      }
-      if (job.field_reasons && aiData.ai_reasons) {
-        updatePayload[job.field_reasons] = aiData.ai_reasons;
-      }
+      // Persistencia del resultado.
+      //
+      // Caso A: la edge function YA escribió en target_table durante su
+      // ejecución (típicamente exam_full, que escribe submissions.answers
+      // JSONB con notas por pregunta + ai_grade/ai_detected_score
+      // agregados). En ese caso devuelve `persistedInternally: true` y
+      // el worker NO debe sobreescribir — bastaría con marcar done.
+      //
+      // Caso B: la edge devuelve `{ grade, feedback, ai_likelihood,
+      // ai_reasons, ... }` sin persistir. El worker hace el UPDATE
+      // mapeando a las columnas configuradas en el job. Default para
+      // workshops/projects.
+      //
+      // Antes el worker SIEMPRE escribía, lo que en exam_full causaba
+      // doble UPDATE redundante y, si la tabla no tenía `ai_feedback`,
+      // un error de columna inexistente.
+      if (aiData?.persistedInternally !== true) {
+        // deno-lint-ignore no-explicit-any
+        const updatePayload: Record<string, any> = {};
+        updatePayload[job.field_grade] = typeof aiData.grade === "number" ? aiData.grade : 0;
+        updatePayload[job.field_feedback] = aiData.feedback ?? "";
+        if (job.field_likelihood && typeof aiData.ai_likelihood === "number") {
+          updatePayload[job.field_likelihood] = aiData.ai_likelihood;
+        }
+        if (job.field_reasons && aiData.ai_reasons) {
+          updatePayload[job.field_reasons] = aiData.ai_reasons;
+        }
 
-      const { error: upErr } = await adminClient
-        .from(job.target_table)
-        .update(updatePayload)
-        .eq("id", job.target_row_id);
-      if (upErr) {
-        throw new Error(`UPDATE ${job.target_table} → ${upErr.message}`);
+        const { error: upErr } = await adminClient
+          .from(job.target_table)
+          .update(updatePayload)
+          .eq("id", job.target_row_id);
+        if (upErr) {
+          throw new Error(`UPDATE ${job.target_table} → ${upErr.message}`);
+        }
       }
 
       await adminClient.rpc("complete_ai_grading", {

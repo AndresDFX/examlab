@@ -30,7 +30,9 @@
       "Bash(cd /d/Projects/Personal/examlab && pwd && ls src/components/*.tsx 2>/dev/null | wc -l)",
       "Read(//d/d/Projects/Personal/examlab/src/**)",
       "Bash(python3 -c ' *)",
-      "Bash(grep 'monitor\\\\.\\\\$examId')"
+      "Bash(grep 'monitor\\\\.\\\\$examId')",
+      "Bash(grep -n \"ai-grade-submission\" \"d:\\\\Projects\\\\Personal\\\\examlab\\\\src\\\\routes\\\\app.student.take.\\\\$examId.tsx\" 2>/dev/null || grep -n \"ai-grade-submission\" d:/Projects/Personal/examlab/src/routes/*.tsx | grep student)",
+      "Bash(grep -B 10 -A 10 \"ai-grade-submission\" \"d:/Projects/Personal/examlab/src/routes/app.student.take.\\\\$examId.tsx\" | head -50)"
     ]
   }
 }
