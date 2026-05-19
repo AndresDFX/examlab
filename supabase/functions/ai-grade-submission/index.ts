@@ -932,14 +932,24 @@ Idioma de salida obligatorio: ${pfLangName}.`,
 
       const allPaths = Object.keys(unzipped).filter((p) => !p.endsWith("/"));
 
-      // ── Validación de extensiones permitidas ──
-      // Si el docente parametrizó allowedExtensions (e.g. ["java"]) y el
-      // ZIP contiene archivos de CÓDIGO con extensiones distintas (ej.
-      // .py, .js), rechazamos ANTES de llamar a IA — evita gastar tokens
-      // en entregas inválidas y le da feedback claro al alumno para
-      // recomprimir solo con los archivos correctos. Archivos no-código
-      // (.txt, .md, imágenes, etc.) se ignoran tanto para la validación
-      // como para el grading.
+      // ── Validación ESTRICTA de extensiones permitidas ──
+      // Si el docente parametrizó allowedExtensions (e.g. ["java"]) el ZIP
+      // debe contener ÚNICAMENTE archivos con esa extensión. La iteración
+      // recorre `allPaths` que incluye archivos de cualquier nivel de
+      // subcarpeta — así un .md o pom.xml dentro de `src/docs/` también
+      // dispara rechazo, igual que uno en la raíz.
+      //
+      // Lo único que toleramos sin pasar al grading son archivos de ruido
+      // que el SO/IDE/build genera automáticamente y que el estudiante no
+      // eligió incluir (DS_Store, __MACOSX, carpetas .git/, target/, etc).
+      // Antes había una whitelist `TOLERATED_NON_CODE` (md, txt, xml,
+      // json, yml...) — la eliminamos porque dejaba pasar README, pom.xml,
+      // package.json, build.gradle y otros archivos que el docente reportó
+      // como "deberían rechazar".
+      //
+      // Rechazamos ANTES de llamar a IA — evita gastar tokens en entregas
+      // inválidas y le da feedback claro al alumno para recomprimir solo
+      // con los archivos correctos.
       const cleanedAllowed = Array.isArray(allowedExtensions)
         ? allowedExtensions
             .filter((e): e is string => typeof e === "string")
@@ -948,49 +958,39 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         : [];
       if (cleanedAllowed.length > 0) {
         const allowedSet = new Set(cleanedAllowed);
-        // Archivos NO-código que toleramos como artefactos del proyecto:
-        // documentación, metadata de build/IDE y archivos sin extensión
-        // útiles para describir el repo. Cualquier otro archivo distinto
-        // a las extensiones permitidas se rechaza — antes solo verificamos
-        // archivos en CODE_EXT (otro lenguaje), pero el docente reportó
-        // que aún se subían PDFs/imágenes/binarios y la IA los ignoraba
-        // sin avisar.
-        const TOLERATED_NON_CODE = new Set([
-          "md",
-          "txt",
-          "readme",
-          "license",
-          "gitignore",
-          "gitattributes",
-          "editorconfig",
-          "properties",
-          "xml",
-          "json",
-          "yml",
-          "yaml",
-        ]);
+        // Helper: ¿este path es ruido auto-generado que toleramos?
+        // Aplica a TODO el subárbol; no usamos `startsWith` porque las
+        // carpetas también aparecen anidadas dentro del proyecto comprimido
+        // (ej. `MiProyecto/.git/HEAD`).
+        const isToleratedNoise = (lower: string, baseName: string): boolean => {
+          // SO: macOS metadata, Windows thumbs/desktop.
+          if (lower.includes("__macosx/") || baseName === ".ds_store") return true;
+          if (baseName === "thumbs.db" || baseName === "desktop.ini") return true;
+          // VCS / IDE / build folders en cualquier nivel del árbol.
+          if (/(^|\/)\.git\//.test(lower)) return true;
+          if (/(^|\/)\.idea\//.test(lower)) return true;
+          if (/(^|\/)\.vscode\//.test(lower)) return true;
+          if (/(^|\/)node_modules\//.test(lower)) return true;
+          if (/(^|\/)target\//.test(lower)) return true;
+          if (/(^|\/)build\//.test(lower)) return true;
+          if (/(^|\/)out\//.test(lower)) return true;
+          if (/(^|\/)dist\//.test(lower)) return true;
+          if (/(^|\/)\.gradle\//.test(lower)) return true;
+          // Compilados Java dentro de bin/ (típico de Eclipse).
+          if (/(^|\/)bin\//.test(lower) && /\.(class|exe)$/i.test(lower)) return true;
+          return false;
+        };
         const violations: string[] = [];
         for (const p of allPaths) {
           const lower = p.toLowerCase();
           const ext = lower.split(".").pop() ?? "";
           const baseName = lower.split("/").pop() ?? "";
-          // OS/IDE noise siempre OK.
-          if (lower.includes("__macosx/") || baseName === ".ds_store") continue;
-          if (baseName === "thumbs.db" || baseName === "desktop.ini") continue;
+          // Ruido del SO/IDE/build: ni pasa al grading ni cuenta como violación.
+          if (isToleratedNoise(lower, baseName)) continue;
           // Archivos en la whitelist explícita: pasan.
           if (allowedSet.has(ext)) continue;
-          // Archivos no-código tolerados (docs, metadata): pasan.
-          if (TOLERATED_NON_CODE.has(ext)) continue;
-          // Carpetas no-código tipo .git/, node_modules/ — el archivo
-          // adentro no se evalúa pero tampoco rechaza (típico que aparezcan
-          // en ZIPs hechos con un click en VSCode).
-          if (lower.includes("/.git/") || lower.startsWith(".git/")) continue;
-          if (lower.includes("/node_modules/") || lower.startsWith("node_modules/")) continue;
-          if (lower.includes("/.idea/") || lower.startsWith(".idea/")) continue;
-          if (lower.includes("/target/") || lower.startsWith("target/")) continue;
-          if (lower.includes("/bin/") && (ext === "class" || ext === "exe")) continue;
-          // Todo lo demás: violación. PDFs, imágenes, código en otro
-          // lenguaje, binarios, etc.
+          // Todo lo demás cuenta como violación — incluye .md, .txt, .xml,
+          // .json, imágenes, PDFs, binarios y código en otro lenguaje.
           violations.push(p);
         }
         if (violations.length > 0) {
@@ -1000,7 +1000,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           return new Response(
             JSON.stringify({
               ok: false,
-              error: `El ZIP contiene archivos de código no permitidos para esta entrega. Solo se aceptan: ${allowedLabel}. Encontrados: ${sample}${more}. Recomprime solo con los archivos correctos.`,
+              error: `El ZIP contiene archivos no permitidos para esta entrega. Solo se aceptan archivos ${allowedLabel} (revisa también las subcarpetas). Archivos rechazados: ${sample}${more}. Recomprime con SOLO los archivos de código fuente y vuelve a entregar.`,
               grade: 0,
               feedback: "",
               ai_likelihood: 0,
