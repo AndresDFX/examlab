@@ -149,7 +149,7 @@ const ACTION_LABELS: Record<string, string> = {
   "code.execute_failed": "Error de IA — compilador",
   // Disparado desde el cliente (app.student.take) cuando el invoke de
   // execute-code falla (HTTP no-2xx o excepción de red).
-  "code_execution_error": "Error ejecutando código",
+  code_execution_error: "Error ejecutando código",
 
   // ── Fraude / integridad ──
   "fraud.plagiarism_run": "Análisis de plagio ejecutado",
@@ -203,12 +203,53 @@ const ACTION_LABELS: Record<string, string> = {
   "calendar.disconnected": "Calendario desconectado",
   "calendar.synced": "Calendario sincronizado",
   "calendar.sync_failed": "Sincronización de calendario fallida",
+  "calendar.calendar_missing": "Calendario externo no accesible",
 
   // ── Notificaciones por correo (trigger SQL + edge function send-email) ──
   "email.dispatched": "Correo enviado al SMTP",
   "email.delivered": "Correo entregado",
   "email.skipped": "Correo omitido",
   "email.failed": "Correo fallido",
+
+  // ── Recalificación IA en lote (botón "Recalificar último intento") ──
+  "ai_grading.batch_dryrun": "Recalificación IA simulada (preview)",
+  "ai_grading.batch_applied": "Recalificación IA aplicada en lote",
+
+  // ── Settings de plataforma (panel admin) ──
+  "app_settings.updated": "Parámetros globales actualizados",
+  "audit_retention.updated": "Política de retención de auditoría actualizada",
+  "email_settings.updated": "Política de correos actualizada",
+  "code_execution.provider_changed": "Compilador de código cambiado",
+
+  // ── Certificados (configuración + emisión) ──
+  "certificate_settings.updated": "Configuración global de certificados actualizada",
+  "certificate_settings.course_override_saved": "Override de certificado por curso guardado",
+  "certificate_settings.course_override_removed": "Override de certificado por curso removido",
+
+  // ── Mensajería masiva (broadcast a curso) ──
+  "broadcast.sent": "Mensaje masivo enviado",
+  "broadcast.email_failed": "Correo de mensaje masivo fallido",
+  "broadcast.email_skipped": "Correo de mensaje masivo omitido",
+  "broadcast.error": "Error en envío de mensaje masivo",
+
+  // ── Java GUI screenshot (AWS Lambda) ──
+  "java_gui.screenshot_executed": "Captura GUI Java generada",
+  "java_gui.screenshot_failed": "Captura GUI Java fallida",
+  "java_gui.screenshot_error": "Error en captura GUI Java",
+
+  // ── Reabrir entregas (taller / proyecto) ──
+  "workshop.submission_reopened": "Entrega de taller reabierta",
+  "project.submission_reopened": "Entrega de proyecto reabierta",
+
+  // ── Diagnóstico del sistema (panel admin) ──
+  "system.diagnostic.warnings_detected": "Diagnóstico del sistema: advertencias",
+  "system.diagnostic.db_failed": "Diagnóstico del sistema: error de base de datos",
+  "system.diagnostic.edge_function_failed": "Diagnóstico del sistema: error de edge function",
+
+  // ── Cola IA (cuando el worker batch procesa pendientes) ──
+  "ai_queue.processed": "Cola IA procesada",
+  "ai_queue.job_failed": "Job IA fallido",
+  "ai_override.activated": "Override IA inmediata activado",
 };
 
 // Solo guardamos las clases CSS; el label se resuelve con t("audit.categories.<key>").
