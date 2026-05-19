@@ -147,9 +147,12 @@ export async function aiGradeOrEnqueue(req: AiGradeRequest): Promise<AiGradeResu
   const invokeTarget = req.invokeTarget ?? "ai-grade-submission";
   const overrideExp = readOverrideExpiry();
   const mode = await getProcessingMode();
-  const shouldRunSync = !!overrideExp || mode === "sync";
 
-  if (shouldRunSync) {
+  // Path SYNC explícito (admin puso processing_mode='sync'): bypass del
+  // sistema de override + cap, todo va sync sin gastar cupos. Esto
+  // existe para entornos de prueba o instituciones que prefieren
+  // pagar IA siempre on-demand.
+  if (mode === "sync") {
     const { data, error } = await supabase.functions.invoke(invokeTarget, {
       body: req.body,
     });
@@ -158,6 +161,38 @@ export async function aiGradeOrEnqueue(req: AiGradeRequest): Promise<AiGradeResu
       return { ranSync: true, error: detail || "Error IA" };
     }
     return { ranSync: true, aiData: data };
+  }
+
+  // Path OVERRIDE (mode=async pero el docente tiene una activación
+  // vigente). Antes de cada llamada sync, intentamos claim 1 mensaje
+  // de la activación — atómico server-side, respeta el cap. Si el
+  // claim falla porque agotó el cap O la activación expiró por
+  // tiempo, caemos al path async (encolar) — no le devolvemos error
+  // al docente, queda transparente.
+  if (overrideExp) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: claimData } = await (supabase as any).rpc("claim_ai_override_message");
+    const claimed = (claimData as { ok?: boolean; reason?: string } | null)?.ok === true;
+    if (claimed) {
+      const { data, error } = await supabase.functions.invoke(invokeTarget, {
+        body: req.body,
+      });
+      if (error || data?.error) {
+        const detail = await extractEdgeError(error, data);
+        return { ranSync: true, error: detail || "Error IA" };
+      }
+      return { ranSync: true, aiData: data };
+    }
+    // Si el claim falló por cap_reached o expiración, limpiamos el
+    // localStorage para que el resto de la UI deje de mostrar el
+    // badge "IA inmediata activa".
+    if (
+      (claimData as { reason?: string } | null)?.reason === "cap_reached" ||
+      (claimData as { reason?: string } | null)?.reason === "no_active_override"
+    ) {
+      clearOverrideExpiry();
+    }
+    // Cae al path async abajo.
   }
 
   // Async: encolar.

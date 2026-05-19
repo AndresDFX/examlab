@@ -37,13 +37,36 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+interface OverrideStatus {
+  active: boolean;
+  expires_at: string | null;
+  window_minutes: number | null;
+  consumed: number | null;
+  cap: number | null;
+  remaining: number | null;
+}
+
 export function AiOverrideDialog({ open, onOpenChange }: Props) {
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [activeExpiry, setActiveExpiry] = useState<Date | null>(null);
+  // Estado server-authoritative del cap de mensajes. El localStorage
+  // solo tiene `expires_at`; el cap consumido vive en DB. Refrescamos
+  // cuando se abre el dialog y tras activar para que el docente vea
+  // cuántos mensajes le quedan en su ventana actual.
+  const [status, setStatus] = useState<OverrideStatus | null>(null);
+
+  const refreshStatus = async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any).rpc("current_ai_override_status");
+    setStatus((data as OverrideStatus | null) ?? null);
+  };
 
   useEffect(() => {
-    if (open) setActiveExpiry(readOverrideExpiry());
+    if (open) {
+      setActiveExpiry(readOverrideExpiry());
+      void refreshStatus();
+    }
   }, [open]);
 
   const activate = async () => {
@@ -61,7 +84,12 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
       return;
     }
     const res = data as
-      | { ok: true; expires_at: string; window_minutes: number }
+      | {
+          ok: true;
+          expires_at: string;
+          window_minutes: number;
+          max_messages_per_activation: number | null;
+        }
       | { ok: false; error: string };
     if (!res.ok) {
       const map: Record<string, string> = {
@@ -75,8 +103,12 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
     writeOverrideExpiry(res.expires_at);
     setActiveExpiry(new Date(res.expires_at));
     setCode("");
+    await refreshStatus();
+    const capDescr = res.max_messages_per_activation
+      ? ` · cupo: ${res.max_messages_per_activation} mensajes`
+      : "";
     toast.success(
-      `IA inmediata activa por ${res.window_minutes} min — tus próximas calificaciones IA corren al instante.`,
+      `IA inmediata activa por ${res.window_minutes} min${capDescr} — tus próximas calificaciones IA corren al instante.`,
     );
   };
 
@@ -102,7 +134,7 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
         <div className="space-y-3">
           {activeExpiry ? (
             <div className="rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-3 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Check className="h-4 w-4 text-amber-700 dark:text-amber-300" />
                 <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
                   Ventana activa
@@ -110,11 +142,23 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
                 <Badge variant="outline" className="text-[10px] ml-auto">
                   {minutesLeft} min restantes
                 </Badge>
+                {status?.cap != null && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {status.remaining ?? 0}/{status.cap} mensajes
+                  </Badge>
+                )}
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Tus llamadas IA corren sincrónicas hasta{" "}
-                <strong>{formatDateTime(activeExpiry)}</strong>. Después, vuelve al modo en cola
-                (cada hora).
+                <strong>{formatDateTime(activeExpiry)}</strong>
+                {status?.cap != null ? (
+                  <>
+                    {" "}
+                    o hasta consumir <strong>{status.cap}</strong> mensajes (lo que ocurra
+                    primero)
+                  </>
+                ) : null}
+                . Después, vuelve al modo en cola (cada hora).
               </p>
               <Button size="sm" variant="outline" onClick={deactivate}>
                 <Clock className="h-3.5 w-3.5 mr-1" />

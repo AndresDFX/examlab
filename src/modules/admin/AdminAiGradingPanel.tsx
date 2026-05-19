@@ -50,6 +50,9 @@ interface OverrideCodeRow {
   max_uses: number;
   uses_count: number;
   window_minutes: number;
+  /** NULL = sin tope. Cap de mensajes IA que cada activación puede
+   *  consumir antes de caer en async. Ver migración 20260603103200. */
+  max_messages_per_activation: number | null;
   created_at: string;
   expires_at: string | null;
   revoked_at: string | null;
@@ -78,6 +81,10 @@ export function AdminAiGradingPanel() {
   const [newLabel, setNewLabel] = useState("");
   const [newWindowMin, setNewWindowMin] = useState(60);
   const [newMaxUses, setNewMaxUses] = useState(1);
+  // Cap de mensajes IA por activación. "" = sin tope (NULL en DB).
+  // Por defecto 10 — balance razonable entre permitir trabajo real al
+  // docente y limitar el consumo accidental de cuota Gemini.
+  const [newMaxMessages, setNewMaxMessages] = useState<number | "">(10);
   const [newTtlHours, setNewTtlHours] = useState<number | "">(24);
 
   const loadMode = async () => {
@@ -133,6 +140,13 @@ export function AdminAiGradingPanel() {
       toast.error("Máximo de usos debe ser >= 1");
       return;
     }
+    if (
+      typeof newMaxMessages === "number" &&
+      (newMaxMessages < 1 || newMaxMessages > 10000)
+    ) {
+      toast.error("Máximo de mensajes debe estar entre 1 y 10 000 (o vacío = sin tope).");
+      return;
+    }
     const code = randomCode(8);
     setCreating(true);
     const payload: Record<string, unknown> = {
@@ -140,6 +154,9 @@ export function AdminAiGradingPanel() {
       label: newLabel.trim() || null,
       max_uses: newMaxUses,
       window_minutes: newWindowMin,
+      // null en DB = sin tope; sólo persistimos si el admin tipeó un número.
+      max_messages_per_activation:
+        typeof newMaxMessages === "number" ? newMaxMessages : null,
       created_by: user.id,
     };
     if (typeof newTtlHours === "number" && newTtlHours > 0) {
@@ -270,7 +287,7 @@ export function AdminAiGradingPanel() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <div>
               <Label className="text-[11px]">Etiqueta (opcional)</Label>
               <Input
@@ -280,7 +297,12 @@ export function AdminAiGradingPanel() {
               />
             </div>
             <div>
-              <Label className="text-[11px]">Ventana (min)</Label>
+              <Label className="text-[11px]">
+                Ventana (min)
+                <HelpHint>
+                  Duración de la ventana sync tras activar el código. Cae en async cuando expira.
+                </HelpHint>
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -290,12 +312,37 @@ export function AdminAiGradingPanel() {
               />
             </div>
             <div>
-              <Label className="text-[11px]">Máx. usos</Label>
+              <Label className="text-[11px]">
+                Máx. activaciones
+                <HelpHint>
+                  Cuántos docentes (o veces) pueden activar este mismo código antes de quedar
+                  agotado. Típico: 1 = uso único.
+                </HelpHint>
+              </Label>
               <Input
                 type="number"
                 min={1}
                 value={newMaxUses}
                 onChange={(e) => setNewMaxUses(Number(e.target.value) || 1)}
+              />
+            </div>
+            <div>
+              <Label className="text-[11px]">
+                Máx. mensajes
+                <HelpHint>
+                  Cuántas calificaciones IA sync puede consumir UNA activación antes de caer en
+                  async. Protege la cuota de Gemini. Vacío = sin tope.
+                </HelpHint>
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                max={10000}
+                value={newMaxMessages === "" ? "" : newMaxMessages}
+                onChange={(e) =>
+                  setNewMaxMessages(e.target.value === "" ? "" : Number(e.target.value))
+                }
+                placeholder="Sin tope"
               />
             </div>
             <div>
@@ -333,8 +380,9 @@ export function AdminAiGradingPanel() {
                   <TableRow>
                     <TableHead>Código</TableHead>
                     <TableHead>Etiqueta</TableHead>
-                    <TableHead>Usos</TableHead>
+                    <TableHead>Activaciones</TableHead>
                     <TableHead>Ventana</TableHead>
+                    <TableHead>Mensajes</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Creado</TableHead>
                     <TableHead className="w-[120px]">Acciones</TableHead>
@@ -365,6 +413,11 @@ export function AdminAiGradingPanel() {
                         </TableCell>
                         <TableCell className="text-xs tabular-nums">
                           {c.window_minutes} min
+                        </TableCell>
+                        <TableCell className="text-xs tabular-nums">
+                          {c.max_messages_per_activation == null
+                            ? "Sin tope"
+                            : `Hasta ${c.max_messages_per_activation}`}
                         </TableCell>
                         <TableCell>
                           <Badge variant={status.variant} className="text-[10px]">
