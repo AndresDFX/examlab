@@ -90,6 +90,10 @@ GUI_DISPLAY = ":99"
 # promedio. Si la JFrame es más grande, X la corta — el alumno verá
 # parte de la UI cortada (mismo que pasa en un monitor pequeño).
 GUI_SCREEN = "1024x768x24"
+# Dimensiones desempacadas — se usan al convertir el framebuffer raw
+# a PNG (necesita -size WxH para interpretar los bytes).
+GUI_WIDTH = 1024
+GUI_HEIGHT = 768
 # Ventana de tiempo (ms) entre que arrancamos la JVM y hacemos la
 # captura. Swing tarda en pintar la primera frame: ~500ms warm,
 # ~1500-2000ms cold. Le damos 2000ms por default. El cliente puede
@@ -323,55 +327,74 @@ def _handle_gui_screenshot(
                 break
             time.sleep(0.05)
 
-        # ── Capturar screenshot (xwd → PNG vía ImageMagick convert) ──
-        # Antes usábamos `import -window root` de ImageMagick, pero se
-        # colgaba > 10s en Lambda porque `import` intenta inicializar
-        # MIT-SHM (shared memory X) y /dev/shm no está completo en el
-        # sandbox de Firecracker. Solución estándar: `xwd` usa
-        # XGetImage directo (sin SHM) y emite formato xwd por stdout;
-        # ImageMagick lo convierte a PNG con `convert xwd:- out.png`.
-        # Cada subprocess tiene su propio timeout porque si uno cuelga
-        # queremos saber CUÁL (xwd vs convert) en el stderr.
+        # ── Capturar screenshot (framebuffer raw → PNG vía convert) ──
+        # Antes intentamos dos enfoques que no funcionaron en Lambda:
+        #   1. `import -window root` (ImageMagick) → colgaba > 10s
+        #      porque inicializa MIT-SHM y /dev/shm no está completo.
+        #   2. `xwd` → el binario vive en `xorg-x11-apps`, paquete que
+        #      NO existe en el repo de Amazon Linux 2023.
+        #
+        # Solución actual: Xvfb arranca con `-fbdir /tmp`, lo que hace
+        # que mantenga su framebuffer como archivo mmap en
+        # `/tmp/Xvfb_screen0`. Es bytes crudos (4 bytes por pixel BGRA,
+        # depth 24 padded a 32-bit en x86) sin header. ImageMagick lo
+        # lee directo con `-size WxH -depth 8 BGRA:- out.png`.
+        # Ventajas:
+        #  - Cero proceso X11 client (no hablamos con el X server, solo
+        #    leemos su backing store). Sin riesgo de cuelgue.
+        #  - Sin paquetes extra (`convert` viene de ImageMagick que ya
+        #    teníamos).
+        #  - Un solo subprocess → un solo timeout.
         screenshot_path = os.path.join(tmp, "screenshot.png")
+        fb_path = "/tmp/Xvfb_screen0"
         capture_ok = False
         capture_err = ""
+        expected_bytes = GUI_WIDTH * GUI_HEIGHT * 4
         try:
-            xwd_proc = subprocess.run(
-                ["xwd", "-root", "-silent", "-display", GUI_DISPLAY],
-                capture_output=True,
-                timeout=8,
-            )
-            if xwd_proc.returncode != 0:
+            if not os.path.exists(fb_path):
                 capture_err = (
-                    "xwd failed (exit "
-                    + str(xwd_proc.returncode)
-                    + "): "
-                    + xwd_proc.stderr.decode("utf-8", "replace").strip()
+                    f"Xvfb no creó el framebuffer en {fb_path} — "
+                    "verifica que arrancó con '-fbdir /tmp'."
                 )
-            elif not xwd_proc.stdout:
-                capture_err = "xwd produjo 0 bytes — el display X está vacío o no respondió"
             else:
-                conv_proc = subprocess.run(
-                    ["convert", "xwd:-", screenshot_path],
-                    input=xwd_proc.stdout,
-                    capture_output=True,
-                    timeout=8,
-                )
-                if conv_proc.returncode != 0:
+                fb_size = os.path.getsize(fb_path)
+                if fb_size < expected_bytes:
                     capture_err = (
-                        "convert xwd→png failed (exit "
-                        + str(conv_proc.returncode)
-                        + "): "
-                        + conv_proc.stderr.decode("utf-8", "replace").strip()
+                        f"Framebuffer truncado: {fb_size} bytes, "
+                        f"esperaba >= {expected_bytes} ({GUI_WIDTH}x{GUI_HEIGHT}x4 BGRA)."
                     )
-                elif not os.path.exists(screenshot_path):
-                    capture_err = "convert no creó el archivo PNG de salida"
                 else:
-                    capture_ok = True
-        except subprocess.TimeoutExpired as e:
-            # `e.cmd[0]` tiene el binario que colgó — útil para diagnóstico.
-            colgado = e.cmd[0] if isinstance(e.cmd, list) and e.cmd else "subprocess"
-            capture_err = f"{colgado} excedió su timeout de captura"
+                    with open(fb_path, "rb") as fh:
+                        fb_data = fh.read(expected_bytes)
+                    conv_proc = subprocess.run(
+                        [
+                            "convert",
+                            "-size",
+                            f"{GUI_WIDTH}x{GUI_HEIGHT}",
+                            "-depth",
+                            "8",
+                            "BGRA:-",
+                            screenshot_path,
+                        ],
+                        input=fb_data,
+                        capture_output=True,
+                        timeout=8,
+                    )
+                    if conv_proc.returncode != 0:
+                        capture_err = (
+                            "convert BGRA→png failed (exit "
+                            + str(conv_proc.returncode)
+                            + "): "
+                            + conv_proc.stderr.decode("utf-8", "replace").strip()
+                        )
+                    elif not os.path.exists(screenshot_path):
+                        capture_err = "convert no creó el archivo PNG de salida"
+                    else:
+                        capture_ok = True
+        except subprocess.TimeoutExpired:
+            capture_err = "convert excedió su timeout (8s) al codificar PNG"
+        except OSError as e:
+            capture_err = f"Error de I/O leyendo framebuffer: {e}"
 
         # ── Cleanup: matar JVM y Xvfb ──
         # IMPORTANTE: si no matamos la JVM, sigue corriendo en background
@@ -499,8 +522,13 @@ def _handle_diagnose() -> dict:
         "java_home_env": os.environ.get("JAVA_HOME", "(unset)"),
         "display_env": os.environ.get("DISPLAY", "(unset)"),
         "xvfb_path": run(["bash", "-c", "command -v Xvfb"]),
-        "xwd_path": run(["bash", "-c", "command -v xwd"]),
         "convert_path": run(["bash", "-c", "command -v convert"]),
+        # /tmp/Xvfb_screen0 solo existe si Xvfb arrancó alguna vez en
+        # este container warm. En frío puede no existir todavía — la
+        # ausencia no es bug, solo el caso "no se ha hecho captura aún".
+        "xvfb_screen0_stat": run(
+            ["bash", "-c", "ls -la /tmp/Xvfb_screen0 2>&1 || echo '(no existe — Xvfb no ha corrido)'"]
+        ),
         "uname": run(["uname", "-a"]),
     }
 

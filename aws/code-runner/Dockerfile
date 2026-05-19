@@ -19,18 +19,24 @@
 
 FROM public.ecr.aws/lambda/python:3.13
 
-# OpenJDK 21 LTS + Xvfb (X virtual framebuffer) + xwd (captura X11 sin
-# memoria compartida — sustituye a `import` que se cuelga en Lambda
-# porque MIT-SHM no funciona bien sin /dev/shm completo) + ImageMagick
-# (binario `convert` para pasar xwd → PNG) + fuentes (Swing necesita al
-# menos una font genérica o pinta vacío) + libs X11 nativas para AWT.
+# OpenJDK 21 LTS + Xvfb (X virtual framebuffer) + ImageMagick (binario
+# `convert` para pasar el framebuffer raw → PNG) + fuentes (Swing
+# necesita al menos una font genérica o pinta vacío) + libs X11 nativas
+# para AWT.
 #
-# Por qué `xwd` y NO `import`: el deploy con `import -window root` se
-# colgaba > 10s y caía por timeout. `xwd` usa XGetImage directo (sin
-# SHM), nunca bloquea esperando al kernel y el output xwd format lo
-# convierte ImageMagick a PNG con `convert xwd:- out.png`. Es el patrón
-# estándar para screenshots headless en Xvfb dentro de containers.
-# `xwd` viene en el paquete `xorg-x11-apps`.
+# Por qué NO usamos `import` ni `xwd`:
+#  - `import -window root` (ImageMagick) se colgaba > 10s en Lambda
+#    porque intenta inicializar MIT-SHM y /dev/shm no está completo en
+#    Firecracker.
+#  - `xwd` viene en `xorg-x11-apps`, que NO existe en el repo de
+#    Amazon Linux 2023 (es paquete específico de Fedora/RHEL).
+#
+# Solución que sí funciona en AL2023 sin paquetes adicionales: Xvfb con
+# `-fbdir /tmp` persiste el framebuffer como archivo mmap raw en
+# `/tmp/Xvfb_screen0`. Es bytes crudos (BGRA 4 bytes/pixel para depth
+# 24) sin header. `convert -size WxH -depth 8 BGRA:- out.png` lo
+# convierte a PNG en una sola llamada. Cero dependencia X11 client
+# (no necesitamos hablar con el server, leemos su backing store).
 #
 # A diferencia del modo solo-consola, NO removemos las libs X11 — son
 # necesarias para que la JVM pueda crear ventanas Swing/AWT contra el
@@ -64,7 +70,6 @@ RUN dnf install -y \
       java-21-amazon-corretto \
       java-21-amazon-corretto-devel \
       xorg-x11-server-Xvfb \
-      xorg-x11-apps \
       libXi \
       libXtst \
       libXrender \
@@ -109,7 +114,6 @@ RUN if [ -f /etc/ImageMagick-7/policy.xml ]; then \
 RUN java -version \
  && javac -version \
  && command -v Xvfb \
- && command -v xwd \
  && command -v convert \
  && AWT_XAWT="$(ls /usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so 2>/dev/null | head -n1)" \
  && if [ -z "$AWT_XAWT" ] || [ ! -f "$AWT_XAWT" ]; then \

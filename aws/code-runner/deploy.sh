@@ -348,8 +348,8 @@ print_diagnose() {
       "\n── Listing del directorio JDK lib ──\n" + (.libawt_xawt_listing // "") +
       "\n── Libs X11 en /usr/lib64 ──\n" + (.x11_libs_present // "") +
       "\n── Xvfb path ──\n" + (.xvfb_path // "") +
-      "\n── xwd path ──\n" + (.xwd_path // "") +
       "\n── convert (ImageMagick) path ──\n" + (.convert_path // "") +
+      "\n── /tmp/Xvfb_screen0 (framebuffer mmap) ──\n" + (.xvfb_screen0_stat // "") +
       "\n── LD_LIBRARY_PATH ──\n" + (.ld_library_path // "(unset)") +
       "\n── JAVA_HOME ──\n" + (.java_home_env // "(unset)") +
       "\n── DISPLAY ──\n" + (.display_env // "(unset)")
