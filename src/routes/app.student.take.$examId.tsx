@@ -790,6 +790,12 @@ function TakeExam() {
           fieldGrade: "ai_grade",
           fieldFeedback: "ai_detected_reasons",
           fieldLikelihood: "ai_detected_score",
+          // courseId es CLAVE para el RLS del docente. El RLS de
+          // ai_grading_queue requiere `course_id IS NOT NULL` para
+          // que el docente vea jobs ajenos a sus cursos. Sin esto,
+          // el job se encola pero el docente NO lo ve en su
+          // dashboard (solo lo vería el admin).
+          courseId: exam?.course_id ?? null,
         },
       }).catch((e) => console.error("aiGradeOrEnqueue failed:", e));
       void logEvent({
