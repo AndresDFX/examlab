@@ -100,6 +100,25 @@ aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$ECR_REGISTRY" >/dev/null
 echo "  ✓ Login OK"
 
+# ── 2.5) Limpieza de espacio en disco (CloudShell se llena rápido) ──
+# AWS CloudShell tiene 1 GB persistente + ~10 GB efímeros. Cada build
+# acumula capas/blobs en /var/lib/docker; tras 2-3 corridas explota con
+# "no space left on device" justo en el último COPY del Dockerfile.
+# Hacemos prune defensivo de TODO lo que Docker no esté usando ahora:
+#   - contenedores detenidos
+#   - imágenes dangling y no-referenciadas
+#   - cache de build (BuildKit)
+#   - volúmenes huérfanos
+# `--force` evita el prompt; `--volumes` libera caches de buildx.
+# Salida silenciosa salvo el resumen final (cuántos bytes recuperó).
+echo "▶ Liberando espacio Docker (prune defensivo)…"
+RECLAIMED=$(docker system prune -af --volumes 2>&1 | grep -E "^Total reclaimed|^Total:" | tail -n1 || true)
+echo "  ${RECLAIMED:-(nada que limpiar)}"
+# Reporte de disco disponible — útil para diagnóstico cuando el build
+# pelea por bytes. CloudShell tipico: /home con ~600 MB, /tmp con ~10 GB.
+DF_OUT=$(df -h / /tmp 2>/dev/null | awk 'NR>1{print "    "$NF": "$4" libres ("$5" usado)"}' || true)
+[ -n "$DF_OUT" ] && echo "$DF_OUT"
+
 # ── 3) Build + push imagen (dos tags: único + primary) ──
 echo "▶ Building image (linux/amd64)..."
 # --platform fuerza AMD64 incluso desde Mac M1/M2 (Lambda x86_64 por defecto).
@@ -116,6 +135,16 @@ echo "▶ Pushing tags a ECR (${UNIQUE_TAG} + ${PRIMARY_TAG})…"
 docker push "$IMAGE_URI_UNIQUE"
 docker push "$IMAGE_URI_PRIMARY"
 echo "  ✓ Imágenes pushed"
+
+# ── 3.5) Limpieza post-push para liberar el disco antes del siguiente deploy ──
+# La imagen ya está en ECR — los layers locales no se necesitan más para
+# esta corrida. En CloudShell esto es la diferencia entre poder deployar
+# 3 veces seguidas o que la 2da falle con "no space left on device".
+# Solo limpiamos lo que NO esté tageado en uso (`-f dangling=true` por
+# defecto en prune con flag).
+echo "▶ Limpieza post-push de capas locales…"
+docker image prune -f >/dev/null 2>&1 || true
+echo "  ✓ Capas dangling removidas"
 
 # ── 4) API key en SSM (single source of truth) ──
 echo "▶ Asegurando API key en SSM Parameter Store..."

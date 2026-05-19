@@ -234,6 +234,54 @@ function StudentProjectDetail() {
             .eq("submission_id", sub.id);
           const map: Record<string, AnswerRow> = {};
           for (const a of (ans ?? []) as AnswerRow[]) map[a.file_id] = a;
+
+          // ── Storage fallback para entregas tipo codigo_zip ──
+          // Algunas filas legacy quedaron con `code_paths = NULL` porque
+          // se persistieron con el reintento defensivo cuando la columna
+          // aún no existía en DB. Los archivos físicos SÍ están en
+          // Storage. Acá listamos el prefijo esperado y, si encontramos
+          // archivos, los rellenamos al vuelo para que el render muestre
+          // los botones de descarga. Solo aplica para filas con `ans`
+          // existente pero sin code_paths / zip_path.
+          const codigoZipFiles = ((fs ?? []) as ProjectFile[]).filter(
+            (f) => f.type === "codigo_zip",
+          );
+          const root = myGroupId ?? user.id;
+          if (codigoZipFiles.length > 0 && root) {
+            await Promise.all(
+              codigoZipFiles.map(async (f) => {
+                const existing = map[f.id];
+                if (existing?.code_paths && existing.code_paths.length > 0) return;
+                if (existing?.zip_path) return;
+                const prefix = `${root}/${sub.id}/${f.id}`;
+                const { data: listed } = await supabase.storage
+                  .from("project-files")
+                  .list(prefix, { limit: 100, sortBy: { column: "name", order: "asc" } });
+                if (!listed || listed.length === 0) return;
+                const discoveredPaths = listed
+                  .filter((entry) => entry.name && !entry.name.endsWith("/"))
+                  .map((entry) => `${prefix}/${entry.name}`);
+                if (discoveredPaths.length === 0) return;
+                // Si la fila no existía aún (entrega anterior incompleta)
+                // creamos una virtual solo con code_paths — el render la
+                // tratará igual que una persistida.
+                if (existing) {
+                  map[f.id] = { ...existing, code_paths: discoveredPaths };
+                } else {
+                  map[f.id] = {
+                    file_id: f.id,
+                    content: null,
+                    ai_grade: null,
+                    ai_feedback: null,
+                    ai_likelihood: null,
+                    ai_reasons: null,
+                    zip_path: null,
+                    code_paths: discoveredPaths,
+                  };
+                }
+              }),
+            );
+          }
           if (!cancelled) setAnswersByFid(map);
         }
       } finally {

@@ -300,6 +300,11 @@ function TeacherProjects() {
   type Submission = {
     id: string;
     user_id: string;
+    /** Si la entrega es grupal, ID del grupo. La carpeta raíz de Storage
+     *  para esa entrega es `<group_id>/<sub.id>/…` en lugar de
+     *  `<user_id>/…`. Necesario para resolver el storage fallback al
+     *  listar archivos cuyo `code_paths` quedó null en DB. */
+    group_id?: string | null;
     status: string;
     final_grade: number | null;
     ai_grade: number | null;
@@ -1136,7 +1141,7 @@ function TeacherProjects() {
         db
           .from("project_submissions")
           .select(
-            "id, user_id, status, final_grade, ai_grade, submission_grade, defense_factor, defense_notes, defense_at, repository_url, submitted_at",
+            "id, user_id, group_id, status, final_grade, ai_grade, submission_grade, defense_factor, defense_notes, defense_at, repository_url, submitted_at",
           )
           .eq("project_id", p.id)
           .order("submitted_at", { ascending: false }),
@@ -1163,6 +1168,58 @@ function TeacherProjects() {
         for (const a of (ans ?? []) as SubFile[]) {
           (grouped[a.submission_id] ||= []).push(a);
         }
+
+        // ── Storage fallback para entregas tipo codigo_zip ──
+        // Las filas viejas pueden tener `code_paths = NULL` (se
+        // persistieron con el reintento defensivo cuando la columna
+        // aún no existía en DB) pero los archivos físicos SÍ están en
+        // Storage. Para que el docente pueda descargarlos, listamos
+        // `<root>/<sub.id>/<file_id>/` y rellenamos code_paths al
+        // vuelo en la copia local del state (no se persiste en DB).
+        const codigoZipFileIds = ((files ?? []) as Array<{ id: string; type: string | null }>)
+          .filter((f) => f.type === "codigo_zip")
+          .map((f) => f.id);
+        if (codigoZipFileIds.length > 0 && subsList.length > 0) {
+          // Para cada submission × file_id pendiente, lista storage y
+          // upgrade el SubFile correspondiente.
+          await Promise.all(
+            subsList.flatMap((sub) =>
+              codigoZipFileIds.map(async (fileId) => {
+                const subFiles = grouped[sub.id] ?? [];
+                const existing = subFiles.find((sf) => sf.file_id === fileId);
+                if (existing?.code_paths && existing.code_paths.length > 0) return;
+                if (existing?.zip_path) return;
+                const root = sub.group_id ?? sub.user_id;
+                const prefix = `${root}/${sub.id}/${fileId}`;
+                const { data: listed } = await supabase.storage
+                  .from("project-files")
+                  .list(prefix, { limit: 100, sortBy: { column: "name", order: "asc" } });
+                if (!listed || listed.length === 0) return;
+                const discovered = listed
+                  .filter((e) => e.name && !e.name.endsWith("/"))
+                  .map((e) => `${prefix}/${e.name}`);
+                if (discovered.length === 0) return;
+                if (existing) {
+                  // Mutamos en sitio — `grouped` es estado local de esta
+                  // función, no se ha pasado a setGradingAnsBySub todavía.
+                  existing.code_paths = discovered;
+                } else {
+                  (grouped[sub.id] ||= []).push({
+                    id: "", // sin row en DB; el grader no podrá UPDATE pero sí descargar.
+                    submission_id: sub.id,
+                    file_id: fileId,
+                    content: null,
+                    ai_grade: null,
+                    ai_feedback: null,
+                    ai_likelihood: null,
+                    code_paths: discovered,
+                  } as SubFile);
+                }
+              }),
+            ),
+          );
+        }
+
         setGradingAnsBySub(grouped);
         setGradingSubs(
           subsList.map((s) => ({ ...s, profile: profMap.get(s.user_id) as Submission["profile"] })),
