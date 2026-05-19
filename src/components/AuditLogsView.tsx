@@ -115,6 +115,17 @@ const ACTION_LABELS: Record<string, string> = {
   "submission.exam.graded": "Examen calificado",
   "submission.exam.grade_updated": "Nota de examen actualizada",
   "submission.exam.flagged_suspicious": "Examen marcado sospechoso",
+  // Eventos crudos del flujo de toma de examen (app.student.take). El
+  // trigger SQL persiste el equivalente `submission.exam.*` cuando
+  // cambia el row, pero el cliente además registra estos con metadata
+  // extra (focusWarnings, stage de pantalla completa, etc.). Las
+  // entradas viejas siguen apareciendo con el slug snake_case original
+  // — las mapeamos a labels legibles en lugar de renombrar para no
+  // perder histórico.
+  exam_started: "Examen iniciado",
+  exam_submitted: "Examen entregado",
+  exam_suspended: "Examen suspendido",
+  exam_fullscreen_denied: "Pantalla completa rechazada",
 
   // ── Entregas de taller ──
   "submission.workshop.submitted": "Taller entregado",
@@ -183,6 +194,7 @@ const ACTION_LABELS: Record<string, string> = {
 
   // ── Usuarios ──
   "user.created": "Usuario creado",
+  "user.updated": "Usuario actualizado",
   "user.deleted": "Usuario eliminado",
   "user.bulk_deleted": "Usuarios eliminados (masivo)",
   "user.bulk_imported": "Usuarios importados (masivo)",
