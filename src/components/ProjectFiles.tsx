@@ -290,9 +290,22 @@ export function TeacherProjectFilesEditor({
   };
 
   const removeQ = async (id: string) => {
+    // Antes de borrar, contar cuántas entregas YA tienen respuesta para
+    // esta pregunta. Si hay, advertir explícitamente: el DELETE CASCADE
+    // borra `project_submission_files` y los ZIPs entregados quedan
+    // huérfanos en storage. El alumno ve "Aún no has subido tu archivo".
+    const { count: linkedCount } = await db
+      .from("project_submission_files")
+      .select("submission_id", { count: "exact", head: true })
+      .eq("file_id", id);
+    const hasSubmissions = (linkedCount ?? 0) > 0;
     const ok = await confirm({
-      title: "Eliminar pregunta",
-      description: "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
+      title: hasSubmissions
+        ? `Eliminar pregunta (${linkedCount} entrega${linkedCount === 1 ? "" : "s"} afectada${linkedCount === 1 ? "" : "s"})`
+        : "Eliminar pregunta",
+      description: hasSubmissions
+        ? `Esta pregunta ya tiene ${linkedCount} entrega${linkedCount === 1 ? "" : "s"} de estudiantes. Al eliminarla, sus respuestas y archivos ZIP se perderán y verán "Aún no has subido tu archivo" en la retroalimentación. Esta acción no se puede deshacer.`
+        : "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
