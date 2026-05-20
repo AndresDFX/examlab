@@ -97,9 +97,15 @@ ON CONFLICT (jobname) DO UPDATE
       updated_at  = now();
 
 -- Reemplaza admin_list_cron_jobs para incluir description en el SELECT.
--- El cambio es aditivo (nueva columna al final del RETURNS) — el cliente
--- viejo simplemente no la lee.
-CREATE OR REPLACE FUNCTION public.admin_list_cron_jobs()
+-- El cambio es aditivo en el SELECT (nueva columna al final del RETURNS),
+-- pero Postgres NO permite cambiar el row type de OUT parameters vía
+-- CREATE OR REPLACE — exige DROP+CREATE.
+-- DROP FUNCTION es seguro porque acabamos de definirla en la migración
+-- 20260603104000 y solo la llama el frontend (vía RPC); no hay otras
+-- funciones SQL que la referencien.
+DROP FUNCTION IF EXISTS public.admin_list_cron_jobs();
+
+CREATE FUNCTION public.admin_list_cron_jobs()
 RETURNS TABLE(
   jobid        BIGINT,
   jobname      TEXT,
