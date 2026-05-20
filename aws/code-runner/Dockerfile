@@ -174,6 +174,18 @@ RUN java -version \
       echo "✓ libawt_xawt.so existe y resuelve todas sus deps" ; \
     fi
 
+# Wrapper Java pre-compilado para el modo `gui_screenshot`. Lanza el
+# `main` del estudiante por reflection y mantiene la JVM viva el tiempo
+# del `examlab.gui.sleepMs` (default 4000ms) para que Swing termine de
+# pintar antes de que `app.py` capture el framebuffer. Así el alumno NO
+# necesita poner `Thread.sleep(...)` en su código — el contrato pedagógico
+# de la pregunta es "renderiza la UI", no "acuérdate de mantener viva la
+# JVM en headless". Compilamos en build-time a /opt/GuiBootstrap.class
+# así app.py solo agrega `/opt` al classpath e invoca `GuiBootstrap`.
+COPY GuiBootstrap.java /opt/GuiBootstrap.java
+RUN javac -d /opt /opt/GuiBootstrap.java \
+ && ls -la /opt/GuiBootstrap.class
+
 # Handler de Lambda (Python wrapper que llama a javac + java).
 COPY app.py ${LAMBDA_TASK_ROOT}/
 

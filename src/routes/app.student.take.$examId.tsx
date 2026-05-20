@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage, JAVA_STARTER } from "@/modules/code/CodeEditor";
+import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
 import {
@@ -225,8 +226,19 @@ function TakeExam() {
   // Ref para datos del examen necesarios en callbacks (evita closures stale).
   const examRef = useRef<Exam | null>(null);
   const submissionStartedAtRef = useRef<string | null>(null);
-  // Proveedor de ejecución de código activo (leído de code_execution_settings una vez al montar).
+  // Proveedor de ejecución de código activo (leído de code_execution_settings al
+  // montar). Mantenemos un `ref` (para closures estables) y un `state`
+  // (para que la UI del selector pueda mostrar cuál es el default).
   const codeExecProviderRef = useRef<string>("onlinecompiler");
+  const [defaultCodeProvider, setDefaultCodeProvider] = useState<string>("onlinecompiler");
+
+  // Override por pregunta — el estudiante puede elegir otro runner si el
+  // default falla durante el examen. La key es `questionId`; el valor es
+  // uno de los providers válidos. `undefined` o ausencia = usar default.
+  // Se persiste en localStorage por (submissionId, questionId) para que
+  // sobreviva refresh de página mid-examen sin pedirle de nuevo al
+  // estudiante elegir.
+  const [runnerOverride, setRunnerOverride] = useState<Record<string, string>>({});
 
   // Carga el proveedor de ejecución de código una vez al montar (fire-and-forget).
   useEffect(() => {
@@ -237,7 +249,10 @@ function TakeExam() {
       .eq("is_active", true)
       .maybeSingle()
       .then(({ data }: { data: { provider: string } | null }) => {
-        if (data?.provider) codeExecProviderRef.current = data.provider;
+        if (data?.provider) {
+          codeExecProviderRef.current = data.provider;
+          setDefaultCodeProvider(data.provider);
+        }
       });
   }, []);
 
@@ -1265,6 +1280,14 @@ function TakeExam() {
       toast.error("Escribe código antes de ejecutar");
       return;
     }
+    // Provider efectivo = override del estudiante para esta pregunta, o
+    // el default global. `cheerp` solo aplica si el lenguaje es Java
+    // (corre client-side via WebAssembly). Para otros lenguajes con
+    // `cheerp` seleccionado caemos al edge function, que internamente
+    // usará onlinecompiler.
+    const overrideForQuestion = runnerOverride[questionId];
+    const provider = overrideForQuestion ?? codeExecProviderRef.current;
+
     setRunningCode((prev) => ({ ...prev, [questionId]: true }));
     // Limpia el output ANTES de ejecutar para que el alumno no vea el
     // resultado del run anterior mientras espera el nuevo. Aplica a
@@ -1274,7 +1297,7 @@ function TakeExam() {
       let stdout = "";
       let stderr = "";
 
-      if (codeExecProviderRef.current === "cheerp" && language === "java") {
+      if (provider === "cheerp" && language === "java") {
         // CheerpJ: ejecuta Java directamente en el navegador (sin API externa ni cuota).
         const result = await runJavaInBrowser(code);
         stdout = result.stdout;
@@ -1286,6 +1309,10 @@ function TakeExam() {
             language,
             questionId,
             submissionId: submissionIdRef.current,
+            // Solo mandamos `provider` cuando el estudiante eligió un
+            // override. Sin override, el edge function usa el default
+            // del admin (mismo comportamiento que antes).
+            ...(overrideForQuestion ? { provider: overrideForQuestion } : {}),
           },
         });
         if (error) {
@@ -1340,7 +1367,9 @@ function TakeExam() {
           examId,
           questionId,
           language,
-          provider: codeExecProviderRef.current,
+          provider,
+          default_provider: codeExecProviderRef.current,
+          provider_overridden: !!overrideForQuestion,
           error: msg,
         },
       });
@@ -1627,7 +1656,23 @@ function TakeExam() {
                     })()}
                   </div>
                 ) : q.type === "codigo" ? (
-                  <div onBlur={saveAnswersNow}>
+                  <div onBlur={saveAnswersNow} className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-end">
+                      <CodeRunnerPicker
+                        language={lang}
+                        defaultProvider={defaultCodeProvider}
+                        value={runnerOverride[q.id] as CodeRunnerProvider | undefined}
+                        disabled={runningCode[q.id] ?? false}
+                        onChange={(next) =>
+                          setRunnerOverride((prev) => {
+                            const copy = { ...prev };
+                            if (next === undefined) delete copy[q.id];
+                            else copy[q.id] = next;
+                            return copy;
+                          })
+                        }
+                      />
+                    </div>
                     <CodeEditor
                       value={
                         answers[q.id] ?? q.starter_code ?? (lang === "java" ? JAVA_STARTER : "")

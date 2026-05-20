@@ -540,6 +540,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Prompts IA — variante admin y docente apuntan al mismo módulo.
     ["/app/teacher/ai-prompts", "ai_prompts"],
     ["/app/admin/ai-prompts", "ai_prompts"],
+    // Cron IA — gestión de la cola de calificación con IA + (Admin) los
+    // pg_cron de Supabase. Ambas variantes mapean al mismo módulo para
+    // que el orden quede unificado entre roles.
+    ["/app/teacher/ai-cron", "ai_cron"],
+    ["/app/admin/ai-cron", "ai_cron"],
     ["/app/teacher/contents", "contents"],
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],

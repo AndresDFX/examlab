@@ -17,7 +17,21 @@ interface ExecutionRequest {
   stdin?: string;
   questionId: string;
   submissionId?: string;
+  /**
+   * Override del proveedor desde el cliente. Pensado para que el
+   * estudiante elija un compilador alterno DURANTE el examen si el
+   * default (configurado por Admin) está caído. Cuando se omite se usa
+   * el activo en `code_execution_settings`. La auditoría registra el
+   * provider efectivamente usado más un flag `provider_overridden`.
+   */
+  provider?: string;
 }
+
+/** Providers válidos para el override del cliente. Debe coincidir con
+ *  el CHECK constraint de code_execution_settings.provider. `cheerp`
+ *  no se puede mandar desde el cliente porque corre client-side y no
+ *  llega a esta edge function (la UI ramifica antes). */
+const ALLOWED_PROVIDER_OVERRIDES = new Set(["onlinecompiler", "jdoodle", "aws_lambda"]);
 
 interface ExecutionResult {
   stdout: string;
@@ -412,13 +426,33 @@ Deno.serve(async (req) => {
       stdin = "",
       questionId,
       submissionId,
+      provider: requestedProvider,
     }: ExecutionRequest = await req.json();
+
+    // Si el cliente mandó un override del provider, validamos contra la
+    // whitelist. Provider inválido = 400 explícito (mejor que silenciar y
+    // caer al default — al estudiante le ayuda saber que el modo elegido
+    // no es válido). Provider válido pero sin secret configurado el
+    // executor lanzará su propio error de runtime — eso se captura en
+    // el audit y se devuelve como stderr al alumno.
+    const overrideRequested = typeof requestedProvider === "string" && requestedProvider.length > 0;
+    if (overrideRequested && !ALLOWED_PROVIDER_OVERRIDES.has(requestedProvider)) {
+      return new Response(
+        JSON.stringify({
+          error: `Provider inválido: "${requestedProvider}". Opciones: ${[
+            ...ALLOWED_PROVIDER_OVERRIDES,
+          ].join(", ")}.`,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     Object.assign(requestContext, {
       language,
       questionId,
       submissionId: submissionId ?? null,
       source_length: sourceCode?.length ?? 0,
+      requested_provider: overrideRequested ? requestedProvider : null,
     });
 
     if (!sourceCode?.trim()) {
@@ -452,18 +486,27 @@ Deno.serve(async (req) => {
     if (!u.user) throw new Error("No autenticado");
     actorId = u.user.id;
 
-    // Leer proveedor activo
+    // Leer proveedor activo configurado por el Admin. El cliente puede
+    // sobreescribirlo vía `provider` en el body (caso "Lambda caído →
+    // estudiante elige onlinecompiler manualmente para no perder la
+    // pregunta"). En cualquier caso registramos AMBOS para auditoría.
     const { data: execSettings } = await admin
       .from("code_execution_settings")
       .select("provider")
       .eq("is_active", true)
       .maybeSingle();
 
-    const provider: string = execSettings?.provider ?? "onlinecompiler";
+    const defaultProvider: string = execSettings?.provider ?? "onlinecompiler";
+    const provider: string = overrideRequested ? requestedProvider! : defaultProvider;
     // 'cheerp' corre client-side, así que del lado server cae al
     // onlinecompiler para los lenguajes no-Java (Python, C, etc.).
+    // El override del cliente NO acepta 'cheerp' (filtrado por la
+    // whitelist arriba), pero si el default del admin es 'cheerp'
+    // seguimos aplicando ese fallback.
     const effectiveProvider = provider === "cheerp" ? "onlinecompiler" : provider;
     requestContext.provider = effectiveProvider;
+    requestContext.default_provider = defaultProvider;
+    requestContext.provider_overridden = overrideRequested;
 
     const result =
       effectiveProvider === "jdoodle"

@@ -30,6 +30,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   Coffee,
   AlertTriangle,
@@ -438,18 +445,40 @@ export function JavaGuiRunner({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="text-xs flex items-center gap-1">
-          {mode === "aws_screenshot" ? (
-            <>
-              <Camera className="h-3 w-3" /> Java GUI — captura PNG
-            </>
-          ) : (
-            <>
-              <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT)
-            </>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-xs flex items-center gap-1">
+            {mode === "aws_screenshot" ? (
+              <>
+                <Camera className="h-3 w-3" /> Java GUI — captura PNG
+              </>
+            ) : (
+              <>
+                <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT)
+              </>
+            )}
+          </Badge>
+          {/* Override manual del modo. El admin configura el default; si
+              ese modo falla durante el examen (CheerpJ no descarga, Lambda
+              caído, etc.) el estudiante puede alternar sin perder la
+              pregunta. Se deshabilita mientras hay una ejecución en curso
+              para evitar carreras entre setMode y los handlers. */}
+          {modeLoaded && (
+            <Select
+              value={mode}
+              disabled={readOnly || running || loadingCJ}
+              onValueChange={(v) => setMode(v as JavaGuiMode)}
+            >
+              <SelectTrigger className="h-7 w-48 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cheerp">CheerpJ (navegador)</SelectItem>
+                <SelectItem value="aws_screenshot">AWS Lambda — captura</SelectItem>
+              </SelectContent>
+            </Select>
           )}
-        </Badge>
+        </div>
         <Button
           size="sm"
           variant="outline"

@@ -304,16 +304,33 @@ def _handle_gui_screenshot(
         # ausencia de DISPLAY y se pone headless. Con Xvfb arriba sí hay
         # DISPLAY, pero el flag explícito previene sorpresas.
         # -Xmx512m: techo de heap para evitar OOM-kill de Lambda.
+        #
+        # IMPORTANTE — auto-sleep para que el alumno no escriba Thread.sleep:
+        # Invocamos `GuiBootstrap` (pre-compilado en /opt/ durante el build)
+        # en vez de `<main_class>` directamente. GuiBootstrap usa reflection
+        # para llamar al `main` del estudiante y luego duerme `sleepMs` ms
+        # antes de salir. Eso mantiene la JVM viva el tiempo necesario para
+        # que Swing termine de pintar — sin pedirle al estudiante que ponga
+        # un `Thread.sleep` final que no tiene nada que ver con la pregunta.
+        # Si el `main` del estudiante lanza, GuiBootstrap imprime el stack
+        # a stderr y sale con code 2 — lo capturamos en stderr_str después.
+        #
+        # `sleepMs` se ata a delay_ms para que JVM y captura terminen casi
+        # al mismo tiempo. Le restamos 200ms para que la JVM tenga margen
+        # para hacer System.exit(0) antes de que matemos el proceso.
         env = os.environ.copy()
         env["DISPLAY"] = GUI_DISPLAY
+        bootstrap_sleep_ms = max(500, delay_ms - 200)
         java_proc = subprocess.Popen(
             [
                 "java",
                 "-Djava.awt.headless=false",
+                f"-Dexamlab.gui.mainClass={main_class}",
+                f"-Dexamlab.gui.sleepMs={bootstrap_sleep_ms}",
                 "-Xmx512m",
                 "-cp",
-                tmp,
-                main_class,
+                f"{tmp}:/opt",
+                "GuiBootstrap",
             ],
             env=env,
             stdout=subprocess.PIPE,

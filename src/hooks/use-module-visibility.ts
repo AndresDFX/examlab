@@ -31,6 +31,7 @@ export type ModuleKey =
   | "tutor"
   | "question_bank"
   | "ai_prompts"
+  | "ai_cron"
   | "messages"
   | "dashboard"
   | "videos"
