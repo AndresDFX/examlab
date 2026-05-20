@@ -16,7 +16,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   onDetected: (payload: { sessionId: string; code: string }) => void;
@@ -127,7 +128,7 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
         <div id={SCANNER_ELEMENT_ID} className="w-full" />
         {starting && !error && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground bg-background/60 backdrop-blur-sm">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <Spinner size="md" className="mr-2" />
             Activando cámara…
           </div>
         )}

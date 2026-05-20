@@ -33,7 +33,6 @@ import {
   Presentation,
   Search,
   Info,
-  Loader2,
   ExternalLink,
 } from "lucide-react";
 import { formatDateTime, formatWeekday } from "@/shared/lib/format";
@@ -369,7 +368,7 @@ function StudentCalendar() {
                   className="text-amber-700 dark:text-amber-300"
                 >
                   {regenerating ? (
-                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    <Spinner size="sm" className="mr-1" />
                   ) : (
                     <RefreshCw className="h-3.5 w-3.5 mr-1" />
                   )}

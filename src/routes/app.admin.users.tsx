@@ -29,7 +29,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Trash2, Pencil, Loader2, Users as UsersIcon } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Pencil, Users as UsersIcon } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { downloadCSV, parseCSV, toCSV } from "@/shared/lib/csv";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
@@ -520,7 +521,7 @@ function AdminUsers() {
             className="flex-1 sm:flex-none"
           >
             {importing ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Spinner size="md" className="mr-1" />
             ) : (
               <Upload className="h-4 w-4 mr-1" />
             )}{" "}
@@ -765,7 +766,7 @@ function AdminUsers() {
               Cancelar
             </Button>
             <Button onClick={saveProfile} disabled={savingUser}>
-              {savingUser && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              {savingUser && <Spinner size="md" className="mr-1" />}
               Guardar
             </Button>
           </DialogFooter>

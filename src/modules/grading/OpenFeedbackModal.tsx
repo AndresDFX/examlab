@@ -27,10 +27,10 @@ import {
   Hammer,
   FolderKanban,
   ArrowRight,
-  Loader2,
   MessageSquareText,
   Reply,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/shared/lib/format";
 import { threadsPendingTeacherResponse } from "@/modules/grading/feedback-stats";
 
@@ -401,7 +401,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
 
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            <Spinner size="md" /> Cargando…
           </div>
         ) : threads.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">

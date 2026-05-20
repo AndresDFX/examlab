@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
 import { SearchInput } from "@/components/ui/search-input";
 import { RowAction } from "@/components/ui/row-action";
@@ -34,7 +35,6 @@ import {
   FileText,
   Hammer,
   Save,
-  Loader2,
   Scale,
   AlertTriangle,
   Eye,
@@ -1112,7 +1112,7 @@ function Gradebook() {
           {hasEdits && (
             <Button size="sm" onClick={saveAll} disabled={saving}>
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="md" className="mr-1" />
               ) : (
                 <Save className="h-4 w-4 mr-1" />
               )}
@@ -1133,7 +1133,7 @@ function Gradebook() {
                 title="Emite el certificado en DB para cada aprobado pendiente. No descarga PDFs — el alumno y el docente pueden bajarlos uno a uno desde el listado."
               >
                 {bulkIssuing ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Spinner size="md" className="mr-1" />
                 ) : (
                   <Award className="h-4 w-4 mr-1" />
                 )}
@@ -1146,7 +1146,7 @@ function Gradebook() {
                 title="Emite los certificados pendientes Y descarga un ZIP con TODOS los PDFs vigentes del curso (incluye un _index.csv para auditoría)."
               >
                 {bulkIssuing ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Spinner size="md" className="mr-1" />
                 ) : (
                   <Download className="h-4 w-4 mr-1" />
                 )}
@@ -1160,7 +1160,7 @@ function Gradebook() {
                 title="Revoca todos los certificados vigentes del curso y emite uno nuevo por cada aprobado con la configuración (logo, firma, mensaje) y notas actuales. Útil cuando cambió el branding o las notas."
               >
                 {bulkIssuing ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Spinner size="md" className="mr-1" />
                 ) : (
                   <Award className="h-4 w-4 mr-1" />
                 )}
@@ -1413,7 +1413,7 @@ function Gradebook() {
                                 disabled={issuingId === row.student.id}
                               >
                                 {issuingId === row.student.id ? (
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  <Spinner size="xs" className="mr-1" />
                                 ) : (
                                   <Award className="h-3 w-3 mr-1" />
                                 )}

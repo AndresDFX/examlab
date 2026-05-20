@@ -37,7 +37,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
   Coffee,
   AlertTriangle,
   Terminal,
@@ -47,6 +46,7 @@ import {
   Camera,
   X,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatFileSize } from "@/shared/lib/format";
@@ -615,7 +615,7 @@ export function JavaGuiRunner({
                 : "Java GUI — vista en vivo"}
               {(loadingCJ || running) && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner size="xs" />
                   {mode === "aws_screenshot"
                     ? "Compilando y capturando…"
                     : loadingCJ
@@ -789,7 +789,7 @@ export function JavaGuiRunner({
               disabled={running || loadingCJ}
             >
               {running || loadingCJ ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                <Spinner size="xs" className="mr-1" />
               ) : (
                 <RotateCcw className="h-3 w-3 mr-1" />
               )}

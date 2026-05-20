@@ -7,6 +7,7 @@ import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { toCSV, downloadCSV } from "@/shared/lib/csv";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
@@ -40,7 +41,6 @@ import {
   Copy,
   UserCog,
   CheckSquare,
-  Loader2,
   ChevronDown,
   ChevronRight,
   BookOpen,
@@ -1566,7 +1566,7 @@ export function AdminCourses() {
             </Button>
             <Button onClick={doDuplicate} disabled={dupLoading}>
               {dupLoading ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="md" className="mr-1" />
               ) : (
                 <Copy className="h-4 w-4 mr-1" />
               )}
@@ -2196,7 +2196,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                 title={t("course.boardImportTooltip")}
               >
                 {importing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Spinner size="sm" />
                 ) : (
                   <Upload className="h-3.5 w-3.5" />
                 )}
@@ -2301,7 +2301,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
               className="h-8"
             >
               {saving ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                <Spinner size="sm" className="mr-1" />
               ) : (
                 <Plus className="h-3.5 w-3.5 mr-1" />
               )}
@@ -2312,7 +2312,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size="xl" className="text-muted-foreground" />
           </div>
         ) : sessions.length === 0 ? (
           <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
@@ -2388,7 +2388,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                           className="h-8"
                         >
                           {saving ? (
-                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            <Spinner size="sm" className="mr-1" />
                           ) : (
                             <CheckSquare className="h-3.5 w-3.5 mr-1" />
                           )}

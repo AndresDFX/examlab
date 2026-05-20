@@ -60,7 +60,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Trash2, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 // ───────────────────────── Hook ─────────────────────────
@@ -303,7 +304,7 @@ export function BulkDeleteDialog({
           </Button>
           <Button variant="destructive" onClick={handleConfirm} disabled={submitting}>
             {submitting ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Spinner size="md" className="mr-1" />
             ) : (
               <Trash2 className="h-4 w-4 mr-1" />
             )}

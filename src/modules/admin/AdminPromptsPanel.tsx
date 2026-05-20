@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, RotateCcw, Save, Palette } from "lucide-react";
+import { RotateCcw, Save, Palette } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 
@@ -496,7 +497,7 @@ export function AdminPromptsPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando prompts…
+          <Spinner size="md" /> Cargando prompts…
         </CardContent>
       </Card>
     );
@@ -623,7 +624,7 @@ export function AdminPromptsPanel() {
               <div className="flex justify-end">
                 <Button onClick={handleSaveBrand} disabled={savingBrand}>
                   {savingBrand ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    <Spinner size="md" className="mr-1" />
                   ) : (
                     <Save className="h-4 w-4 mr-1" />
                   )}
@@ -704,7 +705,7 @@ export function AdminPromptsPanel() {
                     disabled={savingKey === uc.key || !dirty}
                   >
                     {savingKey === uc.key ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      <Spinner size="md" className="mr-1" />
                     ) : (
                       <Save className="h-4 w-4 mr-1" />
                     )}

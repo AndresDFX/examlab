@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GripVertical, Loader2, Users } from "lucide-react";
+import { Plus, Trash2, GripVertical, Users } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,7 +253,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             />
             <Button onClick={createGroup} disabled={creating || !newGroupName.trim()}>
               {creating ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="md" className="mr-1" />
               ) : (
                 <Plus className="h-4 w-4 mr-1" />
               )}
@@ -265,7 +266,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       {loading ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            <Spinner size="md" /> Cargando…
           </CardContent>
         </Card>
       ) : (

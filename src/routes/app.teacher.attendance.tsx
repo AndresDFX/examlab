@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -55,7 +56,6 @@ import {
   X,
   Eraser,
   QrCode,
-  Loader2,
   Trash2,
   Settings2,
   Presentation as PresentationIcon,
@@ -1548,7 +1548,7 @@ function TeacherAttendance() {
             </Button>
             <Button onClick={startCheckIn} disabled={startingCheckIn}>
               {startingCheckIn ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="md" className="mr-1" />
               ) : (
                 <QrCode className="h-4 w-4 mr-1" />
               )}

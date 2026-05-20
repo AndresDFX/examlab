@@ -42,13 +42,13 @@ import {
   CalendarCheck,
   CheckCircle2,
   X,
-  Loader2,
   QrCode,
   Keyboard,
   Sparkles,
   PlayCircle,
   ExternalLink,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildVideoEmbedUrl } from "@/shared/lib/video-embed";
@@ -560,7 +560,7 @@ function StudentAttendance() {
             <CardContent className="p-0">
               {loadingData && (
                 <p className="text-sm text-muted-foreground p-6">
-                  <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                  <Spinner size="md" inline className="mr-2" />
                   Cargando sesiones…
                 </p>
               )}
@@ -720,7 +720,7 @@ function StudentAttendance() {
                 disabled={submittingCheckIn}
               >
                 {submittingCheckIn ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Spinner size="md" className="mr-1" />
                 ) : (
                   <CheckCircle2 className="h-4 w-4 mr-1" />
                 )}

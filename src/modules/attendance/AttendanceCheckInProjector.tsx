@@ -18,7 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   attendancePeriod,
   attendanceSecondsToNextRotation,
@@ -251,7 +252,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             disabled={closing}
           >
             {closing ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Spinner size="md" className="mr-1" />
             ) : (
               <X className="h-4 w-4 mr-1" />
             )}

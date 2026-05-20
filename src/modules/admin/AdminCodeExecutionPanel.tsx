@@ -19,7 +19,8 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Save, Info, Code2, Loader2, MonitorPlay, Terminal } from "lucide-react";
+import { Save, Info, Code2, MonitorPlay, Terminal } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -173,7 +174,7 @@ export function AdminCodeExecutionPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando configuración…
+          <Spinner size="md" /> Cargando configuración…
         </CardContent>
       </Card>
     );
@@ -332,7 +333,7 @@ export function AdminCodeExecutionPanel() {
             )}
             <Button size="sm" onClick={handleSave} disabled={saving || !dirty}>
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="md" className="mr-1" />
               ) : (
                 <Save className="h-4 w-4 mr-1" />
               )}

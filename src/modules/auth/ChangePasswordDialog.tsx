@@ -11,7 +11,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
+import { KeyRound, Eye, EyeOff } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
 
 interface ChangePasswordDialogProps {
@@ -133,7 +134,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             onClick={handleSave}
             disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
           >
-            {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            {saving && <Spinner size="md" className="mr-1" />}
             Guardar
           </Button>
         </DialogFooter>

@@ -25,7 +25,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, CheckCircle2, FileText, Loader2, ThumbsDown, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileText, ThumbsDown, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
 import { notifyExamNoteReviewed } from "@/modules/exams/exam-notes-notify";
@@ -261,7 +262,7 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
 
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            <Spinner size="md" /> Cargando…
           </div>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -360,7 +361,7 @@ function PendingNoteRow({
               disabled={busy || !rejectReason.trim()}
             >
               {busy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Spinner size="xs" />
               ) : (
                 <>
                   <ThumbsDown className="h-3 w-3 mr-1" />
@@ -378,7 +379,7 @@ function PendingNoteRow({
           </Button>
           <Button size="sm" onClick={onApprove} disabled={busy}>
             {busy ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Spinner size="xs" />
             ) : (
               <>
                 <CheckCircle2 className="h-3 w-3 mr-1" />

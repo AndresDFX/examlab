@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/select";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
-import { Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
+import { RotateCcw, Save, Sparkles } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 
@@ -366,7 +367,7 @@ function TeacherAIPrompts() {
             <Label>Curso</Label>
             {loadingCourses ? (
               <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                <Loader2 className="h-4 w-4 animate-spin" /> Cargando cursos…
+                <Spinner size="md" /> Cargando cursos…
               </div>
             ) : courses.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-1">No tienes cursos asignados.</p>
@@ -424,7 +425,7 @@ function TeacherAIPrompts() {
       {courseId && loadingPrompts ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando prompts…
+            <Spinner size="md" /> Cargando prompts…
           </CardContent>
         </Card>
       ) : courseId && selectedCourse ? (
@@ -518,7 +519,7 @@ function TeacherAIPrompts() {
                       disabled={savingKey === uc.key || !dirty}
                     >
                       {savingKey === uc.key ? (
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        <Spinner size="md" className="mr-1" />
                       ) : (
                         <Save className="h-4 w-4 mr-1" />
                       )}

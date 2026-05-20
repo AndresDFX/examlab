@@ -10,7 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, Terminal, Info, X } from "lucide-react";
+import { Play, Terminal, Info, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 export type CodeLanguage = "java" | "python" | "javascript";
 
@@ -169,7 +170,7 @@ export function CodeEditor({
               className="h-8 text-xs"
             >
               {isRunning ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                <Spinner size="xs" className="mr-1" />
               ) : (
                 <Play className="h-3 w-3 mr-1" />
               )}
