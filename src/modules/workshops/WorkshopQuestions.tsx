@@ -704,14 +704,12 @@ export function TeacherWorkshopQuestionsEditor({
    ========================================================================= */
 export function StudentWorkshopTaker({
   workshopId,
-  workshopTitle,
   maxScore,
   courseLanguage = "es",
   groupId,
   onGraded,
 }: {
   workshopId: string;
-  workshopTitle: string;
   maxScore: number;
   courseLanguage?: "es" | "en";
   /** Si el taller es grupal, ID del grupo del estudiante. La submission

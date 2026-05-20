@@ -20,18 +20,17 @@ interface ChangePasswordDialogProps {
 }
 
 export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialogProps) {
-  const [currentPassword, setCurrentPassword] = useState("");
+  // El form ya no pide "contraseña actual" — Supabase Auth no la requiere
+  // para auth.updateUser({password}) sobre la sesión activa. State y
+  // toggle de visibilidad de ese input quedaron como código muerto.
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
   const reset = () => {
-    setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setShowCurrent(false);
     setShowNew(false);
   };
 

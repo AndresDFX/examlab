@@ -417,7 +417,6 @@ function StudentWorkshops() {
           {questionsWs && (
             <StudentWorkshopTaker
               workshopId={questionsWs.workshop.id}
-              workshopTitle={questionsWs.workshop.title}
               maxScore={questionsWs.workshop.max_score}
               courseLanguage={questionsWs.workshop.course?.language === "en" ? "en" : "es"}
               groupId={questionsWs.groupId ?? null}

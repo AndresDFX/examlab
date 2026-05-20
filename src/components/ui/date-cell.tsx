@@ -1,4 +1,3 @@
-import * as React from "react";
 import { Calendar } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { formatDate, formatDateOnly, formatDateTime, formatDateShort } from "@/shared/lib/format";

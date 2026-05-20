@@ -15,29 +15,20 @@ import { PendingExamNotesModal } from "@/modules/exams/PendingExamNotesModal";
 import { pendingResponsesCount } from "@/modules/grading/feedback-stats";
 import { AiGradingQueueWidget } from "@/modules/ai/AiGradingQueueWidget";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
-import { cn } from "@/shared/lib/utils";
 import {
-  Users,
-  BookOpen,
   FileText,
-  ClipboardList,
   Hammer,
   FolderKanban,
   Calendar,
   Clock,
   AlertTriangle,
   ArrowRight,
-  ShieldCheck,
   Play,
   Send,
-  Eye,
   MessageSquareText,
   Reply,
-  TrendingUp,
-  UserCog,
   Inbox,
   CalendarClock,
-  CalendarCheck,
   Sparkles,
   Bot,
   CircleCheck,
@@ -109,23 +100,11 @@ function Dashboard() {
    ADMIN DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
-  const { t } = useTranslation();
-  const [counts, setCounts] = useState({
-    users: 0,
-    courses: 0,
-    exams: 0,
-    submissions: 0,
-    workshops: 0,
-  });
-  const [recentUsers, setRecentUsers] = useState<
-    {
-      id: string;
-      full_name: string;
-      institutional_email: string;
-      created_at: string;
-      roles: string[];
-    }[]
-  >([]);
+  // `t`, `counts` y `recentUsers` se removieron — los cards globales
+  // (Usuarios totales, Cursos totales, Usuarios recientes, etc.) se
+  // quitaron del dashboard cuando lo rediseñamos para mostrar métricas
+  // operacionales (IA, correos, errores) en su lugar. Las queries que
+  // poblaban esos states también se quitan.
   // ── AI usage stats (última hora) — reemplazan los 5 cards superiores
   // que antes solo mostraban totales agregados sin contexto temporal.
   // El admin ahora ve de un vistazo si el sistema de IA está sano:
@@ -164,54 +143,6 @@ function AdminDashboard() {
 
   useEffect(() => {
     (async () => {
-      const [u, c, e, s, w] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("courses").select("id", { count: "exact", head: true }),
-        supabase.from("exams").select("id", { count: "exact", head: true }),
-        supabase.from("submissions").select("id", { count: "exact", head: true }),
-        supabase.from("workshops").select("id", { count: "exact", head: true }),
-      ]);
-      setCounts({
-        users: u.count ?? 0,
-        courses: c.count ?? 0,
-        exams: e.count ?? 0,
-        submissions: s.count ?? 0,
-        workshops: w.count ?? 0,
-      });
-
-      // Recent users: traemos también el id + roles para mostrar badge
-      // y ampliamos a 10. user_roles puede tener 0..N filas por usuario;
-      // hacemos JOIN client-side para no complicar la query.
-      const { data: ru } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email, created_at")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      const ruRows = (ru ?? []) as Array<{
-        id: string;
-        full_name: string;
-        institutional_email: string;
-        created_at: string;
-      }>;
-      if (ruRows.length > 0) {
-        const { data: rolesRows } = await supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .in(
-            "user_id",
-            ruRows.map((u) => u.id),
-          );
-        const rolesByUser = new Map<string, string[]>();
-        for (const r of (rolesRows ?? []) as Array<{ user_id: string; role: string }>) {
-          const arr = rolesByUser.get(r.user_id) ?? [];
-          arr.push(r.role);
-          rolesByUser.set(r.user_id, arr);
-        }
-        setRecentUsers(ruRows.map((u) => ({ ...u, roles: rolesByUser.get(u.id) ?? [] })));
-      } else {
-        setRecentUsers([]);
-      }
-
       // Métricas de email en las últimas 24h. Un SELECT con filtros
       // específicos por action — más eficiente que cargar todo y
       // agrupar en cliente. Si la tabla aún no tiene la categoría
@@ -1533,41 +1464,6 @@ function Stat({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function QuickCard({
-  to,
-  title,
-  desc,
-  icon: Icon,
-  color = "bg-primary/10 text-primary",
-}: {
-  to: string;
-  title: string;
-  desc: string;
-  icon: any;
-  color?: string;
-}) {
-  // Cards compactos: padding y tamaño de ícono reducidos para que en
-  // la columna angosta del dashboard (1/4 del ancho en md+) las
-  // tarjetas no se vean abultadas. La descripción se trunca a 1 línea
-  // con `line-clamp-1` — antes "Define entregables y asigna a cursos"
-  // se partía a 2 líneas y desbalanceaba el grid.
-  return (
-    <Link to={to} className="block">
-      <Card className="hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer">
-        <CardContent className="p-3 flex items-center gap-2.5">
-          <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${color}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium leading-tight">{title}</div>
-            <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{desc}</div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
   );
 }
 

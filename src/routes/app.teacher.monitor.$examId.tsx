@@ -27,12 +27,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { toast } from "sonner";
 import {
   Clock,
@@ -77,11 +71,9 @@ import { ConversationSection } from "@/modules/grading/ConversationSection";
 import { computeIntegritySuggestion, mentionsAiPenalty } from "@/modules/exams/integrity";
 import {
   countPendingByUser,
-  rpcMarkAiReviewed,
   rpcMarkCopyReviewed,
   CollapsibleReasons,
   type IntegrityCopyPair,
-  type IntegrityAiSignal,
 } from "@/modules/exams/IntegrityReviewDialog";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
@@ -1252,17 +1244,6 @@ function ExamMonitor() {
       ),
     [aiSignalsByQuestion, similarityPairs],
   );
-  const questionLabelsForIntegrity = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const q of questions) {
-      const label =
-        `${t("exam.question")} ${q.position + 1}` +
-        (q.content ? `: ${String(q.content).slice(0, 80)}` : "");
-      map[q.id] = label;
-    }
-    return map;
-  }, [questions, t]);
-
   if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
 
   const retryMode: RetryMode = ((exam as any).retry_mode as RetryMode) ?? "last";
@@ -1270,7 +1251,6 @@ function ExamMonitor() {
     1,
     Number((exam as any).max_attempts ?? exam.course?.max_exam_attempts ?? 1) || 1,
   );
-  const gradeMax = Number(exam.course?.grade_scale_max ?? 5) || 5;
 
   // Selecciona el último intento finalizado por estudiante. "Finalizado"
   // incluye calificado, ai_revisado, entregado, sospechoso, suspendido —
@@ -1559,21 +1539,6 @@ function ExamMonitor() {
     } finally {
       setApplyingBulk(false);
     }
-  };
-
-  const toggleAiReviewedHandler = async (subId: string, currentlyReviewed: boolean) => {
-    const ok = await rpcMarkAiReviewed("exam", subId, currentlyReviewed);
-    if (ok) {
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === subId
-            ? { ...s, ai_review_at: currentlyReviewed ? null : new Date().toISOString() }
-            : s,
-        ),
-      );
-      toast.success(currentlyReviewed ? t("monitor.deleteConfirmed") : t("integrity.reviewed"));
-    }
-    return ok;
   };
 
   /**

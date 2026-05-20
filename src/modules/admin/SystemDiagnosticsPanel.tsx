@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -321,11 +320,6 @@ function MutedLine({ label, value }: { label: string; value: React.ReactNode }) 
 
 // ─── Componente principal ───────────────────────────────────────
 export function SystemDiagnosticsPanel() {
-  // Solo necesitamos `user` para audit del refresh; ya removimos el
-  // card "Autenticación" porque el admin no necesita ver su propia
-  // sesión aquí (Sistema es para infraestructura, no introspección).
-  const { user } = useAuth();
-
   const [hc, setHc] = useState<CheckResult<HealthCheckResponse>>({ state: "idle" });
   const [db, setDb] = useState<CheckResult<{ courses: number }>>({ state: "idle" });
 

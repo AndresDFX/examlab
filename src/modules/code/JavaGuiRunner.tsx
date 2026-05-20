@@ -605,17 +605,26 @@ export function JavaGuiRunner({
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
                 {mode === "aws_screenshot" ? (
-                  // Fondo CLARO (no `bg-background`). Antes el contenedor
-                  // heredaba el dark-mode oscuro y la captura de Xvfb
-                  // (que también tiene fondo oscuro X11 default) se
-                  // fundía: solo veías un cuadro borroso con el texto
-                  // del JFrame casi invisible. El blanco sólido garantiza
-                  // contraste con cualquier frame Swing, igual que un
-                  // visor de imágenes estándar (Figma, Preview, etc.).
-                  // `bg-zinc-100` en dark mode evita un blanco puro que
-                  // resulte hiriente — tono apenas más claro que el card.
-                  // El frame del JFrame queda con bordes visibles.
-                  <div className="w-full h-full bg-white dark:bg-zinc-100 rounded border overflow-auto flex items-start justify-start p-2 relative">
+                  // Fondo checkerboard sutil (patrón gris claro sobre
+                  // blanco). Antes era `bg-white` sólido pero los JFrames
+                  // Swing tienen background propio (gris claro / blanco)
+                  // y se fundían — el alumno no veía dónde empieza la
+                  // ventana. El checkerboard es el patrón estándar de
+                  // visores de imágenes (Figma, Photoshop, Preview) para
+                  // distinguir contenido del "vacío"; aquí cumple lo
+                  // mismo: el JFrame queda visualmente recortado contra
+                  // el patrón. Implementado con un linear-gradient inline
+                  // para no agregar config Tailwind nueva.
+                  <div
+                    className="w-full h-full rounded border overflow-auto flex items-start justify-start p-2 relative"
+                    style={{
+                      backgroundColor: "#f4f4f5",
+                      backgroundImage:
+                        "linear-gradient(45deg, #e4e4e7 25%, transparent 25%, transparent 75%, #e4e4e7 75%), linear-gradient(45deg, #e4e4e7 25%, transparent 25%, transparent 75%, #e4e4e7 75%)",
+                      backgroundSize: "16px 16px",
+                      backgroundPosition: "0 0, 8px 8px",
+                    }}
+                  >
                     {screenshotData?.png ? (
                       <>
                         <img
@@ -624,19 +633,17 @@ export function JavaGuiRunner({
                           className="max-w-full max-h-full object-contain"
                         />
                         {/* Banner inferior cuando el PNG es prácticamente
-                            un framebuffer vacío (~3-4KB de Xvfb sin contenido).
-                            Patrón típico: el código del estudiante hace
-                            `setVisible(true)` y main termina antes de que el
-                            EDT pinte. La JVM cierra y Xvfb queda con el frame
-                            vacío. El runner sí devuelve un PNG válido, pero
-                            es solo color de fondo sólido.
-                            Usa una banda inferior compacta semi-transparente
-                            en lugar de overlay centrado — antes tapaba la
-                            imagen, ahora deja ver lo que SÍ alcanzó a pintar
-                            (a veces el header del JFrame, el cursor, etc.). */}
+                            un framebuffer vacío. Threshold 2KB porque a
+                            800x600 incluso un JFrame pequeño con texto
+                            ya comprime a 3-4KB; subir el threshold daba
+                            falsos positivos con capturas legítimas
+                            (e.g. "Hola Mundo" centrado salía como 3.5KB
+                            y el banner aparecía incorrectamente). 2KB
+                            es prácticamente solo el background sólido
+                            de Xvfb sin ningún render Swing. */}
                         {screenshotData.exitCode === 0 &&
                           screenshotData.pngBytes > 0 &&
-                          screenshotData.pngBytes < 4000 && (
+                          screenshotData.pngBytes < 2000 && (
                             <div className="absolute inset-x-2 bottom-2 bg-amber-50/95 dark:bg-amber-950/95 border border-amber-300 dark:border-amber-700 rounded-md p-2 text-[10px] leading-snug shadow-md">
                               <p className="font-semibold text-amber-700 dark:text-amber-300">
                                 La ventana no alcanzó a pintarse — el PNG quedó casi vacío.

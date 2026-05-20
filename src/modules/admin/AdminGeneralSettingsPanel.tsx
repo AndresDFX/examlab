@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Save, Info, Settings as SettingsIcon, Mail, FileText, GraduationCap } from "lucide-react";
+import { Save, Info, Mail, FileText, GraduationCap } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;

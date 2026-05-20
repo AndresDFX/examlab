@@ -211,10 +211,6 @@ function MessagesPage() {
       return next;
     });
   };
-  const exitSelectMode = () => {
-    setSelectMode(false);
-    setSelectedMessageIds(new Set());
-  };
   // Salir del modo selección automáticamente cuando se cambia de
   // conversación — los IDs seleccionados eran de la conv anterior.
   useEffect(() => {

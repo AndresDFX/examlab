@@ -20,7 +20,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Play, X, Zap } from "lucide-react";
+import {
+  Clock,
+  Cpu,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw,
+  Play,
+  X,
+  Zap,
+  ArrowUpRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -560,10 +570,14 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                   const isCancelling = cancelling.has(j.id);
                   const isProcessingNow = processingOne.has(j.id);
                   const label = j.examTitle ?? j.workshopTitle ?? j.projectTitle ?? kindLabel;
+                  const subtitle =
+                    [j.studentName, j.courseName].filter(Boolean).join(" · ") || kindLabel;
 
-                  // Header de la fila — siempre se renderiza igual.
-                  // El estado (icono + color) cambia según pending /
-                  // processing / failed.
+                  // Header de la fila — todo en UNA línea para máxima
+                  // densidad. Antes era 2 líneas (title arriba, subtítulo
+                  // pequeño abajo) y consumía mucho alto vertical. Ahora
+                  // title + subtítulo van inline separados por " — " con
+                  // colores distintos para mantener jerarquía visual.
                   const header = (
                     <>
                       {isProcessing ? (
@@ -573,13 +587,11 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                       ) : (
                         <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
                       )}
-                      <div className="min-w-0 flex-1 text-left">
-                        <div className="truncate font-medium">
-                          {j.examTitle ?? j.workshopTitle ?? j.projectTitle ?? kindLabel}
-                        </div>
-                        <div className="truncate text-[10px] text-muted-foreground">
-                          {[j.studentName, j.courseName].filter(Boolean).join(" · ") || kindLabel}
-                        </div>
+                      <div className="min-w-0 flex-1 text-left truncate">
+                        <span className="font-medium">{label}</span>
+                        {subtitle && subtitle !== label && (
+                          <span className="text-muted-foreground"> · {subtitle}</span>
+                        )}
                       </div>
                       <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
                         {relativeAge(j.created_at)}
@@ -594,10 +606,10 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                   //   - processing → sin acciones (ya está en flight; cancelar
                   //                a mitad de fetch a Gemini deja la edge en
                   //                estado inconsistente).
-                  // La fila completa NO es clickable cuando hay botones de
-                  // acción — el click sobre el title navegaría y se perdería
-                  // el contexto. Para abrir el detalle, agregamos un botón
-                  // chico "Abrir" cuando hay route.
+                  // Botones INLINE a la derecha del header (no en línea
+                  // separada). Reduce altura de fila a 1 sola línea para
+                  // pending y 2 para failed (header + error). last_error
+                  // solo se renderiza en failed.
                   if (isFailed || isPending) {
                     const busy = isRetrying || isCancelling || isProcessingNow;
                     return (
@@ -605,83 +617,81 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                         key={j.id}
                         className={
                           isFailed
-                            ? "px-2 py-1 rounded text-[11px] bg-destructive/5 border border-destructive/20"
-                            : "px-2 py-1 rounded text-[11px] hover:bg-muted/40"
+                            ? "px-2 py-0.5 rounded text-[11px] bg-destructive/5 border border-destructive/20"
+                            : "px-2 py-0.5 rounded text-[11px] hover:bg-muted/40"
                         }
                       >
-                        <div className="flex items-center gap-2">{header}</div>
+                        <div className="flex items-center gap-2">
+                          {header}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {route && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-5 w-5"
+                                onClick={() =>
+                                  navigate({
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    to: route as any,
+                                  })
+                                }
+                                title="Abrir detalle"
+                              >
+                                <ArrowUpRight className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {isFailed && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-5 w-5"
+                                disabled={busy}
+                                onClick={() => void retryJob(j.id)}
+                                title="Reintentar"
+                              >
+                                {isRetrying ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
+                            {isPending && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-5 w-5"
+                                disabled={busy}
+                                onClick={() => void processOne(j.id)}
+                                title="Procesa este job ahora (bypass cron)"
+                              >
+                                {isProcessingNow ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <Zap className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-5 w-5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={busy}
+                              onClick={() => void cancelJob(j.id, label)}
+                              title="Cancelar"
+                            >
+                              {isCancelling ? <Spinner size="sm" /> : <X className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        </div>
                         {isFailed && j.last_error && (
                           <div
-                            className="text-[10px] text-destructive/80 mt-1 truncate"
+                            className="text-[10px] text-destructive/80 mt-0.5 truncate"
                             title={j.last_error}
                           >
                             {j.last_error}
                           </div>
                         )}
-                        <div className="flex flex-wrap justify-end gap-1 mt-1">
-                          {route && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 text-[10px] px-2"
-                              onClick={() =>
-                                navigate({
-                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  to: route as any,
-                                })
-                              }
-                            >
-                              Abrir
-                            </Button>
-                          )}
-                          {isFailed && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 text-[10px] px-2"
-                              disabled={busy}
-                              onClick={() => void retryJob(j.id)}
-                            >
-                              {isRetrying ? (
-                                <Spinner size="sm" className="mr-1" />
-                              ) : (
-                                <RefreshCw className="h-3 w-3 mr-1" />
-                              )}
-                              Reintentar
-                            </Button>
-                          )}
-                          {isPending && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 text-[10px] px-2"
-                              disabled={busy}
-                              onClick={() => void processOne(j.id)}
-                              title="Procesa este job ahora sin esperar al cron hourly"
-                            >
-                              {isProcessingNow ? (
-                                <Spinner size="sm" className="mr-1" />
-                              ) : (
-                                <Zap className="h-3 w-3 mr-1" />
-                              )}
-                              Procesar
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-[10px] px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            disabled={busy}
-                            onClick={() => void cancelJob(j.id, label)}
-                          >
-                            {isCancelling ? (
-                              <Spinner size="sm" className="mr-1" />
-                            ) : (
-                              <X className="h-3 w-3 mr-1" />
-                            )}
-                            Cancelar
-                          </Button>
-                        </div>
                       </div>
                     );
                   }

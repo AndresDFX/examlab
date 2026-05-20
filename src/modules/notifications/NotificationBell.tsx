@@ -1,7 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Bell, CheckCheck, FileText, Hammer, Award, Info, AlertTriangle } from "lucide-react";

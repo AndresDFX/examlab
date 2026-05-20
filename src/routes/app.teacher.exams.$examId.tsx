@@ -26,8 +26,6 @@ import {
   Plus,
   Sparkles,
   Trash2,
-  CheckSquare,
-  XSquare,
   FileText,
   Pencil,
   Save,
@@ -74,7 +72,9 @@ type Student = { id: string; full_name: string; institutional_email: string };
 
 function ExamEditor() {
   const { examId } = Route.useParams();
-  const { user } = useAuth();
+  // useAuth() retornaba `user` que no se usaba — confirmamos el auth
+  // implicitamente vía las llamadas a supabase con RLS.
+  useAuth();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const { t } = useTranslation();

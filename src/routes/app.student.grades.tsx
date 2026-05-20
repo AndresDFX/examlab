@@ -15,7 +15,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import {
   Select,
@@ -47,7 +46,6 @@ import {
 import { computeWeightedGrade } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { TableEmpty } from "@/components/ui/empty-state";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

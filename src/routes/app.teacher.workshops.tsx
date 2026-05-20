@@ -75,7 +75,7 @@ import {
   Eye,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { formatDate, formatPercent } from "@/shared/lib/format";
+import { formatPercent } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   useMultiSelect,

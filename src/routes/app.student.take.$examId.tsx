@@ -484,7 +484,15 @@ function TakeExam() {
       }
       setExam(e);
     })();
-  }, [examId, user, navigate]);
+    // Dep en `user?.id` y no `user` — useAuth emite un objeto nuevo en
+    // varios eventos (rehidratación de sesión, refresh de token, etc.)
+    // aunque el usuario sea el mismo. Con `user` como dep el toast de
+    // "Intento X de Y" se mostraba 2-3 veces seguidas al cargar la
+    // pantalla. Con `user?.id` solo se reevalúa cuando cambia el
+    // usuario real. `navigate` se quita de deps porque es estable
+    // referencialmente en TanStack Router y no aporta nada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examId, user?.id]);
 
   const startExam = async () => {
     if (!user || !exam) return;
@@ -865,7 +873,7 @@ function TakeExam() {
         )
       : computeSecondsLeft(exam?.end_time);
 
-  const { secondsLeft, isPaused, formattedTime, isLowTime, syncToSeconds } = useRealtimeTimer({
+  const { isPaused, formattedTime, isLowTime, syncToSeconds } = useRealtimeTimer({
     examId,
     userId: user?.id ?? "",
     initialSeconds,
@@ -998,6 +1006,53 @@ function TakeExam() {
       }
     };
 
+    // Copy/paste/cut: alerta blanda + registro para el monitor del
+    // docente, pero NO suma strike. Antes sumaba — varios docentes
+    // reportaron que es muy estricto: el alumno copia accidentalmente
+    // (Ctrl+C antes de pensar en escribir, navegar con teclado, etc.)
+    // y queda con strike sin haber hecho nada malo. Ahora le avisamos
+    // que no está permitido pero no penalizamos. El docente sigue
+    // viendo el intento en el monitor (warningEvents) para detectar
+    // patrones repetidos manualmente.
+    let lastClipboardAt = 0;
+    const recordCopyAlert = (eventType: "copiar" | "pegar" | "cortar") => {
+      if (submittedRef.current) return;
+      const now = Date.now();
+      if (now - lastClipboardAt < 800) return;
+      lastClipboardAt = now;
+
+      const msg =
+        eventType === "pegar"
+          ? "No está permitido pegar contenido durante el examen."
+          : eventType === "cortar"
+            ? "No está permitido cortar contenido durante el examen."
+            : "No está permitido copiar contenido durante el examen.";
+      toast.warning(msg);
+
+      const event = {
+        type: eventType,
+        at: new Date(now).toISOString(),
+        questionIdx: exam?.navigation_type === "secuencial" ? currentIdx : null,
+      };
+      warningEventsRef.current = [...warningEventsRef.current, event];
+
+      const updatedAnswers = {
+        ...answersRef.current,
+        __warning_events: warningEventsRef.current,
+      };
+      answersRef.current = updatedAnswers;
+      setAnswers(updatedAnswers);
+      if (submissionIdRef.current && isOnline()) {
+        supabase
+          .from("submissions")
+          .update({ answers: updatedAnswers })
+          .eq("id", submissionIdRef.current)
+          .then(({ error }) => {
+            if (error) console.error("recordCopyAlert DB save failed:", error);
+          });
+      }
+    };
+
     // Intento de pantallazo: alerta blanda + se registra para el monitor
     // del docente, pero NO suma strike. La detección es best-effort: el
     // SO suele interceptar PrintScreen, Win+Shift+S y Cmd+Shift+3/4/5
@@ -1120,10 +1175,10 @@ function TakeExam() {
       if (isInCodeEditor(e.target)) return;
       e.preventDefault();
       // Diferenciamos copy vs paste vs cut para que el monitor docente
-      // pueda mostrar la acción exacta. Las claves españolas ya existen
-      // en src/utils/proctoring.ts (copiar/pegar/cortar).
+      // pueda mostrar la acción exacta. Soft alert (sin strike) —
+      // copiar/pegar es bloqueado pero no penalizado.
       const key = e.type === "paste" ? "pegar" : e.type === "cut" ? "cortar" : "copiar";
-      recordWarning(key);
+      recordCopyAlert(key);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") e.preventDefault();

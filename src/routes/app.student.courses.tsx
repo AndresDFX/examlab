@@ -42,15 +42,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Eye } from "lucide-react";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
 import { MeetingLink } from "@/shared/components/MeetingLink";
-import {
-  classNumberFromFilename,
-  extractContentText,
-  isTeacherOnlyFile,
-  type ContentFile,
-} from "@/modules/contents/contents-extract";
+import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });

@@ -23,7 +23,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -40,9 +39,7 @@ import {
   Pencil,
   Copy,
   UserCog,
-  Search,
   CheckSquare,
-  XSquare,
   Loader2,
   ChevronDown,
   ChevronRight,
@@ -51,7 +48,6 @@ import {
   FileText,
   Hammer,
   FolderKanban,
-  Presentation,
   Link2,
   Upload,
   Download,
@@ -201,7 +197,6 @@ export function AdminCourses() {
   const [enrollCourse, setEnrollCourse] = useState<Course | null>(null);
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
-  const [enrollSearch, setEnrollSearch] = useState("");
 
   // Teacher assignment
   const [teacherOpen, setTeacherOpen] = useState(false);
@@ -558,7 +553,6 @@ export function AdminCourses() {
 
   const openEnroll = async (c: Course) => {
     setEnrollCourse(c);
-    setEnrollSearch("");
     const [{ data: profs }, { data: enr }] = await Promise.all([
       supabase.from("profiles").select("id, full_name, institutional_email").order("full_name"),
       supabase.from("course_enrollments").select("user_id").eq("course_id", c.id),
@@ -567,15 +561,6 @@ export function AdminCourses() {
     setEnrolledIds(new Set((enr ?? []).map((e: any) => e.user_id)));
     setEnrollOpen(true);
   };
-
-  const filteredProfiles = useMemo(() => {
-    if (!enrollSearch.trim()) return allProfiles;
-    const q = enrollSearch.toLowerCase();
-    return allProfiles.filter(
-      (p) =>
-        p.full_name.toLowerCase().includes(q) || p.institutional_email.toLowerCase().includes(q),
-    );
-  }, [allProfiles, enrollSearch]);
 
   const toggleEnroll = async (uid: string, checked: boolean) => {
     if (!enrollCourse) return;
@@ -2330,9 +2315,6 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           <div className="space-y-2">
             {sessions.map((s) => {
               const items = itemsForSession(s);
-              const value = s.content_id
-                ? `${s.content_id}:${s.content_class_index ?? 0}`
-                : "__none";
               const isEditing = editingId === s.id;
               return (
                 <Card key={s.id} className={isEditing ? "ring-2 ring-primary/60" : undefined}>
