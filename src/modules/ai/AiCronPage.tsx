@@ -37,6 +37,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
+import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import {
   Select,
   SelectContent,
@@ -559,6 +560,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   );
   const multi = useMultiSelect(selectableJobs);
   const [bulkOpen, setBulkOpen] = useState(false);
+  // Dialog para activar el código override de IA inmediata (pegar
+  // código → ventana sincrónica corta). Se movió desde el dashboard
+  // del docente para tenerlo junto al resto del flujo de IA.
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
   const selectedItems = useMemo(
     () =>
       selectableJobs
@@ -645,6 +650,29 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* IA inmediata (override) — antes vivía como Card en el dashboard
+          del docente. Lo movimos acá porque pertenece al mismo flujo
+          que la cola (entender qué hay pendiente → decidir si activar
+          una ventana sincrónica para procesar YA). Banner compacto
+          en lugar de Card propio para no inflar el alto del panel. */}
+      <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
+        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+        <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
+          Por defecto las calificaciones IA pasan por esta cola async. Si necesitas una nota IA{" "}
+          <strong>ahora</strong>, pídele al administrador un código y actívalo aquí — abre una
+          ventana sincrónica corta sin tocar la configuración global.
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0"
+          onClick={() => setOverrideDialogOpen(true)}
+        >
+          <Sparkles className="h-3.5 w-3.5 mr-1" />
+          Activar / gestionar IA inmediata
+        </Button>
       </div>
 
       {/* Toolbar de bulk actions — solo aparece con count>0. Reusa el
@@ -947,6 +975,12 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         extraWarning="Se cancelarán los jobs seleccionados — la cola IA no los procesará. Si una entrega necesita nota IA después, deberás encolarla manualmente."
         onConfirm={bulkCancel}
       />
+
+      {/* Dialog para activar/gestionar el código override de IA inmediata.
+          Antes vivía en el dashboard del docente; lo movimos junto a la
+          cola para que el flujo entero (ver cola → decidir → activar
+          sync) viva en el mismo módulo. */}
+      <AiOverrideDialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen} />
     </div>
   );
 }

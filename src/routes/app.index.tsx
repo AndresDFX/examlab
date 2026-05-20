@@ -14,7 +14,6 @@ import { OpenFeedbackModal } from "@/modules/grading/OpenFeedbackModal";
 import { PendingExamNotesModal } from "@/modules/exams/PendingExamNotesModal";
 import { pendingResponsesCount } from "@/modules/grading/feedback-stats";
 import { AiGradingQueueWidget } from "@/modules/ai/AiGradingQueueWidget";
-import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import {
   FileText,
   Hammer,
@@ -33,6 +32,7 @@ import {
   Bot,
   CircleCheck,
   Search,
+  Cpu,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
@@ -437,10 +437,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     openThreads: 0,
     /** Sesiones de asistencia con `session_date = today` en mis cursos. */
     todaySessions: 0,
-    /** Errores de llamada a IA disparados por este docente en la última
-     *  hora. Cuenta `audit_logs` con `action = 'ai.grading_failed'` o
-     *  `'ai.questions_generation_failed'` y `actor_id = mi user_id`. */
-    aiErrorsLastHour: 0,
+    /** Jobs pendientes en `ai_grading_queue` visibles para este docente
+     *  (RLS filtra a sus cursos). Sustituye al antiguo "Errores IA (1h)"
+     *  porque, post-refactor, los errores ahora se ven dentro del módulo
+     *  Cron → tab IA (con filtro `failed`) y la métrica accionable en el
+     *  dashboard es "cuánto trabajo IA tengo pendiente". */
+    aiPendingJobs: 0,
   });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
@@ -453,9 +455,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    *  card "Comentarios pendientes por respuesta". */
   const [pendingResponseModalOpen, setPendingResponseModalOpen] = useState(false);
   const [pendingNotesModalOpen, setPendingNotesModalOpen] = useState(false);
-  // Dialog para activar/gestionar el código override de IA inmediata —
-  // saltea la cola async durante una ventana corta.
-  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
   // Cuenta de exam_notes (notas de apoyo) en estado 'pendiente' — chuletas
   // que el estudiante subió y esperan revisión del docente. Se llama
@@ -519,22 +518,22 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // se queda en 0 aunque haya conversaciones — el usuario sabe que
       // debe publicar la migración.
       const unansweredCount = typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
-      // Conteo de errores de llamada a IA del docente en la última hora.
-      // RPC count_ai_errors_last_hour(actor_id) — si el docente acaba de
-      // calificar y el provider devolvió 429/5xx, ese error queda en
-      // audit_logs y aparece aquí. Si la migración no está aplicada o
-      // el RPC falla, el card muestra 0 sin romper.
+      // Cuenta de jobs pendientes en la cola IA visible para el docente.
+      // RLS filtra automáticamente: el docente ve los jobs de sus cursos.
+      // Reemplaza al antiguo "errores IA (1h)" — los errores quedan en
+      // el módulo Cron → tab IA con su filtro `failed`.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: aiErrCount } = await (supabase as any).rpc("count_ai_errors_last_hour", {
-        _actor_id: userId ?? null,
-      });
+      const { count: pendingAiCount } = await (supabase as any)
+        .from("ai_grading_queue")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
         unansweredMessages: unansweredCount,
         pendingMyResponse,
         openThreads: openThreadIds.length,
         todaySessions: todaySess.count ?? 0,
-        aiErrorsLastHour: typeof aiErrCount === "number" ? aiErrCount : 0,
+        aiPendingJobs: pendingAiCount ?? 0,
       });
 
       // Próximas clases: attendance_sessions del docente con
@@ -596,21 +595,17 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-violet-500 dark:text-violet-400"
           onClick={() => setPendingNotesModalOpen(true)}
         />
-        {/* Errores llamada IA (última hora): cuántos requests del docente
-            a Gemini/OpenAI/etc. fallaron en los últimos 60 min (rate
-            limit 429, key inválida, etc.). Si > 0 el cron de reintento
-            los recoge cada 30 min. Click → abre Auditoría con filtro
-            preconfigurado. */}
+        {/* Cron IA — jobs pendientes en la cola IA visible para el
+            docente (sus cursos vía RLS). Métrica accionable: cuántas
+            calificaciones IA tengo encoladas esperando turno. Click →
+            módulo Cron → tab IA para verlas y, si es urgente, procesar
+            o activar la ventana sincrónica con un código override. */}
         <Stat
-          icon={AlertTriangle}
-          label="Errores IA (1h)"
-          value={counts.aiErrorsLastHour}
-          color={
-            counts.aiErrorsLastHour > 0
-              ? "text-destructive"
-              : "text-emerald-500 dark:text-emerald-400"
-          }
-          onClick={() => void navigate({ to: "/app/teacher/audit-logs" })}
+          icon={Cpu}
+          label="Cron IA (pendientes)"
+          value={counts.aiPendingJobs}
+          color="text-indigo-500 dark:text-indigo-400"
+          onClick={() => void navigate({ to: "/app/teacher/ai-cron" })}
         />
         {/* Comentarios pendientes por respuesta del docente actual:
             threads abiertos donde el último comment lo escribió alguien
@@ -647,31 +642,11 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      {/* Cola IA + atajo "Activar IA inmediata" — el docente ve si hay
-          jobs en su cola y, si necesita una nota IA YA, pega el código
-          override que le pasó el admin para abrir ventana sincrónica. */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <AiGradingQueueWidget />
-        <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              IA inmediata (override)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Por defecto las calificaciones IA pasan por la cola async. Si necesitas una nota IA
-              ahora, pídele al administrador un código y actívalo aquí — abre una ventana
-              sincrónica corta sin tocar la configuración global.
-            </p>
-            <Button size="sm" variant="outline" onClick={() => setOverrideDialogOpen(true)}>
-              <Sparkles className="h-3.5 w-3.5 mr-1" />
-              Activar / gestionar IA inmediata
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Cron IA + IA inmediata se trasladaron al módulo Cron → tab IA.
+          El stat "Cron IA (pendientes)" de arriba reemplaza el glance
+          que daba el AiGradingQueueWidget; click en él lleva al módulo
+          completo donde el docente activa también el código override
+          si necesita IA sincrónica YA. */}
 
       {/* `flex-1 min-h-0` permite que la grid de 4 cards crezca hasta
           el final del viewport cuando no hay tarjeta de notificaciones
@@ -847,7 +822,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         onOpenChange={setPendingNotesModalOpen}
         onChange={refreshPendingExamNotes}
       />
-      <AiOverrideDialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen} />
     </div>
   );
 }
