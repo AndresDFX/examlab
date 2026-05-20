@@ -14,8 +14,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { toast } from "sonner";
-import { Award, Download, Copy, ExternalLink, Hash } from "lucide-react";
-import { formatDateLong } from "@/shared/lib/format";
+import { Award, Download, Copy, ExternalLink, Hash, Lock } from "lucide-react";
+import { formatDateLong, formatDateOnly } from "@/shared/lib/format";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 
 export const Route = createFileRoute("/app/student/certificates")({
@@ -46,6 +46,12 @@ interface CertificateRow {
   revoked_at: string | null;
   revoke_reason: string | null;
   payload_hash: string;
+  // Join con courses para chequear la fecha de fin. El estudiante solo
+  // puede descargar el PDF a partir del end_date del curso — antes
+  // alguien podía descargar el certificado en mitad del curso si el
+  // docente lo emitía por adelantado. Esto NO bloquea el link público
+  // de verificación (siempre activo) ni a docente/admin.
+  course?: { end_date: string | null } | null;
 }
 
 function StudentCertificates() {
@@ -60,7 +66,7 @@ function StudentCertificates() {
       setLoading(true);
       const { data, error } = await db
         .from("certificates")
-        .select("*")
+        .select("*, course:courses(end_date)")
         .eq("user_id", user.id)
         .order("issued_at", { ascending: false });
       if (cancelled) return;
@@ -76,7 +82,29 @@ function StudentCertificates() {
     };
   }, [user]);
 
+  /** Helper: determina si el certificado ya está disponible para
+   *  descarga del estudiante. Bloqueado mientras la fecha fin del curso
+   *  sea posterior a hoy. Si el cert NO tiene join con curso (datos
+   *  legacy o curso sin end_date configurado), permitimos descarga
+   *  por compatibilidad — no penalizamos al estudiante por config
+   *  faltante del docente.
+   *
+   *  Anclamos a 12:00 local para evitar el bug UTC -1 día con `DATE`
+   *  sin TZ — mismo patrón que `formatDateOnly`. */
+  const isUnlocked = (cert: CertificateRow): boolean => {
+    const endDate = cert.course?.end_date;
+    if (!endDate) return true;
+    const unlockMs = new Date(endDate + "T12:00:00").getTime();
+    return Date.now() >= unlockMs;
+  };
+
   const handleDownload = async (cert: CertificateRow) => {
+    if (!isUnlocked(cert)) {
+      toast.error(
+        `Aún no puedes descargar este certificado. Estará disponible desde el ${formatDateOnly(cert.course!.end_date!)}.`,
+      );
+      return;
+    }
     try {
       await downloadCertificate({
         shortCode: cert.short_code,
@@ -188,6 +216,21 @@ function StudentCertificates() {
                   </div>
                 )}
 
+                {/* Aviso de bloqueo previo a end_date — solo si no está
+                    revocado (revocado tiene prioridad visual). El link
+                    público y "Copiar link" siguen activos para que el
+                    docente/empleador pueda verificar el cert antes de
+                    que el estudiante pueda descargarlo. */}
+                {!cert.revoked_at && !isUnlocked(cert) && cert.course?.end_date && (
+                  <div className="flex items-center gap-2 rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 px-3 py-2 text-xs">
+                    <Lock className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300 shrink-0" />
+                    <span className="text-amber-900 dark:text-amber-200">
+                      Disponible para descarga desde el{" "}
+                      <strong>{formatDateOnly(cert.course.end_date)}</strong> (fin del curso).
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2 justify-end pt-1">
                   <Button size="sm" variant="outline" onClick={() => handleCopyLink(cert)}>
                     <Copy className="h-3.5 w-3.5 mr-1" />
@@ -203,14 +246,29 @@ function StudentCertificates() {
                       Abrir verificación
                     </a>
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => void handleDownload(cert)}
-                    disabled={!!cert.revoked_at}
-                  >
-                    <Download className="h-3.5 w-3.5 mr-1" />
-                    Descargar PDF
-                  </Button>
+                  {(() => {
+                    const unlocked = isUnlocked(cert);
+                    const disabled = !!cert.revoked_at || !unlocked;
+                    const lockedTooltip =
+                      !cert.revoked_at && !unlocked && cert.course?.end_date
+                        ? `Disponible desde el ${formatDateOnly(cert.course.end_date)}`
+                        : undefined;
+                    return (
+                      <Button
+                        size="sm"
+                        onClick={() => void handleDownload(cert)}
+                        disabled={disabled}
+                        title={lockedTooltip}
+                      >
+                        {!unlocked && !cert.revoked_at ? (
+                          <Lock className="h-3.5 w-3.5 mr-1" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Descargar PDF
+                      </Button>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
