@@ -155,7 +155,7 @@ export function AiCronPage({ isAdmin = false }: Props) {
       <PageHeader
         backTo="/app"
         icon={<Cpu className="h-6 w-6 text-primary" />}
-        title="Cron IA"
+        title="Cron"
         subtitle={
           isAdmin
             ? "Cola de calificación con IA y jobs de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."

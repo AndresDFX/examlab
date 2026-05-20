@@ -134,17 +134,29 @@ function flushDom(): Promise<void> {
   );
 }
 
+/** Sentinel error que indica que el run fue cancelado por el usuario
+ *  (no por un timeout interno ni por una excepción real). El caller
+ *  distingue para no mostrar un "Error: bucle infinito" cuando en
+ *  realidad el alumno pulsó Cancelar. */
+export const CANCELLED_SENTINEL = "__examlab_run_cancelled__";
+
 /**
- * Carrera entre el promise de ejecución y un timeout. Para bucles
- * infinitos en código de alumno: sin esto el botón "Ejecutar" queda
- * deshabilitado para siempre y el único recurso es recargar.
+ * Carrera entre el promise de ejecución y (a) un timeout, (b) un signal
+ * de cancelación opcional. Para bucles infinitos en código de alumno:
+ * sin esto el botón "Ejecutar" queda deshabilitado para siempre y el
+ * único recurso es recargar.
  *
  * Limitación: NO matamos la JVM. CheerpJ no expone una API para
  * cancelar; el thread sigue ejecutándose en el web worker hasta que
  * salga del bucle o el navegador lo mate por unresponsive. Pero al
- * menos liberamos el UI y el alumno puede editar y reintentar.
+ * menos liberamos el UI y el alumno puede editar y reintentar — o,
+ * con el nuevo flag de cancelación, cambiar de compilador al vuelo.
  */
-export async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+export async function withTimeout<T>(
+  p: Promise<T>,
+  ms: number,
+  signal?: AbortSignal,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(
@@ -152,8 +164,24 @@ export async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
       ms,
     );
   });
+  // Cancelación externa — el caller pasa un AbortSignal. Si ya está
+  // cancelado al entrar, rechazamos sync. Si se cancela durante el run,
+  // rechazamos con el sentinel para que el caller pueda diferenciar
+  // "cancel del usuario" de "error real" en su catch.
+  const cancelPromise = new Promise<never>((_, reject) => {
+    if (!signal) return;
+    if (signal.aborted) {
+      reject(new Error(CANCELLED_SENTINEL));
+      return;
+    }
+    signal.addEventListener(
+      "abort",
+      () => reject(new Error(CANCELLED_SENTINEL)),
+      { once: true },
+    );
+  });
   try {
-    return (await Promise.race([p, timeoutPromise])) as T;
+    return (await Promise.race([p, timeoutPromise, cancelPromise])) as T;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -256,7 +284,10 @@ function ensureHiddenDisplay(): void {
   w.__cheerpjConsoleDisplay = container;
 }
 
-export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutionResult> {
+export async function runJavaInBrowser(
+  sourceCode: string,
+  signal?: AbortSignal,
+): Promise<JavaExecutionResult> {
   const start = Date.now();
   await loadCheerpJ();
   ensureHiddenDisplay();
@@ -295,6 +326,7 @@ export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutio
         "/files/",
       ),
       DEFAULT_RUN_TIMEOUT_MS,
+      signal,
     );
     await flushDom();
     if (compileExit !== 0) {
@@ -313,6 +345,7 @@ export async function runJavaInBrowser(sourceCode: string): Promise<JavaExecutio
     const runExit = await withTimeout(
       w.cheerpjRunMain(className, classPath),
       DEFAULT_RUN_TIMEOUT_MS,
+      signal,
     );
     await flushDom();
     const runtimeLog = consoleEl.textContent ?? "";

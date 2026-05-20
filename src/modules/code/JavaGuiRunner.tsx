@@ -45,6 +45,7 @@ import {
   RotateCcw,
   Info,
   Camera,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -206,6 +207,12 @@ export function JavaGuiRunner({
   const [hasRun, setHasRun] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // AbortController para el run en curso. `cancelRun()` aborta y libera
+  // la UI inmediatamente — el worker (CheerpJ / edge Lambda) sigue
+  // corriendo en background hasta terminar, pero el estudiante puede
+  // cambiar de modo o cerrar el dialog sin esperar.
+  const abortRef = useRef<AbortController | null>(null);
+
   // Modo activo (global, desde code_execution_settings). Default 'cheerp'
   // mientras carga para no bloquear el render del editor.
   const [mode, setMode] = useState<JavaGuiMode>("cheerp");
@@ -300,22 +307,45 @@ export function JavaGuiRunner({
     setHasRun(false);
     setScreenshotData(null);
     setRunning(true);
+    // Aborter para este run. Si ya había uno previo (defensive — no
+    // debería pasar porque el botón está disabled mientras `running`),
+    // lo abortamos primero para no dejar huérfanos.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
     try {
+      // Si el usuario cancela ANTES de invocar el edge, salimos limpio.
+      if (signal.aborted) return;
       const source = valueRef.current || JAVA_GUI_STARTER;
       // questionId no lo conocemos acá (el Runner es agnóstico). Pasamos
       // un marcador para que el edge function lo loguee — el audit
       // queda con entityId="java_gui_runner_preview" lo cual es OK
       // porque la pregunta real se identifica vía submissionId si el
       // padre la propaga (futuro).
-      const { data, error: invokeErr } = await supabase.functions.invoke(
-        "execute-java-gui-screenshot",
-        {
-          body: {
-            sourceCode: source,
-            questionId: "java_gui_runner_preview",
-          },
+      const invokePromise = supabase.functions.invoke("execute-java-gui-screenshot", {
+        body: {
+          sourceCode: source,
+          questionId: "java_gui_runner_preview",
         },
-      );
+      });
+      // Race contra cancel — si el alumno pulsa Cancelar mientras el
+      // Lambda corre, abandonamos la promesa (el Lambda termina solo
+      // server-side). Liberamos UI inmediatamente.
+      const cancelPromise = new Promise<never>((_, reject) => {
+        if (signal.aborted) {
+          reject(new Error("__cancelled__"));
+          return;
+        }
+        signal.addEventListener("abort", () => reject(new Error("__cancelled__")), {
+          once: true,
+        });
+      });
+      const { data, error: invokeErr } = await (Promise.race([
+        invokePromise,
+        cancelPromise,
+      ]) as Promise<Awaited<typeof invokePromise>>);
+      if (signal.aborted) return;
       if (invokeErr || data?.error) {
         const detail = await extractEdgeError(invokeErr, data);
         throw new Error(detail || "Error generando captura");
@@ -336,9 +366,16 @@ export function JavaGuiRunner({
       });
       setHasRun(true);
     } catch (e: unknown) {
+      // Cancelación silenciosa — no mostramos error ni loggeamos.
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "__cancelled__") return;
       console.error("[JavaGuiRunner:screenshot]", e);
       setError(e instanceof Error ? e.message : "Error ejecutando Java");
     } finally {
+      // Solo desreferenciamos si el controller sigue siendo el nuestro
+      // — si cancelRun ya lo borró o un nuevo run lo sobrescribió, no
+      // tocar lo que pertenece a otra ejecución.
+      if (abortRef.current === controller) abortRef.current = null;
       setRunning(false);
     }
   };
@@ -348,7 +385,13 @@ export function JavaGuiRunner({
     setHasRun(false);
     setRunning(true);
     setLoadingCJ(true);
+    // Mismo patrón que runScreenshot: aborter dedicado al run.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
     try {
+      if (signal.aborted) return;
       await loadCheerpJ();
       setLoadingCJ(false);
       if (!displayRef.current || !consoleRef.current) {
@@ -419,12 +462,28 @@ export function JavaGuiRunner({
       }
       setHasRun(true);
     } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "__cancelled__") return;
       console.error("[JavaGuiRunner]", e);
       setError(e instanceof Error ? e.message : "Error ejecutando Java");
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setRunning(false);
       setLoadingCJ(false);
     }
+  };
+
+  /** Cancela el run en curso (si lo hay). No mata el worker remoto —
+   *  CheerpJ no tiene API de kill y el edge Lambda termina solo —
+   *  pero libera la UI para que el estudiante pueda cambiar de modo
+   *  o cerrar el dialog sin esperar. */
+  const cancelRun = () => {
+    const controller = abortRef.current;
+    if (!controller) return;
+    controller.abort();
+    abortRef.current = null;
+    setRunning(false);
+    setLoadingCJ(false);
   };
 
   const run = () => (mode === "aws_screenshot" ? runScreenshot() : runCheerp());
@@ -705,6 +764,23 @@ export function JavaGuiRunner({
           </div>
 
           <div className="flex items-center justify-end gap-2 shrink-0">
+            {/* Cancelar visible solo si hay run en curso. Liberar UI
+                permite cambiar de modo (cheerp ↔ aws_screenshot) sin
+                tener que esperar a que CheerpJ termine de descargar
+                tools.jar o a que el Lambda haga el screenshot. */}
+            {(running || loadingCJ) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                type="button"
+                onClick={cancelRun}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                title="Cancelar la ejecución actual (libera la UI sin esperar a que termine)"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Cancelar
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

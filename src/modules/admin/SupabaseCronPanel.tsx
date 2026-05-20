@@ -24,6 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { TableEmpty } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -41,6 +42,7 @@ import {
   Pencil,
   AlertTriangle,
   CheckCircle2,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -54,6 +56,10 @@ interface CronJob {
   last_run_at: string | null;
   last_status: string | null;
   last_message: string | null;
+  /** Descripción humana del propósito del job. La RPC la trae vía
+   *  LEFT JOIN con `cron_job_descriptions` — `null` si el admin no la
+   *  configuró todavía. */
+  description: string | null;
 }
 
 /** Traduce expresiones cron comunes a lenguaje natural. No pretende ser
@@ -107,6 +113,13 @@ export function SupabaseCronPanel() {
   const [editingJob, setEditingJob] = useState<CronJob | null>(null);
   const [editSchedule, setEditSchedule] = useState("");
   const [savingSchedule, setSavingSchedule] = useState(false);
+  // Dialog separado para editar la descripción humana del job. Es una
+  // edición distinta a la del schedule porque (a) el schedule es
+  // técnico/funcional y (b) la descripción es texto libre — un solo
+  // dialog combinado las mezclaba conceptualmente.
+  const [editingDesc, setEditingDesc] = useState<CronJob | null>(null);
+  const [editDescText, setEditDescText] = useState("");
+  const [savingDesc, setSavingDesc] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,7 +168,16 @@ export function SupabaseCronPanel() {
         toast.error(error.message ?? "No se pudo cambiar el estado");
         return;
       }
-      toast.success(!previous ? `"${job.jobname}" activado` : `"${job.jobname}" pausado`);
+      toast.success(
+        !previous
+          ? `"${job.jobname}" activado — aplica al próximo tick del scheduler (~1 min)`
+          : `"${job.jobname}" pausado — no se disparará en el próximo tick`,
+      );
+      // Re-fetch para confirmar contra DB que el cambio realmente se
+      // aplicó (cron.alter_job actualiza la fila inmediatamente — pero
+      // si por alguna razón el alter_job no encontró el job, queremos
+      // que la UI lo refleje en vez de mostrar el optimistic estado).
+      await load();
     } finally {
       setToggling((prev) => {
         const next = new Set(prev);
@@ -168,6 +190,37 @@ export function SupabaseCronPanel() {
   const openEdit = (job: CronJob) => {
     setEditingJob(job);
     setEditSchedule(job.schedule);
+  };
+
+  const openEditDesc = (job: CronJob) => {
+    setEditingDesc(job);
+    setEditDescText(job.description ?? "");
+  };
+
+  const saveDesc = async () => {
+    if (!editingDesc) return;
+    const trimmed = editDescText.trim();
+    if (trimmed === (editingDesc.description ?? "").trim()) {
+      setEditingDesc(null);
+      return;
+    }
+    setSavingDesc(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("admin_set_cron_job_description", {
+        _jobname: editingDesc.jobname,
+        _description: trimmed,
+      });
+      if (error) {
+        toast.error(error.message ?? "No se pudo actualizar la descripción");
+        return;
+      }
+      toast.success(`Descripción de "${editingDesc.jobname}" actualizada`);
+      setEditingDesc(null);
+      await load();
+    } finally {
+      setSavingDesc(false);
+    }
   };
 
   const saveSchedule = async () => {
@@ -188,7 +241,9 @@ export function SupabaseCronPanel() {
         toast.error(error.message ?? "No se pudo actualizar la frecuencia");
         return;
       }
-      toast.success(`Frecuencia de "${editingJob.jobname}" actualizada`);
+      toast.success(
+        `Frecuencia de "${editingJob.jobname}" actualizada — aplica al próximo tick (~1 min)`,
+      );
       setEditingJob(null);
       await load();
     } finally {
@@ -208,7 +263,9 @@ export function SupabaseCronPanel() {
             <p className="text-xs text-muted-foreground mt-1">
               Pausa, reanuda o cambia la frecuencia de los jobs programados. El SQL que ejecuta
               cada job es de solo lectura — para modificarlo, usa una migración. Las horas están
-              en UTC.
+              en UTC. <strong>Los cambios se aplican inmediatamente</strong> a la tabla{" "}
+              <code>cron.job</code>; el scheduler de pg_cron los respeta en su próximo tick (hasta
+              ~1 minuto).
             </p>
           </div>
           <Button
@@ -278,8 +335,29 @@ export function SupabaseCronPanel() {
                             <code className="font-mono">{job.schedule}</code>
                             {showsHuman && <span> · {human}</span>}
                           </div>
+                          {/* Preview de la descripción en la fila. Si no
+                              hay descripción configurada, mostramos el
+                              hint en cursiva para invitar a llenarla. */}
+                          {job.description ? (
+                            <div className="text-xs text-foreground/70 truncate mt-0.5">
+                              {job.description}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground/70 italic mt-0.5">
+                              Sin descripción — pulsa el ícono de texto para agregar una.
+                            </div>
+                          )}
                         </div>
                       </button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => openEditDesc(job)}
+                        title="Editar descripción"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -303,6 +381,24 @@ export function SupabaseCronPanel() {
                     </div>
                     {expanded && (
                       <div className="px-10 pr-3 pb-3 text-xs space-y-2 bg-muted/20 border-t">
+                        {/* Descripción ARRIBA del bloque técnico — es lo
+                            más importante para entender qué hace el job.
+                            Renderizamos como párrafo (no DetailRow) para
+                            soportar textos largos sin overflow lateral. */}
+                        {job.description ? (
+                          <div className="pt-2">
+                            <div className="text-muted-foreground mb-0.5">Descripción</div>
+                            <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                              {job.description}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="pt-2 text-muted-foreground italic">
+                            Sin descripción configurada — pulsa el ícono{" "}
+                            <FileText className="inline h-3 w-3 align-text-bottom" /> en la fila
+                            para agregar una.
+                          </div>
+                        )}
                         <DetailRow k="Job ID" v={String(job.jobid)} mono />
                         <DetailRow k="Estado" v={job.active ? "Activo" : "Pausado"} />
                         <DetailRow k="Frecuencia" v={job.schedule} mono />
@@ -412,6 +508,52 @@ export function SupabaseCronPanel() {
             </Button>
             <Button onClick={() => void saveSchedule()} disabled={savingSchedule}>
               {savingSchedule && <Spinner size="sm" className="mr-1" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog separado para editar la descripción humana. Decisión:
+          dialogs separados (no uno combinado con tabs) porque la
+          edición de schedule es operación riesgosa (afecta cuándo se
+          dispara el job) mientras que editar texto descriptivo es
+          benigno — mezclarlos invita a errores. */}
+      <Dialog
+        open={!!editingDesc}
+        onOpenChange={(open) => {
+          if (!open) setEditingDesc(null);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar descripción</DialogTitle>
+            <DialogDescription>
+              Job <strong>{editingDesc?.jobname}</strong>. La descripción ayuda a futuros admins
+              (o a ti mismo en seis meses) a saber QUÉ hace el job y qué impacto tiene pausarlo,
+              sin tener que leer el SQL.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="cron-desc">Descripción</Label>
+            <Textarea
+              id="cron-desc"
+              value={editDescText}
+              onChange={(e) => setEditDescText(e.target.value)}
+              placeholder="Ej. Cada hora drena la cola ai_grading_queue y aplica las calificaciones IA."
+              rows={6}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              Idealmente: qué hace, con qué frecuencia, y qué pasa si se pausa.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditingDesc(null)} disabled={savingDesc}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void saveDesc()} disabled={savingDesc}>
+              {savingDesc && <Spinner size="sm" className="mr-1" />}
               Guardar
             </Button>
           </DialogFooter>

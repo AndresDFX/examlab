@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, Terminal, Info } from "lucide-react";
+import { Play, Loader2, Terminal, Info, X } from "lucide-react";
 
 export type CodeLanguage = "java" | "python" | "javascript";
 
@@ -36,6 +36,14 @@ interface CodeEditorProps {
   language?: CodeLanguage;
   onLanguageChange?: (lang: CodeLanguage) => void;
   onRun?: () => void;
+  /** Si se provee + `isRunning=true`, aparece un botón "Cancelar" al
+   *  lado del de Ejecutar. Útil cuando el estudiante quiere cambiar de
+   *  compilador (ej. CheerpJ se quedó pegado descargando tools.jar) sin
+   *  esperar a que termine el run actual. La cancelación no necesariamente
+   *  mata el worker remoto (especialmente CheerpJ no expone API de kill),
+   *  pero libera la UI inmediatamente para que el alumno pueda reintentar
+   *  con otro provider. */
+  onCancel?: () => void;
   output?: string;
   isRunning?: boolean;
   readOnly?: boolean;
@@ -81,6 +89,7 @@ export function CodeEditor({
   language = "java",
   onLanguageChange,
   onRun,
+  onCancel,
   output,
   isRunning = false,
   readOnly = false,
@@ -151,20 +160,37 @@ export function CodeEditor({
           </Badge>
         )}
         {showRunButton && onRun && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onRun}
-            disabled={isRunning}
-            className="h-8 text-xs"
-          >
-            {isRunning ? (
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              <Play className="h-3 w-3 mr-1" />
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onRun}
+              disabled={isRunning}
+              className="h-8 text-xs"
+            >
+              {isRunning ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Play className="h-3 w-3 mr-1" />
+              )}
+              Ejecutar
+            </Button>
+            {/* Cancelar visible solo mientras hay un run en curso. Si
+                el caller no pasó onCancel, no lo mostramos — algunos
+                callers (review read-only, etc.) no implementan cancel. */}
+            {isRunning && onCancel && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onCancel}
+                className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                title="Cancelar la ejecución actual (libera la UI para cambiar de compilador o reintentar)"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Cancelar
+              </Button>
             )}
-            Ejecutar
-          </Button>
+          </div>
         )}
       </div>
 

@@ -46,7 +46,7 @@ import { useApprovedExamNote } from "@/modules/exams/ExamNotesManager";
 import { logEvent } from "@/shared/lib/audit";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/modules/exams/exam-session";
-import { runJavaInBrowser } from "@/modules/code/run-java";
+import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
 import { aiGradeOrEnqueue } from "@/modules/ai/ai-grading";
@@ -239,6 +239,15 @@ function TakeExam() {
   // sobreviva refresh de página mid-examen sin pedirle de nuevo al
   // estudiante elegir.
   const [runnerOverride, setRunnerOverride] = useState<Record<string, string>>({});
+
+  // AbortControllers por pregunta para soportar Cancelar ejecución.
+  // Cuando el estudiante pulsa "Cancelar", abortamos el controller y la
+  // promesa del run se resuelve con el sentinel `CANCELLED_SENTINEL`,
+  // liberando el botón. NO matamos el worker remoto (CheerpJ no expone
+  // API de kill, y el edge function ya está ejecutando server-side) —
+  // simplemente abandonamos la respuesta. Es lo más cerca que se puede
+  // llegar a "cancel" sin tener que reload.
+  const runAbortersRef = useRef<Record<string, AbortController>>({});
 
   // Carga el proveedor de ejecución de código una vez al montar (fire-and-forget).
   useEffect(() => {
@@ -1274,6 +1283,19 @@ function TakeExam() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, performSubmit, maxWarnings, requireFullscreen]);
 
+  /** Cancela un run en curso para `questionId`. No mata el worker remoto
+   *  (CheerpJ no expone API; edge function ya está corriendo server-side),
+   *  pero libera el botón "Ejecutar" para que el estudiante pueda
+   *  cambiar de compilador y reintentar sin esperar. */
+  const cancelRun = (questionId: string) => {
+    const controller = runAbortersRef.current[questionId];
+    if (!controller) return;
+    controller.abort();
+    delete runAbortersRef.current[questionId];
+    setRunningCode((prev) => ({ ...prev, [questionId]: false }));
+    toast.info("Ejecución cancelada. Puedes cambiar de compilador y reintentar.");
+  };
+
   const runCode = async (questionId: string, language: CodeLanguage) => {
     const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
     if (!code.trim()) {
@@ -1288,6 +1310,15 @@ function TakeExam() {
     const overrideForQuestion = runnerOverride[questionId];
     const provider = overrideForQuestion ?? codeExecProviderRef.current;
 
+    // Cancela cualquier run previo de esta misma pregunta (defensive —
+    // si el alumno clickea Ejecutar dos veces rápido el primero queda
+    // huérfano, pero `disabled={isRunning}` previene el doble click en
+    // el botón). Igual el cleanup es barato.
+    runAbortersRef.current[questionId]?.abort();
+    const controller = new AbortController();
+    runAbortersRef.current[questionId] = controller;
+    const { signal } = controller;
+
     setRunningCode((prev) => ({ ...prev, [questionId]: true }));
     // Limpia el output ANTES de ejecutar para que el alumno no vea el
     // resultado del run anterior mientras espera el nuevo. Aplica a
@@ -1299,11 +1330,24 @@ function TakeExam() {
 
       if (provider === "cheerp" && language === "java") {
         // CheerpJ: ejecuta Java directamente en el navegador (sin API externa ni cuota).
-        const result = await runJavaInBrowser(code);
+        const result = await runJavaInBrowser(code, signal);
         stdout = result.stdout;
         stderr = result.stderr;
       } else {
-        const { data, error } = await supabase.functions.invoke("execute-code", {
+        // Para edge functions corremos una carrera entre el invoke y
+        // un promise que rechaza cuando el signal aborta. El invoke
+        // sigue ejecutando server-side hasta que el provider responda,
+        // pero la UI ya quedó libre. Aceptable trade-off.
+        const cancelPromise = new Promise<never>((_, reject) => {
+          if (signal.aborted) {
+            reject(new Error(CANCELLED_SENTINEL));
+            return;
+          }
+          signal.addEventListener("abort", () => reject(new Error(CANCELLED_SENTINEL)), {
+            once: true,
+          });
+        });
+        const invokePromise = supabase.functions.invoke("execute-code", {
           body: {
             sourceCode: code,
             language,
@@ -1315,6 +1359,9 @@ function TakeExam() {
             ...(overrideForQuestion ? { provider: overrideForQuestion } : {}),
           },
         });
+        const { data, error } = await (Promise.race([invokePromise, cancelPromise]) as Promise<
+          Awaited<typeof invokePromise>
+        >);
         if (error) {
           // Extraemos el mensaje REAL del response body (que tiene
           // `{ error: "detalle..." }`), no el genérico
@@ -1355,6 +1402,13 @@ function TakeExam() {
       setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error ejecutando";
+      // Cancelación por el usuario: NO mostramos error ni loggeamos
+      // como error real. La UI ya quedó libre por el cancelRun handler;
+      // aquí solo silenciamos el catch para que no aparezca un toast
+      // "Error: __examlab_run_cancelled__".
+      if (msg === CANCELLED_SENTINEL) {
+        return;
+      }
       setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
       void logEvent({
         action: "code_execution_error",
@@ -1374,6 +1428,13 @@ function TakeExam() {
         },
       });
     } finally {
+      // Solo limpiamos el aborter si sigue siendo el nuestro. Si el
+      // estudiante pulsó Cancelar (cancelRun ya lo borró) o si arrancó
+      // otro run en paralelo (sobrescribió el slot), no toquemos lo
+      // que ya está en juego.
+      if (runAbortersRef.current[questionId] === controller) {
+        delete runAbortersRef.current[questionId];
+      }
       setRunningCode((prev) => ({ ...prev, [questionId]: false }));
     }
   };
@@ -1680,6 +1741,7 @@ function TakeExam() {
                       onChange={(v) => updateAnswer(q.id, v)}
                       language={lang}
                       onRun={() => runCode(q.id, lang)}
+                      onCancel={() => cancelRun(q.id)}
                       output={codeOutputs[q.id]}
                       isRunning={runningCode[q.id] ?? false}
                       showLanguageSelector={false}
