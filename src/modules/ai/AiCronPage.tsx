@@ -29,6 +29,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  useMultiSelect,
+  MultiSelectCheckbox,
+  MultiSelectHeaderCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
 import {
   Select,
@@ -544,6 +551,58 @@ function AiQueuePanel({ isAdmin = false }: Props) {
 
   const filteredCount = useMemo(() => jobs.length, [jobs]);
 
+  // Multi-select sobre los jobs visibles. La cancelación masiva solo
+  // tiene sentido para jobs en estados `pending` o `failed` (processing/
+  // done/cancelled no se cancelan). El hook deduplica automáticamente —
+  // si filtramos solo IDs cancelables al confirmar, el resto se ignora.
+  const selectableJobs = useMemo(
+    () => jobs.filter((j) => j.status === "pending" || j.status === "failed"),
+    [jobs],
+  );
+  const multi = useMultiSelect(selectableJobs);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const selectedItems = useMemo(
+    () =>
+      selectableJobs
+        .filter((j) => multi.isSelected(j.id))
+        .map((j) => {
+          const kindLabel = KIND_LABELS[j.kind] ?? j.kind;
+          const label = j.examTitle ?? j.projectTitle ?? kindLabel;
+          return { id: j.id, label };
+        }),
+    [selectableJobs, multi],
+  );
+
+  /** Cancela en paralelo todos los jobs seleccionados. Usa la misma RPC
+   *  `cancel_ai_grading_job` que el botón individual; el SECURITY DEFINER
+   *  + audit log por job se preserva. Falla loud si CUALQUIERA falla —
+   *  el BulkDeleteDialog hace toast.error y deja el modal abierto para
+   *  reintentar. Limpia la selección al final. */
+  const bulkCancel = async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).rpc("cancel_ai_grading_job", { _job_id: id }),
+      ),
+    );
+    const failures = results
+      .map((r, i) => ({ r, id: ids[i] }))
+      .filter(
+        (x) =>
+          x.r.status === "rejected" ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (x.r.status === "fulfilled" && (x.r.value as any)?.error),
+      );
+    if (failures.length > 0) {
+      throw new Error(
+        `No se pudieron cancelar ${failures.length} de ${ids.length} jobs. Reintenta.`,
+      );
+    }
+    toast.success(`${ids.length} job(s) cancelado(s)`);
+    multi.clear();
+    await load();
+  };
+
   return (
     <div className="space-y-4">
       {/* Stats — full-width 4-col en md+ */}
@@ -590,10 +649,25 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         </Card>
       </div>
 
+      {/* Toolbar de bulk actions — solo aparece con count>0. Reusa el
+          design system (MultiSelectToolbar): texto "N seleccionado(s)"
+          + botones "Limpiar selección" + "Eliminar". El handler abre
+          el dialog de confirmación que detalla qué jobs caen. */}
+      <MultiSelectToolbar
+        count={multi.count}
+        onClear={multi.clear}
+        onDelete={() => setBulkOpen(true)}
+        entityNameSingular="job"
+        entityNamePlural="jobs"
+      />
+
       {/* Filtro + listado */}
       <Card>
         <CardHeader className="pb-3 flex-row items-center justify-between gap-3 space-y-0 flex-wrap">
           <div className="flex items-center gap-2">
+            {/* Header checkbox — solo cuando hay al menos un job
+                cancelable visible. Toggle all/none de lo cancelable. */}
+            {selectableJobs.length > 0 && <MultiSelectHeaderCheckbox state={multi} />}
             <CardTitle className="text-base">Jobs en cola</CardTitle>
             <Badge variant="secondary" className="text-[10px]">
               {filteredCount}
@@ -679,6 +753,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 const subtitleParts = [j.studentName, j.courseName].filter(Boolean) as string[];
                 const busy = isRetrying || isCancelling || isProcessingNow;
 
+                const isSelectable = isPending || isFailed;
                 return (
                   <div key={j.id} className="text-sm">
                     <div
@@ -686,6 +761,15 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         isFailed ? "bg-destructive/5" : ""
                       } hover:bg-muted/40 transition-colors`}
                     >
+                      {/* Checkbox por fila — visible solo para jobs
+                          cancelables (pending/failed). Para los demás
+                          (processing/done/cancelled) un placeholder de
+                          mismo ancho mantiene la alineación de columnas. */}
+                      {isSelectable ? (
+                        <MultiSelectCheckbox id={j.id} state={multi} />
+                      ) : (
+                        <div className="w-4 shrink-0" aria-hidden="true" />
+                      )}
                       <button
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : j.id)}
@@ -850,6 +934,21 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         (Admin) usa el botón "Procesar ahora" arriba a la derecha. Si necesitas IA sincrónica en
         un flujo del docente, pídele al administrador un código override.
       </p>
+
+      {/* Dialog de confirmación para bulk cancel. Reusa BulkDeleteDialog
+          del design system — el texto y botón dicen "Eliminar" porque
+          conceptualmente cancelar un job lo saca de la cola (mismo
+          impacto). El `extraWarning` aclara que la calificación no
+          ocurrirá hasta que alguien re-encole. */}
+      <BulkDeleteDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        items={selectedItems}
+        entityNameSingular="job"
+        entityNamePlural="jobs"
+        extraWarning="Se cancelarán los jobs seleccionados — la cola IA no los procesará. Si una entrega necesita nota IA después, deberás encolarla manualmente."
+        onConfirm={bulkCancel}
+      />
     </div>
   );
 }
