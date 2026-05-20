@@ -274,7 +274,8 @@ export function CourseCertificateSettingsDialog({
                   Mensaje principal{" "}
                   <HelpHint>
                     Placeholders disponibles: <code>{"{student}"}</code>, <code>{"{course}"}</code>,{" "}
-                    <code>{"{grade}"}</code>, <code>{"{scale_max}"}</code>.
+                    <code>{"{grade}"}</code>, <code>{"{period}"}</code>, <code>{"{teacher}"}</code>,{" "}
+                    <code>{"{date}"}</code>.
                   </HelpHint>
                 </Label>
                 <Textarea

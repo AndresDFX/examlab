@@ -192,8 +192,9 @@ export function AdminCodeExecutionPanel() {
               </Badge>
             )}
             <HelpHint>
-              Define qué motor ejecuta el código de los estudiantes en preguntas tipo "código". El
-              cambio aplica de inmediato para todos los exámenes.
+              Define el motor por defecto para preguntas tipo "código". El estudiante puede elegir
+              un compilador alterno por pregunta desde el examen (caso de fallo transitorio del
+              default). El cambio aquí aplica de inmediato a las próximas ejecuciones.
             </HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">

@@ -1323,7 +1323,14 @@ export function AdminCourses() {
 
                           {isOpen && (
                             <div className="space-y-2 rounded bg-background p-2 min-w-0">
-                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
+                              {/* Pesos por bucket del corte (Talleres /
+                                  Exámenes / Proyectos / Asistencia).
+                                  Mobile-first: 1 col en xs (cada input
+                                  full-width, decimal pad cómodo), 2 en
+                                  sm, 4 en lg. Antes era grid-cols-2
+                                  sin prefijo y a 375px los labels +
+                                  inputs apenas cabían. */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
                                 <div className="min-w-0">
                                   <Label className="text-xs">Talleres %</Label>
                                   <DecimalInput

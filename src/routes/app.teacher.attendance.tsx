@@ -1323,8 +1323,10 @@ function TeacherAttendance() {
             </div>
             {/* Hora + duración — usadas por la sincronización a Google
                 Calendar para crear el evento a la hora real. Antes
-                hardcodeábamos 09:00/90min. */}
-            <div className="grid grid-cols-2 gap-2">
+                hardcodeábamos 09:00/90min. Mobile-first: 1 col en xs
+                (TimePicker + input se ven completos sin truncar), 2
+                en sm+. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <Label>
                   Hora inicio{" "}

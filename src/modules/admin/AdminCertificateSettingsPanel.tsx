@@ -230,8 +230,8 @@ export function AdminCertificateSettingsPanel() {
                 Mensaje principal{" "}
                 <HelpHint>
                   Puedes usar placeholders: <code>{"{student}"}</code>, <code>{"{course}"}</code>,{" "}
-                  <code>{"{grade}"}</code>, <code>{"{scale_max}"}</code>. Si está vacío, se usa el
-                  texto por defecto.
+                  <code>{"{grade}"}</code>, <code>{"{period}"}</code>, <code>{"{teacher}"}</code>,{" "}
+                  <code>{"{date}"}</code>. Si está vacío, se usa el texto por defecto.
                 </HelpHint>
               </Label>
               <Textarea
