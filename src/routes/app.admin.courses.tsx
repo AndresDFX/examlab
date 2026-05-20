@@ -2251,7 +2251,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                   if (editingId) setEditingId(null);
                   setDraftStartTime(e.target.value);
                 }}
-                className="h-8 text-xs w-28"
+                // w-36 (144px) — antes era w-28 (112px) y truncaba el
+                // "09:00 a. m." + icono picker que renderiza Chrome en
+                // locale es. Suficiente espacio sin ser desproporcionado.
+                className="h-8 text-xs w-36"
               />
             </div>
             <div className="space-y-1">
@@ -2266,7 +2269,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                   if (editingId) setEditingId(null);
                   setDraftDuration(Number(e.target.value) || 90);
                 }}
-                className="h-8 text-xs w-20"
+                // w-24 (96px) — antes w-20 (80px). El spinner nativo del
+                // input number consume ~20px del lado derecho; w-20 deja
+                // valores de 3 dígitos (ej. 240, 360) sin espacio visible.
+                className="h-8 text-xs w-24"
               />
             </div>
             <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
@@ -2347,7 +2353,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             type="time"
                             value={draftStartTime}
                             onChange={(e) => setDraftStartTime(e.target.value)}
-                            className="h-8 text-xs w-28"
+                            className="h-8 text-xs w-36"
                           />
                         </div>
                         <div className="space-y-1">
@@ -2359,7 +2365,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             step={5}
                             value={draftDuration}
                             onChange={(e) => setDraftDuration(Number(e.target.value) || 90)}
-                            className="h-8 text-xs w-20"
+                            className="h-8 text-xs w-24"
                           />
                         </div>
                         <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
