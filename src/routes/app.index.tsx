@@ -229,7 +229,11 @@ function AdminDashboard() {
           .eq("category", "email")
           .gte("created_at", since)
           .order("created_at", { ascending: false })
-          .limit(5),
+          // Subido de 5 a 12 — ahora la card de Correos crece a alto
+          // de viewport y se veía casi vacía con 2 eventos visibles.
+          // El render hace slice + overflow-y-auto, así que 12 eventos
+          // llenan la lista en una pantalla típica sin desbordar.
+          .limit(12),
       ]);
       setEmailStats({
         delivered: delivRes.count ?? 0,
@@ -254,11 +258,52 @@ function AdminDashboard() {
     // monitoreables desde /app/admin/audit-logs con filtros, y el
     // dashboard se reservó para info operacional accionable inmediata.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      {/* Row PRIMARIA — Cron (IA) + Correos, grow-to-fill. Los 2 cards
-          comparten en md+ una grilla 2-col que ocupa el resto del alto
-          del viewport. En mobile colapsa a 1 columna y cada card crece
-          según su contenido (no `flex-1` ahí porque dos cards apilados
-          a alto fijo te dejan sin scroll utilizable). */}
+      {/* Row PRIMARIA (arriba) — 5 mini-stats de IA (24h) como resumen
+          compacto. Llamadas / Errores / Calificaciones / Preguntas /
+          Plagio. Replica el orden del TeacherDashboard y
+          StudentDashboard donde los stats van arriba y los cards
+          accionables abajo. NO ocupan flex-1 — alto natural. */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Stat
+          icon={Sparkles}
+          label="Llamadas IA (24h)"
+          value={aiStats.callsLastHour}
+          color="text-indigo-500 dark:text-indigo-400"
+        />
+        <Stat
+          icon={AlertTriangle}
+          label="Errores IA (24h)"
+          value={aiStats.errorsLastHour}
+          color={
+            aiStats.errorsLastHour > 0
+              ? "text-destructive"
+              : "text-emerald-500 dark:text-emerald-400"
+          }
+        />
+        <Stat
+          icon={CircleCheck}
+          label="Calificaciones IA (24h)"
+          value={aiStats.gradingsLastHour}
+          color="text-emerald-500 dark:text-emerald-400"
+        />
+        <Stat
+          icon={Bot}
+          label="Preguntas IA (24h)"
+          value={aiStats.questionsGenLastHour}
+          color="text-violet-500 dark:text-violet-400"
+        />
+        <Stat
+          icon={Search}
+          label="Plagio detectado (24h)"
+          value={aiStats.plagiarismLastHour}
+          color="text-amber-500 dark:text-amber-400"
+        />
+      </div>
+
+      {/* Row SECUNDARIA (abajo) — Cron (IA) + Correos, grow-to-fill. Los
+          2 cards comparten en md+ una grilla 2-col que ocupa el resto
+          del alto del viewport. En mobile colapsa a 1 columna y cada
+          card crece según su contenido. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
         <AiGradingQueueWidget isAdmin />
 
@@ -304,7 +349,7 @@ function AdminDashboard() {
                 {emailStats.recent.length > 0 && (
                   <div className="space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
                     <p className="text-xs text-muted-foreground">Últimos eventos</p>
-                    {emailStats.recent.slice(0, 2).map((ev, i) => {
+                    {emailStats.recent.map((ev, i) => {
                       const severityColor =
                         ev.severity === "error"
                           ? "text-destructive"
@@ -347,47 +392,6 @@ function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Row SECUNDARIA — 5 mini-stats de IA (24h) como resumen compacto
-          al pie del dashboard. Llamadas / Errores / Calificaciones /
-          Preguntas / Plagio. NO ocupan flex-1 — el espacio principal es
-          para Cron + Correos que son lo accionable; estas son
-          observabilidad pasiva. */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat
-          icon={Sparkles}
-          label="Llamadas IA (24h)"
-          value={aiStats.callsLastHour}
-          color="text-indigo-500 dark:text-indigo-400"
-        />
-        <Stat
-          icon={AlertTriangle}
-          label="Errores IA (24h)"
-          value={aiStats.errorsLastHour}
-          color={
-            aiStats.errorsLastHour > 0
-              ? "text-destructive"
-              : "text-emerald-500 dark:text-emerald-400"
-          }
-        />
-        <Stat
-          icon={CircleCheck}
-          label="Calificaciones IA (24h)"
-          value={aiStats.gradingsLastHour}
-          color="text-emerald-500 dark:text-emerald-400"
-        />
-        <Stat
-          icon={Bot}
-          label="Preguntas IA (24h)"
-          value={aiStats.questionsGenLastHour}
-          color="text-violet-500 dark:text-violet-400"
-        />
-        <Stat
-          icon={Search}
-          label="Plagio detectado (24h)"
-          value={aiStats.plagiarismLastHour}
-          color="text-amber-500 dark:text-amber-400"
-        />
-      </div>
     </div>
   );
 }
