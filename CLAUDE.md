@@ -129,6 +129,14 @@ Cuatro reglas universales — aplicar siempre que se añada layout nuevo:
 | `src/lib/format.ts`                          | Helpers de formato de fechas/duraciones (es-CO)              |
 | `src/utils/proctoring.ts`                    | `MAX_WARNINGS=3`, `warningLabel`, `shouldMarkSuspicious`     |
 | `src/utils/grade.ts`                         | `computeWeightedGrade(items)` — núcleo del cálculo de notas  |
+| `src/modules/ai/AiCronPage.tsx`              | Página del módulo "Cron" con tabs IA (cola) + Supabase (pg_cron) |
+| `src/modules/ai/AiGradingQueueWidget.tsx`    | Card resumen de la cola IA (dashboard); link al módulo Cron     |
+| `src/modules/admin/SupabaseCronPanel.tsx`    | Admin: pausar/reagendar/describir jobs de pg_cron               |
+| `src/modules/code/CodeRunnerPicker.tsx`      | Selector per-pregunta del runner de código (override del default) |
+| `src/modules/code/JavaGuiRunner.tsx`         | Editor + ejecución de preguntas `java_gui` (CheerpJ / AWS shot)  |
+| `src/modules/code/run-java.ts`               | `runJavaInBrowser(src, signal?)` — Java client-side via CheerpJ  |
+| `aws/code-runner/app.py`                     | Lambda handler — modo `run` y `gui_screenshot` (Xvfb + Pillow)   |
+| `aws/code-runner/GuiBootstrap.java`          | Wrapper Java pre-compilado que evita pedir `Thread.sleep` al alumno |
 
 ---
 
@@ -283,6 +291,54 @@ Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma 
 
 `use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
 
+### Módulo Cron (Admin / Docente)
+
+Rutas: `/app/admin/ai-cron` (Admin, 2 tabs) y `/app/teacher/ai-cron` (Docente, solo cola IA). Etiqueta en sidebar: **"Cron"**. El `module_key` interno se mantiene como `ai_cron` por compat — renombrar implicaría migrar `module_visibility` + bookmarks.
+
+**Tab "IA"** (`AiCronPage.tsx` → `AiQueuePanel` interno):
+- Stats: pendientes / en proceso / fallados 24h / último éxito.
+- Filtro por estado (activos / pending / processing / failed / done / cancelled / todos).
+- Tabla de hasta 100 jobs. Por fila: panel expandible inline con id, target_table, target_row_id, intentos, error completo, fechas. Acciones: `Reintentar` (failed → pending vía `requeue_ai_grading_job`), `Procesar este job ahora` (bypass cron, invoca `ai-grading-worker` con `{ jobId }`), `Cancelar` (`cancel_ai_grading_job`).
+- Admin extra: botón global "Procesar ahora" que invoca el worker sin jobId (drena toda la cola pending).
+- Realtime: canal `ai_grading_queue_page` con debounce 800ms para evitar refresh-storm cuando el worker drena varios jobs a la vez.
+- **Resolución de títulos**: 3 pasos de lookups (submissions + project_submission_files → profiles + exams + projects). NO usar embeds PostgREST `profile:profiles!fk_...` — `submissions.user_id` apunta a `auth.users`, NO a `profiles`, y el embed falla silencioso dejando "Examen / Examen".
+- **Navegación**: TanStack file-routing necesita `navigate({ to: "/app/teacher/monitor/$examId", params: { examId } })`. URLs hand-built tipo `/app/teacher/monitor/abc-123` con `as any` **fallan silenciosas** — fue el bug original "ver detalle no abre". Plus, Admin no tiene RBAC a `/app/teacher/*` → para Admin devolvemos `null` y el detalle vive en el panel expandible.
+
+**Tab "Supabase"** (`SupabaseCronPanel.tsx`, Admin-only):
+- Lista `extensions.cron.job` vía RPC `admin_list_cron_jobs()` (que hace LEFT JOIN con `cron_job_descriptions`).
+- Por job: nombre + schedule (con traducción a lenguaje natural — `describeSchedule()` cubre patrones comunes), descripción humana, último run con su status, Switch active/pausado, ícono `FileText` para editar descripción, ícono `Pencil` para editar schedule.
+- Descripción en tabla `public.cron_job_descriptions(jobname PK, description, updated_at, updated_by)`. Seed inicial cubre los 11 jobs canónicos (migración 20260603104200). RPCs Admin-only: `admin_set_cron_job_description`, `admin_set_cron_job_active`, `admin_update_cron_job_schedule` — todas con `has_role(auth.uid(),'Admin')` + audit log.
+- **No** se permite editar el `command` (SQL) ni crear/borrar desde UI — eso queda en migraciones versionadas. Alcance: pausar / reagendar / describir.
+- **Inmediatez**: `cron.alter_job` es un UPDATE síncrono. Los cambios aplican al instante en la tabla; el scheduler de pg_cron los respeta en su próximo tick (~1 min). Los toasts y el banner del card lo aclaran. Tras toggle hacemos `await load()` para re-verificar contra DB.
+
+### Auto-sleep Java GUI runner (sin pedirle `Thread.sleep` al alumno)
+
+El estudiante escribe `JFrame f = new JFrame(); f.setVisible(true);` y termina su `main`. Sin algo que mantenga viva la JVM, Xvfb captura un framebuffer negro porque Swing no alcanzó a pintar. Pedirle al alumno que ponga `Thread.sleep(4000)` al final del main es ruido pedagógico — no es lo que evalúa la pregunta y se les olvida.
+
+- **`aws/code-runner/GuiBootstrap.java`**: wrapper que recibe `-Dexamlab.gui.mainClass=Main` y `-Dexamlab.gui.sleepMs=NNNN`, invoca el `main` del estudiante por reflection en un hilo daemon, espera `sleepMs` y hace `System.exit(0)`. Si el `main` lanza, desempaqueta `InvocationTargetException` para mostrar la causa real (NPE, etc.) y sale con code 2.
+- **Dockerfile**: `COPY GuiBootstrap.java /opt/` + `javac -d /opt` durante el build. Sin costo en runtime.
+- **`app.py`**: invoca `java -Dexamlab.gui.mainClass=Main -Dexamlab.gui.sleepMs=<delay-200> -cp tmp:/opt GuiBootstrap`. El sleep del bootstrap = `delay_ms` pedido − 200ms (margen para System.exit antes de que Python mate el proceso).
+- **Pillow BGRX (no BGRA)**: Xvfb depth-24 usa 32 bits por píxel donde el 4to byte es padding (X), no alpha. Leer como BGRA con `Image.frombytes("RGBA", ..., "raw", "BGRA")` interpretaba ese padding como alpha=0 → PNG con transparencia → el visor mostraba checkerboard a través de la ventana Swing. Usar `Image.frombytes("RGB", ..., "raw", "BGRX")` descarta el byte de padding y el PNG sale opaco. Side benefit: PNGs ~25% más chicos (3 canales vs 4).
+- **Fontconfig**: el Dockerfile hace `mkdir -p /var/cache/fontconfig && fc-cache -fv && chmod -R a+rX` en build. ENV `XDG_CACHE_HOME=/tmp` en runtime como fallback. Sin esto Swing pinta el JFrame pero sin texto (Fontconfig error: No writable cache directories).
+
+### Selector de runner por pregunta en examen (resiliencia)
+
+El admin configura UN proveedor global en `code_execution_settings`. Pero durante un examen pueden pasar fallos transitorios (Lambda cold start lento, OnlineCompiler 5xx, CheerpJ que no descarga `tools.jar`). Con UNA sola opción el estudiante pierde la pregunta.
+
+- **Backend** ([supabase/functions/execute-code/index.ts](supabase/functions/execute-code/index.ts)): acepta `provider?: string` en el body. Whitelist: `onlinecompiler / jdoodle / aws_lambda` (CheerpJ es client-side, no llega al edge). Si llega un override válido lo usa; si no, default del admin. Audit metadata registra `provider`, `default_provider`, `provider_overridden` para detectar patrones de fallo.
+- **Frontend** ([CodeRunnerPicker.tsx](src/modules/code/CodeRunnerPicker.tsx)): Select compacto sobre cada `CodeEditor` de pregunta `codigo`. Filtra opciones por lenguaje (CheerpJ solo para Java). Etiqueta "(default)" en la opción del admin; chip "Override" cuando el alumno cambia. Estado `runnerOverride: Record<questionId, provider>` en TakeExam.
+- **`JavaGuiRunner`**: Select propio al lado del badge para alternar entre `cheerp` y `aws_screenshot` sin esperar al admin.
+
+### Cancelar ejecución de código
+
+Hasta que el alumno tiene una opción para cambiar de compilador, necesita poder cancelar el run en curso. CheerpJ NO expone API para matar la JVM (corre en un Web Worker), y los edge functions siguen ejecutando server-side hasta que el provider responda. Lo que SÍ hacemos: liberar la UI inmediatamente.
+
+- **`CodeEditor`** acepta `onCancel?: () => void`. Botón `Cancelar` aparece a la derecha del de Ejecutar mientras `isRunning && onCancel`.
+- **`runJavaInBrowser(src, signal?)`** acepta `AbortSignal`. `withTimeout(p, ms, signal?)` añade `signal.addEventListener("abort", ...)` a la carrera, rechazando con el sentinel exportado `CANCELLED_SENTINEL`. El caller distingue cancelación-de-usuario de error real en su catch.
+- **TakeExam**: `runAbortersRef: Record<questionId, AbortController>`. `cancelRun(qid)` aborta el controller, limpia el slot, marca `runningCode=false`, toast informativo. `runCode` pasa el signal a CheerpJ y hace race con `cancelPromise` para el edge function (abandona la respuesta — el server termina solo). El catch silencia el sentinel.
+- **`JavaGuiRunner`**: `abortRef` interno + botón `Cancelar` en el footer del dialog cuando `running || loadingCJ`.
+- **Limitación documentada**: CheerpJ no se mata; el edge function tampoco se cancela server-side. Pero el alumno ya puede cambiar de compilador y reintentar sin esperar.
+
 ---
 
 ## Convenciones de código
@@ -295,6 +351,10 @@ Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma 
 - **Confirmaciones**: `useConfirm()`. NO Dialog custom para confirmar.
 - **Patrón de campos desactivados** (memoria de feedback): cuando un flag UI desactiva un grupo de campos, **omitirlos del INSERT/UPDATE** payload en lugar de mandar dummies. Evita errores tipo "Could not find the 'X' column in schema cache" cuando hay schema cache stale.
 - **Headers de páginas de detalle**: usar `<PageHeader backTo title subtitle actions />`. NO duplicar el patrón Volver+h1 inline.
+- **Embeds PostgREST con FKs**: `submissions.user_id` apunta a `auth.users`, NO a `profiles`. Embed tipo `profile:profiles!submissions_user_id_fkey(...)` **falla en silencio** (sin error, sin data). Si necesitas joinear submission + profile, hacer 2 queries separadas: `submissions` → IDs → `profiles.in('id', userIds)`.
+- **Navegación TanStack con params**: usar `navigate({ to: "/app/teacher/monitor/$examId", params: { examId } })`. NUNCA `navigate({ to: \`/app/teacher/monitor/${id}\` as any })` con URL interpolada — falla en silencio porque el router no matchea el patrón `$examId`.
+- **`CREATE OR REPLACE FUNCTION` y cambio de RETURNS**: si una función ya existe y cambia el row type de OUT parameters (ej. agregar una columna al `RETURNS TABLE(...)`), Postgres tira `cannot change return type of existing function`. Hay que `DROP FUNCTION IF EXISTS name(args)` antes del `CREATE`. Solo aplica cuando cambian las columnas — agregar lógica al body con misma firma sí soporta `OR REPLACE`.
+- **pg_cron**: vive en schema `extensions.cron.*` en Supabase. Las funciones de gestión (`alter_job`, `schedule`, `unschedule`) son síncronas — el UPDATE a `cron.job` aplica al instante, el scheduler lo respeta en su próximo tick (~1 min).
 
 ## Notas de git
 
