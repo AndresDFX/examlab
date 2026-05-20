@@ -397,19 +397,26 @@ def _handle_gui_screenshot(
                 else:
                     with open(fb_path, "rb") as fh:
                         fb_data = fh.read(expected_bytes)
-                    # Pillow lee bytes BGRA directo y emite PNG. El
-                    # parámetro "raw" + "BGRA" dice "estos son píxeles
-                    # crudos en orden B,G,R,A por pixel" — PIL los
-                    # reordena internamente a RGBA y luego comprime PNG.
+                    # Lectura como RGB con padding "BGRX" — Xvfb depth-24
+                    # usa 4 bytes por pixel (B, G, R, X) donde X es el
+                    # byte de padding del slot alpha pero NO un valor
+                    # alpha válido. Antes leíamos como RGBA con "BGRA" y
+                    # Pillow interpretaba ese padding como canal alpha:
+                    # los píxeles del Xvfb con X=0 quedaban transparentes
+                    # → el visor del cliente mostraba el checkerboard a
+                    # través de la ventana Swing (PNG con canal alfa
+                    # preservado en background blanco).
+                    # Forzando "BGRX" descartamos el byte de padding y
+                    # el PNG resultante es RGB sólido — todo opaco.
                     # Import diferido para que el modo `run` (que no
                     # toca GUI) no pague el costo de cargar PIL.
                     from PIL import Image  # noqa: PLC0415
                     img = Image.frombytes(
-                        "RGBA",
+                        "RGB",
                         (GUI_WIDTH, GUI_HEIGHT),
                         fb_data,
                         "raw",
-                        "BGRA",
+                        "BGRX",
                     )
                     img.save(screenshot_path, "PNG", optimize=True)
                     capture_ok = os.path.exists(screenshot_path)
