@@ -661,9 +661,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Por defecto las calificaciones IA pasan por la cola async (procesada cada hora). Si
-              necesitas una nota IA ahora, pídele al administrador un código y actívalo aquí — abre
-              una ventana sincrónica corta sin tocar la configuración global.
+              Por defecto las calificaciones IA pasan por la cola async. Si necesitas una nota IA
+              ahora, pídele al administrador un código y actívalo aquí — abre una ventana
+              sincrónica corta sin tocar la configuración global.
             </p>
             <Button size="sm" variant="outline" onClick={() => setOverrideDialogOpen(true)}>
               <Sparkles className="h-3.5 w-3.5 mr-1" />

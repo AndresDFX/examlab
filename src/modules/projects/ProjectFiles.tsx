@@ -1609,7 +1609,7 @@ export function StudentProjectTaker({
           });
         }
         toast.info(
-          `${pendingEnqueues.length} entrega(s) en cola para calificación IA — el sistema las procesa en lote cada hora.`,
+          `${pendingEnqueues.length} entrega(s) en cola para calificación IA — el sistema las procesa en lote.`,
           { duration: 8000 },
         );
       }

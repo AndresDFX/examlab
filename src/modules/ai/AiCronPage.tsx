@@ -166,7 +166,7 @@ export function AiCronPage({ isAdmin = false }: Props) {
         subtitle={
           isAdmin
             ? "Cola de calificación con IA y jobs de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."
-            : "Cola de calificación con IA. El worker corre cada hora; aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
+            : "Cola de calificación con IA. Aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
         }
       />
       {isAdmin ? (
@@ -508,9 +508,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         return;
       }
       if (d?.processed === 0) {
-        toast.info(
-          "El job ya no estaba pending — quizás el worker hourly lo levantó primero.",
-        );
+        toast.info("El job ya no estaba pending — quizás el worker lo levantó primero.");
       } else if (d?.failed > 0) {
         toast.error("El job se procesó pero falló — revisa el error en la cola.");
       } else {
@@ -929,10 +927,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        El worker corre automáticamente cada hora. Para procesar un job individual ahora usa el
-        ícono <Zap className="inline h-3 w-3 align-text-bottom" />, y para drenar toda la cola
-        (Admin) usa el botón "Procesar ahora" arriba a la derecha. Si necesitas IA sincrónica en
-        un flujo del docente, pídele al administrador un código override.
+        Para procesar un job individual ahora usa el ícono{" "}
+        <Zap className="inline h-3 w-3 align-text-bottom" />, y para drenar toda la cola (Admin) usa
+        el botón "Procesar ahora" arriba a la derecha. Si necesitas IA sincrónica en un flujo del
+        docente, pídele al administrador un código override.
       </p>
 
       {/* Dialog de confirmación para bulk cancel. Reusa BulkDeleteDialog

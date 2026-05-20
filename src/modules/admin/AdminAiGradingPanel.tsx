@@ -250,7 +250,7 @@ export function AdminAiGradingPanel() {
                 disabled={savingMode || mode === "async"}
               >
                 <Clock className="h-3.5 w-3.5 mr-1" />
-                Cola (batch — cada hora)
+                Cola (batch async)
               </Button>
               <Button
                 size="sm"
@@ -267,8 +267,8 @@ export function AdminAiGradingPanel() {
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            Cambios aquí afectan futuras calificaciones. Los jobs ya encolados se procesan en su
-            próximo turno; los ya sync no se ven afectados.
+            Cambios aquí afectan futuras calificaciones. Los jobs ya encolados se procesan cuando
+            corra el worker; los ya sync no se ven afectados.
           </p>
         </CardContent>
       </Card>

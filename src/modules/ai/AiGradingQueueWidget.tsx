@@ -317,7 +317,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
             )}
             {!isAdmin && counts.pending > 0 && (
               <Badge variant="outline" className="text-[10px] w-full justify-center py-1">
-                {counts.pending} en cola — próximo turno
+                {counts.pending} en cola
               </Badge>
             )}
             {activeRole && (

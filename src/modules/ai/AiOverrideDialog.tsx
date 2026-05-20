@@ -158,7 +158,7 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
                     primero)
                   </>
                 ) : null}
-                . Después, vuelve al modo en cola (cada hora).
+                . Después, vuelve al modo en cola.
               </p>
               <Button size="sm" variant="outline" onClick={deactivate}>
                 <Clock className="h-3.5 w-3.5 mr-1" />
@@ -168,8 +168,8 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                Si necesitas calificar con IA <strong>ya</strong> en vez de esperar al worker
-                hourly, pega el código que te dio el administrador. La ventana sincrónica dura los
+                Si necesitas calificar con IA <strong>ya</strong> en vez de esperar al worker en
+                cola, pega el código que te dio el administrador. La ventana sincrónica dura los
                 minutos que el admin haya configurado al generarlo.
               </p>
               <div>
