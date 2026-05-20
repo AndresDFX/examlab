@@ -135,11 +135,6 @@ function AdminDashboard() {
       metadata: Record<string, unknown>;
     }>;
   } | null>(null);
-  // Errores últimas 3h — severity error|critical en audit_logs.
-  const [errorStats, setErrorStats] = useState<{
-    count: number;
-    topActions: Array<{ action: string; count: number }>;
-  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -247,113 +242,37 @@ function AdminDashboard() {
           metadata: Record<string, unknown>;
         }>,
       });
-
-      // Errores últimas 3h — cualquier categoría con severity error|critical.
-      const since3h = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-      const [errCountRes, errTopRes] = await Promise.all([
-        dbAny
-          .from("audit_logs")
-          .select("id", { count: "exact", head: true })
-          .in("severity", ["error", "critical"])
-          .gte("created_at", since3h),
-        dbAny
-          .from("audit_logs")
-          .select("action")
-          .in("severity", ["error", "critical"])
-          .gte("created_at", since3h)
-          .order("created_at", { ascending: false })
-          .limit(200),
-      ]);
-      const byAction = new Map<string, number>();
-      for (const r of (errTopRes.data ?? []) as Array<{ action: string }>) {
-        byAction.set(r.action, (byAction.get(r.action) ?? 0) + 1);
-      }
-      setErrorStats({
-        count: errCountRes.count ?? 0,
-        topActions: Array.from(byAction.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-          .map(([action, count]) => ({ action, count })),
-      });
     })();
   }, []);
 
   return (
-    <>
-      {/* Cards de uso de IA — última hora.
-          Reemplazan los totales agregados (Users/Courses/Exams/etc.) que
-          aportaban poco operacionalmente. Estas métricas le dicen al
-          admin en tiempo real si el sistema de IA está sano: cuántas
-          llamadas se hicieron, cuántos errores hubo, qué se está
-          calificando o generando. Los totales antiguos siguen
-          disponibles en cada módulo respectivo. */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat
-          icon={Sparkles}
-          label="Llamadas IA (24h)"
-          value={aiStats.callsLastHour}
-          color="text-indigo-500 dark:text-indigo-400"
-        />
-        <Stat
-          icon={AlertTriangle}
-          label="Errores IA (24h)"
-          value={aiStats.errorsLastHour}
-          color={
-            aiStats.errorsLastHour > 0
-              ? "text-destructive"
-              : "text-emerald-500 dark:text-emerald-400"
-          }
-        />
-        <Stat
-          icon={CircleCheck}
-          label="Calificaciones IA (24h)"
-          value={aiStats.gradingsLastHour}
-          color="text-emerald-500 dark:text-emerald-400"
-        />
-        <Stat
-          icon={Bot}
-          label="Preguntas IA (24h)"
-          value={aiStats.questionsGenLastHour}
-          color="text-violet-500 dark:text-violet-400"
-        />
-        <Stat
-          icon={Search}
-          label="Plagio detectado (24h)"
-          value={aiStats.plagiarismLastHour}
-          color="text-amber-500 dark:text-amber-400"
-        />
-      </div>
+    // Wrapper flex-col + flex-1 + min-h-0 — espeja el patrón del
+    // TeacherDashboard. La fila PRIMARIA (Cron IA + Correos) crece hasta
+    // llenar la altura disponible del viewport; los 5 mini-stats de IA
+    // van DEBAJO como resumen compacto que no compite por altura.
+    // Antes la Errores card vivía aquí — la quitamos: los errores siguen
+    // monitoreables desde /app/admin/audit-logs con filtros, y el
+    // dashboard se reservó para info operacional accionable inmediata.
+    <div className="flex flex-col gap-4 flex-1 min-h-0">
+      {/* Row PRIMARIA — Cron (IA) + Correos, grow-to-fill. Los 2 cards
+          comparten en md+ una grilla 2-col que ocupa el resto del alto
+          del viewport. En mobile colapsa a 1 columna y cada card crece
+          según su contenido (no `flex-1` ahí porque dos cards apilados
+          a alto fijo te dejan sin scroll utilizable). */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
+        <AiGradingQueueWidget isAdmin />
 
-      {/* Cola IA full-width — Admin ve botón "Procesar ahora" para
-          drenar la cola sin esperar al cron hourly. Antes ocupaba una
-          de 3 columnas; lo extendimos a todo el ancho porque la
-          observabilidad de la cola es la métrica operacional más
-          importante en el dashboard (job pending, retries, throughput)
-          y le faltaba espacio horizontal para mostrar todo lo que tiene
-          que mostrar. La card "Ejecuciones IA" que vivía aquí se quitó
-          — duplicaba info que la cola ya expone y no aportaba acción
-          accionable distinta. */}
-      <AiGradingQueueWidget isAdmin />
-
-      {/* Grilla operacional de 2 columnas: Correos + Errores. Antes era
-          de 3 (incluía "Ejecuciones IA"); con la card removida el grid
-          se balancea a 2 cols extendidas, cada card duplica su ancho
-          horizontal en pantallas md+ — más legible. En mobile sigue
-          siendo 1 columna. `auto-rows-fr` mantiene alineación vertical. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 auto-rows-fr">
-        {/* Métricas de correo — últimas 24h. Reemplaza el bloque de
-            "Opciones rápidas" porque ese era solo un atajo duplicado del
-            sidebar. Este widget aporta info operacional real: el admin
-            ve de un vistazo si el sistema de email está sano y entra a
-            auditoría si hay fallos. */}
-        <Card className="h-full flex flex-col">
+        {/* Métricas de correo — últimas 24h. `flex flex-col min-h-0`
+            permite que el botón "Ver auditoría" quede pegado abajo y el
+            resto del contenido se acomode arriba. */}
+        <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Inbox className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
               Correos (últimas 24h)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 flex-1 flex flex-col">
+          <CardContent className="space-y-3 flex-1 flex flex-col min-h-0">
             {!emailStats ? (
               <p className="text-sm text-muted-foreground py-2">Cargando…</p>
             ) : emailStats.delivered + emailStats.skipped + emailStats.failed === 0 ? (
@@ -383,7 +302,7 @@ function AdminDashboard() {
                   />
                 </div>
                 {emailStats.recent.length > 0 && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
                     <p className="text-xs text-muted-foreground">Últimos eventos</p>
                     {emailStats.recent.slice(0, 2).map((ev, i) => {
                       const severityColor =
@@ -426,76 +345,50 @@ function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
-
-        {/* Errores últimas 3h — alerta operacional. Antes vivía en una
-            segunda fila aparte; lo movimos a la grilla principal para
-            que las 4 cards operacionales caigan en una sola fila en
-            pantallas grandes. */}
-        <Card
-          className={`h-full flex flex-col ${
-            errorStats && errorStats.count > 0 ? "border-destructive/40 bg-destructive/5" : ""
-          }`}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle
-                className={`h-4 w-4 ${
-                  errorStats && errorStats.count > 0
-                    ? "text-destructive"
-                    : "text-emerald-500 dark:text-emerald-400"
-                }`}
-              />
-              Errores (últimas 3h)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 flex-1 flex flex-col">
-            {!errorStats ? (
-              <p className="text-sm text-muted-foreground py-2">Cargando…</p>
-            ) : errorStats.count === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Sin errores ni eventos críticos. 🎉
-              </p>
-            ) : (
-              <>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold tabular-nums text-destructive">
-                    {errorStats.count}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    evento{errorStats.count === 1 ? "" : "s"} con severity error/critical
-                  </span>
-                </div>
-                {errorStats.topActions.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Top acciones</p>
-                    {errorStats.topActions.slice(0, 3).map((a) => (
-                      <div
-                        key={a.action}
-                        className="flex items-center justify-between gap-2 text-[11px] border-b last:border-b-0 pb-1"
-                      >
-                        <span className="font-mono truncate">{a.action}</span>
-                        <span className="text-muted-foreground tabular-nums shrink-0">
-                          {a.count}×
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-            <Link
-              to="/app/admin/audit-logs"
-              search={{ severity: "error" } as Record<string, unknown>}
-              className="block mt-auto"
-            >
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver auditoría de errores <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
       </div>
-    </>
+
+      {/* Row SECUNDARIA — 5 mini-stats de IA (24h) como resumen compacto
+          al pie del dashboard. Llamadas / Errores / Calificaciones /
+          Preguntas / Plagio. NO ocupan flex-1 — el espacio principal es
+          para Cron + Correos que son lo accionable; estas son
+          observabilidad pasiva. */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Stat
+          icon={Sparkles}
+          label="Llamadas IA (24h)"
+          value={aiStats.callsLastHour}
+          color="text-indigo-500 dark:text-indigo-400"
+        />
+        <Stat
+          icon={AlertTriangle}
+          label="Errores IA (24h)"
+          value={aiStats.errorsLastHour}
+          color={
+            aiStats.errorsLastHour > 0
+              ? "text-destructive"
+              : "text-emerald-500 dark:text-emerald-400"
+          }
+        />
+        <Stat
+          icon={CircleCheck}
+          label="Calificaciones IA (24h)"
+          value={aiStats.gradingsLastHour}
+          color="text-emerald-500 dark:text-emerald-400"
+        />
+        <Stat
+          icon={Bot}
+          label="Preguntas IA (24h)"
+          value={aiStats.questionsGenLastHour}
+          color="text-violet-500 dark:text-violet-400"
+        />
+        <Stat
+          icon={Search}
+          label="Plagio detectado (24h)"
+          value={aiStats.plagiarismLastHour}
+          color="text-amber-500 dark:text-amber-400"
+        />
+      </div>
+    </div>
   );
 }
 
