@@ -24,7 +24,7 @@ import {
   Award,
   MessageSquareText,
   Send,
-  Inbox,
+  Server,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -38,7 +38,9 @@ interface EnabledKinds {
   grade?: boolean;
   feedback?: boolean;
   messages?: boolean;
-  summary?: boolean;
+  /** Alertas del sistema a admins (storage threshold). Antes este kind
+   *  se emailaba sin toggle — la migración 20260603104500 lo registró. */
+  system_alerts?: boolean;
 }
 
 interface EmailSettings {
@@ -99,11 +101,11 @@ const CATEGORIES: Array<{
     color: "text-cyan-500",
   },
   {
-    key: "summary",
-    label: "Resúmenes",
-    desc: "Resumen diario del docente a las 23:00 con todo lo pendiente",
-    icon: Inbox,
-    color: "text-blue-500",
+    key: "system_alerts",
+    label: "Alertas del sistema",
+    desc: "Notificaciones a admins cuando se cruza un umbral (almacenamiento, errores, etc.). NO afecta correos transaccionales (reset de contraseña, cambio de email).",
+    icon: Server,
+    color: "text-slate-500",
   },
 ];
 

@@ -38,7 +38,9 @@ import {
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
-export const Route = createFileRoute("/app/forum/$courseId/$threadId")({ component: ThreadDetail });
+export const Route = createFileRoute("/app/forum/$courseId/$forumId/$threadId")({
+  component: ThreadDetail,
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -73,7 +75,7 @@ interface Reply {
 }
 
 function ThreadDetail() {
-  const { courseId, threadId } = Route.useParams();
+  const { courseId, forumId, threadId } = Route.useParams();
   const { user, roles } = useAuth();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -294,7 +296,8 @@ function ThreadDetail() {
       return;
     }
     toast.success("Hilo borrado");
-    navigate({ to: "/app/forum/$courseId", params: { courseId } });
+    // Volvemos a la lista de hilos del foro (no a la lista de foros).
+    navigate({ to: "/app/forum/$courseId/$forumId", params: { courseId, forumId } });
   };
 
   const deleteReply = async (replyId: string) => {
@@ -341,8 +344,8 @@ function ThreadDetail() {
   return (
     <div className="container mx-auto space-y-4 p-4 sm:p-6">
       <PageHeader
-        backTo="/app/forum/$courseId"
-        backParams={{ courseId }}
+        backTo="/app/forum/$courseId/$forumId"
+        backParams={{ courseId, forumId }}
         icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
         title={thread.title}
         subtitle={

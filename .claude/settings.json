@@ -21,7 +21,14 @@
       "Bash(gh run *)",
       "PowerShell(gh run list --workflow=deploy-edge-functions.yml --limit 5)",
       "Bash(python3 -c ' *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(grep -v \"^'$\")",
+      "Bash(cd d:/Projects/Personal/examlab && wc -l 'src/routes/app.forum.$courseId.$threadId.tsx')",
+      "Bash(cd d:/Projects/Personal/examlab && cp 'src/routes/app.forum.$courseId.$threadId.tsx' 'src/routes/app.forum.$courseId.$forumId.$threadId.tsx' && ls 'src/routes/app.forum.'*)",
+      "Bash(git rm *)"
+    ],
+    "additionalDirectories": [
+      "D:\\Projects\\Personal\\examlab\\src\\routes"
     ]
   }
 }

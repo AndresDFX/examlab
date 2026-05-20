@@ -1,11 +1,20 @@
 /**
- * Foro Q&A — listado de hilos por curso.
+ * Foros del curso — listado de los contenedores (foros) que el docente
+ * ha creado. Cada foro agrupa hilos (preguntas/respuestas) y opcionalmente
+ * está asociado a una sesión de clase.
  *
- * Quién accede: matriculados al curso + docentes del curso + admin.
- * Filtros: búsqueda por título/cuerpo, tags, "sin respuesta", "destacados".
- * Ordenamiento: actividad reciente (default), más votos, más vistos.
+ * Quién accede: matriculados + docentes del curso + admin.
+ * Quién crea foros: admin + docentes del curso (estudiantes NO).
  *
- * RLS en DB garantiza que un estudiante de otro curso no vea estos hilos.
+ * Flujo:
+ *   1. Docente crea foro con título + descripción opcional + ventana
+ *      apertura/cierre opcional + sesión asociada opcional.
+ *   2. Estudiantes ven la lista y entran a participar en cada foro.
+ *   3. Si el foro tiene ventana, los estudiantes solo pueden postear
+ *      mientras esté abierto (RLS enforza). Docente puede postear
+ *      siempre y cerrar manualmente.
+ *
+ * RLS en DB protege todo: un estudiante de otro curso no ve estos foros.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -20,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -39,70 +48,125 @@ import { toast } from "sonner";
 import {
   MessageSquareText,
   Plus,
-  Search,
-  Pin,
   Lock,
-  CheckCircle2,
-  ArrowUp,
-  MessageSquare,
+  CalendarClock,
+  ArrowRight,
+  Trash2,
+  Unlock,
 } from "lucide-react";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatDate } from "@/shared/lib/format";
 
-export const Route = createFileRoute("/app/forum/$courseId")({ component: ForumList });
+export const Route = createFileRoute("/app/forum/$courseId")({ component: ForumsList });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-interface Thread {
+interface Forum {
   id: string;
   course_id: string;
-  author_id: string | null;
+  session_id: string | null;
   title: string;
-  body: string;
-  tags: string[];
-  is_pinned: boolean;
-  is_locked: boolean;
-  official_reply_id: string | null;
-  reply_count: number;
-  upvotes: number;
-  last_activity_at: string;
+  description: string | null;
+  opens_at: string | null;
+  closes_at: string | null;
+  manually_closed_at: string | null;
   created_at: string;
-  author?: { full_name: string | null } | null;
+  thread_count?: number;
+  session?: {
+    title: string | null;
+    session_date: string;
+  } | null;
 }
 
-type SortMode = "recent" | "top" | "unanswered";
+interface Session {
+  id: string;
+  title: string | null;
+  session_date: string;
+}
 
-function ForumList() {
+/** Estado computado del foro: abierto / aún-no-abre / cerrado-auto /
+ *  cerrado-manual. Se renderiza como Badge en cada fila. */
+type ForumState =
+  | { kind: "open"; closesAt: string | null }
+  | { kind: "scheduled"; opensAt: string }
+  | { kind: "closed_auto"; closedAt: string }
+  | { kind: "closed_manual"; closedAt: string };
+
+function computeForumState(f: Forum): ForumState {
+  if (f.manually_closed_at) return { kind: "closed_manual", closedAt: f.manually_closed_at };
+  const now = Date.now();
+  if (f.opens_at && new Date(f.opens_at).getTime() > now) {
+    return { kind: "scheduled", opensAt: f.opens_at };
+  }
+  if (f.closes_at && new Date(f.closes_at).getTime() <= now) {
+    return { kind: "closed_auto", closedAt: f.closes_at };
+  }
+  return { kind: "open", closesAt: f.closes_at };
+}
+
+function ForumsList() {
   const { courseId } = Route.useParams();
-  const { user } = useAuth();
-  const [course, setCourse] = useState<{ id: string; name: string } | null>(null);
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const { user, roles } = useAuth();
+  const confirm = useConfirm();
+  const isStaff = roles.includes("Admin") || roles.includes("Docente");
 
-  // Nuevo hilo dialog
-  const [newOpen, setNewOpen] = useState(false);
+  const [course, setCourse] = useState<{ id: string; name: string } | null>(null);
+  const [forums, setForums] = useState<Forum[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form de creación (solo docente/admin)
+  const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newBody, setNewBody] = useState("");
-  const [newTagsRaw, setNewTagsRaw] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newSessionId, setNewSessionId] = useState<string>("__none__");
+  const [newOpensAt, setNewOpensAt] = useState(""); // datetime-local string
+  const [newClosesAt, setNewClosesAt] = useState("");
 
   const load = async () => {
     setLoading(true);
-    const [{ data: c }, { data: t }] = await Promise.all([
+    const [
+      { data: c },
+      { data: f },
+      { data: s },
+    ] = await Promise.all([
       db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
+      // Trae foros + conteo de hilos via group-by manual abajo
       db
-        .from("forum_threads")
+        .from("forums")
         .select(
-          "id, course_id, author_id, title, body, tags, is_pinned, is_locked, official_reply_id, reply_count, upvotes, last_activity_at, created_at, author:profiles!forum_threads_author_id_fkey(full_name)",
+          "id, course_id, session_id, title, description, opens_at, closes_at, manually_closed_at, created_at, session:attendance_sessions(title, session_date)",
         )
         .eq("course_id", courseId)
-        .order("is_pinned", { ascending: false })
-        .order("last_activity_at", { ascending: false }),
+        .order("created_at", { ascending: false }),
+      // Sesiones para el selector de "asociar a sesión" (solo si docente).
+      // No filtramos por fecha — el docente puede asociar a una sesión
+      // pasada para reabrir discusión sobre esa clase.
+      db
+        .from("attendance_sessions")
+        .select("id, title, session_date")
+        .eq("course_id", courseId)
+        .order("session_date", { ascending: false })
+        .limit(60),
     ]);
     setCourse(c as { id: string; name: string } | null);
-    setThreads((t ?? []) as Thread[]);
+    const forumRows = (f ?? []) as Forum[];
+    // Trae conteos por foro en una sola query (subselect manual).
+    if (forumRows.length > 0) {
+      const ids = forumRows.map((x) => x.id);
+      const { data: counts } = await db
+        .from("forum_threads")
+        .select("forum_id")
+        .in("forum_id", ids);
+      const byForum = new Map<string, number>();
+      for (const row of (counts ?? []) as Array<{ forum_id: string }>) {
+        byForum.set(row.forum_id, (byForum.get(row.forum_id) ?? 0) + 1);
+      }
+      for (const f of forumRows) f.thread_count = byForum.get(f.id) ?? 0;
+    }
+    setForums(forumRows);
+    setSessions((s ?? []) as Session[]);
     setLoading(false);
   };
 
@@ -111,138 +175,170 @@ function ForumList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let arr = threads.slice();
-    if (q) {
-      arr = arr.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.body.toLowerCase().includes(q) ||
-          t.tags.some((tag) => tag.toLowerCase().includes(q)),
-      );
-    }
-    if (sortMode === "top") {
-      arr.sort((a, b) =>
-        a.is_pinned !== b.is_pinned ? (a.is_pinned ? -1 : 1) : b.upvotes - a.upvotes,
-      );
-    } else if (sortMode === "unanswered") {
-      arr = arr.filter((t) => t.reply_count === 0);
-    }
-    return arr;
-  }, [threads, search, sortMode]);
+  /** Convierte string `datetime-local` (sin zona) a ISO timestamptz. */
+  const datetimeLocalToIso = (s: string): string | null => {
+    if (!s.trim()) return null;
+    // datetime-local emite "YYYY-MM-DDTHH:mm" sin zona — interpretamos
+    // como hora local del navegador, no UTC. new Date() lo respeta.
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  };
 
-  const createThread = async () => {
+  const createForum = async () => {
     if (!user) return;
     const title = newTitle.trim();
-    const body = newBody.trim();
     if (title.length < 3) {
       toast.error("El título debe tener al menos 3 caracteres");
       return;
     }
-    if (!body) {
-      toast.error("Escribe el cuerpo de la pregunta");
+    const opensAt = datetimeLocalToIso(newOpensAt);
+    const closesAt = datetimeLocalToIso(newClosesAt);
+    if (opensAt && closesAt && new Date(opensAt) >= new Date(closesAt)) {
+      toast.error("La fecha de apertura debe ser anterior a la de cierre");
       return;
     }
-    const tags = newTagsRaw
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-      .slice(0, 8);
     setCreating(true);
-    const { error } = await db.from("forum_threads").insert({
+    const { error } = await db.from("forums").insert({
       course_id: courseId,
-      author_id: user.id,
+      session_id: newSessionId === "__none__" ? null : newSessionId,
       title,
-      body,
-      tags,
+      description: newDescription.trim() || null,
+      opens_at: opensAt,
+      closes_at: closesAt,
+      created_by: user.id,
     });
     setCreating(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("Pregunta publicada");
-    setNewOpen(false);
+    toast.success("Foro creado");
+    setCreateOpen(false);
     setNewTitle("");
-    setNewBody("");
-    setNewTagsRaw("");
+    setNewDescription("");
+    setNewSessionId("__none__");
+    setNewOpensAt("");
+    setNewClosesAt("");
     await load();
   };
+
+  const toggleClosed = async (forum: Forum) => {
+    const isClosed = !!forum.manually_closed_at;
+    const action = isClosed ? "reabrir" : "cerrar";
+    const ok = await confirm({
+      title: `¿${isClosed ? "Reabrir" : "Cerrar"} el foro?`,
+      description: isClosed
+        ? `Los estudiantes podrán volver a publicar y responder en "${forum.title}".`
+        : `Los estudiantes ya NO podrán publicar ni responder en "${forum.title}" hasta que lo reabras. Tú y otros docentes sí pueden seguir interactuando.`,
+      tone: isClosed ? "default" : "warning",
+      confirmLabel: isClosed ? "Reabrir" : "Cerrar",
+    });
+    if (!ok) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("toggle_forum_closed", {
+      _forum_id: forum.id,
+      _close: !isClosed,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Foro ${action === "cerrar" ? "cerrado" : "reabierto"}`);
+    await load();
+  };
+
+  const deleteForum = async (forum: Forum) => {
+    const ok = await confirm({
+      title: "¿Eliminar este foro?",
+      description: `Se eliminarán "${forum.title}" y TODOS sus hilos y respuestas (${forum.thread_count ?? 0} hilos). Esta acción no se puede deshacer.`,
+      tone: "destructive",
+      confirmLabel: "Eliminar",
+    });
+    if (!ok) return;
+    const { error } = await db.from("forums").delete().eq("id", forum.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Foro eliminado");
+    await load();
+  };
+
+  const sortedForums = useMemo(() => {
+    // Foros abiertos arriba, luego programados, luego cerrados.
+    const order = { open: 0, scheduled: 1, closed_auto: 2, closed_manual: 2 } as const;
+    return forums.slice().sort((a, b) => {
+      const sa = computeForumState(a).kind;
+      const sb = computeForumState(b).kind;
+      if (order[sa] !== order[sb]) return order[sa] - order[sb];
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [forums]);
 
   return (
     <div className="container mx-auto space-y-5 p-4 sm:p-6">
       <PageHeader
         backTo="/app"
         icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
-        title={course ? `Foro · ${course.name}` : "Foro"}
-        subtitle="Pregunta, responde, marca lo útil. Tu docente puede destacar respuestas oficiales."
+        title={course ? `Foros · ${course.name}` : "Foros"}
+        subtitle="Espacios de discusión asíncrona por curso. Tu docente crea los foros y los estudiantes participan."
         actions={
-          <Button size="sm" onClick={() => setNewOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nueva pregunta
-          </Button>
+          isStaff ? (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nuevo foro
+            </Button>
+          ) : undefined
         }
       />
-
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[180px] sm:min-w-48">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por título, cuerpo o tag…"
-                className="pl-8"
-              />
-            </div>
-            <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-              <SelectTrigger className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Actividad reciente</SelectItem>
-                <SelectItem value="top">Más votados</SelectItem>
-                <SelectItem value="unanswered">Sin respuesta</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
 
       {loading ? (
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> Cargando hilos…
+            <Spinner size="md" /> Cargando foros…
           </CardContent>
         </Card>
-      ) : filtered.length === 0 ? (
+      ) : sortedForums.length === 0 ? (
         <Card>
           <CardContent className="p-0">
             <TableEmpty
-              title={search ? "Sin resultados" : "Aún no hay preguntas"}
-              description={
-                search
-                  ? "Ajusta el buscador o cambia el ordenamiento."
-                  : "Sé el primero en preguntar — tu docente y compañeros podrán responder."
-              }
               icon={MessageSquareText}
+              title="Aún no hay foros en este curso"
+              description={
+                isStaff
+                  ? "Crea el primer foro para que los estudiantes empiecen a discutir."
+                  : "Tu docente abrirá uno cuando quiera iniciar una discusión."
+              }
+              action={
+                isStaff ? (
+                  <Button size="sm" onClick={() => setCreateOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Crear primer foro
+                  </Button>
+                ) : undefined
+              }
             />
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
-          {filtered.map((t) => (
-            <ThreadCard key={t.id} thread={t} courseId={courseId} />
+          {sortedForums.map((forum) => (
+            <ForumRow
+              key={forum.id}
+              forum={forum}
+              courseId={courseId}
+              isStaff={isStaff}
+              onToggleClosed={() => void toggleClosed(forum)}
+              onDelete={() => void deleteForum(forum)}
+            />
           ))}
         </div>
       )}
 
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nueva pregunta</DialogTitle>
+            <DialogTitle>Nuevo foro</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -250,37 +346,73 @@ function ForumList() {
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="¿Cuál es tu duda? Sé concreto."
+                placeholder="Ej: Dudas sobre el parcial 1"
                 maxLength={200}
               />
             </div>
             <div>
-              <Label required>Cuerpo</Label>
+              <Label>Descripción</Label>
               <Textarea
-                value={newBody}
-                onChange={(e) => setNewBody(e.target.value)}
-                placeholder="Describe tu pregunta. Soporta Markdown."
-                rows={8}
-                maxLength={20000}
-                className="font-mono text-sm"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="Opcional. Reglas, temas a tratar, contexto…"
+                rows={3}
+                maxLength={5000}
               />
             </div>
             <div>
-              <Label>Tags (separados por coma)</Label>
-              <Input
-                value={newTagsRaw}
-                onChange={(e) => setNewTagsRaw(e.target.value)}
-                placeholder="recursividad, parcial1, java"
-              />
+              <Label>Asociar a sesión</Label>
+              <Select value={newSessionId} onValueChange={setNewSessionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin sesión asociada" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin sesión asociada</SelectItem>
+                  {sessions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {formatDate(s.session_date)}
+                      {s.title ? ` · ${s.title}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Útil cuando el foro corresponde a una clase específica. Si la sesión se elimina,
+                el foro sigue existiendo (solo pierde el vínculo).
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label>Apertura (opcional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={newOpensAt}
+                  onChange={(e) => setNewOpensAt(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vacío = abierto desde ya.
+                </p>
+              </div>
+              <div>
+                <Label>Cierre automático (opcional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={newClosesAt}
+                  onChange={(e) => setNewClosesAt(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vacío = sin cierre. Puedes cerrarlo manualmente cuando quieras.
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setNewOpen(false)}>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => void createThread()} disabled={creating}>
+            <Button onClick={() => void createForum()} disabled={creating}>
               {creating ? <Spinner size="sm" className="mr-1" /> : null}
-              Publicar
+              Crear foro
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -289,67 +421,128 @@ function ForumList() {
   );
 }
 
-function ThreadCard({ thread, courseId }: { thread: Thread; courseId: string }) {
-  const isResolved = !!thread.official_reply_id;
+function ForumRow({
+  forum,
+  courseId,
+  isStaff,
+  onToggleClosed,
+  onDelete,
+}: {
+  forum: Forum;
+  courseId: string;
+  isStaff: boolean;
+  onToggleClosed: () => void;
+  onDelete: () => void;
+}) {
+  const state = computeForumState(forum);
+  const isClosed = state.kind !== "open";
+
   return (
-    <Card
-      className={
-        thread.is_pinned ? "border-indigo-500/40 bg-indigo-500/5" : undefined
-      }
-    >
+    <Card className={isClosed ? "opacity-90" : undefined}>
       <CardContent className="p-3 sm:p-4">
-        <Link
-          to="/app/forum/$courseId/$threadId"
-          params={{ courseId, threadId: thread.id }}
-          className="block hover:opacity-90"
-        >
-          <div className="flex items-start gap-3">
-            <div className="shrink-0 flex flex-col items-center gap-0.5 w-12 text-muted-foreground">
-              <ArrowUp className="h-3.5 w-3.5" />
-              <span className="text-xs font-medium tabular-nums">{thread.upvotes}</span>
-              <MessageSquare className="h-3.5 w-3.5 mt-1" />
-              <span className="text-xs font-medium tabular-nums">{thread.reply_count}</span>
+        <div className="flex items-start gap-3 flex-wrap">
+          <Link
+            to="/app/forum/$courseId/$forumId"
+            params={{ courseId, forumId: forum.id }}
+            className="flex-1 min-w-0 hover:opacity-90"
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-sm truncate">{forum.title}</h3>
+              <ForumStateBadge state={state} />
+              {forum.session && (
+                <Badge variant="secondary" className="text-[10px]">
+                  <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
+                  Sesión {formatDate(forum.session.session_date)}
+                  {forum.session.title ? ` · ${forum.session.title}` : ""}
+                </Badge>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                {thread.is_pinned && (
-                  <Badge variant="outline" className="text-[10px] text-indigo-700 dark:text-indigo-300 border-indigo-500/40">
-                    <Pin className="h-2.5 w-2.5 mr-0.5" />
-                    Fijado
-                  </Badge>
-                )}
-                {thread.is_locked && (
-                  <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40">
-                    <Lock className="h-2.5 w-2.5 mr-0.5" />
-                    Cerrado
-                  </Badge>
-                )}
-                {isResolved && (
-                  <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10">
-                    <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-                    Resuelto
-                  </Badge>
-                )}
-                <h3 className="font-semibold text-sm truncate">{thread.title}</h3>
-              </div>
-              <div className="text-xs text-muted-foreground mt-1 line-clamp-2 prose-sm">
-                <MarkdownInline>{thread.body.slice(0, 200)}</MarkdownInline>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                {thread.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="text-[10px]">
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-2">
-                {thread.author?.full_name ?? "Anónimo"} · última actividad{" "}
-                {formatDateTime(thread.last_activity_at)}
-              </div>
+            {forum.description && (
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                {forum.description}
+              </p>
+            )}
+            <div className="text-[11px] text-muted-foreground mt-2">
+              {forum.thread_count ?? 0} hilo{forum.thread_count === 1 ? "" : "s"} · creado{" "}
+              {formatDateTime(forum.created_at)}
             </div>
+          </Link>
+          <div className="flex items-center gap-1 shrink-0">
+            {isStaff && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onToggleClosed}
+                  title={forum.manually_closed_at ? "Reabrir foro" : "Cerrar foro manualmente"}
+                >
+                  {forum.manually_closed_at ? (
+                    <Unlock className="h-3.5 w-3.5" />
+                  ) : (
+                    <Lock className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onDelete}
+                  title="Eliminar foro"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+            <Link
+              to="/app/forum/$courseId/$forumId"
+              params={{ courseId, forumId: forum.id }}
+            >
+              <Button size="sm" variant="outline">
+                Entrar
+                <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </Link>
           </div>
-        </Link>
+        </div>
       </CardContent>
     </Card>
   );
+}
+
+function ForumStateBadge({ state }: { state: ForumState }) {
+  switch (state.kind) {
+    case "open":
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+        >
+          Abierto
+          {state.closesAt && <span className="ml-1">· cierra {formatDateTime(state.closesAt)}</span>}
+        </Badge>
+      );
+    case "scheduled":
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/10"
+        >
+          Programado · abre {formatDateTime(state.opensAt)}
+        </Badge>
+      );
+    case "closed_auto":
+      return (
+        <Badge variant="outline" className="text-[10px]">
+          <Lock className="h-2.5 w-2.5 mr-0.5" />
+          Cerrado (auto) · {formatDateTime(state.closedAt)}
+        </Badge>
+      );
+    case "closed_manual":
+      return (
+        <Badge variant="outline" className="text-[10px]">
+          <Lock className="h-2.5 w-2.5 mr-0.5" />
+          Cerrado · {formatDateTime(state.closedAt)}
+        </Badge>
+      );
+  }
 }

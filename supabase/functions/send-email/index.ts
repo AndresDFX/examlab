@@ -292,12 +292,27 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: true, sent: false, reason: "globally_disabled" });
     }
     // Mapeo notification.kind/link → categoría visible en el config.
-    // Los mensajes 1-a-1 vienen como kind='info' con link de /messages;
-    // los exponemos como 'messages' en el toggle del admin.
+    //
+    //   `info` + /app/messages%        → "messages"        (chat interno)
+    //   `system` + /app/admin/system%  → "system_alerts"   (alertas a
+    //                                                       admins: storage threshold,
+    //                                                       agregado en migración
+    //                                                       20260603104500)
+    //   `system` + /auth/reset-password o /auth/confirm-email-change
+    //                                  → SIN toggle (transaccional —
+    //                                                el usuario pierde
+    //                                                acceso si se apaga)
+    //   resto                          → `row.kind` directo
     const isMessage = row.kind === "info" && row.link?.startsWith("/app/messages");
-    const categoryKey = isMessage ? "messages" : row.kind;
+    const isSystemAlert = row.kind === "system" && row.link?.startsWith("/app/admin/system");
+    const isTransactional =
+      row.kind === "system" &&
+      (row.link?.startsWith("/auth/reset-password") ||
+        row.link?.startsWith("/auth/confirm-email-change"));
+    const categoryKey = isMessage ? "messages" : isSystemAlert ? "system_alerts" : row.kind;
     const enabledKinds = settings.enabled_kinds ?? {};
-    if (enabledKinds[categoryKey] === false) {
+    // Transaccionales NO respetan el toggle — siempre se envían.
+    if (!isTransactional && enabledKinds[categoryKey] === false) {
       await markSkipped(notificationId, `kind_disabled:${categoryKey}`);
       await auditEmail(notificationId, "email.skipped", "info", {
         reason: "kind_disabled",
