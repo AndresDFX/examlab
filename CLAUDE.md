@@ -355,6 +355,41 @@ Hasta que el alumno tiene una opción para cambiar de compilador, necesita poder
 - **Navegación TanStack con params**: usar `navigate({ to: "/app/teacher/monitor/$examId", params: { examId } })`. NUNCA `navigate({ to: \`/app/teacher/monitor/${id}\` as any })` con URL interpolada — falla en silencio porque el router no matchea el patrón `$examId`.
 - **`CREATE OR REPLACE FUNCTION` y cambio de RETURNS**: si una función ya existe y cambia el row type de OUT parameters (ej. agregar una columna al `RETURNS TABLE(...)`), Postgres tira `cannot change return type of existing function`. Hay que `DROP FUNCTION IF EXISTS name(args)` antes del `CREATE`. Solo aplica cuando cambian las columnas — agregar lógica al body con misma firma sí soporta `OR REPLACE`.
 - **pg_cron**: vive en schema `extensions.cron.*` en Supabase. Las funciones de gestión (`alter_job`, `schedule`, `unschedule`) son síncronas — el UPDATE a `cron.job` aplica al instante, el scheduler lo respeta en su próximo tick (~1 min).
+- **Errores de Supabase en `toast.error`**: NO usar `toast.error(error.message)` — los mensajes vienen en inglés técnico (`"duplicate key value violates unique constraint..."`). Usar `toast.error(friendlyError(error))` de `@/shared/lib/db-errors`, que traduce códigos SQLSTATE comunes (23503, 23502, 23514, 42501, P0001, PGRST116, etc.) + patrones de red/auth a español. Aplicar también en `catch (e) { toast.error(friendlyError(e)) }`. Para mensajes de `RAISE EXCEPTION` desde funciones SQL, P0001 deja pasar el mensaje original — escribir esos RAISEs en español.
+
+## Política de comentarios
+
+Esto codifica los criterios que usamos para decidir qué comentarios escribir, qué borrar y qué dejar en paz. Pensado para reducir ruido sin perder contexto load-bearing.
+
+**Escribir un comentario solo cuando el WHY no es derivable del código:**
+- Un workaround a un bug externo (ej. `BGRX` en Pillow porque Xvfb depth-24 expone padding como alpha)
+- Una decisión arquitectónica que tiene alternativas obvias y las descartamos (ej. "duplicado a propósito acá para no acoplar 2 rutas sobre concepto puramente UI")
+- Una invariante que cruza archivos / lenguajes (ver lista abajo)
+- Una restricción de dominio/negocio que no es evidente de leer el código
+
+**NO escribir comentarios para:**
+- Lo que el código bien-nombrado ya dice (`// guarda en state` antes de `setX(value)`)
+- Archaeology de cambios pasados ("Antes era X, ahora Y") cuando X ya no aporta WHY al Y actual
+- TODOs hipotéticos sin owner ni timeframe
+- Reseñar lo que el commit ya documenta
+
+**Invariantes cross-file que deben mantenerse en sincronía** (cada extremo apunta al otro):
+
+| Archivos | Qué debe coincidir | Riesgo si divergen |
+|---|---|---|
+| `src/modules/attendance/attendance-code.ts` ↔ `supabase/migrations/20260507100100_attendance_check_in_pgcrypto_fix.sql` (`compute_attendance_code`) | Cálculo TOTP-like (sha256 + 7 hex + mod 1M + pad 6) | Docente y server difieren → check-in rechazado |
+| `src/modules/notifications/notification-email.ts` ↔ `supabase/functions/send-email/index.ts` (`shouldSendEmail` interno) ↔ SQL `_notification_kind_emails` | Predicado "este kind+link emaila" | Emails se mandan / no mandan inconsistentemente |
+| `src/routes/app.forum.$courseId.tsx` (`computeForumState`) ↔ `src/routes/app.forum.$courseId.$forumId.tsx` (`isForumOpen`) ↔ SQL `public.is_forum_open()` | Predicado "foro abierto" | UI dice abierto pero RLS rechaza el INSERT, o viceversa |
+| `src/shared/lib/format.ts` | LOCALE = "es-CO" hardcoded | App se ve distinta según OS del usuario (lo que originó la centralización) |
+
+**Archivos donde no se debe explicar más de lo que ya está:**
+- `routeTree.gen.ts` — autogenerado por TanStack, no tocar
+- Migraciones SQL deployadas — son inmutables en el modelo Lovable. Comentarios nuevos no llegan a la DB; solo sirven a quien lea source.
+
+**Cosas que SÍ están bien documentadas en CLAUDE.md (no duplicar inline)**:
+- Mobile-first grids, design system, helpers de formato
+- Convenciones de código (esta sección + las anteriores)
+- Patrones específicos por feature (foros, cron, AI grading, etc.)
 
 ## Notas de git
 

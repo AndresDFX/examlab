@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Award, Save, Info, ImageIcon, FileSignature } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -53,7 +54,7 @@ export function AdminCertificateSettingsPanel() {
     setLoading(true);
     const { data, error } = await db.from("certificate_settings").select("*").maybeSingle();
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -89,7 +90,7 @@ export function AdminCertificateSettingsPanel() {
         })
         .eq("id", row.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({

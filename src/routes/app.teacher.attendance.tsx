@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Select,
   SelectContent,
@@ -366,7 +367,7 @@ function TeacherAttendance() {
       recording_video_id: newRecordingVideoId || null,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Sesión creada correctamente");
@@ -400,7 +401,7 @@ function TeacherAttendance() {
       })
       .eq("id", recordingEditSession.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setSessions((prev) =>
@@ -428,7 +429,7 @@ function TeacherAttendance() {
       .update({ cut_id: cutId })
       .eq("id", sessionId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, cut_id: cutId } : s)));
@@ -456,7 +457,7 @@ function TeacherAttendance() {
       .update({ content_id, content_class_index })
       .eq("id", sessionId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setSessions((prev) =>
@@ -471,7 +472,7 @@ function TeacherAttendance() {
       if (!existing) return;
       const { error } = await supabase.from("attendance_records").delete().eq("id", existing.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setRecords((prev) => prev.filter((r) => r.id !== existing.id));
@@ -483,7 +484,7 @@ function TeacherAttendance() {
         .update({ status })
         .eq("id", existing.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setRecords((prev) => prev.map((r) => (r.id === existing.id ? { ...r, status } : r)));
@@ -498,7 +499,7 @@ function TeacherAttendance() {
         .select()
         .single();
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       if (data) setRecords((prev) => [...prev, data as Record_]);
@@ -546,7 +547,7 @@ function TeacherAttendance() {
       .delete()
       .eq("session_id", sessionId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Asistencia de la sesión reiniciada");
@@ -677,7 +678,7 @@ function TeacherAttendance() {
         p_rotation_seconds: checkInRotation,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       // RPC retorna { ok, seed, rotation_seconds, opened_at, closes_at } o { ok:false, error }
@@ -747,7 +748,7 @@ function TeacherAttendance() {
       .eq("session_id", sess.id)
       .maybeSingle();
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     // Sesión inconsistente: check_in_open=true pero no hay state. Limpiar
@@ -814,7 +815,7 @@ function TeacherAttendance() {
       p_session_id: closedSessionId,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     const result = data as { ok: boolean; marked_absent?: number; error?: string };
@@ -855,7 +856,7 @@ function TeacherAttendance() {
     if (!ok) return;
     const { error } = await supabase.from("attendance_sessions").delete().eq("id", id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success(t("attendance.sessionDeleted"));

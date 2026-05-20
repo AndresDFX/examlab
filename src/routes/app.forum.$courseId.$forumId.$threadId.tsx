@@ -37,6 +37,7 @@ import {
   Save,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId/$threadId")({
   component: ThreadDetail,
@@ -194,12 +195,28 @@ function ThreadDetail() {
 
   const toggleLock = async () => {
     if (!thread) return;
+    // Confirmación simétrica al `toggleClosed` del foro-contenedor:
+    // ambas direcciones piden confirm, con tono y mensaje distintos.
+    //   - Cerrar (warning): impacta a estudiantes (RLS bloquea su INSERT).
+    //   - Reabrir (default): trivialmente seguro, pero confirm sigue el
+    //     mismo patrón para que el docente no se confunda viendo distinto
+    //     comportamiento en el toggle del foro vs el del hilo.
+    const isLocked = thread.is_locked;
+    const ok = await confirm({
+      title: isLocked ? "¿Reabrir este hilo?" : "¿Cerrar este hilo?",
+      description: isLocked
+        ? "Los estudiantes podrán volver a responder en este hilo."
+        : "Los estudiantes no podrán publicar más respuestas. Tú y otros docentes sí pueden seguir respondiendo. Reabrirlo es inmediato.",
+      tone: isLocked ? "default" : "warning",
+      confirmLabel: isLocked ? "Reabrir" : "Cerrar",
+    });
+    if (!ok) return;
     const { error } = await db
       .from("forum_threads")
       .update({ is_locked: !thread.is_locked })
       .eq("id", thread.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setThread({ ...thread, is_locked: !thread.is_locked });

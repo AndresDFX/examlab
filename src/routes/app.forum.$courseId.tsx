@@ -85,7 +85,11 @@ interface Session {
 }
 
 /** Estado computado del foro: abierto / aún-no-abre / cerrado-auto /
- *  cerrado-manual. Se renderiza como Badge en cada fila. */
+ *  cerrado-manual. Se renderiza como Badge en cada fila.
+ *
+ *  INVARIANTE: el predicado "abierto" debe coincidir con la SQL
+ *  `public.is_forum_open(_forum_id)` (migración 20260603105000) que
+ *  usa RLS server-side. Si cambias el cálculo, actualiza ambos lados. */
 type ForumState =
   | { kind: "open"; closesAt: string | null }
   | { kind: "scheduled"; opensAt: string }

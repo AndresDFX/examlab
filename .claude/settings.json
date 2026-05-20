@@ -25,7 +25,15 @@
       "Bash(grep -v \"^'$\")",
       "Bash(cd d:/Projects/Personal/examlab && wc -l 'src/routes/app.forum.$courseId.$threadId.tsx')",
       "Bash(cd d:/Projects/Personal/examlab && cp 'src/routes/app.forum.$courseId.$threadId.tsx' 'src/routes/app.forum.$courseId.$forumId.$threadId.tsx' && ls 'src/routes/app.forum.'*)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(grep -rnE \"//.*cada hora|//.*worker hourly|//.*próximo turno\" src/ --include='*.ts' --include='*.tsx')",
+      "Bash(grep -rcE \"^\\\\s*//.*\\(antes|Antes|ANTES\\)\" src/ --include='*.tsx')",
+      "Bash(grep -v \":0$\")",
+      "Bash(sort -t: -k2 -nr)",
+      "Bash(git branch *)",
+      "Bash(cd d:/Projects/Personal/examlab && grep -nE \"^\\\\s*//.*[Aa]ntes\" 'src/routes/app.student.take.$examId.tsx' | head -20)",
+      "Bash(cd d:/Projects/Personal/examlab && grep -nE \"^\\\\s*//.*\\(se removi|se quit|removimos|quitamos|antes había|antes era|antes ten|antes vivía\\)\" src/routes/app.teacher.monitor.\\\\$examId.tsx src/shared/components/AppLayout.tsx src/routes/app.teacher.gradebook.tsx 2>&1 | head -30)",
+      "Bash(grep -rnA 2 \"submissions\\\\s*\\(\" supabase/migrations/)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Personal\\examlab\\src\\routes"

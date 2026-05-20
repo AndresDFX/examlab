@@ -62,3 +62,77 @@ export function friendlyUniqueViolation(error: AnyError): string | null {
   // Fallback genérico si no matcheamos un índice conocido.
   return "Ya existe un registro con esos datos.";
 }
+
+/**
+ * Traductor general de errores Supabase/Postgres a mensajes en español
+ * para el usuario final. Wrap el `error` que viene de `supabase.from()`,
+ * RPCs o edge functions y úsalo en `toast.error(friendlyError(error))`.
+ *
+ * Orden de resolución:
+ *  1. Si es `unique_violation` (23505) → usa `friendlyUniqueViolation`
+ *     que conoce nombres de índices específicos.
+ *  2. Match por `error.code` (Postgres SQLSTATE) → mensaje canónico.
+ *  3. Match por patrones en `error.message` (red caída, auth, etc.).
+ *  4. Fallback: el `fallback` provisto por el caller, o `error.message`
+ *     original (último recurso — el usuario verá inglés técnico).
+ *
+ * Diseño defensivo: NUNCA retorna `null`/`undefined` — siempre un string
+ * mostrable. Si el error no se reconoce, retorna `fallback` o un genérico.
+ */
+export function friendlyError(error: AnyError, fallback?: string): string {
+  if (!error) return fallback ?? "Ocurrió un error inesperado";
+
+  // 1) unique violation con mensaje específico
+  const unique = friendlyUniqueViolation(error);
+  if (unique) return unique;
+
+  const code = error.code ?? error.cause?.code ?? "";
+  const message = String(error.message ?? "");
+  const lowerMsg = message.toLowerCase();
+
+  // 2) Códigos Postgres SQLSTATE comunes
+  // Ver https://www.postgresql.org/docs/current/errcodes-appendix.html
+  switch (code) {
+    case "23503": // foreign_key_violation
+      return "No se puede completar la operación porque hay datos relacionados.";
+    case "23502": // not_null_violation
+      return "Falta un campo obligatorio.";
+    case "23514": // check_violation
+      return "Uno de los valores no cumple con las reglas de validación.";
+    case "42501": // insufficient_privilege (RLS denial)
+      return "No tienes permisos para realizar esta acción.";
+    case "P0001": // raise_exception (raised by SQL functions)
+      // El mensaje SUELE estar en español porque viene de RAISE EXCEPTION
+      // en funciones SQL nuestras. Lo mostramos tal cual.
+      return message || "Operación rechazada por el servidor.";
+    case "PGRST116": // PostgREST: not found / no rows
+      return "No se encontró el registro.";
+    case "PGRST301": // PostgREST: row-level security
+      return "No tienes permisos para realizar esta acción.";
+    case "57014": // query_canceled (statement_timeout)
+      return "La operación tardó demasiado. Intenta de nuevo.";
+  }
+
+  // 3) Patrones en el mensaje — útiles cuando el error viene de fetch
+  //    (sin code SQL) o de la capa de auth.
+  if (lowerMsg.includes("failed to fetch") || lowerMsg.includes("network")) {
+    return "Error de red. Verifica tu conexión e intenta de nuevo.";
+  }
+  if (lowerMsg.includes("permission denied") || lowerMsg.includes("rls")) {
+    return "No tienes permisos para realizar esta acción.";
+  }
+  if (lowerMsg.includes("invalid login") || lowerMsg.includes("invalid credentials")) {
+    return "Correo o contraseña inválidos.";
+  }
+  if (lowerMsg.includes("email not confirmed")) {
+    return "Confirma tu correo antes de iniciar sesión.";
+  }
+  if (lowerMsg.includes("rate limit")) {
+    return "Demasiados intentos. Espera unos minutos e intenta de nuevo.";
+  }
+
+  // 4) Fallback: lo que pidió el caller, o el mensaje original, o el
+  // genérico. Paréntesis explícitos porque mezclar `??` y `||` sin
+  // ellos es error de sintaxis.
+  return fallback ?? (message || "Ocurrió un error inesperado");
+}

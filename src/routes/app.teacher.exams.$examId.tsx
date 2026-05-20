@@ -709,7 +709,10 @@ function ExamEditor() {
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {/* Pair Inicio/Fin: DateTimePicker es ancho; en mobile a
+                  ~190px se trunca el texto. grid-cols-1 sm:grid-cols-2
+                  stack en mobile y fila en sm+. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label required>
                     {(exam as any).is_external ? "Fecha del parcial" : "Inicio"}
@@ -1194,7 +1197,9 @@ function ExamEditor() {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Pair Tipo/Lenguaje: Selects con label largo se truncan
+                  en mobile a 187px. Stack en mobile, fila en sm+. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label required>Tipo</Label>
                   <Select value={qType} onValueChange={setQType}>

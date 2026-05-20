@@ -37,19 +37,12 @@ import {
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
-// `DASHBOARD_NOTIF_LIMIT` y `formatNotifDate` se removieron junto con
-// el card de notificaciones del dashboard. Las notificaciones siguen
-// disponibles desde el bell del header global (NotificationBell), que
-// tiene su propio formato relativo.
-
 function Dashboard() {
   const { profile, user } = useAuth();
   const activeRole = useActiveRole();
-  // Las notificaciones siguen viviendo en el bell del header global
-  // (NotificationBell). Aquí solo las usamos para disparar el toast de
-  // bienvenida con las no-leídas — el card grande de notificaciones se
-  // removió del dashboard para que las 4 cards de eventos (Próximas
-  // clases / proyectos / exámenes / talleres) ocupen toda la altura.
+  // useNotifications acá solo alimenta el toast de bienvenida con
+  // no-leídas; el bell del header global (NotificationBell) es la
+  // superficie persistente.
   const { notifications, unreadCount } = useNotifications(user?.id, activeRole);
   const { t } = useTranslation();
 
@@ -57,8 +50,6 @@ function Dashboard() {
   const isTeacher = activeRole === "Docente";
   const isStudent = activeRole === "Estudiante";
 
-  // Toast unread on mount — sigue siendo útil para que al entrar al
-  // dashboard el docente vea de inmediato qué hay nuevo.
   useEffect(() => {
     if (unreadCount > 0) {
       const recent = notifications.filter((n) => !n.read).slice(0, 3);
@@ -100,19 +91,9 @@ function Dashboard() {
    ADMIN DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
-  // `t`, `counts` y `recentUsers` se removieron — los cards globales
-  // (Usuarios totales, Cursos totales, Usuarios recientes, etc.) se
-  // quitaron del dashboard cuando lo rediseñamos para mostrar métricas
-  // operacionales (IA, correos, errores) en su lugar. Las queries que
-  // poblaban esos states también se quitan.
-  // ── AI usage stats (última hora) — reemplazan los 5 cards superiores
-  // que antes solo mostraban totales agregados sin contexto temporal.
-  // El admin ahora ve de un vistazo si el sistema de IA está sano:
-  // cuántas llamadas, cuántos errores, qué se está haciendo con IA.
-  // Renombramos a *Last24h porque el filtro de fecha pasó de 1h a 24h
-  // (más informativo para un dashboard que se mira un par de veces al
-  // día). Los nombres preservan el tag de ventana temporal para que
-  // cualquier display pueda mostrarlo sin lookup adicional.
+  // Métricas operacionales del admin (IA + correos), ventana de 24h.
+  // Los nombres `*LastHour` se mantienen por backward-compat con el
+  // shape inicial; hoy la ventana real es 24h (ver sinceHour más abajo).
   const [aiStats, setAiStats] = useState({
     callsLastHour: 0,
     errorsLastHour: 0,
@@ -120,10 +101,6 @@ function AdminDashboard() {
     questionsGenLastHour: 0,
     plagiarismLastHour: 0,
   });
-  /** Métricas del módulo de email — últimas 24h. Reemplazo del bloque
-   *  de "Opciones rápidas" (Usuarios + Cursos eran solo atajos
-   *  duplicados del sidebar; este widget aporta info operacional real
-   *  ahora que el sistema de correo es crítico). */
   const [emailStats, setEmailStats] = useState<{
     delivered: number;
     skipped: number;
@@ -144,22 +121,15 @@ function AdminDashboard() {
       // 'email' (migración no aplicada en este entorno) los counts
       // quedan en 0 sin romper.
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      // Ventana de 24h para todas las métricas de IA — antes era 1h, lo
-      // que dejaba el dashboard frecuentemente "vacío" cuando el admin
-      // entraba fuera de pico de uso. 24h captura el patrón completo de
-      // una jornada típica.
+      // sinceHour mantiene el nombre legacy (la ventana real es 24h, no
+      // 1h). Cambiar el identifier ahora rompe llamados que asumen el
+      // shape de aiStats `*LastHour`.
       const sinceHour = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
 
-      // ── AI usage stats (última hora) ──
-      // Filtramos por las acciones que ya estaban definidas (audit log
-      // labels). Si alguna no aparece la migración no se ha aplicado y
-      // el count queda en 0 sin romper.
-      // `list_recent_ai_executions` se quitó del Promise.all junto con su
-      // setter — la card "Ejecuciones IA" se removió del dashboard porque
-      // duplicaba lo que la cola IA full-width ya expone. Si en el futuro
-      // se necesita el listado detallado, está en /app/admin/audit-logs.
+      // Si alguna acción no existe (migración no aplicada en este
+      // entorno) el count queda en 0 — el dashboard no rompe.
       const [aiCallsRes, aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes] =
         await Promise.all([
           dbAny
@@ -251,12 +221,9 @@ function AdminDashboard() {
 
   return (
     // Wrapper flex-col + flex-1 + min-h-0 — espeja el patrón del
-    // TeacherDashboard. La fila PRIMARIA (Cron IA + Correos) crece hasta
-    // llenar la altura disponible del viewport; los 5 mini-stats de IA
-    // van DEBAJO como resumen compacto que no compite por altura.
-    // Antes la Errores card vivía aquí — la quitamos: los errores siguen
-    // monitoreables desde /app/admin/audit-logs con filtros, y el
-    // dashboard se reservó para info operacional accionable inmediata.
+    // TeacherDashboard: stats compactos arriba, cards accionables abajo
+    // ocupando el alto restante del viewport. Errores se consultan
+    // ahora desde /app/admin/audit-logs con filtro severity=error.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
       {/* Row PRIMARIA (arriba) — 5 mini-stats de IA (24h) como resumen
           compacto. Llamadas / Errores / Calificaciones / Preguntas /

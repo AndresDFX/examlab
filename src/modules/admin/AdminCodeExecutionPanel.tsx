@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Save, Info, Code2, MonitorPlay, Terminal } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -100,7 +101,7 @@ export function AdminCodeExecutionPanel() {
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }

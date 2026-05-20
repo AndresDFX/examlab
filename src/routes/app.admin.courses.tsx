@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
-import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { toCSV, downloadCSV } from "@/shared/lib/csv";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -448,7 +448,7 @@ export function AdminCourses() {
     let courseId = editing.id ?? "";
     if (editing.id) {
       const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
     } else {
       const { data: created, error } = await supabase
         .from("courses")
@@ -535,7 +535,7 @@ export function AdminCourses() {
     if (!ok) return;
     const course = courses.find((c) => c.id === id);
     const { error } = await supabase.from("courses").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(t("course.deletedToast"));
     void logEvent({
       action: "course.deleted",
@@ -571,7 +571,7 @@ export function AdminCourses() {
           { course_id: enrollCourse.id, user_id: uid },
           { onConflict: "course_id,user_id", ignoreDuplicates: true },
         );
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setEnrolledIds((prev) => new Set([...prev, uid]));
       toast.success("Estudiante matriculado correctamente");
     } else {
@@ -580,7 +580,7 @@ export function AdminCourses() {
         .delete()
         .eq("course_id", enrollCourse.id)
         .eq("user_id", uid);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setEnrolledIds((prev) => {
         const s = new Set(prev);
         s.delete(uid);
@@ -597,7 +597,7 @@ export function AdminCourses() {
     const { error } = await supabase
       .from("course_enrollments")
       .insert(toAdd.map((id) => ({ course_id: enrollCourse.id, user_id: id })));
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setEnrolledIds((prev) => new Set([...prev, ...toAdd]));
     toast.success(`${toAdd.length} estudiante(s) matriculados correctamente`);
   };
@@ -655,7 +655,7 @@ export function AdminCourses() {
       const { error } = await supabase
         .from("course_teachers")
         .insert({ course_id: teacherCourse.id, user_id: uid });
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setAssignedTeacherIds((prev) => new Set([...prev, uid]));
       toast.success("Docente asignado correctamente");
     } else {
@@ -664,7 +664,7 @@ export function AdminCourses() {
         .delete()
         .eq("course_id", teacherCourse.id)
         .eq("user_id", uid);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setAssignedTeacherIds((prev) => {
         const s = new Set(prev);
         s.delete(uid);
@@ -681,7 +681,7 @@ export function AdminCourses() {
     const { error } = await supabase
       .from("course_teachers")
       .insert(toAdd.map((id) => ({ course_id: teacherCourse.id, user_id: id })));
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setAssignedTeacherIds((prev) => new Set([...prev, ...toAdd]));
     toast.success(`${toAdd.length} docente(s) asignados correctamente`);
   };
@@ -1882,7 +1882,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       if (error.code === "23505") {
         toast.error(t("course.classAlreadyAssignedToAnotherSession"));
       } else {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
       }
       return;
     }
@@ -2052,7 +2052,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         .insert(rows)
         .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url");
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setSessions((prev) =>
@@ -2152,7 +2152,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     if (!ok) return;
     const { error } = await db.from("attendance_sessions").delete().eq("id", s.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setSessions((prev) => prev.filter((x) => x.id !== s.id));

@@ -95,8 +95,15 @@ interface Thread {
 
 type SortMode = "recent" | "top" | "unanswered";
 
-/** Mismo helper que en la lista de foros — duplicado a propósito para
- *  no crear acoplamiento entre rutas sobre un concepto puramente UI. */
+/**
+ * INVARIANTE: la lógica debe coincidir con la función SQL
+ * `public.is_forum_open(_forum_id)` definida en la migración
+ * 20260603105000. La RLS server-side usa la SQL para decidir si un
+ * estudiante puede postear; este helper hace lo mismo en cliente
+ * para reflejar el estado en UI sin un round-trip. Si cambias una,
+ * actualiza la otra (un INSERT que pasa por cliente puede ser
+ * rechazado por RLS si divergen).
+ */
 function isForumOpen(f: Forum): boolean {
   if (f.manually_closed_at) return false;
   const now = Date.now();

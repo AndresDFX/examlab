@@ -11,6 +11,7 @@ import { ListFilters } from "@/components/ui/list-filters";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Dialog,
   DialogContent,
@@ -474,7 +475,7 @@ function TeacherContents() {
     }
     const { error } = await db.from("generated_contents").delete().eq("id", item.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setItems((prev) => prev.filter((i) => i.id !== item.id));

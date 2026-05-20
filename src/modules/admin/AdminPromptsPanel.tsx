@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Label } from "@/components/ui/label";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Select,
   SelectContent,
@@ -307,7 +308,7 @@ export function AdminPromptsPanel() {
       db.from("content_brand_config").select("*").maybeSingle(),
     ]);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -364,7 +365,7 @@ export function AdminPromptsPanel() {
         ? await db.from("content_brand_config").update(payload).eq("id", brand.id)
         : await db.from("content_brand_config").insert(payload);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({
@@ -406,7 +407,7 @@ export function AdminPromptsPanel() {
           .update({ system_prompt: text, updated_by: user.id })
           .eq("id", existing.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
       } else {
@@ -417,7 +418,7 @@ export function AdminPromptsPanel() {
           updated_by: user.id,
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
       }
@@ -462,7 +463,7 @@ export function AdminPromptsPanel() {
           .update({ system_prompt: uc.defaultPrompt, updated_by: user.id })
           .eq("id", existing.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
       } else {
@@ -473,7 +474,7 @@ export function AdminPromptsPanel() {
           updated_by: user.id,
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
       }

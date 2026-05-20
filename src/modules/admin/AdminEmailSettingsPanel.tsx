@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Mail,
   Save,
@@ -156,7 +157,7 @@ export function AdminEmailSettingsPanel() {
       .update({ globally_enabled: globallyEnabled, enabled_kinds: enabledKinds })
       .eq("id", 1);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setSaving(false);
       return;
     }

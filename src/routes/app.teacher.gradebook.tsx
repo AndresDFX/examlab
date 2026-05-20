@@ -12,6 +12,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { SearchInput } from "@/components/ui/search-input";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Select,
   SelectContent,
@@ -197,7 +198,7 @@ function Gradebook() {
       .eq("course_id", courseId)
       .is("revoked_at", null);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -789,7 +790,7 @@ function Gradebook() {
           _final_grade: finalGrade,
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         toast.success("Certificado emitido");

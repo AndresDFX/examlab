@@ -27,6 +27,7 @@ import { TableEmpty } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import { RowAction } from "@/components/ui/row-action";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Table,
   TableBody,
@@ -104,7 +105,7 @@ export function AdminAiGradingPanel() {
       .from("ai_override_codes")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) toast.error(error.message);
+    if (error) toast.error(friendlyError(error));
     else setCodes((data ?? []) as OverrideCodeRow[]);
     setLoadingCodes(false);
   };
@@ -122,7 +123,7 @@ export function AdminAiGradingPanel() {
       .eq("is_active", true);
     setSavingMode(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setMode(next);
@@ -166,7 +167,7 @@ export function AdminAiGradingPanel() {
     const { error } = await db.from("ai_override_codes").insert(payload);
     setCreating(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success(`Código creado: ${code} (cópialo y pásalo al docente)`);
@@ -197,7 +198,7 @@ export function AdminAiGradingPanel() {
       .update({ revoked_at: new Date().toISOString(), revoked_by: user?.id })
       .eq("id", row.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Código revocado");
@@ -215,7 +216,7 @@ export function AdminAiGradingPanel() {
     if (!ok) return;
     const { error } = await db.from("ai_override_codes").delete().eq("id", row.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Código eliminado");

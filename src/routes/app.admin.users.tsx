@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Dialog,
   DialogContent,
@@ -155,7 +156,7 @@ function AdminUsers() {
         .from("user_roles")
         .insert(toAdd.map((role) => ({ user_id: userId, role })));
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return false;
       }
     }
@@ -166,7 +167,7 @@ function AdminUsers() {
         .eq("user_id", userId)
         .in("role", toRemove);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return false;
       }
     }
@@ -274,7 +275,7 @@ function AdminUsers() {
           })
           .eq("id", editing.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         const ok = await saveRoles(editing.id, editing.roles);
@@ -347,7 +348,7 @@ function AdminUsers() {
           },
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         const result = (data?.result ?? [])[0];
@@ -394,7 +395,7 @@ function AdminUsers() {
     }
     const { error } = await supabase.from("profiles").delete().eq("id", r.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success(t("users.deletedToast"));
