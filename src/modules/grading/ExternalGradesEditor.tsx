@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, ClipboardList, Save, Search, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 /**
  * Editor de notas para actividades externas (parciales/talleres
@@ -148,7 +149,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
       newRows.sort((a, b) => a.fullName.localeCompare(b.fullName));
       setRows(newRows);
     } catch (e) {
-      toast.error(`No se pudieron cargar los estudiantes: ${e instanceof Error ? e.message : e}`);
+      toast.error(`No se pudieron cargar los estudiantes: ${friendlyError(e)}`);
     } finally {
       setLoading(false);
     }
@@ -199,7 +200,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(`${row.fullName}: ${error.message}`);
+          toast.error(`${row.fullName}: ${friendlyError(error)}`);
           return false;
         }
       } else {
@@ -218,7 +219,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(`${row.fullName}: ${error.message}`);
+          toast.error(`${row.fullName}: ${friendlyError(error)}`);
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -235,7 +236,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(`${row.fullName}: ${error.message}`);
+          toast.error(`${row.fullName}: ${friendlyError(error)}`);
           return false;
         }
       } else {
@@ -252,7 +253,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(`${row.fullName}: ${error.message}`);
+          toast.error(`${row.fullName}: ${friendlyError(error)}`);
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -270,7 +271,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(`${row.fullName}: ${error.message}`);
+          toast.error(`${row.fullName}: ${friendlyError(error)}`);
           return false;
         }
       } else {
@@ -287,7 +288,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(`${row.fullName}: ${error.message}`);
+          toast.error(`${row.fullName}: ${friendlyError(error)}`);
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });

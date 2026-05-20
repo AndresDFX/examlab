@@ -144,7 +144,7 @@ function ThreadDetail() {
       _target_id: targetId,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     const row = Array.isArray(data) ? data[0] : data;
@@ -171,7 +171,7 @@ function ThreadDetail() {
       _official: makeOfficial,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success(makeOfficial ? "Respuesta destacada como oficial" : "Marca de oficial removida");
@@ -186,7 +186,7 @@ function ThreadDetail() {
       .update({ is_pinned: !thread.is_pinned })
       .eq("id", thread.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setThread({ ...thread, is_pinned: !thread.is_pinned });
@@ -236,7 +236,7 @@ function ThreadDetail() {
     });
     setPosting(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setNewReply("");
@@ -265,7 +265,7 @@ function ThreadDetail() {
       .update({ title, body })
       .eq("id", thread.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setThread({ ...thread, title, body });
@@ -288,7 +288,7 @@ function ThreadDetail() {
       .update({ body })
       .eq("id", editingReplyId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setReplies((rs) => rs.map((r) => (r.id === editingReplyId ? { ...r, body } : r)));
@@ -309,7 +309,7 @@ function ThreadDetail() {
     if (!ok) return;
     const { error } = await db.from("forum_threads").delete().eq("id", thread.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Hilo borrado");
@@ -327,7 +327,7 @@ function ThreadDetail() {
     if (!ok) return;
     const { error } = await db.from("forum_replies").delete().eq("id", replyId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setReplies((rs) => rs.filter((r) => r.id !== replyId));

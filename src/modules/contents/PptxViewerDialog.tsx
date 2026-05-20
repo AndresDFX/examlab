@@ -61,6 +61,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // generated_contents no está en types.ts auto-generado (ver app.teacher.contents).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,7 +222,7 @@ export function PptxViewerDialog({
       setEditing(false);
       onSaved?.(newBody);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }

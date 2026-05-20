@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { DatePicker } from "@/components/ui/date-picker";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // The grade_* tables are introduced in migration 20260423000000 and are not
 // yet reflected in src/integrations/supabase/types.ts. Cast through a loose
@@ -143,7 +144,7 @@ function GradingConfigPage() {
       coursework_weight: config.coursework_weight,
     });
     setSavingConfig(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(t("grading.savedToast"));
   };
 
@@ -158,14 +159,14 @@ function GradingConfigPage() {
       })
       .select()
       .single();
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setCuts((prev) => [...prev, data as Cut]);
   };
 
   const updateCut = async (id: string, patch: Partial<Cut>) => {
     setCuts((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     const { error } = await db.from("grade_cuts").update(patch).eq("id", id);
-    if (error) toast.error(error.message);
+    if (error) toast.error(friendlyError(error));
   };
 
   const removeCut = async (cut: Cut) => {
@@ -177,7 +178,7 @@ function GradingConfigPage() {
     });
     if (!ok) return;
     const { error } = await db.from("grade_cuts").delete().eq("id", cut.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setCuts((prev) => prev.filter((c) => c.id !== cut.id));
     const copy = { ...itemsByCut };
     delete copy[cut.id];
@@ -195,7 +196,7 @@ function GradingConfigPage() {
       })
       .select()
       .single();
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setItemsByCut((prev) => ({
       ...prev,
       [cutId]: [...(prev[cutId] ?? []), data as CutItem],
@@ -209,7 +210,7 @@ function GradingConfigPage() {
       [item.cut_id]: (prev[item.cut_id] ?? []).map((it) => (it.id === item.id ? next : it)),
     }));
     const { error } = await db.from("grade_cut_items").update(patch).eq("id", item.id);
-    if (error) toast.error(error.message);
+    if (error) toast.error(friendlyError(error));
   };
 
   const removeItem = async (item: CutItem) => {
@@ -221,7 +222,7 @@ function GradingConfigPage() {
     });
     if (!ok) return;
     const { error } = await db.from("grade_cut_items").delete().eq("id", item.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setItemsByCut((prev) => ({
       ...prev,
       [item.cut_id]: (prev[item.cut_id] ?? []).filter((it) => it.id !== item.id),

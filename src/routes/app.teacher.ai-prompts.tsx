@@ -21,6 +21,7 @@ import { RotateCcw, Save, Sparkles } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/teacher/ai-prompts")({
   component: TeacherAIPrompts,
@@ -198,7 +199,7 @@ function TeacherAIPrompts() {
       const { data, error } = await q;
       if (cancelled) return;
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         setLoadingCourses(false);
         return;
       }
@@ -228,7 +229,7 @@ function TeacherAIPrompts() {
       .select("id, use_case, course_id, system_prompt")
       .or(`course_id.eq.${cid},course_id.is.null`);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoadingPrompts(false);
       return;
     }
@@ -270,7 +271,7 @@ function TeacherAIPrompts() {
           .update({ system_prompt: text, updated_by: user.id })
           .eq("id", existing.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
       } else {
@@ -281,7 +282,7 @@ function TeacherAIPrompts() {
           updated_by: user.id,
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
       }
@@ -317,7 +318,7 @@ function TeacherAIPrompts() {
     try {
       const { error } = await db.from("ai_prompts").delete().eq("id", existing.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({

@@ -46,6 +46,7 @@ import {
 import { formatDateTime } from "@/shared/lib/format";
 import { toCSV } from "@/shared/lib/csv";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -435,7 +436,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         setHasMore(rows.length === PAGE_SIZE);
         offsetRef.current += rows.length;
       } catch (err: any) {
-        toast.error("Error cargando auditoría: " + (err?.message ?? err));
+        toast.error(`Error cargando auditoría: ${friendlyError(err)}`);
       } finally {
         setLoading(false);
         setLoadingMore(false);

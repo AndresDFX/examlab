@@ -52,6 +52,7 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
 import { getProcessingMode, readOverrideExpiry, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -318,7 +319,7 @@ export function TeacherProjectFilesEditor({
         })
         .eq("id", editingId);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Pregunta actualizada");
@@ -338,7 +339,7 @@ export function TeacherProjectFilesEditor({
         starter_code: null,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Pregunta agregada — puedes continuar añadiendo");
@@ -357,17 +358,17 @@ export function TeacherProjectFilesEditor({
     const a = sorted[idx];
     const b = sorted[target];
     const { error: e1 } = await db.from("project_files").update({ position: -1 }).eq("id", a.id);
-    if (e1) return toast.error(e1.message);
+    if (e1) return toast.error(friendlyError(e1));
     const { error: e2 } = await db
       .from("project_files")
       .update({ position: a.position })
       .eq("id", b.id);
-    if (e2) return toast.error(e2.message);
+    if (e2) return toast.error(friendlyError(e2));
     const { error: e3 } = await db
       .from("project_files")
       .update({ position: b.position })
       .eq("id", a.id);
-    if (e3) return toast.error(e3.message);
+    if (e3) return toast.error(friendlyError(e3));
     void load();
   };
 
@@ -394,7 +395,7 @@ export function TeacherProjectFilesEditor({
     if (!ok) return;
     const { error } = await db.from("project_files").delete().eq("id", id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Pregunta eliminada");
@@ -424,7 +425,7 @@ export function TeacherProjectFilesEditor({
         },
       });
       if (error) {
-        toast.error(error.message ?? "Error generando con IA");
+        toast.error(friendlyError(error, "Error generando con IA"));
       } else if (data?.error) {
         toast.error(data.error);
       } else if (data?.inserted) {
@@ -481,7 +482,8 @@ export function TeacherProjectFilesEditor({
           },
         });
         if (error || data?.error) {
-          toast.error(`Error en ${row.type}: ${error?.message ?? data?.error}`);
+          const detail = await extractEdgeError(error, data);
+          toast.error(`Error en ${row.type}: ${detail || "Error desconocido"}`);
         } else {
           totalInserted += data?.inserted?.length ?? 0;
         }
@@ -500,7 +502,7 @@ export function TeacherProjectFilesEditor({
       }
       void load();
     } catch (e: any) {
-      toast.error(e.message ?? "Error IA");
+      toast.error(friendlyError(e, "Error IA"));
     } finally {
       setAiLoading(false);
     }
@@ -1222,7 +1224,7 @@ export function StudentProjectTaker({
           .select("id")
           .single();
         if (error || !created) {
-          toast.error(error?.message ?? "No se pudo crear la entrega");
+          toast.error(friendlyError(error, "No se pudo crear la entrega"));
           setSubmitting(false);
           return;
         }
@@ -1575,7 +1577,7 @@ export function StudentProjectTaker({
             }
           } else {
             console.error("[project-submit] upsert failed", qid, error);
-            toast.error(`No se pudo guardar la calificación de una sección: ${error.message}`, {
+            toast.error(`No se pudo guardar la calificación de una sección: ${friendlyError(error)}`, {
               duration: 10000,
             });
           }

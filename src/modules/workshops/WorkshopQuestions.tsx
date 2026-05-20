@@ -39,6 +39,8 @@ import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export type WorkshopQuestion = {
   id: string;
@@ -195,7 +197,7 @@ export function TeacherWorkshopQuestionsEditor({
         })
         .eq("id", editingId);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Pregunta actualizada");
@@ -217,7 +219,7 @@ export function TeacherWorkshopQuestionsEditor({
               : null,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Pregunta agregada — puedes continuar añadiendo");
@@ -239,17 +241,17 @@ export function TeacherWorkshopQuestionsEditor({
       .from("workshop_questions")
       .update({ position: -1 })
       .eq("id", a.id);
-    if (e1) return toast.error(e1.message);
+    if (e1) return toast.error(friendlyError(e1));
     const { error: e2 } = await supabase
       .from("workshop_questions")
       .update({ position: a.position })
       .eq("id", b.id);
-    if (e2) return toast.error(e2.message);
+    if (e2) return toast.error(friendlyError(e2));
     const { error: e3 } = await supabase
       .from("workshop_questions")
       .update({ position: b.position })
       .eq("id", a.id);
-    if (e3) return toast.error(e3.message);
+    if (e3) return toast.error(friendlyError(e3));
     load();
   };
 
@@ -263,7 +265,7 @@ export function TeacherWorkshopQuestionsEditor({
     if (!ok) return;
     const { error } = await supabase.from("workshop_questions").delete().eq("id", id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Pregunta eliminada");
@@ -293,7 +295,8 @@ export function TeacherWorkshopQuestionsEditor({
           },
         });
         if (error || data?.error) {
-          toast.error(`Error en ${row.type}: ${error?.message ?? data?.error}`);
+          const detail = await extractEdgeError(error, data);
+          toast.error(`Error en ${row.type}: ${detail || "Error desconocido"}`);
         } else {
           totalInserted += data?.inserted?.length ?? 0;
         }
@@ -312,7 +315,7 @@ export function TeacherWorkshopQuestionsEditor({
       }
       load();
     } catch (e: any) {
-      toast.error(e.message ?? "Error IA");
+      toast.error(friendlyError(e, "Error IA"));
     } finally {
       setAiLoading(false);
     }
@@ -897,7 +900,7 @@ export function StudentWorkshopTaker({
           .select("id")
           .single();
         if (error || !created) {
-          toast.error(error?.message ?? "No se pudo crear la entrega");
+          toast.error(friendlyError(error, "No se pudo crear la entrega"));
           setSubmitting(false);
           return;
         }

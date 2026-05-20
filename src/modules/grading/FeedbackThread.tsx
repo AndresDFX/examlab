@@ -35,6 +35,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { toast } from "sonner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { FeedbackCommentAttachments } from "@/modules/grading/FeedbackCommentAttachments";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   buildAttachmentPath,
   FEEDBACK_ATTACHMENT_MAX_COUNT,
@@ -161,7 +162,7 @@ export function FeedbackThread({
       });
       if (up.error) {
         console.warn("[FeedbackThread] upload attachment", up.error);
-        toast.error(`No se pudo subir ${safe}: ${up.error.message}`);
+        toast.error(`No se pudo subir ${safe}: ${friendlyError(up.error)}`);
         continue;
       }
       const { data, error } = await db
@@ -181,7 +182,7 @@ export function FeedbackThread({
         // El archivo quedó en el bucket pero sin row — lo borramos para
         // no dejar huérfano.
         await supabase.storage.from("feedback-attachments").remove([path]);
-        toast.error(`No se pudo registrar ${safe}: ${error?.message ?? "desconocido"}`);
+        toast.error(`No se pudo registrar ${safe}: ${friendlyError(error, "desconocido")}`);
         continue;
       }
       created.push(data as AttachmentRow);
@@ -212,7 +213,7 @@ export function FeedbackThread({
         .eq("id", editingId);
       if (error) {
         console.error("[FeedbackThread] update comment", error);
-        toast.error(error.message ?? "No se pudo editar el comentario");
+        toast.error(friendlyError(error, "No se pudo editar el comentario"));
         return;
       }
       setComments((prev) => prev.map((c) => (c.id === editingId ? { ...c, body: trimmed } : c)));
@@ -235,7 +236,7 @@ export function FeedbackThread({
       const { error } = await db.from("feedback_comments").delete().eq("id", c.id);
       if (error) {
         console.error("[FeedbackThread] delete comment", error);
-        toast.error(error.message ?? "No se pudo eliminar el comentario");
+        toast.error(friendlyError(error, "No se pudo eliminar el comentario"));
         return;
       }
       setComments((prev) => prev.filter((x) => x.id !== c.id));
@@ -399,7 +400,7 @@ export function FeedbackThread({
           .single();
         if (error || !data) {
           console.error("[FeedbackThread] insert thread", error);
-          toast.error(error?.message ?? "No se pudo abrir la conversación");
+          toast.error(friendlyError(error, "No se pudo abrir la conversación"));
           return;
         }
         t = data as Thread;
@@ -430,13 +431,13 @@ export function FeedbackThread({
             .single();
           if (fallback.error || !fallback.data) {
             console.error("[FeedbackThread] insert comment", fallback.error);
-            toast.error(fallback.error?.message ?? "No se pudo enviar el comentario");
+            toast.error(friendlyError(fallback.error, "No se pudo enviar el comentario"));
             return;
           }
           inserted = fallback.data as Comment;
         } else {
           console.error("[FeedbackThread] insert comment", firstInsert.error);
-          toast.error(firstInsert.error.message ?? "No se pudo enviar el comentario");
+          toast.error(friendlyError(firstInsert.error, "No se pudo enviar el comentario"));
           return;
         }
       } else {
@@ -506,7 +507,7 @@ export function FeedbackThread({
         closed_by: next ? user.id : null,
       })
       .eq("id", thread.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(next ? "Conversación cerrada" : "Conversación reabierta");
     await load();
     // Avisa al caller que cambió el estado del thread (refresca el

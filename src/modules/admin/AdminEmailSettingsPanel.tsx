@@ -130,7 +130,7 @@ export function AdminEmailSettingsPanel() {
         .maybeSingle();
       if (cancelled) return;
       if (error) {
-        toast.error(`No se pudo cargar la configuración: ${error.message}`);
+        toast.error(`No se pudo cargar la configuración: ${friendlyError(error)}`);
         setLoading(false);
         return;
       }

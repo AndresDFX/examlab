@@ -20,6 +20,7 @@ import {
   Clock,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 /**
  * SystemDiagnosticsPanel — dashboard de admin para verificar que todos
@@ -330,7 +331,10 @@ export function SystemDiagnosticsPanel() {
         const res = await supabase.functions.invoke<HealthCheckResponse>("health-check", {
           body: { source: "admin-dashboard", ts: new Date().toISOString() },
         });
-        if (res.error) throw new Error(res.error.message);
+        if (res.error) {
+          const detail = await extractEdgeError(res.error, res.data);
+          throw new Error(detail || "Error en health-check");
+        }
         if (!res.data) throw new Error("Sin respuesta");
         return res.data;
       });

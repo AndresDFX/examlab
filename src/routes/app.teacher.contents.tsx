@@ -454,7 +454,7 @@ function TeacherContents() {
       setReleaseAfterSessionDate(false);
       void load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setCreating(false);
     }
@@ -533,7 +533,7 @@ function TeacherContents() {
       setFilesViewerFor((cur) => (cur && cur.id === item.id ? { ...cur, files: nextFiles } : cur));
       toast.success(t("contents.deleteFileDone"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     }
   };
 
@@ -623,7 +623,7 @@ function TeacherContents() {
         URL.revokeObjectURL(url);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setDownloadingId(null);
     }
@@ -1495,7 +1495,7 @@ function CreateAssessmentDialog({
       }
       return;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setCreating(false);
     }
@@ -1580,7 +1580,7 @@ function CreateAssessmentDialog({
         return data.id as string;
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
       return null;
     }
   };
@@ -2111,7 +2111,7 @@ function MaterializeCourseDialog({
         }
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setCreating(false);
     }
@@ -2378,7 +2378,7 @@ function AssignToSessionsDialog({
       toast.success(t("contents.assignSavedToast", { count: ops.length }));
       onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }

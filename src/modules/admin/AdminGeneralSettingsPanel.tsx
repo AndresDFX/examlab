@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Save, Info, Mail, FileText, GraduationCap } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -61,7 +62,7 @@ export function AdminGeneralSettingsPanel() {
     setLoading(true);
     const { data, error } = await db.from("app_settings").select("*").maybeSingle();
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -121,7 +122,7 @@ export function AdminGeneralSettingsPanel() {
         })
         .eq("id", row.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({

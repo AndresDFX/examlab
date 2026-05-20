@@ -55,6 +55,7 @@ import {
   Unlock,
 } from "lucide-react";
 import { formatDateTime, formatDate } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/forum/$courseId")({ component: ForumsList });
 
@@ -213,7 +214,7 @@ function ForumsList() {
     });
     setCreating(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Foro creado");
@@ -244,7 +245,7 @@ function ForumsList() {
       _close: !isClosed,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success(`Foro ${action === "cerrar" ? "cerrado" : "reabierto"}`);
@@ -261,7 +262,7 @@ function ForumsList() {
     if (!ok) return;
     const { error } = await db.from("forums").delete().eq("id", forum.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Foro eliminado");

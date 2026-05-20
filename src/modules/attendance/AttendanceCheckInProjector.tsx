@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   attendancePeriod,
   attendanceSecondsToNextRotation,
@@ -193,7 +194,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
         p_session_id: state.sessionId,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       // Fire-and-forget: en algunos browsers exitFullscreen no resuelve

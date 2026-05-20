@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Copy } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -100,7 +101,7 @@ export function DuplicateAssessmentDialog({
       }
       const { data, error } = await query;
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         setLoading(false);
         return;
       }
@@ -128,7 +129,7 @@ export function DuplicateAssessmentDialog({
       };
       const { data, error } = await db.rpc(RPC_BY_TARGET[target], params);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const newId = String(data);

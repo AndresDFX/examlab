@@ -53,6 +53,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { HelpHint } from "@/components/ui/help-hint";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { Library } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -191,7 +193,10 @@ function ExamEditor() {
       const { data, error } = await supabase.functions.invoke("evaluate-exam-time", {
         body: { examId },
       });
-      if (error) throw error;
+      if (error) {
+        const detail = await extractEdgeError(error, data);
+        throw new Error(detail || "Error al evaluar el tiempo");
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = data as any;
       if (!res?.ok) throw new Error(res?.error ?? "Sin respuesta");
@@ -203,7 +208,7 @@ function ExamEditor() {
         question_count: Number(res.question_count) || 0,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al evaluar el tiempo");
+      toast.error(friendlyError(e, "Error al evaluar el tiempo"));
     } finally {
       setTimeEvalLoading(false);
     }
@@ -490,17 +495,17 @@ function ExamEditor() {
     const a = sorted[idx];
     const b = sorted[target];
     const { error: e1 } = await supabase.from("questions").update({ position: -1 }).eq("id", a.id);
-    if (e1) return toast.error(e1.message);
+    if (e1) return toast.error(friendlyError(e1));
     const { error: e2 } = await supabase
       .from("questions")
       .update({ position: a.position })
       .eq("id", b.id);
-    if (e2) return toast.error(e2.message);
+    if (e2) return toast.error(friendlyError(e2));
     const { error: e3 } = await supabase
       .from("questions")
       .update({ position: b.position })
       .eq("id", a.id);
-    if (e3) return toast.error(e3.message);
+    if (e3) return toast.error(friendlyError(e3));
     load();
   };
 
@@ -535,7 +540,8 @@ function ExamEditor() {
           },
         });
         if (error || data?.error) {
-          toast.error(`Error en ${row.type}: ${error?.message ?? data?.error}`);
+          const detail = await extractEdgeError(error, data);
+          toast.error(`Error en ${row.type}: ${detail || "Error desconocido"}`);
         } else {
           totalInserted += data?.inserted?.length ?? 0;
         }

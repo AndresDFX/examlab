@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Save, Info, Cpu, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -81,7 +82,7 @@ export function AdminModelPanel() {
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -130,7 +131,7 @@ export function AdminModelPanel() {
         .update({ is_active: false, updated_by: user.id })
         .eq("is_active", true);
       if (deactErr) {
-        toast.error(deactErr.message);
+        toast.error(friendlyError(deactErr));
         return;
       }
       // Paso 2: insertar la nueva como activa. Gemini API key:
@@ -151,7 +152,7 @@ export function AdminModelPanel() {
         updated_by: user.id,
       });
       if (insErr) {
-        toast.error(insErr.message);
+        toast.error(friendlyError(insErr));
         return;
       }
       void logEvent({

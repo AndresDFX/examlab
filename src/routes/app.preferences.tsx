@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Bell,
   Save,
@@ -126,7 +127,7 @@ function PreferencesPage() {
         .maybeSingle();
       if (cancelled) return;
       if (error) {
-        toast.error(`No se pudieron cargar las preferencias: ${error.message}`);
+        toast.error(`No se pudieron cargar las preferencias: ${friendlyError(error)}`);
         setLoading(false);
         return;
       }
@@ -164,7 +165,7 @@ function PreferencesPage() {
         .update({ notification_preferences: prefs })
         .eq("id", user.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Preferencias guardadas");

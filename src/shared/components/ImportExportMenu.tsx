@@ -11,6 +11,7 @@ import {
 import { Download, Upload, FileDown, FileUp } from "lucide-react";
 import { downloadCSV, parseCSV } from "@/shared/lib/csv";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 interface ImportExportMenuProps {
   /** Etiqueta del botón principal (ej: "Datos") */
@@ -52,7 +53,7 @@ export function ImportExportMenu({
       downloadCSV(`${resourceName}-${Date.now()}.csv`, csv);
       toast.success("Archivo exportado correctamente");
     } catch (e: any) {
-      toast.error(`Error exportando: ${e?.message ?? "desconocido"}`);
+      toast.error(`Error exportando: ${friendlyError(e, "desconocido")}`);
     }
   };
 
@@ -71,7 +72,7 @@ export function ImportExportMenu({
       const result = await onImport(rows);
       toast.success(typeof result === "string" ? result : `${rows.length} filas importadas`);
     } catch (err: any) {
-      toast.error(`Error importando: ${err?.message ?? "desconocido"}`);
+      toast.error(`Error importando: ${friendlyError(err, "desconocido")}`);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }

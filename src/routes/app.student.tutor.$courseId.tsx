@@ -174,7 +174,7 @@ function TutorChat() {
       await loadMessages(sid);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMsg.id));
-      toast.error(e instanceof Error ? e.message : "Error consultando al tutor");
+      toast.error(friendlyError(e, "Error consultando al tutor"));
     } finally {
       setSending(false);
     }
@@ -246,8 +246,8 @@ function TutorChat() {
               }
             }}
           />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted-foreground">
+          <div className="flex items-center justify-end sm:justify-between gap-2">
+            <span className="hidden sm:inline text-[11px] text-muted-foreground">
               Enter para enviar · Shift+Enter para salto de línea
             </span>
             <Button

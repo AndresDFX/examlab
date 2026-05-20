@@ -29,6 +29,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Award, Save, Info, RotateCcw } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -136,7 +137,7 @@ export function CourseCertificateSettingsDialog({
         .from("course_certificate_settings")
         .upsert(payload, { onConflict: "course_id" });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({
@@ -164,7 +165,7 @@ export function CourseCertificateSettingsDialog({
         .delete()
         .eq("course_id", course.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({

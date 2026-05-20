@@ -41,6 +41,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { UserCog, Mail, AtSign } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 interface EditProfileDialogProps {
   open: boolean;
@@ -142,7 +143,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
         .update(profilePatch)
         .eq("id", profile.id);
       if (profErr) {
-        toast.error(profErr.message);
+        toast.error(friendlyError(profErr));
         return;
       }
 
@@ -205,7 +206,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       await refreshRoles();
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }

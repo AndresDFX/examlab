@@ -68,6 +68,7 @@ import {
   Edit2,
 } from "lucide-react";
 import { formatFileSize } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -157,7 +158,7 @@ function VideoLibrary() {
       .from("videos")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) toast.error(error.message);
+    if (error) toast.error(friendlyError(error));
     else setRows((data ?? []) as VideoRow[]);
     setLoading(false);
   };
@@ -249,7 +250,7 @@ function VideoLibrary() {
         .eq("id", editing.id);
       setSaving(false);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Video actualizado");
@@ -264,7 +265,7 @@ function VideoLibrary() {
       });
       setSaving(false);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Video agregado a la biblioteca");
@@ -293,7 +294,7 @@ function VideoLibrary() {
         .eq("id", editing.id);
       setSaving(false);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Video actualizado");
@@ -328,7 +329,7 @@ function VideoLibrary() {
     if (upErr) {
       setSaving(false);
       setUploadPct(0);
-      toast.error(`Error al subir el video: ${upErr.message}`);
+      toast.error(`Error al subir el video: ${friendlyError(upErr)}`);
       return;
     }
     setUploadPct(80);
@@ -361,7 +362,7 @@ function VideoLibrary() {
         // Limpieza: si update falla, eliminamos el blob recién subido
         // para no dejar huérfanos.
         void supabase.storage.from("videos").remove([objectName]);
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void supabase.storage.from("videos").remove([oldPath]);
@@ -381,7 +382,7 @@ function VideoLibrary() {
         setSaving(false);
         setUploadPct(0);
         void supabase.storage.from("videos").remove([objectName]);
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setUploadPct(100);
@@ -396,7 +397,7 @@ function VideoLibrary() {
     const next = !v.is_archived;
     const { error } = await db.from("videos").update({ is_archived: next }).eq("id", v.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success(next ? "Video archivado" : "Video restaurado");
@@ -415,7 +416,7 @@ function VideoLibrary() {
     if (!ok) return;
     const { error } = await db.from("videos").delete().eq("id", v.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     if (v.storage_path) {

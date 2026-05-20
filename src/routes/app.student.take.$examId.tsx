@@ -50,6 +50,7 @@ import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
 import { aiGradeOrEnqueue } from "@/modules/ai/ai-grading";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -566,7 +567,7 @@ function TakeExam() {
           .select()
           .single();
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         sid = data.id;

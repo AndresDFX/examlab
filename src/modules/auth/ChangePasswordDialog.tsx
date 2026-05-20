@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { KeyRound, Eye, EyeOff } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 interface ChangePasswordDialogProps {
   open: boolean;
@@ -60,7 +61,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
           severity: "error",
           metadata: { reason: error.message },
         });
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({

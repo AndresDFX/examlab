@@ -30,6 +30,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
 import { notifyExamNoteReviewed } from "@/modules/exams/exam-notes-notify";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -155,7 +156,7 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
       .select("id, status");
     setBusyId(null);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     if (!updated || (updated as { id: string }[]).length === 0) {
@@ -214,7 +215,7 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
       .select("id, status");
     setBusyId(null);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     if (!updated || (updated as { id: string }[]).length === 0) {

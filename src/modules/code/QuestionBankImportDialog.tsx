@@ -40,6 +40,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Search, Library, Inbox } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -141,7 +142,7 @@ export function QuestionBankImportDialog({
         .in("type", acceptedTypes)
         .order("created_at", { ascending: false });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         setLoading(false);
         return;
       }
@@ -204,7 +205,7 @@ export function QuestionBankImportDialog({
 
       const { data, error } = await db.rpc(RPC_BY_TARGET[target], params);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const count = Number(data) || 0;

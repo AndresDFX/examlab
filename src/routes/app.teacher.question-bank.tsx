@@ -51,6 +51,7 @@ import {
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -169,7 +170,7 @@ function QuestionBankPage() {
       }
       const { data, error } = await query;
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const list = (data ?? []) as Course[];
@@ -195,7 +196,7 @@ function QuestionBankPage() {
       .eq("course_id", courseId)
       .order("created_at", { ascending: false });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -281,7 +282,7 @@ function QuestionBankPage() {
       if (editing) {
         const { error } = await db.from("question_bank").update(payload).eq("id", editing.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         toast.success("Pregunta actualizada");
@@ -290,7 +291,7 @@ function QuestionBankPage() {
           .from("question_bank")
           .insert({ ...payload, created_by: user.id });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         toast.success("Pregunta agregada al banco");
@@ -313,7 +314,7 @@ function QuestionBankPage() {
     if (!ok) return;
     const { error } = await db.from("question_bank").delete().eq("id", r.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Pregunta eliminada");

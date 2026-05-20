@@ -25,6 +25,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
+import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 /**
  * Panel reutilizable para docente: análisis de fraude (IA) y detección
@@ -304,7 +306,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       p_unmark: currentlyReviewed,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setPairs((prev) =>
@@ -334,7 +336,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       p_unmark: currentlyReviewed,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setAiSignals((prev) =>
@@ -353,7 +355,10 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
         body: { kind, refId },
       });
-      if (error) throw error;
+      if (error) {
+        const detail = await extractEdgeError(error, data);
+        throw new Error(detail || "Error en detección de plagio");
+      }
       const summary = data as { pairs?: unknown[]; groups_compared?: number; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
       void logEvent({
@@ -501,7 +506,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           .eq("id", snap.submissionId)
           .select("id");
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return;
         }
         if (!data || (data as unknown as { id: string }[]).length === 0) {

@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Save, Info, ScrollText, Trash2 } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -46,7 +47,7 @@ export function AdminAuditRetentionPanel() {
       .select("id, info_days, warning_days, error_days, updated_at")
       .maybeSingle();
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -83,7 +84,7 @@ export function AdminAuditRetentionPanel() {
         })
         .eq("id", row.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       void logEvent({
@@ -111,7 +112,7 @@ export function AdminAuditRetentionPanel() {
     try {
       const { data, error } = await db.rpc("purge_audit_logs");
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const r = Array.isArray(data) ? data[0] : data;

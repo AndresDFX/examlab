@@ -30,6 +30,7 @@ import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // generated_contents aún no figura en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,7 +130,7 @@ export function MarkdownEditorDialog({
       setEditing(false);
       onSaved?.(body);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }

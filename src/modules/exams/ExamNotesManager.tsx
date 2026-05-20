@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { notifyExamNoteReviewed } from "@/modules/exams/exam-notes-notify";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   FileText,
   CheckCircle2,
@@ -95,7 +96,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
         .update({ content: txt, status: "pendiente", rejection_reason: null })
         .eq("id", note.id)
         .select("id");
-      if (error) toast.error(error.message);
+      if (error) toast.error(friendlyError(error));
       else if (!updated || (updated as unknown as { id: string }[]).length === 0)
         toast.error("No se pudo enviar la nota. Recarga e intenta de nuevo.");
       else toast.success("Notas enviadas para revisión");
@@ -103,7 +104,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
       const { error } = await supabase
         .from("exam_notes" as any)
         .insert({ exam_id: examId, user_id: userId, content: txt, status: "pendiente" });
-      if (error) toast.error(error.message);
+      if (error) toast.error(friendlyError(error));
       else toast.success("Notas enviadas para revisión");
     }
     setBusy(false);
@@ -289,7 +290,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       .select("id");
     setBusy(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     if (!updated || (updated as unknown as { id: string }[]).length === 0) {
@@ -340,7 +341,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       .select("id");
     setBusy(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     if (!updated || (updated as unknown as { id: string }[]).length === 0) {

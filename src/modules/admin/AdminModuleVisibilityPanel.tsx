@@ -30,6 +30,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { toast } from "sonner";
 import { Layers, ChevronUp, ChevronDown, GripVertical, Save, RotateCcw } from "lucide-react";
 import { invalidateModuleVisibility } from "@/hooks/use-module-visibility";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -90,7 +91,7 @@ export function AdminModuleVisibilityPanel() {
       .from("module_visibility")
       .select("module_key, role, enabled, display_order");
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -188,7 +189,7 @@ export function AdminModuleVisibilityPanel() {
     );
     setTogglingKey(null);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       // Rollback
       setRows((rs) => {
         const idx = rs.findIndex((r) => r.module_key === moduleKey && r.role === role);
@@ -258,7 +259,7 @@ export function AdminModuleVisibilityPanel() {
       .upsert(updates, { onConflict: "module_key,role" });
     setSavingOrder(false);
     if (error) {
-      toast.error(`No se pudo guardar el orden: ${error.message}`);
+      toast.error(`No se pudo guardar el orden: ${friendlyError(error)}`);
       return;
     }
     toast.success("Orden de módulos guardado");

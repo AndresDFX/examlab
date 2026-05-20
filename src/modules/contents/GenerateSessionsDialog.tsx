@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Spinner } from "@/components/ui/spinner";
 import { CalendarPlus } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   availableClassNumbers,
   extractClassTitle,
@@ -242,7 +243,7 @@ export function GenerateSessionsDialog({
       );
       onCreated();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }

@@ -28,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   attachmentIconKind,
   formatAttachmentSize,
@@ -69,7 +70,7 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
         .from("feedback-attachments")
         .createSignedUrl(a.path, 60); // 60s para que el navegador descargue
       if (error || !data?.signedUrl) {
-        toast.error(error?.message ?? "No se pudo generar el enlace de descarga.");
+        toast.error(friendlyError(error, "No se pudo generar el enlace de descarga."));
         return;
       }
       // Abre en nueva pestaña — el navegador descarga por Content-Disposition.
@@ -93,7 +94,7 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
       await supabase.storage.from("feedback-attachments").remove([a.path]);
       const { error } = await db.from("feedback_attachments").delete().eq("id", a.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       onChanged?.();

@@ -41,6 +41,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Spinner } from "@/components/ui/spinner";
 import { RotateCcw, Save } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   CONTENT_PROMPT_USE_CASES,
   type ContentPromptOverrides,
@@ -208,7 +209,7 @@ export function ContentPromptsOverridesDialog({
         .update({ prompt_overrides: payload })
         .eq("id", contentId);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setState((s) => ({ ...s, overrides: payload }));

@@ -55,6 +55,7 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { formatDateTime, formatDate } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId")({ component: ForumThreads });
 
@@ -214,7 +215,7 @@ function ForumThreads() {
     });
     setCreating(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Pregunta publicada");

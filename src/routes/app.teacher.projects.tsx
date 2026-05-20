@@ -95,6 +95,8 @@ import { DateCell } from "@/components/ui/date-cell";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/shared/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import {
   Accordion,
   AccordionContent,
@@ -275,7 +277,7 @@ function TeacherProjects() {
         .update({ group_mode: "teacher_assigned" })
         .eq("id", p.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       updated = { ...p, group_mode: "teacher_assigned" } as Project;
@@ -395,7 +397,7 @@ function TeacherProjects() {
     const rows = toAdd.map((uid) => ({ project_id: projectId, user_id: uid }));
     const { error } = await db.from("project_assignments").insert(rows);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return 0;
     }
     return toAdd.length;
@@ -412,7 +414,7 @@ function TeacherProjects() {
       setCourses((cs.data ?? []) as Course[]);
     } catch (e) {
       console.error("[projects] courses load failed", e);
-      toast.error(e instanceof Error ? e.message : "Error cargando cursos");
+      toast.error(friendlyError(e, "Error cargando cursos"));
     }
 
     try {
@@ -446,7 +448,7 @@ function TeacherProjects() {
       }[];
     } catch (e) {
       console.error("[projects] project_courses load failed", e);
-      toast.error(e instanceof Error ? e.message : "Error cargando vínculos de cursos");
+      toast.error(friendlyError(e, "Error cargando vínculos de cursos"));
     }
 
     try {
@@ -527,7 +529,7 @@ function TeacherProjects() {
       console.info(`[projects] loaded ${enriched.length} project(s)`);
     } catch (e) {
       console.error("[projects] projects load failed", e);
-      toast.error(e instanceof Error ? e.message : "Error cargando proyectos");
+      toast.error(friendlyError(e, "Error cargando proyectos"));
     }
   };
 
@@ -832,7 +834,7 @@ function TeacherProjects() {
           .from("project_courses")
           .upsert(rows, { onConflict: "project_id,course_id" });
         if (upErr) {
-          toast.error(`No se pudieron vincular los cursos: ${upErr.message}`);
+          toast.error(`No se pudieron vincular los cursos: ${friendlyError(upErr)}`);
         }
       }
       // Quitar vínculos a cursos que ya no están en `linked`. Si la
@@ -946,7 +948,7 @@ function TeacherProjects() {
       setAiDescOpen(false);
       setAiDescTopic("");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al generar la descripción");
+      toast.error(friendlyError(e, "Error al generar la descripción"));
     } finally {
       setAiDescLoading(false);
     }
@@ -961,7 +963,7 @@ function TeacherProjects() {
     });
     if (!ok) return;
     const { error } = await db.from("projects").delete().eq("id", p.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(t("project.deletedToast"));
     void logEvent({
       action: "project.deleted",
@@ -1059,7 +1061,7 @@ function TeacherProjects() {
     }
     const rows = toAdd.map((uid) => ({ project_id: assignProject.id, user_id: uid }));
     const { error } = await db.from("project_assignments").insert(rows);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setAssigned((prev) => {
       const next = new Set(prev);
       for (const uid of toAdd) next.add(uid);
@@ -1077,7 +1079,7 @@ function TeacherProjects() {
         .delete()
         .eq("project_id", assignProject.id)
         .eq("user_id", uid);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setAssigned((prev) => {
         const next = new Set(prev);
         next.delete(uid);
@@ -1087,7 +1089,7 @@ function TeacherProjects() {
       const { error } = await db
         .from("project_assignments")
         .insert({ project_id: assignProject.id, user_id: uid });
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setAssigned((prev) => new Set(prev).add(uid));
     }
   };
@@ -1098,7 +1100,7 @@ function TeacherProjects() {
     if (!toAdd.length) return;
     const rows = toAdd.map((id) => ({ project_id: assignProject.id, user_id: id }));
     const { error } = await db.from("project_assignments").insert(rows);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setAssigned((prev) => new Set([...prev, ...toAdd]));
     toast.success(`${toAdd.length} estudiantes asignados`);
   };
@@ -1112,7 +1114,7 @@ function TeacherProjects() {
       .delete()
       .eq("project_id", assignProject.id)
       .in("user_id", toRemove);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setAssigned((prev) => {
       const next = new Set(prev);
       toRemove.forEach((id) => next.delete(id));
@@ -1226,7 +1228,7 @@ function TeacherProjects() {
       }
     } catch (e) {
       console.error("[projects] grading load failed", e);
-      toast.error(e instanceof Error ? e.message : "Error cargando entregas");
+      toast.error(friendlyError(e, "Error cargando entregas"));
     } finally {
       setGradingLoading(false);
     }
@@ -1267,7 +1269,7 @@ function TeacherProjects() {
         .update({ ai_grade: ans.ai_grade, ai_feedback: ans.ai_feedback })
         .eq("id", ans.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const newSubmissionGrade = recomputeProjectGrade(subId);
@@ -1287,7 +1289,7 @@ function TeacherProjects() {
         })
         .eq("id", subId);
       if (subErr) {
-        toast.error(`Guardado, pero falló recalcular: ${subErr.message}`);
+        toast.error(`Guardado, pero falló recalcular: ${friendlyError(subErr)}`);
         return;
       }
       setGradingSubs((prev) =>
@@ -1344,7 +1346,7 @@ function TeacherProjects() {
       })
       .eq("id", subId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     void logEvent({
@@ -1408,7 +1410,7 @@ function TeacherProjects() {
       })
       .eq("id", subId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setGradingSubs((prev) =>
@@ -1521,7 +1523,8 @@ function TeacherProjects() {
         },
       );
       if (aiErr || aiData?.error) {
-        toast.error(`Error IA: ${aiErr?.message ?? aiData?.error}`);
+        const detail = await extractEdgeError(aiErr, aiData);
+        toast.error(`Error IA: ${detail || "Error desconocido"}`);
         return;
       }
       const newGrade = Number(aiData?.grade ?? 0);
@@ -1600,7 +1603,7 @@ function TeacherProjects() {
     });
     if (!ok) return;
     const { error } = await db.from("project_submissions").delete().eq("id", sub.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setGradingSubs((prev) => prev.filter((s) => s.id !== sub.id));
     setGradingAnsBySub((prev) => {
       const next = { ...prev };

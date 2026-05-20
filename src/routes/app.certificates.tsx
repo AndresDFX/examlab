@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, User as UserIcon } from "lucide-react";
 import { formatDateLong } from "@/shared/lib/format";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/certificates")({ component: CertificatesAdmin });
 
@@ -87,7 +88,7 @@ function CertificatesAdmin() {
         .select("*")
         .order("issued_at", { ascending: false });
       if (cancelled) return;
-      if (error) toast.error(error.message);
+      if (error) toast.error(friendlyError(error));
       else setItems((data ?? []) as CertificateRow[]);
       setLoading(false);
     })();
@@ -152,7 +153,7 @@ function CertificatesAdmin() {
         revokedAt: cert.revoked_at,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error generando PDF");
+      toast.error(friendlyError(e, "Error generando PDF"));
     }
   };
 

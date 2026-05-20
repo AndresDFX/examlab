@@ -455,7 +455,7 @@ export function AdminCourses() {
         .insert(payload)
         .select("id")
         .single();
-      if (error || !created) return toast.error(error?.message ?? "Error creando curso");
+      if (error || !created) return toast.error(friendlyError(error, "Error creando curso"));
       courseId = created.id as string;
     }
 
@@ -762,7 +762,7 @@ export function AdminCourses() {
             .insert(rows, { count: "exact" });
           if (insErr) {
             console.error("copy enrollments:", insErr);
-            toast.error(`No se pudieron copiar las matrículas: ${insErr.message}`);
+            toast.error(`No se pudieron copiar las matrículas: ${friendlyError(insErr)}`);
           } else {
             copiedStudents = count ?? rows.length;
           }
@@ -862,7 +862,7 @@ export function AdminCourses() {
       setDupOpen(false);
       load();
     } catch (e: any) {
-      toast.error(e.message ?? "Error al duplicar");
+      toast.error(friendlyError(e, "Error al duplicar"));
     } finally {
       setDupLoading(false);
     }
@@ -2062,7 +2062,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       );
       toast.success(t("course.boardImportDone", { created: rows.length, skipped }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setImporting(false);
     }

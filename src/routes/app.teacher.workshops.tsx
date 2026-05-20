@@ -98,6 +98,7 @@ import { computeWorkshopAlerts } from "@/modules/workshops/workshop-integrity-al
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Accordion,
   AccordionContent,
@@ -387,7 +388,7 @@ function TeacherWorkshops() {
         .update({ group_mode: "teacher_assigned" })
         .eq("id", ws.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       updatedWs = { ...ws, group_mode: "teacher_assigned" } as Workshop;
@@ -791,7 +792,7 @@ function TeacherWorkshops() {
     if (!ok) return;
     const ws = workshops.find((w) => w.id === id);
     const { error } = await supabase.from("workshops").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(t("workshop.deletedToast"));
     void logEvent({
       action: "workshop.deleted",
@@ -832,7 +833,7 @@ function TeacherWorkshops() {
       const { error } = await supabase
         .from("workshop_assignments")
         .insert({ workshop_id: assignWs.id, user_id: uid });
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       setAssignedIds(new Set([...assignedIds, uid]));
       toast.success("Estudiante asignado correctamente");
     } else {
@@ -841,7 +842,7 @@ function TeacherWorkshops() {
         .delete()
         .eq("workshop_id", assignWs.id)
         .eq("user_id", uid);
-      if (error) return toast.error(error.message);
+      if (error) return toast.error(friendlyError(error));
       const ns = new Set(assignedIds);
       ns.delete(uid);
       setAssignedIds(ns);
@@ -856,7 +857,7 @@ function TeacherWorkshops() {
     const { error } = await supabase
       .from("workshop_assignments")
       .insert(toAdd.map((s) => ({ workshop_id: assignWs.id, user_id: s.id })));
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setAssignedIds(new Set(students.map((s) => s.id)));
     toast.success(`${toAdd.length} estudiante(s) asignados correctamente`);
   };
@@ -1190,7 +1191,7 @@ function TeacherWorkshops() {
         })
         .eq("id", answer.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const newFinal = recomputeFinalGrade(subId);
@@ -1367,7 +1368,7 @@ function TeacherWorkshops() {
       .update({ ai_review_at: next, ai_review_by: user?.id ?? null })
       .eq("id", answerId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setAnswersBySub((prev) => {
@@ -1391,7 +1392,7 @@ function TeacherWorkshops() {
       .update({ reviewed_at: next })
       .eq("id", pairId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setWsSimilarityPairs((prev) =>
@@ -1554,7 +1555,7 @@ function TeacherWorkshops() {
         .eq("id", sub.id);
 
       if (updateErr) {
-        toast.error(`Error guardando: ${updateErr.message}`);
+        toast.error(`Error guardando: ${friendlyError(updateErr)}`);
         return false;
       }
 
@@ -1567,7 +1568,7 @@ function TeacherWorkshops() {
       );
       return true;
     } catch (e: any) {
-      toast.error(`Error IA: ${e.message ?? "Error desconocido"}`);
+      toast.error(`Error IA: ${friendlyError(e, "Error desconocido")}`);
       return false;
     } finally {
       setAiGradingId(null);
@@ -1604,7 +1605,7 @@ function TeacherWorkshops() {
         status: "calificado",
       })
       .eq("id", subId);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setWsSubs((prev) =>
       prev.map((s) =>
         s.id === subId
@@ -1671,7 +1672,7 @@ function TeacherWorkshops() {
       })
       .eq("id", sub.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     void logEvent({
@@ -1708,7 +1709,7 @@ function TeacherWorkshops() {
       .maybeSingle();
 
     if (error) {
-      toast.error(`Error: ${error.message}`);
+      toast.error(`Error: ${friendlyError(error)}`);
       return;
     }
     if (!data) {
@@ -1772,7 +1773,7 @@ function TeacherWorkshops() {
     });
     if (!ok) return;
     const { error } = await supabase.from("workshop_submissions").delete().eq("id", subId);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setWsSubs((prev) => prev.filter((s) => s.id !== subId));
     toast.success(t("workshop.submissionDeleted"));
   };

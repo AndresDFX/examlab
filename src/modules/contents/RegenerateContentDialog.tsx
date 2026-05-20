@@ -34,6 +34,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
 import { RefreshCw, Wand2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // generated_contents aún no figura en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,7 +134,7 @@ export function RegenerateContentDialog({
           })
           .then(({ data, error: invErr }) => {
             if (invErr) {
-              toast.error(invErr.message);
+              toast.error(friendlyError(invErr));
               return;
             }
             if (data && typeof data === "object" && (data as { ok?: boolean }).ok === false) {
@@ -148,7 +149,7 @@ export function RegenerateContentDialog({
       onStarted();
       onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }

@@ -53,6 +53,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildVideoEmbedUrl } from "@/shared/lib/video-embed";
 import { AttendanceQRScanner } from "@/modules/attendance/AttendanceQRScanner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -347,7 +348,7 @@ function StudentAttendance() {
           p_code: cleaned,
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           return false;
         }
         const result = data as { ok: boolean; error?: string };

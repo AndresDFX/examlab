@@ -839,7 +839,7 @@ function Gradebook() {
           .update({ revoked_at: new Date().toISOString(), revoke_reason: "regenerado" })
           .eq("id", existing.id);
         if (revErr) {
-          toast.error(`Revocación falló: ${revErr.message}`);
+          toast.error(`Revocación falló: ${friendlyError(revErr)}`);
           return;
         }
         // 2) Emitir uno nuevo.
@@ -849,7 +849,7 @@ function Gradebook() {
           _final_grade: finalGrade,
         });
         if (issueErr) {
-          toast.error(`Emisión nueva falló: ${issueErr.message}`);
+          toast.error(`Emisión nueva falló: ${friendlyError(issueErr)}`);
           return;
         }
         toast.success("Certificado regenerado");
@@ -962,7 +962,7 @@ function Gradebook() {
             .eq("course_id", courseId)
             .is("revoked_at", null);
           if (revErr) {
-            toast.error(`Revocación masiva falló: ${revErr.message}`);
+            toast.error(`Revocación masiva falló: ${friendlyError(revErr)}`);
             return;
           }
           // Refrescamos certByUserId — los vigentes ya no están vigentes.
@@ -991,7 +991,7 @@ function Gradebook() {
           .is("revoked_at", null)
           .order("student_full_name");
         if (certsErr) {
-          toast.error(certsErr.message);
+          toast.error(friendlyError(certsErr));
           return;
         }
         const rows = (certs ?? []) as Array<{
@@ -1047,7 +1047,7 @@ function Gradebook() {
         toast.success(`ZIP con ${items.length} certificado(s) descargado${issuedMsg}${failedMsg}`);
       } catch (e) {
         console.error("[gradebook] bulkGenerateAndDownload failed", e);
-        toast.error(e instanceof Error ? e.message : "Error generando certificados en lote");
+        toast.error(friendlyError(e, "Error generando certificados en lote"));
       } finally {
         setBulkIssuing(false);
       }
@@ -1080,7 +1080,7 @@ function Gradebook() {
           revokedAt: cert.revoked_at,
         });
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Error generando PDF");
+        toast.error(friendlyError(e, "Error generando PDF"));
       }
     },
     [],

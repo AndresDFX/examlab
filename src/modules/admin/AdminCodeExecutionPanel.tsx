@@ -134,7 +134,7 @@ export function AdminCodeExecutionPanel() {
         .update({ is_active: false, updated_by: user.id })
         .eq("is_active", true);
       if (deactErr) {
-        toast.error(deactErr.message);
+        toast.error(friendlyError(deactErr));
         return;
       }
 
@@ -146,7 +146,7 @@ export function AdminCodeExecutionPanel() {
         updated_by: user.id,
       });
       if (insErr) {
-        toast.error(insErr.message);
+        toast.error(friendlyError(insErr));
         return;
       }
 

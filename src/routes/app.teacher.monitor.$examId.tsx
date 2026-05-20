@@ -80,6 +80,7 @@ import { Input } from "@/components/ui/input";
 import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({
   component: ExamMonitor,
@@ -605,7 +606,7 @@ function ExamMonitor() {
     });
     if (error) {
       setLoading(null);
-      return toast.error(error.message);
+      return toast.error(friendlyError(error));
     }
 
     // Para add_time: persistimos el extra en la submission del estudiante
@@ -624,7 +625,7 @@ function ExamMonitor() {
           .eq("id", inProg.id);
         if (subErr) {
           setLoading(null);
-          return toast.error(subErr.message);
+          return toast.error(friendlyError(subErr));
         }
         setSubmissions((prev) =>
           prev.map((s) => (s.id === inProg.id ? { ...s, extra_seconds: nextExtra } : s)),
@@ -689,7 +690,7 @@ function ExamMonitor() {
       .update({ teacher_feedback: teacherFeedbackDraft.trim() || null } as any)
       .eq("id", viewingSub.id);
     setTeacherFeedbackSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setSubmissions((prev) =>
       prev.map((s) =>
         s.id === viewingSub.id
@@ -802,7 +803,7 @@ function ExamMonitor() {
       toast.success("Pregunta recalificada con IA");
       load();
     } catch (e: any) {
-      toast.error(e.message ?? "Error desconocido");
+      toast.error(friendlyError(e, "Error desconocido"));
     } finally {
       setAiGradingId(null);
       setAiGradingQid(null);
@@ -881,7 +882,7 @@ function ExamMonitor() {
         .update(payload as any)
         .eq("id", reGradePreview.submissionId);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       // Capturamos los errores per-pregunta del breakdown para audit.
@@ -985,7 +986,7 @@ function ExamMonitor() {
       .from("submissions")
       .update(updatePayload as never)
       .eq("id", sub.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     // Auditoría: borrar advertencias es decisión sensible — rastro con before/after.
     void logEvent({
       action: "fraud.warnings_cleared_all",
@@ -1055,7 +1056,7 @@ function ExamMonitor() {
       .from("submissions")
       .update(updatePayload as never)
       .eq("id", sub.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(
       result.restoredToInProgress
         ? "Advertencia eliminada — el estudiante puede reingresar al examen"
@@ -1112,7 +1113,7 @@ function ExamMonitor() {
       .update({ answers: nextAnswers, final_override_grade: recomputed })
       .eq("id", sub.id);
     setSavingQid(null);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(
       numScore == null
         ? "Calificación por pregunta eliminada"
@@ -1571,7 +1572,7 @@ function ExamMonitor() {
     answers.__breakdown = breakdown;
     const { error } = await supabase.from("submissions").update({ answers }).eq("id", submissionId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return false;
     }
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? { ...s, answers } : s)));
@@ -1668,7 +1669,7 @@ function ExamMonitor() {
     });
     if (!ok) return;
     const { error } = await supabase.from("submissions").delete().eq("id", sub.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(t("monitor.deleteConfirmed"));
     void load();
   };
@@ -1686,7 +1687,7 @@ function ExamMonitor() {
       .delete()
       .eq("exam_id", examId)
       .eq("user_id", row.userId);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     toast.success(t("monitor.deleteConfirmed"));
     setAttemptsForUser(null);
     void load();

@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -93,7 +94,7 @@ function StudentProjects() {
     if (!ok) return;
     const { error } = await db.from("project_submissions").delete().eq("id", submissionId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Entrega eliminada");

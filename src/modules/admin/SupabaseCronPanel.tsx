@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 interface CronJob {
   jobid: number;
@@ -127,7 +128,7 @@ export function SupabaseCronPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("admin_list_cron_jobs");
       if (error) {
-        toast.error(error.message ?? "Error cargando cron jobs");
+        toast.error(friendlyError(error, "Error cargando cron jobs"));
         setUnavailable(true);
         setJobs([]);
         return;
@@ -165,7 +166,7 @@ export function SupabaseCronPanel() {
         setJobs((prev) =>
           prev.map((j) => (j.jobid === job.jobid ? { ...j, active: previous } : j)),
         );
-        toast.error(error.message ?? "No se pudo cambiar el estado");
+        toast.error(friendlyError(error, "No se pudo cambiar el estado"));
         return;
       }
       toast.success(
@@ -212,7 +213,7 @@ export function SupabaseCronPanel() {
         _description: trimmed,
       });
       if (error) {
-        toast.error(error.message ?? "No se pudo actualizar la descripción");
+        toast.error(friendlyError(error, "No se pudo actualizar la descripción"));
         return;
       }
       toast.success(`Descripción de "${editingDesc.jobname}" actualizada`);
@@ -238,7 +239,7 @@ export function SupabaseCronPanel() {
         _schedule: trimmed,
       });
       if (error) {
-        toast.error(error.message ?? "No se pudo actualizar la frecuencia");
+        toast.error(friendlyError(error, "No se pudo actualizar la frecuencia"));
         return;
       }
       toast.success(

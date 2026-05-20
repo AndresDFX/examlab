@@ -46,6 +46,7 @@ import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
 import { MeetingLink } from "@/shared/components/MeetingLink";
 import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 
@@ -388,7 +389,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         triggerDownload(blob, file.name);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(friendlyError(e));
     } finally {
       setDownloadingPath(null);
     }

@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
@@ -100,7 +101,7 @@ function StudentWorkshops() {
     if (!ok) return;
     const { error } = await supabase.from("workshop_submissions").delete().eq("id", submissionId);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Entrega eliminada");

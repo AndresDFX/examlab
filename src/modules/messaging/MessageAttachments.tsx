@@ -24,6 +24,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   attachmentIconKind,
   formatAttachmentSize,
@@ -66,7 +67,7 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
         .from("message-attachments")
         .createSignedUrl(a.path, 60);
       if (error || !data?.signedUrl) {
-        toast.error(error?.message ?? "No se pudo generar el enlace de descarga.");
+        toast.error(friendlyError(error, "No se pudo generar el enlace de descarga."));
         return;
       }
       const link = document.createElement("a");
@@ -88,7 +89,7 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
       await supabase.storage.from("message-attachments").remove([a.path]);
       const { error } = await db.from("message_attachments").delete().eq("id", a.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       onChanged?.();

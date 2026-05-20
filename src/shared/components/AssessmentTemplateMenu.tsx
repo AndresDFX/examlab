@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { LayoutTemplate, Save, Trash2 } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -88,7 +89,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
       .eq("target", target)
       .order("name");
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       setLoading(false);
       return;
     }
@@ -117,7 +118,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
   const remove = async (tpl: TemplateRow) => {
     const { error } = await db.from("assessment_templates").delete().eq("id", tpl.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     toast.success("Plantilla eliminada");
@@ -147,7 +148,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
         config: cfg,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       toast.success("Plantilla guardada");

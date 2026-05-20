@@ -35,6 +35,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { downloadCSV, parseCSV, toCSV } from "@/shared/lib/csv";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -292,25 +293,9 @@ function AdminUsers() {
               body: { userId: editing.id, newPassword: password },
             },
           );
-          // supabase.functions.invoke returns FunctionsHttpError on non-2xx; the
-          // server's JSON body is on error.context (a Response). Parse it so we
-          // surface the real validation message instead of a generic edge error.
-          if (pwErr) {
-            let serverMsg = pwErr.message;
-            const ctx = (pwErr as any).context;
-            if (ctx && typeof ctx.json === "function") {
-              try {
-                const body = await ctx.json();
-                if (body?.error) serverMsg = body.error;
-              } catch {
-                /* ignore */
-              }
-            }
-            toast.error(serverMsg);
-            return;
-          }
-          if (pwRes?.error) {
-            toast.error(pwRes.error);
+          if (pwErr || pwRes?.error) {
+            const detail = await extractEdgeError(pwErr, pwRes);
+            toast.error(detail || "Error al actualizar la contraseña");
             return;
           }
         }
@@ -348,7 +333,8 @@ function AdminUsers() {
           },
         });
         if (error) {
-          toast.error(friendlyError(error));
+          const detail = await extractEdgeError(error, data);
+          toast.error(detail || "Error en importación");
           return;
         }
         const result = (data?.result ?? [])[0];
@@ -390,7 +376,7 @@ function AdminUsers() {
     if (!ok) return;
     const { error: rolesErr } = await supabase.from("user_roles").delete().eq("user_id", r.id);
     if (rolesErr) {
-      toast.error(rolesErr.message);
+      toast.error(friendlyError(rolesErr));
       return;
     }
     const { error } = await supabase.from("profiles").delete().eq("id", r.id);
@@ -446,7 +432,10 @@ function AdminUsers() {
       const { data, error } = await supabase.functions.invoke("bulk-import-users", {
         body: { rows: parsed },
       });
-      if (error) throw error;
+      if (error) {
+        const detail = await extractEdgeError(error, data);
+        throw new Error(detail || "Error en importación masiva");
+      }
       const results = (data.result ?? []) as Array<{
         email: string;
         ok: boolean;
@@ -479,7 +468,7 @@ function AdminUsers() {
       }
       load();
     } catch (e: any) {
-      toast.error(e.message ?? "Error al importar");
+      toast.error(friendlyError(e, "Error al importar"));
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = "";

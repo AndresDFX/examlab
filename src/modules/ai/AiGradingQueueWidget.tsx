@@ -29,6 +29,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Play, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -180,14 +181,11 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-grading-worker", { body: {} });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
-      if (d?.ok === false) {
-        toast.error(d?.error ?? "Error en el worker");
+      if (error || d?.ok === false) {
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || "Error en el worker");
         return;
       }
       toast.success(

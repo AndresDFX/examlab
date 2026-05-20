@@ -63,6 +63,8 @@ import {
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -440,14 +442,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-grading-worker", { body: {} });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
-      if (d?.ok === false) {
-        toast.error(d?.error ?? "Error en el worker");
+      if (error || d?.ok === false) {
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || "Error en el worker");
         return;
       }
       toast.success(
@@ -477,7 +476,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         _job_id: jobId,
       });
       if (error) {
-        toast.error(error.message ?? "No se pudo cancelar el job");
+        toast.error(friendlyError(error, "No se pudo cancelar el job"));
         return;
       }
       toast.success("Job cancelado");
@@ -498,14 +497,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       const { data, error } = await supabase.functions.invoke("ai-grading-worker", {
         body: { jobId },
       });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
-      if (d?.ok === false) {
-        toast.error(d?.error ?? "Error procesando el job");
+      if (error || d?.ok === false) {
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || "Error procesando el job");
         return;
       }
       if (d?.processed === 0) {
@@ -534,7 +530,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         _job_id: jobId,
       });
       if (error) {
-        toast.error(error.message ?? "No se pudo re-encolar el job");
+        toast.error(friendlyError(error, "No se pudo re-encolar el job"));
         return;
       }
       toast.success("Job re-encolado");

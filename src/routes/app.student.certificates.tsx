@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, Lock } from "lucide-react";
 import { formatDateLong, formatDateOnly } from "@/shared/lib/format";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/student/certificates")({
   component: StudentCertificates,
@@ -71,7 +72,7 @@ function StudentCertificates() {
         .order("issued_at", { ascending: false });
       if (cancelled) return;
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
       } else {
         setItems((data ?? []) as CertificateRow[]);
       }
@@ -127,7 +128,7 @@ function StudentCertificates() {
         revokedAt: cert.revoked_at,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error generando PDF");
+      toast.error(friendlyError(e, "Error generando PDF"));
     }
   };
 

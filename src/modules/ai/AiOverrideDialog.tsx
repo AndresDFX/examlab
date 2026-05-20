@@ -31,6 +31,7 @@ import { Zap, Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { readOverrideExpiry, writeOverrideExpiry, clearOverrideExpiry } from "@/modules/ai/ai-grading";
 import { formatDateTime } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 interface Props {
   open: boolean;
@@ -80,7 +81,7 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
     const { data, error } = await (supabase as any).rpc("activate_ai_override", { _code: c });
     setSubmitting(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     const res = data as

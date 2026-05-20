@@ -22,6 +22,7 @@ import {
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertTriangle, Bot, Check, Users } from "lucide-react";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 /**
  * Modal de "Revisión de integridad" por estudiante. Une las dos señales
@@ -500,7 +501,7 @@ export async function rpcMarkAiReviewed(
     p_unmark: unmark,
   });
   if (error) {
-    toast.error(error.message);
+    toast.error(friendlyError(error));
     return false;
   }
   return true;
@@ -513,7 +514,7 @@ export async function rpcMarkCopyReviewed(pairId: string, unmark: boolean): Prom
     p_unmark: unmark,
   });
   if (error) {
-    toast.error(error.message);
+    toast.error(friendlyError(error));
     return false;
   }
   return true;

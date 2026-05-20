@@ -34,6 +34,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { CalendarDays, Link2, Unlink, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export const Route = createFileRoute("/app/teacher/calendar")({ component: CalendarPage });
 
@@ -73,9 +74,11 @@ interface CourseRow {
  *  Centraliza el manejo de errores para evitar 5 try/catch idénticos. */
 async function callCalendar<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("calendar", { body });
-  if (error) throw new Error(error.message);
-  if (data && typeof data === "object" && "ok" in data && data.ok === false) {
-    throw new Error((data as { error?: string }).error ?? "unknown_error");
+  const dataOk =
+    !data || typeof data !== "object" || !("ok" in data) || (data as { ok?: boolean }).ok !== false;
+  if (error || !dataOk) {
+    const detail = await extractEdgeError(error, data);
+    throw new Error(detail || "unknown_error");
   }
   return data as T;
 }

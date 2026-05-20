@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -121,7 +122,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
     try {
       const { error } = await db.from("project_groups").insert({ project_id: projectId, name });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setNewGroupName("");
@@ -145,7 +146,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
     if (!ok) return;
     const { error } = await db.from("project_groups").delete().eq("id", g.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     await load();
@@ -162,7 +163,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         .eq("group_id", currentGroupId)
         .eq("user_id", userId);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
     } else {
@@ -173,7 +174,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
           .eq("group_id", currentGroupId)
           .eq("user_id", userId);
         if (dErr) {
-          toast.error(dErr.message);
+          toast.error(friendlyError(dErr));
           return;
         }
       }
@@ -181,7 +182,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         .from("project_group_members")
         .insert({ group_id: target, user_id: userId });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
     }

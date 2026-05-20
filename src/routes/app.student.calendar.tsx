@@ -36,6 +36,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { formatDateTime, formatWeekday } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/student/calendar")({ component: StudentCalendar });
 
@@ -231,7 +232,7 @@ function StudentCalendar() {
       const { data, error } = await db.rpc("get_or_create_calendar_token");
       if (cancelled) return;
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
       } else {
         const row = Array.isArray(data) ? data[0] : data;
         if (row?.token) setToken(row.token);
@@ -295,7 +296,7 @@ function StudentCalendar() {
     try {
       const { data, error } = await db.rpc("regenerate_calendar_token");
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       const row = Array.isArray(data) ? data[0] : data;

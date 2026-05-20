@@ -95,6 +95,7 @@ import {
 import { MessageAttachments } from "@/modules/messaging/MessageAttachments";
 import { formatDateTime } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/messages")({ component: MessagesPage });
 
@@ -569,7 +570,7 @@ function MessagesPage() {
           .order("created_at", { ascending: true });
         if (cancelled) return;
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyError(error));
           setMessages([]);
           return;
         }
@@ -625,7 +626,7 @@ function MessagesPage() {
         contentType: file.type || "application/octet-stream",
       });
       if (up.error) {
-        toast.error(`No se pudo subir ${safe}: ${up.error.message}`);
+        toast.error(`No se pudo subir ${safe}: ${friendlyError(up.error)}`);
         continue;
       }
       const { data, error } = await db
@@ -642,7 +643,7 @@ function MessagesPage() {
         .single();
       if (error || !data) {
         await supabase.storage.from("message-attachments").remove([path]);
-        toast.error(`No se pudo registrar ${safe}: ${error?.message ?? "desconocido"}`);
+        toast.error(`No se pudo registrar ${safe}: ${friendlyError(error, "desconocido")}`);
         continue;
       }
       created.push(data as MessageAttachmentRow);
@@ -664,7 +665,7 @@ function MessagesPage() {
         .select("*")
         .single();
       if (error || !data) {
-        toast.error(error?.message ?? "No se pudo enviar el mensaje");
+        toast.error(friendlyError(error, "No se pudo enviar el mensaje"));
         return;
       }
       const inserted = data as MessageLite;
@@ -723,7 +724,7 @@ function MessagesPage() {
         .select("*")
         .single();
       if (error || !data) {
-        toast.error(error?.message ?? "No se pudo editar el mensaje");
+        toast.error(friendlyError(error, "No se pudo editar el mensaje"));
         return;
       }
       setMessages((prev) =>
@@ -759,7 +760,7 @@ function MessagesPage() {
     }
     const { error } = await db.from("messages").delete().eq("id", m.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     setMessages((prev) => prev.filter((x) => x.id !== m.id));
@@ -818,7 +819,7 @@ function MessagesPage() {
       const eligibleIds = eligible.map((m) => m.id);
       const { error } = await db.from("messages").delete().in("id", eligibleIds);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setMessages((prev) => prev.filter((x) => !eligibleIds.includes(x.id)));
@@ -844,7 +845,7 @@ function MessagesPage() {
     if (!myUserId) return;
     const { data, error } = await db.rpc("open_conversation", { _other: otherUserId });
     if (error || !data) {
-      toast.error(error?.message ?? "No se pudo abrir la conversación");
+      toast.error(friendlyError(error, "No se pudo abrir la conversación"));
       return;
     }
     const convId = data as string;
@@ -865,7 +866,7 @@ function MessagesPage() {
     if (!ok) return;
     const { error } = await db.rpc("clear_conversation", { _conv_id: convId });
     if (error) {
-      toast.error(error.message);
+      toast.error(friendlyError(error));
       return;
     }
     if (activeConvId === convId) setActiveConvId(null);
