@@ -14,7 +14,8 @@
  * `ai-grading-worker` manualmente sin esperar al cron horario.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
   X,
   Zap,
   ArrowUpRight,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -122,20 +124,33 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const [cancelling, setCancelling] = useState<Set<string>>(new Set());
   const [processingOne, setProcessingOne] = useState<Set<string>>(new Set());
 
-  /** Resuelve la ruta destino al hacer click en una fila del job. Si el
-   *  tipo no tiene destino conocido (target_row no resuelto, kind raro),
-   *  retorna null y la fila queda no-clickable. */
-  const targetRouteForJob = (j: QueueJob): string | null => {
+  // El widget vive en el dashboard. El rol activo determina a qué ruta
+  // del módulo "Cron IA" enlaza el botón "Ver todo".
+  const activeRole = useActiveRole();
+  const cronModulePath = activeRole === "Admin" ? "/app/admin/ai-cron" : "/app/teacher/ai-cron";
+
+  /** Resuelve la ruta destino al hacer click en "abrir detalle" de un
+   *  job. Importante: TanStack file-routing usa segmentos `$param`, así
+   *  que NO podemos pasar una URL ya construida tipo
+   *  `/app/teacher/monitor/abc-123` a `navigate({ to })` — eso falla
+   *  silenciosamente (ese era el bug original "ver detalle no abre").
+   *  Devolvemos un par `{ to, params }` que `navigate` resuelve bien.
+   *
+   *  Para Admin, devolvemos null: Admin no tiene RBAC para
+   *  `/app/teacher/*`, lo redirigiría a `/app/unauthorized`. El detalle
+   *  de un job lo ve dentro del módulo Cron IA (panel expandible). */
+  const targetRouteForJob = (
+    j: QueueJob,
+  ): { to: string; params?: Record<string, string> } | null => {
+    if (activeRole === "Admin") return null;
     if (j.target_table === "submissions" && j.examId) {
-      // Monitor en vivo del examen — el docente ve todas las entregas
-      // del exam y puede recalificar, revisar, etc.
-      return `/app/teacher/monitor/${j.examId}`;
+      return {
+        to: "/app/teacher/monitor/$examId",
+        params: { examId: j.examId },
+      };
     }
     if (j.target_table === "project_submission_files" && j.projectId) {
-      // No hay ruta `monitor` para proyectos; los abrimos en la lista
-      // de proyectos del docente. Mejor que nada — el docente puede
-      // luego elegir el proyecto y ver sus entregas.
-      return "/app/teacher/projects";
+      return { to: "/app/teacher/projects" };
     }
     return null;
   };
@@ -632,7 +647,9 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                                 onClick={() =>
                                   navigate({
                                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    to: route as any,
+                                    to: route.to as any,
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    params: route.params as any,
                                   })
                                 }
                                 title="Abrir detalle"
@@ -706,7 +723,9 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                         onClick={() =>
                           navigate({
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            to: route as any,
+                            to: route.to as any,
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            params: route.params as any,
                           })
                         }
                         title={`Abrir detalle: ${label}`}
@@ -757,6 +776,17 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
               <Badge variant="outline" className="text-[10px] w-full justify-center py-1">
                 {counts.pending} job(s) en cola — se procesan en el próximo turno
               </Badge>
+            )}
+            {/* Link al módulo dedicado "Cron IA" — gestión completa de la
+                cola (filtros por estado, detalle inline, todos los jobs
+                no solo los 8 más recientes). Solo se muestra cuando hay
+                un rol activo conocido (oculto en transiciones de auth). */}
+            {activeRole && (
+              <Link to={cronModulePath} className="block">
+                <Button variant="ghost" size="sm" className="w-full text-xs">
+                  Ver módulo Cron IA <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
             )}
           </>
         )}
