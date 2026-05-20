@@ -92,6 +92,24 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
   });
   if (!res.ok) {
     const errText = await res.text();
+    // Detectamos el caso típico de API key inválida y devolvemos un
+    // mensaje accionable en lugar del JSON crudo del provider. El
+    // alumno no debería ver "API_KEY_INVALID" — eso es config del
+    // admin, no algo que él pueda arreglar.
+    const isKeyInvalid =
+      res.status === 401 ||
+      res.status === 403 ||
+      errText.includes("API_KEY_INVALID") ||
+      errText.includes("invalid_api_key") ||
+      errText.toLowerCase().includes("invalid api key");
+    if (isKeyInvalid) {
+      throw new Error(
+        `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
+          `Pídele al administrador que actualice el secret correspondiente ` +
+          `(${m.provider === "gemini" ? "GEMINI_API_KEY" : m.provider === "openai" ? "OPENAI_API_KEY" : "LOVABLE_API_KEY"}) ` +
+          `o que cambie el proveedor activo desde Admin → IA → Modelo.`,
+      );
+    }
     throw new Error(`AI error ${res.status}: ${errText.slice(0, 500)}`);
   }
   const json = await res.json();
