@@ -28,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty } from "@/components/ui/empty-state";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
 import {
   Select,
   SelectContent,
@@ -47,6 +49,8 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  CalendarClock,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -139,7 +143,57 @@ function targetRouteForJob(
   return null;
 }
 
+/**
+ * Wrapper exportado. PageHeader + Tabs (IA / Supabase). Solo Admin ve la
+ * tab "Supabase" — Docente solo gestiona la cola IA y no debería ver
+ * jobs de infraestructura. Para Docente renderizamos sin Tabs para no
+ * mostrar un control de un único tab (mala UX).
+ */
 export function AiCronPage({ isAdmin = false }: Props) {
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        backTo="/app"
+        icon={<Cpu className="h-6 w-6 text-primary" />}
+        title="Cron IA"
+        subtitle={
+          isAdmin
+            ? "Cola de calificación con IA y jobs de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."
+            : "Cola de calificación con IA. El worker corre cada hora; aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
+        }
+      />
+      {isAdmin ? (
+        <Tabs defaultValue="ia">
+          <TabsList>
+            <TabsTrigger value="ia" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              IA
+            </TabsTrigger>
+            <TabsTrigger value="supabase" className="gap-1.5">
+              <CalendarClock className="h-3.5 w-3.5" />
+              Supabase
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="ia" className="space-y-4 mt-4">
+            <AiQueuePanel isAdmin />
+          </TabsContent>
+          <TabsContent value="supabase" className="space-y-4 mt-4">
+            <SupabaseCronPanel />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <AiQueuePanel />
+      )}
+    </div>
+  );
+}
+
+/**
+ * AiQueuePanel — panel reutilizable con la cola IA. Toda la lógica de
+ * fetch + acciones que antes vivía directamente en AiCronPage. Ahora
+ * lo wrappea el AiCronPage para combinarlo con la pestaña Supabase.
+ */
+function AiQueuePanel({ isAdmin = false }: Props) {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [counts, setCounts] = useState<Counts>({
@@ -491,31 +545,7 @@ export function AiCronPage({ isAdmin = false }: Props) {
   const filteredCount = useMemo(() => jobs.length, [jobs]);
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        backTo="/app"
-        icon={<Cpu className="h-6 w-6 text-primary" />}
-        title="Cron IA"
-        subtitle="Cola de calificación con IA. El worker corre cada hora; aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
-        actions={
-          isAdmin ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void runNow()}
-              disabled={running || counts.pending === 0}
-            >
-              {running ? (
-                <Spinner size="sm" className="mr-1" />
-              ) : (
-                <Play className="h-3.5 w-3.5 mr-1" />
-              )}
-              Procesar ahora ({counts.pending})
-            </Button>
-          ) : undefined
-        }
-      />
-
+    <div className="space-y-4">
       {/* Stats — full-width 4-col en md+ */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
@@ -562,14 +592,30 @@ export function AiCronPage({ isAdmin = false }: Props) {
 
       {/* Filtro + listado */}
       <Card>
-        <CardHeader className="pb-3 flex-row items-center justify-between gap-3 space-y-0">
+        <CardHeader className="pb-3 flex-row items-center justify-between gap-3 space-y-0 flex-wrap">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base">Jobs en cola</CardTitle>
             <Badge variant="secondary" className="text-[10px]">
               {filteredCount}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void runNow()}
+                disabled={running || counts.pending === 0}
+                className="h-8"
+              >
+                {running ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <Play className="h-3.5 w-3.5 mr-1" />
+                )}
+                Procesar ahora ({counts.pending})
+              </Button>
+            )}
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
