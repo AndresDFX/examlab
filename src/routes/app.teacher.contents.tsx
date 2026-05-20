@@ -1601,7 +1601,10 @@ function CreateAssessmentDialog({
           {/* Tipo de evaluación */}
           <div className="space-y-1.5">
             <Label required>{t("contents.assessmentType")}</Label>
-            <div className="grid grid-cols-3 gap-2">
+            {/* grid-cols-1 mobile-first → 3 col en sm+; antes era
+                grid-cols-3 sin prefijo y los 3 botones quedaban
+                apretados/ilegibles a 375px (cada uno tenía solo ~110px). */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {(
                 [
                   { key: "workshop", label: t("contents.assessmentWorkshop") },

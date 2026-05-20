@@ -1515,7 +1515,10 @@ function ExamEditor() {
           </DialogHeader>
           {timeEvalResult && (
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              {/* 3 tiles "Actual / Sugerido / Diferencia" — stack en
+                  mobile, fila en sm+. Antes era grid-cols-3 sin prefijo
+                  y los números de 2xl quedaban espachurrados a 375px. */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                 <div className="rounded-md border p-2">
                   <div className="text-[10px] uppercase text-muted-foreground">Actual</div>
                   <div className="text-2xl font-semibold tabular-nums">

@@ -230,9 +230,9 @@ export function AdminAiGradingPanel() {
             <Cpu className="h-4 w-4 text-primary" />
             Modo de procesamiento IA
             <HelpHint>
-              `async` (default): las llamadas IA se encolan y un worker programado por hora drena la
-              cola. Reduce el costo en picos y respeta rate limits. `sync` (legacy): se invoca la IA
-              al instante en cada entrega/recalificación.
+              `async` (default): las llamadas IA se encolan y el worker drena la cola en lote.
+              Reduce el costo en picos y respeta rate limits. `sync` (legacy): se invoca la IA al
+              instante en cada entrega/recalificación.
             </HelpHint>
           </CardTitle>
         </CardHeader>
