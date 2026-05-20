@@ -545,6 +545,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // que el orden quede unificado entre roles.
     ["/app/teacher/ai-cron", "ai_cron"],
     ["/app/admin/ai-cron", "ai_cron"],
+    // Estadísticas — variante docente (por curso) y admin (agregada)
+    // mapean al mismo módulo. Estudiante no tiene ruta (no aplica).
+    ["/app/teacher/statistics", "statistics"],
+    ["/app/admin/statistics", "statistics"],
     ["/app/teacher/contents", "contents"],
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],

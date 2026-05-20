@@ -32,6 +32,7 @@ export type ModuleKey =
   | "question_bank"
   | "ai_prompts"
   | "ai_cron"
+  | "statistics"
   | "messages"
   | "dashboard"
   | "videos"

@@ -61,6 +61,7 @@ const MODULES: Array<{ key: string; label: string }> = [
   { key: "question_bank", label: "Banco de preguntas" },
   { key: "ai_prompts", label: "Prompts IA" },
   { key: "ai_cron", label: "Cron" },
+  { key: "statistics", label: "Estadísticas" },
   { key: "messages", label: "Mensajes" },
   { key: "videos", label: "Biblioteca de videos" },
 ];
