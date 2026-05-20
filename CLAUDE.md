@@ -227,8 +227,8 @@ Para parciales/talleres/proyectos que ya pasaron fuera de la plataforma (presenc
 
 Una sola configuración global activa a la vez (UNIQUE PARTIAL idx sobre `is_active=true`). Solo Admin escribe.
 
-- Providers V1: `lovable` (Gemini via gateway) y `openai` (gpt-4o, gpt-4o-mini, etc).
-- API keys NO se guardan en DB — viven como env vars en Lovable (`LOVABLE_API_KEY`, `OPENAI_API_KEY`). La tabla solo elige `provider` + `model`.
+- Providers soportados: `lovable` (Gemini via gateway), `openai` (gpt-4o, gpt-4o-mini, etc), `gemini` (Google Gemini directo).
+- **API keys NO se guardan en DB**. Viven como env vars en Lovable (`LOVABLE_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`). La tabla solo elige `provider` + `model`. Si una key expira/se rota, va por Lovable → Edge Function Secrets — NO se agregan inputs de API key al panel admin. Existió un override `ai_model_settings.gemini_api_key` (legacy, migración 20260524110000); las edges lo leen como fallback pero la UI ya no permite editarlo. La columna quedará deprecada cuando se haga la migración drop column.
 - Edge function lee la fila activa via `getActiveAiModel()` y construye URL/auth/header según provider en el helper `aiChatCompletion(body)`. Ambos providers hablan el mismo formato OpenAI chat-completions, así que el body (messages/tools/tool_choice) viaja idéntico — solo cambia `model`.
 - UI Admin en `app.admin.ai-prompts.tsx` con tabs: **Prompts** (editor de los 5 use_cases globales) + **Modelo** (provider + model). El path se mantuvo por compatibilidad.
 
