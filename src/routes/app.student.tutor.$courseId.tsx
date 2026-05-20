@@ -33,6 +33,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export const Route = createFileRoute("/app/student/tutor/$courseId")({ component: TutorChat });
 
@@ -203,7 +204,17 @@ function TutorChat() {
       const { data, error } = await supabase.functions.invoke("tutor-chat", {
         body: { sessionId, message: text },
       });
-      if (error) throw error;
+      // El edge retorna `status: 500` con `{ error: "mensaje..." }` cuando
+      // la API key del provider está inválida (o cualquier otro fallo).
+      // `supabase.functions.invoke` envuelve cualquier non-2xx en un
+      // FunctionsHttpError genérico ("Edge Function returned a non-2xx
+      // status code") y deja el body real en `error.context.response`.
+      // `extractEdgeError(error, data)` lee ese body y devuelve el
+      // mensaje útil — caemos al genérico solo si no se puede extraer.
+      if (error) {
+        const real = await extractEdgeError(error, data);
+        throw new Error(real || "Error consultando al tutor");
+      }
       if (data?.error) throw new Error(data.error);
 
       // Re-cargar los mensajes reales (incluye el del usuario + assistant persistidos por la edge)
