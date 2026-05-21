@@ -157,11 +157,11 @@ export function AdminCertificateSettingsPanel() {
                 placeholder="https://…/logo.png"
               />
               {draft.institution_logo_url && (
-                <div className="mt-2 inline-block rounded border bg-muted/30 p-2">
+                <div className="mt-2 inline-block rounded border bg-muted/30 p-2 max-w-full">
                   <img
                     src={draft.institution_logo_url}
                     alt="preview"
-                    className="h-12 w-auto"
+                    className="h-12 w-auto max-w-full object-contain"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = "none";
                     }}
@@ -206,11 +206,11 @@ export function AdminCertificateSettingsPanel() {
                 placeholder="https://…/signature.png"
               />
               {draft.signature_image_url && (
-                <div className="mt-2 inline-block rounded border bg-muted/30 p-2">
+                <div className="mt-2 inline-block rounded border bg-muted/30 p-2 max-w-full">
                   <img
                     src={draft.signature_image_url}
                     alt="signature preview"
-                    className="h-10 w-auto"
+                    className="h-10 w-auto max-w-full object-contain"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = "none";
                     }}

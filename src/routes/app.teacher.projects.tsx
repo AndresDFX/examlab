@@ -2192,7 +2192,7 @@ function TeacherProjects() {
                 })}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {!(form as any).is_external && (
                 <div>
                   <Label required>{t("common.startDate")}</Label>

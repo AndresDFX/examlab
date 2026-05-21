@@ -44,8 +44,17 @@ import {
   CalendarCheck,
   Award,
   RotateCcw,
+  ChevronDown,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
@@ -1124,50 +1133,52 @@ function Gradebook() {
             <Download className="h-4 w-4 mr-1" />
             CSV
           </Button>
+          {/* Acciones de certificados — agrupadas en dropdown para no
+              saturar la toolbar (en mobile las 3 caían en filas separadas
+              y opacaban Guardar/CSV). El icono Award + caret marca que
+              hay sub-acciones; el dropdown abre con labels descriptivos. */}
           {selectedCourse && consolidated && consolidated.length > 0 && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void bulkIssueAll()}
-                disabled={bulkIssuing}
-                title="Emite el certificado en DB para cada aprobado pendiente. No descarga PDFs — el alumno y el docente pueden bajarlos uno a uno desde el listado."
-              >
-                {bulkIssuing ? (
-                  <Spinner size="md" className="mr-1" />
-                ) : (
-                  <Award className="h-4 w-4 mr-1" />
-                )}
-                Emitir certificados
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => void bulkGenerateAndDownload(false)}
-                disabled={bulkIssuing}
-                title="Emite los certificados pendientes Y descarga un ZIP con TODOS los PDFs vigentes del curso (incluye un _index.csv para auditoría)."
-              >
-                {bulkIssuing ? (
-                  <Spinner size="md" className="mr-1" />
-                ) : (
-                  <Download className="h-4 w-4 mr-1" />
-                )}
-                Generar y descargar (lote)
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void bulkGenerateAndDownload(true)}
-                disabled={bulkIssuing || Object.keys(certByUserId).length === 0}
-                title="Revoca todos los certificados vigentes del curso y emite uno nuevo por cada aprobado con la configuración (logo, firma, mensaje) y notas actuales. Útil cuando cambió el branding o las notas."
-              >
-                {bulkIssuing ? (
-                  <Spinner size="md" className="mr-1" />
-                ) : (
-                  <Award className="h-4 w-4 mr-1" />
-                )}
-                Regenerar todos
-              </Button>
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={bulkIssuing}>
+                  {bulkIssuing ? (
+                    <Spinner size="md" className="mr-1" />
+                  ) : (
+                    <Award className="h-4 w-4 mr-1" />
+                  )}
+                  Certificados
+                  <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel>Acciones masivas</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => void bulkIssueAll()}
+                  disabled={bulkIssuing}
+                  title="Emite el certificado en DB para cada aprobado pendiente. No descarga PDFs — el alumno y el docente pueden bajarlos uno a uno desde el listado."
+                >
+                  <Award className="h-4 w-4 mr-2" />
+                  <span className="flex-1">Emitir certificados</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void bulkGenerateAndDownload(false)}
+                  disabled={bulkIssuing}
+                  title="Emite los certificados pendientes Y descarga un ZIP con TODOS los PDFs vigentes del curso (incluye un _index.csv para auditoría)."
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  <span className="flex-1">Generar y descargar (lote)</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => void bulkGenerateAndDownload(true)}
+                  disabled={bulkIssuing || Object.keys(certByUserId).length === 0}
+                  title="Revoca todos los certificados vigentes del curso y emite uno nuevo por cada aprobado con la configuración (logo, firma, mensaje) y notas actuales. Útil cuando cambió el branding o las notas."
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  <span className="flex-1">Regenerar todos</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

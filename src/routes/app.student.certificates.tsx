@@ -141,7 +141,6 @@ function StudentCertificates() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
-        backTo="/app"
         icon={<Award className="h-6 w-6 text-amber-500" />}
         title="Certificaciones"
         subtitle="Descarga el PDF firmado o comparte el link de verificación pública."

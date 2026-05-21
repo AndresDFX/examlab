@@ -17,7 +17,6 @@ function AdminSystem() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
-        backTo="/app"
         icon={<Wrench className="h-6 w-6" />}
         title="Sistema"
         subtitle="Diagnóstico de la infraestructura externa (DB, edge functions, IA, push, storage, auth)"

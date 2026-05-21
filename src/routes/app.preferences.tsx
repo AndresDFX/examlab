@@ -180,7 +180,6 @@ function PreferencesPage() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
-        backTo="/app"
         icon={<Bell className="h-6 w-6" />}
         title="Preferencias de notificación"
         subtitle="Decide qué tipos de notificación quieres recibir por correo y por push. Las notificaciones in-app siempre se entregan."

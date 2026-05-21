@@ -38,6 +38,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/shared/lib/rbac";
 import { logEvent } from "@/shared/lib/audit";
 import { ensurePushSubscription } from "@/modules/notifications/push-subscription";
+import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -1061,6 +1062,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           !sidebarCollapsed && "md:ml-64",
         )}
       >
+        {/* Banner de impersonación: se renderiza arriba de TODO el main
+            cuando el admin está viendo la plataforma como otro usuario.
+            Sticky top para que sea siempre visible mientras se navega
+            por el contenido. Vive dentro del <main> (no a nivel root)
+            para no chocar con el sidebar fixed del desktop. */}
+        <ImpersonationBanner />
         {/* Page container — constrained on desktop, full-bleed with 16px
             gutters on mobile. Bottom padding reserves room for the bottom
             nav on mobile so fixed content doesn't get clipped. */}

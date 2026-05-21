@@ -71,9 +71,32 @@ const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 );
 DialogHeader.displayName = "DialogHeader";
 
+/**
+ * DialogFooter pegado al bottom del dialog. Cuando el dialog hace
+ * scroll (form largo en mobile o muchas filas en dialogs de
+ * configuración), los botones de acción ("Cancelar" / "Guardar") quedan
+ * siempre visibles en la parte inferior — el usuario no tiene que
+ * scrollear todo el contenido para encontrarlos.
+ *
+ * Cómo funciona el sticky:
+ *   - `sticky bottom-0` pega el footer al borde inferior del padre
+ *     scrolleable (`DialogContent` con `overflow-y-auto`). Si no hay
+ *     overflow, el footer simplemente queda en su posición natural.
+ *   - Los `-mx-*` + `px-*` extienden el `bg-background` y el `border-t`
+ *     hasta los bordes del dialog (compensando el padding del
+ *     `DialogContent`). El `-mb-*` consume el bottom-padding del
+ *     padre para que el footer quede pegado al borde inferior real.
+ *
+ * Si tu caso de uso necesita un footer NO-sticky (raro), pasa
+ * `className="static"` para sobrescribir.
+ */
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
+    className={cn(
+      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "sticky bottom-0 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pt-3 pb-4 sm:pb-6 bg-background border-t",
+      className,
+    )}
     {...props}
   />
 );

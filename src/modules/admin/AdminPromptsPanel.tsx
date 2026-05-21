@@ -510,7 +510,7 @@ export function AdminPromptsPanel() {
           la app (Exámenes / Talleres / Proyectos / Detección de fraude).
           Solo afecta el render — no toca la BD. */}
       <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
-        <div className="flex-1 min-w-48">
+        <div className="flex-1 min-w-[160px] sm:min-w-48">
           <Label className="text-xs">Módulo</Label>
           <Select
             value={moduleFilter}

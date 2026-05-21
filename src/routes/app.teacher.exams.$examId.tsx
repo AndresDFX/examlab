@@ -777,7 +777,7 @@ function ExamEditor() {
                */}
               {!(exam as any).is_external && (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <Label className="m-0">Duración (min)</Label>
@@ -1318,7 +1318,7 @@ function ExamEditor() {
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label>
                         Mínimo de marcadas{" "}

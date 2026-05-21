@@ -30,7 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Users as UsersIcon } from "lucide-react";
+import { Plus, Trash2, Pencil, Users as UsersIcon, Eye } from "lucide-react";
+import { startImpersonate } from "@/modules/admin/impersonation";
 import { Spinner } from "@/components/ui/spinner";
 import { toCSV } from "@/shared/lib/csv";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -135,6 +136,29 @@ function AdminUsers() {
   );
 
   const isAdmin = roles.includes("Admin");
+
+  const handleImpersonate = async (r: Row) => {
+    if (r.roles.includes("Admin")) {
+      toast.error("No se puede impersonar a otro administrador");
+      return;
+    }
+    const ok = await confirm({
+      title: `¿Iniciar sesión como ${r.full_name}?`,
+      description:
+        "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. " +
+        "Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
+        "La acción queda registrada en el log de auditoría.",
+      confirmLabel: "Iniciar como",
+      tone: "warning",
+    });
+    if (!ok) return;
+    try {
+      await startImpersonate(r.id);
+      // startImpersonate dispara window.location.href → no llegamos aquí.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al iniciar la impersonación");
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -612,6 +636,16 @@ function AdminUsers() {
                               label: t("common.edit"),
                               icon: Pencil,
                               onClick: () => openEdit(r),
+                            },
+                            // "Iniciar como" — solo disponible para targets
+                            // que no son Admin (escalación lateral prohibida
+                            // server-side también). El propio admin no se ve
+                            // a sí mismo en la lista de "iniciar como".
+                            !r.roles.includes("Admin") && {
+                              label: "Iniciar como",
+                              icon: Eye,
+                              hint: `Acceder a la plataforma como ${r.full_name}`,
+                              onClick: () => void handleImpersonate(r),
                             },
                             {
                               label: t("common.delete"),

@@ -904,12 +904,12 @@ function MessagesPage() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <MessageSquare className="h-6 w-6 text-cyan-400 dark:text-cyan-300" />
           Mensajes
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {isStaff && (
             <Button
               size="sm"
@@ -918,12 +918,16 @@ function MessagesPage() {
               title="Enviar un mensaje a todos los estudiantes de un curso. Genera notificación in-app y correo (con todos los alumnos en BCC)."
             >
               <Megaphone className="h-4 w-4 mr-1" />
-              Enviar a todos los estudiantes
+              {/* Texto corto en mobile, completo en sm+: "Enviar a todos
+                  los estudiantes" es 27 chars y satura el header en 375px. */}
+              <span className="hidden sm:inline">Enviar a todos los estudiantes</span>
+              <span className="sm:hidden">Broadcast</span>
             </Button>
           )}
           <Button size="sm" onClick={() => setNewDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
-            Nueva conversación
+            <span className="hidden sm:inline">Nueva conversación</span>
+            <span className="sm:hidden">Nueva</span>
           </Button>
         </div>
       </div>

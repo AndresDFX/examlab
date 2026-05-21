@@ -1023,7 +1023,7 @@ function TeacherExams() {
                   return (
                     <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
                       <p className="text-sm font-medium">{course?.name ?? cid}</p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <Label className="text-xs text-muted-foreground">Corte</Label>
                           <Select

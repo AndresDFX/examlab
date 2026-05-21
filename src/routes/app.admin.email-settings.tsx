@@ -26,7 +26,6 @@ function AdminEmailSettings() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
-        backTo="/app/admin/settings"
         icon={<Mail className="h-6 w-6" />}
         title="Configuración de correos"
         subtitle="Activa o desactiva el envío de correos por categoría."

@@ -365,7 +365,6 @@ function QuestionBankPage() {
   return (
     <div className="container mx-auto space-y-5 p-4 sm:p-6">
       <PageHeader
-        backTo="/app"
         icon={<Library className="h-6 w-6" />}
         title="Banco de preguntas"
         subtitle="Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos."

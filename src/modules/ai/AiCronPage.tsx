@@ -163,7 +163,6 @@ export function AiCronPage({ isAdmin = false }: Props) {
   return (
     <div className="space-y-5">
       <PageHeader
-        backTo="/app"
         icon={<Cpu className="h-6 w-6 text-primary" />}
         title="Cron"
         subtitle={

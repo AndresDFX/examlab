@@ -318,7 +318,6 @@ function StudentCalendar() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
-        backTo="/app"
         icon={<CalendarIcon className="h-6 w-6 text-blue-500" />}
         title="Mi calendario"
         subtitle="Vista unificada de exámenes, talleres, proyectos y sesiones. Suscríbete desde tu calendario favorito."
@@ -348,7 +347,7 @@ function StudentCalendar() {
           ) : icsUrl ? (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <Input value={icsUrl} readOnly className="font-mono text-xs flex-1 min-w-64" />
+                <Input value={icsUrl} readOnly className="font-mono text-xs flex-1 min-w-[180px] sm:min-w-64" />
                 <Button size="sm" variant="outline" onClick={handleCopy}>
                   <Copy className="h-3.5 w-3.5 mr-1" />
                   Copiar
@@ -396,7 +395,7 @@ function StudentCalendar() {
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-48">
+            <div className="relative flex-1 min-w-[160px] sm:min-w-48">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
