@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { toCSV, downloadCSV } from "@/shared/lib/csv";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -157,6 +158,28 @@ export function AdminCourses() {
     );
   }, [courses, search]);
   const sel = useMultiSelect(filteredCourses);
+
+  // Export del listado filtrado. No soportamos import porque cada curso
+  // arrastra cortes con weights, weights de docente, matrículas y enlaces
+  // a exams/workshops/projects — no es razonable bulk-import por CSV.
+  const exportCoursesCsv = (): string => {
+    const data = filteredCourses.map((c) => ({
+      name: c.name,
+      period: c.period ?? "",
+      description: (c.description ?? "").replace(/\r?\n/g, " ").slice(0, 500),
+      start_date: c.start_date ?? "",
+      end_date: c.end_date ?? "",
+      grade_scale_min: c.grade_scale_min,
+      grade_scale_max: c.grade_scale_max,
+      passing_grade: c.passing_grade,
+      max_exam_attempts: c.max_exam_attempts,
+      exam_weight: c.exam_weight,
+      workshop_weight: c.workshop_weight,
+      project_weight: c.project_weight,
+      attendance_weight: c.attendance_weight,
+    }));
+    return toCSV(data);
+  };
 
   const handleBulkDelete = async (ids: string[]) => {
     // ON DELETE CASCADE arrastra examenes/talleres/proyectos/etc.
@@ -881,9 +904,12 @@ export function AdminCourses() {
               : `${courses.length} cursos registrados`}
           </p>
         </div>
-        <Button size="sm" onClick={openNew}>
-          <Plus className="h-4 w-4 mr-1" /> Nuevo curso
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <ImportExportMenu resourceName="cursos" onExport={exportCoursesCsv} />
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1" /> Nuevo curso
+          </Button>
+        </div>
       </div>
 
       <SearchInput

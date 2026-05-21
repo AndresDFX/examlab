@@ -52,6 +52,8 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
+import { toCSV } from "@/shared/lib/csv";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -227,6 +229,25 @@ function QuestionBankPage() {
     });
   }, [rows, search, filterType, filterDifficulty]);
 
+  // Export del banco filtrado. No soportamos import porque las preguntas
+  // (con options JSON, starter_code, expected_rubric) no caben en CSV plano;
+  // para añadirlas en bulk usar la pestaña "IA" en exam/workshop/project
+  // que genera + guarda en banco.
+  const exportBankCsv = (): string => {
+    const data = filtered.map((r) => ({
+      type: r.type,
+      content: r.content.replace(/\r?\n/g, " ").slice(0, 500),
+      topic: r.topic ?? "",
+      difficulty: r.difficulty ?? "",
+      tags: r.tags.join("|"),
+      suggested_points: r.suggested_points,
+      language: r.language ?? "",
+      times_used: r.times_used,
+      last_used_at: r.last_used_at ?? "",
+    }));
+    return toCSV(data);
+  };
+
   const openCreate = () => {
     setEditing(null);
     setDraft({ type: "abierta", suggested_points: 1, tags: [] });
@@ -349,10 +370,17 @@ function QuestionBankPage() {
         title="Banco de preguntas"
         subtitle="Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos."
         actions={
-          <Button onClick={openCreate} disabled={!courseId}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nueva pregunta
-          </Button>
+          <div className="flex gap-2">
+            <ImportExportMenu
+              resourceName="banco-preguntas"
+              onExport={exportBankCsv}
+              disabled={!courseId}
+            />
+            <Button onClick={openCreate} disabled={!courseId}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nueva pregunta
+            </Button>
+          </div>
         }
       />
 

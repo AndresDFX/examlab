@@ -16,6 +16,8 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
+import { toCSV } from "@/shared/lib/csv";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,6 +207,29 @@ function TeacherProjects() {
     });
   }, [projects, search, courseFilter, cutFilter]);
   const sel = useMultiSelect(filteredProjects);
+
+  // Export CSV de la lista filtrada — solo lectura. No soportamos import
+  // porque la creación de un proyecto requiere rúbricas, archivos esperados
+  // y vínculos a múltiples cursos que no caben en formato CSV plano. Para
+  // duplicar un proyecto entre cursos existe el dialog "Duplicar".
+  const exportProjectsCsv = (): string => {
+    const cutById = new Map(cuts.map((c) => [c.id, c.name] as const));
+    const data = filteredProjects.map((p) => ({
+      title: p.title,
+      course: p.course?.name ?? "",
+      period: p.course?.period ?? "",
+      cut: p.cut_id ? (cutById.get(p.cut_id) ?? "") : "",
+      status: p.status,
+      group_mode: p.group_mode ?? "individual",
+      is_external: p.is_external ? "true" : "false",
+      max_score: p.max_score,
+      max_files: p.max_files,
+      start_date: p.start_date ?? "",
+      due_date: p.due_date ?? "",
+      description: (p.description ?? "").replace(/\r?\n/g, " ").slice(0, 500),
+    }));
+    return toCSV(data);
+  };
 
   const handleBulkDelete = async (ids: string[]) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1628,9 +1653,12 @@ function TeacherProjects() {
               : `${filteredProjects.length} de ${projects.length} proyectos`}
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <ImportExportMenu resourceName="proyectos" onExport={exportProjectsCsv} />
+          <Button onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
+          </Button>
+        </div>
       </div>
 
       <ListFilters

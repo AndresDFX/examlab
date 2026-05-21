@@ -667,7 +667,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           onClick={() => setOverrideDialogOpen(true)}
         >
           <Sparkles className="h-3.5 w-3.5 mr-1" />
-          Activar / gestionar IA inmediata
+          Activar IA
         </Button>
       </div>
 

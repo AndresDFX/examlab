@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -30,9 +30,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Trash2, Pencil, Users as UsersIcon } from "lucide-react";
+import { Plus, Trash2, Pencil, Users as UsersIcon } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { downloadCSV, parseCSV, toCSV } from "@/shared/lib/csv";
+import { toCSV } from "@/shared/lib/csv";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -64,6 +65,17 @@ const EMPTY_NEW: Row = {
   roles: ["Estudiante"],
 };
 
+const USERS_TEMPLATE_CSV = toCSV([
+  {
+    full_name: "Juan Pérez",
+    institutional_email: "juan.perez@institucion.edu",
+    personal_email: "juan.perez@gmail.com",
+    password: "Temporal#123",
+    roles: "Estudiante",
+    course_name: "Programación II",
+  },
+]);
+
 function AdminUsers() {
   const { t } = useTranslation();
   const { roles } = useAuth();
@@ -72,7 +84,6 @@ function AdminUsers() {
   const [editing, setEditing] = useState<Row | null>(null);
   const [password, setPassword] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -398,37 +409,19 @@ function AdminUsers() {
     load();
   };
 
-  const exportCSV = () => {
+  const exportUsersCsv = (): string => {
     const data = rows.map((r) => ({
       full_name: r.full_name,
       institutional_email: r.institutional_email,
       personal_email: r.personal_email ?? "",
       roles: r.roles.join("|"),
     }));
-    downloadCSV(`usuarios-${Date.now()}.csv`, toCSV(data));
-    toast.success("Archivo exportado correctamente");
+    return toCSV(data);
   };
 
-  const downloadTemplate = () => {
-    const tmpl = toCSV([
-      {
-        full_name: "Juan Pérez",
-        institutional_email: "juan.perez@institucion.edu",
-        personal_email: "juan.perez@gmail.com",
-        password: "Temporal#123",
-        roles: "Estudiante",
-        course_name: "Programación II",
-      },
-    ]);
-    downloadCSV("template-usuarios.csv", tmpl);
-    toast.success("Template descargado correctamente");
-  };
-
-  const onImport = async (file: File) => {
+  const handleImportRows = async (parsed: Record<string, string>[]): Promise<string> => {
     setImporting(true);
     try {
-      const text = await file.text();
-      const parsed = parseCSV(text);
       const { data, error } = await supabase.functions.invoke("bulk-import-users", {
         body: { rows: parsed },
       });
@@ -467,11 +460,11 @@ function AdminUsers() {
         );
       }
       load();
-    } catch (e: any) {
-      toast.error(friendlyError(e, "Error al importar"));
+      // Devolvemos "" para evitar el toast.success genérico de
+      // ImportExportMenu — ya tosteamos success/warning con detalle.
+      return "";
     } finally {
       setImporting(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -489,41 +482,12 @@ function AdminUsers() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap w-full sm:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadTemplate}
-            className="flex-1 sm:flex-none"
-          >
-            <Download className="h-4 w-4 mr-1" />
-            <span className="hidden xs:inline">Template CSV</span>
-            <span className="xs:hidden">Plantilla</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportCSV} className="flex-1 sm:flex-none">
-            <Download className="h-4 w-4 mr-1" />
-            Exportar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileRef.current?.click()}
+          <ImportExportMenu
+            resourceName="usuarios"
+            templateCsv={USERS_TEMPLATE_CSV}
+            onExport={exportUsersCsv}
+            onImport={handleImportRows}
             disabled={importing}
-            className="flex-1 sm:flex-none"
-          >
-            {importing ? (
-              <Spinner size="md" className="mr-1" />
-            ) : (
-              <Upload className="h-4 w-4 mr-1" />
-            )}{" "}
-            <span className="hidden xs:inline">Cargar CSV</span>
-            <span className="xs:hidden">Cargar</span>
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
           />
           <Button size="sm" onClick={openNew} className="flex-1 sm:flex-none">
             <Plus className="h-4 w-4 mr-1" />

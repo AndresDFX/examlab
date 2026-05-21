@@ -18,11 +18,17 @@ interface ImportExportMenuProps {
   label?: string;
   /** Nombre base para el archivo (ej: "asistencia"). Se usa también para template-{name}.csv */
   resourceName: string;
-  /** Plantilla CSV ya formateada (con header + ejemplo). */
-  templateCsv: string;
+  /** Plantilla CSV ya formateada (con header + ejemplo). Opcional cuando
+   *  el módulo NO soporta import (solo export) — en ese caso, la opción
+   *  "Descargar plantilla" no se muestra. */
+  templateCsv?: string;
   /** Genera el CSV de exportación bajo demanda. Devuelve string vacío si no hay datos. */
   onExport?: () => string | Promise<string>;
-  /** Callback que recibe filas parseadas del CSV importado. Debe devolver un mensaje de éxito o lanzar error. */
+  /** Callback que recibe filas parseadas del CSV importado.
+   *  Puede devolver:
+   *   - un string no vacío → se muestra como toast.success.
+   *   - `undefined` → se muestra toast.success genérico con el conteo.
+   *   - `""` (string vacío) → no se muestra ningún toast (el handler ya tosteó por su cuenta, ej. con warning + detalles). */
   onImport?: (rows: Record<string, string>[]) => Promise<string | void>;
   disabled?: boolean;
 }
@@ -38,6 +44,7 @@ export function ImportExportMenu({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleDownloadTemplate = () => {
+    if (!templateCsv) return;
     downloadCSV(`template-${resourceName}.csv`, templateCsv);
     toast.success("Plantilla descargada");
   };
@@ -70,6 +77,9 @@ export function ImportExportMenu({
         return;
       }
       const result = await onImport(rows);
+      // String vacío = el handler ya tosteó por su cuenta (ej. warning con
+      // detalles de duplicados). undefined = mostrar toast genérico.
+      if (result === "") return;
       toast.success(typeof result === "string" ? result : `${rows.length} filas importadas`);
     } catch (err: any) {
       toast.error(`Error importando: ${friendlyError(err, "desconocido")}`);
@@ -88,12 +98,16 @@ export function ImportExportMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Plantilla</DropdownMenuLabel>
-          <DropdownMenuItem onClick={handleDownloadTemplate}>
-            <FileDown className="h-4 w-4 mr-2" />
-            Descargar plantilla
-          </DropdownMenuItem>
-          {(onImport || onExport) && <DropdownMenuSeparator />}
+          {templateCsv && (
+            <>
+              <DropdownMenuLabel>Plantilla</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleDownloadTemplate}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Descargar plantilla
+              </DropdownMenuItem>
+              {(onImport || onExport) && <DropdownMenuSeparator />}
+            </>
+          )}
           {onImport && (
             <DropdownMenuItem onClick={handlePickFile}>
               <FileUp className="h-4 w-4 mr-2" />
