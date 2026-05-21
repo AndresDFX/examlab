@@ -58,6 +58,7 @@ import { ListFilters } from "@/components/ui/list-filters";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
 Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
@@ -625,6 +626,7 @@ function TeacherExams() {
                 <TableHead className="hidden md:table-cell w-24">
                   {t("exam.columns.type")}
                 </TableHead>
+                <TableHead className="w-24">Estado</TableHead>
                 <TableHead className="hidden lg:table-cell w-28">
                   {t("exam.columns.navigation")}
                 </TableHead>
@@ -635,7 +637,7 @@ function TeacherExams() {
             <TableBody>
               {exams.length === 0 ? (
                 <TableEmpty
-                  colSpan={12}
+                  colSpan={13}
                   icon={FileText}
                   text="Aún no has creado ningún examen."
                   hint="Diseña tu primer examen — puedes generar preguntas con IA."
@@ -648,7 +650,7 @@ function TeacherExams() {
                 />
               ) : filteredExams.length === 0 ? (
                 <TableEmpty
-                  colSpan={12}
+                  colSpan={13}
                   icon={FileText}
                   text="Sin resultados para los filtros actuales."
                   hint="Limpia el buscador o el curso para ver todos los exámenes."
@@ -741,6 +743,9 @@ function TeacherExams() {
                         {t("exam.kindOnline")}
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={(e as any).status ?? "published"} />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <Badge variant="secondary" className="text-[10px]">

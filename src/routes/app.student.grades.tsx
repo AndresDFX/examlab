@@ -168,19 +168,27 @@ function StudentGrades() {
             )
             .eq("course_id", courseId)
             .order("position"),
+          // Excluir draft del cálculo de notas: un examen/taller/proyecto
+          // en borrador todavía no debería pesar en la nota del estudiante.
+          // Closed sí cuenta — fue una actividad real que se cerró
+          // manualmente. La proyección de proyectos requiere filtrar el
+          // join después (project_courses no tiene status), ver flatProjects.
           (supabase as any)
             .from("exams")
-            .select("id, title, parent_exam_id, cut_id, weight, retry_mode")
-            .eq("course_id", courseId),
+            .select("id, title, parent_exam_id, cut_id, weight, retry_mode, status")
+            .eq("course_id", courseId)
+            .neq("status", "draft"),
           supabase
             .from("workshops")
-            .select("id, title, max_score, cut_id, weight, is_external")
-            .eq("course_id", courseId),
+            .select("id, title, max_score, cut_id, weight, is_external, status")
+            .eq("course_id", courseId)
+            .neq("status", "draft"),
           // Proyectos via project_courses para incluir secundarios y usar
-          // cut_id/weight por curso.
+          // cut_id/weight por curso. El filtro de draft se aplica abajo
+          // sobre el join (project_courses no tiene status).
           db
             .from("project_courses")
-            .select("cut_id, weight, project:projects(id, title, max_score, is_external)")
+            .select("cut_id, weight, project:projects(id, title, max_score, is_external, status)")
             .eq("course_id", courseId),
           db
             .from("attendance_sessions")
@@ -191,12 +199,16 @@ function StudentGrades() {
         const cuts = (cutsData ?? []) as Cut[];
         const examIds = (exams ?? []).map((e: { id: string }) => e.id);
         const wsIds = (workshops ?? []).map((w: { id: string }) => w.id);
-        // Flatten project_courses rows → per-course cut_id/weight override
-        const flatProjects = (projects ?? []).map((pc: any) => ({
-          ...(pc.project ?? pc),
-          cut_id: pc.cut_id ?? null,
-          weight: pc.weight ?? 1,
-        }));
+        // Flatten project_courses rows → per-course cut_id/weight override.
+        // Excluimos drafts: si el proyecto está en borrador no debe pesar
+        // todavía en la nota del estudiante.
+        const flatProjects = (projects ?? [])
+          .filter((pc: any) => (pc.project?.status ?? "published") !== "draft")
+          .map((pc: any) => ({
+            ...(pc.project ?? pc),
+            cut_id: pc.cut_id ?? null,
+            weight: pc.weight ?? 1,
+          }));
         const prjIds = flatProjects.map((p: { id: string }) => p.id);
         const sessIds = ((sessions ?? []) as { id: string }[]).map((s) => s.id);
 

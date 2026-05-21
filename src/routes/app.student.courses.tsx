@@ -338,10 +338,24 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       // curso que tengan fecha. Las cruzamos con cada sesión por
       // proximidad temporal (±3 días) en el render — aquí solo
       // recolectamos.
+      // Excluir drafts del schedule del estudiante: si el docente aún no
+      // publicó la actividad, no debería aparecer en la vista del curso.
       const [examsRes, wsRes, projRes] = await Promise.all([
-        supabase.from("exams").select("id, title, end_time").eq("course_id", course.id),
-        supabase.from("workshops").select("id, title, due_date").eq("course_id", course.id),
-        supabase.from("projects").select("id, title, due_date").eq("course_id", course.id),
+        supabase
+          .from("exams")
+          .select("id, title, end_time, status")
+          .eq("course_id", course.id)
+          .neq("status", "draft"),
+        supabase
+          .from("workshops")
+          .select("id, title, due_date, status")
+          .eq("course_id", course.id)
+          .neq("status", "draft"),
+        supabase
+          .from("projects")
+          .select("id, title, due_date, status")
+          .eq("course_id", course.id)
+          .neq("status", "draft"),
       ]);
       const items: ScheduledItem[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -81,15 +81,15 @@ function StudentExams() {
       setLoadError(null);
       // Filtramos:
       //   - externos: la nota llega por gradebook, no se muestran en la lista
-      //   - draft: el docente aún no publicó el examen
-      //   - closed: el docente lo cerró manualmente; ya pasó, no aparece
-      //     en la lista para no confundir al alumno (sigue accesible vía
-      //     /app/student/review/$examId si tenía submission previa).
+      //   - draft: el docente aún no publicó el examen → oculto
+      //   - closed: SÍ se muestra (con badge "Cerrado") para que el alumno
+      //     vea sus intentos/notas previas. Coherente con workshops/projects.
+      //     La toma queda bloqueada server-side por app.student.take.
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
         .filter(
           (e: any) =>
-            Boolean(e) && !e.is_external && (e.status ?? "published") === "published",
+            Boolean(e) && !e.is_external && (e.status ?? "published") !== "draft",
         );
       const assignedIds = exams.map((e: any) => e.id);
       let makeupRows: { id: string; parent_exam_id: string | null }[] = [];

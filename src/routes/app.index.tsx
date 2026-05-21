@@ -532,9 +532,13 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .limit(8);
       setUpcomingSessions(sess ?? []);
 
-      const { data: exams } = await supabase
+      // Próximos exámenes: solo published (consistente con workshops/
+      // projects). Los borradores no aparecen en el widget — el docente
+      // los ve en la lista completa de exámenes.
+      const { data: exams } = await (supabase as any)
         .from("exams")
-        .select("id, title, start_time, end_time, time_limit_minutes, course:courses(name)")
+        .select("id, title, start_time, end_time, time_limit_minutes, status, course:courses(name)")
+        .eq("status", "published")
         .gte("end_time", now)
         .order("start_time")
         .limit(8);
@@ -844,11 +848,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-      // Assigned exams
+      // Assigned exams — solo published. Draft (sin publicar) y closed
+      // (cerrado manualmente por el docente) no aparecen en el dashboard
+      // del estudiante. Mismo criterio que workshops/projects.
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, start_time, end_time, time_limit_minutes, course:courses(name))",
+          "exam:exams(id, title, start_time, end_time, time_limit_minutes, status, course:courses(name))",
         )
         .eq("user_id", userId);
       const examIds = (asg ?? []).map((a: any) => a.exam?.id).filter(Boolean);
@@ -863,7 +869,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const doneExamIds = new Set((doneSubs ?? []).map((s: any) => s.exam_id));
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
-        .filter((e: any) => e && new Date(e.end_time) > new Date() && !doneExamIds.has(e.id))
+        .filter(
+          (e: any) =>
+            e &&
+            (e.status ?? "published") === "published" &&
+            new Date(e.end_time) > new Date() &&
+            !doneExamIds.has(e.id),
+        )
         .sort(
           (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
         )

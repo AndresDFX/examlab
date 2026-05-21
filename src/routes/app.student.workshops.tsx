@@ -132,9 +132,15 @@ function StudentWorkshops() {
 
     // Externos no se listan: solo se registran notas, el estudiante
     // ve la calificación directo en gradebook.
+    // Draft tampoco se lista: el docente aún no lo publicó. Closed sí
+    // se muestra (con badge "Cerrado") para que el estudiante vea sus
+    // entregas/notas previas — coherente con projects.
     const workshops = (asg ?? [])
       .map((a: any) => a.workshop)
-      .filter((w: any) => Boolean(w) && !w.is_external);
+      .filter(
+        (w: any) =>
+          Boolean(w) && !w.is_external && (w.status ?? "published") !== "draft",
+      );
     const ids = workshops.map((w: any) => w.id);
 
     // Para talleres grupales: el estudiante puede tener un grupo, y la

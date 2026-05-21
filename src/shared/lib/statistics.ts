@@ -107,19 +107,25 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       .select("id, name, period, passing_grade, grade_scale_min, grade_scale_max")
       .eq("id", courseId)
       .single(),
+    // Excluir drafts del cálculo estadístico: un examen/taller/proyecto
+    // en borrador todavía no se considera parte del progreso del curso.
+    // Closed sí cuenta — fue una actividad real que se cerró.
     supabase
       .from("exams")
-      .select("id, course_id, cut_id, max_score, is_external")
-      .eq("course_id", courseId),
+      .select("id, course_id, cut_id, max_score, is_external, status")
+      .eq("course_id", courseId)
+      .neq("status", "draft"),
     supabase
       .from("workshops")
-      .select("id, course_id, cut_id, max_score, is_external")
-      .eq("course_id", courseId),
+      .select("id, course_id, cut_id, max_score, is_external, status")
+      .eq("course_id", courseId)
+      .neq("status", "draft"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("projects")
-      .select("id, course_id, cut_id, max_score, is_external")
-      .eq("course_id", courseId),
+      .select("id, course_id, cut_id, max_score, is_external, status")
+      .eq("course_id", courseId)
+      .neq("status", "draft"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("grade_cuts")
