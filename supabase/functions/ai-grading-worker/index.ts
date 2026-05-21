@@ -60,10 +60,16 @@ Deno.serve(async (req) => {
   //     / "Procesar este job" del módulo Cron.
   // Sin ninguno de los dos → 401. Sin esto, con verify_jwt off, cualquiera
   // podría drenar la cola y disparar calificación IA (costo).
+  //
+  // Además guardamos el Bearer entrante en `incomingAuth` para REENVIARLO
+  // al invocar `ai-grade-submission` más abajo. Esto evita que el gateway
+  // de esa edge rebote con UNAUTHORIZED_INVALID_JWT_FORMAT cuando el
+  // service_role_key del proyecto NO está en formato JWT (proyectos con
+  // las keys nuevas `sb_secret_*`). Cuando el caller es un usuario, su
+  // JWT SIEMPRE es válido y atraviesa el gateway sin problemas.
+  const incomingAuth = req.headers.get("Authorization") ?? "";
   {
-    const bearer = (req.headers.get("Authorization") ?? "")
-      .replace(/^Bearer\s+/i, "")
-      .trim();
+    const bearer = incomingAuth.replace(/^Bearer\s+/i, "").trim();
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     let authorized = bearer.length > 0 && bearer === serviceRoleKey;
     if (!authorized && bearer.length > 0) {
@@ -138,12 +144,22 @@ Deno.serve(async (req) => {
     try {
       // Invocar la edge function destino. Reusa el mismo flujo que
       // sync, solo que ahora corre server-side.
+      //
+      // Forwardamos el Authorization entrante: si el worker fue invocado
+      // por un usuario (botón "Procesar este job" del módulo Cron), su
+      // JWT es válido y el gateway de ai-grade-submission lo acepta
+      // siempre. Si vino del cron con el service_role_key, lo pasamos
+      // tal cual — esa ruta sí puede rebotar 401 si el key no es JWT,
+      // pero al menos la ruta de usuario queda blindada sin depender
+      // del config.toml.
       const targetUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${job.invoke_target}`;
+      const forwardedAuth =
+        incomingAuth || `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`;
       const aiRes = await fetch(targetUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          Authorization: forwardedAuth,
         },
         body: JSON.stringify(job.body),
       });

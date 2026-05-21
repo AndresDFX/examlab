@@ -187,7 +187,12 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
             </>
           )}
         </div>
-        <DialogFooter>
+        {/* className="static" desactiva el sticky bottom-0 del DialogFooter
+         *  por defecto. En dialogs cortos como éste, el `-mb-4` negativo
+         *  del sticky hace que el footer se solape visualmente con el
+         *  input (especialmente en mobile con teclado abierto). Acá no
+         *  hay scroll posible, así que sticky no aporta y solo molesta. */}
+        <DialogFooter className="static">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>
