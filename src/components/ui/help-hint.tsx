@@ -43,7 +43,12 @@ export function HelpHint({
           // popover). preventDefault no basta para los <Label htmlFor>.
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "inline-flex h-4 w-4 shrink-0 items-center justify-center align-text-bottom",
+            // align-middle + relative offset alinea el centro vertical
+            // del icono con la línea base del texto. `align-text-bottom`
+            // dejaba el icono caído debajo del baseline en mobile
+            // (con line-height grande de Labels el bottom queda lejos
+            // del centro visual del texto).
+            "inline-flex h-4 w-4 shrink-0 items-center justify-center align-middle relative -top-px",
             "text-muted-foreground hover:text-foreground focus:text-foreground",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full",
             "transition-colors cursor-help",

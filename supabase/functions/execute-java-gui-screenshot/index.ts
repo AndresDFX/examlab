@@ -69,20 +69,23 @@ Deno.serve(async (req) => {
     if (!u.user) return jsonResponse(401, { error: "Token inválido" });
     actorId = u.user.id;
 
-    // ── Validar provider activo ──
-    // Si el admin tiene `cheerp` activo, no debería llegar acá — pero
-    // protegemos por si llega un request renegado (front cacheado, etc.).
+    // ── Provider activo (sólo para audit) ──
+    // No bloqueamos por mismatch: el estudiante puede haber elegido
+    // explícitamente `aws_screenshot` via CodeRunnerPicker / JavaGuiRunner
+    // aunque el default del admin sea `cheerp`. Esa es justamente la
+    // razón de ser del override per-question (ver CLAUDE.md §"Selector
+    // de runner por pregunta"). Registramos default vs override para
+    // auditoría.
     const { data: settings } = await admin
       .from("code_execution_settings")
       .select("java_gui_provider")
       .eq("is_active", true)
       .maybeSingle();
-    const javaGuiProvider = (settings?.java_gui_provider as string) ?? "cheerp";
-    if (javaGuiProvider !== "aws_screenshot") {
-      return jsonResponse(409, {
-        error: `java_gui_provider activo es "${javaGuiProvider}", no "aws_screenshot". Cambia la configuración en Admin → Compilador.`,
-      });
-    }
+    const defaultJavaGuiProvider = (settings?.java_gui_provider as string) ?? "cheerp";
+    Object.assign(requestContext, {
+      default_java_gui_provider: defaultJavaGuiProvider,
+      provider_overridden: defaultJavaGuiProvider !== "aws_screenshot",
+    });
 
     // ── Llamar Lambda ──
     const url = Deno.env.get("AWS_RUNNER_URL");
