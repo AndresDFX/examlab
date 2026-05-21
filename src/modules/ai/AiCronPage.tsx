@@ -640,7 +640,14 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             <div className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" /> Pendientes
             </div>
-            <div className="text-2xl font-semibold tabular-nums mt-1">{counts.pending}</div>
+            {/* Pendientes = pending + failed: un job fallado sigue SIN
+                calificar, así que desde la óptica del alumno la nota
+                sigue pendiente. Los failed se desglosan aparte en su
+                propio contador. El botón "Procesar ahora" usa solo el
+                pending real (no este total). */}
+            <div className="text-2xl font-semibold tabular-nums mt-1">
+              {counts.pending + counts.failed}
+            </div>
           </CardContent>
         </Card>
         <Card>

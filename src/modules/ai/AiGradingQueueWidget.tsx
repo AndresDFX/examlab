@@ -228,10 +228,12 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 INLINE con el número para reducir altura (antes había
                 label + número en 2 líneas por tile). */}
             <div className="grid grid-cols-3 gap-2">
+              {/* Pendientes = pending + failed: un job fallado sigue sin
+                  calificar. Los failed se desglosan en su propio tile. */}
               <Stat
                 icon={Clock}
                 label="Pendientes"
-                value={counts.pending}
+                value={counts.pending + counts.failed}
                 color="text-foreground"
               />
               <Stat
@@ -316,9 +318,9 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 Procesar ahora ({counts.pending})
               </Button>
             )}
-            {!isAdmin && counts.pending > 0 && (
+            {!isAdmin && counts.pending + counts.failed > 0 && (
               <Badge variant="outline" className="text-[10px] w-full justify-center py-1">
-                {counts.pending} en cola
+                {counts.pending + counts.failed} en cola
               </Badge>
             )}
             {activeRole && (
