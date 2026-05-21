@@ -868,6 +868,16 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         // archivos con otras extensiones. Si vacío o ausente → permitimos
         // todas las del whitelist global CODE_EXT.
         allowedExtensions,
+        // Scaffolding flujo ZIP único (project_files.zip_single = true).
+        // Cuando viene en true:
+        //   - NO se minifica el contenido de cada archivo.
+        //   - NO se trunca por archivo (>50KB pasa entero).
+        //   - SÍ se mantiene el tope global MAX_CHARS para no exceder el
+        //     context window del modelo.
+        // Diseñado para proyectos chicos/medianos donde el alumno entrega
+        // pocos archivos pero el docente quiere que la IA "vea" todo el
+        // código sin filtros del side cliente.
+        noMinify,
       } = body as {
         zipPath?: string;
         codePaths?: string[];
@@ -879,6 +889,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         courseId?: string;
         projectDescription?: string;
         allowedExtensions?: string[];
+        noMinify?: boolean;
       };
       const cleanedCodePaths = Array.isArray(codePaths)
         ? codePaths.filter((p): p is string => typeof p === "string" && p.length > 0)
@@ -1300,13 +1311,18 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         } catch {
           continue;
         }
-        const rawLen = text.length;
-        text = minify(path, ext, text);
-        totalSavedChars += Math.max(0, rawLen - text.length);
-        // Skip muy grandes individuales para no bloquear todo
-        if (text.length > 50_000) {
-          text = text.slice(0, 50_000) + "\n…[truncado]…";
-          perFileTruncated++;
+        // Modo ZIP único scaffolding: sin minify ni truncado per-file.
+        // Solo conservamos el cap global MAX_CHARS para no exceder el
+        // context window del modelo.
+        if (!noMinify) {
+          const rawLen = text.length;
+          text = minify(path, ext, text);
+          totalSavedChars += Math.max(0, rawLen - text.length);
+          // Skip muy grandes individuales para no bloquear todo
+          if (text.length > 50_000) {
+            text = text.slice(0, 50_000) + "\n…[truncado]…";
+            perFileTruncated++;
+          }
         }
         if (totalChars + text.length > MAX_CHARS) {
           totalLimitReached = true;

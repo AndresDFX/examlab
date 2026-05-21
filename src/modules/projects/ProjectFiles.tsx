@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Plus,
@@ -147,6 +148,10 @@ export type ProjectFile = {
   starter_code: string | null;
   points: number;
   type: "abierta" | "cerrada" | "cerrada_multi" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
+  /** Scaffolding flujo ZIP único: cuando true (y type=codigo_zip), el
+   *  estudiante sube UN .zip en vez de varios archivos sueltos, y la
+   *  IA califica sin minificar. Default false (multi-file). */
+  zip_single?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: any;
 };
@@ -181,6 +186,8 @@ export function TeacherProjectFilesEditor({
   const [qMaxSelections, setQMaxSelections] = useState<number | "">("");
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
+  // Scaffolding flujo ZIP único — toggle por slot (solo aplica a codigo_zip).
+  const [qZipSingle, setQZipSingle] = useState(false);
 
   const resetForm = () => {
     setEditingId(null);
@@ -194,6 +201,7 @@ export function TeacherProjectFilesEditor({
     setQMaxSelections("");
     setQPoints(1);
     setQLanguage("java");
+    setQZipSingle(false);
   };
 
   const loadIntoForm = (q: ProjectFile) => {
@@ -212,6 +220,7 @@ export function TeacherProjectFilesEditor({
     setQMaxSelections(typeof maxS === "number" ? maxS : "");
     setQPoints(q.points);
     setQLanguage(q.language ?? "java");
+    setQZipSingle(Boolean(q.zip_single));
     setActiveTab("manual");
   };
 
@@ -303,6 +312,10 @@ export function TeacherProjectFilesEditor({
     // Solo persistimos 'language' si la pregunta es realmente código —
     // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
     const language = qType === "codigo_zip" ? qLanguage : null;
+    // zip_single solo aplica a codigo_zip. Para los demás tipos lo
+    // forzamos a false para que no quede true colgado si el docente
+    // cambia el tipo de la pregunta.
+    const zipSingle = qType === "codigo_zip" ? qZipSingle : false;
 
     if (editingId) {
       // UPDATE: no tocamos position ni starter_code para no clobberar lo que
@@ -316,6 +329,7 @@ export function TeacherProjectFilesEditor({
           options,
           points: qPoints,
           language,
+          zip_single: zipSingle,
         })
         .eq("id", editingId);
       if (error) {
@@ -337,6 +351,7 @@ export function TeacherProjectFilesEditor({
         position: questions.length,
         language,
         starter_code: null,
+        zip_single: zipSingle,
       });
       if (error) {
         toast.error(friendlyError(error));
@@ -759,12 +774,41 @@ export function TeacherProjectFilesEditor({
                 </Select>
               </div>
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                El estudiante seleccionará <strong>varios archivos de código fuente</strong> directo
-                (sin comprimir). Solo se aceptan archivos cuya extensión coincida con el lenguaje
-                principal; cualquier otro archivo bloquea la entrega antes de subir. La IA recibe
-                todos los archivos minificados en un solo prompt y califica el proyecto como
-                conjunto según la rúbrica y los puntos. Diagramas y documentos van en preguntas
-                separadas (tipo Abierta o Diagrama).
+                {qZipSingle ? (
+                  <>
+                    <strong>Modo ZIP único (scaffolding):</strong> el estudiante sube UN archivo{" "}
+                    <code>.zip</code> con su proyecto. El servidor lo descomprime y la IA recibe
+                    cada archivo <strong>íntegro</strong> (sin minificar, sin truncar por archivo)
+                    en un solo prompt — hasta el tope global de ~200K caracteres. Útil para que la
+                    IA "vea" todo el código tal cual lo escribió el alumno, incluidos comentarios.
+                  </>
+                ) : (
+                  <>
+                    El estudiante seleccionará <strong>varios archivos de código fuente</strong>{" "}
+                    directo (sin comprimir). Solo se aceptan archivos cuya extensión coincida con
+                    el lenguaje principal; cualquier otro archivo bloquea la entrega antes de
+                    subir. La IA recibe todos los archivos minificados en un solo prompt y
+                    califica el proyecto como conjunto según la rúbrica y los puntos. Diagramas y
+                    documentos van en preguntas separadas (tipo Abierta o Diagrama).
+                  </>
+                )}
+              </div>
+              <div className="flex items-start justify-between gap-3 rounded-md border border-amber-400/40 bg-amber-500/5 p-3">
+                <div className="space-y-0.5 min-w-0">
+                  <Label htmlFor="qZipSingle" className="text-sm">
+                    Modo ZIP único{" "}
+                    <HelpHint>
+                      Scaffolding del flujo ZIP. ON: el estudiante sube un único .zip; el servidor
+                      lo descomprime y la IA recibe todos los archivos íntegros (sin minify, sin
+                      truncar por archivo). OFF: flujo actual de varios archivos sueltos con
+                      minificación.
+                    </HelpHint>
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    POC para probar grading con código sin minificar.
+                  </p>
+                </div>
+                <Switch id="qZipSingle" checked={qZipSingle} onCheckedChange={setQZipSingle} />
               </div>
             </>
           )}
@@ -1316,6 +1360,95 @@ export function StudentProjectTaker({
           payload.content = JSON.stringify(selectedArr);
           payload.ai_grade = earned;
           payload.ai_feedback = feedback;
+        } else if (q.type === "codigo_zip" && q.zip_single) {
+          // ── Modo ZIP único (scaffolding) ──
+          // El estudiante sube UN .zip. Subimos a Storage como path único
+          // (`zip_path`, mismo campo legacy), invocamos el edge con
+          // `zipPath` + `noMinify: true` — la IA recibe archivos crudos
+          // (sin minificar, sin truncar per-file), solo respeta cap global.
+          const zipFile = raw instanceof File ? raw : null;
+          if (!zipFile) {
+            payload.content = "";
+            payload.ai_grade = 0;
+            payload.ai_feedback = "Sin archivo ZIP entregado";
+          } else if (!user?.id) {
+            payload.ai_grade = 0;
+            payload.ai_feedback =
+              "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
+          } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
+            payload.ai_grade = 0;
+            payload.ai_feedback = `El ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`;
+            toast.error(payload.ai_feedback, { duration: 8000 });
+          } else if (!zipFile.name.toLowerCase().endsWith(".zip")) {
+            payload.ai_grade = 0;
+            payload.ai_feedback = "El archivo entregado no es un .zip.";
+            toast.error(payload.ai_feedback, { duration: 8000 });
+          } else {
+            const rootFolder = groupId ?? user.id;
+            // Path único (sin subcarpeta del questionId — el ZIP es atómico).
+            const zipPath = `${rootFolder}/${submissionId}/${q.id}.zip`;
+            const { error: upErr } = await supabase.storage
+              .from("project-files")
+              .upload(zipPath, zipFile, {
+                upsert: true,
+                contentType: "application/zip",
+              });
+            if (upErr) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = `Error al subir el ZIP: ${upErr.message}`;
+              toast.error(payload.ai_feedback, { duration: 8000 });
+            } else {
+              payload.zip_path = zipPath;
+              const aiBody = {
+                projectCodeZipGrading: true,
+                zipPath,
+                // Flag scaffolding: backend salta minify + truncado per-file.
+                noMinify: true,
+                fileTitle: q.title,
+                fileDescription: q.description,
+                expectedRubric: q.expected_rubric,
+                maxPoints: q.points,
+                courseLanguage,
+                courseId: undefined,
+                projectDescription,
+              };
+              if (useAsyncAi) {
+                payload.ai_grade = null;
+                payload.ai_feedback = PENDING_AI_FEEDBACK;
+                pendingEnqueues.push({
+                  qid: q.id,
+                  kind: "project_codigo_zip",
+                  body: aiBody,
+                });
+                payloadsByQid[q.id] = payload;
+                continue;
+              }
+              const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+                "ai-grade-submission",
+                { body: aiBody },
+              );
+              if (aiErr || aiData?.error) {
+                const detail = await extractEdgeError(aiErr, aiData);
+                payload.ai_grade = 0;
+                payload.ai_feedback = detail || "Error IA al calificar el ZIP";
+                toast.error(payload.ai_feedback, { duration: 8000 });
+              } else {
+                earned = Number(aiData?.grade) || 0;
+                feedback = aiData?.feedback ?? feedback;
+                payload.ai_grade = earned;
+                payload.ai_feedback = feedback;
+                payload.ai_likelihood =
+                  typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
+                payload.ai_reasons = aiData?.ai_reasons ?? null;
+                if (typeof aiData?.zip_truncated === "boolean") {
+                  payload.zip_truncated = aiData.zip_truncated;
+                }
+                if (typeof aiData?.zip_chars_used === "number") {
+                  payload.zip_chars_used = aiData.zip_chars_used;
+                }
+              }
+            }
+          }
         } else if (q.type === "codigo_zip") {
           // Multi-file: `raw` ahora es `File[]` (legacy: un único File).
           // Normalizamos a array para soportar ambos casos sin ramas.
@@ -1841,7 +1974,75 @@ export function StudentProjectTaker({
                 height="280px"
               />
             )}
-            {q.type === "codigo_zip" &&
+            {q.type === "codigo_zip" && q.zip_single &&
+              (() => {
+                // Modo ZIP único (scaffolding): un solo .zip → backend
+                // descomprime → IA recibe archivos crudos en un prompt
+                // sin minificar (flag noMinify del edge).
+                const currentZip: File | null =
+                  answers[q.id] instanceof File ? (answers[q.id] as File) : null;
+                return (
+                  <div className="space-y-2">
+                    <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                      <strong>Modo ZIP único:</strong> sube un archivo{" "}
+                      <code>.zip</code> con todo tu proyecto. El servidor lo
+                      descomprime y la IA califica todos los archivos juntos.
+                    </div>
+                    <input
+                      type="file"
+                      accept=".zip,application/zip,application/x-zip-compressed"
+                      onChange={(e) => {
+                        const picked = e.target.files?.[0];
+                        if (!picked) return;
+                        if (picked.size === 0) {
+                          toast.error("El archivo está vacío.");
+                          e.target.value = "";
+                          return;
+                        }
+                        if (picked.size > MAX_CODE_FILES_TOTAL_BYTES) {
+                          toast.error(
+                            `El ZIP pesa ${formatFileSize(picked.size)} y supera el tope de 50 MB.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        const lowerName = picked.name.toLowerCase();
+                        if (!lowerName.endsWith(".zip")) {
+                          toast.error("Solo se acepta un archivo .zip.");
+                          e.target.value = "";
+                          return;
+                        }
+                        e.target.value = "";
+                        updateAnswer(q.id, picked);
+                      }}
+                      className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Comprimí tu carpeta de proyecto en un único{" "}
+                      <span className="font-mono">.zip</span>. Tope: 50 MB.
+                    </p>
+                    {currentZip && (
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <Badge variant="secondary" className="text-[10px] gap-1 pr-1">
+                          <span className="truncate max-w-[16rem]">{currentZip.name}</span>
+                          <span className="text-muted-foreground">
+                            · {formatFileSizeShort(currentZip.size)}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Quitar ${currentZip.name}`}
+                            className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
+                            onClick={() => updateAnswer(q.id, null)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            {q.type === "codigo_zip" && !q.zip_single &&
               (() => {
                 const langKey = (q.language ?? "").toLowerCase().trim();
                 const allowedExts = LANG_TO_EXT[langKey] ?? null;

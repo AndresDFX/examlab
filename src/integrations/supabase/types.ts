@@ -1212,6 +1212,7 @@ export type Database = {
           starter_code: string | null
           title: string
           type: string
+          zip_single: boolean
         }
         Insert: {
           content?: string | null
@@ -1227,6 +1228,7 @@ export type Database = {
           starter_code?: string | null
           title: string
           type?: string
+          zip_single?: boolean
         }
         Update: {
           content?: string | null
@@ -1242,6 +1244,7 @@ export type Database = {
           starter_code?: string | null
           title?: string
           type?: string
+          zip_single?: boolean
         }
         Relationships: [
           {
