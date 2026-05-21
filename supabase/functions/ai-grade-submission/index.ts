@@ -369,8 +369,22 @@ Deno.serve(async (req) => {
     const triggerSecret =
       req.headers.get("x-trigger-secret") || req.headers.get("X-Trigger-Secret");
     const expectedTriggerSecret = Deno.env.get("RETRY_TRIGGER_SECRET");
+    // Caller server-side: otro edge function del mismo proyecto
+    // (ai-grading-worker drenando la cola, retry-failed-ai-gradings)
+    // manda `Authorization: Bearer <service_role_key>`. Solo el código
+    // server-side conoce ese key, así que matchearlo es un signal de
+    // origen confiable — y funciona sea cual sea el formato del key
+    // (JWT legacy o sb_secret_* nuevo), a diferencia de verify_jwt del
+    // gateway que rebota los formatos no-JWT.
+    const bearerToken = (req.headers.get("Authorization") ?? "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const isServiceRoleCaller =
+      bearerToken.length > 0 && bearerToken === serviceRoleKey;
     const isSystemTrigger =
-      !!expectedTriggerSecret && !!triggerSecret && triggerSecret === expectedTriggerSecret;
+      isServiceRoleCaller ||
+      (!!expectedTriggerSecret && !!triggerSecret && triggerSecret === expectedTriggerSecret);
 
     let callerId: string;
     let callerIsTeacherOrAdmin: boolean;

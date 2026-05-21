@@ -86,6 +86,25 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# ai-grading-worker drena la cola ai_grading_queue. Lo invoca pg_cron
+# (Bearer service_role_key) y el panel Cron (Bearer user JWT). El
+# service_role key NO siempre es un JWT parseable (proyectos con el
+# sistema nuevo de keys sb_secret_*), así que el gateway con verify_jwt
+# lo rebota con UNAUTHORIZED_INVALID_JWT_FORMAT. Apagamos verify_jwt y
+# validamos dentro del handler: service_role key O usuario Admin/Docente.
+[functions."ai-grading-worker"]
+enabled = true
+verify_jwt = false
+
+# ai-grade-submission la llaman: el frontend (Bearer user JWT) y otros
+# edge functions server-side — ai-grading-worker y retry-failed-ai-gradings
+# — con Bearer service_role_key. Mismo problema de formato de key que
+# arriba. verify_jwt = false + auth interna: X-Trigger-Secret, service_role
+# key, o user JWT válido (ver isSystemTrigger en el handler).
+[functions."ai-grade-submission"]
+enabled = true
+verify_jwt = false
+
 # Custom password reset — el usuario NO está autenticado cuando pide
 # el reset (paso 1) ni cuando lo confirma con el token (paso 2). Las
 # dos funciones se invocan con anon key + body que trae el email o el

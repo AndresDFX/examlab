@@ -47,13 +47,49 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Auth: el invocador debe ser service-role (cron) o un admin
-  // explícito (botón "Procesar ahora"). El service-role client bypassa
-  // RLS, así que la decisión real la toma este chequeo de cabecera.
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  // Auth interna. El gateway corre con `verify_jwt = false` (config.toml)
+  // porque el service_role key con que lo llama el cron no siempre es un
+  // JWT parseable. La decisión real se toma acá:
+  //   - Bearer == service_role key → cron / edge caller server-side.
+  //   - Bearer == user JWT de un Admin o Docente → botón "Procesar ahora"
+  //     / "Procesar este job" del módulo Cron.
+  // Sin ninguno de los dos → 401. Sin esto, con verify_jwt off, cualquiera
+  // podría drenar la cola y disparar calificación IA (costo).
+  {
+    const bearer = (req.headers.get("Authorization") ?? "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    let authorized = bearer.length > 0 && bearer === serviceRoleKey;
+    if (!authorized && bearer.length > 0) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "",
+        { global: { headers: { Authorization: `Bearer ${bearer}` } } },
+      );
+      const { data: u } = await userClient.auth.getUser();
+      if (u.user) {
+        const { data: roles } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", u.user.id);
+        authorized = (roles ?? []).some(
+          (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+        );
+      }
+    }
+    if (!authorized) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "No autorizado para procesar la cola IA" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
 
   // Body opcional con `jobId` — para procesamiento individual desde el
   // widget. Si viene, procesamos SOLO ese job. Si no, drenamos el batch
