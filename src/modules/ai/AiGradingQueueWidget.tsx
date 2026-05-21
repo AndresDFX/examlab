@@ -42,7 +42,9 @@ interface Props {
 interface Counts {
   pending: number;
   processing: number;
-  failed24h: number;
+  /** TODOS los jobs en estado `failed` (sin ventana de tiempo) — debe
+   *  coincidir con la lista "En cola", que muestra todos los failed. */
+  failed: number;
   lastDoneAt: string | null;
 }
 
@@ -84,7 +86,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const [counts, setCounts] = useState<Counts>({
     pending: 0,
     processing: 0,
-    failed24h: 0,
+    failed: 0,
     lastDoneAt: null,
   });
   // Lista compacta de jobs activos para llenar el alto del card cuando
@@ -97,14 +99,16 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       // Cuatro head-counts + lista compacta de jobs activos. La lista
       // se muestra en un overflow-y-auto dentro del card; trae hasta 20
       // para que el alumno típico vea todo lo que está en cola.
+      // `failed` cuenta TODOS los failed (sin ventana 24h) para que el
+      // contador coincida con la lista "En cola" — antes un fallo de
+      // hace >24h aparecía en la lista pero no sumaba en el contador.
       const [
         { count: pending },
         { count: processing },
-        { count: failed24h },
+        { count: failed },
         { data: lastDone },
         { data: activeJobs },
       ] = await Promise.all([
@@ -119,8 +123,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
         db
           .from("ai_grading_queue")
           .select("id", { count: "exact", head: true })
-          .eq("status", "failed")
-          .gte("completed_at", since24),
+          .eq("status", "failed"),
         db
           .from("ai_grading_queue")
           .select("completed_at")
@@ -138,7 +141,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
       setCounts({
         pending: pending ?? 0,
         processing: processing ?? 0,
-        failed24h: failed24h ?? 0,
+        failed: failed ?? 0,
         lastDoneAt: lastDone?.completed_at ?? null,
       });
       setJobs((activeJobs ?? []) as RecentJob[]);
@@ -239,9 +242,9 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
               />
               <Stat
                 icon={AlertTriangle}
-                label="Fallados 24h"
-                value={counts.failed24h}
-                color={counts.failed24h > 0 ? "text-destructive" : "text-foreground"}
+                label="Fallados"
+                value={counts.failed}
+                color={counts.failed > 0 ? "text-destructive" : "text-foreground"}
               />
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">

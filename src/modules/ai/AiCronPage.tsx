@@ -81,7 +81,12 @@ type Status = "pending" | "processing" | "failed" | "done" | "cancelled";
 interface Counts {
   pending: number;
   processing: number;
-  failed24h: number;
+  /** TODOS los jobs en estado `failed` (sin ventana de tiempo). Un job
+   *  fallado sigue en la cola hasta que se reintenta o cancela, así que
+   *  el contador debe reflejar exactamente lo que muestra la lista —
+   *  antes una ventana de 24h dejaba fallos viejos "invisibles" en los
+   *  contadores aunque seguían listados. */
+  failed: number;
   lastDoneAt: string | null;
 }
 
@@ -209,7 +214,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const [counts, setCounts] = useState<Counts>({
     pending: 0,
     processing: 0,
-    failed24h: 0,
+    failed: 0,
     lastDoneAt: null,
   });
   const [jobs, setJobs] = useState<QueueJob[]>([]);
@@ -236,12 +241,16 @@ function AiQueuePanel({ isAdmin = false }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       // Counts agregados — corren en paralelo y siempre se refrescan.
+      // `failed` cuenta TODOS los jobs en estado failed (sin ventana de
+      // tiempo) para que el contador coincida con la lista — la lista
+      // del filtro "active" muestra todos los failed sin importar la
+      // antigüedad. Antes un `.gte(completed_at, -24h)` dejaba fallos
+      // viejos fuera del contador pero visibles en la lista.
       const [
         { count: pending },
         { count: processing },
-        { count: failed24h },
+        { count: failed },
         { data: lastDone },
       ] = await Promise.all([
         db
@@ -255,8 +264,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         db
           .from("ai_grading_queue")
           .select("id", { count: "exact", head: true })
-          .eq("status", "failed")
-          .gte("completed_at", since24),
+          .eq("status", "failed"),
         db
           .from("ai_grading_queue")
           .select("completed_at")
@@ -268,7 +276,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       setCounts({
         pending: pending ?? 0,
         processing: processing ?? 0,
-        failed24h: failed24h ?? 0,
+        failed: failed ?? 0,
         lastDoneAt: lastDone?.completed_at ?? null,
       });
 
@@ -646,14 +654,14 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> Fallados 24h
+              <AlertTriangle className="h-3 w-3" /> Fallados
             </div>
             <div
               className={`text-2xl font-semibold tabular-nums mt-1 ${
-                counts.failed24h > 0 ? "text-destructive" : ""
+                counts.failed > 0 ? "text-destructive" : ""
               }`}
             >
-              {counts.failed24h}
+              {counts.failed}
             </div>
           </CardContent>
         </Card>
