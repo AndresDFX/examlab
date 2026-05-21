@@ -126,7 +126,22 @@ const TableCell = React.forwardRef<HTMLTableCellElement, TableCellProps>(
     <td
       ref={ref}
       className={cn(
-        "p-3 md:p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "p-3 md:p-2 align-middle",
+        // Cells que contienen un checkbox necesitan ajustes especiales:
+        //   1. pr-0: el checkbox usa todo el ancho de la columna sin
+        //      padding derecho que separa del título.
+        //   2. align-top en mobile: cuando la fila tiene contenido
+        //      multi-línea (típico: título + curso + fecha apilados),
+        //      align-middle deja el checkbox flotando en el centro
+        //      vertical de un cell muy alto, lo que se percibe como
+        //      un "cuadro gigante". Top-alineado lo deja al lado del
+        //      título — coherente visualmente. En md+ vuelve a middle.
+        //   3. py-2 en mobile: menos padding vertical en la columna
+        //      del checkbox específicamente para no estirarla por debajo.
+        "[&:has([role=checkbox])]:pr-0",
+        "[&:has([role=checkbox])]:align-top md:[&:has([role=checkbox])]:align-middle",
+        "[&:has([role=checkbox])]:py-3 md:[&:has([role=checkbox])]:py-2",
+        "[&>[role=checkbox]]:translate-y-[2px]",
         className,
       )}
       {...props}
