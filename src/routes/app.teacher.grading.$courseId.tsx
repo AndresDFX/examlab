@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, Trash2, Save, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/empty-state";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,8 +83,11 @@ function GradingConfigPage() {
   const [exams, setExams] = useState<ExamRef[]>([]);
   const [workshops, setWorkshops] = useState<WorkshopRef[]>([]);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const loadAll = useCallback(async () => {
+    setLoadError(null);
     const [courseRes, cfgRes, cutsRes, examsRes, workshopsRes] = await Promise.all([
       supabase.from("courses").select("name").eq("id", courseId).single(),
       db.from("course_grading_config").select("*").eq("course_id", courseId).maybeSingle(),
@@ -91,6 +95,11 @@ function GradingConfigPage() {
       supabase.from("exams").select("id, title").eq("course_id", courseId),
       supabase.from("workshops").select("id, title").eq("course_id", courseId),
     ]);
+    const firstErr = courseRes.error ?? cutsRes.error ?? examsRes.error ?? workshopsRes.error;
+    if (firstErr) {
+      setLoadError(friendlyError(firstErr, "No pudimos cargar la configuración de calificación."));
+      return;
+    }
     if (courseRes.data) setCourseName(courseRes.data.name);
     if (cfgRes.data) {
       setConfig({
@@ -119,7 +128,7 @@ function GradingConfigPage() {
     } else {
       setItemsByCut({});
     }
-  }, [courseId]);
+  }, [courseId, retryNonce]);
 
   useEffect(() => {
     void loadAll();
@@ -237,6 +246,14 @@ function GradingConfigPage() {
         title={t("grading.configTitle")}
         subtitle={courseName}
       />
+
+      {loadError && (
+        <ErrorState
+          message="No pudimos cargar la configuración"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      )}
 
       {/* Banner de deprecación: la nueva configuración vive en el diálogo de curso. */}
       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">

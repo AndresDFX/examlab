@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -115,11 +116,15 @@ function PreferencesPage() {
   const [original, setOriginal] = useState<Prefs>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setLoadError(null);
       const { data, error } = await db
         .from("profiles")
         .select("notification_preferences")
@@ -127,7 +132,7 @@ function PreferencesPage() {
         .maybeSingle();
       if (cancelled) return;
       if (error) {
-        toast.error(`No se pudieron cargar las preferencias: ${friendlyError(error)}`);
+        setLoadError(friendlyError(error, "No pudimos cargar las preferencias."));
         setLoading(false);
         return;
       }
@@ -139,7 +144,7 @@ function PreferencesPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, retryNonce]);
 
   /** Devuelve si está habilitado (default true cuando no hay preferencia explícita). */
   const isEnabled = (kind: string, channel: Channel): boolean => {
@@ -199,6 +204,12 @@ function PreferencesPage() {
             <Spinner size="md" /> Cargando…
           </CardContent>
         </Card>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar las preferencias"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
       ) : (
         <Card>
           <CardHeader className="pb-3">

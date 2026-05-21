@@ -92,7 +92,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/shared/lib/format";
@@ -174,6 +174,8 @@ function TeacherProjects() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByProject, setAiErrorsByProject] = useState<Record<string, number>>({});
   // Per-course cut+weight for the project being created/edited.
   // Record<courseId, { cut_id, weight }>
@@ -552,8 +554,13 @@ function TeacherProjects() {
       }
       setAiErrorsByProject(errMap);
       console.info(`[projects] loaded ${enriched.length} project(s)`);
+      setLoadError(null);
     } catch (e) {
       console.error("[projects] projects load failed", e);
+      // Marca loadError para que el render muestre <ErrorState> en vez
+      // de una tabla vacía como si no hubiera proyectos. Mantengo el
+      // toast para feedback inmediato.
+      setLoadError(friendlyError(e, "No pudimos cargar los proyectos."));
       toast.error(friendlyError(e, "Error cargando proyectos"));
     }
   };
@@ -561,7 +568,8 @@ function TeacherProjects() {
   useEffect(() => {
     if (!isTeacher) return;
     void load();
-  }, [isTeacher]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher, retryNonce]);
 
   // Deep-link desde notificación o modal de Conversaciones abiertas:
   //   ?project=PROJECT_ID&submission=SUB_ID&file=FILE_ID
@@ -1641,6 +1649,21 @@ function TeacherProjects() {
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
   if (!isTeacher) return <p className="text-muted-foreground">{t("project.needsTeacherRole")}</p>;
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar los proyectos"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

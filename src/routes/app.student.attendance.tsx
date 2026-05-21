@@ -54,6 +54,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { buildVideoEmbedUrl } from "@/shared/lib/video-embed";
 import { AttendanceQRScanner } from "@/modules/attendance/AttendanceQRScanner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { ErrorState } from "@/components/ui/empty-state";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -137,6 +138,11 @@ function StudentAttendance() {
   const [records, setRecords] = useState<Record_[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+  // Si la query de cursos matriculados falla, el usuario veía "Sin
+  // cursos" (falso negativo). Ahora marcamos loadError + ofrecemos
+  // Reintentar.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Check-in self-service
   const [openSessions, setOpenSessions] = useState<OpenSession[]>([]);
@@ -164,10 +170,18 @@ function StudentAttendance() {
     let cancelled = false;
     (async () => {
       setLoadingCourses(true);
-      const { data: enrolls } = await supabase
+      setLoadError(null);
+      const { data: enrolls, error: enrollErr } = await supabase
         .from("course_enrollments")
         .select("course_id")
         .eq("user_id", user.id);
+      if (enrollErr) {
+        if (!cancelled) {
+          setLoadError(friendlyError(enrollErr, "No pudimos cargar tu asistencia."));
+          setLoadingCourses(false);
+        }
+        return;
+      }
       const courseIds = (enrolls ?? []).map((r: { course_id: string }) => r.course_id);
       if (courseIds.length === 0) {
         if (!cancelled) {
@@ -195,7 +209,8 @@ function StudentAttendance() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+    // retryNonce: bumpeado por ErrorState "Reintentar".
+  }, [user, retryNonce]);
 
   // Sesiones + records del curso seleccionado.
   useEffect(() => {
@@ -420,6 +435,24 @@ function StudentAttendance() {
 
   if (!user) {
     return <p className="text-muted-foreground p-6">Inicia sesión para ver tu asistencia.</p>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight flex items-center gap-2">
+            <CalendarCheck className="h-5 w-5 text-primary" />
+            {t("nav.studentAttendance", { defaultValue: "Asistencia" })}
+          </h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tu asistencia"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
   }
 
   return (

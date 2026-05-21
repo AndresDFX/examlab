@@ -1,5 +1,7 @@
 import { type ComponentType, type ReactNode } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -110,5 +112,53 @@ export function TableEmpty({
         {inner}
       </TableCell>
     </TableRow>
+  );
+}
+
+interface ErrorStateProps {
+  /** Mensaje principal — ya traducido (pasar por `friendlyError` antes). */
+  message: string;
+  /** Detalle secundario opcional (typo de causa, código de error). */
+  hint?: string;
+  /** Si se pasa, muestra un botón "Reintentar" que la dispara. */
+  onRetry?: () => void;
+  className?: string;
+}
+
+/**
+ * ErrorState — placeholder visible cuando una query principal falla y
+ * deja la pantalla sin datos para mostrar. Mismo layout que EmptyState
+ * pero con ícono de alerta + tono destructivo + botón "Reintentar".
+ *
+ * Sustituye el patrón "toast.error en catch + render UI vacía" que
+ * dejaba al usuario adivinando si la app estaba cargando, vacía o rota.
+ *
+ * Uso típico:
+ *   const [loadError, setLoadError] = useState<string | null>(null);
+ *   ...
+ *   if (loading) return <SectionLoader />;
+ *   if (loadError) return <ErrorState message={loadError} onRetry={load} />;
+ */
+export function ErrorState({ message, hint, onRetry, className }: Readonly<ErrorStateProps>) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 py-10 px-4 text-center",
+        className,
+      )}
+    >
+      <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+        <AlertTriangle className="h-5 w-5 text-destructive" />
+      </div>
+      <p className="text-sm font-medium text-foreground">{message}</p>
+      {hint ? <p className="text-xs text-muted-foreground max-w-sm">{hint}</p> : null}
+      {onRetry ? (
+        <Button size="sm" variant="outline" onClick={onRetry} className="mt-2">
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          Reintentar
+        </Button>
+      ) : null}
+    </div>
   );
 }

@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import {
@@ -122,6 +122,7 @@ function ForumThreads() {
   const [forum, setForum] = useState<Forum | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("recent");
 
@@ -134,7 +135,12 @@ function ForumThreads() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: c }, { data: f }, { data: t }] = await Promise.all([
+    setLoadError(null);
+    const [
+      { data: c, error: cErr },
+      { data: f, error: fErr },
+      { data: t, error: tErr },
+    ] = await Promise.all([
       db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
       db
         .from("forums")
@@ -152,6 +158,13 @@ function ForumThreads() {
         .order("is_pinned", { ascending: false })
         .order("last_activity_at", { ascending: false }),
     ]);
+    if (cErr || fErr || tErr) {
+      setLoadError(
+        friendlyError(cErr ?? fErr ?? tErr, "No pudimos cargar este foro."),
+      );
+      setLoading(false);
+      return;
+    }
     setCourse(c as { id: string; name: string } | null);
     setForum(f as Forum | null);
     setThreads((t ?? []) as Thread[]);
@@ -331,6 +344,12 @@ function ForumThreads() {
             <Spinner size="md" /> Cargando hilos…
           </CardContent>
         </Card>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar este foro"
+          hint={loadError}
+          onRetry={() => void load()}
+        />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="p-0">

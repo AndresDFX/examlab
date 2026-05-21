@@ -16,7 +16,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { Sparkles, ChevronRight, BookOpen } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/tutor/")({ component: TutorIndex });
@@ -35,22 +36,28 @@ function TutorIndex() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
-      // Resolve enrolled courses via course_enrollments → courses.
-      const { data: enroll } = await db
+      setLoadError(null);
+      const { data: enroll, error } = await db
         .from("course_enrollments")
         .select("course:courses(id, name, period, description)")
         .eq("user_id", user.id);
       if (cancelled) return;
+      if (error) {
+        setLoadError(friendlyError(error, "No pudimos cargar tus cursos."));
+        setLoading(false);
+        return;
+      }
       const list = ((enroll ?? []) as Array<{ course: CourseRow | null }>)
         .map((r) => r.course)
         .filter((c): c is CourseRow => c != null);
-      // Sort by name for predictable order.
       list.sort((a, b) => a.name.localeCompare(b.name));
       setCourses(list);
       setLoading(false);
@@ -58,7 +65,7 @@ function TutorIndex() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, retryNonce]);
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
@@ -72,6 +79,12 @@ function TutorIndex() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
           <Spinner size="sm" /> Cargando cursos…
         </div>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar tus cursos"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
       ) : courses.length === 0 ? (
         <TableEmpty
           icon={BookOpen}

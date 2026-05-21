@@ -16,6 +16,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
+import { ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
@@ -30,7 +32,6 @@ import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
-import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -78,6 +79,10 @@ function StudentProjects() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectRow | null>(null);
+  // Estado de error explícito para que un fallo en la query base
+  // (course_enrollments) no se renderice como "sin proyectos".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   /** Borra la entrega del estudiante (RLS restringe a dentro del plazo).
    *  Los archivos asociados caen por CASCADE (FK en project_submission_files).
@@ -113,8 +118,14 @@ function StudentProjects() {
         .eq("user_id", uid);
       if (error) throw new Error(`course_enrollments: ${error.message}`);
       enrolledCourseIds = ((data ?? []) as { course_id: string }[]).map((e) => e.course_id);
+      setLoadError(null);
     } catch (e) {
       console.error("[student-projects] enrollments load failed", e);
+      // Si la query base falla, marcamos loadError para que el render
+      // muestre ErrorState con "Reintentar" en vez de "Sin proyectos"
+      // (que sería un falso positivo).
+      setLoadError(friendlyError(e, "No pudimos cargar tus proyectos."));
+      return;
     }
 
     let linkedProjectIds: string[] = [];
@@ -247,7 +258,10 @@ function StudentProjects() {
   useEffect(() => {
     if (!user) return;
     void reload(user.id);
-  }, [user]);
+    // retryNonce: bumpeado por ErrorState "Reintentar". Patrón canonical
+    // (reload no está memoizada — ver CLAUDE.md sección useEffect).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, retryNonce]);
 
   // Refetch al volver al tab — si el docente extendió el due_date del
   // proyecto mientras el alumno tenía la pestaña en background, el
@@ -269,6 +283,23 @@ function StudentProjects() {
         (r.project.course?.name?.toLowerCase().includes(q) ?? false),
     );
   }, [rows, search]);
+
+  // Si la query base falló (course_enrollments), no queremos mostrar
+  // "Sin proyectos" como falso negativo. El usuario debe poder reintentar.
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus proyectos"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

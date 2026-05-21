@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { HelpHint } from "@/components/ui/help-hint";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
@@ -82,6 +82,7 @@ function AdminUsers() {
   const { roles } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [password, setPassword] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -162,7 +163,16 @@ function AdminUsers() {
 
   const load = async () => {
     setLoading(true);
-    const { data: profs } = await supabase.from("profiles").select("*").order("full_name");
+    setLoadError(null);
+    const { data: profs, error: profsErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("full_name");
+    if (profsErr) {
+      setLoadError(friendlyError(profsErr, "No pudimos cargar la lista de usuarios."));
+      setLoading(false);
+      return;
+    }
     const { data: rs } = await supabase.from("user_roles").select("user_id, role");
     const grouped = new Map<string, AppRole[]>();
     (rs ?? []).forEach((r: any) => {
@@ -493,6 +503,21 @@ function AdminUsers() {
   };
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar la lista de usuarios"
+          hint={loadError}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

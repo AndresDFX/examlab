@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, Lock } from "lucide-react";
 import { formatDateLong, formatDateOnly } from "@/shared/lib/format";
@@ -59,12 +59,15 @@ function StudentCertificates() {
   const { user } = useAuth();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setLoadError(null);
       const { data, error } = await db
         .from("certificates")
         .select("*, course:courses(end_date)")
@@ -72,7 +75,7 @@ function StudentCertificates() {
         .order("issued_at", { ascending: false });
       if (cancelled) return;
       if (error) {
-        toast.error(friendlyError(error));
+        setLoadError(friendlyError(error, "No pudimos cargar tus certificados."));
       } else {
         setItems((data ?? []) as CertificateRow[]);
       }
@@ -81,7 +84,8 @@ function StudentCertificates() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, retryNonce]);
 
   /** Helper: determina si el certificado ya está disponible para
    *  descarga del estudiante. Bloqueado mientras la fecha fin del curso
@@ -152,6 +156,12 @@ function StudentCertificates() {
             <Spinner size="md" /> Cargando…
           </CardContent>
         </Card>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar tus certificados"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
       ) : items.length === 0 ? (
         <Card>
           <CardContent className="p-0">

@@ -12,6 +12,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -226,6 +227,8 @@ function TeacherAttendance() {
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
   const [startingCheckIn, setStartingCheckIn] = useState(false);
   const [projector, setProjector] = useState<CheckInState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
 
@@ -235,11 +238,17 @@ function TeacherAttendance() {
       .from("courses")
       .select("id, name, period")
       .order("name")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          setLoadError(friendlyError(error, "No pudimos cargar los cursos."));
+          return;
+        }
+        setLoadError(null);
         setCourses((data ?? []) as Course[]);
         if (data?.[0]) setCourseId(data[0].id);
       });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   // Load data for selected course
   const loadCourse = useCallback(async () => {
@@ -910,6 +919,21 @@ function TeacherAttendance() {
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Asistencia</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus cursos"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1033,7 +1057,7 @@ function TeacherAttendance() {
                 </TableRow>
               )}
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card min-w-48">Estudiante</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">Estudiante</TableHead>
                 {sessions.map((sess) => {
                   // Labels compactos para el resumen de "corte · contenido"
                   // que aparece debajo del header — evita reservar 2

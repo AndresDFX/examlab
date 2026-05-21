@@ -31,7 +31,9 @@ import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -104,6 +106,8 @@ function StudentProjectDetail() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [project, setProject] = useState<ProjectLoaded | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([]);
@@ -115,6 +119,7 @@ function StudentProjectDetail() {
     (async () => {
       setLoading(true);
       setError(null);
+      setLoadError(null);
       try {
         // Lanzamos en paralelo: el query del proyecto y los 3 que validan
         // acceso. Si el proyecto tiene RLS estricto y el usuario aún no
@@ -284,6 +289,8 @@ function StudentProjectDetail() {
           }
           if (!cancelled) setAnswersByFid(map);
         }
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del proyecto."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -291,7 +298,7 @@ function StudentProjectDetail() {
     return () => {
       cancelled = true;
     };
-  }, [user, projectId]);
+  }, [user, projectId, retryNonce]);
 
   if (!user) {
     return <p className="text-muted-foreground p-6">{t("project.review.mustSignIn")}</p>;
@@ -299,6 +306,23 @@ function StudentProjectDetail() {
 
   if (loading) {
     return <SectionLoader text={t("common.loading")} />;
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-4 p-2">
+        <Link to="/app/student/projects">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Proyectos
+          </Button>
+        </Link>
+        <ErrorState
+          message="No pudimos cargar los datos del proyecto"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
   }
 
   if (error === "no_assignment") {

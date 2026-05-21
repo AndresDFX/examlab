@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
+import { ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert } from "lucide-react";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
@@ -50,6 +52,10 @@ function StudentExams() {
   const [rows, setRows] = useState<ExamRow[]>([]);
   const [now, setNow] = useState(Date.now());
   const [search, setSearch] = useState("");
+  // ErrorState: si la query principal falla, mostramos placeholder con
+  // "Reintentar" en vez de la grilla vacía (que el alumno interpretaría
+  // como "no tengo exámenes asignados").
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -62,12 +68,17 @@ function StudentExams() {
   const loadExams = useCallback(async () => {
     if (!user) return;
     {
-      const { data: asg } = await supabase
+      const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
           "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
+      if (asgErr) {
+        setLoadError(friendlyError(asgErr, "No pudimos cargar tus exámenes."));
+        return;
+      }
+      setLoadError(null);
       // Filtramos los externos: el estudiante no debería verlos en
       // su lista de exámenes — la nota llega por gradebook directamente.
       const exams = (asg ?? [])
@@ -153,6 +164,21 @@ function StudentExams() {
         r.exam.course?.name?.toLowerCase().includes(q),
     );
   }, [rows, search]);
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus exámenes"
+          hint={loadError}
+          onRetry={() => void loadExams()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

@@ -293,6 +293,13 @@ export function AdminModuleVisibilityPanel() {
           </div>
         ) : (
           <>
+          {/* overflow-x-auto + min-w en el contenido evita que la matrix
+              se apriete a 375px (3 switches w-16 + acciones w-16 + gaps
+              ocupan ~256px fijos, dejaban <80px para el label del módulo
+              — los nombres se truncaban a "Banc..." y eran ilegibles).
+              En mobile la matrix scrollea horizontalmente; en sm+ cabe. */}
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <div className="min-w-[480px]">
             {/* Header con etiquetas de los switches a la derecha */}
             <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
               <span>Módulo</span>
@@ -369,6 +376,8 @@ export function AdminModuleVisibilityPanel() {
                 );
               })}
             </div>
+          </div>
+          </div>
 
             {/* Footer: estado + acciones (guardar / descartar). El badge
                 de cambios pendientes aparece solo cuando orderDirty=true. */}

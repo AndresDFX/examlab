@@ -13,6 +13,7 @@
 // pasa a 'processing', llama IA, parsea, sube archivos y deja 'done'.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
+import { describeAiError } from "../_shared/ai-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -424,10 +425,19 @@ Deno.serve(async (req: Request) => {
         const rawText = await aiRes.text();
         const looksHtml = rawText.trimStart().startsWith("<");
         if (!aiRes.ok || looksHtml) {
-          const reason = looksHtml
-            ? `[${label}] AI Gateway devolvió HTML (típicamente 504/timeout). Reintenta; si persiste, reduce la duración por clase o cambia a modalidad teorica/practica.`
-            : `[${label}] AI Gateway ${aiRes.status}: ${rawText.slice(0, 400)}`;
-          throw new Error(reason);
+          if (looksHtml) {
+            throw new Error(
+              `[${label}] AI Gateway devolvió HTML (típicamente 504/timeout). Reintenta; si persiste, reduce la duración por clase o cambia a modalidad teorica/practica.`,
+            );
+          }
+          // describeAiError detecta API key inválida y devuelve mensaje
+          // accionable; en otros casos retorna status + snippet.
+          const detail = await describeAiError(
+            aiRes,
+            cachedModel?.provider ?? "lovable",
+            rawText,
+          );
+          throw new Error(`[${label}] ${detail}`);
         }
         let aiJson: Record<string, unknown> = {};
         try {

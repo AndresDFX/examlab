@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageLoader, SectionLoader } from "@/components/ui/loaders";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Table,
   TableBody,
@@ -61,6 +62,8 @@ function AdminStatistics() {
   const isAdmin = roles.includes("Admin");
   const [summaries, setSummaries] = useState<CourseSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [drillCourseId, setDrillCourseId] = useState<string | null>(null);
   const [drillDataset, setDrillDataset] = useState<CourseDataset | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
@@ -71,11 +74,17 @@ function AdminStatistics() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data: courses } = await supabase
+      setLoadError(null);
+      const { data: courses, error } = await supabase
         .from("courses")
         .select("id, name, period")
         .order("name");
       if (cancelled) return;
+      if (error) {
+        setLoadError(friendlyError(error, "No pudimos cargar las estadísticas."));
+        setLoading(false);
+        return;
+      }
       const list = (courses ?? []) as Array<{ id: string; name: string; period: string | null }>;
       // Cargamos en paralelo todos los datasets — ojo: si hay 50+ cursos
       // esto puede ser pesado. Para V1 nos sirve; si crece, mover a una
@@ -131,7 +140,7 @@ function AdminStatistics() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isAdmin, retryNonce]);
 
   // Drill-down: carga el dataset completo del curso seleccionado
   useEffect(() => {
@@ -175,6 +184,24 @@ function AdminStatistics() {
 
   if (!isAdmin) {
     return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-primary" />
+            Estadísticas
+          </h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar las estadísticas"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
   }
 
   // Vista drill-down: misma UI que docente, embebida con un botón "Volver"

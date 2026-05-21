@@ -19,6 +19,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { RotateCcw, Save, Sparkles } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -145,6 +146,8 @@ function TeacherAIPrompts() {
   const [courses, setCourses] = useState<CourseLite[]>([]);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [loadingCourses, setLoadingCourses] = useState(true);
+  const [coursesError, setCoursesError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const [globals, setGlobals] = useState<Record<UseCase, string>>(
     Object.fromEntries(USE_CASES.map((u) => [u.key, ""])) as Record<UseCase, string>,
@@ -171,6 +174,7 @@ function TeacherAIPrompts() {
     let cancelled = false;
     (async () => {
       setLoadingCourses(true);
+      setCoursesError(null);
       // Para Docente solo ver cursos donde es teacher.
       // Hacemos un join via course_teachers para limitar (Admin verá todos
       // por RLS si así se desea, pero en esta vista filtramos a "mis cursos").
@@ -199,7 +203,7 @@ function TeacherAIPrompts() {
       const { data, error } = await q;
       if (cancelled) return;
       if (error) {
-        toast.error(friendlyError(error));
+        setCoursesError(friendlyError(error, "No pudimos cargar tus cursos."));
         setLoadingCourses(false);
         return;
       }
@@ -212,7 +216,7 @@ function TeacherAIPrompts() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTeacher, user?.id]);
+  }, [isTeacher, user?.id, retryNonce]);
 
   // Carga prompts globales + overrides del curso seleccionado.
   const loadPrompts = async (cid: string) => {
@@ -370,6 +374,13 @@ function TeacherAIPrompts() {
               <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
                 <Spinner size="md" /> Cargando cursos…
               </div>
+            ) : coursesError ? (
+              <ErrorState
+                message="No pudimos cargar los cursos"
+                hint={coursesError}
+                onRetry={() => setRetryNonce((n) => n + 1)}
+                className="py-4"
+              />
             ) : courses.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-1">No tienes cursos asignados.</p>
             ) : (

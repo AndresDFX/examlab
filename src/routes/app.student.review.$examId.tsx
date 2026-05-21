@@ -10,10 +10,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { SectionLoader } from "@/components/ui/loaders";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -63,6 +66,8 @@ function StudentExamReview() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [exam, setExam] = useState<ExamLoaded | null>(null);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [submission, setSubmission] = useState<{
@@ -81,6 +86,7 @@ function StudentExamReview() {
     (async () => {
       setLoading(true);
       setError(null);
+      setLoadError(null);
       try {
         const { data: asg } = await supabase
           .from("exam_assignments")
@@ -145,6 +151,8 @@ function StudentExamReview() {
           } | null,
         );
         setQuestions((qs ?? []) as QuestionRow[]);
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del examen."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -152,14 +160,32 @@ function StudentExamReview() {
     return () => {
       cancelled = true;
     };
-  }, [user, examId]);
+  }, [user, examId, retryNonce]);
 
   if (!user) {
     return <p className="text-muted-foreground p-6">{t("exam.review.mustSignIn")}</p>;
   }
 
   if (loading) {
-    return <p className="text-muted-foreground p-6">{t("exam.review.loadError")}</p>;
+    return <SectionLoader text={t("common.loading")} />;
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-4 p-2">
+        <Link to="/app/student/exams">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            {t("exam.review.backToExams")}
+          </Button>
+        </Link>
+        <ErrorState
+          message="No pudimos cargar los datos del examen"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
   }
 
   if (error === "no_assignment") {

@@ -21,6 +21,7 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { Sparkles, Send, Trash2, Bot, User as UserIcon, AlertTriangle } from "lucide-react";
+import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -47,6 +48,8 @@ function TutorChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -61,33 +64,43 @@ function TutorChat() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ data: c }, { data: s }] = await Promise.all([
-        db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
-        db
-          .from("tutor_chat_sessions")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("course_id", courseId)
-          .maybeSingle(),
-      ]);
-      if (cancelled) return;
-      setCourse(c as { id: string; name: string } | null);
-      const sid = (s as { id: string } | null)?.id ?? null;
-      setSessionId(sid);
-      if (sid) {
-        const { data: msgs } = await db
-          .from("tutor_chat_messages")
-          .select("id, session_id, role, content, created_at")
-          .eq("session_id", sid)
-          .order("created_at", { ascending: true });
-        if (!cancelled) setMessages((msgs ?? []) as Message[]);
+      setLoadError(null);
+      try {
+        const [{ data: c, error: cErr }, { data: s }] = await Promise.all([
+          db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
+          db
+            .from("tutor_chat_sessions")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("course_id", courseId)
+            .maybeSingle(),
+        ]);
+        if (cancelled) return;
+        if (cErr) {
+          setLoadError(friendlyError(cErr, "No pudimos cargar el tutor de este curso."));
+          return;
+        }
+        setCourse(c as { id: string; name: string } | null);
+        const sid = (s as { id: string } | null)?.id ?? null;
+        setSessionId(sid);
+        if (sid) {
+          const { data: msgs } = await db
+            .from("tutor_chat_messages")
+            .select("id, session_id, role, content, created_at")
+            .eq("session_id", sid)
+            .order("created_at", { ascending: true });
+          if (!cancelled) setMessages((msgs ?? []) as Message[]);
+        }
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar el tutor de este curso."));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [user, courseId]);
+  }, [user, courseId, retryNonce]);
 
   const loadMessages = useCallback(async (sid: string) => {
     const { data } = await db
@@ -207,6 +220,14 @@ function TutorChat() {
           ) : null
         }
       />
+
+      {loadError && (
+        <ErrorState
+          message="No pudimos cargar el tutor"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      )}
 
       <Card className="flex flex-col max-h-[70vh]">
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">

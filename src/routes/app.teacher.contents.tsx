@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -184,6 +184,7 @@ function TeacherContents() {
   const [courses, setCourses] = useState<CourseLite[]>([]);
   const [brand, setBrand] = useState<BrandConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   /** Filtro por curso. `null` = todos. Coincide con la convención del
    *  resto de grids docente (talleres, proyectos, exámenes) que usan
@@ -312,7 +313,12 @@ function TeacherContents() {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: gens }, { data: brandRow }, { data: cs }] = await Promise.all([
+    setLoadError(null);
+    const [
+      { data: gens, error: gensErr },
+      { data: brandRow },
+      { data: cs },
+    ] = await Promise.all([
       db
         .from("generated_contents")
         .select("*")
@@ -328,6 +334,13 @@ function TeacherContents() {
       // Mismo patrón que usan workshops/projects para el selector.
       supabase.from("courses").select("id, name").order("name"),
     ]);
+    // generated_contents es la query crítica — sin contenidos no hay
+    // grid. brand y courses son secundarios (no bloquean el render).
+    if (gensErr) {
+      setLoadError(friendlyError(gensErr, "No pudimos cargar los contenidos."));
+      setLoading(false);
+      return;
+    }
     setItems((gens ?? []) as GeneratedContent[]);
     setBrand((brandRow as BrandConfig) ?? null);
     setCourses((cs ?? []) as CourseLite[]);
@@ -636,6 +649,22 @@ function TeacherContents() {
   }, [courses]);
 
   const rawItem = items.find((i) => i.id === rawForId) ?? null;
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title={t("contents.title")}
+          icon={<Presentation className="h-6 w-6 text-pink-500" />}
+        />
+        <ErrorState
+          message="No pudimos cargar los contenidos"
+          hint={loadError}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

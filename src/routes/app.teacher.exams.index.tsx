@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -41,7 +41,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateTime, formatDuration, formatPercent } from "@/shared/lib/format";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -204,8 +204,15 @@ function TeacherExams() {
   };
 
   const [aiErrorsByExam, setAiErrorsByExam] = useState<Record<string, number>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const load = async () => {
-    const [{ data: cs }, { data: es }, { data: cs2 }, { data: aiErr }] = await Promise.all([
+    const [
+      { data: cs, error: csErr },
+      { data: es, error: esErr },
+      { data: cs2 },
+      { data: aiErr },
+    ] = await Promise.all([
       supabase.from("courses").select("id, name, period").order("name"),
       supabase
         .from("exams")
@@ -221,6 +228,11 @@ function TeacherExams() {
       // y la columna muestra "0" para todos.
       (supabase as any).rpc("count_ai_errors_per_exam"),
     ]);
+    if (csErr || esErr) {
+      setLoadError(friendlyError(csErr ?? esErr, "No pudimos cargar los exámenes."));
+      return;
+    }
+    setLoadError(null);
     setCourses((cs ?? []) as Course[]);
     setExams((es ?? []) as any);
     setCuts((cs2 ?? []) as Cut[]);
@@ -232,7 +244,8 @@ function TeacherExams() {
   };
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   // Cap dinámico del peso del examen para validación single-curso.
   const examWeightMax = useMemo(() => {
@@ -436,6 +449,21 @@ function TeacherExams() {
   };
 
   if (!isTeacher) return <p className="text-muted-foreground">{t("exam.needsTeacherRole")}</p>;
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar los exámenes"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

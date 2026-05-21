@@ -599,13 +599,27 @@ function TakeExam() {
     }
     // Pantalla completa OBLIGATORIA: si no se puede entrar, no iniciar el examen.
     // Esto cubre: navegador sin soporte, usuario rechazó el prompt, embebido sin permiso.
+    //
+    // Caso especial iOS: Safari pre-16.4 NO soporta Fullscreen API en
+    // elementos no-<video>. iOS 16.4+ sí, pero solo si la app está
+    // instalada como PWA ("Añadir a pantalla de inicio") O en Safari
+    // con el toggle "Webkit Fullscreen API" habilitado en Avanzado.
+    // Por eso el mensaje de error guía a esos paths concretos.
+    const isIOS =
+      typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && "ontouchend" in document));
+    const fullscreenHelpText = isIOS
+      ? "iPhone/iPad: instala la app desde Safari (botón Compartir → 'Añadir a pantalla de inicio') y vuelve a abrir el examen desde el ícono, o usa una computadora."
+      : "Habilita la pantalla completa en tu navegador o usa una computadora.";
+
     try {
       await document.documentElement.requestFullscreen?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(
-        "Este examen requiere pantalla completa. Habilítala en tu navegador o usa otro navegador, luego vuelve a presionar Iniciar.",
-      );
+      toast.error(`Este examen requiere pantalla completa. ${fullscreenHelpText}`, {
+        duration: 10000,
+      });
       void logEvent({
         action: "exam_fullscreen_denied",
         category: "exam",
@@ -613,15 +627,15 @@ function TakeExam() {
         entityType: "submission",
         entityId: sid,
         entityName: exam.title,
-        metadata: { examId, stage: "start", error: msg },
+        metadata: { examId, stage: "start", error: msg, isIOS },
       });
       return;
     }
     // Verifica que realmente entró (algunos navegadores resuelven la promise sin activar fullscreen)
     if (!document.fullscreenElement) {
-      toast.error(
-        "No se pudo activar pantalla completa. Verifica tu navegador y vuelve a presionar Iniciar.",
-      );
+      toast.error(`No se pudo activar pantalla completa. ${fullscreenHelpText}`, {
+        duration: 10000,
+      });
       void logEvent({
         action: "exam_fullscreen_denied",
         category: "exam",
@@ -629,7 +643,7 @@ function TakeExam() {
         entityType: "submission",
         entityId: sid,
         entityName: exam.title,
-        metadata: { examId, stage: "start", reason: "no_fullscreen_element" },
+        metadata: { examId, stage: "start", reason: "no_fullscreen_element", isIOS },
       });
       return;
     }
@@ -1807,8 +1821,24 @@ function TakeExam() {
         })}
       </div>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between gap-2 mt-6">
+      {/* Navigation sticky bottom.
+       *
+       * En mobile, al abrir el teclado virtual para responder una
+       * pregunta abierta, el iOS/Android browser sube los inputs en
+       * foco pero el botón "Siguiente" / "Finalizar" quedaba al final
+       * del flow, debajo del teclado. El alumno tenía que cerrar el
+       * teclado para ver los botones.
+       *
+       * Sticky bottom-0 se pega al viewport bottom cuando hay scroll y
+       * queda en su posición natural cuando no. Como en examen el
+       * bottom-nav del AppLayout NO se renderiza, no hay choque z-index.
+       *
+       * `-mx-4 px-4 sm:-mx-6 sm:px-6` extiende el bg-background +
+       * border-t edge-to-edge en mobile/tablet (compensa el px del
+       * AppLayout main); en desktop el max-w-3xl ya constriñe el
+       * contenido al mismo ancho que el sticky.
+       */}
+      <div className="sticky bottom-0 z-20 bg-background border-t mt-6 pt-3 pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 flex items-center justify-between gap-2">
         <Button
           variant="outline"
           // En navegación secuencial el alumno NO puede volver atrás

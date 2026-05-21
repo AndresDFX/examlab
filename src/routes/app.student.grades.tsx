@@ -46,6 +46,8 @@ import {
 import { computeWeightedGrade } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,15 +104,24 @@ function StudentGrades() {
   const [cutsBreakdown, setCutsBreakdown] = useState<CutBreakdown[]>([]);
   const [unassigned, setUnassigned] = useState<ItemRow[]>([]);
   const [loading, setLoading] = useState(false);
+  // Si la query principal de notas falla (RLS, red caída, schema cache),
+  // poblamos `loadError` para mostrar `<ErrorState>` en vez de una vista
+  // vacía sin contexto. El user puede pulsar "Reintentar".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumpear este contador re-dispara el effect manualmente (sin agregarlo
+  // a las deps externas que tienen su propia semántica).
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Carga cursos matriculados
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     void (async () => {
       const { data: enr } = await supabase
         .from("course_enrollments")
         .select("course_id")
         .eq("user_id", user.id);
+      if (cancelled) return;
       const ids = (enr ?? []).map((e: { course_id: string }) => e.course_id);
       if (!ids.length) {
         setCourses([]);
@@ -122,10 +133,14 @@ function StudentGrades() {
         .in("id", ids)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
+      if (cancelled) return;
       const cs = (data ?? []) as Course[];
       setCourses(cs);
       if (cs[0]) setCourseId(cs[0].id);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   // Carga datos de cortes/items para el curso seleccionado
@@ -134,8 +149,10 @@ function StudentGrades() {
     const course = courses.find((c) => c.id === courseId);
     if (!course) return;
 
+    let cancelled = false;
     void (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const [
           { data: cutsData },
@@ -382,14 +399,23 @@ function StudentGrades() {
           };
         });
 
+        if (cancelled) return;
         // Items sin corte asignado (informativo)
         setUnassigned(rows.filter((r) => !r.cut_id));
         setCutsBreakdown(breakdown);
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError(friendlyError(e, "No pudimos cargar tus notas en este momento."));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [user, courseId, courses]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, courseId, courses, retryNonce]);
 
   const course = courses.find((c) => c.id === courseId);
 
@@ -410,6 +436,29 @@ function StudentGrades() {
 
   const passes = course && finalGrade != null ? finalGrade >= course.passing_grade : null;
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
+
+  // Si la query de notas del curso seleccionado falló, no queremos
+  // mostrar la tabla vacía como si estuviera "sin datos" — eso confunde
+  // al alumno (¿no tengo notas? ¿la app está rota?). Renderizamos un
+  // ErrorState con botón "Reintentar" que bumpea `retryNonce` para
+  // re-disparar el effect.
+  if (loadError && courseId) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
+          <p className="text-sm text-muted-foreground">
+            Consolidado por cortes y calificación final del curso
+          </p>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus notas"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

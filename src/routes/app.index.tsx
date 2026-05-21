@@ -114,6 +114,11 @@ function AdminDashboard() {
   } | null>(null);
 
   useEffect(() => {
+    // Guard contra navegación rápida: si el admin sale del dashboard
+    // antes de que la query resuelva (~500ms en cold cache), el setState
+    // disparaba warning "set state on unmounted component" y un toast
+    // huérfano en pantalla nueva. `cancelled` corta el flow.
+    let cancelled = false;
     (async () => {
       // Métricas de email en las últimas 24h. Un SELECT con filtros
       // específicos por action — más eficiente que cargar todo y
@@ -166,6 +171,7 @@ function AdminDashboard() {
             .eq("action", "ai_plagiarism.detected")
             .gte("created_at", sinceHour),
         ]);
+      if (cancelled) return;
       setAiStats({
         callsLastHour: aiCallsRes.count ?? 0,
         errorsLastHour: aiErrorsRes.count ?? 0,
@@ -205,6 +211,7 @@ function AdminDashboard() {
           // llenan la lista en una pantalla típica sin desbordar.
           .limit(12),
       ]);
+      if (cancelled) return;
       setEmailStats({
         delivered: delivRes.count ?? 0,
         skipped: skipRes.count ?? 0,
@@ -217,6 +224,9 @@ function AdminDashboard() {
         }>,
       });
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -437,6 +447,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   };
 
   useEffect(() => {
+    // Guard contra navegación rápida (mismo razonamiento que el effect
+    // del AdminDashboard arriba).
+    let cancelled = false;
     (async () => {
       const now = new Date().toISOString();
       // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
@@ -494,6 +507,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .from("ai_grading_queue")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending");
+      if (cancelled) return;
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
         unansweredMessages: unansweredCount,
@@ -524,6 +538,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .gte("end_time", now)
         .order("start_time")
         .limit(8);
+      if (cancelled) return;
       setUpcomingExams(exams ?? []);
 
       const { data: ws } = await supabase
@@ -532,6 +547,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .eq("status", "published")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(8);
+      if (cancelled) return;
       setActiveWorkshops(ws ?? []);
 
       const { data: pjs } = await (supabase as any)
@@ -540,8 +556,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .eq("status", "published")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(8);
+      if (cancelled) return;
       setActiveProjects(pjs ?? []);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -815,6 +835,9 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
 
   useEffect(() => {
     if (!userId) return;
+    // Guard contra navegación rápida (mismo razonamiento que los
+    // dashboards Admin/Teacher arriba).
+    let cancelled = false;
     (async () => {
       // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
       // con `attendance_sessions.session_date` que es columna DATE sin TZ.
@@ -847,6 +870,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         // Subido a 8 para alinear con el dashboard del docente (las
         // cards crecen vertical y muestran más items útiles).
         .slice(0, 8);
+      if (cancelled) return;
       setUpcomingExams(exams);
 
       // Assigned workshops — "por entregar" = published + open
@@ -897,6 +921,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
         )
         .slice(0, 8);
+      if (cancelled) return;
       setPendingWorkshops(ws);
 
       // Cursos matriculados (necesarios para proyectos + próximas clases)
@@ -957,6 +982,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             new Date(a.due_date ?? "9999").getTime() - new Date(b.due_date ?? "9999").getTime(),
         )
         .slice(0, 8);
+      if (cancelled) return;
       setPendingProjects(pjs);
 
       // Métricas tipo "docente": mensajes sin responder + sesiones hoy.
@@ -976,6 +1002,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           : Promise.resolve({ count: 0 }),
       ]);
       const unansweredCount = typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
+      if (cancelled) return;
       setCounts({
         unansweredMessages: unansweredCount,
         todaySessions: todaySess.count ?? 0,
@@ -993,8 +1020,12 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             .order("start_time", { ascending: true, nullsFirst: false })
             .limit(8)
         : { data: [] as any[] };
+      if (cancelled) return;
       setUpcomingSessions(sess ?? []);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   return (

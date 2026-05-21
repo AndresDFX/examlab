@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import {
   Select,
@@ -69,6 +69,8 @@ function CertificatesAdmin() {
   const { user, roles } = useAuth();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const isAdmin = roles.includes("Admin");
   const isDocente = roles.includes("Docente");
   // Filtros UI (mismo patrón que otros módulos): selector de curso +
@@ -82,20 +84,23 @@ function CertificatesAdmin() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      // Sin filtro por user_id — RLS limita el scope al rol activo.
+      setLoadError(null);
       const { data, error } = await db
         .from("certificates")
         .select("*")
         .order("issued_at", { ascending: false });
       if (cancelled) return;
-      if (error) toast.error(friendlyError(error));
-      else setItems((data ?? []) as CertificateRow[]);
+      if (error) {
+        setLoadError(friendlyError(error, "No pudimos cargar los certificados."));
+      } else {
+        setItems((data ?? []) as CertificateRow[]);
+      }
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, retryNonce]);
 
   // Lista derivada (course_id, nombre) para alimentar el selector. Como
   // los certificados ya están filtrados por RLS al alcance del usuario,
@@ -233,6 +238,12 @@ function CertificatesAdmin() {
         <div className="p-8 flex items-center justify-center text-sm text-muted-foreground">
           <Spinner size="sm" className="mr-2" /> Cargando…
         </div>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar los certificados"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
       ) : items.length === 0 ? (
         <TableEmpty
           icon={Award}

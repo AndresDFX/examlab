@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -135,6 +135,7 @@ export function AdminCourses() {
   const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
@@ -247,11 +248,16 @@ export function AdminCourses() {
   const canManage = isAdmin || isTeacher;
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("courses")
       .select("*")
       .order("period", { ascending: false, nullsFirst: false })
       .order("name");
+    if (error) {
+      setLoadError(friendlyError(error, "No pudimos cargar la lista de cursos."));
+      return;
+    }
+    setLoadError(null);
     setCourses((data ?? []) as Course[]);
   };
   useEffect(() => {
@@ -892,6 +898,21 @@ export function AdminCourses() {
   };
 
   if (!canManage) return <p className="text-muted-foreground">Necesitas rol Admin o Docente.</p>;
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Cursos</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar la lista de cursos"
+          hint={loadError}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

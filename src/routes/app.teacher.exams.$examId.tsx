@@ -50,6 +50,7 @@ import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { Library } from "lucide-react";
@@ -81,6 +82,8 @@ function ExamEditor() {
   const confirm = useConfirm();
   const { t } = useTranslation();
   const [exam, setExam] = useState<Exam | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [cuts, setCuts] = useState<
     Array<{
       id: string;
@@ -274,11 +277,16 @@ function ExamEditor() {
   };
 
   const load = async () => {
-    const { data: e } = await supabase
+    setLoadError(null);
+    const { data: e, error: eErr } = await supabase
       .from("exams")
       .select("*, course:courses(max_exam_attempts, grade_scale_max)")
       .eq("id", examId)
       .single();
+    if (eErr || !e) {
+      setLoadError(friendlyError(eErr, "No se encontró el examen o no tienes acceso."));
+      return;
+    }
     setExam(e);
     setOriginalCourseId(e?.course_id ?? null);
     const { data: qs } = await supabase
@@ -306,7 +314,7 @@ function ExamEditor() {
   };
   useEffect(() => {
     load(); /* eslint-disable-next-line */
-  }, [examId]);
+  }, [examId, retryNonce]);
 
   const saveExam = async () => {
     const rawAttempts = (exam as any).max_attempts;
@@ -626,6 +634,16 @@ function ExamEditor() {
     });
     toast.success(`${toRemove.length} asignación(es) removidas correctamente`);
   };
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar el examen"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   if (!exam) return <p className="text-muted-foreground">Cargando…</p>;
 

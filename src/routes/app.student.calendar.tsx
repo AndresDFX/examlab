@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
@@ -79,6 +79,8 @@ const KIND_COLOR: Record<CalendarEvent["kind"], string> = {
 function StudentCalendar() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [search, setSearch] = useState("");
   const [activeKinds, setActiveKinds] = useState<Set<CalendarEvent["kind"]>>(
@@ -96,6 +98,7 @@ function StudentCalendar() {
 
     (async () => {
       setLoading(true);
+      setLoadError(null);
       // Reusamos la misma estructura de queries que el edge function
       // para coherencia. El RLS asegura que el estudiante solo ve lo suyo.
       const lookback = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -125,6 +128,13 @@ function StudentCalendar() {
           .eq("user_id", user.id),
       ]);
       if (cancelled) return;
+
+      const firstError = examsRes.error ?? wsRes.error ?? pjRes.error ?? sessRes.error;
+      if (firstError) {
+        setLoadError(friendlyError(firstError, "No pudimos cargar el calendario."));
+        setLoading(false);
+        return;
+      }
 
       const evs: CalendarEvent[] = [];
 
@@ -221,7 +231,7 @@ function StudentCalendar() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, retryNonce]);
 
   // Load token (creates if not exists)
   useEffect(() => {
@@ -440,6 +450,12 @@ function StudentCalendar() {
             <Spinner size="md" /> Cargando eventos…
           </CardContent>
         </Card>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar el calendario"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
       ) : groups.length === 0 ? (
         <Card>
           <CardContent className="p-0">

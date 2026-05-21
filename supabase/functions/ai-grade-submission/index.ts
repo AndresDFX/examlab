@@ -2,6 +2,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
+import { describeAiError } from "../_shared/ai-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -657,7 +658,9 @@ Deno.serve(async (req) => {
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error("Error en gateway de IA");
+        throw new Error(
+          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+        );
       }
 
       const aiJson = await aiRes.json();
@@ -785,7 +788,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error("Error en gateway de IA");
+        throw new Error(
+          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+        );
       }
 
       const aiJson = await aiRes.json();
@@ -1390,7 +1395,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error("Error en gateway de IA");
+        throw new Error(
+          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+        );
       }
 
       const aiJson = await aiRes.json();
@@ -1520,7 +1527,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error("Error en gateway de IA");
+        throw new Error(
+          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+        );
       }
 
       const aiJson = await aiRes.json();
@@ -1718,7 +1727,9 @@ Idioma de salida: ${langName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error("Error en gateway de IA");
+        throw new Error(
+          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+        );
       }
 
       const aiJson = await aiRes.json();

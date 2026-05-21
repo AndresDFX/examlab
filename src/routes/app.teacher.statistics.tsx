@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/ui/loaders";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 import {
   ChartContainer,
   ChartTooltip,
@@ -70,11 +71,15 @@ function TeacherStatistics() {
   const [courseId, setCourseId] = useState("");
   const [dataset, setDataset] = useState<CourseDataset | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Cargar cursos del docente. Admin ve todos.
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     (async () => {
+      setLoadError(null);
       let q = supabase.from("courses").select("id, name, period").order("name");
       if (!roles.includes("Admin")) {
         const { data: ct } = await supabase
@@ -82,19 +87,28 @@ function TeacherStatistics() {
           .select("course_id")
           .eq("user_id", user.id);
         const ids = (ct ?? []).map((r: { course_id: string }) => r.course_id);
+        if (cancelled) return;
         if (ids.length === 0) {
           setCourses([]);
           return;
         }
         q = q.in("id", ids);
       }
-      const { data } = await q;
+      const { data, error } = await q;
+      if (cancelled) return;
+      if (error) {
+        setLoadError(friendlyError(error, "No pudimos cargar tus cursos."));
+        return;
+      }
       const list = (data ?? []) as CourseOpt[];
       setCourses(list);
       if (list[0] && !courseId) setCourseId(list[0].id);
     })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, roles.join(",")]);
+  }, [user, roles.join(","), retryNonce]);
 
   // Cargar dataset del curso seleccionado
   useEffect(() => {
@@ -110,6 +124,24 @@ function TeacherStatistics() {
 
   if (!isTeacher) {
     return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-primary" />
+            Estadísticas
+          </h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus cursos"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
   }
 
   return (

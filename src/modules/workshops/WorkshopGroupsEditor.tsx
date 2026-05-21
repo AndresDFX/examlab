@@ -18,10 +18,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GripVertical, Users } from "lucide-react";
+import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -308,6 +316,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                     isDragging={draggingUserId === s.id}
                     onDragStart={onDragStart(s.id)}
                     onDragEnd={onDragEnd}
+                    groups={groups}
+                    currentGroupId={null}
+                    onMoveTo={(target) => void moveUser(s.id, target)}
                   />
                 ))
               )}
@@ -366,6 +377,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                           isDragging={draggingUserId === s.id}
                           onDragStart={onDragStart(s.id)}
                           onDragEnd={onDragEnd}
+                          groups={groups}
+                          currentGroupId={g.id}
+                          onMoveTo={(target) => void moveUser(s.id, target)}
                         />
                       ))
                     )}
@@ -380,16 +394,28 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   );
 }
 
+/**
+ * Tarjeta de estudiante. Modos de movimiento:
+ *  1. Drag & drop nativo HTML5 — desktop (mouse).
+ *  2. Botón "Mover" → DropdownMenu — fallback táctil (mobile/tablet)
+ *     porque el drag&drop nativo no dispara en touch sin polyfill.
+ */
 function DraggableStudent({
   student,
   isDragging,
   onDragStart,
   onDragEnd,
+  groups,
+  currentGroupId,
+  onMoveTo,
 }: {
   student: Student;
   isDragging: boolean;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  groups: Group[];
+  currentGroupId: string | null;
+  onMoveTo: (target: string) => void;
 }) {
   return (
     <div
@@ -407,6 +433,49 @@ function DraggableStudent({
           {student.institutional_email}
         </div>
       </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Mover a otro grupo"
+            title="Mover a otro grupo"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel>Mover a…</DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => onMoveTo(UNASSIGNED)}
+            disabled={currentGroupId === null}
+          >
+            {currentGroupId === null ? (
+              <Check className="h-3.5 w-3.5 mr-2" />
+            ) : (
+              <span className="w-3.5 mr-2" />
+            )}
+            Sin grupo
+          </DropdownMenuItem>
+          {groups.length > 0 && <DropdownMenuSeparator />}
+          {groups.map((g) => (
+            <DropdownMenuItem
+              key={g.id}
+              onClick={() => onMoveTo(g.id)}
+              disabled={currentGroupId === g.id}
+            >
+              {currentGroupId === g.id ? (
+                <Check className="h-3.5 w-3.5 mr-2" />
+              ) : (
+                <span className="w-3.5 mr-2" />
+              )}
+              <span className="truncate">{g.name}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

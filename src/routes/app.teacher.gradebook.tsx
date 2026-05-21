@@ -13,6 +13,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -171,6 +172,8 @@ function Gradebook() {
   const { roles } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [columns, setColumns] = useState<GradeColumn[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
@@ -230,11 +233,17 @@ function Gradebook() {
         "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight",
       )
       .order("name")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          setLoadError(friendlyError(error, "No pudimos cargar tus cursos."));
+          return;
+        }
+        setLoadError(null);
         setCourses(data ?? []);
         if (data?.[0]) setCourseId(data[0].id);
       });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   // Load data for selected course
   const loadCourse = useCallback(async () => {
@@ -1097,6 +1106,21 @@ function Gradebook() {
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar el gradebook"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1687,7 +1711,7 @@ function renderCutDetailGrouped({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+                <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
                   {i18next.t("gradebook.studentColumn")}
                 </TableHead>
                 {showWorkshops && (
@@ -2096,7 +2120,7 @@ function renderEditableGrid({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 z-10 bg-card min-w-48">
+            <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
               <span className="inline-flex items-center gap-1.5">
                 Estudiante
                 <HelpHint side="bottom" align="start">

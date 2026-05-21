@@ -1069,9 +1069,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             para no chocar con el sidebar fixed del desktop. */}
         <ImpersonationBanner />
         {/* Page container — constrained on desktop, full-bleed with 16px
-            gutters on mobile. Bottom padding reserves room for the bottom
-            nav on mobile so fixed content doesn't get clipped. */}
-        <div className="px-4 md:px-8 py-5 md:py-8 pb-24 md:pb-8 max-w-7xl mx-auto">
+            gutters on mobile. Bottom padding reserva espacio para el
+            bottom-nav fixed mobile. Durante el examen el bottom-nav no
+            se renderiza (`!isTakingExam`), así que bajamos el padding
+            para no dejar 96px de aire vacío debajo del contenido. */}
+        <div
+          className={cn(
+            "px-4 md:px-8 py-5 md:py-8 max-w-7xl mx-auto",
+            isTakingExam ? "pb-5 md:pb-8" : "pb-24 md:pb-8",
+          )}
+        >
           <ActiveRoleContext.Provider value={activeRole}>{children}</ActiveRoleContext.Provider>
         </div>
 
@@ -1079,7 +1086,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
            MOBILE BOTTOM NAV — thumb-reachable, up to 5 role-aware items
            Keeps the most frequent destinations one tap away without
            reopening the drawer.
+
+           Se oculta durante el examen (`isTakingExam`) por la misma
+           razón que el sidebar: cualquier tap en uno de los items
+           dispararía un strike de proctoring + sale de fullscreen.
            ────────────────────────────────────────────────────────── */}
+        {!isTakingExam && (
         <nav
           className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border flex items-stretch justify-around"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -1107,6 +1119,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+        )}
       </main>
 
       {/* FAB de mensajes — visible cuando el sidebar NO está visible

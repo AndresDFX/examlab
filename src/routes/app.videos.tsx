@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui/page-header";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ListFilters } from "@/components/ui/list-filters";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -151,27 +151,32 @@ function VideoLibrary() {
   const [search, setSearch] = useState("");
   const [filterCourseId, setFilterCourseId] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db
       .from("videos")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) toast.error(friendlyError(error));
-    else setRows((data ?? []) as VideoRow[]);
+    if (error) {
+      setLoadError(friendlyError(error, "No pudimos cargar los videos."));
+    } else {
+      setRows((data ?? []) as VideoRow[]);
+    }
     setLoading(false);
   };
 
   useEffect(() => {
     void load();
-    // Cursos del docente/admin para asociar el video. Admin ve todos los
-    // cursos; Docente solo los suyos vía RLS de `course_teachers`.
     void (async () => {
       const { data } = await db.from("courses").select("id, name").order("name");
       setCourses((data ?? []) as CourseOption[]);
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   const visible = useMemo(
     () =>
@@ -481,6 +486,12 @@ function VideoLibrary() {
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <TableSkeleton rows={5} cols={5} />
+          ) : loadError ? (
+            <ErrorState
+              message="No pudimos cargar los videos"
+              hint={loadError}
+              onRetry={() => setRetryNonce((n) => n + 1)}
+            />
           ) : (
             <Table>
               <TableHeader>

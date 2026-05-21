@@ -31,6 +31,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
+import { SectionLoader } from "@/components/ui/loaders";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -47,6 +48,7 @@ import { MeetingLink } from "@/shared/components/MeetingLink";
 import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { ErrorState } from "@/components/ui/empty-state";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 
@@ -122,15 +124,25 @@ function StudentCourses() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     void (async () => {
       setLoading(true);
-      const { data: enr } = await supabase
+      setLoadError(null);
+      const { data: enr, error: enrErr } = await supabase
         .from("course_enrollments")
         .select("course_id")
         .eq("user_id", user.id);
+      if (cancelled) return;
+      if (enrErr) {
+        setLoadError(friendlyError(enrErr, "No pudimos cargar tus cursos."));
+        setLoading(false);
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const courseIds = (enr ?? []).map((e: any) => e.course_id);
       if (!courseIds.length) {
@@ -144,17 +156,37 @@ function StudentCourses() {
         .in("id", courseIds)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
+      if (cancelled) return;
       setCourses((data as CourseRow[]) ?? []);
       setLoading(false);
     })();
-  }, [user]);
+    return () => {
+      cancelled = true;
+    };
+    // retryNonce dispara re-fetch desde ErrorState
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, retryNonce]);
 
   const selected = courses.find((c) => c.id === selectedId) ?? null;
 
   if (loading) {
+    return <SectionLoader text="Cargando cursos…" />;
+  }
+
+  if (loadError) {
     return (
-      <div className="flex items-center justify-center p-10">
-        <Spinner size="lg" />
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            {t("nav.studentCourses")}
+          </h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus cursos"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
       </div>
     );
   }
@@ -424,11 +456,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   }, [pastSessions, attendance]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-10">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <SectionLoader text="Cargando cursos…" />;
   }
 
   return (

@@ -34,7 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -156,6 +156,7 @@ function MessagesPage() {
    *  falló" (migración faltante u otro error de DB). */
   const [contactsLoadError, setContactsLoadError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationEnriched[]>([]);
+  const [conversationsLoadError, setConversationsLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageLite[]>([]);
@@ -253,6 +254,16 @@ function MessagesPage() {
         db.rpc("list_messageable_users"),
         db.from("conversations").select("*").order("created_at", { ascending: false }),
       ]);
+      // Si la query de conversations falla, marcamos error en vez de
+      // renderizar "Sin conversaciones" (falso negativo). El render del
+      // sidebar lo muestra como ErrorState con botón Reintentar.
+      if (convsRes.error) {
+        setConversationsLoadError(
+          friendlyError(convsRes.error, "No pudimos cargar tus conversaciones."),
+        );
+      } else {
+        setConversationsLoadError(null);
+      }
       // Si la RPC falla — típicamente porque la migración del módulo
       // aún no está aplicada en este entorno (Lovable aún no publicó) —
       // antes caíamos a `[]` silencioso y mostrábamos "sin contactos".
@@ -940,6 +951,12 @@ function MessagesPage() {
               <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
                 <Spinner size="sm" /> Cargando…
               </div>
+            ) : conversationsLoadError ? (
+              <ErrorState
+                message="No pudimos cargar tus conversaciones"
+                hint={conversationsLoadError}
+                onRetry={() => void loadAll()}
+              />
             ) : conversations.length === 0 ? (
               <EmptyState
                 title="Sin conversaciones"

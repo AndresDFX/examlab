@@ -38,7 +38,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { useTranslation } from "react-i18next";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
@@ -236,6 +236,8 @@ function TeacherWorkshops() {
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -423,7 +425,12 @@ function TeacherWorkshops() {
   };
 
   const load = async () => {
-    const [{ data: cs }, { data: ws }, { data: cuts }, { data: aiErr }] = await Promise.all([
+    const [
+      { data: cs, error: csErr },
+      { data: ws, error: wsErr },
+      { data: cuts },
+      { data: aiErr },
+    ] = await Promise.all([
       supabase
         .from("courses")
         .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
@@ -440,6 +447,15 @@ function TeacherWorkshops() {
         .order("position"),
       (supabase as any).rpc("count_ai_errors_per_workshop"),
     ]);
+    // Si las queries crítica fallan (courses, workshops), marcamos
+    // loadError para mostrar ErrorState en vez de "0 talleres" silencioso.
+    if (csErr || wsErr) {
+      setLoadError(
+        friendlyError(csErr ?? wsErr, "No pudimos cargar los talleres."),
+      );
+      return;
+    }
+    setLoadError(null);
     setCourses((cs ?? []) as Course[]);
     setWorkshops((ws ?? []) as any);
     setCuts((cuts ?? []) as Cut[]);
@@ -451,7 +467,8 @@ function TeacherWorkshops() {
   };
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   // Deep-link desde notificación o modal de Conversaciones abiertas:
   //   ?workshop=WS_ID&submission=SUB_ID&question=Q_ID  (vista profunda)
@@ -1779,6 +1796,21 @@ function TeacherWorkshops() {
   };
 
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Talleres</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar los talleres"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

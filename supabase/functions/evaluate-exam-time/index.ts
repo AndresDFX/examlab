@@ -4,6 +4,7 @@
 // Lee el system prompt de ai_prompts use_case='exam_time_evaluation'
 // (con fallback hardcodeado al texto del seed).
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { describeAiError } from "../_shared/ai-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -288,7 +289,9 @@ Evalúa si la duración es razonable y sugiere los minutos óptimos.`;
     if (!aiRes.ok) {
       const errText = await aiRes.text();
       console.error("AI error", aiRes.status, errText);
-      throw new Error("Error en el gateway de IA");
+      throw new Error(
+        await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+      );
     }
 
     const aiJson = await aiRes.json();

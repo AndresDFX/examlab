@@ -7,6 +7,7 @@
 import { adminClient, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
+import { describeAiError as describeSharedAiError } from "../_shared/ai-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,19 +108,12 @@ async function aiChatCompletion(body: {
 }
 
 /**
- * Formatea el detalle de un fallo IA para que el usuario vea status +
- * snippet del cuerpo en vez de un "Error en gateway de IA" opaco. El
- * cuerpo se trunca a 200 chars para no inundar audit logs y notificaciones.
+ * Wrapper sobre el helper compartido. Inyecta el provider activo desde
+ * `cachedModel` para que el mensaje de "API key inválida" nombre el
+ * secret correcto (LOVABLE / OPENAI / GEMINI). Ver `_shared/ai-error.ts`.
  */
 async function describeAiError(res: Response): Promise<string> {
-  let body = "";
-  try {
-    body = await res.text();
-  } catch {
-    /* ignore */
-  }
-  const snippet = body.slice(0, 200).replace(/\s+/g, " ").trim();
-  return `Error de IA [${res.status}]${snippet ? `: ${snippet}` : ""}`;
+  return describeSharedAiError(res, cachedModel?.provider ?? "lovable");
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { ErrorState } from "@/components/ui/empty-state";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId/$threadId")({
   component: ThreadDetail,
@@ -86,6 +87,7 @@ function ThreadDetail() {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [myUpvotes, setMyUpvotes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [newReply, setNewReply] = useState("");
   const [posting, setPosting] = useState(false);
@@ -99,7 +101,12 @@ function ThreadDetail() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: t }, { data: r }, { data: u }] = await Promise.all([
+    setLoadError(null);
+    const [
+      { data: t, error: tErr },
+      { data: r, error: rErr },
+      { data: u },
+    ] = await Promise.all([
       db
         .from("forum_threads")
         .select(
@@ -123,6 +130,11 @@ function ThreadDetail() {
             .eq("user_id", user.id)
         : Promise.resolve({ data: [] }),
     ]);
+    if (tErr || rErr) {
+      setLoadError(friendlyError(tErr ?? rErr, "No pudimos cargar este hilo."));
+      setLoading(false);
+      return;
+    }
     setThread(t as Thread | null);
     setReplies((r ?? []) as Reply[]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -342,6 +354,18 @@ function ThreadDetail() {
             <Spinner size="md" /> Cargando…
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="container mx-auto p-6">
+        <ErrorState
+          message="No pudimos cargar este hilo"
+          hint={loadError}
+          onRetry={() => void load()}
+        />
       </div>
     );
   }

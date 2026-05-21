@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
+import { ErrorState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
@@ -81,6 +82,10 @@ function StudentWorkshops() {
   const [search, setSearch] = useState("");
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
+  // Estado de error explícito: si la query principal falla, mostramos
+  // ErrorState con botón "Reintentar" en vez de una grilla vacía.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   /** Borra la entrega del estudiante (RLS restringe a dentro del plazo).
    *  Las respuestas asociadas caen por CASCADE (FK añadida en
@@ -113,12 +118,17 @@ function StudentWorkshops() {
     // refresque la tipificación generada de Supabase.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = supabase as any;
-    const { data: asg } = await client
+    const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
         "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid);
+    if (asgErr) {
+      setLoadError(friendlyError(asgErr, "No pudimos cargar tus talleres."));
+      return;
+    }
+    setLoadError(null);
 
     // Externos no se listan: solo se registran notas, el estudiante
     // ve la calificación directo en gradebook.
@@ -187,7 +197,10 @@ function StudentWorkshops() {
   useEffect(() => {
     if (!user) return;
     void reload(user.id);
-  }, [user]);
+    // retryNonce: bumpeado por ErrorState "Reintentar". eslint-disable
+    // intencional porque `reload` no está memoizada (patrón canonical).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, retryNonce]);
 
   // Refetch al volver al tab — si el docente extendió/recortó fechas
   // mientras el alumno tenía la pestaña en background, el `isOverdue`
@@ -211,6 +224,23 @@ function StudentWorkshops() {
         (r.workshop.course?.name?.toLowerCase().includes(q) ?? false),
     );
   }, [rows, search]);
+
+  // Si la query principal falló, render explícito con botón Reintentar
+  // en vez de una grilla vacía silenciosa.
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.workshops")}</h1>
+        </div>
+        <ErrorState
+          message="No pudimos cargar tus talleres"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

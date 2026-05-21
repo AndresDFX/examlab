@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -119,6 +119,7 @@ function ForumsList() {
   const [forums, setForums] = useState<Forum[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Form de creación (solo docente/admin)
   const [createOpen, setCreateOpen] = useState(false);
@@ -131,9 +132,10 @@ function ForumsList() {
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const [
-      { data: c },
-      { data: f },
+      { data: c, error: cErr },
+      { data: f, error: fErr },
       { data: s },
     ] = await Promise.all([
       db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
@@ -155,6 +157,11 @@ function ForumsList() {
         .order("session_date", { ascending: false })
         .limit(60),
     ]);
+    if (cErr || fErr) {
+      setLoadError(friendlyError(cErr ?? fErr, "No pudimos cargar los foros."));
+      setLoading(false);
+      return;
+    }
     setCourse(c as { id: string; name: string } | null);
     const forumRows = (f ?? []) as Forum[];
     // Trae conteos por foro en una sola query (subselect manual).
@@ -303,6 +310,12 @@ function ForumsList() {
             <Spinner size="md" /> Cargando foros…
           </CardContent>
         </Card>
+      ) : loadError ? (
+        <ErrorState
+          message="No pudimos cargar los foros"
+          hint={loadError}
+          onRetry={() => void load()}
+        />
       ) : sortedForums.length === 0 ? (
         <Card>
           <CardContent className="p-0">

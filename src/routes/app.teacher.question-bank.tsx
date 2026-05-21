@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { RowAction } from "@/components/ui/row-action";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import {
   Table,
@@ -114,6 +114,7 @@ function QuestionBankPage() {
   const [courseId, setCourseId] = useState<string>("");
   const [rows, setRows] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Gate del módulo. Si el admin lo desactivó, mostramos pantalla
   // "deshabilitado" en vez de chocar contra la tabla. También cubre el
   // caso en que la migración 20260518100000_question_bank no se haya
@@ -192,13 +193,14 @@ function QuestionBankPage() {
       return;
     }
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db
       .from("question_bank")
       .select("*")
       .eq("course_id", courseId)
       .order("created_at", { ascending: false });
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar el banco de preguntas."));
       setLoading(false);
       return;
     }
@@ -457,6 +459,12 @@ function QuestionBankPage() {
             <div className="p-8 text-center text-muted-foreground">
               <Spinner size="md" /> Cargando…
             </div>
+          ) : loadError ? (
+            <ErrorState
+              message="No pudimos cargar el banco"
+              hint={loadError}
+              onRetry={() => void load()}
+            />
           ) : (
             <Table>
               <TableHeader>

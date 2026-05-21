@@ -23,7 +23,9 @@ import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
@@ -86,6 +88,8 @@ function StudentWorkshopDetail() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [workshop, setWorkshop] = useState<WorkshopLoaded | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
@@ -98,6 +102,7 @@ function StudentWorkshopDetail() {
     (async () => {
       setLoading(true);
       setError(null);
+      setLoadError(null);
       try {
         const { data: asg } = await supabase
           .from("workshop_assignments")
@@ -218,6 +223,8 @@ function StudentWorkshopDetail() {
           for (const a of (ans ?? []) as AnswerRow[]) map[a.question_id] = a;
           if (!cancelled) setAnswersByQid(map);
         }
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del taller."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -225,15 +232,30 @@ function StudentWorkshopDetail() {
     return () => {
       cancelled = true;
     };
-  }, [user, workshopId]);
+  }, [user, workshopId, retryNonce]);
 
   if (!user) {
     return <p className="text-muted-foreground p-6">{t("exam.review.mustSignIn")}</p>;
   }
 
   if (loading) {
+    return <SectionLoader text={t("common.loading")} />;
+  }
+
+  if (loadError) {
     return (
-      <SectionLoader text={t("common.loading")} />
+      <div className="space-y-4 p-2">
+        <Link to="/app/student/workshops">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
+          </Button>
+        </Link>
+        <ErrorState
+          message="No pudimos cargar los datos del taller"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
     );
   }
 
