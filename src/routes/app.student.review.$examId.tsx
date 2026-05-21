@@ -95,11 +95,16 @@ function StudentExamReview() {
           .eq("user_id", user.id)
           .maybeSingle();
 
+        // limit(1): un examen con varios intentos tiene VARIAS filas en
+        // `submissions` para el mismo (exam_id, user_id). Sin el limit,
+        // `.maybeSingle()` lanza error ante >1 fila y la revisión queda
+        // vacía aunque el alumno sí tenga entregas.
         const { data: subGate } = await supabase
           .from("submissions")
           .select("id")
           .eq("exam_id", examId)
           .eq("user_id", user.id)
+          .limit(1)
           .maybeSingle();
 
         if (cancelled) return;
@@ -119,11 +124,19 @@ function StudentExamReview() {
             )
             .eq("id", examId)
             .single(),
+          // Último intento: ordenamos por created_at desc + limit(1).
+          // Con varios intentos hay varias filas; sin el order+limit
+          // `.maybeSingle()` falla y la revisión sale vacía. El alumno
+          // ve el detalle/feedback del intento más reciente.
           supabase
             .from("submissions")
-            .select("id, status, answers, ai_grade, final_override_grade, submitted_at, teacher_feedback")
+            .select(
+              "id, status, answers, ai_grade, final_override_grade, submitted_at, teacher_feedback",
+            )
             .eq("exam_id", examId)
             .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
             .maybeSingle(),
           supabase
             .from("questions")
