@@ -81,6 +81,9 @@ type Exam = {
   parent_exam_id: string | null;
   schedule_type?: string | null;
   weight?: number | null;
+  /** Estado manual (draft|published|closed). Default published si la
+   *  columna llega undefined (migración 20260603120000 pendiente). */
+  status?: string | null;
   course?: { name: string; period: string | null };
 };
 
@@ -277,6 +280,7 @@ function TeacherExams() {
       schedule_type: "normal",
       retry_mode: "last",
       max_warnings: 3,
+      status: "published",
     } as any);
     setSelectedCourseIds(new Set(first ? [first] : []));
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
@@ -342,6 +346,7 @@ function TeacherExams() {
       // Multi-course: cut_id+weight are set per-course in the loop.
       cut_id: isMultiCourse ? null : form.cut_id || null,
       is_external: isExternal,
+      status: ((form as any).status ?? "published") as string,
     };
     if (!isExternal) {
       basePayload.time_limit_minutes = Number(form.time_limit_minutes) || 60;
@@ -413,9 +418,11 @@ function TeacherExams() {
       if (!firstId) firstId = data.id;
       // Auto-asignar todos los estudiantes matriculados en el curso
       await autoAssignExam(data.id, cid);
-      // Notificar a los estudiantes del curso. Para externos no aplica
-      // (la actividad ya pasó, solo se registra la nota).
-      if (!isExternal) {
+      // Notificar a los estudiantes del curso. NO aplica para externos
+      // (la actividad ya pasó, solo se registra la nota) ni para draft
+      // (el examen aún no es visible, mandar push sería confuso).
+      const initialStatus = (basePayload.status as string) ?? "published";
+      if (!isExternal && initialStatus === "published") {
         await supabase.rpc("notify_course_students", {
           _course_id: cid,
           _title: "Nuevo examen disponible",
@@ -828,6 +835,29 @@ function TeacherExams() {
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </div>
+            <div>
+              <Label>
+                Estado{" "}
+                <HelpHint>
+                  Borrador lo deja oculto para los estudiantes — útil para preparar el
+                  examen sin que aparezca en sus listas. Publicado se muestra dentro de
+                  la ventana de fechas. Cerrado bloquea intentos nuevos manualmente.
+                </HelpHint>
+              </Label>
+              <Select
+                value={(form as any).status ?? "published"}
+                onValueChange={(v) => setForm({ ...form, status: v } as any)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Borrador</SelectItem>
+                  <SelectItem value="published">Publicado</SelectItem>
+                  <SelectItem value="closed">Cerrado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label required>

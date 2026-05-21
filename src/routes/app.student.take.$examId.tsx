@@ -406,6 +406,20 @@ function TakeExam() {
         navigate({ to: "/app/student/exams" });
         return;
       }
+      // Bloquea draft (no publicado) y closed (cerrado manualmente por
+      // el docente) aunque la ventana de fechas esté abierta. Si por
+      // alguna razón la columna no llegó (migración pendiente), tratamos
+      // como published.
+      const examStatus = (e.status ?? "published") as string;
+      if (examStatus !== "published") {
+        toast.error(
+          examStatus === "draft"
+            ? "Este examen aún no está publicado"
+            : "Este examen fue cerrado por el docente",
+        );
+        navigate({ to: "/app/student/exams" });
+        return;
+      }
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select("id")

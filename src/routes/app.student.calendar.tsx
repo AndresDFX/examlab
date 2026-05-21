@@ -142,7 +142,10 @@ function StudentCalendar() {
       for (const row of (examsRes.data ?? []) as any[]) {
         const e = row.exams;
         if (!e?.start_time || !e?.end_time) continue;
-        if (e.status && e.status !== "publicado") continue;
+        // Filtra draft/closed. `exams.status` puede venir undefined si la
+        // columna aún no se aplicó (migración 20260603120000); en ese
+        // caso asumimos 'published' para no perder visibilidad.
+        if ((e.status ?? "published") !== "published") continue;
         const end = new Date(e.end_time);
         if (end < lookback) continue;
         evs.push({

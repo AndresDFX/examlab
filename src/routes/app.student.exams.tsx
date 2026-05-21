@@ -71,7 +71,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       if (asgErr) {
@@ -79,11 +79,18 @@ function StudentExams() {
         return;
       }
       setLoadError(null);
-      // Filtramos los externos: el estudiante no debería verlos en
-      // su lista de exámenes — la nota llega por gradebook directamente.
+      // Filtramos:
+      //   - externos: la nota llega por gradebook, no se muestran en la lista
+      //   - draft: el docente aún no publicó el examen
+      //   - closed: el docente lo cerró manualmente; ya pasó, no aparece
+      //     en la lista para no confundir al alumno (sigue accesible vía
+      //     /app/student/review/$examId si tenía submission previa).
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
-        .filter((e: any) => Boolean(e) && !e.is_external);
+        .filter(
+          (e: any) =>
+            Boolean(e) && !e.is_external && (e.status ?? "published") === "published",
+        );
       const assignedIds = exams.map((e: any) => e.id);
       let makeupRows: { id: string; parent_exam_id: string | null }[] = [];
       if (assignedIds.length) {

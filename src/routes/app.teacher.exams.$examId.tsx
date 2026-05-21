@@ -376,6 +376,7 @@ function ExamEditor() {
       max_attempts: normalizedAttempts,
       cut_id: cutId,
       weight: requestedWeight,
+      status: ((exam as any).status ?? "published") as string,
     };
     if (!isExternal) {
       payload.time_limit_minutes = Number(exam.time_limit_minutes);
@@ -732,6 +733,34 @@ function ExamEditor() {
                     actuales y se re-asignan los matriculados del nuevo curso.
                   </p>
                 )}
+              </div>
+              {/* Estado del examen. draft=oculto para alumnos, published=visible,
+                  closed=cerrado manualmente. Independiente de la ventana
+                  start_time/end_time (un examen "published" fuera de ventana
+                  igual no se puede tomar). */}
+              <div>
+                <Label>
+                  Estado{" "}
+                  <HelpHint>
+                    Draft (Borrador) lo deja oculto para los estudiantes — útil para
+                    preparar el examen sin que aparezca en sus listas. Publicado se ve
+                    durante la ventana de fechas. Cerrado lo bloquea manualmente antes
+                    de que termine la ventana.
+                  </HelpHint>
+                </Label>
+                <Select
+                  value={(exam as any).status ?? "published"}
+                  onValueChange={(v) => setExam({ ...exam, status: v } as any)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="published">Publicado</SelectItem>
+                    <SelectItem value="closed">Cerrado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {/* Pair Inicio/Fin: DateTimePicker es ancho; en mobile a
                   ~190px se trunca el texto. grid-cols-1 sm:grid-cols-2

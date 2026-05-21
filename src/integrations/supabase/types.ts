@@ -697,6 +697,7 @@ export type Database = {
           shuffle_enabled: boolean
           source_content_id: string | null
           start_time: string
+          status: string
           time_limit_minutes: number
           title: string
           updated_at: string
@@ -720,6 +721,7 @@ export type Database = {
           shuffle_enabled?: boolean
           source_content_id?: string | null
           start_time: string
+          status?: string
           time_limit_minutes?: number
           title: string
           updated_at?: string
@@ -743,6 +745,7 @@ export type Database = {
           shuffle_enabled?: boolean
           source_content_id?: string | null
           start_time?: string
+          status?: string
           time_limit_minutes?: number
           title?: string
           updated_at?: string
