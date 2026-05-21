@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useMultiSelect,
@@ -213,6 +213,8 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   });
   const [jobs, setJobs] = useState<QueueJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [running, setRunning] = useState(false);
   // Filtro por estado. "active" = pending + processing + failed (default,
   // útil para el caso típico "qué hay corriendo"). "all" trae también
@@ -227,6 +229,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       // Counts agregados — corren en paralelo y siempre se refrescan.
@@ -402,6 +405,8 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         return out;
       });
       setJobs(enriched);
+    } catch (e) {
+      setLoadError(friendlyError(e, "No pudimos cargar la cola de IA."));
     } finally {
       setLoading(false);
     }
@@ -409,7 +414,8 @@ function AiQueuePanel({ isAdmin = false }: Props) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, retryNonce]);
 
   // Realtime — escucha cambios en `ai_grading_queue`. Misma estrategia
   // que el widget (debounce 800ms) para evitar avalanchas de refresh
@@ -744,6 +750,12 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
               <Spinner size="sm" /> Cargando…
             </div>
+          ) : loadError ? (
+            <ErrorState
+              message="No pudimos cargar la cola de IA"
+              hint={loadError}
+              onRetry={() => setRetryNonce((n) => n + 1)}
+            />
           ) : jobs.length === 0 ? (
             <TableEmpty
               icon={Cpu}

@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { RotateCcw, Save, Palette } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 
@@ -269,6 +270,8 @@ export function AdminPromptsPanel() {
     Object.fromEntries(USE_CASES.map((u) => [u.key, null])) as Record<UseCase, PromptRow | null>,
   );
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [savingKey, setSavingKey] = useState<UseCase | null>(null);
   // Configuración de marca (singleton row de `content_brand_config`).
   // Vive aquí en vez de en una pantalla separada: como solo se usa para
@@ -300,6 +303,7 @@ export function AdminPromptsPanel() {
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const [{ data, error }, { data: brandRow }] = await Promise.all([
       db
         .from("ai_prompts")
@@ -308,7 +312,7 @@ export function AdminPromptsPanel() {
       db.from("content_brand_config").select("*").maybeSingle(),
     ]);
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar los prompts."));
       setLoading(false);
       return;
     }
@@ -346,7 +350,7 @@ export function AdminPromptsPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
   const handleSaveBrand = async () => {
     if (!user) return;
@@ -501,6 +505,16 @@ export function AdminPromptsPanel() {
           <Spinner size="md" /> Cargando prompts…
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar los prompts"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
     );
   }
 

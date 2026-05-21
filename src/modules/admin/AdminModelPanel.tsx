@@ -27,6 +27,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Save, Info, Cpu } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,16 +67,19 @@ export function AdminModelPanel() {
   const [draftModel, setDraftModel] = useState<string>("google/gemini-2.5-flash");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db
       .from("ai_model_settings")
       .select("id, provider, model, is_active")
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar la configuración del modelo."));
       setLoading(false);
       return;
     }
@@ -91,7 +95,7 @@ export function AdminModelPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
   const dirty =
     !activeRow ||
@@ -158,6 +162,16 @@ export function AdminModelPanel() {
           <Spinner size="md" /> Cargando configuración…
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar la configuración del modelo"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
     );
   }
 

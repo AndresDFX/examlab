@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import { RowAction } from "@/components/ui/row-action";
 import { toast } from "sonner";
@@ -77,6 +78,8 @@ export function AdminModuleVisibilityPanel() {
   const { user } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   // Orden local (módulo key → posición). Se inicializa desde rows al
   // cargar; los cambios por drag o flechas modifican esto sin tocar DB.
   const [localOrder, setLocalOrder] = useState<string[]>([]);
@@ -87,11 +90,12 @@ export function AdminModuleVisibilityPanel() {
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db
       .from("module_visibility")
       .select("module_key, role, enabled, display_order");
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar la visibilidad de módulos."));
       setLoading(false);
       return;
     }
@@ -118,7 +122,8 @@ export function AdminModuleVisibilityPanel() {
 
   useEffect(() => {
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   // ── Mapas para el render ────────────────────────────────────────────
   const enabledMap = useMemo(() => {
@@ -291,6 +296,12 @@ export function AdminModuleVisibilityPanel() {
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
             <Spinner size="sm" /> Cargando matriz…
           </div>
+        ) : loadError ? (
+          <ErrorState
+            message="No pudimos cargar la matriz"
+            hint={loadError}
+            onRetry={() => setRetryNonce((n) => n + 1)}
+          />
         ) : (
           <>
           {/* overflow-x-auto + min-w en el contenido evita que la matrix

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
@@ -39,15 +40,18 @@ export function AdminAuditRetentionPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db
       .from("audit_retention_settings")
       .select("id, info_days, warning_days, error_days, updated_at")
       .maybeSingle();
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar la configuración."));
       setLoading(false);
       return;
     }
@@ -62,7 +66,7 @@ export function AdminAuditRetentionPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
   const dirty =
     !row ||
@@ -137,6 +141,16 @@ export function AdminAuditRetentionPanel() {
           <Spinner size="sm" /> Cargando configuración…
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar la configuración de retención"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
     );
   }
 

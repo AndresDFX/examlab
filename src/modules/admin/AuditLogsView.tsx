@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
@@ -346,6 +346,8 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const offsetRef = useRef(0);
 
   // Filtros
@@ -387,6 +389,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     async (reset: boolean) => {
       if (reset) {
         setLoading(true);
+        setLoadError(null);
         offsetRef.current = 0;
       } else {
         setLoadingMore(true);
@@ -436,7 +439,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         setHasMore(rows.length === PAGE_SIZE);
         offsetRef.current += rows.length;
       } catch (err: any) {
-        toast.error(`Error cargando auditoría: ${friendlyError(err)}`);
+        if (reset) {
+          setLoadError(friendlyError(err, "Error cargando auditoría."));
+        } else {
+          toast.error(`Error cargando auditoría: ${friendlyError(err)}`);
+        }
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -445,10 +452,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     [category, severity, roleFilter, courseFilter, dateFrom, dateTo, actionGroup, mode],
   ); // search es client-side
 
-  // Reload cuando cambian filtros de servidor
+  // Reload cuando cambian filtros de servidor o se reintenta
   useEffect(() => {
     void load(true);
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, retryNonce]);
 
   // ── Filtro de búsqueda client-side ────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -692,6 +700,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
       {/* ── Tabla ── */}
       <Card>
         <CardContent className="p-0">
+          {loadError ? (
+            <ErrorState
+              message="No pudimos cargar la auditoría"
+              hint={loadError}
+              onRetry={() => setRetryNonce((n) => n + 1)}
+            />
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -810,9 +825,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </TableBody>
             </Table>
           </div>
+          )}
 
           {/* Cargar más */}
-          {hasMore && !loading && (
+          {!loadError && hasMore && !loading && (
             <div className="p-4 border-t flex justify-center">
               <Button
                 variant="outline"

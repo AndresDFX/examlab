@@ -25,7 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -285,10 +285,10 @@ export function SupabaseCronPanel() {
               <Spinner size="sm" /> Cargando…
             </div>
           ) : unavailable ? (
-            <TableEmpty
-              icon={AlertTriangle}
-              title="No se pudo acceder a pg_cron"
-              description="Revisa que la migración 20260603104000 esté aplicada y que tengas rol Admin."
+            <ErrorState
+              message="No se pudo acceder a pg_cron"
+              hint="Revisa que la migración 20260603104000 esté aplicada y que tengas rol Admin."
+              onRetry={() => void load()}
             />
           ) : jobs.length === 0 ? (
             <TableEmpty

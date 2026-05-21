@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import {
@@ -57,12 +58,15 @@ export function AdminGeneralSettingsPanel() {
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db.from("app_settings").select("*").maybeSingle();
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar los parámetros."));
       setLoading(false);
       return;
     }
@@ -76,7 +80,8 @@ export function AdminGeneralSettingsPanel() {
 
   useEffect(() => {
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   const dirty = !!draft && !!row && JSON.stringify(draft) !== JSON.stringify(row);
 
@@ -137,6 +142,16 @@ export function AdminGeneralSettingsPanel() {
       setSaving(false);
     }
   };
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar los parámetros generales"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   if (loading || !draft) {
     return (

@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
@@ -49,12 +50,15 @@ export function AdminCertificateSettingsPanel() {
   const [draft, setDraft] = useState<CertSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db.from("certificate_settings").select("*").maybeSingle();
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar la configuración."));
       setLoading(false);
       return;
     }
@@ -68,7 +72,7 @@ export function AdminCertificateSettingsPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
   const dirty = !!draft && !!row && JSON.stringify(draft) !== JSON.stringify(row);
 
@@ -105,6 +109,16 @@ export function AdminCertificateSettingsPanel() {
       setSaving(false);
     }
   };
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar la configuración de certificados"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   if (loading || !draft) {
     return (

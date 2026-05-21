@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import { RowAction } from "@/components/ui/row-action";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -99,21 +99,29 @@ export function AdminAiGradingPanel() {
     setLoadingMode(false);
   };
 
+  const [codesError, setCodesError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+
   const loadCodes = async () => {
     setLoadingCodes(true);
+    setCodesError(null);
     const { data, error } = await db
       .from("ai_override_codes")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) toast.error(friendlyError(error));
-    else setCodes((data ?? []) as OverrideCodeRow[]);
+    if (error) {
+      setCodesError(friendlyError(error, "No pudimos cargar los códigos de override."));
+    } else {
+      setCodes((data ?? []) as OverrideCodeRow[]);
+    }
     setLoadingCodes(false);
   };
 
   useEffect(() => {
     void loadMode();
     void loadCodes();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNonce]);
 
   const saveMode = async (next: "sync" | "async") => {
     setSavingMode(true);
@@ -368,6 +376,12 @@ export function AdminAiGradingPanel() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
               <Spinner size="sm" /> Cargando códigos…
             </div>
+          ) : codesError ? (
+            <ErrorState
+              message="No pudimos cargar los códigos"
+              hint={codesError}
+              onRetry={() => setRetryNonce((n) => n + 1)}
+            />
           ) : codes.length === 0 ? (
             <TableEmpty
               icon={Zap}

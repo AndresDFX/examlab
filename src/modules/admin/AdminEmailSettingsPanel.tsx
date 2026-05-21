@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -118,11 +119,15 @@ export function AdminEmailSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [globallyEnabled, setGloballyEnabled] = useState(true);
   const [enabledKinds, setEnabledKinds] = useState<EnabledKinds>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!isAdmin) return;
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setLoadError(null);
       const { data, error } = await db
         .from("email_settings")
         .select("*")
@@ -130,7 +135,7 @@ export function AdminEmailSettingsPanel() {
         .maybeSingle();
       if (cancelled) return;
       if (error) {
-        toast.error(`No se pudo cargar la configuración: ${friendlyError(error)}`);
+        setLoadError(friendlyError(error, "No pudimos cargar la configuración de email."));
         setLoading(false);
         return;
       }
@@ -143,7 +148,7 @@ export function AdminEmailSettingsPanel() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [isAdmin]);
+  }, [isAdmin, retryNonce]);
 
   const dirty =
     settings != null &&
@@ -185,6 +190,16 @@ export function AdminEmailSettingsPanel() {
           <Spinner size="md" /> Cargando…
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar la configuración de email"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
     );
   }
 

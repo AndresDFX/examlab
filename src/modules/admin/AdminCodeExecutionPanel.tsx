@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Save, Info, Code2, MonitorPlay, Terminal } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,16 +93,19 @@ export function AdminCodeExecutionPanel() {
   const [draftJavaGui, setDraftJavaGui] = useState<JavaGuiProvider>("cheerp");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await db
       .from("code_execution_settings")
       .select("id, provider, java_gui_provider, is_active")
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
-      toast.error(friendlyError(error));
+      setLoadError(friendlyError(error, "No pudimos cargar la configuración."));
       setLoading(false);
       return;
     }
@@ -117,7 +121,7 @@ export function AdminCodeExecutionPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
   const dirty =
     !activeRow ||
@@ -178,6 +182,16 @@ export function AdminCodeExecutionPanel() {
           <Spinner size="md" /> Cargando configuración…
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message="No pudimos cargar la configuración de ejecución de código"
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
     );
   }
 
