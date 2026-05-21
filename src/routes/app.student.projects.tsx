@@ -27,7 +27,9 @@ import {
   MessageSquareText,
   ListChecks,
   Trash2,
+  FolderKanban,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime } from "@/shared/lib/format";
@@ -289,9 +291,7 @@ function StudentProjects() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-        </div>
+        <PageHeader icon={<FolderKanban className="h-6 w-6" />} title="Proyectos" />
         <ErrorState
           message="No pudimos cargar tus proyectos"
           hint={loadError}
@@ -303,14 +303,15 @@ function StudentProjects() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-        <p className="text-sm text-muted-foreground">
-          {search.trim()
+      <PageHeader
+        icon={<FolderKanban className="h-6 w-6" />}
+        title="Proyectos"
+        subtitle={
+          search.trim()
             ? `${visibleRows.length} de ${rows.length} proyectos`
-            : `${rows.length} proyectos asignados`}
-        </p>
-      </div>
+            : `${rows.length} proyectos asignados`
+        }
+      />
 
       <SearchInput
         value={search}

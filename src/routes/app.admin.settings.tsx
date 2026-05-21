@@ -11,6 +11,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Settings,
   Mail,
@@ -43,15 +44,11 @@ function AdminSettings() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Settings className="h-6 w-6 text-indigo-500" />
-            Configuración
-          </h1>
-          <p className="text-sm text-muted-foreground">Parámetros operativos de la plataforma.</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Settings className="h-6 w-6 text-indigo-500" />}
+        title="Configuración"
+        subtitle="Parámetros operativos de la plataforma."
+      />
 
       <Tabs defaultValue="general">
         <TabsList>

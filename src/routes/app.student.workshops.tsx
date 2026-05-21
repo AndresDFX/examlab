@@ -32,7 +32,9 @@ import {
   MessageSquareText,
   ListChecks,
   Trash2,
+  Hammer,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
@@ -236,9 +238,7 @@ function StudentWorkshops() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.workshops")}</h1>
-        </div>
+        <PageHeader icon={<Hammer className="h-6 w-6" />} title={t("nav.workshops")} />
         <ErrorState
           message="No pudimos cargar tus talleres"
           hint={loadError}
@@ -250,12 +250,11 @@ function StudentWorkshops() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("nav.workshops")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {visibleRows.length} {t("nav.workshops").toLowerCase()}
-        </p>
-      </div>
+      <PageHeader
+        icon={<Hammer className="h-6 w-6" />}
+        title={t("nav.workshops")}
+        subtitle={`${visibleRows.length} ${t("nav.workshops").toLowerCase()}`}
+      />
 
       <SearchInput
         value={search}

@@ -42,6 +42,7 @@ import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateTime, formatDuration, formatPercent } from "@/shared/lib/format";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -461,9 +462,7 @@ function TeacherExams() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
-        </div>
+        <PageHeader icon={<FileText className="h-6 w-6" />} title={t("exam.title")} />
         <ErrorState
           message="No pudimos cargar los exámenes"
           hint={loadError}
@@ -475,17 +474,17 @@ function TeacherExams() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {filteredExams.length === exams.length
-              ? t("exam.subtitle", { count: exams.length })
-              : `${filteredExams.length} de ${exams.length}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ImportExportMenu
+      <PageHeader
+        icon={<FileText className="h-6 w-6" />}
+        title={t("exam.title")}
+        subtitle={
+          filteredExams.length === exams.length
+            ? t("exam.subtitle", { count: exams.length })
+            : `${filteredExams.length} de ${exams.length}`
+        }
+        actions={
+          <>
+            <ImportExportMenu
             label={t("exam.title")}
             resourceName="examenes"
             templateCsv={EXAMS_TEMPLATE}
@@ -533,12 +532,13 @@ function TeacherExams() {
               return t("import.imported", { created, skipped });
             }}
           />
-          <Button size="sm" onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1" />
-            {t("exam.newExam")}
-          </Button>
-        </div>
-      </div>
+            <Button size="sm" onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" />
+              {t("exam.newExam")}
+            </Button>
+          </>
+        }
+      />
 
       <ListFilters
         search={search}

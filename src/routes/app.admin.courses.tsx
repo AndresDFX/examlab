@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -902,9 +903,7 @@ export function AdminCourses() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cursos</h1>
-        </div>
+        <PageHeader icon={<BookOpen className="h-6 w-6" />} title="Cursos" />
         <ErrorState
           message="No pudimos cargar la lista de cursos"
           hint={loadError}
@@ -916,22 +915,23 @@ export function AdminCourses() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cursos</h1>
-          <p className="text-sm text-muted-foreground">
-            {search.trim()
-              ? `${filteredCourses.length} de ${courses.length} cursos`
-              : `${courses.length} cursos registrados`}
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <ImportExportMenu resourceName="cursos" onExport={exportCoursesCsv} />
-          <Button size="sm" onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1" /> Nuevo curso
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<BookOpen className="h-6 w-6" />}
+        title="Cursos"
+        subtitle={
+          search.trim()
+            ? `${filteredCourses.length} de ${courses.length} cursos`
+            : `${courses.length} cursos registrados`
+        }
+        actions={
+          <>
+            <ImportExportMenu resourceName="cursos" onExport={exportCoursesCsv} />
+            <Button size="sm" onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" /> Nuevo curso
+            </Button>
+          </>
+        }
+      />
 
       <SearchInput
         value={search}

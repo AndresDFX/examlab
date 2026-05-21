@@ -47,6 +47,7 @@ import { computeWeightedGrade } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 // grade_cuts/projects no siempre están en types.ts auto-generados.
@@ -457,12 +458,11 @@ function StudentGrades() {
   if (loadError && courseId) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Consolidado por cortes y calificación final del curso
-          </p>
-        </div>
+        <PageHeader
+          icon={<ClipboardList className="h-6 w-6" />}
+          title="Calificaciones"
+          subtitle="Consolidado por cortes y calificación final del curso"
+        />
         <ErrorState
           message="No pudimos cargar tus notas"
           hint={loadError}
@@ -474,29 +474,28 @@ function StudentGrades() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Consolidado por cortes y calificación final del curso
-          </p>
-        </div>
-        {courses.length > 0 && (
-          <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Curso" />
-            </SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                  {c.period ? ` · ${c.period}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      <PageHeader
+        icon={<ClipboardList className="h-6 w-6" />}
+        title="Calificaciones"
+        subtitle="Consolidado por cortes y calificación final del curso"
+        actions={
+          courses.length > 0 ? (
+            <Select value={courseId} onValueChange={setCourseId}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Curso" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                    {c.period ? ` · ${c.period}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null
+        }
+      />
 
       {courses.length === 0 ? (
         <Card>

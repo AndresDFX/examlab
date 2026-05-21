@@ -39,6 +39,7 @@ import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessme
 import { useTranslation } from "react-i18next";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
@@ -1800,9 +1801,7 @@ function TeacherWorkshops() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Talleres</h1>
-        </div>
+        <PageHeader icon={<Hammer className="h-6 w-6" />} title="Talleres" />
         <ErrorState
           message="No pudimos cargar los talleres"
           hint={loadError}
@@ -1814,17 +1813,17 @@ function TeacherWorkshops() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Talleres</h1>
-          <p className="text-sm text-muted-foreground">
-            {filteredWorkshops.length === workshops.length
-              ? `${workshops.length} talleres creados`
-              : `${filteredWorkshops.length} de ${workshops.length} talleres`}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ImportExportMenu
+      <PageHeader
+        icon={<Hammer className="h-6 w-6" />}
+        title="Talleres"
+        subtitle={
+          filteredWorkshops.length === workshops.length
+            ? `${workshops.length} talleres creados`
+            : `${filteredWorkshops.length} de ${workshops.length} talleres`
+        }
+        actions={
+          <>
+            <ImportExportMenu
             label="Talleres"
             resourceName="talleres"
             templateCsv={WORKSHOPS_TEMPLATE}
@@ -1872,12 +1871,13 @@ function TeacherWorkshops() {
               return `${created} talleres creados · ${skipped} omitidos`;
             }}
           />
-          <Button size="sm" onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nuevo taller
-          </Button>
-        </div>
-      </div>
+            <Button size="sm" onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nuevo taller
+            </Button>
+          </>
+        }
+      />
 
       <ListFilters
         search={search}

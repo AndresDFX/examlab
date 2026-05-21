@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
+import { formatDate } from "@/shared/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -250,7 +251,7 @@ export function AdminEdgeSecretsPanel() {
                             <>
                               <span>·</span>
                               <span>
-                                Modificado {new Date(s.updated_at).toLocaleDateString("es-CO")}
+                                Modificado {formatDate(s.updated_at)}
                               </span>
                             </>
                           )}

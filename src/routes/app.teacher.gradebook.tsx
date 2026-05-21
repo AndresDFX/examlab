@@ -14,6 +14,8 @@ import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { ClipboardList } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -1109,9 +1111,7 @@ function Gradebook() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
-        </div>
+        <PageHeader icon={<ClipboardList className="h-6 w-6" />} title="Calificaciones" />
         <ErrorState
           message="No pudimos cargar el gradebook"
           hint={loadError}
@@ -1123,14 +1123,12 @@ function Gradebook() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calificaciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Exámenes y talleres del curso · Haz clic en una celda para editar
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+      <PageHeader
+        icon={<ClipboardList className="h-6 w-6" />}
+        title="Calificaciones"
+        subtitle="Exámenes y talleres del curso · Haz clic en una celda para editar"
+        actions={
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Select value={courseId} onValueChange={setCourseId}>
             <SelectTrigger className="w-full sm:w-56">
               <SelectValue placeholder="Curso" />
@@ -1204,8 +1202,9 @@ function Gradebook() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {selectedCourse && (
         <div className="flex flex-wrap items-center gap-4 rounded-md border p-3 bg-muted/30">

@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { RotateCcw, Save, Sparkles } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -348,23 +349,20 @@ function TeacherAIPrompts() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-amber-500" />
+      <PageHeader
+        icon={<Sparkles className="h-6 w-6 text-amber-500" />}
+        title={
+          <span className="inline-flex items-center gap-2">
             Prompts de IA por curso
             <HelpHint side="bottom" align="start">
               Solo edita el <strong>rol/criterios</strong> del modelo. Los datos dinámicos (rúbrica,
               respuesta del estudiante, idioma, puntaje máximo) se inyectan automáticamente al
               ejecutar la calificación — <strong>no necesitas placeholders</strong>.
             </HelpHint>
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Personaliza el rol y criterios del modelo para cada caso de uso dentro de un curso
-            específico. Si no hay override, se usa el prompt global del sistema.
-          </p>
-        </div>
-      </div>
+          </span>
+        }
+        subtitle="Personaliza el rol y criterios del modelo para cada caso de uso dentro de un curso específico. Si no hay override, se usa el prompt global del sistema."
+      />
 
       <Card>
         <CardContent className="p-4 sm:p-5 space-y-3">

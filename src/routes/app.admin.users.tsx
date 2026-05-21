@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { HelpHint } from "@/components/ui/help-hint";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
@@ -507,9 +508,7 @@ function AdminUsers() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
-        </div>
+        <PageHeader icon={<UsersIcon className="h-6 w-6" />} title="Usuarios" />
         <ErrorState
           message="No pudimos cargar la lista de usuarios"
           hint={loadError}
@@ -521,30 +520,31 @@ function AdminUsers() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
-          <p className="text-sm text-muted-foreground">
-            {search.trim()
-              ? `${filteredRows.length} de ${rows.length} cuentas`
-              : `${rows.length} cuentas registradas`}
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
-          <ImportExportMenu
-            resourceName="usuarios"
-            templateCsv={USERS_TEMPLATE_CSV}
-            onExport={exportUsersCsv}
-            onImport={handleImportRows}
-            disabled={importing}
-          />
-          <Button size="sm" onClick={openNew} className="flex-1 sm:flex-none">
-            <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden xs:inline">Nuevo usuario</span>
-            <span className="xs:hidden">Nuevo</span>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<UsersIcon className="h-6 w-6" />}
+        title="Usuarios"
+        subtitle={
+          search.trim()
+            ? `${filteredRows.length} de ${rows.length} cuentas`
+            : `${rows.length} cuentas registradas`
+        }
+        actions={
+          <>
+            <ImportExportMenu
+              resourceName="usuarios"
+              templateCsv={USERS_TEMPLATE_CSV}
+              onExport={exportUsersCsv}
+              onImport={handleImportRows}
+              disabled={importing}
+            />
+            <Button size="sm" onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden xs:inline">Nuevo usuario</span>
+              <span className="xs:hidden">Nuevo</span>
+            </Button>
+          </>
+        }
+      />
 
       <SearchInput
         value={search}

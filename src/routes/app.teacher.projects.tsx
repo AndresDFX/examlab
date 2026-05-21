@@ -93,6 +93,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/shared/lib/format";
@@ -1653,9 +1654,7 @@ function TeacherProjects() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-        </div>
+        <PageHeader icon={<FolderKanban className="h-6 w-6" />} title="Proyectos" />
         <ErrorState
           message="No pudimos cargar los proyectos"
           hint={loadError}
@@ -1667,22 +1666,23 @@ function TeacherProjects() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
-          <p className="text-sm text-muted-foreground">
-            {filteredProjects.length === projects.length
-              ? `${projects.length} proyectos`
-              : `${filteredProjects.length} de ${projects.length} proyectos`}
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <ImportExportMenu resourceName="proyectos" onExport={exportProjectsCsv} />
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<FolderKanban className="h-6 w-6" />}
+        title="Proyectos"
+        subtitle={
+          filteredProjects.length === projects.length
+            ? `${projects.length} proyectos`
+            : `${filteredProjects.length} de ${projects.length} proyectos`
+        }
+        actions={
+          <>
+            <ImportExportMenu resourceName="proyectos" onExport={exportProjectsCsv} />
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
+            </Button>
+          </>
+        }
+      />
 
       <ListFilters
         search={search}

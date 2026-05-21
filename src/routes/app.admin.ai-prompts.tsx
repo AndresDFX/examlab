@@ -12,6 +12,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/ui/page-header";
 import { Sparkles, Cpu, FileText } from "lucide-react";
 import { AdminPromptsPanel } from "@/modules/admin/AdminPromptsPanel";
 import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
@@ -26,17 +27,11 @@ function AdminAIConfig() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-indigo-500" />
-            IA
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Configura el modelo y los prompts globales que usa la calificación con IA.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
+        title="IA"
+        subtitle="Configura el modelo y los prompts globales que usa la calificación con IA."
+      />
 
       <Tabs defaultValue="prompts">
         <TabsList>

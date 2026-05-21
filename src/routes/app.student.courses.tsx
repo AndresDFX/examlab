@@ -29,6 +29,7 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -176,12 +177,10 @@ function StudentCourses() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            {t("nav.studentCourses")}
-          </h1>
-        </div>
+        <PageHeader
+          icon={<Calendar className="h-6 w-6" />}
+          title={t("nav.studentCourses")}
+        />
         <ErrorState
           message="No pudimos cargar tus cursos"
           hint={loadError}
@@ -197,13 +196,11 @@ function StudentCourses() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-primary" />
-          {t("nav.studentCourses")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("courseBoard.indexSubtitle")}</p>
-      </div>
+      <PageHeader
+        icon={<Calendar className="h-6 w-6" />}
+        title={t("nav.studentCourses")}
+        subtitle={t("courseBoard.indexSubtitle")}
+      />
 
       <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o período…" />
 

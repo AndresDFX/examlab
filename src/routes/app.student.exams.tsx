@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert } from "lucide-react";
+import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert, FileText } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { formatDateTime } from "@/shared/lib/format";
@@ -175,9 +176,7 @@ function StudentExams() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
-        </div>
+        <PageHeader icon={<FileText className="h-6 w-6" />} title={t("exam.title")} />
         <ErrorState
           message="No pudimos cargar tus exámenes"
           hint={loadError}
@@ -189,12 +188,12 @@ function StudentExams() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("exam.title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("exam.availableSubtitle", { count: visibleRows.length })}
-        </p>
-      </div>
+      <PageHeader
+        icon={<FileText className="h-6 w-6" />}
+        title={t("exam.title")}
+        subtitle={t("exam.availableSubtitle", { count: visibleRows.length })}
+      />
+
 
       <SearchInput
         value={search}

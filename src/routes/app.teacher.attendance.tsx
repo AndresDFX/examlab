@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { CalendarCheck } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -922,9 +924,7 @@ function TeacherAttendance() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Asistencia</h1>
-        </div>
+        <PageHeader icon={<CalendarCheck className="h-6 w-6" />} title="Asistencia" />
         <ErrorState
           message="No pudimos cargar tus cursos"
           hint={loadError}
@@ -936,15 +936,13 @@ function TeacherAttendance() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Asistencia</h1>
-          <p className="text-sm text-muted-foreground">
-            {sessions.length} sesiones · {students.length} estudiantes
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Select value={courseId} onValueChange={setCourseId}>
+      <PageHeader
+        icon={<CalendarCheck className="h-6 w-6" />}
+        title="Asistencia"
+        subtitle={`${sessions.length} sesiones · ${students.length} estudiantes`}
+        actions={
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Select value={courseId} onValueChange={setCourseId}>
             <SelectTrigger className="w-full sm:w-56">
               <SelectValue placeholder="Curso" />
             </SelectTrigger>
@@ -992,8 +990,9 @@ function TeacherAttendance() {
             <CalendarPlus className="h-4 w-4 mr-1" />
             Programar sesiones
           </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Legend (above the grid) */}
       <Card className="bg-muted/30 border-dashed">

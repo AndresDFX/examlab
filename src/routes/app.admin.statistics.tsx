@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageLoader, SectionLoader } from "@/components/ui/loaders";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Table,
@@ -189,12 +190,7 @@ function AdminStatistics() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            Estadísticas
-          </h1>
-        </div>
+        <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Estadísticas" />
         <ErrorState
           message="No pudimos cargar las estadísticas"
           hint={loadError}
@@ -209,27 +205,20 @@ function AdminStatistics() {
     const summary = summaries.find((s) => s.course.id === drillCourseId);
     return (
       <div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDrillCourseId(null)}
-              className="-ml-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Volver al global
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight mt-1">
+        <PageHeader
+          onBack={() => setDrillCourseId(null)}
+          backLabel="Volver al global"
+          title={
+            <span>
               {summary?.course.name ?? "Curso"}
               {summary?.course.period && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   ({summary.course.period})
                 </span>
               )}
-            </h1>
-          </div>
-        </div>
+            </span>
+          }
+        />
         {drillLoading || !drillDataset ? <PageLoader /> : <CourseDashboard ds={drillDataset} />}
       </div>
     );
@@ -237,15 +226,11 @@ function AdminStatistics() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-primary" />
-          Estadísticas globales
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Vista agregada de todos los cursos. Click en una fila para ver el detalle.
-        </p>
-      </div>
+      <PageHeader
+        icon={<BarChart3 className="h-6 w-6" />}
+        title="Estadísticas globales"
+        subtitle="Vista agregada de todos los cursos. Click en una fila para ver el detalle."
+      />
 
       {loading ? (
         <SectionLoader text="Calculando estadísticas de todos los cursos…" />

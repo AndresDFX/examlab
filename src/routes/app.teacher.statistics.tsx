@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/ui/loaders";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   ChartContainer,
@@ -129,12 +130,7 @@ function TeacherStatistics() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            Estadísticas
-          </h1>
-        </div>
+        <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Estadísticas" />
         <ErrorState
           message="No pudimos cargar tus cursos"
           hint={loadError}
@@ -146,30 +142,26 @@ function TeacherStatistics() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            Estadísticas
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Aprobación, fraude, asistencia y tendencia por corte del curso seleccionado.
-          </p>
-        </div>
-        <Select value={courseId} onValueChange={setCourseId}>
-          <SelectTrigger className="w-full sm:w-72">
-            <SelectValue placeholder="Curso" />
-          </SelectTrigger>
-          <SelectContent>
-            {courses.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-                {c.period ? ` (${c.period})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <PageHeader
+        icon={<BarChart3 className="h-6 w-6" />}
+        title="Estadísticas"
+        subtitle="Aprobación, fraude, asistencia y tendencia por corte del curso seleccionado."
+        actions={
+          <Select value={courseId} onValueChange={setCourseId}>
+            <SelectTrigger className="w-full sm:w-72">
+              <SelectValue placeholder="Curso" />
+            </SelectTrigger>
+            <SelectContent>
+              {courses.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                  {c.period ? ` (${c.period})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
 
       {courses.length === 0 ? (
         <EmptyState
