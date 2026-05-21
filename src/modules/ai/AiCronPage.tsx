@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/multi-select";
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
+import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
 import {
   Select,
   SelectContent,
@@ -226,6 +227,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const [retrying, setRetrying] = useState<Set<string>>(new Set());
   const [cancelling, setCancelling] = useState<Set<string>>(new Set());
   const [processingOne, setProcessingOne] = useState<Set<string>>(new Set());
+  // Dialog para activar el código override de IA inmediata (pegar
+  // código → ventana sincrónica corta). Se movió desde el dashboard
+  // del docente para tenerlo junto al resto del flujo de IA.
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -497,6 +502,21 @@ function AiQueuePanel({ isAdmin = false }: Props) {
 
   const processOne = async (jobId: string) => {
     if (processingOne.has(jobId)) return;
+    // Autorización: con la cola en modo async, procesar un job a mano
+    // (bypass del cron) es justamente lo que el modo async busca evitar.
+    // El docente necesita una ventana de "IA inmediata" activa — el
+    // mismo código override que habilita la calificación sync. El admin
+    // gestiona la cola y queda exento.
+    if (!isAdmin) {
+      const mode = await getProcessingMode();
+      if (mode === "async" && !readOverrideExpiry()) {
+        toast.info(
+          "La cola está en modo async. Activa un código de IA inmediata para procesar jobs al instante.",
+        );
+        setOverrideDialogOpen(true);
+        return;
+      }
+    }
     setProcessingOne((prev) => new Set(prev).add(jobId));
     try {
       const { data, error } = await supabase.functions.invoke("ai-grading-worker", {
@@ -561,10 +581,6 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   );
   const multi = useMultiSelect(selectableJobs);
   const [bulkOpen, setBulkOpen] = useState(false);
-  // Dialog para activar el código override de IA inmediata (pegar
-  // código → ventana sincrónica corta). Se movió desde el dashboard
-  // del docente para tenerlo junto al resto del flujo de IA.
-  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
   const selectedItems = useMemo(
     () =>
       selectableJobs
