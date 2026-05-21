@@ -291,16 +291,43 @@ export async function buildCertificatePdf(data: CertificateData): Promise<Blob> 
   return pdf.output("blob");
 }
 
-/** Nombre de archivo estándar para un certificado.
- *  `Certificado_<curso>_<periodo>_<estudiante>_<YYYY-MM-DD>_<short>.pdf`
+/** Normaliza un texto para usarlo como tramo de nombre de archivo.
+ *
+ *  - NFD + strip de marcas combinantes elimina los acentos manteniendo
+ *    la letra base: "José" → "Jose", "Programación" → "Programacion".
+ *  - Quita caracteres prohibidos en filesystems comunes (Windows/macOS/
+ *    Linux): `/ \ : * ? " < > |` + control chars.
+ *  - Espacios y sucesivos guiones bajos colapsan a uno solo; trim.
+ *
+ *  El regex de `replace(/[^a-z0-9]+/gi, "_")` que usábamos antes era
+ *  demasiado agresivo: convertía "José" en "Jos_" (la tilde se comía la
+ *  "é" entera) y perdía señal del nombre.
  */
+function normalizeForFilename(input: string): string {
+  return input
+    .normalize("NFD")
+    // Combining diacritical marks (U+0300–U+036F): la NFD las separa de
+    // la letra base; este replace las descarta y deja la letra ASCII.
+    // Escape explícito en lugar de literales para no depender de la
+    // codificación del archivo fuente.
+    .replace(/[̀-ͯ]/g, "")
+    // Prohibidos por Windows/macOS/Linux + control chars.
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_");
+}
+
+/** Nombre de archivo estándar para un certificado: `<estudiante>_<curso>.pdf`.
+ *
+ *  Antes incluía `Certificado_`, período, fecha y short_code → resultaba
+ *  en nombres de >80 caracteres difíciles de identificar de un vistazo.
+ *  Esos datos ya viven dentro del PDF; el filename solo necesita
+ *  identificar de quién es y para qué curso. */
 export function certificateFileName(data: CertificateData): string {
-  const safeStudent = data.studentFullName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
-  const safeCourse = data.courseName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
-  const safePeriod = (data.coursePeriod ?? "").replace(/[^a-z0-9]+/gi, "_").slice(0, 20);
-  const issuedDate = new Date(data.issuedAt).toISOString().slice(0, 10);
-  const periodPart = safePeriod ? `${safePeriod}_` : "";
-  return `Certificado_${safeCourse}_${periodPart}${safeStudent}_${issuedDate}_${data.shortCode}.pdf`;
+  const safeStudent = normalizeForFilename(data.studentFullName).slice(0, 50);
+  const safeCourse = normalizeForFilename(data.courseName).slice(0, 50);
+  return `${safeStudent}_${safeCourse}.pdf`;
 }
 
 /** Descarga directa con nombre estándar. */
