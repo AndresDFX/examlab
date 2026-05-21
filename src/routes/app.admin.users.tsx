@@ -567,7 +567,7 @@ function AdminUsers() {
           ) : (
             <div className="overflow-x-auto">
               {/* table-fixed: emails y nombres largos truncan. */}
-              <Table fixed>
+              <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">

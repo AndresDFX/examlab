@@ -708,7 +708,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             />
           ) : (
           <div className="overflow-x-auto">
-            <Table>
+            <Table resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-36">{t("common.date")}</TableHead>

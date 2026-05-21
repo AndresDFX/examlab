@@ -466,7 +466,7 @@ function QuestionBankPage() {
               onRetry={() => void load()}
             />
           ) : (
-            <Table>
+            <Table resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead>Pregunta</TableHead>

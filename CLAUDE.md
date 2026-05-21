@@ -70,6 +70,16 @@ Locale es-CO hardcodeado en `Intl.DateTimeFormat` para que la app se vea igual i
 - **Modales con muchas columnas o flex-row**: usar `max-w-5xl`/`max-w-6xl`/`max-w-7xl` según necesidad. NO insistir con `max-w-3xl` cuando el contenido obviamente no cabe — eso es lo que causa scroll horizontal del modal.
 - **Columnas progresivas**: las columnas secundarias del grid deben ir con `hidden sm:table-cell` / `hidden md:table-cell` / `hidden lg:table-cell` para que en pantallas chicas se oculten antes de forzar scroll.
 
+### Redimensionado de columnas (`<Table resizable>`)
+
+Los grids de listado aceptan `resizable` además de `fixed`: agrega handles tipo Excel en el borde derecho de cada encabezado. El usuario arrastra para redimensionar; doble clic restablece la columna.
+
+- `resizable` implica `table-fixed` (el resize no tiene sentido en layout `auto`).
+- **Persistencia automática, sin config por grid**: la clave de localStorage se deriva de `pathname + fingerprint de los textos de encabezado` (`examlab_colw:<ruta>:<hash>`). Si cambian las columnas, el fingerprint cambia y se descartan los anchos viejos.
+- El ancho de la `<table>` se fija a la suma de columnas visibles para que `table-fixed` no re-escale al arrastrar (la lógica vive en `syncTableWidth` dentro de `table.tsx`).
+- **Solo desktop** (`min-width: 640px`): en mobile los handles se ocultan (`hidden sm:block`) y los anchos pinneados se limpian → layout responsive normal.
+- Aplicado en los 9 grids de listado: Cursos, Usuarios, Exámenes, Talleres, Proyectos, Contenidos, Videos, Banco de preguntas y Auditoría. **NO** en gradebook / asistencia / monitor — son matrices con columna sticky o columnas dinámicas, no grids de listado.
+
 ### Responsive (target 375-428px / iPhone Pro / Pixel grandes)
 
 Cuatro reglas universales — aplicar siempre que se añada layout nuevo:

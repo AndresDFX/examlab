@@ -953,7 +953,7 @@ export function AdminCourses() {
               de los TableHead (definidos por las clases `w-X`). Sin
               esto, un nombre/descripción largos expanden la tabla y
               empujan acciones fuera de pantalla. */}
-          <Table fixed>
+          <Table fixed resizable>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">

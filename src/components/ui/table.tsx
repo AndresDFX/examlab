@@ -15,31 +15,277 @@ import { cn } from "@/shared/lib/utils";
 // className (`w-48`, etc.), y las celdas que tengan `truncate`
 // realmente truncan con ellipsis.
 //
+// Prop `resizable`: agrega handles tipo Excel en el borde derecho de
+// cada columna para que el usuario arrastre y redimensione. Implica
+// `table-fixed` (el resize no tiene sentido en layout auto). Los
+// anchos se persisten en localStorage por grid (ver useColumnResize).
+//
 // Convención del design system: para todos los grids "de listado"
-// (cursos, exámenes, talleres, etc.) usar `<Table fixed>` + dar
-// anchos a las columnas + envolver cells de texto largo con
+// (cursos, exámenes, talleres, etc.) usar `<Table fixed resizable>` +
+// dar anchos a las columnas + envolver cells de texto largo con
 // `<TruncatedCell>` o `<TableCell truncate>`. Así todos los grids se
 // ven uniformes independiente del contenido.
+
+// ─────────────────────── Column resize (estilo Excel) ───────────────────────
+//
+// El usuario arrastra el borde derecho de cualquier encabezado para
+// redimensionar la columna; doble clic restablece esa columna a su
+// ancho natural. Los anchos persisten en localStorage por grid.
+//
+// Diseño:
+//  - `table-layout: fixed` es obligatorio: con `auto` los anchos los
+//    decide el contenido y el arrastre no se respeta. `resizable`
+//    fuerza `table-fixed`.
+//  - El ancho de la <table> se fija a la SUMA de las columnas visibles
+//    (`syncTableWidth`). Así, al ensanchar una columna la tabla crece
+//    y aparece scroll horizontal — al angostarla, encoge. Si quedara
+//    en `width:100%`, `table-fixed` re-escalaría las columnas y el
+//    arrastre "no se sentiría".
+//  - La clave de persistencia se deriva de la ruta + un fingerprint de
+//    los textos de encabezado. Cero configuración por grid, y si las
+//    columnas cambian el fingerprint cambia → se descartan los anchos
+//    viejos en vez de aplicarlos a columnas que ya no existen.
+//  - Solo desktop (`min-width: 640px`): el arrastre fino no aplica a
+//    touch. En mobile se limpian los anchos pinneados y la tabla
+//    vuelve a su layout responsive normal.
+
+/** Ancho mínimo al que se puede arrastrar una columna (px). */
+const MIN_COL_WIDTH = 48;
+
+/** Context: indica a `TableHead` que debe renderizar el handle de resize. */
+const TableResizeContext = React.createContext(false);
+
+/** Hash corto y estable (djb2) para derivar storage keys de un string. */
+function djb2(input: string): string {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash + input.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/** Celdas (<th>) de la primera fila del thead. */
+function headerCells(table: HTMLTableElement): HTMLTableCellElement[] {
+  const row = table.tHead?.rows[0];
+  return row ? Array.from(row.cells) : [];
+}
+
+/** Una columna cuenta si NO está oculta (`hidden md:table-cell`, etc.). */
+function isVisibleCol(th: HTMLElement): boolean {
+  return th.offsetParent !== null && th.getBoundingClientRect().width > 0;
+}
+
+/** Clave de localStorage: ruta + fingerprint de los encabezados. */
+function storageKeyFor(table: HTMLTableElement): string {
+  const fingerprint = headerCells(table)
+    .map((c) => c.textContent?.trim() ?? "")
+    .join("|");
+  return `examlab_colw:${window.location.pathname}:${djb2(fingerprint)}`;
+}
+
+/** Fija el ancho de la <table> a la suma de columnas visibles para que
+ *  `table-fixed` respete los anchos sin re-escalar. */
+function syncTableWidth(table: HTMLTableElement): void {
+  let total = 0;
+  for (const th of headerCells(table)) {
+    if (isVisibleCol(th)) total += th.getBoundingClientRect().width;
+  }
+  if (total > 0) table.style.width = `${Math.round(total)}px`;
+}
+
+/** Persiste los anchos actuales (índice de columna → px) en localStorage. */
+function persistWidths(table: HTMLTableElement): void {
+  try {
+    const map: Record<number, number> = {};
+    headerCells(table).forEach((th, i) => {
+      if (isVisibleCol(th)) map[i] = Math.round(th.getBoundingClientRect().width);
+    });
+    localStorage.setItem(storageKeyFor(table), JSON.stringify(map));
+  } catch {
+    /* localStorage lleno/bloqueado — no es crítico, se pierde la persistencia */
+  }
+}
+
+/**
+ * Hook (lo llama `Table`): al montar, en desktop, pinea los anchos
+ * actuales de cada columna y aplica los overrides guardados. En mobile
+ * limpia los anchos para volver al layout responsive. Reacciona al
+ * cambio de breakpoint.
+ */
+function useColumnResize(
+  tableRef: React.RefObject<HTMLTableElement | null>,
+  enabled: boolean,
+): void {
+  React.useLayoutEffect(() => {
+    if (!enabled) return;
+    const table = tableRef.current;
+    if (!table) return;
+    const desktop = window.matchMedia("(min-width: 640px)");
+
+    const apply = () => {
+      const cells = headerCells(table);
+      if (!desktop.matches) {
+        // Mobile: sin resize. Limpiamos anchos pinneados → layout normal.
+        for (const th of cells) th.style.width = "";
+        table.style.width = "";
+        return;
+      }
+      if (cells.length < 2) return;
+      // 1. Pin del ancho actual de cada columna visible (el que dé el
+      //    layout `table-fixed`). Sin esto, ensanchar una columna haría
+      //    que `table-fixed` robe espacio a las demás.
+      for (const th of cells) {
+        if (isVisibleCol(th)) {
+          th.style.width = `${Math.round(th.getBoundingClientRect().width)}px`;
+        }
+      }
+      // 2. Overrides guardados (anchos que el usuario arrastró antes).
+      try {
+        const raw = localStorage.getItem(storageKeyFor(table));
+        if (raw) {
+          const saved = JSON.parse(raw) as Record<string, number>;
+          cells.forEach((th, i) => {
+            const w = saved[i];
+            if (typeof w === "number" && w > 0 && isVisibleCol(th)) {
+              th.style.width = `${w}px`;
+            }
+          });
+        }
+      } catch {
+        /* JSON corrupto — ignorar y usar los anchos pinneados */
+      }
+      syncTableWidth(table);
+    };
+
+    apply();
+    desktop.addEventListener("change", apply);
+    return () => desktop.removeEventListener("change", apply);
+  }, [enabled, tableRef]);
+}
+
+/** Handle de arrastre en el borde derecho de un `<th>`. Lo renderiza
+ *  `TableHead` cuando la tabla es `resizable`. */
+function ColumnResizeHandle() {
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const handle = e.currentTarget;
+    const th = handle.parentElement as HTMLTableCellElement | null;
+    const table = th?.closest("table") as HTMLTableElement | null;
+    if (!th || !table) return;
+    // Solo columnas de la primera fila del encabezado (evita headers
+    // multi-fila si los hubiera).
+    if (th.parentElement !== table.tHead?.rows[0]) return;
+
+    const startX = e.clientX;
+    const startWidth = th.getBoundingClientRect().width;
+    handle.classList.add("is-dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(MIN_COL_WIDTH, startWidth + (ev.clientX - startX));
+      th.style.width = `${Math.round(next)}px`;
+      syncTableWidth(table);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      handle.classList.remove("is-dragging");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      persistWidths(table);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    // preventDefault evita selección de texto; stopPropagation evita
+    // disparar handlers de click del propio <th> (orden, etc.).
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  // Doble clic: restablece esta columna a su ancho natural.
+  const onDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const th = e.currentTarget.parentElement as HTMLTableCellElement | null;
+    const table = th?.closest("table") as HTMLTableElement | null;
+    if (!th || !table) return;
+    th.style.width = "";
+    // Re-pin al nuevo ancho natural para que `table-fixed` no re-escale.
+    requestAnimationFrame(() => {
+      if (isVisibleCol(th)) {
+        th.style.width = `${Math.round(th.getBoundingClientRect().width)}px`;
+      }
+      syncTableWidth(table);
+      persistWidths(table);
+    });
+    e.stopPropagation();
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Redimensionar columna"
+      title="Arrastra para redimensionar · doble clic para restablecer"
+      onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
+      className={cn(
+        // Zona de agarre ancha centrada sobre el borde de la columna;
+        // solo desktop (touch usa el layout responsive normal).
+        "absolute right-0 top-0 z-20 hidden h-full w-2 translate-x-1/2",
+        "cursor-col-resize touch-none select-none sm:block",
+        // Línea visual vía pseudo-elemento: transparente en reposo,
+        // se tiñe al hover y mientras se arrastra.
+        "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2",
+        "after:bg-transparent after:transition-colors",
+        "hover:after:bg-primary/60",
+        "[&.is-dragging]:after:w-0.5 [&.is-dragging]:after:bg-primary",
+      )}
+    />
+  );
+}
+
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   /** Aplica `table-layout: fixed`. Las columnas respetan el width que
    *  les des; los textos demasiado largos truncan en cada cell con
    *  ellipsis (siempre que la cell use `truncate`). */
   fixed?: boolean;
+  /** Habilita el redimensionado de columnas por arrastre (estilo Excel).
+   *  Implica `fixed`. Los anchos se persisten por grid en localStorage. */
+  resizable?: boolean;
 }
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, fixed, ...props }, ref) => (
-    <div
-      className="relative w-full overflow-x-auto scroll-hint-x"
-      style={{ WebkitOverflowScrolling: "touch" }}
-    >
-      <table
-        ref={ref}
-        className={cn("w-full caption-bottom text-sm", fixed && "table-fixed", className)}
-        {...props}
-      />
-    </div>
-  ),
+  ({ className, fixed, resizable, ...props }, ref) => {
+    const innerRef = React.useRef<HTMLTableElement>(null);
+    useColumnResize(innerRef, !!resizable);
+
+    const setRefs = React.useCallback(
+      (node: HTMLTableElement | null) => {
+        innerRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) (ref as React.MutableRefObject<HTMLTableElement | null>).current = node;
+      },
+      [ref],
+    );
+
+    return (
+      <div
+        className="relative w-full overflow-x-auto scroll-hint-x"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <TableResizeContext.Provider value={!!resizable}>
+          <table
+            ref={setRefs}
+            className={cn(
+              "w-full caption-bottom text-sm",
+              (fixed || resizable) && "table-fixed",
+              className,
+            )}
+            {...props}
+          />
+        </TableResizeContext.Provider>
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 
@@ -98,18 +344,24 @@ interface TableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
 }
 
 const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
-  ({ className, truncate, children, ...props }, ref) => (
-    <th
-      ref={ref}
-      className={cn(
-        "h-11 md:h-10 px-3 md:px-2 text-left align-middle font-medium text-muted-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-        className,
-      )}
-      {...props}
-    >
-      {truncate ? <div className="truncate">{children}</div> : children}
-    </th>
-  ),
+  ({ className, truncate, children, ...props }, ref) => {
+    const resizable = React.useContext(TableResizeContext);
+    return (
+      <th
+        ref={ref}
+        className={cn(
+          "h-11 md:h-10 px-3 md:px-2 text-left align-middle font-medium text-muted-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+          // `relative` necesario para posicionar el handle de resize.
+          resizable && "relative",
+          className,
+        )}
+        {...props}
+      >
+        {truncate ? <div className="truncate">{children}</div> : children}
+        {resizable ? <ColumnResizeHandle /> : null}
+      </th>
+    );
+  },
 );
 TableHead.displayName = "TableHead";
 

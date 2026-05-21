@@ -1744,7 +1744,7 @@ function TeacherProjects() {
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {/* table-fixed: anchos de columna respetados. */}
-          <Table fixed>
+          <Table fixed resizable>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">

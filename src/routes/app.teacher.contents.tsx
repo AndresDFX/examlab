@@ -696,7 +696,7 @@ function TeacherContents() {
           ) : (
             // table-fixed: el topic/display_name puede ser largo —
             // trunca en su cell sin expandir la tabla.
-            <Table fixed>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("contents.topicColumn")}</TableHead>

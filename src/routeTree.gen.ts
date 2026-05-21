@@ -16,9 +16,12 @@ import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
+import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
+import { Route as AppVideosRouteImport } from './routes/app.videos'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
+import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherQuestionBankRouteImport } from './routes/app.teacher.question-bank'
@@ -30,6 +33,7 @@ import { Route as AppTeacherCalendarRouteImport } from './routes/app.teacher.cal
 import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
 import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.attendance'
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
+import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cron'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
@@ -47,7 +51,9 @@ import { Route as AppAdminEmailSettingsRouteImport } from './routes/app.admin.em
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
+import { Route as AppAdminAiCronRouteImport } from './routes/app.admin.ai-cron'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
+import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
 import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
@@ -56,7 +62,8 @@ import { Route as AppStudentTutorCourseIdRouteImport } from './routes/app.studen
 import { Route as AppStudentTakeExamIdRouteImport } from './routes/app.student.take.$examId'
 import { Route as AppStudentReviewExamIdRouteImport } from './routes/app.student.review.$examId'
 import { Route as AppStudentProjectProjectIdRouteImport } from './routes/app.student.project.$projectId'
-import { Route as AppForumCourseIdThreadIdRouteImport } from './routes/app.forum.$courseId.$threadId'
+import { Route as AppForumCourseIdForumIdRouteImport } from './routes/app.forum.$courseId.$forumId'
+import { Route as AppForumCourseIdForumIdThreadIdRouteImport } from './routes/app.forum.$courseId.$forumId.$threadId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -93,6 +100,16 @@ const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthConfirmEmailChangeRoute = AuthConfirmEmailChangeRouteImport.update({
+  id: '/confirm-email-change',
+  path: '/confirm-email-change',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AppVideosRoute = AppVideosRouteImport.update({
+  id: '/videos',
+  path: '/videos',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
   id: '/unauthorized',
   path: '/unauthorized',
@@ -106,6 +123,11 @@ const AppPreferencesRoute = AppPreferencesRouteImport.update({
 const AppMessagesRoute = AppMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCertificatesRoute = AppCertificatesRouteImport.update({
+  id: '/certificates',
+  path: '/certificates',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
@@ -161,6 +183,11 @@ const AppTeacherAttendanceRoute = AppTeacherAttendanceRouteImport.update({
 const AppTeacherAiPromptsRoute = AppTeacherAiPromptsRouteImport.update({
   id: '/teacher/ai-prompts',
   path: '/teacher/ai-prompts',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherAiCronRoute = AppTeacherAiCronRouteImport.update({
+  id: '/teacher/ai-cron',
+  path: '/teacher/ai-cron',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
@@ -248,9 +275,19 @@ const AppAdminAiPromptsRoute = AppAdminAiPromptsRouteImport.update({
   path: '/admin/ai-prompts',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminAiCronRoute = AppAdminAiCronRouteImport.update({
+  id: '/admin/ai-cron',
+  path: '/admin/ai-cron',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   id: '/teacher/exams/',
   path: '/teacher/exams/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudentTutorIndexRoute = AppStudentTutorIndexRouteImport.update({
+  id: '/student/tutor/',
+  path: '/student/tutor/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherMonitorExamIdRoute = AppTeacherMonitorExamIdRouteImport.update({
@@ -296,24 +333,33 @@ const AppStudentProjectProjectIdRoute =
     path: '/student/project/$projectId',
     getParentRoute: () => AppRoute,
   } as any)
-const AppForumCourseIdThreadIdRoute =
-  AppForumCourseIdThreadIdRouteImport.update({
+const AppForumCourseIdForumIdRoute = AppForumCourseIdForumIdRouteImport.update({
+  id: '/$forumId',
+  path: '/$forumId',
+  getParentRoute: () => AppForumCourseIdRoute,
+} as any)
+const AppForumCourseIdForumIdThreadIdRoute =
+  AppForumCourseIdForumIdThreadIdRouteImport.update({
     id: '/$threadId',
     path: '/$threadId',
-    getParentRoute: () => AppForumCourseIdRoute,
+    getParentRoute: () => AppForumCourseIdForumIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
+  '/app/videos': typeof AppVideosRoute
+  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/app/admin/ai-cron': typeof AppAdminAiCronRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -331,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
@@ -342,7 +389,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
-  '/app/forum/$courseId/$threadId': typeof AppForumCourseIdThreadIdRoute
+  '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -351,17 +398,23 @@ export interface FileRoutesByFullPath {
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
+  '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
+  '/app/videos': typeof AppVideosRoute
+  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
+  '/app/admin/ai-cron': typeof AppAdminAiCronRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -379,6 +432,7 @@ export interface FileRoutesByTo {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
@@ -390,7 +444,7 @@ export interface FileRoutesByTo {
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
-  '/app/forum/$courseId/$threadId': typeof AppForumCourseIdThreadIdRoute
+  '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -399,20 +453,26 @@ export interface FileRoutesByTo {
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/student/tutor': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams': typeof AppTeacherExamsIndexRoute
+  '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
+  '/app/videos': typeof AppVideosRoute
+  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/app/admin/ai-cron': typeof AppAdminAiCronRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -430,6 +490,7 @@ export interface FileRoutesById {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
@@ -441,7 +502,7 @@ export interface FileRoutesById {
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
-  '/app/forum/$courseId/$threadId': typeof AppForumCourseIdThreadIdRoute
+  '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -450,7 +511,9 @@ export interface FileRoutesById {
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
+  '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -458,13 +521,17 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
     | '/app/unauthorized'
+    | '/app/videos'
+    | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
+    | '/app/admin/ai-cron'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -482,6 +549,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
@@ -493,7 +561,7 @@ export interface FileRouteTypes {
     | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/workshops'
-    | '/app/forum/$courseId/$threadId'
+    | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -502,17 +570,23 @@ export interface FileRouteTypes {
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
+    | '/app/student/tutor/'
     | '/app/teacher/exams/'
+    | '/app/forum/$courseId/$forumId/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
     | '/app/unauthorized'
+    | '/app/videos'
+    | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/verify/$shortCode'
     | '/app'
     | '/auth'
+    | '/app/admin/ai-cron'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -530,6 +604,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
@@ -541,7 +616,7 @@ export interface FileRouteTypes {
     | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/workshops'
-    | '/app/forum/$courseId/$threadId'
+    | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -550,19 +625,25 @@ export interface FileRouteTypes {
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
+    | '/app/student/tutor'
     | '/app/teacher/exams'
+    | '/app/forum/$courseId/$forumId/$threadId'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/auth'
+    | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
     | '/app/unauthorized'
+    | '/app/videos'
+    | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
+    | '/app/admin/ai-cron'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -580,6 +661,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
     | '/app/teacher/audit-logs'
@@ -591,7 +673,7 @@ export interface FileRouteTypes {
     | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/workshops'
-    | '/app/forum/$courseId/$threadId'
+    | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -600,7 +682,9 @@ export interface FileRouteTypes {
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
+    | '/app/student/tutor/'
     | '/app/teacher/exams/'
+    | '/app/forum/$courseId/$forumId/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -661,6 +745,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthResetPasswordRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/auth/confirm-email-change': {
+      id: '/auth/confirm-email-change'
+      path: '/confirm-email-change'
+      fullPath: '/auth/confirm-email-change'
+      preLoaderRoute: typeof AuthConfirmEmailChangeRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/app/videos': {
+      id: '/app/videos'
+      path: '/videos'
+      fullPath: '/app/videos'
+      preLoaderRoute: typeof AppVideosRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/unauthorized': {
       id: '/app/unauthorized'
       path: '/unauthorized'
@@ -680,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/app/messages'
       preLoaderRoute: typeof AppMessagesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/certificates': {
+      id: '/app/certificates'
+      path: '/certificates'
+      fullPath: '/app/certificates'
+      preLoaderRoute: typeof AppCertificatesRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/workshops': {
@@ -757,6 +862,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/ai-prompts'
       fullPath: '/app/teacher/ai-prompts'
       preLoaderRoute: typeof AppTeacherAiPromptsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/ai-cron': {
+      id: '/app/teacher/ai-cron'
+      path: '/teacher/ai-cron'
+      fullPath: '/app/teacher/ai-cron'
+      preLoaderRoute: typeof AppTeacherAiCronRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/workshops': {
@@ -878,11 +990,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAiPromptsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/ai-cron': {
+      id: '/app/admin/ai-cron'
+      path: '/admin/ai-cron'
+      fullPath: '/app/admin/ai-cron'
+      preLoaderRoute: typeof AppAdminAiCronRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/exams/': {
       id: '/app/teacher/exams/'
       path: '/teacher/exams'
       fullPath: '/app/teacher/exams/'
       preLoaderRoute: typeof AppTeacherExamsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/student/tutor/': {
+      id: '/app/student/tutor/'
+      path: '/student/tutor'
+      fullPath: '/app/student/tutor/'
+      preLoaderRoute: typeof AppStudentTutorIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/monitor/$examId': {
@@ -941,32 +1067,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentProjectProjectIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/forum/$courseId/$threadId': {
-      id: '/app/forum/$courseId/$threadId'
-      path: '/$threadId'
-      fullPath: '/app/forum/$courseId/$threadId'
-      preLoaderRoute: typeof AppForumCourseIdThreadIdRouteImport
+    '/app/forum/$courseId/$forumId': {
+      id: '/app/forum/$courseId/$forumId'
+      path: '/$forumId'
+      fullPath: '/app/forum/$courseId/$forumId'
+      preLoaderRoute: typeof AppForumCourseIdForumIdRouteImport
       parentRoute: typeof AppForumCourseIdRoute
+    }
+    '/app/forum/$courseId/$forumId/$threadId': {
+      id: '/app/forum/$courseId/$forumId/$threadId'
+      path: '/$threadId'
+      fullPath: '/app/forum/$courseId/$forumId/$threadId'
+      preLoaderRoute: typeof AppForumCourseIdForumIdThreadIdRouteImport
+      parentRoute: typeof AppForumCourseIdForumIdRoute
     }
   }
 }
 
+interface AppForumCourseIdForumIdRouteChildren {
+  AppForumCourseIdForumIdThreadIdRoute: typeof AppForumCourseIdForumIdThreadIdRoute
+}
+
+const AppForumCourseIdForumIdRouteChildren: AppForumCourseIdForumIdRouteChildren =
+  {
+    AppForumCourseIdForumIdThreadIdRoute: AppForumCourseIdForumIdThreadIdRoute,
+  }
+
+const AppForumCourseIdForumIdRouteWithChildren =
+  AppForumCourseIdForumIdRoute._addFileChildren(
+    AppForumCourseIdForumIdRouteChildren,
+  )
+
 interface AppForumCourseIdRouteChildren {
-  AppForumCourseIdThreadIdRoute: typeof AppForumCourseIdThreadIdRoute
+  AppForumCourseIdForumIdRoute: typeof AppForumCourseIdForumIdRouteWithChildren
 }
 
 const AppForumCourseIdRouteChildren: AppForumCourseIdRouteChildren = {
-  AppForumCourseIdThreadIdRoute: AppForumCourseIdThreadIdRoute,
+  AppForumCourseIdForumIdRoute: AppForumCourseIdForumIdRouteWithChildren,
 }
 
 const AppForumCourseIdRouteWithChildren =
   AppForumCourseIdRoute._addFileChildren(AppForumCourseIdRouteChildren)
 
 interface AppRouteChildren {
+  AppCertificatesRoute: typeof AppCertificatesRoute
   AppMessagesRoute: typeof AppMessagesRoute
   AppPreferencesRoute: typeof AppPreferencesRoute
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
+  AppVideosRoute: typeof AppVideosRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAdminAiCronRoute: typeof AppAdminAiCronRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
   AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
@@ -984,6 +1134,7 @@ interface AppRouteChildren {
   AppStudentGradesRoute: typeof AppStudentGradesRoute
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
+  AppTeacherAiCronRoute: typeof AppTeacherAiCronRoute
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
   AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
@@ -1003,14 +1154,18 @@ interface AppRouteChildren {
   AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
   AppTeacherGradingCourseIdRoute: typeof AppTeacherGradingCourseIdRoute
   AppTeacherMonitorExamIdRoute: typeof AppTeacherMonitorExamIdRoute
+  AppStudentTutorIndexRoute: typeof AppStudentTutorIndexRoute
   AppTeacherExamsIndexRoute: typeof AppTeacherExamsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppCertificatesRoute: AppCertificatesRoute,
   AppMessagesRoute: AppMessagesRoute,
   AppPreferencesRoute: AppPreferencesRoute,
   AppUnauthorizedRoute: AppUnauthorizedRoute,
+  AppVideosRoute: AppVideosRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAdminAiCronRoute: AppAdminAiCronRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
   AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
@@ -1028,6 +1183,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentGradesRoute: AppStudentGradesRoute,
   AppStudentProjectsRoute: AppStudentProjectsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
+  AppTeacherAiCronRoute: AppTeacherAiCronRoute,
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
   AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
@@ -1047,17 +1203,20 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
   AppTeacherGradingCourseIdRoute: AppTeacherGradingCourseIdRoute,
   AppTeacherMonitorExamIdRoute: AppTeacherMonitorExamIdRoute,
+  AppStudentTutorIndexRoute: AppStudentTutorIndexRoute,
   AppTeacherExamsIndexRoute: AppTeacherExamsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AuthRouteChildren {
+  AuthConfirmEmailChangeRoute: typeof AuthConfirmEmailChangeRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthIndexRoute: typeof AuthIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthConfirmEmailChangeRoute: AuthConfirmEmailChangeRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthIndexRoute: AuthIndexRoute,
 }
@@ -1073,3 +1232,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

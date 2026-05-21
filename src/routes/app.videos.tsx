@@ -493,7 +493,7 @@ function VideoLibrary() {
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : (
-            <Table>
+            <Table resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead>Video</TableHead>

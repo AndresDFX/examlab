@@ -604,7 +604,7 @@ function TeacherExams() {
         <CardContent className="p-0 overflow-x-auto">
           {/* table-fixed: anchos por columna respetados; títulos largos
               truncan en cada cell (ver wrapper truncate más abajo). */}
-          <Table fixed>
+          <Table fixed resizable>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">

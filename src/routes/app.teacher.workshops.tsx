@@ -1944,7 +1944,7 @@ function TeacherWorkshops() {
         <CardContent className="p-0 overflow-x-auto">
           {/* table-fixed: anchos por columna respetados; el título
               largo trunca en su cell. */}
-          <Table fixed>
+          <Table fixed resizable>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
