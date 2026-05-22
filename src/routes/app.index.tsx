@@ -33,7 +33,20 @@ import {
   CircleCheck,
   Search,
   Cpu,
+  RefreshCw,
 } from "lucide-react";
+
+/** Formato relativo simple ("ahora", "5m", "2h", "1d"). Duplicado del
+ *  helper en AiGradingQueueWidget para no acoplar 2 rutas sobre un
+ *  concepto puramente UI. */
+function relativeAge(iso: string): string {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (diffMin < 1) return "ahora";
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h`;
+  return `${Math.floor(diffH / 24)}d`;
+}
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
@@ -112,6 +125,11 @@ function AdminDashboard() {
       metadata: Record<string, unknown>;
     }>;
   } | null>(null);
+  // Nonce + loading para el botón de recarga del card de Correos.
+  // Incrementar el nonce relanza el useEffect que consulta los
+  // `audit_logs` de email; `emailLoading` alimenta el spin del ícono.
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailNonce, setEmailNonce] = useState(0);
 
   useEffect(() => {
     // Guard contra navegación rápida: si el admin sale del dashboard
@@ -120,6 +138,7 @@ function AdminDashboard() {
     // huérfano en pantalla nueva. `cancelled` corta el flow.
     let cancelled = false;
     (async () => {
+      setEmailLoading(true);
       // Métricas de email en las últimas 24h. Un SELECT con filtros
       // específicos por action — más eficiente que cargar todo y
       // agrupar en cliente. Si la tabla aún no tiene la categoría
@@ -223,11 +242,13 @@ function AdminDashboard() {
           metadata: Record<string, unknown>;
         }>,
       });
+      setEmailLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailNonce]);
 
   return (
     // Wrapper flex-col + flex-1 + min-h-0 — espeja el patrón del
@@ -289,9 +310,23 @@ function AdminDashboard() {
             resto del contenido se acomode arriba. */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+            {/* Título alineado con el card de Cron (IA) a la izquierda:
+                misma jerarquía tipográfica (text-sm) + botón de recarga
+                ml-auto a la derecha. El nonce relanza el useEffect que
+                consulta `audit_logs` de email; el spin se ata a
+                `emailLoading`. */}
+            <CardTitle className="text-sm flex items-center gap-2">
               <Inbox className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
               Correos (últimas 24h)
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 ml-auto"
+                onClick={() => setEmailNonce((n) => n + 1)}
+                title="Refrescar"
+              >
+                <RefreshCw className={`h-3 w-3 ${emailLoading ? "animate-spin" : ""}`} />
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 flex-1 flex flex-col min-h-0">
@@ -346,8 +381,16 @@ function AdminDashboard() {
                             <span className={`font-mono ${severityColor}`}>{ev.action}</span>
                             {reason && <span className="text-muted-foreground"> · {reason}</span>}
                           </div>
-                          <span className="text-muted-foreground tabular-nums shrink-0">
-                            {formatDateTime(ev.created_at)}
+                          {/* Edad relativa (3h, 1d, ...) en vez de fecha
+                              absoluta: alinea con el formato que ya usa
+                              el card de Cron (IA) para sus jobs en cola,
+                              dando un vocabulario temporal consistente
+                              al dashboard de admin. */}
+                          <span
+                            className="text-muted-foreground tabular-nums shrink-0"
+                            title={formatDateTime(ev.created_at)}
+                          >
+                            {relativeAge(ev.created_at)}
                           </span>
                         </div>
                       );
