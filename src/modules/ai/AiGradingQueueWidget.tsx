@@ -224,29 +224,31 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
           </div>
         ) : (
           <>
-            {/* Stats compactas — 3 contadores en una fila. Los íconos van
-                INLINE con el número para reducir altura (antes había
-                label + número en 2 líneas por tile). */}
+            {/* Stats — mismo estilo visual que el widget "Correos
+                (últimas 24h)" del dashboard admin (ver app.index.tsx
+                `EmailStatTile`): bloque con bg tintado, número grande
+                arriba, label abajo. Unifica la apariencia de los dos
+                widgets de salud del dashboard. */}
             <div className="grid grid-cols-3 gap-2">
               {/* Pendientes = pending + failed: un job fallado sigue sin
                   calificar. Los failed se desglosan en su propio tile. */}
               <Stat
-                icon={Clock}
                 label="Pendientes"
                 value={counts.pending + counts.failed}
-                color="text-foreground"
+                color="text-sky-600 dark:text-sky-400"
+                bg="bg-sky-500/10"
               />
               <Stat
-                icon={Cpu}
                 label="En proceso"
                 value={counts.processing}
                 color="text-amber-600 dark:text-amber-400"
+                bg="bg-amber-500/10"
               />
               <Stat
-                icon={AlertTriangle}
                 label="Fallados"
                 value={counts.failed}
-                color={counts.failed > 0 ? "text-destructive" : "text-foreground"}
+                color="text-destructive"
+                bg="bg-destructive/10"
               />
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
@@ -337,26 +339,25 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   );
 }
 
-/** Tile compacto: ícono + número grande + label chico. Más compacto
- *  que la versión previa con bordes individuales — un solo bloque
- *  con padding mínimo. */
+/** Tile con fondo tintado, número grande arriba y label abajo.
+ *  Idéntico en estilo al `EmailStatTile` del dashboard admin
+ *  (app.index.tsx) para que los dos widgets de salud usen el mismo
+ *  vocabulario visual. */
 function Stat({
-  icon: Icon,
   label,
   value,
   color,
+  bg,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   color: string;
+  bg: string;
 }) {
   return (
-    <div className="rounded-md border px-2 py-1.5 text-center">
-      <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
-        <Icon className="h-2.5 w-2.5" /> {label}
-      </div>
-      <div className={`text-lg font-bold tabular-nums leading-tight ${color}`}>{value}</div>
+    <div className={`rounded-md p-2.5 ${bg}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }
