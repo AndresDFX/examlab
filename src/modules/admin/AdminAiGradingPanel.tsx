@@ -77,6 +77,12 @@ export function AdminAiGradingPanel() {
   const [loadingMode, setLoadingMode] = useState(true);
 
   const [codes, setCodes] = useState<OverrideCodeRow[]>([]);
+  // Total de mensajes IA consumidos por código (sumados a lo largo de
+  // todas las activaciones del código). El cap por activación vive en
+  // `ai_override_codes.max_messages_per_activation`; el budget total
+  // teórico es `max_uses × cap`. Lo calculamos aquí para mostrar
+  // "consumidos / total" en el grid.
+  const [consumedByCode, setConsumedByCode] = useState<Record<string, number>>({});
   const [loadingCodes, setLoadingCodes] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -111,8 +117,24 @@ export function AdminAiGradingPanel() {
       .order("created_at", { ascending: false });
     if (error) {
       setCodesError(friendlyError(error, "No pudimos cargar los códigos de override."));
-    } else {
-      setCodes((data ?? []) as OverrideCodeRow[]);
+      setLoadingCodes(false);
+      return;
+    }
+    const rows = (data ?? []) as OverrideCodeRow[];
+    setCodes(rows);
+    // Cargamos en paralelo las activaciones para sumar `messages_consumed`
+    // por código. La policy de SELECT permite a Admin leerlas todas, así
+    // que un único query basta. Si esto falla no rompemos el grid — los
+    // counts quedan en 0 y el resto sigue funcionando.
+    const { data: acts } = await db
+      .from("ai_override_activations")
+      .select("code_id, messages_consumed");
+    if (acts) {
+      const sum: Record<string, number> = {};
+      for (const a of acts as Array<{ code_id: string; messages_consumed: number | null }>) {
+        sum[a.code_id] = (sum[a.code_id] ?? 0) + (a.messages_consumed ?? 0);
+      }
+      setConsumedByCode(sum);
     }
     setLoadingCodes(false);
   };
@@ -430,9 +452,19 @@ export function AdminAiGradingPanel() {
                           {c.window_minutes} min
                         </TableCell>
                         <TableCell className="text-xs tabular-nums">
-                          {c.max_messages_per_activation == null
-                            ? "Sin tope"
-                            : `Hasta ${c.max_messages_per_activation}`}
+                          {(() => {
+                            // Sin cap por activación → mostramos sólo el
+                            // consumido (sin denominador).
+                            const consumed = consumedByCode[c.id] ?? 0;
+                            if (c.max_messages_per_activation == null) {
+                              return `${consumed} / sin tope`;
+                            }
+                            // Budget total = cap × max_uses. Refleja el
+                            // "techo absoluto" si todas las activaciones
+                            // se consumieran completas.
+                            const total = c.max_messages_per_activation * c.max_uses;
+                            return `${consumed} / ${total}`;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <Badge variant={status.variant} className="text-[10px]">

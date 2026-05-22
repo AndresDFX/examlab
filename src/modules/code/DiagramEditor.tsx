@@ -263,7 +263,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
         </TabsContent>
 
         <TabsContent value="preview" className="mt-2">
-          <div className="rounded-md border bg-card min-h-[200px] relative overflow-hidden">
+          <div className="rounded-md border bg-card min-h-[200px] relative">
             {/* Zoom controls */}
             <div className="absolute top-2 right-2 z-10 flex gap-1">
               <Button
@@ -302,12 +302,26 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
             )}
 
             {svgHtml ? (
-              <div
-                ref={renderRef}
-                className="p-4 flex items-center justify-center overflow-auto max-h-[400px]"
-                style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}
-                dangerouslySetInnerHTML={{ __html: svgHtml }}
-              />
+              // Mermaid devuelve un SVG con width/height en píxeles —
+              // diagramas grandes (muchas entidades en ER, flowcharts
+              // largos) sobrepasan el ancho y se cortaban porque el
+              // contenedor tenía `overflow-hidden`. Solución:
+              //   1. El wrapper externo scrollea en ambos ejes
+              //      (`overflow-auto`) y crece hasta 600px de alto.
+              //   2. El SVG inline se fuerza a `max-width: 100%` y
+              //      `height: auto` via selector hijo para que respete
+              //      el ancho disponible cuando el zoom = 1.
+              //   3. El zoom usuario sigue funcionando sobre la capa
+              //      `transform: scale()` — al hacer zoom > 1 el SVG
+              //      excede el wrapper y el scroll lo cubre.
+              <div className="p-4 overflow-auto max-h-[600px] [&_svg]:max-w-full [&_svg]:h-auto">
+                <div
+                  ref={renderRef}
+                  className="flex items-start justify-center origin-top-left"
+                  style={{ transform: `scale(${zoom})` }}
+                  dangerouslySetInnerHTML={{ __html: svgHtml }}
+                />
+              </div>
             ) : (
               <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
                 {value.trim()

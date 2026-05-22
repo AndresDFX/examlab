@@ -1269,6 +1269,26 @@ function TakeExam() {
         e.preventDefault();
         e.stopPropagation();
       }
+      // Bloqueo de zoom del navegador (Ctrl/Cmd + "+" / "-" / "0").
+      // En algunos navegadores el zoom hace que el viewport cambie de
+      // tamaño y se salga de fullscreen, lo que dispararía
+      // recordWarning("fullscreen_exit") sin que el alumno haya hecho
+      // nada sospechoso. Interceptando el shortcut el zoom no ocurre
+      // y el efecto colateral desaparece. Cubre teclas principales y
+      // numpad ("+", "=", "-", "0").
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === "+" || e.key === "-" || e.key === "=" || e.key === "0")
+      ) {
+        e.preventDefault();
+        return;
+      }
+    };
+    // Ctrl/Cmd + rueda del mouse también hace zoom. Mismo motivo que
+    // arriba — interceptamos para que no dispare fullscreen_exit.
+    // Requiere `passive: false` para que preventDefault tenga efecto.
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
     };
     const onFsChange = () => {
       if (document.fullscreenElement) {
@@ -1297,6 +1317,7 @@ function TakeExam() {
     document.addEventListener("copy", onClipboard);
     document.addEventListener("paste", onClipboard);
     document.addEventListener("cut", onClipboard);
+    document.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
@@ -1308,6 +1329,7 @@ function TakeExam() {
       document.removeEventListener("copy", onClipboard);
       document.removeEventListener("paste", onClipboard);
       document.removeEventListener("cut", onClipboard);
+      document.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, performSubmit, maxWarnings, requireFullscreen]);
