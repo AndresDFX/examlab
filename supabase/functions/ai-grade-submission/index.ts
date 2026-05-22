@@ -1976,7 +1976,20 @@ Idioma de salida: ${langName}.`,
         earned += got;
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
       } else {
-        if (!userAnswer || (typeof userAnswer === "string" && !userAnswer.trim())) {
+        // Sin respuesta — dos casos cuentan como "vacía":
+        //   1. null/undefined o string solo con whitespace.
+        //   2. Texto idéntico al starter_code de la pregunta (el alumno
+        //      abrió la pregunta de código y no escribió nada propio).
+        //      Sin este check la IA gasta tokens evaluando el template
+        //      que escribió el propio docente.
+        const trimmedAnswer = typeof userAnswer === "string" ? userAnswer.trim() : "";
+        const trimmedStarter =
+          typeof q.starter_code === "string" ? q.starter_code.trim() : "";
+        const isEmpty =
+          !userAnswer ||
+          trimmedAnswer === "" ||
+          (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
+        if (isEmpty) {
           breakdown.push({
             qid: q.id,
             type: q.type,

@@ -1598,22 +1598,34 @@ export function StudentProjectTaker({
               }
             }
           }
-        } else if (!String(raw).trim()) {
-          payload.content = "";
-          payload.ai_grade = 0;
-          payload.ai_feedback = "Sin respuesta";
         } else {
-          // Pregunta abierta con respuesta — bucketea para el batch.
-          payload.content = String(raw);
-          batchItems.push({
-            qid: q.id,
-            type: q.type === "java_gui" ? "codigo" : q.type,
-            content: String(q.title ?? ""),
-            rubric: String(q.expected_rubric ?? ""),
-            userAnswer: String(raw),
-            maxPoints: Number(q.points) || 0,
-            language: q.type === "java_gui" ? "java" : q.language,
-          });
+          // Detecta "sin respuesta":
+          //   1. String vacío / whitespace.
+          //   2. Código idéntico al starter_code del slot — el alumno
+          //      no escribió nada propio. Sin esta comparación la IA
+          //      recibe el template y gasta tokens calificando lo que
+          //      el docente mismo escribió.
+          const trimmedAnswer = String(raw).trim();
+          const trimmedStarter = String(q.starter_code ?? "").trim();
+          const isEmpty =
+            !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
+          if (isEmpty) {
+            payload.content = "";
+            payload.ai_grade = 0;
+            payload.ai_feedback = "Sin respuesta";
+          } else {
+            // Pregunta abierta con respuesta — bucketea para el batch.
+            payload.content = String(raw);
+            batchItems.push({
+              qid: q.id,
+              type: q.type === "java_gui" ? "codigo" : q.type,
+              content: String(q.title ?? ""),
+              rubric: String(q.expected_rubric ?? ""),
+              userAnswer: String(raw),
+              maxPoints: Number(q.points) || 0,
+              language: q.type === "java_gui" ? "java" : q.language,
+            });
+          }
         }
         totalEarned += earned;
         payloadsByQid[q.id] = payload;

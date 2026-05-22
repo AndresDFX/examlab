@@ -982,28 +982,40 @@ export function StudentWorkshopTaker({
             earned: result.earned,
             feedback: payload.ai_feedback,
           });
-        } else if (!String(raw).trim()) {
-          payload.ai_grade = 0;
-          payload.ai_feedback = "Sin respuesta";
-          breakdown.push({
-            qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: 0,
-            feedback: "Sin respuesta",
-          });
         } else {
-          // Abierta con respuesta → bucket para batch. NO empujamos a
-          // breakdown todavía; se completa después con el resultado IA.
-          batchItems.push({
-            qid: q.id,
-            type: q.type === "java_gui" ? "codigo" : q.type,
-            content: String(q.content ?? ""),
-            rubric: String(q.expected_rubric ?? ""),
-            userAnswer: String(raw),
-            maxPoints: Number(q.points) || 0,
-            language: q.type === "java_gui" ? "java" : q.language,
-          });
+          // Detecta "sin respuesta":
+          //   1. String vacío / whitespace.
+          //   2. Código idéntico al starter_code del docente — el alumno
+          //      abrió la pregunta y no escribió nada propio. Sin esta
+          //      comparación la IA recibe el template y gasta tokens
+          //      calificando lo que el docente mismo escribió.
+          const trimmedAnswer = String(raw).trim();
+          const trimmedStarter = String(q.starter_code ?? "").trim();
+          const isEmpty =
+            !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
+          if (isEmpty) {
+            payload.ai_grade = 0;
+            payload.ai_feedback = "Sin respuesta";
+            breakdown.push({
+              qid: q.id,
+              type: q.type,
+              points: q.points,
+              earned: 0,
+              feedback: "Sin respuesta",
+            });
+          } else {
+            // Abierta con respuesta → bucket para batch. NO empujamos a
+            // breakdown todavía; se completa después con el resultado IA.
+            batchItems.push({
+              qid: q.id,
+              type: q.type === "java_gui" ? "codigo" : q.type,
+              content: String(q.content ?? ""),
+              rubric: String(q.expected_rubric ?? ""),
+              userAnswer: String(raw),
+              maxPoints: Number(q.points) || 0,
+              language: q.type === "java_gui" ? "java" : q.language,
+            });
+          }
         }
         payloadsByQid[q.id] = payload;
       }
