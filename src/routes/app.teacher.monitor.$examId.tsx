@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -272,13 +272,31 @@ function ExamMonitor() {
     proposedUpdate: Record<string, any>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     breakdown: Array<Record<string, any>>;
-    status: "pending" | "approving" | "approved" | "failed";
+    // queued solo aplica al path async (job creado en ai_grading_queue).
+    // cancelled aplica cuando el docente aborta el batch a mitad de
+    // camino — preservamos las filas ya procesadas y marcamos el resto.
+    status: "pending" | "approving" | "approved" | "failed" | "queued" | "cancelled";
     error?: string;
   };
   const [regradeAllOpen, setRegradeAllOpen] = useState(false);
   const [regradeAllRows, setRegradeAllRows] = useState<RegradeRow[]>([]);
   const [regradeAllLoading, setRegradeAllLoading] = useState(false);
   const [regradeAllProgress, setRegradeAllProgress] = useState({ done: 0, total: 0 });
+  // Modo del batch en curso. `sync` = dryRun + modal de revisión + aplicar
+  // en lote. `async` = encolar N jobs en ai_grading_queue + cierre directo.
+  // Determina la copy + qué botones se muestran en el footer.
+  const [regradeMode, setRegradeMode] = useState<"sync" | "async">("sync");
+  // Nombre del estudiante actualmente en proceso — alimenta el header
+  // "Procesando: X" mientras `regradeAllLoading=true`. Antes solo se
+  // veía un placeholder estático "Generando propuestas con IA…" que no
+  // daba feedback de avance real.
+  const [regradeCurrentStudent, setRegradeCurrentStudent] = useState<string | null>(null);
+  // AbortController para cancelar el batch en curso. Se setea al
+  // arrancar `runRegradeLatestAll` y se chequea en cada iteración del
+  // for-loop. Cancelar no aborta las llamadas IA YA en vuelo (el costo
+  // de tokens ya está consumido por Gemini), pero detiene las que aún
+  // no salieron y deja el modal en estado interactivo.
+  const regradeAbortRef = useRef<AbortController | null>(null);
   const [applyingBulk, setApplyingBulk] = useState(false);
   // IDs de submissions cuya fila del dialog de recalificación está
   // expandida. Cada fila expandida muestra el breakdown pregunta-por-
@@ -1394,23 +1412,38 @@ function ExamMonitor() {
       );
     }
 
+    // Abort controller compartido por ambos paths — el botón Cancelar
+    // del modal lo dispara y el for-loop chequea `signal.aborted` en
+    // cada iteración. Las llamadas IA YA en vuelo no se abortan (su
+    // costo de tokens ya está consumido), pero las siguientes no salen.
+    const abortCtrl = new AbortController();
+    regradeAbortRef.current = abortCtrl;
+    const signal = abortCtrl.signal;
+
+    setRegradeAllRows([]);
+    setRegradeAllProgress({ done: 0, total: targets.length });
+    setRegradeAllLoading(true);
+    setRegradeCurrentStudent(null);
+    setRegradeAllOpen(true);
+
+    const studentNameFor = (userId: string) =>
+      studentRows.find((r) => r.userId === userId)?.profile?.full_name ?? "—";
+
     // ── Path ASYNC: el docente eligió "Continuar en cola" en el gate.
-    // En vez de invocar dryRun sync (que abre el modal de revisión),
-    // encolamos N jobs en `ai_grading_queue`. El worker los drena, la
-    // edge function persiste internamente (Caso A — escribe submissions
-    // directo) y el docente ve las notas aparecer cuando refresque.
-    //
-    // No abrimos el modal de revisión porque async no soporta dryRun:
-    // la calificación se aplica automáticamente. Si el docente quería
-    // revisar antes de aplicar, debe usar IA inmediata (override).
+    // Encolamos N jobs en `ai_grading_queue`. La edge function persiste
+    // internamente (Caso A — escribe submissions directo) cuando el
+    // worker drene. NO ofrecemos revisión previa porque async no
+    // soporta dryRun. El modal muestra el progreso del encolado y el
+    // estado final por estudiante.
     if (decision === "proceed-async") {
-      // Pre-marcamos las submissions con feedback "Pendiente IA…" para
-      // que el monitor refleje el estado mientras el worker corre.
+      setRegradeMode("async");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const adminDb = supabase as any;
-      let queued = 0;
-      let failed = 0;
+      const rows: RegradeRow[] = [];
       for (const sub of targets) {
+        if (signal.aborted) break;
+        const studentName = studentNameFor(sub.user_id);
+        setRegradeCurrentStudent(studentName);
         try {
           await adminDb
             .from("submissions")
@@ -1428,19 +1461,76 @@ function ExamMonitor() {
               courseId: (exam as { course_id?: string } | null)?.course_id ?? null,
             },
           });
-          if (result.error) failed++;
-          else queued++;
-        } catch {
-          failed++;
+          rows.push({
+            submissionId: sub.id,
+            userId: sub.user_id,
+            studentName,
+            previousGrade: sub.final_override_grade ?? sub.ai_grade ?? null,
+            suggestedGrade: 0,
+            aiLikelihood: 0,
+            aiReasons: "",
+            proposedUpdate: {},
+            breakdown: [],
+            status: result.error ? "failed" : "queued",
+            error: result.error,
+          });
+        } catch (e) {
+          rows.push({
+            submissionId: sub.id,
+            userId: sub.user_id,
+            studentName,
+            previousGrade: sub.final_override_grade ?? sub.ai_grade ?? null,
+            suggestedGrade: 0,
+            aiLikelihood: 0,
+            aiReasons: "",
+            proposedUpdate: {},
+            breakdown: [],
+            status: "failed",
+            error: e instanceof Error ? e.message : String(e),
+          });
         }
+        setRegradeAllRows([...rows]);
+        setRegradeAllProgress((p) => ({ ...p, done: p.done + 1 }));
       }
+      // Si quedó cancelado a mitad, marcar las que faltaron por procesar
+      // para que el docente vea claro qué quedó fuera.
+      if (signal.aborted) {
+        const processedIds = new Set(rows.map((r) => r.submissionId));
+        for (const sub of targets) {
+          if (processedIds.has(sub.id)) continue;
+          rows.push({
+            submissionId: sub.id,
+            userId: sub.user_id,
+            studentName: studentNameFor(sub.user_id),
+            previousGrade: sub.final_override_grade ?? sub.ai_grade ?? null,
+            suggestedGrade: 0,
+            aiLikelihood: 0,
+            aiReasons: "",
+            proposedUpdate: {},
+            breakdown: [],
+            status: "cancelled",
+          });
+        }
+        setRegradeAllRows([...rows]);
+      }
+      setRegradeAllLoading(false);
+      setRegradeCurrentStudent(null);
+      const queued = rows.filter((r) => r.status === "queued").length;
+      const failed = rows.filter((r) => r.status === "failed").length;
+      const cancelled = rows.filter((r) => r.status === "cancelled").length;
       if (queued > 0) {
+        // Mensaje sin "cada hora": en este proyecto el cron no corre
+        // por defecto, así que el docente debe procesar la cola
+        // manualmente desde el módulo Cron cuando quiera ver las notas.
         toast.success(
-          `${queued} job(s) encolado(s). La cola IA los procesa cada hora; refresca el monitor cuando aparezcan las notas.`,
+          `${queued} job(s) encolado(s). Procesa la cola desde el módulo Cron o espera al cron programado.`,
         );
       }
       if (failed > 0) {
         toast.error(`${failed} job(s) no se pudieron encolar — reintenta más tarde.`);
+      }
+      if (cancelled > 0) {
+        toast.info(`Cancelado: ${cancelled} job(s) no se encolaron.`);
       }
       void load();
       return;
@@ -1448,14 +1538,12 @@ function ExamMonitor() {
 
     // ── Path SYNC: modo sync global O override activo. Conserva el
     // flujo dryRun → modal de revisión → aplicar lote.
-    setRegradeAllRows([]);
-    setRegradeAllProgress({ done: 0, total: targets.length });
-    setRegradeAllLoading(true);
-    setRegradeAllOpen(true);
+    setRegradeMode("sync");
     const rows: RegradeRow[] = [];
     for (const sub of targets) {
-      const studentName =
-        studentRows.find((r) => r.userId === sub.user_id)?.profile?.full_name ?? "—";
+      if (signal.aborted) break;
+      const studentName = studentNameFor(sub.user_id);
+      setRegradeCurrentStudent(studentName);
       try {
         const { data, error } = await supabase.functions.invoke("ai-grade-submission", {
           body: { submissionId: sub.id, dryRun: true },
@@ -1517,8 +1605,14 @@ function ExamMonitor() {
       setRegradeAllProgress((p) => ({ ...p, done: p.done + 1 }));
     }
     setRegradeAllLoading(false);
+    setRegradeCurrentStudent(null);
     const failed = rows.filter((r) => r.status === "failed").length;
-    if (failed > 0) {
+    if (signal.aborted) {
+      const okCount = rows.length - failed;
+      toast.info(
+        `Cancelado en ${rows.length}/${targets.length}. ${okCount} propuesta(s) listas para revisar.`,
+      );
+    } else if (failed > 0) {
       toast.warning(`Recalificación lista. ${rows.length - failed} ok, ${failed} con error.`);
     } else {
       toast.success(`Recalificación lista. ${rows.length} propuestas para revisar.`);
@@ -3513,20 +3607,61 @@ function ExamMonitor() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              Recalificar último intento con IA
-              {regradeAllLoading && (
+              {regradeMode === "async"
+                ? "Encolar recalificación del último intento"
+                : "Recalificar último intento con IA"}
+              {(regradeAllLoading || regradeAllProgress.total > 0) && (
                 <span className="text-xs font-normal text-muted-foreground">
                   · {regradeAllProgress.done}/{regradeAllProgress.total}
                 </span>
               )}
             </DialogTitle>
           </DialogHeader>
+          {/* Barra de progreso + nombre del estudiante en curso. Reemplaza
+              el placeholder estático "Generando propuestas con IA…" que
+              no daba feedback de avance. Se mantiene visible mientras
+              hay un batch corriendo o ya terminó (para que el docente
+              vea el resumen N/N completos). */}
+          {regradeAllProgress.total > 0 && (
+            <div className="space-y-1.5">
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-[width] duration-200"
+                  style={{
+                    width: `${
+                      regradeAllProgress.total === 0
+                        ? 0
+                        : Math.min(100, (regradeAllProgress.done / regradeAllProgress.total) * 100)
+                    }%`,
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="truncate">
+                  {regradeAllLoading && regradeCurrentStudent
+                    ? regradeMode === "async"
+                      ? `Encolando: ${regradeCurrentStudent}`
+                      : `Procesando: ${regradeCurrentStudent}`
+                    : !regradeAllLoading && regradeAllProgress.done === regradeAllProgress.total
+                      ? regradeMode === "async"
+                        ? "Encolado terminado."
+                        : "Propuestas listas."
+                      : "Iniciando…"}
+                </span>
+                <span className="tabular-nums shrink-0">
+                  {regradeAllProgress.done}/{regradeAllProgress.total}
+                </span>
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto -mx-4 px-4">
             {regradeAllRows.length === 0 ? (
               <div className="text-sm text-muted-foreground py-6 text-center">
                 {regradeAllLoading
-                  ? "Generando propuestas con IA…"
-                  : "No hay propuestas para mostrar."}
+                  ? regradeMode === "async"
+                    ? "Encolando jobs en la cola IA…"
+                    : "Generando propuestas con IA…"
+                  : "Sin resultados para mostrar."}
               </div>
             ) : (
               <div className="border rounded-md divide-y">
@@ -3581,23 +3716,33 @@ function ExamMonitor() {
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground tabular-nums w-20 text-right">
-                          {prev != null ? Number(prev).toFixed(2) : "—"}
-                        </div>
-                        <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <div
-                          className={`text-sm font-semibold tabular-nums w-16 text-right ${
-                            delta != null
-                              ? delta > 0
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : delta < 0
-                                  ? "text-destructive"
+                        {/* Columnas de nota previa / propuesta solo
+                            tienen sentido en modo SYNC (donde se hizo
+                            dryRun y hay una propuesta numérica). En modo
+                            ASYNC el job está encolado, no hay propuesta
+                            todavía — ocultamos el bloque para no mostrar
+                            "0.00 → 0.00" engañoso. */}
+                        {regradeMode === "sync" && (
+                          <>
+                            <div className="text-xs text-muted-foreground tabular-nums w-20 text-right">
+                              {prev != null ? Number(prev).toFixed(2) : "—"}
+                            </div>
+                            <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <div
+                              className={`text-sm font-semibold tabular-nums w-16 text-right ${
+                                delta != null
+                                  ? delta > 0
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : delta < 0
+                                      ? "text-destructive"
+                                      : ""
                                   : ""
-                              : ""
-                          }`}
-                        >
-                          {row.suggestedGrade.toFixed(2)}
-                        </div>
+                              }`}
+                            >
+                              {row.suggestedGrade.toFixed(2)}
+                            </div>
+                          </>
+                        )}
                         <div className="w-28 flex justify-end">
                           {row.status === "approved" ? (
                             <Badge
@@ -3606,6 +3751,18 @@ function ExamMonitor() {
                             >
                               <Check className="h-3 w-3 mr-1" />
                               Aplicada
+                            </Badge>
+                          ) : row.status === "queued" ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300"
+                            >
+                              <Clock className="h-3 w-3 mr-1" />
+                              Encolado
+                            </Badge>
+                          ) : row.status === "cancelled" ? (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                              Cancelado
                             </Badge>
                           ) : row.status === "failed" ? (
                             <Button
@@ -3619,6 +3776,10 @@ function ExamMonitor() {
                           ) : row.status === "approving" ? (
                             <Spinner size="sm" />
                           ) : (
+                            // status === "pending" — único caso con botón
+                            // de acción. En modo async las filas NO entran
+                            // a pending (van directo a queued/failed/cancelled),
+                            // así que esto solo aparece en modo sync.
                             <Button
                               size="sm"
                               variant="outline"
@@ -3717,6 +3878,22 @@ function ExamMonitor() {
             )}
           </div>
           <DialogFooter className="flex-shrink-0 pt-2 border-t">
+            {/* Cancelar el batch en curso. Aborta el for-loop entre
+                iteraciones — las llamadas IA YA enviadas a Gemini siguen
+                (costo no recuperable) pero las que aún no salieron se
+                saltan. El modal queda abierto con los resultados
+                parciales para revisión. */}
+            {regradeAllLoading && (
+              <Button
+                variant="ghost"
+                className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => regradeAbortRef.current?.abort()}
+                disabled={regradeAbortRef.current?.signal.aborted ?? false}
+              >
+                <XIcon className="h-4 w-4 mr-1" />
+                Cancelar
+              </Button>
+            )}
             <Button
               variant="ghost"
               onClick={() => setRegradeAllOpen(false)}
@@ -3724,21 +3901,27 @@ function ExamMonitor() {
             >
               Cerrar
             </Button>
-            <Button
-              onClick={() => void applyAllRegrade()}
-              disabled={
-                regradeAllLoading ||
-                applyingBulk ||
-                !regradeAllRows.some((r) => r.status === "pending")
-              }
-            >
-              {applyingBulk ? (
-                <Spinner size="sm" className="mr-1.5" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              Aprobar todas
-            </Button>
+            {/* "Aprobar todas" solo aplica al modo SYNC (las filas tienen
+                propuestas dryRun que aprobar). En modo ASYNC los jobs ya
+                están encolados — no hay nada que aprobar acá; el modal
+                actúa como confirmación visual del progreso. */}
+            {regradeMode === "sync" && (
+              <Button
+                onClick={() => void applyAllRegrade()}
+                disabled={
+                  regradeAllLoading ||
+                  applyingBulk ||
+                  !regradeAllRows.some((r) => r.status === "pending")
+                }
+              >
+                {applyingBulk ? (
+                  <Spinner size="sm" className="mr-1.5" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Aprobar todas
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
