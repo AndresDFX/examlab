@@ -20,8 +20,15 @@ import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { ErrorState } from "@/components/ui/empty-state";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
@@ -58,7 +65,10 @@ type WorkshopRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    /** Necesario para el filtro por curso del listado del estudiante. */
+    course_id: string;
     course: {
+      id: string;
       name: string;
       grade_scale_min: number;
       grade_scale_max: number;
@@ -78,12 +88,42 @@ type WorkshopRow = {
   };
 };
 
+/** Estados visibles en el filtro del listado del estudiante. Mapean
+ *  combinaciones (submission.status + due_date) a un único enum simple
+ *  para que el filtro UI no se infle con todas las permutaciones reales. */
+type WorkshopDisplayStatus =
+  | "available" // publicado, dentro de plazo, sin entregar
+  | "upcoming" // start_date en el futuro
+  | "submitted" // entregado pero sin calificar
+  | "graded" // calificado
+  | "overdue" // vencido sin entregar
+  | "closed"; // status closed del docente
+
+/** Resuelve el "estado visible" de una fila para el filtro. Espeja la
+ *  lógica de los badges en la card — si esto cambia, los badges deben
+ *  cambiar también para que el filtro y la UI no diverjan. */
+function getWorkshopDisplayStatus(row: WorkshopRow, now: number): WorkshopDisplayStatus {
+  const s = row.submission?.status;
+  if (s === "calificado") return "graded";
+  if (s === "entregado") return "submitted";
+  const isOverdue = row.workshop.due_date && new Date(row.workshop.due_date).getTime() < now;
+  const isUpcoming = row.workshop.start_date && new Date(row.workshop.start_date).getTime() > now;
+  if (isOverdue) return "overdue";
+  if (isUpcoming) return "upcoming";
+  if (row.workshop.status === "published") return "available";
+  return "closed";
+}
+
+const ALL_STATUSES = "__all_status__";
+
 function StudentWorkshops() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<WorkshopRow[]>([]);
   const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<WorkshopDisplayStatus | "all">("all");
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
   // Estado de error explícito: si la query principal falla, mostramos
@@ -125,7 +165,7 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid);
     if (asgErr) {
@@ -222,18 +262,59 @@ function StudentWorkshops() {
   });
 
   const now = Date.now();
-  // Filtra por título del taller + nombre del curso. Case-insensitive,
-  // includes. Las descripciones se omiten para que la búsqueda sea
-  // rápida en mobile (no abruma con texto secundario).
+
+  // Lista deduplicada de cursos con al menos un taller asignado. Se
+  // alimenta el filtro <Select> de ListFilters. Si el alumno está en un
+  // solo curso, el filtro queda como "Todos" con 1 opción — funcional
+  // y no inflado.
+  const availableCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (r.workshop.course_id) {
+        map.set(r.workshop.course_id, r.workshop.course?.name ?? "—");
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  // Quick-stats arriba del listado. El conteo se basa en rows
+  // completas (NO filtradas) para que sean métricas estables del curso
+  // del alumno — independientes de qué tenga escrito en el buscador.
+  const stats = useMemo(() => {
+    let available = 0;
+    let submitted = 0;
+    let graded = 0;
+    let overdue = 0;
+    for (const r of rows) {
+      const s = getWorkshopDisplayStatus(r, now);
+      if (s === "available") available++;
+      else if (s === "submitted") submitted++;
+      else if (s === "graded") graded++;
+      else if (s === "overdue") overdue++;
+    }
+    return { available, submitted, graded, overdue };
+  }, [rows, now]);
+
+  // Filtros combinados: búsqueda + curso + estado. El status se calcula
+  // por fila bajo demanda (no se cachea por row) — para 50-100 talleres
+  // típicos el costo es negligible.
   const visibleRows = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter(
-      (r) =>
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (courseFilter && r.workshop.course_id !== courseFilter) return false;
+      if (statusFilter !== "all" && getWorkshopDisplayStatus(r, now) !== statusFilter) return false;
+      if (!q) return true;
+      return (
         r.workshop.title.toLowerCase().includes(q) ||
-        (r.workshop.course?.name?.toLowerCase().includes(q) ?? false),
-    );
-  }, [rows, search]);
+        (r.workshop.course?.name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rows, search, courseFilter, statusFilter, now]);
+
+  const hasActiveFilters =
+    search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
 
   // Si la query principal falló, render explícito con botón Reintentar
   // en vez de una grilla vacía silenciosa.
@@ -258,19 +339,92 @@ function StudentWorkshops() {
         subtitle={`${visibleRows.length} ${t("nav.workshops").toLowerCase()}`}
       />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por taller o curso…"
+      {/* Quick-stats — métricas estables del curso (no se mueven al
+          filtrar). 4 tiles tintados al estilo unificado del dashboard
+          admin (sky/amber/emerald/destructive). En mobile colapsan a
+          2 columnas para no sacrificar legibilidad. */}
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Disponibles"
+            value={stats.available}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+          <StatTile
+            label="Entregados"
+            value={stats.submitted}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Calificados"
+            value={stats.graded}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Vencidos"
+            value={stats.overdue}
+            color="text-destructive"
+            bg="bg-destructive/10"
+          />
+        </div>
+      )}
+
+      {/* Búsqueda + curso + estado. ListFilters provee búsqueda + curso;
+          el filtro de estado va en el slot `extra` para conservar la
+          alineación responsive sin envolver el componente. */}
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por taller o curso…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={availableCourses}
+        onClearExtra={() => setStatusFilter("all")}
+        extra={
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as WorkshopDisplayStatus | "all")}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="available">Disponible</SelectItem>
+              <SelectItem value="upcoming">Próximo</SelectItem>
+              <SelectItem value="submitted">Entregado</SelectItem>
+              <SelectItem value="graded">Calificado</SelectItem>
+              <SelectItem value="overdue">Vencido</SelectItem>
+              <SelectItem value="closed">Cerrado</SelectItem>
+            </SelectContent>
+          </Select>
+        }
       />
 
       <div className="grid md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            {search.trim() && rows.length > 0
-              ? "Sin coincidencias. Ajusta el buscador."
-              : t("common.empty")}
-          </p>
+          <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {hasActiveFilters ? "Sin coincidencias con los filtros actuales." : t("common.empty")}
+            </p>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setSearch("");
+                  setCourseFilter(null);
+                  setStatusFilter("all");
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         )}
         {visibleRows.map(({ workshop, submission, groupId }) => {
           const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;
@@ -476,6 +630,30 @@ function StudentWorkshops() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Tile compacto para el resumen de talleres del estudiante. Réplica
+ *  del estilo que usa el dashboard admin (`EmailStatTile`) — fondo
+ *  tintado, número grande arriba, label chico abajo. Inline acá porque
+ *  los conteos del estudiante son específicos del listado y no se
+ *  reutilizan en otras pantallas. */
+function StatTile({
+  label,
+  value,
+  color,
+  bg,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className={`rounded-md p-2.5 ${bg}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }

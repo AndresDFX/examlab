@@ -15,8 +15,15 @@ import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { ErrorState } from "@/components/ui/empty-state";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { isAiGradePending } from "@/modules/ai/ai-grading";
 import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
@@ -55,7 +62,10 @@ type ProjectRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    /** Necesario para el filtro por curso del listado del estudiante. */
+    course_id: string;
     course: {
+      id: string;
       name: string;
       grade_scale_min: number;
       grade_scale_max: number;
@@ -75,12 +85,36 @@ type ProjectRow = {
   };
 };
 
+/** Estado visible del proyecto para el filtro UI. Mismo enum + lógica
+ *  que workshops (los flujos son análogos). */
+type ProjectDisplayStatus =
+  | "available"
+  | "upcoming"
+  | "submitted"
+  | "graded"
+  | "overdue"
+  | "closed";
+
+function getProjectDisplayStatus(row: ProjectRow, now: number): ProjectDisplayStatus {
+  const s = row.submission?.status;
+  if (s === "calificado") return "graded";
+  if (s === "entregado") return "submitted";
+  const isOverdue = row.project.due_date && new Date(row.project.due_date).getTime() < now;
+  const isUpcoming = row.project.start_date && new Date(row.project.start_date).getTime() > now;
+  if (isOverdue) return "overdue";
+  if (isUpcoming) return "upcoming";
+  if (row.project.status === "published") return "available";
+  return "closed";
+}
+
 function StudentProjects() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<ProjectRow[]>([]);
   const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus | "all">("all");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectRow | null>(null);
   // Estado de error explícito para que un fallo en la query base
@@ -173,7 +207,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .neq("status", "draft");
@@ -277,16 +311,52 @@ function StudentProjects() {
   });
 
   const now = Date.now();
-  // Filtra por título del proyecto + nombre del curso.
+
+  // Cursos disponibles para el filtro <Select>. Deduplicado por id.
+  const availableCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (r.project.course_id) {
+        map.set(r.project.course_id, r.project.course?.name ?? "—");
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  // Stats estables (no se mueven al filtrar).
+  const stats = useMemo(() => {
+    let available = 0;
+    let submitted = 0;
+    let graded = 0;
+    let overdue = 0;
+    for (const r of rows) {
+      const s = getProjectDisplayStatus(r, now);
+      if (s === "available") available++;
+      else if (s === "submitted") submitted++;
+      else if (s === "graded") graded++;
+      else if (s === "overdue") overdue++;
+    }
+    return { available, submitted, graded, overdue };
+  }, [rows, now]);
+
+  // Filtros combinados: búsqueda + curso + estado.
   const visibleRows = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter(
-      (r) =>
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (courseFilter && r.project.course_id !== courseFilter) return false;
+      if (statusFilter !== "all" && getProjectDisplayStatus(r, now) !== statusFilter) return false;
+      if (!q) return true;
+      return (
         r.project.title.toLowerCase().includes(q) ||
-        (r.project.course?.name?.toLowerCase().includes(q) ?? false),
-    );
-  }, [rows, search]);
+        (r.project.course?.name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rows, search, courseFilter, statusFilter, now]);
+
+  const hasActiveFilters =
+    search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
 
   // Si la query base falló (course_enrollments), no queremos mostrar
   // "Sin proyectos" como falso negativo. El usuario debe poder reintentar.
@@ -315,19 +385,88 @@ function StudentProjects() {
         }
       />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por proyecto o curso…"
+      {/* Quick-stats — métricas estables del listado completo. Mismo
+          patrón visual que el dashboard admin + listados de exámenes/
+          talleres del estudiante. */}
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Disponibles"
+            value={stats.available}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+          <StatTile
+            label="Entregados"
+            value={stats.submitted}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Calificados"
+            value={stats.graded}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Vencidos"
+            value={stats.overdue}
+            color="text-destructive"
+            bg="bg-destructive/10"
+          />
+        </div>
+      )}
+
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por proyecto o curso…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={availableCourses}
+        onClearExtra={() => setStatusFilter("all")}
+        extra={
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as ProjectDisplayStatus | "all")}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="available">Disponible</SelectItem>
+              <SelectItem value="upcoming">Próximo</SelectItem>
+              <SelectItem value="submitted">Entregado</SelectItem>
+              <SelectItem value="graded">Calificado</SelectItem>
+              <SelectItem value="overdue">Vencido</SelectItem>
+              <SelectItem value="closed">Cerrado</SelectItem>
+            </SelectContent>
+          </Select>
+        }
       />
 
       <div className="grid md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            {search.trim() && rows.length > 0
-              ? "Sin coincidencias. Ajusta el buscador."
-              : t("common.empty")}
-          </p>
+          <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {hasActiveFilters ? "Sin coincidencias con los filtros actuales." : t("common.empty")}
+            </p>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setSearch("");
+                  setCourseFilter(null);
+                  setStatusFilter("all");
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         )}
         {visibleRows.map(({ project, submission, groupId }) => {
           const isOverdue = project.due_date && new Date(project.due_date).getTime() < now;
@@ -519,6 +658,28 @@ function StudentProjects() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Mismo helper inline que workshops/exams. Réplica del `EmailStatTile`
+ *  del dashboard admin para que los tres listados del estudiante usen
+ *  el mismo vocabulario visual (bg tintado + número grande + label). */
+function StatTile({
+  label,
+  value,
+  color,
+  bg,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className={`rounded-md p-2.5 ${bg}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }

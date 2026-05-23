@@ -7,8 +7,15 @@ import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { ErrorState } from "@/components/ui/empty-state";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert, FileText } from "lucide-react";
@@ -29,7 +36,10 @@ type ExamRow = {
     time_limit_minutes: number;
     parent_exam_id?: string | null;
     max_attempts?: number | null;
+    /** Necesario para el filtro por curso del listado del estudiante. */
+    course_id: string;
     course: {
+      id: string;
       name: string;
       grade_scale_min: number;
       grade_scale_max: number;
@@ -48,12 +58,34 @@ type ExamRow = {
   maxAttempts: number;
 };
 
+/** Estado visible del examen para el filtro UI del estudiante.
+ *  Espeja la lógica de los badges + botones de acción en la card. */
+type ExamDisplayStatus =
+  | "available" // ventana abierta, sin entrega previa o con intentos restantes
+  | "upcoming" // todavía no abre la ventana
+  | "in_progress" // submission con status en_progreso
+  | "completed" // completado / sospechoso
+  | "closed"; // ventana cerrada sin intentos restantes
+
+function getExamDisplayStatus(row: ExamRow, now: number): ExamDisplayStatus {
+  const s = row.submission?.status;
+  if (s === "en_progreso") return "in_progress";
+  if (s === "completado" || s === "sospechoso") return "completed";
+  const start = new Date(row.exam.start_time).getTime();
+  const end = new Date(row.exam.end_time).getTime();
+  if (now < start) return "upcoming";
+  if (now > end) return "closed";
+  return "available";
+}
+
 function StudentExams() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ExamRow[]>([]);
   const [now, setNow] = useState(Date.now());
   const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus | "all">("all");
   // ErrorState: si la query principal falla, mostramos placeholder con
   // "Reintentar" en vez de la grilla vacía (que el alumno interpretaría
   // como "no tengo exámenes asignados").
@@ -73,7 +105,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, course:courses(name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       if (asgErr) {
@@ -161,18 +193,51 @@ function StudentExams() {
   // el docente hubiera extendido el end_time.
   useReloadOnVisible(loadExams);
 
-  // Filtramos por título del examen + nombre del curso. Case-insensitive,
-  // includes. La búsqueda es local al cliente — la lista del estudiante
-  // raramente supera unos pocos exámenes activos.
+  // Cursos disponibles para el filtro <Select>. Deduplicado por id.
+  const availableCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (r.exam.course_id) {
+        map.set(r.exam.course_id, r.exam.course?.name ?? "—");
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  // Stats estables del listado completo (no se mueven al filtrar).
+  const stats = useMemo(() => {
+    let available = 0;
+    let inProgress = 0;
+    let completed = 0;
+    let upcoming = 0;
+    for (const r of rows) {
+      const s = getExamDisplayStatus(r, now);
+      if (s === "available") available++;
+      else if (s === "in_progress") inProgress++;
+      else if (s === "completed") completed++;
+      else if (s === "upcoming") upcoming++;
+    }
+    return { available, inProgress, completed, upcoming };
+  }, [rows, now]);
+
+  // Filtros combinados: búsqueda + curso + estado.
   const visibleRows = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter(
-      (r) =>
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (courseFilter && r.exam.course_id !== courseFilter) return false;
+      if (statusFilter !== "all" && getExamDisplayStatus(r, now) !== statusFilter) return false;
+      if (!q) return true;
+      return (
         r.exam.title.toLowerCase().includes(q) ||
-        r.exam.course?.name?.toLowerCase().includes(q),
-    );
-  }, [rows, search]);
+        (r.exam.course?.name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rows, search, courseFilter, statusFilter, now]);
+
+  const hasActiveFilters =
+    search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
 
   if (loadError) {
     return (
@@ -196,19 +261,89 @@ function StudentExams() {
       />
 
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por examen o curso…"
+      {/* Quick-stats de exámenes — métricas estables (no se mueven al
+          filtrar). 4 tiles tintados al estilo unificado de los demás
+          listados del estudiante. */}
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Disponibles"
+            value={stats.available}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+          <StatTile
+            label="En progreso"
+            value={stats.inProgress}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Completados"
+            value={stats.completed}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Próximos"
+            value={stats.upcoming}
+            color="text-foreground"
+            bg="bg-muted/40"
+          />
+        </div>
+      )}
+
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por examen o curso…"
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={availableCourses}
+        onClearExtra={() => setStatusFilter("all")}
+        extra={
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as ExamDisplayStatus | "all")}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="available">Disponible</SelectItem>
+              <SelectItem value="upcoming">Próximo</SelectItem>
+              <SelectItem value="in_progress">En progreso</SelectItem>
+              <SelectItem value="completed">Completado</SelectItem>
+              <SelectItem value="closed">Cerrado</SelectItem>
+            </SelectContent>
+          </Select>
+        }
       />
 
       <div className="grid md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            {search.trim() && rows.length > 0
-              ? "Sin coincidencias. Ajusta el buscador."
-              : t("exam.noExamsAvailable")}
-          </p>
+          <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {hasActiveFilters
+                ? "Sin coincidencias con los filtros actuales."
+                : t("exam.noExamsAvailable")}
+            </p>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setSearch("");
+                  setCourseFilter(null);
+                  setStatusFilter("all");
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         )}
         {visibleRows.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
           const start = new Date(exam.start_time).getTime();
@@ -393,6 +528,28 @@ function StudentExams() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** Mismo helper que app.student.workshops.tsx. Inline acá porque solo
+ *  lo usan los dos listados del estudiante y duplicar 10 líneas es más
+ *  barato que mantener un módulo compartido para algo tan trivial. */
+function StatTile({
+  label,
+  value,
+  color,
+  bg,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className={`rounded-md p-2.5 ${bg}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }

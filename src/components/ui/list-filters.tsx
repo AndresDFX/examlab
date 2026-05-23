@@ -26,6 +26,7 @@
  *   />
  */
 import { Search, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { Input } from "./input";
 import { Button } from "./button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
@@ -54,6 +55,14 @@ interface ListFiltersProps {
   onCutChange?: (v: string | null) => void;
   /** Etiqueta para "todos los cortes" — default "Todos los cortes". */
   allCutsLabel?: string;
+  /** Slot opcional al lado de los selects internos. Útil para filtros
+   *  específicos del contexto (ej. estado de entrega en listas del
+   *  estudiante) sin tener que envolver `ListFilters` con un wrapper
+   *  externo que romperia la alineación responsive. */
+  extra?: ReactNode;
+  /** Callback que `Limpiar` invoca además del reset interno. Permite
+   *  resetear filtros custom que viven en el slot `extra`. */
+  onClearExtra?: () => void;
 }
 
 export function ListFilters({
@@ -68,6 +77,8 @@ export function ListFilters({
   cutId,
   onCutChange,
   allCutsLabel = "Todos los cortes",
+  extra,
+  onClearExtra,
 }: ListFiltersProps) {
   const cutsForCourse = courseId ? (cuts ?? []).filter((c) => c.course_id === courseId) : [];
   const showCutSelect = !!courseId && cutsForCourse.length > 0 && !!onCutChange;
@@ -117,6 +128,7 @@ export function ListFilters({
           </SelectContent>
         </Select>
       )}
+      {extra}
       {hasFilters && (
         <Button
           variant="ghost"
@@ -125,6 +137,7 @@ export function ListFilters({
             onSearchChange("");
             onCourseChange(null);
             onCutChange?.(null);
+            onClearExtra?.();
           }}
           title="Limpiar filtros"
         >
