@@ -192,7 +192,7 @@ function formatStudentAnswer(
     const opts = (question?.options as any) ?? [];
     const arr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
     const opt = arr[idx];
-    const label = typeof opt === "string" ? opt : opt?.text ?? opt?.label ?? `Opción ${idx + 1}`;
+    const label = typeof opt === "string" ? opt : (opt?.text ?? opt?.label ?? `Opción ${idx + 1}`);
     return `Marcó la opción ${idx + 1}: ${label}`;
   }
   if (qType === "cerrada_multi") {
@@ -204,7 +204,7 @@ function formatStudentAnswer(
     const labels = arr.map((i) => {
       const n = typeof i === "number" ? i : Number(i);
       const opt = optsArr[n];
-      const label = typeof opt === "string" ? opt : opt?.text ?? opt?.label ?? "?";
+      const label = typeof opt === "string" ? opt : (opt?.text ?? opt?.label ?? "?");
       return `(${n + 1}) ${label}`;
     });
     return `Marcó ${arr.length} opción(es): ${labels.join(" · ")}`;
