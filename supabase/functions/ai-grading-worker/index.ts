@@ -135,6 +135,36 @@ Deno.serve(async (req) => {
 
   console.log(`[ai-grading-worker] procesando ${claimed.length} job(s)`);
 
+  // Helper de auditoría. Llamamos via `log_audit_event` RPC (SECURITY
+  // DEFINER). Con service_role auth.uid() es null → actor_id=null,
+  // lo que la UI interpreta como "sistema/cron". Fire-and-forget: la
+  // RPC ya tiene `EXCEPTION WHEN OTHERS THEN NULL` para no romper el
+  // flujo principal si audit_logs está caído.
+  const auditJob = (
+    action: string,
+    severity: "info" | "warning" | "error",
+    job: QueueJob,
+    extraMeta: Record<string, unknown> = {},
+  ) => {
+    return adminClient.rpc("log_audit_event", {
+      p_action: action,
+      p_category: "grading",
+      p_severity: severity,
+      p_entity_type: "ai_grading_queue",
+      p_entity_id: job.id,
+      p_entity_name: job.kind,
+      p_metadata: {
+        kind: job.kind,
+        invoke_target: job.invoke_target,
+        target_table: job.target_table,
+        target_row_id: job.target_row_id,
+        attempts: job.attempts,
+        source: "ai-grading-worker",
+        ...extraMeta,
+      },
+    });
+  };
+
   // Procesamos en serie para no saturar Gemini/OpenAI con N llamadas
   // concurrentes que podrían disparar rate limit. La cola está pensada
   // para latencia "dentro de la próxima hora", no para tiempo real.
@@ -189,6 +219,9 @@ Deno.serve(async (req) => {
         console.log(
           `[ai-grading-worker] job ${job.id} cancelado durante el procesamiento — descartando resultado`,
         );
+        await auditJob("ai_grading.job_discarded_cancelled", "warning", job, {
+          reason: "user_cancelled_mid_flight",
+        });
         continue;
       }
 
@@ -234,6 +267,10 @@ Deno.serve(async (req) => {
         _ok: true,
         _error: null,
       });
+      await auditJob("ai_grading.job_completed", "info", job, {
+        ai_grade: typeof aiData?.grade === "number" ? aiData.grade : null,
+        persisted_internally: aiData?.persistedInternally === true,
+      });
       ok++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -242,6 +279,9 @@ Deno.serve(async (req) => {
         _job_id: job.id,
         _ok: false,
         _error: msg,
+      });
+      await auditJob("ai_grading.job_failed", "error", job, {
+        error_message: msg.slice(0, 500),
       });
       failed++;
     }

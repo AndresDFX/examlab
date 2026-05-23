@@ -37,6 +37,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
+import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
 import {
@@ -159,20 +160,24 @@ function targetRouteForJob(
 }
 
 /**
- * Wrapper exportado. PageHeader + Tabs (IA / Supabase). Solo Admin ve la
- * tab "Supabase" — Docente solo gestiona la cola IA y no debería ver
- * jobs de infraestructura. Para Docente renderizamos sin Tabs para no
- * mostrar un control de un único tab (mala UX).
+ * Wrapper exportado. PageHeader + Tabs (IA / Tareas programadas). Solo
+ * Admin ve la tab "Tareas programadas" — Docente solo gestiona la cola
+ * IA y no debería ver jobs de infraestructura. Para Docente renderizamos
+ * sin Tabs para no mostrar un control de un único tab (mala UX).
+ *
+ * NOTA: el módulo se llama "Cola" en UI; el `module_key` interno sigue
+ * siendo `ai_cron` por compat (bookmarks, module_visibility, RBAC). No
+ * "limpiar" la key sin migración.
  */
 export function AiCronPage({ isAdmin = false }: Props) {
   return (
     <div className="space-y-5">
       <PageHeader
         icon={<Cpu className="h-6 w-6 text-primary" />}
-        title="Cron"
+        title="Cola"
         subtitle={
           isAdmin
-            ? "Cola de calificación con IA y jobs de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."
+            ? "Cola de calificación con IA y tareas programadas de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."
             : "Cola de calificación con IA. Aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
         }
       />
@@ -185,7 +190,7 @@ export function AiCronPage({ isAdmin = false }: Props) {
             </TabsTrigger>
             <TabsTrigger value="supabase" className="gap-1.5">
               <CalendarClock className="h-3.5 w-3.5" />
-              Supabase
+              Tareas programadas
             </TabsTrigger>
           </TabsList>
           <TabsContent value="ia" className="space-y-4 mt-4">
@@ -483,6 +488,15 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         return;
       }
       toast.success("Job cancelado");
+      void logEvent({
+        action: "ai_grading.job_cancelled",
+        category: "grading",
+        severity: "warning",
+        entityType: "ai_grading_queue",
+        entityId: jobId,
+        entityName: label,
+        metadata: { source: "cron_module", was_processing: isProcessingNow },
+      });
       await load();
     } finally {
       setCancelling((prev) => {
@@ -529,6 +543,19 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       } else {
         toast.success("Job procesado");
       }
+      void logEvent({
+        action: "ai_grading.job_processed_manual",
+        category: "grading",
+        severity: d?.failed > 0 ? "error" : "info",
+        entityType: "ai_grading_queue",
+        entityId: jobId,
+        metadata: {
+          source: "cron_module",
+          succeeded: d?.succeeded ?? 0,
+          failed: d?.failed ?? 0,
+          processed: d?.processed ?? 0,
+        },
+      });
       await load();
     } finally {
       setProcessingOne((prev) => {
@@ -552,6 +579,14 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         return;
       }
       toast.success("Job re-encolado");
+      void logEvent({
+        action: "ai_grading.job_requeued",
+        category: "grading",
+        severity: "info",
+        entityType: "ai_grading_queue",
+        entityId: jobId,
+        metadata: { source: "cron_module" },
+      });
       await load();
     } finally {
       setRetrying((prev) => {
@@ -618,6 +653,13 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       );
     }
     toast.success(`${ids.length} job(s) cancelado(s)`);
+    void logEvent({
+      action: "ai_grading.jobs_cancelled_bulk",
+      category: "grading",
+      severity: "warning",
+      entityType: "ai_grading_queue",
+      metadata: { count: ids.length, source: "cron_module" },
+    });
     multi.clear();
     await load();
   };

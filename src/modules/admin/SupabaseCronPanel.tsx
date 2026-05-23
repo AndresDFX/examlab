@@ -1,5 +1,6 @@
 /**
- * SupabaseCronPanel — gestión de pg_cron desde el módulo "Cron IA".
+ * SupabaseCronPanel — gestión de pg_cron desde el módulo "Cola" (tab
+ * "Tareas programadas").
  *
  * Admin-only. Lista los jobs registrados vía `extensions.cron.schedule`,
  * permite encenderlos/apagarlos y editar su frecuencia (schedule). El
@@ -259,7 +260,7 @@ export function SupabaseCronPanel() {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-indigo-500" />
-              Jobs de Supabase (pg_cron)
+              Tareas programadas
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
               Pausa, reanuda o cambia la frecuencia de los jobs programados. El SQL que ejecuta
@@ -293,8 +294,8 @@ export function SupabaseCronPanel() {
           ) : jobs.length === 0 ? (
             <TableEmpty
               icon={CalendarClock}
-              title="pg_cron no disponible o sin jobs"
-              description="La extensión pg_cron no está habilitada en este proyecto, o no hay jobs registrados. Los jobs se programan vía migraciones SQL."
+              title="No hay tareas programadas todavía"
+              description="La extensión pg_cron no está habilitada en este proyecto Supabase, o las migraciones que registran los jobs (ej. db-backup-weekly, ai-grading-worker-hourly) no se han publicado. Las tareas se programan vía migraciones SQL; no se crean desde esta UI."
             />
           ) : (
             <div className="divide-y">

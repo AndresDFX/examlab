@@ -212,7 +212,31 @@ export async function aiGradeOrEnqueue(req: AiGradeRequest): Promise<AiGradeResu
   if (error) {
     return { ranSync: false, error: error.message };
   }
-  return { ranSync: false, jobId: data as string };
+  // Audit log fire-and-forget: deja trazo de cada job encolado. El
+  // ciclo de vida posterior (claim/complete/fail/cancel) se loguea
+  // desde el worker y desde el módulo Cron — así el admin puede armar
+  // un timeline completo del job en `audit_logs`.
+  const jobId = data as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  void (supabase as any)
+    .rpc("log_audit_event", {
+      p_action: "ai_grading.job_enqueued",
+      p_category: "grading",
+      p_severity: "info",
+      p_entity_type: "ai_grading_queue",
+      p_entity_id: jobId,
+      p_entity_name: req.kind,
+      p_course_id: req.target.courseId ?? null,
+      p_metadata: {
+        kind: req.kind,
+        invoke_target: invokeTarget,
+        target_table: req.target.table,
+        target_row_id: req.target.rowId,
+      },
+    })
+    .then(() => {})
+    .catch(() => {});
+  return { ranSync: false, jobId };
 }
 
 /** Mensaje placeholder visible al estudiante mientras la IA está encolada. */

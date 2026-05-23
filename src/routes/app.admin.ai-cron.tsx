@@ -1,8 +1,10 @@
 /**
- * Ruta Admin del módulo "Cron IA".
+ * Ruta Admin del módulo "Cola".
  * Gestiona la cola de calificación con IA (ai_grading_queue): ver,
- * cancelar, reintentar y procesar jobs individualmente, además del
- * botón "Procesar ahora" para drenar toda la cola pending.
+ * cancelar, reintentar y procesar jobs individualmente. También expone
+ * el panel "Tareas programadas" con los jobs pg_cron del proyecto
+ * (ai-grading-worker-hourly, db-backup-weekly, etc.) para pausar /
+ * reagendar / describir.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { AiCronPage } from "@/modules/ai/AiCronPage";

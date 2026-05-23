@@ -91,7 +91,7 @@
     "calendar": "Calendar",
     "projects": "Projects",
     "aiPrompts": "Prompts",
-    "aiCron": "Cron",
+    "aiCron": "Queue",
     "questionBank": "Question bank",
     "contents": "Contents",
     "statistics": "Statistics",

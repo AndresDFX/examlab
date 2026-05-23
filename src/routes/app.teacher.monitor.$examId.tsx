@@ -57,6 +57,12 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { statusLabel } from "@/shared/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
+import {
+  useMultiSelect,
+  MultiSelectCheckbox,
+  MultiSelectHeaderCheckbox,
+  MultiSelectToolbar,
+} from "@/components/ui/multi-select";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDateTime } from "@/shared/lib/format";
@@ -1275,6 +1281,34 @@ function ExamMonitor() {
       ),
     [aiSignalsByQuestion, similarityPairs],
   );
+
+  // ── Multi-select para recalificar un subset ──
+  // Útil cuando el docente NO confía en N entregas puntuales o cuando
+  // los jobs de esas N se desencolaron. Trabaja sobre las submissions
+  // "latest" por estudiante con status FINAL (los únicos que el batch
+  // puede recalificar). Replicamos un mini-derivado de studentRows
+  // acá porque studentRows se calcula DESPUÉS del early return — los
+  // hooks deben llamarse SIEMPRE, antes de cualquier return.
+  const selectableSubmissions = useMemo(() => {
+    const FINAL = new Set(["completado", "sospechoso", "calificado", "requiere_revision"]);
+    const latestByUser = new Map<string, Submission>();
+    for (const s of submissions) {
+      const cur = latestByUser.get(s.user_id);
+      if (!cur || new Date(s.created_at).getTime() > new Date(cur.created_at).getTime()) {
+        latestByUser.set(s.user_id, s);
+      }
+    }
+    const q = monitorSearch.trim().toLowerCase();
+    return Array.from(latestByUser.values()).filter((s) => {
+      if (!FINAL.has(s.status)) return false;
+      if (!q) return true;
+      const name = (s.profile?.full_name ?? "").toLowerCase();
+      const email = (s.profile?.institutional_email ?? "").toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [submissions, monitorSearch]);
+  const monitorSel = useMultiSelect(selectableSubmissions);
+
   if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
 
   const retryMode: RetryMode = ((exam as any).retry_mode as RetryMode) ?? "last";
@@ -1386,7 +1420,14 @@ function ExamMonitor() {
   // `ai-grade-submission` en dryRun para obtener la propuesta SIN
   // aplicarla, y abre un modal donde el docente revisa y aprueba en
   // lote. Costo IA: 1 llamada por estudiante con intento finalizado.
-  const runRegradeLatestAll = async () => {
+  //
+  // `explicitTargets`: si se pasa, NO usa pickLatestFinalized — usa
+  // exactamente esos submissions. Útil para el flujo de multi-select
+  // donde el docente eligió un subset (ej. solo los 3 que cree mal
+  // calificados, o los que se desencolaron). En ese caso TAMPOCO
+  // filtramos por skipAiPenalized: el docente eligió manualmente, no
+  // tiene sentido descartarle algo que pidió.
+  const runRegradeLatestAll = async (explicitTargets?: Submission[]) => {
     // Gate IA: el batch es el caso más caro (1 call por estudiante).
     const decision = await aiGate.ensureAuthorized();
     if (decision === "cancel") return;
@@ -1395,7 +1436,9 @@ function ExamMonitor() {
     // tokens (1 call Gemini ≈ ~1.5K tokens). Si el docente quiere
     // forzar el re-escaneo, basta con que cambie el texto del feedback
     // (ej. agregue "(re-evaluar)") para que la heurística falle.
-    const { targets, skipped } = pickLatestFinalized({ skipAiPenalized: true });
+    const { targets, skipped } = explicitTargets
+      ? { targets: explicitTargets, skipped: [] as Submission[] }
+      : pickLatestFinalized({ skipAiPenalized: true });
     if (targets.length === 0) {
       if (skipped.length > 0) {
         toast.message(
@@ -1521,9 +1564,9 @@ function ExamMonitor() {
       if (queued > 0) {
         // Mensaje sin "cada hora": en este proyecto el cron no corre
         // por defecto, así que el docente debe procesar la cola
-        // manualmente desde el módulo Cron cuando quiera ver las notas.
+        // manualmente desde el módulo Cola cuando quiera ver las notas.
         toast.success(
-          `${queued} job(s) encolado(s). Procesa la cola desde el módulo Cron o espera al cron programado.`,
+          `${queued} job(s) encolado(s). Procesa la cola desde el módulo Cola o espera a la tarea programada.`,
         );
       }
       if (failed > 0) {
@@ -1835,6 +1878,16 @@ function ExamMonitor() {
   const inProgressStudents = studentRows.filter((r) => r.inProgress);
   const completedStudents = studentRows.filter((r) => !r.inProgress && r.finishedAttempts.length);
 
+  // Helper de bulk re-grade. NO es hook (los hooks `useMemo` +
+  // `useMultiSelect` se llaman ANTES del early return — ver bloque
+  // `selectableSubmissions` arriba). Solo encadena la lógica.
+  const runRegradeSelected = async () => {
+    const selectedSubs = selectableSubmissions.filter((s) => monitorSel.isSelected(s.id));
+    if (selectedSubs.length === 0) return;
+    await runRegradeLatestAll(selectedSubs);
+    monitorSel.clear();
+  };
+
   const deleteOneAttempt = async (sub: Submission) => {
     const ok = await confirm({
       title: t("monitor.deleteAttemptTitle", { date: formatDateTime(sub.created_at) }),
@@ -2017,10 +2070,28 @@ function ExamMonitor() {
             </div>
           )}
         </CardHeader>
+        {/* Toolbar de bulk recalificación. Solo aparece con >=1 seleccionado.
+            "Recalificar" acá NO borra — corre el mismo flujo que el botón
+            global pero solo sobre los IDs marcados. Usamos `actionLabel`
+            del design system para sobrescribir el "Eliminar" default. */}
+        <MultiSelectToolbar
+          count={monitorSel.count}
+          onClear={monitorSel.clear}
+          onDelete={() => void runRegradeSelected()}
+          entityNameSingular="estudiante"
+          entityNamePlural="estudiantes"
+          actionLabel="Recalificar con IA"
+          actionIcon={Sparkles}
+        />
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  {selectableSubmissions.length > 0 && (
+                    <MultiSelectHeaderCheckbox state={monitorSel} />
+                  )}
+                </TableHead>
                 <TableHead>{t("roles.Estudiante")}</TableHead>
                 <TableHead className="hidden sm:table-cell">
                   <span className="inline-flex items-center gap-1">
@@ -2070,10 +2141,10 @@ function ExamMonitor() {
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={10} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty colSpan={11} text="Ningún estudiante ha iniciado el examen aún." />
               )}
               {studentRows.length > 0 && filteredStudentRows.length === 0 && (
-                <TableEmpty colSpan={10} text="Ningún estudiante coincide con la búsqueda." />
+                <TableEmpty colSpan={11} text="Ningún estudiante coincide con la búsqueda." />
               )}
               {filteredStudentRows.map((row) => {
                 const latest = row.latest;
@@ -2084,8 +2155,28 @@ function ExamMonitor() {
                   inProg && typeof row.inProgress?.answers?.__current_idx === "number"
                     ? (row.inProgress.answers.__current_idx as number)
                     : null;
+                // El checkbox de fila solo aplica a estudiantes con un
+                // `latest` en estado final (los seleccionables para
+                // recalificación). El resto recibe un placeholder vacío
+                // para mantener la columna alineada.
+                const isSelectable =
+                  !!latest &&
+                  (latest.status === "completado" ||
+                    latest.status === "sospechoso" ||
+                    latest.status === "calificado" ||
+                    latest.status === "requiere_revision");
                 return (
-                  <TableRow key={row.userId}>
+                  <TableRow
+                    key={row.userId}
+                    data-state={latest && monitorSel.isSelected(latest.id) ? "selected" : undefined}
+                  >
+                    <TableCell className="w-10">
+                      {isSelectable && latest ? (
+                        <MultiSelectCheckbox id={latest.id} state={monitorSel} />
+                      ) : (
+                        <div className="w-4 shrink-0" aria-hidden="true" />
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="font-medium">{row.profile?.full_name ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">

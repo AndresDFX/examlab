@@ -14,7 +14,7 @@
  * producción.
  *
  * Cron semanal vive en pg_cron como `db-backup-weekly` (domingos 03:05
- * UTC) — visible y pausable desde el módulo Cron tab Supabase.
+ * UTC) — visible y pausable desde el módulo Cola → tab Tareas programadas.
  */
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";

@@ -182,7 +182,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Cpu className="h-4 w-4 text-primary" />
-          Cron (IA)
+          Cola (IA)
           <Button
             variant="ghost"
             size="icon"
@@ -290,7 +290,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
             {activeRole && (
               <Link to={cronModulePath} className="block">
                 <Button variant="ghost" size="sm" className="w-full text-xs h-7">
-                  Ver módulo Cron <ArrowRight className="h-3 w-3 ml-1" />
+                  Ver Cola <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </Link>
             )}
