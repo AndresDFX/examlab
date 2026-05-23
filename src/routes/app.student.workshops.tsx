@@ -65,6 +65,8 @@ type WorkshopRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    /** Override de intentos del taller. NULL → usa default global. */
+    max_attempts?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
     course_id: string;
     course: {
@@ -85,6 +87,8 @@ type WorkshopRow = {
     teacher_feedback: string | null;
     status: string;
     submitted_at: string | null;
+    /** Cuántas veces ya entregó el alumno/grupo. Migración 20260607010000. */
+    attempt_count?: number;
   };
 };
 
@@ -165,7 +169,7 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid);
     if (asgErr) {
@@ -219,7 +223,7 @@ function StudentWorkshops() {
         ? supabase
             .from("workshop_submissions")
             .select(
-              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
             )
             .in("workshop_id", indivIds)
             .eq("user_id", uid)
@@ -228,7 +232,7 @@ function StudentWorkshops() {
         ? supabase
             .from("workshop_submissions")
             .select(
-              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
             )
             .in("group_id", myGroupIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -578,19 +582,32 @@ function StudentWorkshops() {
                   </Link>
                 )}
 
-                {/* Eliminar mi entrega — solo dentro del plazo. RLS lo
-                    valida también en BD (migración 20260508140000). */}
-                {isOpen && submission && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full text-destructive hover:text-destructive"
-                    onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
-                    Eliminar mi entrega
-                  </Button>
-                )}
+                {/* Eliminar mi entrega — solo dentro del plazo Y solo si
+                    todavía hay intentos disponibles. Borrar después de
+                    consumir todos los intentos sería un bypass del cap
+                    (la fila guarda attempt_count; al borrarla se perdería
+                    el contador). RLS valida también en BD (migración
+                    20260508140000). */}
+                {isOpen &&
+                  submission &&
+                  Number(submission.attempt_count ?? 0) < Number(workshop.max_attempts ?? 1) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full text-destructive hover:text-destructive"
+                      onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Eliminar mi entrega
+                    </Button>
+                  )}
+                {isOpen &&
+                  submission &&
+                  Number(submission.attempt_count ?? 0) >= Number(workshop.max_attempts ?? 1) && (
+                    <p className="text-[11px] text-muted-foreground text-center italic">
+                      Ya consumiste todos tus intentos — la entrega no se puede borrar.
+                    </p>
+                  )}
 
                 {workshop.status === "published" && isOverdue && !submission && (
                   <p className="text-xs text-destructive text-center">

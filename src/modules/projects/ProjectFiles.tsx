@@ -2444,22 +2444,40 @@ export function StudentProjectTaker({
         </Card>
       ))}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border space-y-1.5">
-        {/* Estado de intentos: muestra X/Y siempre, en rojo si el alumno
-            ya consumió todos. Útil para que sepa qué le queda antes de
-            entregar. */}
-        <div className="flex items-center justify-center gap-1.5 text-[11px]">
-          <span className="text-muted-foreground">Intentos usados:</span>
-          <span
-            className={`tabular-nums font-medium ${attemptsExhausted ? "text-destructive" : "text-foreground"}`}
-          >
-            {attemptCount} / {effectiveMaxAttempts}
-          </span>
-        </div>
-        {attemptsExhausted && (
+        {/* Contador de intentos restantes. Foco en lo que LE QUEDA al
+            alumno (no en lo que ya consumió). Color escala con urgencia:
+            normal → ámbar (1 restante) → rojo (0 restantes). */}
+        {(() => {
+          const remaining = Math.max(0, effectiveMaxAttempts - attemptCount);
+          const isLast = remaining === 1;
+          return (
+            <div className="flex items-center justify-center gap-1.5 text-[11px]">
+              <span className="text-muted-foreground">Intentos restantes:</span>
+              <span
+                className={`tabular-nums font-medium ${
+                  attemptsExhausted
+                    ? "text-destructive"
+                    : isLast
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-foreground"
+                }`}
+              >
+                {remaining} / {effectiveMaxAttempts}
+              </span>
+            </div>
+          );
+        })()}
+        {attemptsExhausted ? (
           <p className="text-[11px] text-destructive text-center">
             Ya consumiste todos tus intentos. No puedes volver a entregar.
           </p>
-        )}
+        ) : effectiveMaxAttempts - attemptCount === 1 ? (
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center font-medium">
+            {effectiveMaxAttempts === 1
+              ? "Aviso: este proyecto admite UNA sola entrega — revisa todo antes de enviar."
+              : "Aviso: te queda 1 intento — revisa todo antes de enviar."}
+          </p>
+        ) : null}
         {videoGateBlocking && !attemptsExhausted && (
           <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center">
             Termina de ver el video introductorio para habilitar la entrega.

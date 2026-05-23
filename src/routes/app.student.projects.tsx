@@ -62,6 +62,8 @@ type ProjectRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    /** Override de intentos del proyecto. NULL → usa default global. */
+    max_attempts?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
     course_id: string;
     course: {
@@ -82,6 +84,8 @@ type ProjectRow = {
     teacher_feedback: string | null;
     status: string;
     submitted_at: string | null;
+    /** Cuántas veces ya entregó el alumno/grupo. Migración 20260607000000. */
+    attempt_count?: number;
   };
 };
 
@@ -207,7 +211,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .neq("status", "draft");
@@ -216,7 +220,7 @@ function StudentProjects() {
         res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, course_id",
+            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, max_attempts, course_id",
           )
           .in("id", allIds)
           .neq("status", "draft");
@@ -264,7 +268,7 @@ function StudentProjects() {
             ? db
                 .from("project_submissions")
                 .select(
-                  "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+                  "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
                 )
                 .in("project_id", indivIds)
                 .eq("user_id", uid)
@@ -273,7 +277,7 @@ function StudentProjects() {
             ? db
                 .from("project_submissions")
                 .select(
-                  "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id",
+                  "id, project_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
                 )
                 .in("group_id", myGroupIds)
             : Promise.resolve({ data: [] as any[] }),
@@ -601,19 +605,33 @@ function StudentProjects() {
                   </Link>
                 )}
 
-                {/* Eliminar mi entrega — solo dentro del plazo. RLS lo
-                    valida también en BD (migración 20260508140000). */}
-                {isOpen && submission && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full text-destructive hover:text-destructive"
-                    onClick={() => deleteSubmission(project.title, submission.id, !!groupId)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
-                    Eliminar mi entrega
-                  </Button>
-                )}
+                {/* Eliminar mi entrega — solo dentro del plazo Y solo si
+                    todavía hay intentos disponibles. Si el alumno ya
+                    consumió todos sus intentos, no permitimos delete:
+                    sino podría borrar y re-entregar bypasseando el cap
+                    (la submission cuenta el intento, pero al borrar la
+                    fila se perdería el contador). RLS valida también en
+                    BD (migración 20260508140000). */}
+                {isOpen &&
+                  submission &&
+                  Number(submission.attempt_count ?? 0) < Number(project.max_attempts ?? 1) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full text-destructive hover:text-destructive"
+                      onClick={() => deleteSubmission(project.title, submission.id, !!groupId)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Eliminar mi entrega
+                    </Button>
+                  )}
+                {isOpen &&
+                  submission &&
+                  Number(submission.attempt_count ?? 0) >= Number(project.max_attempts ?? 1) && (
+                    <p className="text-[11px] text-muted-foreground text-center italic">
+                      Ya consumiste todos tus intentos — la entrega no se puede borrar.
+                    </p>
+                  )}
 
                 {project.status === "published" && isOverdue && !submission && (
                   <p className="text-xs text-destructive text-center">

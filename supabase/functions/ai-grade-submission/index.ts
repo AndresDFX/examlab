@@ -443,15 +443,17 @@ Deno.serve(async (req) => {
         ? "workshop_full"
         : body.workshopQuestionGrading
           ? "workshop_question"
-          : body.projectGrading
-            ? "project_full"
-            : body.projectFileGrading
-              ? "project_file"
-              : body.projectCodeZipGrading
-                ? "project_code_zip"
-                : body.examQuestion
-                  ? "exam_question"
-                  : "exam_full";
+          : body.workshopCodeZipGrading
+            ? "workshop_code_zip"
+            : body.projectGrading
+              ? "project_full"
+              : body.projectFileGrading
+                ? "project_file"
+                : body.projectCodeZipGrading
+                  ? "project_code_zip"
+                  : body.examQuestion
+                    ? "exam_question"
+                    : "exam_full";
     auditEntityId =
       body.submissionId ??
       body.workshopSubmissionId ??
@@ -849,7 +851,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
     //
     // Aguas abajo el código es idéntico para los dos modos: filtra por
     // extensión, minifica, concatena en un solo prompt y llama a IA.
-    if (body.projectCodeZipGrading) {
+    if (body.projectCodeZipGrading || body.workshopCodeZipGrading) {
       const {
         zipPath,
         codePaths,
@@ -859,24 +861,21 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         maxPoints = 1,
         courseLanguage,
         courseId,
-        // Contexto global del proyecto (projects.description) — se
+        // Contexto global del proyecto/taller (description) — se
         // inyecta para que la IA califique este componente teniendo
-        // claro el alcance del proyecto entero, no solo el slot.
+        // claro el alcance del entregable entero, no solo el slot.
         projectDescription,
         // Extensiones permitidas para esta entrega. Si el docente
         // requiere SOLO Java, pasa ["java"] y rechazamos si encontramos
         // archivos con otras extensiones. Si vacío o ausente → permitimos
         // todas las del whitelist global CODE_EXT.
         allowedExtensions,
-        // Scaffolding flujo ZIP único (project_files.zip_single = true).
-        // Cuando viene en true:
+        // Scaffolding flujo ZIP único (project_files.zip_single / workshop
+        // _questions.zip_single = true). Cuando viene en true:
         //   - NO se minifica el contenido de cada archivo.
         //   - NO se trunca por archivo (>50KB pasa entero).
         //   - SÍ se mantiene el tope global MAX_CHARS para no exceder el
         //     context window del modelo.
-        // Diseñado para proyectos chicos/medianos donde el alumno entrega
-        // pocos archivos pero el docente quiere que la IA "vea" todo el
-        // código sin filtros del side cliente.
         noMinify,
       } = body as {
         zipPath?: string;
@@ -891,6 +890,16 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         allowedExtensions?: string[];
         noMinify?: boolean;
       };
+      // Selección de bucket según el origen:
+      //   - projectCodeZipGrading → 'project-files' (default histórico)
+      //   - workshopCodeZipGrading → 'workshop-files'
+      // El resto del pipeline (validación, minify, prompt) es idéntico.
+      const sourceBucket = body.workshopCodeZipGrading ? "workshop-files" : "project-files";
+      // useCase del prompt: misma rúbrica para ambos por ahora — el
+      // contrato "califica este componente de código según rúbrica" no
+      // cambia entre proyecto y taller. Si se necesita customizar el
+      // tono después, se puede separar en otro use_case (workshop_full?).
+      const codeZipUseCase = body.workshopCodeZipGrading ? "workshop_full" : "project_full";
       const cleanedCodePaths = Array.isArray(codePaths)
         ? codePaths.filter((p): p is string => typeof p === "string" && p.length > 0)
         : [];
@@ -911,7 +920,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         const downloads = await Promise.all(
           cleanedCodePaths.map(async (p) => {
             const { data, error } = await adminClient.storage
-              .from("project-files")
+              .from(sourceBucket)
               .download(p);
             if (error || !data) {
               return { path: p, bytes: null as Uint8Array | null, error: error?.message ?? "missing" };
@@ -941,7 +950,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       } else {
         // Legacy ZIP: descarga + descomprime.
         const { data: zipBlob, error: dlErr } = await adminClient.storage
-          .from("project-files")
+          .from(sourceBucket)
           .download(zipPath!);
         if (dlErr || !zipBlob) {
           throw new Error(`No se pudo descargar el ZIP: ${dlErr?.message ?? "missing"}`);
@@ -1423,9 +1432,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       }
 
       const customSystem = await buildGradingSystemPrompt(
-        "project_full",
+        codeZipUseCase,
         courseId,
-        "Eres un evaluador académico imparcial y experto. Calificas un proyecto académico basándote en sus archivos. Das nota, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones claras.",
+        "Eres un evaluador académico imparcial y experto. Calificas un entregable académico basándote en sus archivos. Das nota, retroalimentación detallada y una estimación de probabilidad (0..1) de que el contenido fue generado por IA, con razones claras.",
       );
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 

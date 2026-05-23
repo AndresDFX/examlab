@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   Select,
   SelectContent,
@@ -53,7 +55,7 @@ import {
 export type WorkshopQuestion = {
   id: string;
   workshop_id: string;
-  type: "abierta" | "cerrada" | "cerrada_multi" | "codigo" | "diagrama" | "java_gui";
+  type: "abierta" | "cerrada" | "cerrada_multi" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
   content: string;
   options: any;
   position: number;
@@ -61,6 +63,10 @@ export type WorkshopQuestion = {
   expected_rubric: string | null;
   starter_code: string | null;
   language: string | null;
+  /** Solo aplica a `codigo_zip`: si true, el estudiante sube UN .zip
+   *  (modo scaffolding sin minify). Si false, sube N archivos
+   *  individuales filtrados por extensión del lenguaje. */
+  zip_single?: boolean;
 };
 
 /* =========================================================================
@@ -99,6 +105,10 @@ export function TeacherWorkshopQuestionsEditor({
   const [qMaxSelections, setQMaxSelections] = useState<number | "">("");
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
+  // Solo aplica a `codigo_zip`: toggle scaffolding "modo ZIP único" vs
+  // multi-archivo. La columna `workshop_questions.zip_single` se agrega
+  // en la migración 20260607010000.
+  const [qZipSingle, setQZipSingle] = useState(false);
 
   const resetForm = () => {
     setEditingId(null);
@@ -112,6 +122,7 @@ export function TeacherWorkshopQuestionsEditor({
     setQMaxSelections("");
     setQPoints(1);
     setQLanguage("java");
+    setQZipSingle(false);
   };
 
   const loadIntoForm = (q: WorkshopQuestion) => {
@@ -130,6 +141,7 @@ export function TeacherWorkshopQuestionsEditor({
     setQMaxSelections(typeof maxS === "number" ? maxS : "");
     setQPoints(q.points);
     setQLanguage(q.language ?? "java");
+    setQZipSingle(!!q.zip_single);
     setActiveTab("manual");
   };
 
@@ -191,12 +203,21 @@ export function TeacherWorkshopQuestionsEditor({
               ...(typeof qMaxSelections === "number" ? { max_selections: qMaxSelections } : {}),
             }
           : null;
-    const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
+    const language =
+      qType === "codigo" || qType === "codigo_zip"
+        ? qLanguage
+        : qType === "java_gui"
+          ? "java"
+          : null;
 
+    // Cast a any para `zip_single` — la columna se agrega en la migración
+    // 20260607010000 y types.ts se regenera en el próximo publish de Lovable.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
     if (editingId) {
       // UPDATE: no tocamos position ni starter_code para no clobberar lo que
       // el alumno o el docente puedan haber personalizado.
-      const { error } = await supabase
+      const { error } = await dbAny
         .from("workshop_questions")
         .update({
           type: qType,
@@ -205,6 +226,7 @@ export function TeacherWorkshopQuestionsEditor({
           options,
           points: qPoints,
           language,
+          zip_single: qType === "codigo_zip" ? qZipSingle : false,
         })
         .eq("id", editingId);
       if (error) {
@@ -213,7 +235,7 @@ export function TeacherWorkshopQuestionsEditor({
       }
       toast.success("Pregunta actualizada");
     } else {
-      const { error } = await supabase.from("workshop_questions").insert({
+      const { error } = await dbAny.from("workshop_questions").insert({
         workshop_id: workshopId,
         type: qType,
         content: qContent,
@@ -222,6 +244,7 @@ export function TeacherWorkshopQuestionsEditor({
         points: qPoints,
         position: questions.length,
         language,
+        zip_single: qType === "codigo_zip" ? qZipSingle : false,
         starter_code:
           qType === "java_gui"
             ? JAVA_GUI_STARTER
@@ -450,6 +473,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="codigo">Código</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
                   <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                  <SelectItem value="codigo_zip">Código (ZIP / multi-archivo)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -566,6 +590,61 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="javascript">JavaScript</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {qType === "codigo_zip" && (
+            <div className="space-y-3">
+              <div>
+                <Label required className="flex items-center gap-1.5">
+                  Lenguaje
+                  <HelpHint>
+                    Whitelist de extensiones aceptadas — Java solo .java, Python solo .py. Lo que
+                    quede fuera (PDFs, README, configs) se rechaza antes de subir.
+                  </HelpHint>
+                </Label>
+                <Select value={qLanguage} onValueChange={setQLanguage}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="java">Java (.java)</SelectItem>
+                    <SelectItem value="python">Python (.py)</SelectItem>
+                    <SelectItem value="javascript">JavaScript (.js, .mjs, .cjs)</SelectItem>
+                    <SelectItem value="typescript">TypeScript (.ts, .tsx)</SelectItem>
+                    <SelectItem value="c">C (.c, .h)</SelectItem>
+                    <SelectItem value="cpp">C++ (.cpp, .cc, .h, .hpp)</SelectItem>
+                    <SelectItem value="csharp">C# (.cs)</SelectItem>
+                    <SelectItem value="go">Go (.go)</SelectItem>
+                    <SelectItem value="rust">Rust (.rs)</SelectItem>
+                    <SelectItem value="php">PHP (.php)</SelectItem>
+                    <SelectItem value="ruby">Ruby (.rb)</SelectItem>
+                    <SelectItem value="kotlin">Kotlin (.kt, .kts)</SelectItem>
+                    <SelectItem value="swift">Swift (.swift)</SelectItem>
+                    <SelectItem value="sql">SQL (.sql)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-1.5">
+                    Modo ZIP único (scaffolding)
+                    <HelpHint>
+                      <strong>OFF (default):</strong> el alumno sube N archivos individuales del
+                      lenguaje. Se filtran por extensión y se minifican antes de IA.
+                      <br />
+                      <strong>ON:</strong> el alumno sube UN archivo .zip con todo su proyecto. El
+                      backend descomprime y la IA recibe archivos crudos sin minify ni truncar —
+                      ideal para entregas chicas donde quieres que la IA "vea" todo el código.
+                    </HelpHint>
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {qZipSingle
+                      ? "El alumno sube UN .zip — el servidor lo descomprime y califica todo junto."
+                      : "El alumno sube archivos individuales — solo los del lenguaje seleccionado."}
+                  </p>
+                </div>
+                <Switch checked={qZipSingle} onCheckedChange={setQZipSingle} />
+              </div>
             </div>
           )}
           <div>
@@ -753,6 +832,13 @@ export function StudentWorkshopTaker({
   const [watchedVideoIds, setWatchedVideoIds] = useState<Set<string>>(() => new Set());
   const allVideosWatched = introVideos.every((v) => watchedVideoIds.has(v.id));
   const videoGateBlocking = introVideos.length > 0 && !allVideosWatched;
+  // Enforcement de max_attempts (paralelo a proyectos). `attemptCount`
+  // viene de la submission existente (0 si nunca entregó).
+  // `effectiveMaxAttempts` = override del taller o el default global.
+  const [attemptCount, setAttemptCount] = useState<number>(0);
+  const [effectiveMaxAttempts, setEffectiveMaxAttempts] = useState<number>(1);
+  const attemptsExhausted = attemptCount >= effectiveMaxAttempts;
+  const attemptsRemaining = Math.max(0, effectiveMaxAttempts - attemptCount);
   // Track which workshopId we have already loaded so that auth refresh
   // events (TOKEN_REFRESHED on tab refocus) don't re-fetch and visually
   // "reload" the modal while the student is mid-submission.
@@ -770,20 +856,27 @@ export function StudentWorkshopTaker({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ data: qs }, { data: videosData }] = await Promise.all([
-        supabase
-          .from("workshop_questions")
-          .select("*")
-          .eq("workshop_id", workshopId)
-          .order("position"),
-        // Videos introductorios del taller — orden estricto por
-        // `position`. Vacío significa que no hay gate.
-        supabase
-          .from("workshop_intro_videos")
-          .select("id, url, title, position")
-          .eq("workshop_id", workshopId)
-          .order("position"),
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const [{ data: qs }, { data: videosData }, { data: wsRow }, { data: settingsRow }] =
+        await Promise.all([
+          supabase
+            .from("workshop_questions")
+            .select("*")
+            .eq("workshop_id", workshopId)
+            .order("position"),
+          dbAny
+            .from("workshop_intro_videos")
+            .select("id, url, title, position")
+            .eq("workshop_id", workshopId)
+            .order("position"),
+          dbAny.from("workshops").select("max_attempts").eq("id", workshopId).maybeSingle(),
+          dbAny
+            .from("app_settings")
+            .select("default_workshop_max_attempts")
+            .limit(1)
+            .maybeSingle(),
+        ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as WorkshopQuestion[]);
       setIntroVideos(
@@ -794,18 +887,21 @@ export function StudentWorkshopTaker({
           position: number;
         }> | null) ?? [],
       );
+      const wsMax = (wsRow as { max_attempts?: number | null } | null)?.max_attempts;
+      const globalMax = (settingsRow as { default_workshop_max_attempts?: number | null } | null)
+        ?.default_workshop_max_attempts;
+      setEffectiveMaxAttempts(Number(wsMax ?? globalMax ?? 1));
 
       // Load existing submission/answers. Si hay grupo, la submission
       // pertenece al grupo (cualquier miembro puede ver/editar).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dbAny = supabase as any;
       const subQuery = dbAny
         .from("workshop_submissions")
-        .select("id, final_grade, status")
+        .select("id, final_grade, status, attempt_count")
         .eq("workshop_id", workshopId);
       const { data: sub } = await (groupId
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
+      setAttemptCount(Number((sub as { attempt_count?: number } | null)?.attempt_count ?? 0));
       if (sub?.id) {
         // Hidratar el set de videos ya vistos desde
         // `workshop_submission_video_views`. Si la submission no existe
