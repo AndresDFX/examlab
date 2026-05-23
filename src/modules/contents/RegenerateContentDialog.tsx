@@ -35,6 +35,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { RefreshCw, Wand2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 // generated_contents aún no figura en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,9 +113,21 @@ export function RegenerateContentDialog({
 
       // 2) Disparar la edge function.
       if (target.mode === "full") {
-        void supabase.functions.invoke("generate-contents", {
-          body: { id: target.contentId },
-        });
+        // Fire-and-forget: la regeneración tarda minutos y el usuario
+        // monitorea el estado (queued → processing → done/failed) vía
+        // polling de la lista. Pero si el invoke falla de entrada
+        // (red caída, edge no desplegada, etc.) sin este .catch el
+        // error queda silenciado y la fila se queda en queued para
+        // siempre. Toastear para que el docente sepa que debe
+        // reintentar.
+        void supabase.functions
+          .invoke("generate-contents", { body: { id: target.contentId } })
+          .then(async ({ error: invErr, data: invData }) => {
+            if (invErr || (invData as { error?: string })?.error) {
+              const detail = await extractEdgeError(invErr, invData);
+              toast.error(friendlyError(invErr ?? new Error(detail || "Falló la regeneración")));
+            }
+          });
         toast.success(t("contents.regeneratedToast"));
       } else {
         toast.info(t("contents.regeneratingClass", { class: target.classNumber }));

@@ -971,10 +971,16 @@ function TeacherProjects() {
           courseLanguage,
         },
       });
-      if (error) throw error;
+      // Extraer el body real del FunctionsHttpError antes de throw: sin
+      // esto, `error.message` siempre es "Edge Function returned a
+      // non-2xx status code" y el friendlyError del catch no tiene
+      // contexto útil para mostrar al docente.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = data as any;
-      if (res?.error) throw new Error(res.error);
+      if (error || res?.error) {
+        const detail = await extractEdgeError(error, data);
+        throw new Error(detail || "La IA no devolvió descripción");
+      }
       const description = String(res?.description ?? "").trim();
       if (!description) throw new Error("La IA no devolvió descripción");
       setForm((prev) => ({ ...prev, description }));

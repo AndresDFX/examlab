@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import {
   Dialog,
   DialogContent,
@@ -454,8 +455,20 @@ function TeacherContents() {
       }
 
       // Disparamos la edge function fire-and-forget. El usuario verá
-      // el estado en la lista (queued → processing → done/failed) vía polling.
-      void supabase.functions.invoke("generate-contents", { body: { id: created.id } });
+      // el estado en la lista (queued → processing → done/failed) vía
+      // polling. Igual capturamos fallas inmediatas (red caída, edge
+      // no desplegada, etc.) — sin esto la fila se queda en queued
+      // para siempre y el docente no sabe por qué.
+      void supabase.functions
+        .invoke("generate-contents", { body: { id: created.id } })
+        .then(async ({ error: invErr, data: invData }) => {
+          if (invErr || (invData as { error?: string })?.error) {
+            const detail = await extractEdgeError(invErr, invData);
+            toast.error(
+              friendlyError(invErr ?? new Error(detail || "No se pudo iniciar la generación")),
+            );
+          }
+        });
 
       toast.success(t("contents.createdToast"));
       setDialogOpen(false);

@@ -1315,7 +1315,15 @@ function ExamMonitor() {
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
         body: { kind: "exam", refId: examId, submissionIds },
       });
-      if (error) throw error;
+      // Extraer el body real del FunctionsHttpError antes de throw:
+      // sin esto, `error.message` es el genérico "Edge Function
+      // returned a non-2xx status code" y el catch de abajo muestra
+      // ese ruido al docente en vez del motivo real (rate limit,
+      // permission, etc.).
+      if (error || (data as { error?: string })?.error) {
+        const detail = await extractEdgeError(error, data);
+        throw new Error(detail || "Error en detect-plagiarism");
+      }
       const summary = data as { pairs?: unknown[]; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
       void logEvent({
