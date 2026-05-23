@@ -166,6 +166,55 @@ type ManualOverride = { score: number; feedback?: string };
 const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
 
 /**
+ * Convierte el valor crudo de `submissions.answers[qid]` en un string
+ * legible para mostrar en el modal de revisión de recalificación. El
+ * shape depende del tipo de pregunta:
+ *   - cerrada (single): número = índice de opción, o "" si no respondió.
+ *   - cerrada_multi:    array de índices de opción seleccionados.
+ *   - abierta / codigo / diagrama / java_gui: string libre con el contenido.
+ *
+ * Retorna null cuando no hay nada útil que mostrar (respuesta vacía),
+ * para que el caller omita el bloque entero en vez de renderizar un
+ * cuadro con "Sin respuesta" repetido por toda la lista.
+ */
+function formatStudentAnswer(
+  raw: unknown,
+  qType: string | undefined,
+  question: Question | undefined,
+): string | null {
+  if (raw == null) return null;
+  if (qType === "cerrada") {
+    const idx = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isNaN(idx)) return null;
+    // `options` puede ser array de strings o array de objetos según
+    // cómo guarde el docente. Aceptamos ambos formatos defensivamente.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const opts = (question?.options as any) ?? [];
+    const arr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
+    const opt = arr[idx];
+    const label = typeof opt === "string" ? opt : opt?.text ?? opt?.label ?? `Opción ${idx + 1}`;
+    return `Marcó la opción ${idx + 1}: ${label}`;
+  }
+  if (qType === "cerrada_multi") {
+    const arr = Array.isArray(raw) ? raw : [];
+    if (arr.length === 0) return "Sin selección";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const opts = (question?.options as any) ?? [];
+    const optsArr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
+    const labels = arr.map((i) => {
+      const n = typeof i === "number" ? i : Number(i);
+      const opt = optsArr[n];
+      const label = typeof opt === "string" ? opt : opt?.text ?? opt?.label ?? "?";
+      return `(${n + 1}) ${label}`;
+    });
+    return `Marcó ${arr.length} opción(es): ${labels.join(" · ")}`;
+  }
+  // Tipos de texto libre — abierta, codigo, diagrama, java_gui.
+  const text = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
+  return text.trim() ? text : null;
+}
+
+/**
  * Calcula la fecha fin de un intento. Para intentos terminados es
  * `submitted_at`; para intentos en curso es `min(exam.end_time,
  * started_at + time_limit*60s) + extra_seconds`. El extra_seconds
@@ -1995,6 +2044,19 @@ function ExamMonitor() {
                 })()}
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {/* Hint inline para invitar al multi-select cuando hay
+                    seleccionables y aún ninguno marcado. Sin esto el
+                    docente no descubre los checkboxes de la izquierda
+                    y termina recalificando a todos los estudiantes
+                    aunque quería solo unos pocos. Aparece como pista
+                    sutil; desaparece apenas marca algo (entonces el
+                    MultiSelectToolbar toma el relevo). */}
+                {selectableSubmissions.length > 0 && monitorSel.count === 0 && (
+                  <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
+                    <span aria-hidden>↙</span>
+                    Marca estudiantes para recalificar solo algunos
+                  </span>
+                )}
                 <Button
                   size="sm"
                   variant="default"
@@ -4100,10 +4162,13 @@ function ExamMonitor() {
                 </div>
               )}
 
-              {/* Breakdown por pregunta. ScrollArea max-h-[45vh] permite
-                  ver hasta ~10-12 preguntas sin desbordar; el resto se
-                  recorre con su propio scroll interno. Combinado con el
-                  scroll del modal, la lista nunca esconde preguntas. */}
+              {/* Breakdown por pregunta. Sin ScrollArea anidado: el body
+                  del Dialog ya tiene `flex-1 overflow-y-auto`, agregar
+                  un Radix ScrollArea adentro capturaba el wheel event
+                  y bloqueaba el scroll del modal — el usuario veía la
+                  lista truncada sin poder scrollear. Un único scroll
+                  (el del body del modal) maneja bien hasta 50+
+                  preguntas sin cortarse. */}
               {reGradePreview.breakdown.length > 0 && (
                 <div className="rounded-lg border">
                   <div className="px-3 py-2 border-b bg-muted/30 text-xs font-medium flex items-center justify-between">
@@ -4113,52 +4178,102 @@ function ExamMonitor() {
                       {reGradePreview.breakdown.length === 1 ? "pregunta" : "preguntas"}
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[45vh]">
-                    <div className="divide-y">
-                      {reGradePreview.breakdown.map((b, i) => {
-                        const prev = reGradePreview.previous.breakdown?.find(
-                          (p) => p.qid === b.qid,
-                        );
-                        const prevEarned = prev?.earned ?? null;
-                        const newEarned = b.earned ?? 0;
-                        const changed =
-                          prevEarned == null || Math.abs(Number(prevEarned) - newEarned) > 0.005;
-                        return (
-                          <div
-                            key={b.qid}
-                            className={`px-3 py-2 text-xs ${changed ? "bg-amber-500/5" : ""}`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">
-                                Pregunta {i + 1}
-                                {b.type && (
-                                  <span className="ml-1 text-muted-foreground font-normal">
-                                    · {b.type}
-                                  </span>
-                                )}
-                              </span>
-                              <span className="tabular-nums">
-                                {prevEarned != null ? (
-                                  <span className="text-muted-foreground">
-                                    {Number(prevEarned).toFixed(2)} →{" "}
-                                  </span>
-                                ) : null}
-                                <span className={changed ? "font-semibold" : ""}>
-                                  {newEarned.toFixed(2)}
+                  <div className="divide-y">
+                    {reGradePreview.breakdown.map((b, i) => {
+                      const prev = reGradePreview.previous.breakdown?.find((p) => p.qid === b.qid);
+                      const prevEarned = prev?.earned ?? null;
+                      const newEarned = b.earned ?? 0;
+                      const changed =
+                        prevEarned == null || Math.abs(Number(prevEarned) - newEarned) > 0.005;
+                      // Pregunta original (enunciado, opciones) y
+                      // respuesta del estudiante. El edge devuelve las
+                      // respuestas en `proposed_update.answers` —
+                      // mismo shape que `submissions.answers` JSONB.
+                      // Mostrarlos acá da al docente contexto completo
+                      // para decidir si acepta la nueva nota sin tener
+                      // que abrir otro modal.
+                      const question = questions.find((q) => q.id === b.qid);
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const answers = (reGradePreview.proposed_update as any)?.answers ?? {};
+                      const answerValue = answers[b.qid];
+                      const answerText = formatStudentAnswer(answerValue, b.type, question);
+                      return (
+                        <div
+                          key={b.qid}
+                          className={`px-3 py-2.5 text-xs space-y-2 ${changed ? "bg-amber-500/5" : ""}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">
+                              Pregunta {i + 1}
+                              {b.type && (
+                                <span className="ml-1 text-muted-foreground font-normal">
+                                  · {b.type}
                                 </span>
-                                <span className="text-muted-foreground"> / {b.points ?? 0}</span>
+                              )}
+                            </span>
+                            <span className="tabular-nums">
+                              {prevEarned != null ? (
+                                <span className="text-muted-foreground">
+                                  {Number(prevEarned).toFixed(2)} →{" "}
+                                </span>
+                              ) : null}
+                              <span className={changed ? "font-semibold" : ""}>
+                                {newEarned.toFixed(2)}
                               </span>
-                            </div>
-                            {b.feedback && (
-                              <p className="mt-1 text-muted-foreground line-clamp-3">
-                                {b.feedback}
-                              </p>
-                            )}
+                              <span className="text-muted-foreground"> / {b.points ?? 0}</span>
+                            </span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
+
+                          {/* Enunciado de la pregunta. line-clamp-3 para
+                              no inflar el listado; si el enunciado es
+                              largo, hover muestra el title con el texto
+                              completo. */}
+                          {question?.content && (
+                            <div className="rounded border bg-muted/30 px-2 py-1.5">
+                              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+                                Enunciado
+                              </div>
+                              <p
+                                className="whitespace-pre-wrap line-clamp-3 text-foreground/90"
+                                title={question.content}
+                              >
+                                {question.content}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Respuesta del estudiante. `max-h-32
+                              overflow-y-auto` permite respuestas largas
+                              (código de 200 líneas) sin reventar el
+                              modal — scroll interno del bloque, no del
+                              modal. Font mono para que el código se
+                              alinee. */}
+                          {answerText && (
+                            <div className="rounded border bg-background px-2 py-1.5">
+                              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+                                Respuesta del estudiante
+                              </div>
+                              <pre className="whitespace-pre-wrap break-words font-mono text-[11px] max-h-32 overflow-y-auto text-foreground/90">
+                                {answerText}
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* Feedback IA (lo que ya estaba) — sin
+                              line-clamp para que el docente vea el
+                              razonamiento completo. */}
+                          {b.feedback && (
+                            <div className="rounded border border-indigo-500/30 bg-indigo-500/5 px-2 py-1.5">
+                              <div className="text-[10px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-0.5">
+                                Feedback IA
+                              </div>
+                              <p className="whitespace-pre-wrap text-foreground/90">{b.feedback}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
