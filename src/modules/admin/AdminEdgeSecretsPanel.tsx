@@ -312,23 +312,28 @@ export function AdminEdgeSecretsPanel() {
             </div>
             <div>
               <Label>Valor</Label>
-              <div className="flex items-center gap-1.5">
+              {/* Toggle de visibilidad ABSOLUTO dentro del input (patrón
+                  estándar de password fields). Antes era un Button al
+                  lado en flex-row: con `max-w-md` el botón quedaba pegado
+                  al input y el ojo se veía superpuesto al borde derecho.
+                  Padding-right del input reserva el espacio del ícono. */}
+              <div className="relative">
                 <Input
                   type={showValue ? "text" : "password"}
                   value={editorValue}
                   onChange={(e) => setEditorValue(e.target.value)}
                   placeholder={editorIsEdit ? "(escribe el nuevo valor)" : "Valor del secret"}
-                  className="font-mono text-sm"
+                  className="font-mono text-sm pr-10"
                   autoComplete="off"
                 />
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  aria-label={showValue ? "Ocultar valor" : "Mostrar valor"}
                   onClick={() => setShowValue((v) => !v)}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {showValue ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </Button>
+                </button>
               </div>
             </div>
           </div>
