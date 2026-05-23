@@ -84,6 +84,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { StatTile } from "@/components/ui/stat-tile";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
 import { AssignSelector } from "@/shared/components/AssignSelector";
@@ -216,6 +217,24 @@ function TeacherProjects() {
       return true;
     });
   }, [projects, search, courseFilter, cutFilter]);
+
+  // Quick-stats estables del listado completo (no se mueven al filtrar).
+  // Mismos cuatro tiles que talleres/exámenes — pulso rápido del estado
+  // del catálogo del docente.
+  const projectStats = useMemo(() => {
+    let draft = 0,
+      published = 0,
+      closed = 0,
+      external = 0;
+    for (const p of projects) {
+      if (p.is_external) external++;
+      if (p.status === "draft") draft++;
+      else if (p.status === "published") published++;
+      else if (p.status === "closed") closed++;
+    }
+    return { draft, published, closed, external };
+  }, [projects]);
+
   const sel = useMultiSelect(filteredProjects);
 
   // Export CSV de la lista filtrada — solo lectura. No soportamos import
@@ -1835,6 +1854,35 @@ function TeacherProjects() {
           </>
         }
       />
+
+      {projects.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Borradores"
+            value={projectStats.draft}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Publicados"
+            value={projectStats.published}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Cerrados"
+            value={projectStats.closed}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+          <StatTile
+            label="Externos"
+            value={projectStats.external}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+        </div>
+      )}
 
       <ListFilters
         search={search}

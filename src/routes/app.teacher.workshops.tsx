@@ -73,6 +73,8 @@ import {
   Bot,
   ChevronRight,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   Check,
   Eye,
 } from "lucide-react";
@@ -89,6 +91,7 @@ import {
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { ListFilters } from "@/components/ui/list-filters";
 import { CourseListCell } from "@/components/ui/course-list-cell";
+import { StatTile } from "@/components/ui/stat-tile";
 import { toCSV } from "@/shared/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/modules/workshops/WorkshopQuestions";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
@@ -262,6 +265,26 @@ function TeacherWorkshops() {
       return true;
     });
   }, [workshops, search, courseFilter, cutFilter]);
+
+  // Quick-stats estables del listado completo (no se mueven al filtrar).
+  // Cuatro tiles: borradores, publicados, cerrados, externos. La idea
+  // es darle al docente un pulso rápido del estado de sus talleres sin
+  // tener que scrollear o filtrar.
+  const workshopStats = useMemo(() => {
+    let draft = 0,
+      published = 0,
+      closed = 0,
+      external = 0;
+    for (const w of workshops) {
+      if ((w as any).is_external) external++;
+      const s = w.status;
+      if (s === "draft") draft++;
+      else if (s === "published") published++;
+      else if (s === "closed") closed++;
+    }
+    return { draft, published, closed, external };
+  }, [workshops]);
+
   const sel = useMultiSelect(filteredWorkshops);
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -288,6 +311,61 @@ function TeacherWorkshops() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
+  /** Lista N de videos introductorios del taller. Vive separada del
+   *  `form` porque se persiste en otra tabla (`workshop_intro_videos`).
+   *  Se hidrata vía useEffect cuando `form.id` cambia (apertura para
+   *  editar) y se sincroniza después del UPSERT del workshop principal. */
+  const [formIntroVideos, setFormIntroVideos] = useState<
+    Array<{ library_id: string | null; url: string; title: string }>
+  >([]);
+  // Biblioteca de videos para el selector del form de taller. Carga
+  // perezosa: solo cuando el dialog se abre.
+  const [videoLibrary, setVideoLibrary] = useState<
+    Array<{ id: string; title: string; provider: string; url: string }>
+  >([]);
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("videos")
+        .select("id, title, provider, url")
+        .eq("is_archived", false)
+        .order("title");
+      setVideoLibrary(
+        (data ?? []) as Array<{ id: string; title: string; provider: string; url: string }>,
+      );
+    })();
+  }, [open]);
+  // Hidratar la lista de videos del taller al editar. Se dispara cuando
+  // cambia `form.id` y el dialog está abierto. En create (form.id
+  // ausente) se mantiene en [] gracias al reset de openNew.
+  useEffect(() => {
+    if (!open) return;
+    const wsId = (form as any).id as string | undefined;
+    if (!wsId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: videos } = await supabase
+        .from("workshop_intro_videos")
+        .select("url, title, position")
+        .eq("workshop_id", wsId)
+        .order("position");
+      if (cancelled) return;
+      setFormIntroVideos(
+        (
+          (videos as Array<{ url: string; title: string | null; position: number }> | null) ?? []
+        ).map((v) => ({
+          library_id: null,
+          url: v.url,
+          title: v.title ?? "",
+        })),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, (form as any).id]);
   // Curso original al abrir el dialog de edición. Si al guardar el
   // docente cambió el curso, hay que limpiar workshop_assignments del
   // curso anterior y re-asignar matriculados del nuevo curso.
@@ -597,6 +675,7 @@ function TeacherWorkshops() {
     setOriginalCourseId(null);
     setSelectedCourseIds(new Set(first ? [first] : []));
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
+    setFormIntroVideos([]);
     setOpen(true);
   };
 
@@ -616,6 +695,34 @@ function TeacherWorkshops() {
       });
       return next;
     });
+  };
+
+  /**
+   * DELETE all + INSERT all de `workshop_intro_videos` para un taller.
+   * Se invoca después de crear o actualizar el workshop. Acepta la
+   * lista cruda del form (con `library_id` que no se persiste) y la
+   * normaliza filtrando URLs vacías.
+   */
+  const syncWorkshopIntroVideos = async (
+    workshopId: string,
+    rows: Array<{ library_id: string | null; url: string; title: string }>,
+  ) => {
+    const cleaned = rows
+      .map((v, idx) => ({ url: v.url.trim(), title: v.title.trim() || null, position: idx }))
+      .filter((v) => v.url.length > 0);
+    await supabase.from("workshop_intro_videos").delete().eq("workshop_id", workshopId);
+    if (cleaned.length === 0) return;
+    const insertRows = cleaned.map((v) => ({
+      workshop_id: workshopId,
+      url: v.url,
+      title: v.title,
+      position: v.position,
+    }));
+    const { error: vErr } = await supabase.from("workshop_intro_videos").insert(insertRows);
+    if (vErr) {
+      console.warn("[workshops] sync workshop_intro_videos failed", vErr);
+      toast.error(`No se pudieron guardar los videos introductorios: ${friendlyError(vErr)}`);
+    }
   };
 
   const save = async () => {
@@ -713,6 +820,11 @@ function TeacherWorkshops() {
         .update({ ...basePayload, course_id: form.course_id! })
         .eq("id", form.id);
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      // ── Sync `workshop_intro_videos` (lista N) ──
+      // Estrategia idéntica a proyectos: DELETE all + INSERT all. El
+      // CASCADE de `workshop_submission_video_views` resetea el progreso
+      // de los estudiantes — esperado cuando el docente reedita la lista.
+      await syncWorkshopIntroVideos(form.id, formIntroVideos);
       if (courseChanged) {
         await supabase.from("workshop_assignments").delete().eq("workshop_id", form.id);
         await autoAssignWorkshop(form.id, form.course_id!);
@@ -761,6 +873,7 @@ function TeacherWorkshops() {
         }
         // Auto-asignar a todos los estudiantes matriculados al crear
         if (newWs) {
+          await syncWorkshopIntroVideos(newWs.id, formIntroVideos);
           await autoAssignWorkshop(newWs.id, cid);
           if (form.status === "published") {
             await supabase.rpc("notify_course_students", {
@@ -1890,6 +2003,35 @@ function TeacherWorkshops() {
         }
       />
 
+      {workshops.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Borradores"
+            value={workshopStats.draft}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Publicados"
+            value={workshopStats.published}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Cerrados"
+            value={workshopStats.closed}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+          <StatTile
+            label="Externos"
+            value={workshopStats.external}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+        </div>
+      )}
+
       <ListFilters
         search={search}
         onSearchChange={setSearch}
@@ -2477,6 +2619,151 @@ function TeacherWorkshops() {
                   value={form.external_link ?? ""}
                   onChange={(e) => setForm({ ...form, external_link: e.target.value })}
                 />
+              </div>
+            )}
+            {!(form as any).is_external && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  Videos introductorios obligatorios (opcional)
+                  <HelpHint>
+                    Lista ordenada de videos que el estudiante debe ver antes de poder entregar el
+                    taller. El orden importa: el siguiente video se desbloquea cuando el alumno
+                    termina el anterior. Si la lista queda vacía, no se exige video. YouTube/Vimeo
+                    se reproducen vía iframe (sin control de seek). Para forzar que el alumno NO
+                    pueda adelantar, sube un MP4 directo a la biblioteca de videos.
+                  </HelpHint>
+                </Label>
+                {formIntroVideos.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground italic">
+                    Sin videos. Click en "+ Agregar video" para empezar.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {formIntroVideos.map((video, idx) => {
+                    const moveUp = () => {
+                      if (idx === 0) return;
+                      const next = [...formIntroVideos];
+                      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                      setFormIntroVideos(next);
+                    };
+                    const moveDown = () => {
+                      if (idx === formIntroVideos.length - 1) return;
+                      const next = [...formIntroVideos];
+                      [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                      setFormIntroVideos(next);
+                    };
+                    const removeRow = () => {
+                      setFormIntroVideos(formIntroVideos.filter((_, i) => i !== idx));
+                    };
+                    const update = (patch: Partial<(typeof formIntroVideos)[number]>) => {
+                      const next = [...formIntroVideos];
+                      next[idx] = { ...next[idx], ...patch };
+                      setFormIntroVideos(next);
+                    };
+                    return (
+                      <div key={idx} className="rounded-md border bg-card p-2.5 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] tabular-nums shrink-0">
+                            {idx + 1}
+                          </Badge>
+                          <Input
+                            placeholder="Título (opcional, ej. 'Introducción al patrón MVC')"
+                            value={video.title}
+                            onChange={(e) => update({ title: e.target.value })}
+                            className="text-xs h-8"
+                          />
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={moveUp}
+                              disabled={idx === 0}
+                              title="Mover arriba"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={moveDown}
+                              disabled={idx === formIntroVideos.length - 1}
+                              title="Mover abajo"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={removeRow}
+                              title="Quitar video"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        <Select
+                          value={video.library_id ?? "__custom"}
+                          onValueChange={(v) => {
+                            if (v === "__custom") {
+                              update({ library_id: null });
+                            } else {
+                              const found = videoLibrary.find((vl) => vl.id === v);
+                              update({
+                                library_id: v,
+                                url: found?.url ?? video.url,
+                                title: video.title || found?.title || "",
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Biblioteca o URL personalizada…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__custom">
+                              URL personalizada (no reusable)
+                            </SelectItem>
+                            {videoLibrary.map((vl) => (
+                              <SelectItem key={vl.id} value={vl.id}>
+                                {vl.title} · {vl.provider.toUpperCase()}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                          value={video.url}
+                          onChange={(e) => update({ url: e.target.value, library_id: null })}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFormIntroVideos([
+                      ...formIntroVideos,
+                      { library_id: null, url: "", title: "" },
+                    ])
+                  }
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Agregar video
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Tip: registra los videos en <strong>Videos</strong> (sidebar) y referénciálos aquí
+                  — evita re-pegar URLs.
+                </p>
               </div>
             )}
             <div>

@@ -39,6 +39,7 @@ import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -741,6 +742,17 @@ export function StudentWorkshopTaker({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [graded, setGraded] = useState<{ grade: number; breakdown: any[] } | null>(null);
+  // Gate de videos introductorios obligatorios del taller (lista N en
+  // orden estricto). A diferencia de proyectos —donde el gate solo
+  // aplica si hay pregunta tipo `codigo_zip`—, en talleres aplica a
+  // CUALQUIER entrega: el alumno debe ver TODOS los videos antes de
+  // poder entregar. `watchedVideoIds` se hidrata desde
+  // `workshop_submission_video_views` al cargar — sesiones reanudadas
+  // conservan el progreso.
+  const [introVideos, setIntroVideos] = useState<IntroVideo[]>([]);
+  const [watchedVideoIds, setWatchedVideoIds] = useState<Set<string>>(() => new Set());
+  const allVideosWatched = introVideos.every((v) => watchedVideoIds.has(v.id));
+  const videoGateBlocking = introVideos.length > 0 && !allVideosWatched;
   // Track which workshopId we have already loaded so that auth refresh
   // events (TOKEN_REFRESHED on tab refocus) don't re-fetch and visually
   // "reload" the modal while the student is mid-submission.
@@ -758,13 +770,30 @@ export function StudentWorkshopTaker({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data: qs } = await supabase
-        .from("workshop_questions")
-        .select("*")
-        .eq("workshop_id", workshopId)
-        .order("position");
+      const [{ data: qs }, { data: videosData }] = await Promise.all([
+        supabase
+          .from("workshop_questions")
+          .select("*")
+          .eq("workshop_id", workshopId)
+          .order("position"),
+        // Videos introductorios del taller — orden estricto por
+        // `position`. Vacío significa que no hay gate.
+        supabase
+          .from("workshop_intro_videos")
+          .select("id, url, title, position")
+          .eq("workshop_id", workshopId)
+          .order("position"),
+      ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as WorkshopQuestion[]);
+      setIntroVideos(
+        (videosData as Array<{
+          id: string;
+          url: string;
+          title: string | null;
+          position: number;
+        }> | null) ?? [],
+      );
 
       // Load existing submission/answers. Si hay grupo, la submission
       // pertenece al grupo (cualquier miembro puede ver/editar).
@@ -778,6 +807,20 @@ export function StudentWorkshopTaker({
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.id) {
+        // Hidratar el set de videos ya vistos desde
+        // `workshop_submission_video_views`. Si la submission no existe
+        // todavía (primer abrir del taller), el set queda vacío y el
+        // estudiante debe ver todos los videos.
+        const { data: viewsData } = await supabase
+          .from("workshop_submission_video_views")
+          .select("video_id")
+          .eq("submission_id", sub.id);
+        if (!cancelled) {
+          const ids = ((viewsData as Array<{ video_id: string }> | null) ?? []).map(
+            (v) => v.video_id,
+          );
+          setWatchedVideoIds(new Set(ids));
+        }
         const { data: ans } = await supabase
           .from("workshop_submission_answers")
           .select("*")
@@ -848,6 +891,10 @@ export function StudentWorkshopTaker({
     if (!user) return;
     if (!questions.length) {
       toast.error("Este taller no tiene preguntas");
+      return;
+    }
+    if (videoGateBlocking) {
+      toast.error("Debes ver todos los videos introductorios antes de entregar.");
       return;
     }
     // Si el alumno deja preguntas sin responder, pedimos confirmación
@@ -1244,6 +1291,52 @@ export function StudentWorkshopTaker({
 
   return (
     <div className="space-y-4">
+      {/* Gate de videos introductorios del taller (lista N en orden
+          estricto). Solo se renderiza si el taller tiene videos en
+          `workshop_intro_videos`. A diferencia de proyectos, aplica a
+          CUALQUIER entrega de taller. */}
+      {introVideos.length > 0 && (
+        <IntroVideoGate
+          videos={introVideos}
+          watchedIds={watchedVideoIds}
+          onVideoWatched={async (videoId) => {
+            // Optimistic: state local primero para desbloquear el
+            // siguiente video al instante. Si el RPC falla, el siguiente
+            // reload re-pide la view perdida.
+            setWatchedVideoIds((prev) => {
+              const next = new Set(prev);
+              next.add(videoId);
+              return next;
+            });
+            try {
+              if (!user) return;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const dbAny = supabase as any;
+              const subQuery = dbAny
+                .from("workshop_submissions")
+                .select("id")
+                .eq("workshop_id", workshopId);
+              const { data: subRow } = await (groupId
+                ? subQuery.eq("group_id", groupId).maybeSingle()
+                : subQuery.eq("user_id", user.id).maybeSingle());
+              if (subRow?.id) {
+                await supabase.rpc("mark_workshop_video_watched", {
+                  _submission_id: subRow.id,
+                  _video_id: videoId,
+                });
+              }
+              // Sin submission aún: progreso solo en state local. El
+              // submit creará la submission y los siguientes "watched"
+              // sí persistirán. Si el alumno cierra el modal entre que
+              // ve el primer video y entrega, perderá ese progreso (caso
+              // raro — la mayoría ve videos y entrega en la misma sesión).
+            } catch {
+              /* silencioso */
+            }
+          }}
+        />
+      )}
+
       {questions.map((q, idx) => (
         <Card key={q.id}>
           <CardHeader className="pb-2">
@@ -1353,7 +1446,12 @@ export function StudentWorkshopTaker({
         </Card>
       ))}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
-        <Button onClick={submit} disabled={submitting} className="w-full">
+        {videoGateBlocking && (
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-1.5 text-center">
+            Termina de ver los videos introductorios para habilitar la entrega.
+          </p>
+        )}
+        <Button onClick={submit} disabled={submitting || videoGateBlocking} className="w-full">
           {submitting ? (
             <>
               <Spinner size="md" className="mr-1" />

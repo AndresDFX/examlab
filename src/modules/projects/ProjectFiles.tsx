@@ -1116,6 +1116,13 @@ export function StudentProjectTaker({
     Array<{ id: string; url: string; title: string | null; position: number }>
   >([]);
   const [watchedVideoIds, setWatchedVideoIds] = useState<Set<string>>(() => new Set());
+  // Enforcement de max_attempts. `attemptCount` viene de la submission
+  // existente (0 si nunca entregó). `effectiveMaxAttempts` = override
+  // del proyecto, o el default global de `app_settings`. Cuando
+  // `attemptCount >= effectiveMaxAttempts`, bloqueamos el botón de
+  // entregar — el estudiante ya consumió todos sus intentos.
+  const [attemptCount, setAttemptCount] = useState<number>(0);
+  const [effectiveMaxAttempts, setEffectiveMaxAttempts] = useState<number>(1);
   const loadedForRef = useRef<string | null>(null);
 
   // ¿La entrega tiene archivos de código (codigo_zip)? Si no, el gate
@@ -1124,6 +1131,7 @@ export function StudentProjectTaker({
   const hasCodeQuestion = questions.some((q) => q.type === "codigo_zip");
   const allVideosWatched = introVideos.every((v) => watchedVideoIds.has(v.id));
   const videoGateBlocking = introVideos.length > 0 && hasCodeQuestion && !allVideosWatched;
+  const attemptsExhausted = attemptCount >= effectiveMaxAttempts;
 
   useEffect(() => {
     if (!user) return;
@@ -1133,22 +1141,33 @@ export function StudentProjectTaker({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ data: qs }, { data: proj }, { data: videosData }] = await Promise.all([
-        db.from("project_files").select("*").eq("project_id", projectId).order("position"),
-        db.from("projects").select("description, course_id").eq("id", projectId).maybeSingle(),
-        // Videos introductorios del proyecto. Migrado de la columna
-        // singular `projects.code_intro_video_url` a tabla aparte —
-        // ver migración 20260603180000. Orden estricto por `position`.
-        db
-          .from("project_intro_videos")
-          .select("id, url, title, position")
-          .eq("project_id", projectId)
-          .order("position"),
-      ]);
+      const [{ data: qs }, { data: proj }, { data: videosData }, { data: settingsRow }] =
+        await Promise.all([
+          db.from("project_files").select("*").eq("project_id", projectId).order("position"),
+          // Incluimos `max_attempts` (override por proyecto). NULL → fall
+          // back al default global de `app_settings`.
+          db
+            .from("projects")
+            .select("description, course_id, max_attempts")
+            .eq("id", projectId)
+            .maybeSingle(),
+          db
+            .from("project_intro_videos")
+            .select("id, url, title, position")
+            .eq("project_id", projectId)
+            .order("position"),
+          // Default global de intentos para proyectos. Singleton, columna
+          // agregada en la migración 20260602300000.
+          db.from("app_settings").select("default_project_max_attempts").limit(1).maybeSingle(),
+        ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
       setProjectDescription((proj as { description?: string | null } | null)?.description ?? "");
       setProjectCourseId((proj as { course_id?: string | null } | null)?.course_id ?? null);
+      const projMax = (proj as { max_attempts?: number | null } | null)?.max_attempts;
+      const globalMax = (settingsRow as { default_project_max_attempts?: number | null } | null)
+        ?.default_project_max_attempts;
+      setEffectiveMaxAttempts(Number(projMax ?? globalMax ?? 1));
       const loadedVideos =
         (videosData as Array<{
           id: string;
@@ -1160,14 +1179,18 @@ export function StudentProjectTaker({
 
       // Si hay grupo, la submission pertenece al grupo (cualquier
       // miembro la ve y edita). Si no, comportamiento individual normal.
+      // Incluimos `attempt_count` (col agregada en 20260607000000) para
+      // hidratar el enforcement de max_attempts. Cast a any porque
+      // `types.ts` se regenera en el próximo publish de Lovable.
       const subQuery = db
         .from("project_submissions")
-        .select("id, final_grade, status, repository_url")
+        .select("id, final_grade, status, repository_url, attempt_count")
         .eq("project_id", projectId);
       const { data: sub } = await (groupId
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.repository_url) setRepositoryUrl(sub.repository_url);
+      setAttemptCount(Number((sub as { attempt_count?: number } | null)?.attempt_count ?? 0));
       // Hidratar el set de videos ya vistos desde
       // `project_submission_video_views`. Si la submission no existe
       // todavía (primer abrir del proyecto), el set queda vacío y el
@@ -1257,6 +1280,16 @@ export function StudentProjectTaker({
       toast.error("Este proyecto no tiene preguntas");
       return;
     }
+    // Enforcement de max_attempts: si el estudiante/grupo ya consumió
+    // todos los intentos, no permitimos otro submit. Esto cubre los
+    // dos casos: max_attempts=1 (típico) → solo 1 entrega total;
+    // max_attempts=N → hasta N reintentos.
+    if (attemptsExhausted) {
+      toast.error(
+        `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. No puedes volver a entregar este proyecto.`,
+      );
+      return;
+    }
     // Link al repositorio: obligatorio. Validamos URL razonable
     // (cualquier http/https) — el filtro fino (GitHub vs Drive vs otra)
     // queda al docente al revisar manualmente.
@@ -1267,6 +1300,97 @@ export function StudentProjectTaker({
     }
     if (!/^https?:\/\/\S+\.\S+/i.test(url)) {
       toast.error("Ingresa una URL válida (debe empezar con http:// o https://)");
+      return;
+    }
+    // ── Pre-validación de archivos/ZIPs ANTES de crear la submission ──
+    // Issues reportados:
+    //   1) Multi-file: archivos con extensión no permitida no rechazaban
+    //      el submit — la entrega se guardaba con grade=0 + feedback de
+    //      error en vez de abortar para que el alumno corrigiera.
+    //   2) ZIP único: misma historia — un ZIP con archivos no permitidos
+    //      se grababa con grade=0 en lugar de bloquear el envío.
+    // Solución: una pasada de validación sobre TODAS las preguntas
+    // codigo_zip al inicio del submit. Si alguna falla, toast → return.
+    // Sin side effects (no se crea fila en project_submissions, no se
+    // sube nada a Storage, no se llama a la IA).
+    const codeQuestionErrors: Array<{ qNumber: number; message: string }> = [];
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (q.type !== "codigo_zip") continue;
+      const raw = answers[q.id];
+      const langKey = (q.language ?? "").toLowerCase().trim();
+      const allowedExts = LANG_TO_EXT[langKey] ?? null;
+      if (q.zip_single) {
+        const zipFile = raw instanceof File ? raw : null;
+        if (!zipFile) continue;
+        if (!zipFile.name.toLowerCase().endsWith(".zip")) {
+          codeQuestionErrors.push({
+            qNumber: i + 1,
+            message: `Pregunta #${i + 1}: el archivo entregado no es un .zip.`,
+          });
+          continue;
+        }
+        if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
+          codeQuestionErrors.push({
+            qNumber: i + 1,
+            message: `Pregunta #${i + 1}: el ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`,
+          });
+          continue;
+        }
+        const preCheck = await preValidateZipInBrowser(zipFile, allowedExts);
+        if (!preCheck.ok) {
+          codeQuestionErrors.push({
+            qNumber: i + 1,
+            message: `Pregunta #${i + 1}: ${preCheck.error}`,
+          });
+        }
+      } else {
+        const filesArr: File[] = Array.isArray(raw)
+          ? (raw.filter((f) => f instanceof File) as File[])
+          : raw instanceof File
+            ? [raw]
+            : [];
+        if (filesArr.length === 0) continue;
+        if (allowedExts) {
+          const violations = filesArr.filter((f) => !isFileAllowed(f.name, allowedExts));
+          if (violations.length > 0) {
+            const sample = violations
+              .slice(0, 5)
+              .map((f) => f.name)
+              .join(", ");
+            const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+            const allowedLabel = allowedExts.map((e) => `.${e}`).join(", ");
+            codeQuestionErrors.push({
+              qNumber: i + 1,
+              message: `Pregunta #${i + 1}: archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+            });
+            continue;
+          }
+        }
+        const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
+        if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
+          codeQuestionErrors.push({
+            qNumber: i + 1,
+            message: `Pregunta #${i + 1}: los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
+          });
+        } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
+          codeQuestionErrors.push({
+            qNumber: i + 1,
+            message: `Pregunta #${i + 1}: demasiados archivos (${filesArr.length}). Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+          });
+        }
+      }
+    }
+    if (codeQuestionErrors.length > 0) {
+      // Un toast por error — duración generosa para que el alumno alcance
+      // a leer cada uno. Abortamos sin crear la submission ni subir nada.
+      for (const err of codeQuestionErrors) {
+        toast.error(err.message, { duration: 10000 });
+      }
+      toast.error(
+        "Corrige los archivos señalados y vuelve a entregar — no se guardó nada todavía.",
+        { duration: 10000 },
+      );
       return;
     }
     // Confirmación del design system antes de entregar con respuestas
@@ -1300,10 +1424,29 @@ export function StudentProjectTaker({
       // Si hay grupo: filtramos/insertamos por group_id para que cualquier
       // miembro toque la misma fila. user_id se mantiene como "último
       // editor" para auditoría.
-      const existingQuery = db.from("project_submissions").select("id").eq("project_id", projectId);
+      // Incluimos `attempt_count` para re-check anti-race: si entre la
+      // carga inicial y este submit otro miembro del grupo ya entregó,
+      // detectamos el nuevo conteo y abortamos.
+      const existingQuery = db
+        .from("project_submissions")
+        .select("id, attempt_count")
+        .eq("project_id", projectId);
       const { data: existing } = await (groupId
         ? existingQuery.eq("group_id", groupId).maybeSingle()
         : existingQuery.eq("user_id", user.id).maybeSingle());
+      const previousCount = Number(
+        (existing as { attempt_count?: number } | null)?.attempt_count ?? 0,
+      );
+      // Defense-in-depth contra concurrencia (grupos) o tabs abiertas:
+      // el state local `attemptCount` puede estar desactualizado.
+      if (previousCount >= effectiveMaxAttempts) {
+        toast.error(
+          `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. Recarga para ver la entrega actual.`,
+        );
+        setSubmitting(false);
+        return;
+      }
+      const nextAttemptCount = previousCount + 1;
       if (existing?.id) {
         submissionId = existing.id;
         await db
@@ -1313,6 +1456,7 @@ export function StudentProjectTaker({
             submitted_at: new Date().toISOString(),
             repository_url: url,
             user_id: user.id,
+            attempt_count: nextAttemptCount,
           })
           .eq("id", submissionId);
       } else {
@@ -1325,6 +1469,7 @@ export function StudentProjectTaker({
             status: "entregado",
             submitted_at: new Date().toISOString(),
             repository_url: url,
+            attempt_count: nextAttemptCount,
           })
           .select("id")
           .single();
@@ -1335,6 +1480,10 @@ export function StudentProjectTaker({
         }
         submissionId = created.id;
       }
+      // Actualizar state local — el botón ya se deshabilita si quedó
+      // exhausto. Si todavía hay intentos disponibles, el alumno puede
+      // re-entregar (aunque la mayoría usa max_attempts=1).
+      setAttemptCount(nextAttemptCount);
 
       // ── Resolución del modo IA ──
       // `processing_mode = async` (default) + sin override = encolar las
@@ -2294,13 +2443,33 @@ export function StudentProjectTaker({
           </CardContent>
         </Card>
       ))}
-      <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
-        {videoGateBlocking && (
-          <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-1.5 text-center">
+      <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border space-y-1.5">
+        {/* Estado de intentos: muestra X/Y siempre, en rojo si el alumno
+            ya consumió todos. Útil para que sepa qué le queda antes de
+            entregar. */}
+        <div className="flex items-center justify-center gap-1.5 text-[11px]">
+          <span className="text-muted-foreground">Intentos usados:</span>
+          <span
+            className={`tabular-nums font-medium ${attemptsExhausted ? "text-destructive" : "text-foreground"}`}
+          >
+            {attemptCount} / {effectiveMaxAttempts}
+          </span>
+        </div>
+        {attemptsExhausted && (
+          <p className="text-[11px] text-destructive text-center">
+            Ya consumiste todos tus intentos. No puedes volver a entregar.
+          </p>
+        )}
+        {videoGateBlocking && !attemptsExhausted && (
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center">
             Termina de ver el video introductorio para habilitar la entrega.
           </p>
         )}
-        <Button onClick={submit} disabled={submitting || videoGateBlocking} className="w-full">
+        <Button
+          onClick={submit}
+          disabled={submitting || videoGateBlocking || attemptsExhausted}
+          className="w-full"
+        >
           {submitting ? <Spinner size="md" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
           Entregar
         </Button>

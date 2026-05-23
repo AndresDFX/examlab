@@ -59,7 +59,10 @@ function AdminSettings() {
       />
 
       <Tabs defaultValue="general">
-        <TabsList>
+        {/* Tabs en flex-wrap + h-auto: 10 pestañas no caben en una sola
+            fila en monitores estándar, así que dejamos que envuelvan a
+            varias filas en lugar de scroll horizontal. */}
+        <TabsList className="flex flex-wrap h-auto justify-start gap-1">
           <TabsTrigger value="general" className="gap-1.5">
             <Sliders className="h-3.5 w-3.5" />
             Generales

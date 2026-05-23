@@ -56,6 +56,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { StatTile } from "@/components/ui/stat-tile";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -114,6 +115,25 @@ function TeacherExams() {
       return true;
     });
   }, [exams, search, courseFilter, cutFilter]);
+
+  // Quick-stats estables del listado completo (no se mueven al filtrar).
+  // Cuatro tiles: borradores, publicados, cerrados, externos. Igual que
+  // en talleres y proyectos — pulso rápido del estado del catálogo.
+  const examStats = useMemo(() => {
+    let draft = 0,
+      published = 0,
+      closed = 0,
+      external = 0;
+    for (const e of exams) {
+      if ((e as any).is_external) external++;
+      const s = (e as any).status ?? "published";
+      if (s === "draft") draft++;
+      else if (s === "published") published++;
+      else if (s === "closed") closed++;
+    }
+    return { draft, published, closed, external };
+  }, [exams]);
+
   const sel = useMultiSelect(filteredExams);
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -527,6 +547,35 @@ function TeacherExams() {
           </>
         }
       />
+
+      {exams.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Borradores"
+            value={examStats.draft}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Publicados"
+            value={examStats.published}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Cerrados"
+            value={examStats.closed}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+          <StatTile
+            label="Externos"
+            value={examStats.external}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+        </div>
+      )}
 
       <ListFilters
         search={search}
