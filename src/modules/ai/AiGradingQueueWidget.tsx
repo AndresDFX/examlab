@@ -26,7 +26,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, ArrowRight } from "lucide-react";
+import {
+  Clock,
+  Cpu,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw,
+  ArrowRight,
+  ListOrdered,
+} from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,7 +189,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
-          <Cpu className="h-4 w-4 text-primary" />
+          <ListOrdered className="h-4 w-4 text-primary" />
           Cola (IA)
           <Button
             variant="ghost"

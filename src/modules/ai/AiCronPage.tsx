@@ -60,6 +60,7 @@ import {
   ExternalLink,
   CalendarClock,
   Sparkles,
+  ListOrdered,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -173,7 +174,7 @@ export function AiCronPage({ isAdmin = false }: Props) {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Cpu className="h-6 w-6 text-primary" />}
+        icon={<ListOrdered className="h-6 w-6 text-primary" />}
         title="Cola"
         subtitle={
           isAdmin
@@ -817,7 +818,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             />
           ) : jobs.length === 0 ? (
             <TableEmpty
-              icon={Cpu}
+              icon={ListOrdered}
               title="No hay jobs"
               description={
                 statusFilter === "active"

@@ -155,6 +155,18 @@ const ACTION_LABELS: Record<string, string> = {
   "ai_plagiarism.detected": "Plagio detectado por IA",
   "ai.grading_retry_run": "Reintento automático de calificación IA",
   "ai.grading_retry_run_failed": "Reintento automático de calificación IA falló",
+  // Ciclo de vida de un job en `ai_grading_queue` (módulo Cola). El
+  // enqueue lo dispara `aiGradeOrEnqueue` del cliente; los demás los
+  // dispara el worker (server-side, actor_id null = "sistema") o el
+  // docente desde el módulo Cola → tab IA.
+  "ai_grading.job_enqueued": "Job IA encolado",
+  "ai_grading.job_completed": "Job IA completado",
+  "ai_grading.job_failed": "Job IA falló",
+  "ai_grading.job_discarded_cancelled": "Job IA descartado (cancelado a mitad)",
+  "ai_grading.job_cancelled": "Job IA cancelado",
+  "ai_grading.job_processed_manual": "Job IA procesado manualmente",
+  "ai_grading.job_requeued": "Job IA re-encolado",
+  "ai_grading.jobs_cancelled_bulk": "Jobs IA cancelados en lote",
   // ── Ejecución de código (compilador remoto) ──
   "code.executed": "Código ejecutado",
   "code.compile_error": "Error de compilación",

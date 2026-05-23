@@ -67,6 +67,15 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (request.method !== "GET") return;
+  // El Cache API solo acepta requests con scheme http(s). Extensiones del
+  // navegador (chrome-extension://, moz-extension://, etc.) que se cuelgan
+  // sobre la página disparan fetch eventos que pasan por el SW; si los
+  // intentamos cachear, cache.put rechaza con:
+  //   "Failed to execute 'put' on 'Cache': Request scheme 'chrome-extension'
+  //    is unsupported"
+  // Salir temprano para esos schemes evita el error sin afectar el
+  // funcionamiento de la extensión (queda libre de pasar a la red).
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
   if (url.hostname.includes("supabase")) return;
   // CheerpJ CDN sirve JARs gigantes con range requests; el SW rompe el caché de
   // rango con ERR_CACHE_OPERATION_NOT_SUPPORTED. Dejar pasar a la red directo.
@@ -135,7 +144,15 @@ self.addEventListener("fetch", (event) => {
           fetch(request).then((response) => {
             if (response.ok) {
               const clone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+              // `.catch(() => {})` defensivo: cualquier fallo de cacheo
+              // (scheme no soportado, quota excedida, opaque response, etc.)
+              // queda silenciado — la respuesta de red ya se devolvió y
+              // el siguiente fetch reintentará caching. Romper la
+              // promesa propaga un unhandled rejection en el console.
+              caches
+                .open(CACHE_NAME)
+                .then((cache) => cache.put(request, clone))
+                .catch(() => {});
             }
             return response;
           }),
@@ -154,7 +171,10 @@ self.addEventListener("fetch", (event) => {
           fetch(request).then((response) => {
             if (response.ok) {
               const clone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+              caches
+                .open(CACHE_NAME)
+                .then((cache) => cache.put(request, clone))
+                .catch(() => {});
             }
             return response;
           }),

@@ -6,7 +6,7 @@
  *   - Generales:     defaults de cursos/exámenes + alerta de volumen de correos.
  *   - Correos:       kill switch global + toggles por categoría de email.
  *   - Compilador:    proveedor de ejecución de código.
- *   - IA / Cola:     modo sync/async + códigos override.
+ *   - Cola:          modo sync/async + códigos override.
  *   - Auditoría:     retención de audit_logs por severidad.
  *   - Certificados:  parámetros del certificado de finalización.
  *   - Secretos:      keys de servicios externos (Lovable AI, Gemini, etc.).
@@ -27,7 +27,7 @@ import {
   Award,
   KeyRound,
   Layers,
-  Cpu,
+  ListOrdered,
   Wrench,
   Database,
 } from "lucide-react";
@@ -73,8 +73,8 @@ function AdminSettings() {
             Compilador
           </TabsTrigger>
           <TabsTrigger value="ai-grading" className="gap-1.5">
-            <Cpu className="h-3.5 w-3.5" />
-            IA / Cola
+            <ListOrdered className="h-3.5 w-3.5" />
+            Cola
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />

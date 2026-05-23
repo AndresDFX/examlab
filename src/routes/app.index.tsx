@@ -32,7 +32,7 @@ import {
   Bot,
   CircleCheck,
   Search,
-  Cpu,
+  ListOrdered,
   RefreshCw,
 } from "lucide-react";
 
@@ -671,7 +671,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             módulo Cola → tab IA para verlas y, si es urgente, procesar
             o activar la ventana sincrónica con un código override. */}
         <Stat
-          icon={Cpu}
+          icon={ListOrdered}
           label="Cola (pendientes)"
           value={counts.aiPendingJobs}
           color="text-indigo-500 dark:text-indigo-400"

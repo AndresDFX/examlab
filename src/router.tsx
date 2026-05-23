@@ -1,7 +1,36 @@
 import { createRouter, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routeTree } from "./routeTree.gen";
+
+/**
+ * Misma detección que ErrorBoundary + __root.tsx. Si cualquier ruta lazy
+ * intenta cargar un chunk que el deploy nuevo ya invalidó, recargamos
+ * UNA vez (la flag `examlab:reloaded` en sessionStorage evita el loop).
+ */
+function isChunkLoadError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { message?: string; name?: string };
+  const msg = String(e.message ?? "");
+  return (
+    e.name === "ChunkLoadError" ||
+    msg.includes("ChunkLoadError") ||
+    msg.includes("Loading chunk") ||
+    msg.includes("Failed to fetch dynamically imported module") ||
+    msg.includes("Importing a module script failed")
+  );
+}
+
+function reloadOnceForStaleChunk(): void {
+  try {
+    if (sessionStorage.getItem("examlab:reloaded") === "1") return;
+    sessionStorage.setItem("examlab:reloaded", "1");
+  } catch {
+    /* sessionStorage bloqueado — recargar igual */
+  }
+  window.location.reload();
+}
 
 /**
  * Componente que TanStack Router renderiza cuando una ruta lanza
@@ -9,11 +38,33 @@ import { routeTree } from "./routeTree.gen";
  * inline; lo migramos a español + design system para que se vea
  * coherente con el resto de la app.
  *
+ * Chunk-load failures (deploy reciente borró el JS de la ruta) NO
+ * deberían mostrar este fallback: recargamos automáticamente para que
+ * el navegador tome los chunks nuevos. Sin esto el usuario veía la
+ * pantalla roja "Algo salió mal" después de cada deploy mientras tenía
+ * pestañas abiertas.
+ *
  * En dev mostramos el mensaje del error; en prod lo escondemos para
  * no exponer detalles técnicos al usuario final.
  */
 function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  const chunkError = isChunkLoadError(error);
+
+  // useEffect porque queremos disparar el reload DESPUÉS de que React
+  // termine de renderizar (no en plena reconciliación). El reload solo
+  // ocurre una vez por sesión gracias a la flag de sessionStorage.
+  useEffect(() => {
+    if (chunkError) reloadOnceForStaleChunk();
+  }, [chunkError]);
+
+  if (chunkError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Actualizando…
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

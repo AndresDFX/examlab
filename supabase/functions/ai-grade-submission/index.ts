@@ -1016,6 +1016,51 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         "makefile",
       ]);
 
+      // ── Auto-descompresión de ZIPs sueltos ──
+      // Caso típico: el estudiante subió un único `test.zip` con todo
+      // el código adentro y el flujo multi-file lo registró en
+      // `code_paths = ["test.zip"]`. Esa rama NO descomprime (era SOLO
+      // para `zipPath` legacy). Resultado: `unzipped["test.zip"]`
+      // quedaba con los bytes del ZIP entero, el filtro de extensiones
+      // lo descartaba (`.zip` no está en CODE_EXT) y la IA recibía 0
+      // archivos → "No se reconocieron archivos de código".
+      //
+      // Solución: detectar CUALQUIER `.zip` dentro del set `unzipped` y
+      // expandirlo en sitio. Esto cubre:
+      //   - Multi-file con un único ZIP (caso reportado).
+      //   - Multi-file con varios archivos donde uno es ZIP de assets.
+      //   - ZIPs anidados (un nivel — no recursivo para evitar zip-bomb).
+      // Si un ZIP falla en descomprimir (corrupto, password-protected,
+      // formato raro), lo dejamos como estaba y será descartado por el
+      // whitelist más abajo — comportamiento previo, no degradamos.
+      const zipsToExpand = Object.entries(unzipped).filter(([k]) =>
+        k.toLowerCase().endsWith(".zip"),
+      );
+      if (zipsToExpand.length > 0) {
+        const fflate = await import("npm:fflate@0.8.2");
+        for (const [zipKey, zipBytes] of zipsToExpand) {
+          try {
+            const inner = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+              fflate.unzip(zipBytes, (err, files) => (err ? reject(err) : resolve(files)));
+            });
+            delete unzipped[zipKey];
+            // Merge: si el ZIP trae paths con el mismo basename que un
+            // archivo ya descargado por separado, mantenemos el path
+            // original del ZIP (suele tener la ruta completa
+            // `src/main/java/...` que da más contexto a la IA).
+            for (const [innerPath, innerBytes] of Object.entries(inner)) {
+              if (innerPath.endsWith("/")) continue;
+              unzipped[innerPath] = innerBytes;
+            }
+          } catch (e) {
+            console.warn(
+              `[ai-grade-submission] No se pudo descomprimir ${zipKey}:`,
+              e instanceof Error ? e.message : String(e),
+            );
+          }
+        }
+      }
+
       const allPaths = Object.keys(unzipped).filter((p) => !p.endsWith("/"));
 
       // ── Validación ESTRICTA de extensiones permitidas ──

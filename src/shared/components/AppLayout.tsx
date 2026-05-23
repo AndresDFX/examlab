@@ -72,7 +72,7 @@ import {
   Library,
   Award,
   Video,
-  Cpu,
+  ListOrdered,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -255,13 +255,14 @@ const NAV: NavItem[] = [
   // cuando cambia de rol.
   { to: "/app/teacher/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Docente"] },
   { to: "/app/admin/ai-prompts", labelKey: "nav.aiPrompts", icon: Sparkles, roles: ["Admin"] },
-  // Cron IA — gestión de la cola async de calificación con IA. Misma
-  // posición visual para Admin y Docente para no descolocar al usuario
-  // cuando cambia de rol. Va después de Prompts porque es operacional
-  // (qué está corriendo) mientras Prompts es configuración (qué
-  // prompt se usa).
-  { to: "/app/teacher/ai-cron", labelKey: "nav.aiCron", icon: Cpu, roles: ["Docente"] },
-  { to: "/app/admin/ai-cron", labelKey: "nav.aiCron", icon: Cpu, roles: ["Admin"] },
+  // Cola — gestión de la cola async de calificación con IA + tareas
+  // programadas. Misma posición visual para Admin y Docente para no
+  // descolocar al usuario cuando cambia de rol. Va después de Prompts
+  // porque es operacional (qué está corriendo) mientras Prompts es
+  // configuración (qué prompt se usa). Ícono ListOrdered evoca "cola
+  // de jobs ordenados" mejor que el Cpu original.
+  { to: "/app/teacher/ai-cron", labelKey: "nav.aiCron", icon: ListOrdered, roles: ["Docente"] },
+  { to: "/app/admin/ai-cron", labelKey: "nav.aiCron", icon: ListOrdered, roles: ["Admin"] },
   // Auditoría: Admin ve todo, Docente ve su alcance.
   {
     to: "/app/teacher/audit-logs",
