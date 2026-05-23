@@ -286,18 +286,27 @@ function TeacherProjects() {
   // Biblioteca de videos para el selector del form de proyecto. Carga
   // perezosa: solo cuando el dialog se abre, evita query al entrar a
   // la lista de proyectos.
+  // `url` es CRÍTICO incluirlo: cuando el docente elige un video de la
+  // biblioteca, ese URL es lo que persistimos en `project_intro_videos.url`
+  // (la tabla no guarda library_id). Antes la SELECT pedía solo
+  // id/title/provider — al elegir un video de la biblioteca, el Input
+  // quedaba vacío y el filtro de save (`v.url.length > 0`) tiraba la fila.
+  // Resultado: el alumno nunca veía el video introductorio aunque el
+  // docente "lo guardó".
   const [videoLibrary, setVideoLibrary] = useState<
-    Array<{ id: string; title: string; provider: string }>
+    Array<{ id: string; title: string; provider: string; url: string }>
   >([]);
   useEffect(() => {
     if (!open) return;
     void (async () => {
       const { data } = await db
         .from("videos")
-        .select("id, title, provider")
+        .select("id, title, provider, url")
         .eq("is_archived", false)
         .order("title");
-      setVideoLibrary((data ?? []) as Array<{ id: string; title: string; provider: string }>);
+      setVideoLibrary(
+        (data ?? []) as Array<{ id: string; title: string; provider: string; url: string }>,
+      );
     })();
   }, [open]);
   const [editing, setEditing] = useState<Project | null>(null);
@@ -957,8 +966,21 @@ function TeacherProjects() {
       // (project_submission_video_views) caigan en cascada y el alumno
       // tenga que re-ver. Si esto se vuelve problema, migrar a diff por
       // URL/posición.
+      //
+      // Defense-in-depth: si el row tiene `library_id` pero su `url` aún
+      // está vacío (race entre el cambio del Select y el setState que
+      // copia el url, o `videoLibrary` no cargado), resolvemos la URL
+      // desde el catálogo antes del filtro. Sin esto, picar un video de
+      // la biblioteca y guardar rápido podía descartar la fila.
       const cleanedVideoRows = formIntroVideos
-        .map((v, idx) => ({ url: v.url.trim(), title: v.title.trim() || null, position: idx }))
+        .map((v, idx) => {
+          let resolvedUrl = v.url.trim();
+          if (!resolvedUrl && v.library_id) {
+            const libRow = videoLibrary.find((vl) => vl.id === v.library_id);
+            if (libRow?.url) resolvedUrl = libRow.url;
+          }
+          return { url: resolvedUrl, title: v.title.trim() || null, position: idx };
+        })
         .filter((v) => v.url.length > 0);
       // Borrar todo lo existente del proyecto. CASCADE de
       // `project_submission_video_views` se dispara y resetea el progreso
@@ -1818,6 +1840,50 @@ function TeacherProjects() {
     toast.success(t("project.submissionDeleted"));
   };
 
+  /**
+   * Borrado bulk de las entregas marcadas en el grid de calificación.
+   * El botón vive en la toolbar superior, así que el docente puede
+   * limpiar varias entregas sin tener que abrir el accordion de cada
+   * una (lo cual era la única vía de acceso al delete antes).
+   * Una sola query `.in("id", ids)` — atómica, una sola RT vs N gets.
+   */
+  const bulkDeleteSelectedSubmissions = async () => {
+    const ids = filteredGradingSubs
+      .filter((s) => gradingSel.isSelected(s.id))
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title:
+        ids.length === 1
+          ? t("project.deleteSubmissionTitle", {
+              name: gradingSubs.find((s) => s.id === ids[0])?.profile?.full_name ?? "—",
+            })
+          : `Eliminar ${ids.length} entregas`,
+      description:
+        ids.length === 1
+          ? t("project.deleteSubmissionBody")
+          : `Se eliminarán ${ids.length} entregas y todos sus archivos asociados. Esta acción no se puede deshacer.`,
+      confirmLabel: t("project.deleteSubmissionConfirm"),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.from("project_submissions").delete().in("id", ids);
+    if (error) return toast.error(friendlyError(error));
+    const removed = new Set(ids);
+    setGradingSubs((prev) => prev.filter((s) => !removed.has(s.id)));
+    setGradingAnsBySub((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+    gradingSel.clear();
+    toast.success(
+      ids.length === 1
+        ? t("project.submissionDeleted")
+        : `${ids.length} entregas eliminadas`,
+    );
+  };
+
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
   if (!isTeacher) return <p className="text-muted-foreground">{t("project.needsTeacherRole")}</p>;
@@ -2347,12 +2413,27 @@ function TeacherProjects() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <Input
-                          placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
-                          value={video.url}
-                          onChange={(e) => update({ url: e.target.value, library_id: null })}
-                          className="text-xs h-8"
-                        />
+                        {/* Input de URL: solo se habilita cuando el modo es
+                            "URL personalizada". Cuando se eligió un video de
+                            la biblioteca, la URL viene del registro de
+                            `videos` y NO debe ser editable — si el docente
+                            la cambia rompe el mapping (Y antes podía dejarla
+                            vacía y la fila se descartaba al guardar). */}
+                        {video.library_id ? (
+                          <div className="rounded-md border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                            URL gestionada desde el módulo Videos —{" "}
+                            <span className="font-mono truncate inline-block max-w-[280px] align-bottom">
+                              {video.url || "(cargando…)"}
+                            </span>
+                          </div>
+                        ) : (
+                          <Input
+                            placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                            value={video.url}
+                            onChange={(e) => update({ url: e.target.value, library_id: null })}
+                            className="text-xs h-8"
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -2804,6 +2885,22 @@ function TeacherProjects() {
                       disabled={bulkRegrading}
                     >
                       Limpiar ({gradingSel.count})
+                    </Button>
+                  )}
+                  {/* Eliminar entregas marcadas — bulk. Antes la única
+                      forma de borrar era abrir el accordion y usar el
+                      botón de fila. Ahora el docente puede limpiar N
+                      entregas en un solo .in("id", ids) sin desplegar. */}
+                  {gradingSel.count > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void bulkDeleteSelectedSubmissions()}
+                      disabled={bulkRegrading}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Eliminar {gradingSel.count}
                     </Button>
                   )}
                   {/* Bulk regrade con IA: si hay selección recalifica solo

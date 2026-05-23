@@ -1856,8 +1856,23 @@ export function StudentProjectTaker({
         payloadsByQid[q.id] = payload;
       }
 
-      // ── Fase 2: UNA llamada batch para todas las abiertas ──
-      if (batchItems.length > 0) {
+      // ── Fase 2: calificación de preguntas no-código (abierta, codigo,
+      // diagrama, java_gui) ──
+      //
+      // BUG FIX: este bloque antes corría SIEMPRE — incluso con el modo IA
+      // en `async`/cola, las preguntas de texto/diagrama/código se mandaban
+      // al instante en una llamada batch. Solo las `codigo_zip` respetaban
+      // el modo async (ver branch arriba con `if (useAsyncAi)`).
+      //
+      // Comportamiento correcto (mismo que talleres, ver
+      // [WorkshopQuestions.tsx](src/modules/workshops/WorkshopQuestions.tsx)):
+      //   - sync  → UNA llamada batch a `ai-grade-submission` con todas las
+      //             abiertas, esperamos el resultado y lo persistimos.
+      //   - async → marcamos cada item como `PENDING_AI_FEEDBACK` y
+      //             encolamos UN job por pregunta. El worker hourly los
+      //             drena y actualiza los rows. El estudiante ve la nota
+      //             "Por calificar" inmediatamente y la real cuando vuelva.
+      if (batchItems.length > 0 && !useAsyncAi) {
         const { data: bData, error: bErr } = await supabase.functions.invoke(
           "ai-grade-submission",
           {
@@ -1900,6 +1915,32 @@ export function StudentProjectTaker({
             payload.ai_grade = 0;
             payload.ai_feedback = errMsg ?? "El modelo no incluyó esta pregunta en su respuesta.";
           }
+        }
+      } else if (batchItems.length > 0 && useAsyncAi) {
+        // Modo async: marcamos pendiente y encolamos UN job por
+        // pregunta. Encolamos DESPUÉS del upsert (necesitamos el
+        // project_submission_files.id) — acá solo armamos los bodies
+        // y los empujamos a `pendingEnqueues`, que el loop de abajo
+        // recorre. Usamos `projectFileGrading: true` (mismo body que
+        // el flujo sync per-file legacy del edge function).
+        for (const it of batchItems) {
+          const payload = payloadsByQid[it.qid];
+          payload.ai_grade = null;
+          payload.ai_feedback = PENDING_AI_FEEDBACK;
+          pendingEnqueues.push({
+            qid: it.qid,
+            kind: "project_file",
+            body: {
+              projectFileGrading: true,
+              fileTitle: it.content,
+              fileDescription: null,
+              expectedRubric: it.rubric,
+              maxPoints: it.maxPoints,
+              studentContent: it.userAnswer,
+              courseLanguage,
+              projectDescription,
+            },
+          });
         }
       }
 

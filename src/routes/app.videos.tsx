@@ -766,14 +766,20 @@ function VideoLibrary() {
                   proyectos) de ese curso lo verán además de los globales.
                 </p>
               </div>
-              {saving && uploadPct > 0 && (
-                <div className="space-y-1">
-                  <Progress value={uploadPct} />
-                  <p className="text-[11px] text-muted-foreground">Subiendo… {uploadPct}%</p>
-                </div>
-              )}
             </TabsContent>
           </Tabs>
+
+          {/* Progress bar de upload — vive FUERA del TabsContent y arriba
+              del footer para que sea siempre visible. Antes estaba al
+              final del tab "upload": cuando el form crecía (file +
+              descripción + curso + helpers), la barra quedaba abajo del
+              scroll viewport del dialog y el alumno no veía el avance. */}
+          {saving && uploadPct > 0 && (
+            <div className="space-y-1 border-t pt-3">
+              <Progress value={uploadPct} />
+              <p className="text-[11px] text-muted-foreground">Subiendo… {uploadPct}%</p>
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
