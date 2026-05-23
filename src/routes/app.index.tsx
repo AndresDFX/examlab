@@ -358,16 +358,41 @@ function AdminDashboard() {
                     bg="bg-destructive/10"
                   />
                 </div>
+                {/* "Último envío" — equivalente del "Último éxito" del
+                    card de Cron (IA). Filtramos `recent` por
+                    email.delivered para no contar dispatched/skipped/
+                    failed como envío exitoso. Misma jerarquía visual:
+                    text-[11px] muted + ícono verde de check. */}
+                {(() => {
+                  const lastDelivered = emailStats.recent.find(
+                    (e) => e.action === "email.delivered",
+                  );
+                  return (
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0" />
+                      Último envío:{" "}
+                      {lastDelivered ? formatDateTime(lastDelivered.created_at) : "—"}
+                    </div>
+                  );
+                })()}
                 {emailStats.recent.length > 0 && (
-                  <div className="space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
-                    <p className="text-xs text-muted-foreground">Últimos eventos</p>
+                  // Mismo wrapper que el "EN COLA" del card de Cron:
+                  // border-t superior + título uppercase tracking-wide
+                  // + lista con overflow-y-auto que llena el alto
+                  // restante via flex-1.
+                  <div className="flex-1 min-h-0 flex flex-col gap-1 border-t pt-2">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium shrink-0">
+                      Últimos eventos
+                    </div>
+                    <div className="flex-1 overflow-y-auto pr-1 space-y-0.5 min-h-0">
                     {emailStats.recent.map((ev, i) => {
-                      const severityColor =
-                        ev.severity === "error"
-                          ? "text-destructive"
-                          : ev.severity === "warning"
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-muted-foreground";
+                      // Ícono semántico por severity — espeja la lógica
+                      // del card de Cron (Cpu en proceso, AlertTriangle
+                      // fail, Clock waiting). Para email: CircleCheck
+                      // delivered, AlertTriangle failed/error, Clock
+                      // dispatched/skipped.
+                      const isError = ev.severity === "error" || ev.action === "email.failed";
+                      const isDelivered = ev.action === "email.delivered";
                       const reason =
                         typeof ev.metadata?.reason === "string"
                           ? (ev.metadata.reason as string)
@@ -375,19 +400,29 @@ function AdminDashboard() {
                       return (
                         <div
                           key={i}
-                          className="flex items-center justify-between gap-2 text-[11px] border-b last:border-b-0 pb-1"
+                          className={`flex items-center gap-2 px-1.5 py-0.5 rounded text-[11px] ${
+                            isError ? "bg-destructive/5" : ""
+                          }`}
                         >
-                          <div className="min-w-0 flex-1">
-                            <span className={`font-mono ${severityColor}`}>{ev.action}</span>
-                            {reason && <span className="text-muted-foreground"> · {reason}</span>}
-                          </div>
+                          {isError ? (
+                            <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                          ) : isDelivered ? (
+                            <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0" />
+                          ) : (
+                            <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="flex-1 truncate font-mono">
+                            {ev.action}
+                            {reason && (
+                              <span className="text-muted-foreground"> · {reason}</span>
+                            )}
+                          </span>
                           {/* Edad relativa (3h, 1d, ...) en vez de fecha
-                              absoluta: alinea con el formato que ya usa
-                              el card de Cron (IA) para sus jobs en cola,
-                              dando un vocabulario temporal consistente
-                              al dashboard de admin. */}
+                              absoluta: mismo formato que el card de Cron
+                              para mantener vocabulario temporal
+                              consistente en el dashboard. */}
                           <span
-                            className="text-muted-foreground tabular-nums shrink-0"
+                            className="text-[10px] text-muted-foreground tabular-nums shrink-0"
                             title={formatDateTime(ev.created_at)}
                           >
                             {relativeAge(ev.created_at)}
@@ -395,6 +430,7 @@ function AdminDashboard() {
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 )}
               </>

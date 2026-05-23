@@ -688,24 +688,29 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           del docente. Lo movimos acá porque pertenece al mismo flujo
           que la cola (entender qué hay pendiente → decidir si activar
           una ventana sincrónica para procesar YA). Banner compacto
-          en lugar de Card propio para no inflar el alto del panel. */}
-      <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
-        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
-        <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
-          Por defecto las calificaciones IA pasan por esta cola async. Si necesitas una nota IA{" "}
-          <strong>ahora</strong>, pídele al administrador un código y actívalo aquí — abre una
-          ventana sincrónica corta sin tocar la configuración global.
-        </p>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 shrink-0"
-          onClick={() => setOverrideDialogOpen(true)}
-        >
-          <Sparkles className="h-3.5 w-3.5 mr-1" />
-          Activar IA
-        </Button>
-      </div>
+          en lugar de Card propio para no inflar el alto del panel.
+          Solo se muestra al Docente: el Admin GENERA los códigos
+          (panel Configuración) y maneja el modo global, así que
+          "pídele al administrador un código" no aplica para su rol. */}
+      {!isAdmin && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
+          <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+          <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
+            Por defecto las calificaciones IA pasan por esta cola async. Si necesitas una nota IA{" "}
+            <strong>ahora</strong>, pídele al administrador un código y actívalo aquí — abre una
+            ventana sincrónica corta sin tocar la configuración global.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0"
+            onClick={() => setOverrideDialogOpen(true)}
+          >
+            <Sparkles className="h-3.5 w-3.5 mr-1" />
+            Activar IA
+          </Button>
+        </div>
+      )}
 
       {/* Toolbar de bulk actions — solo aparece con count>0. Reusa el
           design system (MultiSelectToolbar): texto "N seleccionado(s)"
@@ -995,8 +1000,9 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       <p className="text-xs text-muted-foreground">
         Para procesar un job individual ahora usa el ícono{" "}
         <Zap className="inline h-3 w-3 align-text-bottom" />, y para drenar toda la cola (Admin) usa
-        el botón "Procesar ahora" arriba a la derecha. Si necesitas IA sincrónica en un flujo del
-        docente, pídele al administrador un código override.
+        el botón "Procesar ahora" arriba a la derecha.
+        {!isAdmin &&
+          " Si necesitas IA sincrónica en un flujo del docente, pídele al administrador un código override."}
       </p>
 
       {/* Dialog de confirmación para bulk cancel. Reusa BulkDeleteDialog
