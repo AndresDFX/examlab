@@ -217,3 +217,30 @@ export async function aiGradeOrEnqueue(req: AiGradeRequest): Promise<AiGradeResu
 
 /** Mensaje placeholder visible al estudiante mientras la IA está encolada. */
 export const PENDING_AI_FEEDBACK = "Pendiente IA — la calificación llegará al procesar la cola.";
+
+/**
+ * ¿La calificación del estudiante quedó pendiente de IA?
+ * Heurística usada en banners + listados del estudiante:
+ *   - ai_grade no asignada (null / undefined)
+ *   - Y/O ai_feedback es el placeholder `PENDING_AI_FEEDBACK`
+ * Cualquiera de las dos basta. NO usar para flujos donde la nota
+ * legítima puede ser 0 sin feedback (caso unrelated).
+ */
+export function isAiGradePending(opts: {
+  ai_grade?: number | null;
+  ai_feedback?: string | null;
+}): boolean {
+  const hasFeedbackPlaceholder = (opts.ai_feedback ?? "").trim() === PENDING_AI_FEEDBACK;
+  const noGrade = opts.ai_grade == null;
+  return hasFeedbackPlaceholder || noGrade;
+}
+
+/**
+ * Texto estándar que mostramos al estudiante cuando su entrega
+ * queda encolada. Centralizado para que todos los flujos (examen,
+ * taller, proyecto) usen el mismo wording — evita que el alumno vea
+ * un mensaje distinto en cada módulo y se confunda.
+ */
+export const QUEUED_STUDENT_TITLE = "Calificación con IA en cola";
+export const QUEUED_STUDENT_BODY =
+  "Tu entrega quedó registrada. La calificación con IA llegará cuando se procese la cola — la verás acá apenas esté lista.";

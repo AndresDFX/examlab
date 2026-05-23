@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert, FileText } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
@@ -254,6 +255,12 @@ function StudentExams() {
                     </Badge>
                   )}
                 </div>
+                {/* Banner pendiente IA: examen ya entregado pero sin
+                    nota asignada todavía. La query solo trae `ai_grade`
+                    + `final_override_grade`; null en ambos === la IA
+                    no escribió aún (modo async sin override del docente). */}
+                {completed && grade == null && <PendingAiGradeBanner variant="compact" />}
+
                 {exam.description && (
                   <p className="text-sm text-muted-foreground line-clamp-2">{exam.description}</p>
                 )}

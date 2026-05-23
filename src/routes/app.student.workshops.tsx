@@ -40,6 +40,8 @@ import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { isAiGradePending } from "@/modules/ai/ai-grading";
+import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 
 export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
 
@@ -353,6 +355,17 @@ function StudentWorkshops() {
                     <ExternalLink className="h-3 w-3" /> {t("dashboard.cards.workshopsStudent")}
                   </a>
                 )}
+
+                {/* Banner pendiente: cuando la submission ya está
+                    entregada pero la IA aún no calificó (modo async sin
+                    override). Variante compact para no inflar la card.
+                    Se omite si el docente ya puso final_grade override. */}
+                {submission?.status === "entregado" &&
+                  submission?.final_grade == null &&
+                  isAiGradePending({
+                    ai_grade: submission?.ai_grade,
+                    ai_feedback: submission?.ai_feedback,
+                  }) && <PendingAiGradeBanner variant="compact" />}
 
                 {(submission?.teacher_feedback || submission?.ai_feedback) && (
                   <div className="bg-muted/50 p-2 rounded text-sm">

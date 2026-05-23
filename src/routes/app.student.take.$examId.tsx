@@ -49,7 +49,11 @@ import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/mod
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
-import { aiGradeOrEnqueue } from "@/modules/ai/ai-grading";
+import {
+  aiGradeOrEnqueue,
+  QUEUED_STUDENT_TITLE,
+  QUEUED_STUDENT_BODY,
+} from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
@@ -858,7 +862,17 @@ function TakeExam() {
           // dashboard (solo lo vería el admin).
           courseId: exam?.course_id ?? null,
         },
-      }).catch((e) => console.error("aiGradeOrEnqueue failed:", e));
+      })
+        .then((result) => {
+          // Si quedó encolado (modo async sin override del docente),
+          // avisar al estudiante. Sin esto, ve la pantalla "examen
+          // entregado" sin saber por qué su nota tardará. El toast
+          // es global (sonner) — sobrevive a la navegación a otra ruta.
+          if (!result.ranSync && !result.error) {
+            toast.info(QUEUED_STUDENT_TITLE, { description: QUEUED_STUDENT_BODY, duration: 6000 });
+          }
+        })
+        .catch((e) => console.error("aiGradeOrEnqueue failed:", e));
       void logEvent({
         action: markSuspicious ? "exam_suspended" : "exam_submitted",
         category: "exam",

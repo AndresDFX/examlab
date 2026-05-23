@@ -42,6 +42,13 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import {
+  getProcessingMode,
+  readOverrideExpiry,
+  PENDING_AI_FEEDBACK,
+  QUEUED_STUDENT_TITLE,
+  QUEUED_STUDENT_BODY,
+} from "@/modules/ai/ai-grading";
 
 export type WorkshopQuestion = {
   id: string;
@@ -1027,8 +1034,19 @@ export function StudentWorkshopTaker({
         payloadsByQid[q.id] = payload;
       }
 
-      // ── Fase 2: UNA llamada batch para todas las abiertas ──
-      if (batchItems.length > 0) {
+      // Detectar modo IA antes de la Fase 2. En `async` sin override
+      // diferimos la calificación de las abiertas: marcamos cada
+      // respuesta con `ai_feedback = Pendiente IA…` y encolamos UN job
+      // por pregunta (kind="workshop_question") después del upsert.
+      // El worker drena la cola más tarde y persiste la nota real. El
+      // estudiante ve un toast informativo + el banner cuando vuelva
+      // a entrar al taller.
+      const aiMode = await getProcessingMode();
+      const aiOverrideActive = !!readOverrideExpiry();
+      const useAsyncAi = aiMode === "async" && !aiOverrideActive;
+
+      // ── Fase 2: UNA llamada batch para todas las abiertas (SOLO sync) ──
+      if (batchItems.length > 0 && !useAsyncAi) {
         const { data: bData, error: bErr } = await supabase.functions.invoke(
           "ai-grade-submission",
           {
@@ -1080,6 +1098,22 @@ export function StudentWorkshopTaker({
             });
           }
         }
+      } else if (batchItems.length > 0 && useAsyncAi) {
+        // Modo async: pre-marcar cada abierta como pendiente. La nota
+        // real llegará cuando el worker drene la cola. NO contamos
+        // hacia totalEarned — la nota final también queda pendiente.
+        for (const it of batchItems) {
+          const payload = payloadsByQid[it.qid];
+          payload.ai_grade = null;
+          payload.ai_feedback = PENDING_AI_FEEDBACK;
+          breakdown.push({
+            qid: it.qid,
+            type: it.type,
+            points: it.maxPoints,
+            earned: 0,
+            feedback: PENDING_AI_FEEDBACK,
+          });
+        }
       }
 
       // ── Persistencia: upsert por qid ──
@@ -1089,22 +1123,91 @@ export function StudentWorkshopTaker({
           .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" });
       }
 
-      const finalGrade =
-        totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
+      // ── Encolado IA (solo modo async, después del upsert) ──
+      // Encolamos un job por pregunta abierta. El target row del job es
+      // el `workshop_submission_answers.id` recién upserteado. Por
+      // simplicidad encolamos N jobs (no UN batch) — más caro en
+      // llamadas Gemini pero coherente con el modelo per-row del worker.
+      if (useAsyncAi && batchItems.length > 0) {
+        // Fetch el course_id del workshop para el RLS del docente
+        // (mismo motivo que en examen + proyecto).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dbForCourse = supabase as any;
+        const { data: wsRow } = await dbForCourse
+          .from("workshops")
+          .select("course_id")
+          .eq("id", workshopId)
+          .maybeSingle();
+        const courseIdForJob = (wsRow as { course_id?: string } | null)?.course_id ?? null;
 
-      await supabase
-        .from("workshop_submissions")
-        .update({
-          ai_grade: finalGrade,
-          final_grade: finalGrade,
-          ai_feedback: `Calificación automática inmediata sobre ${maxScore} pts.`,
-          status: "calificado",
-        })
-        .eq("id", submissionId);
+        for (const it of batchItems) {
+          // ID del answer recién upserteado.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: row } = await (supabase as any)
+            .from("workshop_submission_answers")
+            .select("id")
+            .eq("submission_id", submissionId)
+            .eq("question_id", it.qid)
+            .maybeSingle();
+          if (!row?.id) continue;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).rpc("enqueue_ai_grading", {
+            _kind: "workshop_question",
+            _invoke_target: "ai-grade-submission",
+            _body: {
+              workshopQuestionGrading: true,
+              questionType: it.type,
+              questionContent: it.content,
+              expectedRubric: it.rubric,
+              maxPoints: it.maxPoints,
+              studentAnswer: it.userAnswer,
+              language: it.language,
+              courseLanguage,
+            },
+            _target_table: "workshop_submission_answers",
+            _target_row_id: row.id,
+            _field_grade: "ai_grade",
+            _field_feedback: "ai_feedback",
+            _field_likelihood: "ai_likelihood",
+            _field_reasons: "ai_reasons",
+            _course_id: courseIdForJob,
+          });
+        }
+      }
 
-      setGraded({ grade: finalGrade, breakdown });
-      onGraded?.(finalGrade);
-      toast.success(`Calificación: ${finalGrade} / ${maxScore}`);
+      if (useAsyncAi && batchItems.length > 0) {
+        // En async dejamos la submission como `entregado` (no
+        // `calificado`) porque la nota real todavía no se calculó.
+        // ai_grade queda null y ai_feedback con el placeholder.
+        await supabase
+          .from("workshop_submissions")
+          .update({
+            ai_grade: null,
+            final_grade: null,
+            ai_feedback: PENDING_AI_FEEDBACK,
+            status: "entregado",
+          })
+          .eq("id", submissionId);
+        setGraded({ grade: 0, breakdown });
+        toast.info(QUEUED_STUDENT_TITLE, { description: QUEUED_STUDENT_BODY, duration: 8000 });
+      } else {
+        const finalGrade =
+          totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
+
+        await supabase
+          .from("workshop_submissions")
+          .update({
+            ai_grade: finalGrade,
+            final_grade: finalGrade,
+            ai_feedback: `Calificación automática inmediata sobre ${maxScore} pts.`,
+            status: "calificado",
+          })
+          .eq("id", submissionId);
+
+        setGraded({ grade: finalGrade, breakdown });
+        onGraded?.(finalGrade);
+        toast.success(`Calificación: ${finalGrade} / ${maxScore}`);
+      }
     } finally {
       setSubmitting(false);
     }

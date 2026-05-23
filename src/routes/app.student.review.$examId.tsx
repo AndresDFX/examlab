@@ -17,6 +17,8 @@ import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { SectionLoader } from "@/components/ui/loaders";
+import { isAiGradePending } from "@/modules/ai/ai-grading";
+import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 
 export const Route = createFileRoute("/app/student/review/$examId")({
   component: StudentExamReview,
@@ -75,6 +77,7 @@ function StudentExamReview() {
     status: string;
     answers: Record<string, unknown> | null;
     ai_grade: number | null;
+    ai_feedback: string | null;
     final_override_grade: number | null;
     submitted_at: string | null;
     teacher_feedback?: string | null;
@@ -131,7 +134,7 @@ function StudentExamReview() {
           supabase
             .from("submissions")
             .select(
-              "id, status, answers, ai_grade, final_override_grade, submitted_at, teacher_feedback",
+              "id, status, answers, ai_grade, ai_feedback, final_override_grade, submitted_at, teacher_feedback",
             )
             .eq("exam_id", examId)
             .eq("user_id", user.id)
@@ -158,6 +161,7 @@ function StudentExamReview() {
             status: string;
             answers: Record<string, unknown> | null;
             ai_grade: number | null;
+            ai_feedback: string | null;
             final_override_grade: number | null;
             submitted_at: string | null;
             teacher_feedback?: string | null;
@@ -279,6 +283,17 @@ function StudentExamReview() {
   return (
     <div className="space-y-5">
       <BackHeader title={exam.title} courseName={exam.course?.name} />
+
+      {/* Banner "calificación en cola". Solo mostrar cuando: el docente
+          NO override-eó (final_override_grade es null) Y la IA no
+          escribió la nota todavía. Si el docente ya calificó manual, la
+          nota visible es la suya — no tiene sentido confundir con el
+          banner de "pendiente IA". */}
+      {submission.final_override_grade == null &&
+        isAiGradePending({
+          ai_grade: submission.ai_grade,
+          ai_feedback: submission.ai_feedback,
+        }) && <PendingAiGradeBanner />}
 
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">

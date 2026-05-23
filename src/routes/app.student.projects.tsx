@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { isAiGradePending } from "@/modules/ai/ai-grading";
+import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
@@ -396,6 +398,16 @@ function StudentProjects() {
                     </div>
                   )}
                 </div>
+
+                {/* Banner pendiente: igual que en talleres. Cuando la
+                    entrega quedó encolada (modo async sin override),
+                    avisa al estudiante que la nota llegará después. */}
+                {submission?.status === "entregado" &&
+                  submission?.final_grade == null &&
+                  isAiGradePending({
+                    ai_grade: submission?.ai_grade,
+                    ai_feedback: submission?.ai_feedback,
+                  }) && <PendingAiGradeBanner variant="compact" />}
 
                 {(submission?.teacher_feedback || submission?.ai_feedback) && (
                   <div className="bg-muted/50 p-2 rounded text-sm">

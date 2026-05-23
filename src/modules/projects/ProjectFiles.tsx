@@ -53,7 +53,13 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
-import { getProcessingMode, readOverrideExpiry, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
+import {
+  getProcessingMode,
+  readOverrideExpiry,
+  PENDING_AI_FEEDBACK,
+  QUEUED_STUDENT_TITLE,
+  QUEUED_STUDENT_BODY,
+} from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1764,10 +1770,14 @@ export function StudentProjectTaker({
             _course_id: projectCourseId ?? null,
           });
         }
-        toast.info(
-          `${pendingEnqueues.length} entrega(s) en cola para calificación IA — el sistema las procesa en lote.`,
-          { duration: 8000 },
-        );
+        // Aviso al estudiante usando el copy unificado (compartido con
+        // examen + taller). El número de entregas pendientes va al
+        // description para que el estudiante sepa cuántas piezas
+        // quedaron encoladas sin perder el mensaje principal.
+        toast.info(QUEUED_STUDENT_TITLE, {
+          description: `${pendingEnqueues.length} respuesta(s) en cola. ${QUEUED_STUDENT_BODY}`,
+          duration: 8000,
+        });
       }
 
       const submissionScore =
