@@ -920,14 +920,14 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             <ExternalLink className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        {isFailed && (
+                        {(isFailed || isCancelled) && (
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7"
                             disabled={busy}
                             onClick={() => void retryJob(j.id)}
-                            title="Reintentar"
+                            title={isCancelled ? "Re-encolar" : "Reintentar"}
                           >
                             {isRetrying ? (
                               <Spinner size="sm" />

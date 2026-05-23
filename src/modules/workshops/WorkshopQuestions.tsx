@@ -41,6 +41,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 
 export type WorkshopQuestion = {
   id: string;
@@ -66,6 +67,9 @@ export function TeacherWorkshopQuestionsEditor({
   courseLanguage?: "es" | "en";
 }) {
   const confirm = useConfirm();
+  // Gate IA: en modo async sin override pedimos confirmación antes de
+  // gastar cuota Gemini en la generación de preguntas.
+  const aiGate = useAiAuthorizationGate();
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   // course_id del workshop — necesario para abrir el banco de preguntas
@@ -279,6 +283,8 @@ export function TeacherWorkshopQuestionsEditor({
     }
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setAiLoading(true);
     let totalInserted = 0;
     try {
@@ -698,6 +704,7 @@ export function TeacherWorkshopQuestionsEditor({
         targetId={workshopId}
         onImported={() => void load()}
       />
+      <aiGate.GateDialog />
     </div>
   );
 }

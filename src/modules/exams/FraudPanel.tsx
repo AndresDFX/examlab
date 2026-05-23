@@ -27,6 +27,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 
 /**
  * Panel reutilizable para docente: análisis de fraude (IA) y detección
@@ -133,6 +134,9 @@ function scoreVariant(score: number): "destructive" | "default" | "secondary" {
 }
 
 export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
+  // Gate IA: detect-plagiarism consume cuota Gemini (N²/2 comparaciones).
+  // En modo async sin override pedimos confirmación antes de gastar.
+  const aiGate = useAiAuthorizationGate();
   const [aiSignals, setAiSignals] = useState<AiSignalRow[]>([]);
   const [pairs, setPairs] = useState<SimilarityRow[]>([]);
   const [questionLabels, setQuestionLabels] = useState<Record<string, string>>({});
@@ -350,6 +354,8 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   };
 
   const runDetection = async () => {
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setDetecting(true);
     try {
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
@@ -1056,6 +1062,9 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           )}
         </DialogContent>
       </Dialog>
+      {/* Gate IA — montado UNA vez para capturar las llamadas a
+          aiGate.ensureAuthorized() desde runDetection. */}
+      <aiGate.GateDialog />
     </Card>
   );
 }

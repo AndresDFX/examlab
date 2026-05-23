@@ -3,10 +3,16 @@
  *
  * Módulo central para parámetros operativos de la plataforma.
  * Tabs:
- *   - Generales: defaults de cursos/exámenes + alerta de volumen de correos.
- *   - Correos:   kill switch global + toggles por categoría de email.
- *   - Compilador: proveedor de ejecución de código.
- *   - Auditoría: retención de audit_logs por severidad.
+ *   - Generales:     defaults de cursos/exámenes + alerta de volumen de correos.
+ *   - Correos:       kill switch global + toggles por categoría de email.
+ *   - Compilador:    proveedor de ejecución de código.
+ *   - IA / Cola:     modo sync/async + códigos override.
+ *   - Auditoría:     retención de audit_logs por severidad.
+ *   - Certificados:  parámetros del certificado de finalización.
+ *   - Secretos:      keys de servicios externos (Lovable AI, Gemini, etc.).
+ *   - Módulos:       visibilidad por rol.
+ *   - Backups:       snapshots lógicos de la BD (manual + cron semanal).
+ *   - Sistema:       diagnósticos generales (storage, edge functions, etc.).
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,6 +29,7 @@ import {
   Layers,
   Cpu,
   Wrench,
+  Database,
 } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/modules/admin/AdminCodeExecutionPanel";
@@ -33,6 +40,7 @@ import { AdminEdgeSecretsPanel } from "@/modules/admin/AdminEdgeSecretsPanel";
 import { AdminModuleVisibilityPanel } from "@/modules/admin/AdminModuleVisibilityPanel";
 import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
+import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -84,6 +92,10 @@ function AdminSettings() {
             <Layers className="h-3.5 w-3.5" />
             Módulos
           </TabsTrigger>
+          <TabsTrigger value="backups" className="gap-1.5">
+            <Database className="h-3.5 w-3.5" />
+            Backups
+          </TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5">
             <Wrench className="h-3.5 w-3.5" />
             Sistema
@@ -112,6 +124,9 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="modules" className="space-y-4 mt-4">
           <AdminModuleVisibilityPanel />
+        </TabsContent>
+        <TabsContent value="backups" className="space-y-4 mt-4">
+          <DbBackupsPanel />
         </TabsContent>
         <TabsContent value="system" className="space-y-4 mt-4">
           <SystemDiagnosticsPanel />

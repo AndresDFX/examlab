@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import {
   Dialog,
   DialogContent,
@@ -180,6 +181,10 @@ function TeacherContents() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const navigate = useNavigate();
+  // Gate IA: la generación de contenidos consume cuota Gemini incluso
+  // siendo asincrónica (cola interna distinta a ai_grading_queue).
+  // Pedimos confirmación antes de crear el row + invocar la edge.
+  const aiGate = useAiAuthorizationGate();
 
   const [items, setItems] = useState<GeneratedContent[]>([]);
   const [courses, setCourses] = useState<CourseLite[]>([]);
@@ -420,6 +425,8 @@ function TeacherContents() {
       toast.error(t("contents.tagsRequired"));
       return;
     }
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setCreating(true);
     try {
       const insertPayload: Record<string, unknown> = {
@@ -1359,6 +1366,7 @@ function TeacherContents() {
         onClose={() => setPromptOverridesFor(null)}
         onSaved={() => void load()}
       />
+      <aiGate.GateDialog />
     </div>
   );
 }

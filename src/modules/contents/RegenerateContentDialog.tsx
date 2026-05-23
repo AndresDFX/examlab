@@ -36,6 +36,7 @@ import { RefreshCw, Wand2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 
 // generated_contents aún no figura en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,6 +65,9 @@ export function RegenerateContentDialog({
   onStarted,
 }: RegenerateContentDialogProps) {
   const { t } = useTranslation();
+  // Gate IA: regenerar consume cuota Gemini igual que crear. Pedimos
+  // confirmación si el modo global es async sin override.
+  const aiGate = useAiAuthorizationGate();
   const [topic, setTopic] = useState("");
   const [instructions, setInstructions] = useState("");
   const [saving, setSaving] = useState(false);
@@ -87,6 +91,8 @@ export function RegenerateContentDialog({
       toast.error(t("contents.errorTopicRequired"));
       return;
     }
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setSaving(true);
     try {
       // Para regen COMPLETA: persistimos topic + instructions en la
@@ -169,94 +175,97 @@ export function RegenerateContentDialog({
   };
 
   return (
-    <Dialog open={target != null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {target.mode === "full" ? (
-              <RefreshCw className="h-5 w-5 text-primary" />
-            ) : (
-              <Wand2 className="h-5 w-5 text-primary" />
-            )}
-            {target.mode === "full"
-              ? t("contents.regenerateDialogFullTitle")
-              : t("contents.regenerateDialogClassTitle", { class: target.classNumber })}
-          </DialogTitle>
-          <DialogDescription>
-            {target.mode === "full"
-              ? t("contents.regenerateDialogFullSubtitle")
-              : t("contents.regenerateDialogClassSubtitle")}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={target != null} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {target.mode === "full" ? (
+                <RefreshCw className="h-5 w-5 text-primary" />
+              ) : (
+                <Wand2 className="h-5 w-5 text-primary" />
+              )}
+              {target.mode === "full"
+                ? t("contents.regenerateDialogFullTitle")
+                : t("contents.regenerateDialogClassTitle", { class: target.classNumber })}
+            </DialogTitle>
+            <DialogDescription>
+              {target.mode === "full"
+                ? t("contents.regenerateDialogFullSubtitle")
+                : t("contents.regenerateDialogClassSubtitle")}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label required>
-              {target.mode === "class"
-                ? t("contents.classTopic", { defaultValue: "Tema de esta clase" })
-                : t("contents.topic")}
-              <HelpHint>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label required>
                 {target.mode === "class"
-                  ? t("contents.classTopicHint", {
-                      defaultValue:
-                        "Tema específico de esta clase (no del curso completo). El curso conserva su tema general; solo se regenera esta clase con el nuevo enfoque.",
-                    })
-                  : t("contents.topicHint")}
-              </HelpHint>
-            </Label>
-            <Input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder={
-                target.mode === "class"
-                  ? t("contents.classTopicPlaceholder", {
-                      defaultValue: "Ej. Operadores y expresiones aritméticas",
-                    })
-                  : t("contents.topicPlaceholder")
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>
-              {target.mode === "class"
-                ? t("contents.classInstructions", {
-                    defaultValue: "Instrucciones puntuales (opcional)",
-                  })
-                : t("contents.instructions")}
-              <HelpHint>
+                  ? t("contents.classTopic", { defaultValue: "Tema de esta clase" })
+                  : t("contents.topic")}
+                <HelpHint>
+                  {target.mode === "class"
+                    ? t("contents.classTopicHint", {
+                        defaultValue:
+                          "Tema específico de esta clase (no del curso completo). El curso conserva su tema general; solo se regenera esta clase con el nuevo enfoque.",
+                      })
+                    : t("contents.topicHint")}
+                </HelpHint>
+              </Label>
+              <Input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder={
+                  target.mode === "class"
+                    ? t("contents.classTopicPlaceholder", {
+                        defaultValue: "Ej. Operadores y expresiones aritméticas",
+                      })
+                    : t("contents.topicPlaceholder")
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>
                 {target.mode === "class"
-                  ? t("contents.classInstructionsHint", {
-                      defaultValue:
-                        "Notas adicionales solo para esta clase. Si lo dejas vacío, se usan las instrucciones generales del curso.",
+                  ? t("contents.classInstructions", {
+                      defaultValue: "Instrucciones puntuales (opcional)",
                     })
-                  : t("contents.instructionsHint")}
-              </HelpHint>
-            </Label>
-            <Textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder={t("contents.instructionsPlaceholder")}
-              className="min-h-[100px] text-xs"
-            />
+                  : t("contents.instructions")}
+                <HelpHint>
+                  {target.mode === "class"
+                    ? t("contents.classInstructionsHint", {
+                        defaultValue:
+                          "Notas adicionales solo para esta clase. Si lo dejas vacío, se usan las instrucciones generales del curso.",
+                      })
+                    : t("contents.instructionsHint")}
+                </HelpHint>
+              </Label>
+              <Textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder={t("contents.instructionsPlaceholder")}
+                className="min-h-[100px] text-xs"
+              />
+            </div>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={handleSubmit} disabled={saving || !topic.trim()}>
-            {saving ? (
-              <Spinner size="sm" className="mr-1" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-1" />
-            )}
-            {target.mode === "full"
-              ? t("contents.regenerateDialogSubmitFull")
-              : t("contents.regenerateDialogSubmitClass")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose} disabled={saving}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={handleSubmit} disabled={saving || !topic.trim()}>
+              {saving ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              {target.mode === "full"
+                ? t("contents.regenerateDialogSubmitFull")
+                : t("contents.regenerateDialogSubmitClass")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <aiGate.GateDialog />
+    </>
   );
 }

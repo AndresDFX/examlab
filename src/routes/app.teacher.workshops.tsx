@@ -47,6 +47,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import {
   Plus,
@@ -235,6 +236,10 @@ function TeacherWorkshops() {
 
   const { user, roles } = useAuth();
   const confirm = useConfirm();
+  // Gate IA: cubre los tres handlers que invocan IA acá —
+  // aiRegradeAnswer (re-grade pregunta), gradeOneWithAI (calificar
+  // workshop completo) y runDetectCopies (detectar plagio).
+  const aiGate = useAiAuthorizationGate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1242,6 +1247,8 @@ function TeacherWorkshops() {
     question: WsQuestion,
     answer: WsAnswer | undefined,
   ) => {
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     // Estrategia de fallback (en orden de preferencia):
     //   1) Hay row per-pregunta con contenido → la usamos.
     //   2) Hay row pero sin contenido → si la entrega tiene `content`,
@@ -1433,6 +1440,8 @@ function TeacherWorkshops() {
    *  reflejen los nuevos datos sin recargar el modal. */
   const runDetectCopies = async () => {
     if (!gradingWs) return;
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setDetectingCopies(true);
     try {
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
@@ -1518,6 +1527,8 @@ function TeacherWorkshops() {
 
   const gradeOneWithAI = async (sub: WsSub): Promise<boolean> => {
     if (!gradingWs) return false;
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return false;
     setAiGradingId(sub.id);
     try {
       // Build the prompt for AI grading
@@ -3724,6 +3735,7 @@ function TeacherWorkshops() {
           }}
         />
       )}
+      <aiGate.GateDialog />
     </div>
   );
 }

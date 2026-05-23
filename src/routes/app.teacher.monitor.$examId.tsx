@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -182,6 +183,12 @@ function ExamMonitor() {
   const { user } = useAuth();
   const confirm = useConfirm();
   const { t } = useTranslation();
+  // Gate de IA: si el modo global es async y el docente no tiene
+  // override activo, muestra dialog "Activar / Encolar / Cancelar"
+  // antes de cada acción IA (re-grade single, batch re-grade,
+  // detect-plagiarism). El componente GateDialog se monta UNA VEZ
+  // al final del JSX.
+  const aiGate = useAiAuthorizationGate();
   const [exam, setExam] = useState<any>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   // Buscador de la tabla principal de monitor — filtra por nombre/correo
@@ -702,6 +709,10 @@ function ExamMonitor() {
   };
 
   const reGradeWithAI = async (sub: Submission, questionId?: string) => {
+    // Gate IA: si modo async sin override, pedimos confirmación
+    // (activar override / encolar / cancelar). Si cancela, return.
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     if (questionId) setAiGradingQid(questionId);
     else setAiGradingId(sub.id);
     try {
@@ -1297,6 +1308,9 @@ function ExamMonitor() {
   };
 
   const runDetectFraud = async () => {
+    // Gate IA: detect-plagiarism también consume cuota Gemini.
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setDetecting(true);
     try {
       // Solo el último intento de cada estudiante. Si un alumno tuvo 3
@@ -1354,6 +1368,9 @@ function ExamMonitor() {
   // aplicarla, y abre un modal donde el docente revisa y aprueba en
   // lote. Costo IA: 1 llamada por estudiante con intento finalizado.
   const runRegradeLatestAll = async () => {
+    // Gate IA: el batch es el caso más caro (1 call por estudiante).
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     // Saltamos entregas cuyo feedback YA documenta penalidad por IA —
     // ahí el docente ya decidió y re-escanear con IA es gasto puro de
     // tokens (1 call Gemini ≈ ~1.5K tokens). Si el docente quiere
@@ -3835,6 +3852,11 @@ function ExamMonitor() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Gate IA — montado UNA VEZ. Captura las llamadas a
+          aiGate.ensureAuthorized() de los handlers de reGradeWithAI,
+          runDetectFraud y runRegradeLatestAll. */}
+      <aiGate.GateDialog />
     </div>
   );
 }

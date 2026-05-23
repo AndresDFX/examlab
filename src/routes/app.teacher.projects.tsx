@@ -100,6 +100,7 @@ import { formatDateTime, formatPercent } from "@/shared/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import {
   Accordion,
   AccordionContent,
@@ -171,6 +172,10 @@ function TeacherProjects() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  // Gate IA: cubre generateDescription (ai-generate-questions) +
+  // aiRegradeSubFile (ai-grade-submission por archivo). Pide
+  // confirmación si el modo es async y el docente no tiene override.
+  const aiGate = useAiAuthorizationGate();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
@@ -958,6 +963,8 @@ function TeacherProjects() {
       toast.error("Indica un tema para generar la descripción");
       return;
     }
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setAiDescLoading(true);
     try {
       const courseId = form.course_id ?? null;
@@ -1503,6 +1510,8 @@ function TeacherProjects() {
       toast.error("Sin contenido para recalificar");
       return;
     }
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setAiRegradingId(ans.id);
     try {
       const courseLang = (gradingProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
@@ -2847,6 +2856,7 @@ function TeacherProjects() {
           }}
         />
       )}
+      <aiGate.GateDialog />
     </div>
   );
 }

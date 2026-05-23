@@ -48,6 +48,7 @@ import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
 import { ProjectIntroVideoGate } from "@/modules/projects/ProjectIntroVideoGate";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -167,6 +168,9 @@ export function TeacherProjectFilesEditor({
   courseLanguage?: "es" | "en";
 }) {
   const confirm = useConfirm();
+  // Gate IA: en modo async sin override pedimos confirmación antes de
+  // gastar cuota en generación de preguntas (auto + manual).
+  const aiGate = useAiAuthorizationGate();
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
@@ -428,6 +432,8 @@ export function TeacherProjectFilesEditor({
       );
       return;
     }
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setAutoLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
@@ -472,6 +478,8 @@ export function TeacherProjectFilesEditor({
     }
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
+    const decision = await aiGate.ensureAuthorized();
+    if (decision === "cancel") return;
     setAiLoading(true);
     let totalInserted = 0;
     try {
@@ -1007,6 +1015,7 @@ export function TeacherProjectFilesEditor({
         targetId={projectId}
         onImported={() => void load()}
       />
+      <aiGate.GateDialog />
     </div>
   );
 }

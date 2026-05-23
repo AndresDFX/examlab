@@ -118,6 +118,15 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# db-backup-runner exporta tablas a un ZIP en Storage. Lo invoca pg_cron
+# semanal (Bearer service_role_key) y la UI Admin (Bearer user JWT).
+# Mismo problema de formato de key que ai-grading-worker — apagamos
+# verify_jwt y validamos dentro del handler: service_role key O user
+# con rol Admin.
+[functions."db-backup-runner"]
+enabled = true
+verify_jwt = false
+
 [logging]
 vector_enabled = false
 postgres_enabled = false
