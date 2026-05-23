@@ -727,14 +727,20 @@ function AiQueuePanel({ isAdmin = false }: Props) {
 
       {/* Toolbar de bulk actions — solo aparece con count>0. Reusa el
           design system (MultiSelectToolbar): texto "N seleccionado(s)"
-          + botones "Limpiar selección" + "Eliminar". El handler abre
-          el dialog de confirmación que detalla qué jobs caen. */}
+          + botones "Limpiar selección" + "Cancelar". El handler abre
+          el dialog de confirmación que detalla qué jobs caen.
+          Importante: el actionLabel acá es "Cancelar" porque el bulk
+          NO borra las filas — las pasa a status='cancelled'
+          (preservadas para auditoría). El icono X refuerza la
+          semántica vs el Trash2 default. */}
       <MultiSelectToolbar
         count={multi.count}
         onClear={multi.clear}
         onDelete={() => setBulkOpen(true)}
         entityNameSingular="job"
         entityNamePlural="jobs"
+        actionLabel="Cancelar"
+        actionIcon={X}
       />
 
       {/* Filtro + listado */}
@@ -1023,16 +1029,21 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       </p>
 
       {/* Dialog de confirmación para bulk cancel. Reusa BulkDeleteDialog
-          del design system — el texto y botón dicen "Eliminar" porque
-          conceptualmente cancelar un job lo saca de la cola (mismo
-          impacto). El `extraWarning` aclara que la calificación no
-          ocurrirá hasta que alguien re-encole. */}
+          del design system con override de texto/icono — el verbo es
+          "Cancelar" (no "Eliminar") porque los jobs NO se borran de la
+          DB: pasan a status='cancelled' y se preservan para auditoría.
+          `dismissLabel="Cerrar"` evita confusión con dos botones
+          "Cancelar" en el footer (uno descarta el dialog, otro cancela
+          los jobs). */}
       <BulkDeleteDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         items={selectedItems}
         entityNameSingular="job"
         entityNamePlural="jobs"
+        actionLabel="Cancelar"
+        actionIcon={X}
+        dismissLabel="Cerrar"
         extraWarning="Se cancelarán los jobs seleccionados. Si alguno está en estado `procesando`, la llamada IA ya está en vuelo (su costo no se recupera) pero el resultado no se persistirá. Para los demás, la cancelación es limpia. Si una entrega necesita nota IA después, deberás encolarla manualmente."
         onConfirm={bulkCancel}
       />

@@ -181,12 +181,21 @@ export function MultiSelectToolbar({
   onDelete,
   entityNameSingular,
   entityNamePlural,
+  actionLabel = "Eliminar",
+  actionIcon: ActionIcon = Trash2,
 }: {
   count: number;
   onClear: () => void;
   onDelete: () => void;
   entityNameSingular: string;
   entityNamePlural: string;
+  /** Texto del botón principal. Default "Eliminar" para el caso clásico
+   *  de bulk delete. Se sobreescribe (ej. "Cancelar") cuando el bulk
+   *  no implica borrar la fila sino cambiar su estado. */
+  actionLabel?: string;
+  /** Icono del botón principal. Default Trash2. Pasar otro
+   *  (ej. X) cuando el bulk no es delete. */
+  actionIcon?: React.ComponentType<{ className?: string }>;
 }) {
   if (count === 0) return null;
   const label = count === 1 ? `1 ${entityNameSingular}` : `${count} ${entityNamePlural}`;
@@ -202,8 +211,8 @@ export function MultiSelectToolbar({
           Limpiar selección
         </Button>
         <Button variant="destructive" size="sm" onClick={onDelete}>
-          <Trash2 className="h-3.5 w-3.5 mr-1" />
-          Eliminar
+          <ActionIcon className="h-3.5 w-3.5 mr-1" />
+          {actionLabel}
         </Button>
       </div>
     </div>
@@ -222,6 +231,13 @@ export function BulkDeleteDialog({
   entityNamePlural,
   extraWarning,
   onConfirm,
+  actionLabel = "Eliminar",
+  actionIcon: ActionIcon = Trash2,
+  // Botón de descartar (footer izquierdo). Por default "Cancelar"
+  // pero cuando el actionLabel ES "Cancelar" eso confunde — dos
+  // botones llamados "Cancelar" con semánticas opuestas. En ese caso
+  // el caller puede pasar "Cerrar" para diferenciarlos.
+  dismissLabel = "Cancelar",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -232,6 +248,16 @@ export function BulkDeleteDialog({
   extraWarning?: string;
   /** Debe lanzar si falla; el dialog cierra solo si resuelve. */
   onConfirm: (ids: string[]) => Promise<void>;
+  /** Texto del botón de confirm + verbo del título. Default "Eliminar".
+   *  Se sobreescribe (ej. "Cancelar") cuando el bulk no implica borrar
+   *  la fila sino cambiar su estado (cancelar jobs IA, etc.). */
+  actionLabel?: string;
+  /** Icono del botón de confirm. Default Trash2. */
+  actionIcon?: React.ComponentType<{ className?: string }>;
+  /** Texto del botón de descartar el dialog. Default "Cancelar".
+   *  Pasar "Cerrar" cuando `actionLabel` también es "Cancelar" para
+   *  evitar dos botones con la misma palabra. */
+  dismissLabel?: string;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -246,7 +272,7 @@ export function BulkDeleteDialog({
       await onConfirm(items.map((i) => i.id));
       onOpenChange(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error al eliminar";
+      const msg = e instanceof Error ? e.message : `Error al ${actionLabel.toLowerCase()}`;
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -258,7 +284,7 @@ export function BulkDeleteDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Eliminar {count} {label}
+            {actionLabel} {count} {label}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
@@ -300,15 +326,15 @@ export function BulkDeleteDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancelar
+            {dismissLabel}
           </Button>
           <Button variant="destructive" onClick={handleConfirm} disabled={submitting}>
             {submitting ? (
               <Spinner size="md" className="mr-1" />
             ) : (
-              <Trash2 className="h-4 w-4 mr-1" />
+              <ActionIcon className="h-4 w-4 mr-1" />
             )}
-            Eliminar {count}
+            {actionLabel} {count}
           </Button>
         </DialogFooter>
       </DialogContent>
