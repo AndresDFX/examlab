@@ -285,8 +285,12 @@ describe("ContentPromptsOverridesDialog — guardar", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Guardar overrides/ }));
 
+    // El componente pasa el error por `friendlyError` (convención del
+    // proyecto, ver CLAUDE.md): el toast no muestra el mensaje técnico
+    // de Postgres/Supabase sino su traducción ES. "permission denied"
+    // matchea el patrón de permisos.
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("DB error: permission denied");
+      expect(toast.error).toHaveBeenCalledWith("No tienes permisos para realizar esta acción.");
     });
     expect(onClose).not.toHaveBeenCalled();
   });
