@@ -173,6 +173,25 @@ Deno.serve(async (req) => {
         throw new Error(String(aiData.error).slice(0, 300));
       }
 
+      // Re-check de cancelación antes de persistir. Mientras Gemini
+      // procesaba (puede tardar decenas de segundos en exam_full), el
+      // user pudo haber cancelado el job desde el módulo Cron. Si fue
+      // así NO escribimos al target_table — el usuario explícitamente
+      // decidió descartar el resultado. `complete_ai_grading` también
+      // es idempotente ante `cancelled` (ver migración 20260603160000)
+      // pero releer acá ahorra el UPDATE redundante al target.
+      const { data: statusRow } = await adminClient
+        .from("ai_grading_queue")
+        .select("status")
+        .eq("id", job.id)
+        .maybeSingle();
+      if (statusRow?.status === "cancelled") {
+        console.log(
+          `[ai-grading-worker] job ${job.id} cancelado durante el procesamiento — descartando resultado`,
+        );
+        continue;
+      }
+
       // Persistencia del resultado.
       //
       // Caso A: la edge function YA escribió en target_table durante su

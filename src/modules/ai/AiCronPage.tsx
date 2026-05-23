@@ -478,11 +478,18 @@ function AiQueuePanel({ isAdmin = false }: Props) {
 
   const cancelJob = async (jobId: string, label: string) => {
     if (cancelling.has(jobId)) return;
+    // Si el job ya está siendo procesado, advertir que la llamada IA
+    // ya está en vuelo: el costo de Gemini no se recupera, pero sí se
+    // evita persistir el resultado al target_table. Para
+    // pending/failed la cancelación es limpia (sin costo asociado).
+    const isProcessingNow = jobs.find((j) => j.id === jobId)?.status === "processing";
     const ok = await confirm({
       title: `¿Cancelar este job de IA?`,
-      description:
-        `"${label}" — el job no se procesará. Si la entrega del estudiante necesita ` +
-        `nota IA después, deberás encolarla manualmente. Esta acción no se puede deshacer.`,
+      description: isProcessingNow
+        ? `"${label}" — el job ya está siendo procesado. La llamada IA está en vuelo (el costo ` +
+          `no se recupera), pero el resultado NO se persistirá. Esta acción no se puede deshacer.`
+        : `"${label}" — el job no se procesará. Si la entrega del estudiante necesita ` +
+          `nota IA después, deberás encolarla manualmente. Esta acción no se puede deshacer.`,
       tone: "destructive",
       confirmLabel: "Cancelar job",
     });
@@ -580,11 +587,17 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const filteredCount = useMemo(() => jobs.length, [jobs]);
 
   // Multi-select sobre los jobs visibles. La cancelación masiva solo
-  // tiene sentido para jobs en estados `pending` o `failed` (processing/
-  // done/cancelled no se cancelan). El hook deduplica automáticamente —
-  // si filtramos solo IDs cancelables al confirmar, el resto se ignora.
+  // tiene sentido para jobs en estados `pending`, `failed` o
+  // `processing` (done/cancelled no se cancelan). Para processing, la
+  // llamada IA ya está en vuelo — cancelar evita persistir el resultado
+  // al target_table pero el costo de Gemini ya está consumido. El hook
+  // deduplica automáticamente — si filtramos solo IDs cancelables al
+  // confirmar, el resto se ignora.
   const selectableJobs = useMemo(
-    () => jobs.filter((j) => j.status === "pending" || j.status === "failed"),
+    () =>
+      jobs.filter(
+        (j) => j.status === "pending" || j.status === "failed" || j.status === "processing",
+      ),
     [jobs],
   );
   const multi = useMultiSelect(selectableJobs);
@@ -822,7 +835,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 const subtitleParts = [j.studentName, j.courseName].filter(Boolean) as string[];
                 const busy = isRetrying || isCancelling || isProcessingNow;
 
-                const isSelectable = isPending || isFailed;
+                const isSelectable = isPending || isFailed || isProcessing;
                 return (
                   <div key={j.id} className="text-sm">
                     <div
@@ -830,10 +843,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         isFailed ? "bg-destructive/5" : ""
                       } hover:bg-muted/40 transition-colors`}
                     >
-                      {/* Checkbox por fila — visible solo para jobs
-                          cancelables (pending/failed). Para los demás
-                          (processing/done/cancelled) un placeholder de
-                          mismo ancho mantiene la alineación de columnas. */}
+                      {/* Checkbox por fila — visible para jobs cancelables
+                          (pending/failed/processing). Para los demás
+                          (done/cancelled) un placeholder de mismo ancho
+                          mantiene la alineación de columnas. */}
                       {isSelectable ? (
                         <MultiSelectCheckbox id={j.id} state={multi} />
                       ) : (
@@ -933,14 +946,18 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             )}
                           </Button>
                         )}
-                        {(isPending || isFailed) && (
+                        {(isPending || isFailed || isProcessing) && (
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                             disabled={busy}
                             onClick={() => void cancelJob(j.id, label)}
-                            title="Cancelar"
+                            title={
+                              isProcessing
+                                ? "Cancelar (la llamada IA ya está en vuelo; el resultado no se persistirá)"
+                                : "Cancelar"
+                            }
                           >
                             {isCancelling ? (
                               <Spinner size="sm" />
@@ -1016,7 +1033,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         items={selectedItems}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        extraWarning="Se cancelarán los jobs seleccionados — la cola IA no los procesará. Si una entrega necesita nota IA después, deberás encolarla manualmente."
+        extraWarning="Se cancelarán los jobs seleccionados. Si alguno está en estado `procesando`, la llamada IA ya está en vuelo (su costo no se recupera) pero el resultado no se persistirá. Para los demás, la cancelación es limpia. Si una entrega necesita nota IA después, deberás encolarla manualmente."
         onConfirm={bulkCancel}
       />
 
