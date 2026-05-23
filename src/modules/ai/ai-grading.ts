@@ -261,10 +261,13 @@ export function isAiGradePending(opts: {
 
 /**
  * Texto estándar que mostramos al estudiante cuando su entrega
- * queda encolada. Centralizado para que todos los flujos (examen,
- * taller, proyecto) usen el mismo wording — evita que el alumno vea
- * un mensaje distinto en cada módulo y se confunda.
+ * queda encolada. Decidimos un copy mínimo ("Por calificar") porque
+ * el estudiante no necesita conocer el detalle del flow async/cola/
+ * worker — solo saber que la nota todavía no está. Más conciso →
+ * menos ruido en las vistas y menos confusión.
  */
-export const QUEUED_STUDENT_TITLE = "Calificación con IA en cola";
-export const QUEUED_STUDENT_BODY =
-  "Tu entrega quedó registrada. La calificación con IA llegará cuando se procese la cola — la verás acá apenas esté lista.";
+export const QUEUED_STUDENT_TITLE = "Por calificar";
+/** Body opcional. Vacío por default: el banner y el toast solo muestran
+ *  el title. Mantengo el export por si en el futuro queremos un mensaje
+ *  expandido (e.g. para un tooltip más detallado). */
+export const QUEUED_STUDENT_BODY = "";

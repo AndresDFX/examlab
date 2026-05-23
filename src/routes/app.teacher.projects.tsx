@@ -1522,6 +1522,67 @@ function TeacherProjects() {
         .eq("id", file.id)
         .maybeSingle();
 
+      // Recalificación de `codigo_zip`: las entregas viven en Storage
+      // (`code_paths[]` para varios archivos sueltos, `zip_path` legacy
+      // para ZIP único). El edge function tiene un modo dedicado
+      // (`projectCodeZipGrading: true`) que descarga, descomprime/lee
+      // y arma el contexto para Gemini. Sin esta rama, antes pasábamos
+      // `studentContent: ans.content` que está vacío para este tipo y
+      // la IA respondía "sin contenido" → nota 0. Mismo body que el
+      // flujo del estudiante en ProjectFiles → StudentProjectTaker.
+      if (meta?.type === "codigo_zip") {
+        const codePaths =
+          Array.isArray(ans.code_paths) && ans.code_paths.length > 0 ? ans.code_paths : undefined;
+        const zipPath = ans.zip_path ?? undefined;
+        if (!codePaths && !zipPath) {
+          toast.error("Sin archivos de código entregados para recalificar");
+          return;
+        }
+        const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+          "ai-grade-submission",
+          {
+            body: {
+              projectCodeZipGrading: true,
+              codePaths,
+              zipPath,
+              noMinify: true,
+              fileTitle: file.title,
+              fileDescription: meta?.description ?? null,
+              expectedRubric: meta?.expected_rubric ?? null,
+              maxPoints: file.points,
+              courseLanguage: courseLang,
+            },
+          },
+        );
+        if (aiErr || aiData?.error) {
+          const detail = await extractEdgeError(aiErr, aiData);
+          toast.error(`Error IA: ${detail || "Error desconocido"}`);
+          return;
+        }
+        const newGrade = Number(aiData?.grade ?? 0);
+        const newFeedback = String(aiData?.feedback ?? "");
+        const newAiLikelihood =
+          typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
+        const newAiReasons = typeof aiData?.ai_reasons === "string" ? aiData.ai_reasons : null;
+        patchSubFile(subId, file.id, {
+          ai_grade: newGrade,
+          ai_feedback: newFeedback,
+          ai_likelihood: newAiLikelihood,
+          ai_reasons: newAiReasons,
+        });
+        await db
+          .from("project_submission_files")
+          .update({
+            ai_grade: newGrade,
+            ai_feedback: newFeedback,
+            ai_likelihood: newAiLikelihood,
+            ai_reasons: newAiReasons,
+          })
+          .eq("id", ans.id);
+        toast.success(`Recalificación lista: ${newGrade} / ${file.points}`);
+        return;
+      }
+
       // Short-circuit determinístico para cerrada_multi: no llamamos a IA.
       if (meta?.type === "cerrada_multi") {
         let selectedArr: number[] = [];

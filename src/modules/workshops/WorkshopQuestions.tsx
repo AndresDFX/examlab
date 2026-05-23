@@ -47,7 +47,6 @@ import {
   readOverrideExpiry,
   PENDING_AI_FEEDBACK,
   QUEUED_STUDENT_TITLE,
-  QUEUED_STUDENT_BODY,
 } from "@/modules/ai/ai-grading";
 
 export type WorkshopQuestion = {
@@ -1189,7 +1188,9 @@ export function StudentWorkshopTaker({
           })
           .eq("id", submissionId);
         setGraded({ grade: 0, breakdown });
-        toast.info(QUEUED_STUDENT_TITLE, { description: QUEUED_STUDENT_BODY, duration: 8000 });
+        // Mensaje minimal: solo "Por calificar". Antes incluíamos un
+        // body largo con detalle de la cola → ruido en cada submit.
+        toast.info(QUEUED_STUDENT_TITLE, { duration: 6000 });
       } else {
         const finalGrade =
           totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
