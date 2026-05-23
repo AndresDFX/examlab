@@ -293,7 +293,17 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  // `bg-background` + `relative z-[1]` tapa el gradient `scroll-hint-x`
+  // que el wrapper pinta para insinuar overflow horizontal. Sin este
+  // background, el gradient (var(--color-background) → transparente en
+  // 2rem) se traslucía sobre el primer `<th>` y daba la impresión de
+  // texto "borroso/doble" — visible especialmente al achicar el
+  // viewport con devtools abierto.
+  <thead
+    ref={ref}
+    className={cn("[&_tr]:border-b bg-background relative z-[1]", className)}
+    {...props}
+  />
 ));
 TableHeader.displayName = "TableHeader";
 

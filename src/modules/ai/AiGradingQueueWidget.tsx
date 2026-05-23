@@ -26,10 +26,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Play, ArrowRight } from "lucide-react";
-import { toast } from "sonner";
+import { Clock, Cpu, AlertTriangle, CheckCircle2, RefreshCw, ArrowRight } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
-import { extractEdgeError } from "@/shared/lib/edge-error";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -94,7 +92,6 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   // viven en el módulo Cron); solo un glance de "qué hay pendiente".
   const [jobs, setJobs] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -179,26 +176,6 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
       void supabase.removeChannel(channel);
     };
   }, [load]);
-
-  const runNow = async () => {
-    setRunning(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("ai-grading-worker", { body: {} });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = data as any;
-      if (error || d?.ok === false) {
-        const detail = await extractEdgeError(error, data);
-        toast.error(detail || "Error en el worker");
-        return;
-      }
-      toast.success(
-        `Worker: ${d?.succeeded ?? 0} OK · ${d?.failed ?? 0} fallaron · ${d?.processed ?? 0} totales`,
-      );
-      await load();
-    } finally {
-      setRunning(false);
-    }
-  };
 
   return (
     <Card className="h-full flex flex-col">
@@ -301,26 +278,11 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
               </div>
             </div>
 
-            {/* Admin: botón directo para drenar la cola sin esperar al
-                cron horario. Para Docente solo un badge informativo si
-                hay pendientes. */}
-            {isAdmin && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void runNow()}
-                disabled={running || counts.pending === 0}
-                className="w-full h-8"
-              >
-                {running ? (
-                  <Spinner size="sm" className="mr-1" />
-                ) : (
-                  <Play className="h-3.5 w-3.5 mr-1" />
-                )}
-                Procesar ahora ({counts.pending})
-              </Button>
-            )}
-            {!isAdmin && counts.pending + counts.failed > 0 && (
+            {/* Badge informativo de jobs en cola (admin y docente). El
+                botón "Procesar ahora" se quitó del widget — la cola la
+                drena el cron horario; si se necesita disparar ad-hoc,
+                el módulo Cron tiene el ícono por fila. */}
+            {counts.pending + counts.failed > 0 && (
               <Badge variant="outline" className="text-[10px] w-full justify-center py-1">
                 {counts.pending + counts.failed} en cola
               </Badge>

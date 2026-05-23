@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { aiGradeOrEnqueue, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -1392,6 +1393,61 @@ function ExamMonitor() {
         `${skipped.length} entrega(s) omitida(s) — el feedback ya menciona penalidad por IA.`,
       );
     }
+
+    // ── Path ASYNC: el docente eligió "Continuar en cola" en el gate.
+    // En vez de invocar dryRun sync (que abre el modal de revisión),
+    // encolamos N jobs en `ai_grading_queue`. El worker los drena, la
+    // edge function persiste internamente (Caso A — escribe submissions
+    // directo) y el docente ve las notas aparecer cuando refresque.
+    //
+    // No abrimos el modal de revisión porque async no soporta dryRun:
+    // la calificación se aplica automáticamente. Si el docente quería
+    // revisar antes de aplicar, debe usar IA inmediata (override).
+    if (decision === "proceed-async") {
+      // Pre-marcamos las submissions con feedback "Pendiente IA…" para
+      // que el monitor refleje el estado mientras el worker corre.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminDb = supabase as any;
+      let queued = 0;
+      let failed = 0;
+      for (const sub of targets) {
+        try {
+          await adminDb
+            .from("submissions")
+            .update({ ai_feedback: PENDING_AI_FEEDBACK, ai_grade: null })
+            .eq("id", sub.id);
+          const result = await aiGradeOrEnqueue({
+            kind: "exam_full",
+            invokeTarget: "ai-grade-submission",
+            body: { submissionId: sub.id },
+            target: {
+              table: "submissions",
+              rowId: sub.id,
+              fieldGrade: "ai_grade",
+              fieldFeedback: "ai_feedback",
+              courseId: (exam as { course_id?: string } | null)?.course_id ?? null,
+            },
+          });
+          if (result.error) failed++;
+          else queued++;
+        } catch {
+          failed++;
+        }
+      }
+      if (queued > 0) {
+        toast.success(
+          `${queued} job(s) encolado(s). La cola IA los procesa cada hora; refresca el monitor cuando aparezcan las notas.`,
+        );
+      }
+      if (failed > 0) {
+        toast.error(`${failed} job(s) no se pudieron encolar — reintenta más tarde.`);
+      }
+      void load();
+      return;
+    }
+
+    // ── Path SYNC: modo sync global O override activo. Conserva el
+    // flujo dryRun → modal de revisión → aplicar lote.
     setRegradeAllRows([]);
     setRegradeAllProgress({ done: 0, total: targets.length });
     setRegradeAllLoading(true);

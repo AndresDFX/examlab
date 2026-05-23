@@ -52,7 +52,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
-  Play,
   X,
   Zap,
   ChevronDown,
@@ -221,7 +220,6 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [running, setRunning] = useState(false);
   // Filtro por estado. "active" = pending + processing + failed (default,
   // útil para el caso típico "qué hay corriendo"). "all" trae también
   // done y cancelled — útil para auditoría.
@@ -455,26 +453,6 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       void supabase.removeChannel(channel);
     };
   }, [load]);
-
-  const runNow = async () => {
-    setRunning(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("ai-grading-worker", { body: {} });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = data as any;
-      if (error || d?.ok === false) {
-        const detail = await extractEdgeError(error, data);
-        toast.error(detail || "Error en el worker");
-        return;
-      }
-      toast.success(
-        `Worker: ${d?.succeeded ?? 0} OK · ${d?.failed ?? 0} fallaron · ${d?.processed ?? 0} totales`,
-      );
-      await load();
-    } finally {
-      setRunning(false);
-    }
-  };
 
   const cancelJob = async (jobId: string, label: string) => {
     if (cancelling.has(jobId)) return;
@@ -756,22 +734,6 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             </Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {isAdmin && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void runNow()}
-                disabled={running || counts.pending === 0}
-                className="h-8"
-              >
-                {running ? (
-                  <Spinner size="sm" className="mr-1" />
-                ) : (
-                  <Play className="h-3.5 w-3.5 mr-1" />
-                )}
-                Procesar ahora ({counts.pending})
-              </Button>
-            )}
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
