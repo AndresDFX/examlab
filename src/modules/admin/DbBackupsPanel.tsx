@@ -495,7 +495,7 @@ export function DbBackupsPanel() {
 
       {/* ─── Dialog: crear backup ─────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl" hideCloseButton>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Database className="h-4 w-4 text-indigo-500" />

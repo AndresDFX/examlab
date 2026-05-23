@@ -3756,7 +3756,13 @@ function ExamMonitor() {
           }
         }}
       >
-        <DialogContent className="max-w-4xl max-h-[88vh] overflow-hidden flex flex-col">
+        {/* hideCloseButton: el footer ya tiene "Cerrar" (+ "Cancelar"
+            mientras corre + "Aprobar todas" en modo sync). La X de la
+            esquina duplicaba el control y confundía con "Cancelar". */}
+        <DialogContent
+          className="max-w-4xl max-h-[88vh] overflow-hidden flex flex-col"
+          hideCloseButton
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-amber-500" />

@@ -167,7 +167,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg" hideCloseButton>
           <DialogHeader>
             <DialogTitle>Notas de apoyo</DialogTitle>
             <DialogDescription>

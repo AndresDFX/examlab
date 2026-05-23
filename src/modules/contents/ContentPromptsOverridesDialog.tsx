@@ -224,7 +224,7 @@ export function ContentPromptsOverridesDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
           <DialogTitle>Personalizar prompts de este contenido</DialogTitle>
           <DialogDescription>

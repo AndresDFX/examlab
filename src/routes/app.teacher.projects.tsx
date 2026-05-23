@@ -71,6 +71,8 @@ import {
   Search,
   X,
   Copy,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -281,6 +283,16 @@ function TeacherProjects() {
   }, [open]);
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState<Partial<Project>>({});
+  /** Lista N de videos introductorios. Vive separada del `form` porque
+   *  se persiste en otra tabla (`project_intro_videos`) y se sincroniza
+   *  manualmente después de guardar el proyecto principal. Cada row
+   *  tiene: `library_id` (FK a `videos` cuando elige biblioteca) Y/O
+   *  `url` (ad-hoc). Si `library_id` está seteado, `url` se resuelve
+   *  desde la biblioteca al renderizar; en DB se persiste solo la URL
+   *  final (lookup ya hecho) para no introducir un join en lectura. */
+  const [formIntroVideos, setFormIntroVideos] = useState<
+    Array<{ library_id: string | null; url: string; title: string }>
+  >([]);
   const projectDirty = useDirtyDialog(open, form);
   // Generación de descripción con IA: dialog modal con input "tema" +
   // botón que invoca la edge function `ai-generate-questions` modo
@@ -694,10 +706,11 @@ function TeacherProjects() {
       linked_course_ids: first ? [first] : [],
     });
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
+    setFormIntroVideos([]);
     setOpen(true);
   };
 
-  const openEdit = (p: Project) => {
+  const openEdit = async (p: Project) => {
     setEditing(p);
     const linked = p.linked_course_ids?.length
       ? p.linked_course_ids
@@ -705,6 +718,28 @@ function TeacherProjects() {
         ? [p.course_id]
         : [];
     setForm({ ...p, linked_course_ids: linked });
+    // Carga los videos introductorios del proyecto (migrados a tabla
+    // aparte en 20260603180000). El backfill convirtió legacy
+    // `code_intro_video_url` a una fila position=0 — al editar se
+    // ven y se pueden quitar/agregar igual que un set fresco.
+    try {
+      const { data: videos } = await db
+        .from("project_intro_videos")
+        .select("url, title, position")
+        .eq("project_id", p.id)
+        .order("position");
+      setFormIntroVideos(
+        (
+          (videos as Array<{ url: string; title: string | null; position: number }> | null) ?? []
+        ).map((v) => ({
+          library_id: null,
+          url: v.url,
+          title: v.title ?? "",
+        })),
+      );
+    } catch {
+      setFormIntroVideos([]);
+    }
     // Init per-course cut+weight from stored project_courses data.
     // Falls back to projects.cut_id/weight for the primary course for
     // rows that predate the migration.
@@ -893,6 +928,34 @@ function TeacherProjects() {
           .not("course_id", "in", `(${linked.map((c) => `"${c}"`).join(",")})`);
         if (delErr) {
           console.warn("[projects] cleanup of stale project_courses failed", delErr);
+        }
+      }
+
+      // ── Sync `project_intro_videos` (lista N) ──
+      // Estrategia: DELETE all + INSERT all. Más simple que diff y al
+      // editar un proyecto el docente está conscientemente reseteando
+      // el set de videos — aceptamos que las views previas
+      // (project_submission_video_views) caigan en cascada y el alumno
+      // tenga que re-ver. Si esto se vuelve problema, migrar a diff por
+      // URL/posición.
+      const cleanedVideoRows = formIntroVideos
+        .map((v, idx) => ({ url: v.url.trim(), title: v.title.trim() || null, position: idx }))
+        .filter((v) => v.url.length > 0);
+      // Borrar todo lo existente del proyecto. CASCADE de
+      // `project_submission_video_views` se dispara y resetea el progreso
+      // de los estudiantes — esperado.
+      await db.from("project_intro_videos").delete().eq("project_id", projectId);
+      if (cleanedVideoRows.length > 0) {
+        const insertRows = cleanedVideoRows.map((v) => ({
+          project_id: projectId,
+          url: v.url,
+          title: v.title,
+          position: v.position,
+        }));
+        const { error: vErr } = await db.from("project_intro_videos").insert(insertRows);
+        if (vErr) {
+          console.warn("[projects] sync project_intro_videos failed", vErr);
+          toast.error(`No se pudieron guardar los videos introductorios: ${friendlyError(vErr)}`);
         }
       }
 
@@ -2119,51 +2182,147 @@ function TeacherProjects() {
             {!(form as any).is_external && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  Video introductorio obligatorio (opcional)
+                  Videos introductorios obligatorios (opcional)
                   <HelpHint>
-                    Elige un video de la biblioteca o pega una URL ad-hoc. Si vacío, no se exige
-                    video. Solo aplica si el proyecto tiene una pregunta tipo "código (ZIP)".
-                    YouTube/Vimeo se reproducen vía iframe (sin control de seek). Para forzar que el
-                    alumno NO pueda adelantar, sube un MP4 directo.
+                    Lista ordenada de videos que el estudiante debe ver antes de poder entregar
+                    código. El orden importa: el siguiente video se desbloquea cuando el alumno
+                    termina el anterior. Si la lista queda vacía, no se exige video. Solo aplica si
+                    el proyecto tiene una pregunta tipo "código (ZIP)". YouTube/Vimeo se reproducen
+                    vía iframe (sin control de seek). Para forzar que el alumno NO pueda adelantar,
+                    sube un MP4 directo a la biblioteca de videos.
                   </HelpHint>
                 </Label>
-                {/* Selector de biblioteca — opcional. Si el docente
-                    elige uno, el id se guarda en `code_intro_video_id`
-                    y el frontend resuelve la URL desde `videos`. La
-                    opción "URL personalizada" libera el input de abajo
-                    para uso ad-hoc (no reusable). */}
-                <Select
-                  value={form.code_intro_video_id ?? "__custom"}
-                  onValueChange={(v) =>
-                    setForm({
-                      ...form,
-                      code_intro_video_id: v === "__custom" ? null : v,
-                      // Si elige biblioteca, limpiamos la URL ad-hoc
-                      // para evitar ambigüedad. El frontend del alumno
-                      // resuelve URL desde el id en `videos`.
-                      code_intro_video_url: v === "__custom" ? form.code_intro_video_url : "",
-                    })
+                {formIntroVideos.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground italic">
+                    Sin videos. Click en "+ Agregar video" para empezar.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {formIntroVideos.map((video, idx) => {
+                    const moveUp = () => {
+                      if (idx === 0) return;
+                      const next = [...formIntroVideos];
+                      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                      setFormIntroVideos(next);
+                    };
+                    const moveDown = () => {
+                      if (idx === formIntroVideos.length - 1) return;
+                      const next = [...formIntroVideos];
+                      [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                      setFormIntroVideos(next);
+                    };
+                    const remove = () => {
+                      setFormIntroVideos(formIntroVideos.filter((_, i) => i !== idx));
+                    };
+                    const update = (patch: Partial<(typeof formIntroVideos)[number]>) => {
+                      const next = [...formIntroVideos];
+                      next[idx] = { ...next[idx], ...patch };
+                      setFormIntroVideos(next);
+                    };
+                    return (
+                      <div key={idx} className="rounded-md border bg-card p-2.5 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] tabular-nums shrink-0">
+                            {idx + 1}
+                          </Badge>
+                          <Input
+                            placeholder="Título (opcional, ej. 'Introducción al patrón MVC')"
+                            value={video.title}
+                            onChange={(e) => update({ title: e.target.value })}
+                            className="text-xs h-8"
+                          />
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={moveUp}
+                              disabled={idx === 0}
+                              title="Mover arriba"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={moveDown}
+                              disabled={idx === formIntroVideos.length - 1}
+                              title="Mover abajo"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={remove}
+                              title="Quitar video"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        {/* Selector biblioteca / URL custom. Si el docente
+                            elige uno de la biblioteca, copiamos su URL al
+                            row. Si después edita la URL a mano, queda como
+                            ad-hoc (library_id se limpia). */}
+                        <Select
+                          value={video.library_id ?? "__custom"}
+                          onValueChange={(v) => {
+                            if (v === "__custom") {
+                              update({ library_id: null });
+                            } else {
+                              const found = videoLibrary.find((vl) => vl.id === v);
+                              update({
+                                library_id: v,
+                                url: found?.url ?? video.url,
+                                title: video.title || found?.title || "",
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Biblioteca o URL personalizada…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__custom">
+                              URL personalizada (no reusable)
+                            </SelectItem>
+                            {videoLibrary.map((vl) => (
+                              <SelectItem key={vl.id} value={vl.id}>
+                                {vl.title} · {vl.provider.toUpperCase()}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                          value={video.url}
+                          onChange={(e) => update({ url: e.target.value, library_id: null })}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFormIntroVideos([
+                      ...formIntroVideos,
+                      { library_id: null, url: "", title: "" },
+                    ])
                   }
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un video de la biblioteca…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__custom">URL personalizada (no reusable)</SelectItem>
-                    {videoLibrary.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.title} · {v.provider.toUpperCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!form.code_intro_video_id && (
-                  <Input
-                    placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
-                    value={form.code_intro_video_url ?? ""}
-                    onChange={(e) => setForm({ ...form, code_intro_video_url: e.target.value })}
-                  />
-                )}
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Agregar video
+                </Button>
                 <p className="text-[11px] text-muted-foreground">
                   Tip: registra los videos en <strong>Videos</strong> (sidebar) y referénciálos aquí
                   — evita re-pegar URLs.

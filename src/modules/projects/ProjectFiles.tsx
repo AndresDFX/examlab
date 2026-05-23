@@ -60,9 +60,52 @@ import {
   QUEUED_STUDENT_TITLE,
 } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { validateCodeArchive } from "@/shared/lib/code-extensions";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+/**
+ * Descomprime un .zip en cliente (con fflate) y valida que TODOS los
+ * archivos adentro sean de extensiones permitidas. Defensa pre-upload
+ * para que el estudiante reciba feedback inmediato si su ZIP contiene
+ * PDFs, imágenes o cualquier no-código — y para evitar gastar Storage
+ * + cuota IA en una entrega que el server va a rechazar igualmente.
+ *
+ * Si el ZIP no se puede leer (corrupto, password-protected) devuelve
+ * `ok: false` con un mensaje genérico — el server tiene su propia
+ * validación que actúa como red final.
+ */
+async function preValidateZipInBrowser(
+  zipFile: File,
+  allowedExtensions: string[] | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const fflate = await import("fflate");
+    const buf = new Uint8Array(await zipFile.arrayBuffer());
+    const inner = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+      fflate.unzip(buf, (err, files) => (err ? reject(err) : resolve(files)));
+    });
+    const paths = Object.keys(inner);
+    const result = validateCodeArchive(paths, allowedExtensions);
+    if (result.ok) return { ok: true };
+    const sample = result.violations.slice(0, 5).join(", ");
+    const more = result.violations.length > 5 ? ` (+${result.violations.length - 5} más)` : "";
+    const allowedLabel =
+      allowedExtensions && allowedExtensions.length > 0
+        ? `Solo se aceptan archivos ${allowedExtensions.map((e) => `.${e}`).join(", ")}`
+        : "Solo se aceptan archivos de código fuente (.java, .py, .ts, .cpp, etc.). PDFs, imágenes y binarios no se permiten en este slot";
+    return {
+      ok: false,
+      error: `El ZIP contiene archivos no permitidos: ${sample}${more}. ${allowedLabel}. Recomprime con SOLO los archivos de código y vuelve a entregar.`,
+    };
+  } catch {
+    return {
+      ok: false,
+      error: "No se pudo leer el ZIP (corrupto o protegido por contraseña).",
+    };
+  }
+}
 
 // Mapeo lenguaje → extensiones aceptadas para subida multi-archivo de
 // preguntas tipo `codigo_zip` (nombre legacy — ya no son ZIP). Usado por
@@ -1062,20 +1105,25 @@ export function StudentProjectTaker({
   // dashboard del docente filtre por curso. NULL si el proyecto no tiene
   // course_id (proyectos legacy con vinculación solo vía project_courses).
   const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
-  // Gate de video introductorio para entregas de código. Cuando el proyecto
-  // define `code_intro_video_url`, el alumno DEBE ver el video entero
-  // antes de poder entregar. `videoWatched` se inicializa true si la
-  // submission previa ya tenía `video_watched_at` (compatibilidad con
-  // sesiones reanudadas).
-  const [introVideoUrl, setIntroVideoUrl] = useState<string | null>(null);
-  const [videoWatched, setVideoWatched] = useState(false);
+  // Gate de videos introductorios para entregas de código. Cuando el
+  // proyecto tiene N videos en `project_intro_videos`, el alumno debe
+  // verlos TODOS en orden estricto antes de poder entregar. El componente
+  // `ProjectIntroVideoGate` maneja el orden y el seek-lock.
+  // `watchedVideoIds` se hidrata desde `project_submission_video_views`
+  // al cargar la submission existente — sesiones reanudadas conservan
+  // el progreso.
+  const [introVideos, setIntroVideos] = useState<
+    Array<{ id: string; url: string; title: string | null; position: number }>
+  >([]);
+  const [watchedVideoIds, setWatchedVideoIds] = useState<Set<string>>(() => new Set());
   const loadedForRef = useRef<string | null>(null);
 
   // ¿La entrega tiene archivos de código (codigo_zip)? Si no, el gate
   // de video no aplica para esta pantalla — los proyectos sin componente
   // de código no necesitan el video.
   const hasCodeQuestion = questions.some((q) => q.type === "codigo_zip");
-  const videoGateBlocking = !!introVideoUrl && hasCodeQuestion && !videoWatched;
+  const allVideosWatched = introVideos.every((v) => watchedVideoIds.has(v.id));
+  const videoGateBlocking = introVideos.length > 0 && hasCodeQuestion && !allVideosWatched;
 
   useEffect(() => {
     if (!user) return;
@@ -1085,55 +1133,54 @@ export function StudentProjectTaker({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ data: qs }, { data: proj }] = await Promise.all([
+      const [{ data: qs }, { data: proj }, { data: videosData }] = await Promise.all([
         db.from("project_files").select("*").eq("project_id", projectId).order("position"),
+        db.from("projects").select("description, course_id").eq("id", projectId).maybeSingle(),
+        // Videos introductorios del proyecto. Migrado de la columna
+        // singular `projects.code_intro_video_url` a tabla aparte —
+        // ver migración 20260603180000. Orden estricto por `position`.
         db
-          .from("projects")
-          .select("description, course_id, code_intro_video_url, code_intro_video_id")
-          .eq("id", projectId)
-          .maybeSingle(),
+          .from("project_intro_videos")
+          .select("id, url, title, position")
+          .eq("project_id", projectId)
+          .order("position"),
       ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as ProjectFile[]);
       setProjectDescription((proj as { description?: string | null } | null)?.description ?? "");
       setProjectCourseId((proj as { course_id?: string | null } | null)?.course_id ?? null);
-      // URL del video introductorio. Si hay `code_intro_video_id` se
-      // resuelve desde la biblioteca `videos` (preferido). Si no, cae
-      // al campo legacy `code_intro_video_url` que vivía inline en
-      // proyectos antes de la biblioteca.
-      const videoId =
-        (proj as { code_intro_video_id?: string | null } | null)?.code_intro_video_id ?? null;
-      let resolvedUrl: string | null = null;
-      if (videoId) {
-        const { data: vrow } = await db
-          .from("videos")
-          .select("url, is_archived")
-          .eq("id", videoId)
-          .maybeSingle();
-        const v = vrow as { url?: string | null; is_archived?: boolean } | null;
-        if (v && !v.is_archived && v.url) resolvedUrl = v.url.trim();
-      }
-      if (!resolvedUrl) {
-        const legacy =
-          (proj as { code_intro_video_url?: string | null } | null)?.code_intro_video_url ?? null;
-        if (legacy && legacy.trim()) resolvedUrl = legacy.trim();
-      }
-      setIntroVideoUrl(resolvedUrl);
+      const loadedVideos =
+        (videosData as Array<{
+          id: string;
+          url: string;
+          title: string | null;
+          position: number;
+        }> | null) ?? [];
+      setIntroVideos(loadedVideos);
 
       // Si hay grupo, la submission pertenece al grupo (cualquier
       // miembro la ve y edita). Si no, comportamiento individual normal.
       const subQuery = db
         .from("project_submissions")
-        .select("id, final_grade, status, repository_url, video_watched_at")
+        .select("id, final_grade, status, repository_url")
         .eq("project_id", projectId);
       const { data: sub } = await (groupId
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.repository_url) setRepositoryUrl(sub.repository_url);
-      // Si la submission previa ya marcó el video como visto, saltamos
-      // el gate. Si el alumno cierra y reabre, no tiene que re-ver el video.
-      if ((sub as { video_watched_at?: string | null } | null)?.video_watched_at) {
-        setVideoWatched(true);
+      // Hidratar el set de videos ya vistos desde
+      // `project_submission_video_views`. Si la submission no existe
+      // todavía (primer abrir del proyecto), el set queda vacío y el
+      // estudiante debe ver todos los videos.
+      if (sub?.id) {
+        const { data: viewsData } = await db
+          .from("project_submission_video_views")
+          .select("video_id")
+          .eq("submission_id", sub.id);
+        const ids = ((viewsData as Array<{ video_id: string }> | null) ?? []).map(
+          (v) => v.video_id,
+        );
+        setWatchedVideoIds(new Set(ids));
       }
       if (sub?.id) {
         const { data: ans } = await db
@@ -1398,6 +1445,21 @@ export function StudentProjectTaker({
             payload.ai_feedback = "El archivo entregado no es un .zip.";
             toast.error(payload.ai_feedback, { duration: 8000 });
           } else {
+            // Pre-validación cliente-side: descomprimir el ZIP en el
+            // navegador y verificar que TODOS los archivos adentro sean
+            // de extensión permitida. Si hay UN PDF (o cualquier otro
+            // no-código) → rechazo inmediato sin gastar Storage ni IA.
+            // El server tiene la misma validación como red final.
+            const zipLangKey = (q.language ?? "").toLowerCase().trim();
+            const zipAllowed = LANG_TO_EXT[zipLangKey] ?? null;
+            const preCheck = await preValidateZipInBrowser(zipFile, zipAllowed);
+            if (!preCheck.ok) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = preCheck.error;
+              toast.error(preCheck.error, { duration: 10000 });
+              payloadsByQid[q.id] = payload;
+              continue;
+            }
             const rootFolder = groupId ?? user.id;
             // Path único (sin subcarpeta del questionId — el ZIP es atómico).
             const zipPath = `${rootFolder}/${submissionId}/${q.id}.zip`;
@@ -1842,36 +1904,46 @@ export function StudentProjectTaker({
     <div className="space-y-4">
       <h3 className="font-semibold">{projectTitle}</h3>
 
-      {/* Video introductorio obligatorio antes de entregar código.
-          Solo se renderiza si el docente subió un `code_intro_video_url`
-          en el proyecto Y hay al menos una pregunta de tipo codigo_zip.
-          Si el alumno ya lo vio antes, el componente arranca en estado
-          "Visto" y no bloquea. */}
-      {introVideoUrl && hasCodeQuestion && (
+      {/* Gate de videos introductorios obligatorios. Solo se renderiza
+          si el proyecto tiene videos en `project_intro_videos` Y hay
+          al menos una pregunta tipo codigo_zip. Orden estricto: el
+          siguiente video se desbloquea cuando el anterior está visto. */}
+      {introVideos.length > 0 && hasCodeQuestion && (
         <ProjectIntroVideoGate
-          videoUrl={introVideoUrl}
-          initialWatched={videoWatched}
-          onWatched={async () => {
-            setVideoWatched(true);
-            // Persistir en DB para que sobrevivan reloads. Si aún no hay
-            // submission (primer ingreso al proyecto sin entregas previas),
-            // el RPC fallará silenciosamente — se persistirá en el primer
-            // submit cuando ya exista la fila.
+          videos={introVideos}
+          watchedIds={watchedVideoIds}
+          onVideoWatched={async (videoId) => {
+            // Optimistic: actualiza state local primero para que la UI
+            // desbloquee el siguiente video al instante. Si el RPC falla
+            // (red caída, RLS rara), el siguiente reload va a re-pedir
+            // la view perdida — peor caso el alumno ve un video dos veces.
+            setWatchedVideoIds((prev) => {
+              const next = new Set(prev);
+              next.add(videoId);
+              return next;
+            });
             try {
-              if (user) {
-                const subQuery = db
-                  .from("project_submissions")
-                  .select("id")
-                  .eq("project_id", projectId);
-                const { data: subRow } = await (groupId
-                  ? subQuery.eq("group_id", groupId).maybeSingle()
-                  : subQuery.eq("user_id", user.id).maybeSingle());
-                if (subRow?.id) {
-                  await db.rpc("mark_project_video_watched", { _submission_id: subRow.id });
-                }
+              if (!user) return;
+              const subQuery = db
+                .from("project_submissions")
+                .select("id")
+                .eq("project_id", projectId);
+              const { data: subRow } = await (groupId
+                ? subQuery.eq("group_id", groupId).maybeSingle()
+                : subQuery.eq("user_id", user.id).maybeSingle());
+              if (subRow?.id) {
+                await db.rpc("mark_project_video_watched", {
+                  _submission_id: subRow.id,
+                  _video_id: videoId,
+                });
               }
+              // Si no hay submission aún, el progreso vive solo en
+              // state local. Al hacer el primer submit, el flow de
+              // creación de submission debería re-persistir el set.
+              // (Edge case raro: la mayoría de los alumnos miran video
+              // DESPUÉS de entrar a "Entregar" donde ya hay submission.)
             } catch {
-              /* silencioso — el state local es suficiente para la sesión */
+              /* silencioso — state local sobrevive la sesión */
             }
           }}
         />

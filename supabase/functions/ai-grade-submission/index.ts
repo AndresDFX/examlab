@@ -1081,12 +1081,24 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       // Rechazamos ANTES de llamar a IA — evita gastar tokens en entregas
       // inválidas y le da feedback claro al alumno para recomprimir solo
       // con los archivos correctos.
-      const cleanedAllowed = Array.isArray(allowedExtensions)
+      // Whitelist activa para validar la entrega:
+      //   - Si el docente fijó `allowedExtensions` (e.g. ["java"]) → esa.
+      //   - Si no la fijó → caemos al whitelist global `CODE_EXT`.
+      // Antes (cleanedAllowed.length === 0) la validación se SALTABA
+      // por completo, permitiendo que el ZIP contuviera PDFs, imágenes
+      // o cualquier basura — la edge solo descartaba esos archivos
+      // antes del prompt, sin avisar al estudiante. Ahora SIEMPRE
+      // rechazamos archivos no-código con un error claro. Si el
+      // docente quiere aceptar README/PDFs, eso se hace en otra
+      // pregunta del proyecto (no en codigo_zip).
+      const explicitAllowed = Array.isArray(allowedExtensions)
         ? allowedExtensions
             .filter((e): e is string => typeof e === "string")
             .map((e) => e.toLowerCase().replace(/^\./, "").trim())
             .filter(Boolean)
         : [];
+      const cleanedAllowed =
+        explicitAllowed.length > 0 ? explicitAllowed : Array.from(CODE_EXT);
       // Veto explícito de archivos config/metadata (rechazar incluso si la
       // extensión coincide o si la subida es legacy ZIP). Espejo de la
       // lista del frontend (`isBlockedFile`).
@@ -1152,11 +1164,21 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         if (violations.length > 0) {
           const sample = violations.slice(0, 5).join(", ");
           const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
-          const allowedLabel = cleanedAllowed.map((e) => `.${e}`).join(", ");
+          // Mensaje adaptativo:
+          //   - Si el docente fijó allowedExtensions (whitelist corta):
+          //     enumeramos las permitidas — el estudiante sabe exactamente
+          //     qué subir.
+          //   - Si caímos al CODE_EXT genérico (60+ items): mensaje
+          //     genérico "solo archivos de código fuente" — listar las
+          //     60 extensiones rompería la legibilidad.
+          const allowedLabel =
+            explicitAllowed.length > 0
+              ? `Solo se aceptan archivos ${explicitAllowed.map((e) => `.${e}`).join(", ")}`
+              : "Solo se aceptan archivos de código fuente (.java, .py, .ts, .cpp, etc.). Los PDFs, documentos, imágenes y binarios no se permiten en este slot";
           return new Response(
             JSON.stringify({
               ok: false,
-              error: `El ZIP contiene archivos no permitidos para esta entrega. Solo se aceptan archivos ${allowedLabel} (revisa también las subcarpetas). Archivos rechazados: ${sample}${more}. Recomprime con SOLO los archivos de código fuente y vuelve a entregar.`,
+              error: `El ZIP contiene archivos no permitidos para esta entrega. ${allowedLabel} (revisa también las subcarpetas). Archivos rechazados: ${sample}${more}. Recomprime con SOLO los archivos de código fuente y vuelve a entregar.`,
               grade: 0,
               feedback: "",
               ai_likelihood: 0,
