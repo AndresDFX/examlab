@@ -665,14 +665,14 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-violet-500 dark:text-violet-400"
           onClick={() => setPendingNotesModalOpen(true)}
         />
-        {/* Cron IA — jobs pendientes en la cola IA visible para el
+        {/* Cola IA — jobs pendientes en la cola IA visible para el
             docente (sus cursos vía RLS). Métrica accionable: cuántas
             calificaciones IA tengo encoladas esperando turno. Click →
-            módulo Cron → tab IA para verlas y, si es urgente, procesar
+            módulo Cola → tab IA para verlas y, si es urgente, procesar
             o activar la ventana sincrónica con un código override. */}
         <Stat
           icon={Cpu}
-          label="Cron IA (pendientes)"
+          label="Cola (pendientes)"
           value={counts.aiPendingJobs}
           color="text-indigo-500 dark:text-indigo-400"
           onClick={() => void navigate({ to: "/app/teacher/ai-cron" })}

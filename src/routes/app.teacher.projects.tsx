@@ -392,6 +392,12 @@ function TeacherProjects() {
       return name.includes(q) || email.includes(q);
     });
   }, [gradingSubs, gradingSearch]);
+  // Multi-select para recalificar SOLO algunas entregas con IA. Trabaja
+  // sobre las entregas filtradas — si el docente busca "Juan" y marca,
+  // el bulk re-grade respeta ese subset. `useMultiSelect` deduplica
+  // por id, así que entregas que dejan de estar visibles al cambiar
+  // el buscador quedan "huérfanas" en el set sin generar errores.
+  const gradingSel = useMultiSelect(filteredGradingSubs);
   // Submission a destacar/scrollear cuando el dialog abre desde un
   // deep-link (?submission=ID).
   const [highlightSubId, setHighlightSubId] = useState<string | null>(null);
@@ -1668,25 +1674,31 @@ function TeacherProjects() {
   };
 
   // ── Bulk regrade: recalifica TODOS los archivos de TODAS las entregas
-  //    filtradas (respetando el buscador). Llama `aiRegradeSubFile` en
-  //    serie por archivo. NO paraleliza para evitar gatillar rate-limits
-  //    del provider IA — la velocidad bottleneck es el ratio, no la
-  //    concurrencia. Progreso visible vía `bulkProgress`.
-  const bulkRegradeProject = async () => {
-    if (gradingFiles.length === 0 || filteredGradingSubs.length === 0) return;
+  //    filtradas (respetando el buscador) — o solo las que vengan en
+  //    `explicitSubs` cuando el docente marcó subset con checkboxes.
+  //    Llama `aiRegradeSubFile` en serie por archivo. NO paraleliza
+  //    para evitar gatillar rate-limits del provider IA — la velocidad
+  //    bottleneck es el ratio, no la concurrencia. Progreso visible vía
+  //    `bulkProgress`.
+  const bulkRegradeProject = async (explicitSubs?: Submission[]) => {
+    const targets = explicitSubs ?? filteredGradingSubs;
+    if (gradingFiles.length === 0 || targets.length === 0) return;
+    const isSubset = explicitSubs != null;
     const ok = await confirm({
-      title: "Recalificar entregas con IA",
-      description: `Vas a llamar IA por cada archivo de cada entrega filtrada: ${filteredGradingSubs.length} entrega(s) × ${gradingFiles.length} archivo(s) = ${filteredGradingSubs.length * gradingFiles.length} llamadas. Esto puede tardar varios minutos y consume tokens del proveedor IA.`,
-      confirmLabel: "Recalificar todas",
+      title: isSubset
+        ? `Recalificar ${targets.length} entrega(s) seleccionada(s)`
+        : "Recalificar todas las entregas con IA",
+      description: `Vas a llamar IA por cada archivo de cada entrega ${isSubset ? "seleccionada" : "filtrada"}: ${targets.length} entrega(s) × ${gradingFiles.length} archivo(s) = ${targets.length * gradingFiles.length} llamadas. Esto puede tardar varios minutos y consume tokens del proveedor IA.`,
+      confirmLabel: isSubset ? "Recalificar seleccionadas" : "Recalificar todas",
       tone: "warning",
     });
     if (!ok) return;
-    const total = filteredGradingSubs.length * gradingFiles.length;
+    const total = targets.length * gradingFiles.length;
     setBulkProgress({ done: 0, total });
     setBulkRegrading(true);
     try {
       let done = 0;
-      for (const sub of filteredGradingSubs) {
+      for (const sub of targets) {
         for (const f of gradingFiles) {
           // aiRegradeSubFile saltea entregas sin contenido (`Sin contenido
           // para recalificar`) y muestra su propio toast por error —
@@ -1698,6 +1710,7 @@ function TeacherProjects() {
         }
       }
       toast.success(`Recalificación batch completada (${done}/${total}).`);
+      if (isSubset) gradingSel.clear();
     } finally {
       setBulkRegrading(false);
     }
@@ -2566,25 +2579,59 @@ function TeacherProjects() {
                   {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
                   <span className="font-medium">decimales con coma (ej. 4,5)</span>
                 </p>
-                {/* Bulk regrade con IA — recalifica todos los archivos de
-                    todas las entregas filtradas. Acelera la corrección
-                    cuando se cambian rúbricas o se cambia el modelo IA. */}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void bulkRegradeProject()}
-                  disabled={bulkRegrading || filteredGradingSubs.length === 0}
-                  title="Recalifica con IA todos los archivos de todas las entregas filtradas en serie. Útil tras cambiar rúbricas o modelo."
-                >
-                  {bulkRegrading ? (
-                    <Spinner size="sm" className="mr-1" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Hint para invitar a usar los checkboxes — análogo al
+                      monitor del examen. Solo aparece cuando hay
+                      entregas seleccionables y aún ninguna marcada. */}
+                  {gradingSel.count === 0 && filteredGradingSubs.length > 1 && (
+                    <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
+                      <span aria-hidden>↙</span>
+                      Marca entregas para recalificar solo algunas
+                    </span>
                   )}
-                  {bulkRegrading
-                    ? `Recalificando ${bulkProgress.done}/${bulkProgress.total}…`
-                    : "Recalificar todas con IA"}
-                </Button>
+                  {gradingSel.count > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => gradingSel.clear()}
+                      disabled={bulkRegrading}
+                    >
+                      Limpiar ({gradingSel.count})
+                    </Button>
+                  )}
+                  {/* Bulk regrade con IA: si hay selección recalifica solo
+                      esas entregas; sin selección recalifica todas las
+                      filtradas. Mismo `aiRegradeSubFile` por archivo
+                      detrás — un solo handler, branching en el confirm. */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const subset =
+                        gradingSel.count > 0
+                          ? filteredGradingSubs.filter((s) => gradingSel.isSelected(s.id))
+                          : undefined;
+                      void bulkRegradeProject(subset);
+                    }}
+                    disabled={bulkRegrading || filteredGradingSubs.length === 0}
+                    title={
+                      gradingSel.count > 0
+                        ? "Recalifica solo las entregas marcadas — útil si las dudas son sobre pocos estudiantes."
+                        : "Recalifica con IA todos los archivos de todas las entregas filtradas en serie. Útil tras cambiar rúbricas o modelo."
+                    }
+                  >
+                    {bulkRegrading ? (
+                      <Spinner size="sm" className="mr-1" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                    )}
+                    {bulkRegrading
+                      ? `Recalificando ${bulkProgress.done}/${bulkProgress.total}…`
+                      : gradingSel.count > 0
+                        ? `Recalificar ${gradingSel.count} con IA`
+                        : "Recalificar todas con IA"}
+                  </Button>
+                </div>
               </div>
               {filteredGradingSubs.length === 0 && (
                 <p className="text-sm text-muted-foreground p-2 text-center">
@@ -2614,6 +2661,22 @@ function TeacherProjects() {
                     >
                       <AccordionTrigger className="hover:no-underline">
                         <div className="flex flex-1 items-center gap-2 text-left">
+                          {/* Checkbox de multi-select. `onClick stop` evita
+                              que el click en el checkbox expanda/colapse
+                              el AccordionTrigger; Radix Accordion lo
+                              dispara con cualquier click dentro del
+                              trigger por default. */}
+                          <span
+                            className="shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <MultiSelectCheckbox
+                              id={sub.id}
+                              state={gradingSel}
+                              ariaLabel={`Seleccionar entrega de ${sub.profile?.full_name ?? "—"}`}
+                            />
+                          </span>
                           <span className="font-medium text-sm">
                             {sub.profile?.full_name ?? "—"}
                           </span>
