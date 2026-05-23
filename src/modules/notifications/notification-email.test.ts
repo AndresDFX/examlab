@@ -30,7 +30,7 @@ describe("shouldSendEmail — kinds críticos", () => {
     expect(out).toEqual({ send: true, reason: null });
   });
 
-  it("rechaza kind no incluido como 'system'", () => {
+  it("rechaza 'system' sin link (no calza con ninguna sub-regla)", () => {
     expect(shouldSendEmail({ kind: "system", link: null })).toEqual({
       send: false,
       reason: "kind_not_critical",
@@ -205,13 +205,20 @@ describe("renderEmailHtml", () => {
 
 describe("CRITICAL_KINDS export", () => {
   it("expone exactamente los kinds esperados (cambio explícito si se modifica)", () => {
-    // La lista creció con la migración 20260523000007: workshop +
-    // project agregados para que los recordatorios de vencimiento
-    // (notify_students_workshop_due_soon, notify_students_project_due_soon)
-    // disparen correo. Mantener sincronizado con el predicado SQL
+    // La lista creció en dos migraciones:
+    //   - 20260523000007: workshop + project (recordatorios de vencimiento).
+    //   - 20260517110000: attendance (check-in abierto).
+    // Mantener sincronizado con el predicado SQL
     // `_notification_kind_emails` y con la copia en
     // supabase/functions/send-email/index.ts.
-    expect([...CRITICAL_KINDS]).toEqual(["grade", "exam", "feedback", "workshop", "project"]);
+    expect([...CRITICAL_KINDS]).toEqual([
+      "grade",
+      "exam",
+      "feedback",
+      "workshop",
+      "project",
+      "attendance",
+    ]);
   });
 
   it("cada CRITICAL_KIND hace que shouldSendEmail retorne send:true", () => {
@@ -258,5 +265,58 @@ describe("shouldSendEmail — kinds nuevos workshop + project", () => {
   it("project respeta hasEmail=false", () => {
     const out = shouldSendEmail({ kind: "project", link: null, hasEmail: false });
     expect(out).toEqual({ send: false, reason: "no_email" });
+  });
+});
+
+describe("shouldSendEmail — kind 'attendance' (migración 20260517110000)", () => {
+  // El SQL `_notification_kind_emails` incluye 'attendance' desde la
+  // migración del check-in; antes el TS no lo replicaba y el server
+  // disparaba la edge pero ésta rechazaba con kind_not_critical.
+
+  it("envía para kind='attendance' (check-in abierto)", () => {
+    expect(shouldSendEmail({ kind: "attendance", link: "/app/student/attendance" })).toEqual({
+      send: true,
+      reason: null,
+    });
+  });
+
+  it("attendance respeta userOptedOut (preferencia del estudiante)", () => {
+    const out = shouldSendEmail({ kind: "attendance", link: null, userOptedOut: true });
+    expect(out).toEqual({ send: false, reason: "user_opted_out" });
+  });
+
+  it("attendance respeta hasEmail=false", () => {
+    const out = shouldSendEmail({ kind: "attendance", link: null, hasEmail: false });
+    expect(out).toEqual({ send: false, reason: "no_email" });
+  });
+});
+
+describe("shouldSendEmail — kind 'system' con link prefijo", () => {
+  // El SQL permite email para tres casos del kind 'system':
+  //   - /app/admin/system%        → alertas para admins (storage, edge caída).
+  //   - /auth/reset-password%     → flujo de reset.
+  //   - /auth/confirm-email-change → confirmación de cambio de email.
+  // Acá cubrimos /app/admin/system y /auth/reset-password (los dos
+  // patrones que viven en el helper TS).
+
+  it("envía 'system' con link '/app/admin/system' (alerta admin)", () => {
+    expect(shouldSendEmail({ kind: "system", link: "/app/admin/system/storage" })).toEqual({
+      send: true,
+      reason: null,
+    });
+  });
+
+  it("envía 'system' con link '/auth/reset-password' (reset password)", () => {
+    expect(shouldSendEmail({ kind: "system", link: "/auth/reset-password?token=abc" })).toEqual({
+      send: true,
+      reason: null,
+    });
+  });
+
+  it("rechaza 'system' con link a otra ruta", () => {
+    expect(shouldSendEmail({ kind: "system", link: "/app/dashboard" })).toEqual({
+      send: false,
+      reason: "kind_not_critical",
+    });
   });
 });

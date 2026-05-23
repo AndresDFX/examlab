@@ -20,13 +20,29 @@
 
 /** Kinds que disparan email por sí solos (sin condiciones extra).
  *  Mantener sincronizado con el predicado SQL
- *  `_notification_kind_emails` (migración 20260523000007 añadió
- *  workshop+project para los recordatorios de vencimiento). */
-export const CRITICAL_KINDS = ["grade", "exam", "feedback", "workshop", "project"] as const;
+ *  `_notification_kind_emails`:
+ *    - workshop+project los añadió la migración 20260523000007 (recordatorios
+ *      de vencimiento).
+ *    - attendance lo añadió la migración 20260517110000 (check-in abierto).
+ *      Estaba en el SQL pero no acá → bug: el trigger SQL invocaba la edge
+ *      pero ésta lo rechazaba con kind_not_critical. */
+export const CRITICAL_KINDS = [
+  "grade",
+  "exam",
+  "feedback",
+  "workshop",
+  "project",
+  "attendance",
+] as const;
 
 /** Prefijo de link que indica "mensaje 1-a-1" — usado para discriminar
  *  `kind='info'` de mensajería vs `kind='info'` genérico del sistema. */
 export const MESSAGE_LINK_PREFIX = "/app/messages";
+
+/** Prefijo de link para alertas del panel admin (storage lleno, edge
+ *  caída, etc.). El SQL `_notification_kind_emails` permite email para
+ *  `kind='system'` con este link prefix; replicado acá. */
+export const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";
 
 export interface ShouldSendEmailParams {
   kind: string;
@@ -69,7 +85,11 @@ export function shouldSendEmail(params: ShouldSendEmailParams): {
     params.kind === "system" &&
     typeof params.link === "string" &&
     params.link.startsWith("/auth/reset-password");
-  if (!isCriticalKind && !isMessage && !isPasswordReset) {
+  const isSystemAlert =
+    params.kind === "system" &&
+    typeof params.link === "string" &&
+    params.link.startsWith(SYSTEM_ALERT_LINK_PREFIX);
+  if (!isCriticalKind && !isMessage && !isPasswordReset && !isSystemAlert) {
     return { send: false, reason: "kind_not_critical" };
   }
 

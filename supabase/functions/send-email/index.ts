@@ -35,14 +35,22 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
 
 // ── Replicación del helper `shouldSendEmail` ─────────────────────────
-// MANTENER SINCRONIZADO con `src/lib/notification-email.ts`. Los tests
-// del cliente cubren los edge cases — acá replicamos la decisión sin
+// MANTENER SINCRONIZADO con `src/modules/notifications/notification-email.ts`
+// y con la función SQL `_notification_kind_emails`. Los tests del
+// helper TS son la fuente de verdad — acá replicamos la decisión sin
 // poder importar (Deno edge no comparte src/).
-// Mantener sincronizado con src/lib/notification-email.ts y con la
-// función SQL _notification_kind_emails (migración 20260523000007
-// añadió workshop+project).
-const CRITICAL_KINDS = ["grade", "exam", "feedback", "workshop", "project"];
+//   - workshop + project: añadidos por migración 20260523000007.
+//   - attendance: añadido por migración 20260517110000.
+const CRITICAL_KINDS = [
+  "grade",
+  "exam",
+  "feedback",
+  "workshop",
+  "project",
+  "attendance",
+];
 const MESSAGE_LINK_PREFIX = "/app/messages";
+const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";
 
 type SkipReason =
   | "kind_not_critical"
@@ -67,7 +75,11 @@ function shouldSendEmail(params: {
     params.kind === "system" &&
     typeof params.link === "string" &&
     params.link.startsWith("/auth/reset-password");
-  if (!isCriticalKind && !isMessage && !isPasswordReset) {
+  const isSystemAlert =
+    params.kind === "system" &&
+    typeof params.link === "string" &&
+    params.link.startsWith(SYSTEM_ALERT_LINK_PREFIX);
+  if (!isCriticalKind && !isMessage && !isPasswordReset && !isSystemAlert) {
     return { send: false, reason: "kind_not_critical" };
   }
   if (params.userOptedOut) return { send: false, reason: "user_opted_out" };

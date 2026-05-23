@@ -976,5 +976,55 @@
     "deleteSessionTitle": "Eliminar sesión",
     "deleteSessionBody": "Se eliminará la sesión \"{{session}}\" y sus {{count}} registro(s) de asistencia. Esta acción no se puede deshacer.",
     "sessionDeleted": "Sesión eliminada correctamente"
+  },
+  "preferences": {
+    "title": "Preferencias de notificación",
+    "subtitle": "Decide qué tipos de notificación quieres recibir por correo y por push. Las notificaciones in-app siempre se entregan.",
+    "cardTitle": "Canales por tipo",
+    "loadError": "No pudimos cargar las preferencias",
+    "savedToast": "Preferencias guardadas",
+    "restoreDefaults": "Restaurar defaults",
+    "restoredToast": "Defaults restaurados — recuerda guardar.",
+    "tableHeaderCategory": "Categoría",
+    "tableHeaderEmail": "Email",
+    "tableHeaderPush": "Push",
+    "emailNotAvailable": "Sin email",
+    "emailNotAvailableHint": "Este tipo no envía email; se notifica vía push e in-app.",
+    "ariaEmailFor": "Email para {{label}}",
+    "ariaPushFor": "Push para {{label}}",
+    "kinds": {
+      "exam": {
+        "label": "Exámenes",
+        "desc": "Asignación, recordatorios 1h antes, apertura de ventana"
+      },
+      "workshop": {
+        "label": "Talleres",
+        "desc": "Publicación + recordatorio 24h antes del vencimiento"
+      },
+      "project": {
+        "label": "Proyectos",
+        "desc": "Publicación + recordatorio 24h antes del vencimiento"
+      },
+      "grade": {
+        "label": "Calificaciones",
+        "desc": "Cuando se publica la nota de una entrega"
+      },
+      "feedback": {
+        "label": "Retroalimentación",
+        "desc": "Nuevos comentarios y respuestas"
+      },
+      "info": {
+        "label": "Mensajes 1-a-1",
+        "desc": "Chat interno con docentes/compañeros (rate-limit 10 min)"
+      },
+      "attendance": {
+        "label": "Asistencia",
+        "desc": "Cuando el docente abre el check-in"
+      },
+      "content": {
+        "label": "Contenidos",
+        "desc": "Material nuevo asignado a una sesión (push/in-app, sin email)"
+      }
+    }
   }
 }

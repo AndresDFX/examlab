@@ -976,5 +976,55 @@
     "deleteSessionTitle": "Delete session",
     "deleteSessionBody": "The session \"{{session}}\" and its {{count}} attendance record(s) will be deleted. This action cannot be undone.",
     "sessionDeleted": "Session deleted successfully"
+  },
+  "preferences": {
+    "title": "Notification preferences",
+    "subtitle": "Decide which notification types you want to receive by email and push. In-app notifications are always delivered.",
+    "cardTitle": "Channels by type",
+    "loadError": "We couldn't load your preferences",
+    "savedToast": "Preferences saved",
+    "restoreDefaults": "Restore defaults",
+    "restoredToast": "Defaults restored — remember to save.",
+    "tableHeaderCategory": "Category",
+    "tableHeaderEmail": "Email",
+    "tableHeaderPush": "Push",
+    "emailNotAvailable": "No email",
+    "emailNotAvailableHint": "This type does not send email; you'll get push and in-app.",
+    "ariaEmailFor": "Email for {{label}}",
+    "ariaPushFor": "Push for {{label}}",
+    "kinds": {
+      "exam": {
+        "label": "Exams",
+        "desc": "Assignment, reminders 1h before, window opening"
+      },
+      "workshop": {
+        "label": "Workshops",
+        "desc": "Publication + reminder 24h before due date"
+      },
+      "project": {
+        "label": "Projects",
+        "desc": "Publication + reminder 24h before due date"
+      },
+      "grade": {
+        "label": "Grades",
+        "desc": "When a submission grade is published"
+      },
+      "feedback": {
+        "label": "Feedback",
+        "desc": "New comments and replies"
+      },
+      "info": {
+        "label": "Direct messages",
+        "desc": "Internal chat with teachers/peers (10 min rate limit)"
+      },
+      "attendance": {
+        "label": "Attendance",
+        "desc": "When the teacher opens check-in"
+      },
+      "content": {
+        "label": "Contents",
+        "desc": "New material assigned to a session (push/in-app, no email)"
+      }
+    }
   }
 }
