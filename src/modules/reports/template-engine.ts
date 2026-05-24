@@ -335,7 +335,7 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
     ],
   },
   {
-    label: "Curso (solo scope='curso')",
+    label: "Curso (solo informes consolidados)",
     path: "estudiantes",
     kind: "group",
     hint: "Solo aparece en informes consolidados de curso",

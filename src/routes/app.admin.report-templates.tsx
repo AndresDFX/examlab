@@ -210,7 +210,7 @@ function Inner() {
     const ok = await confirm({
       title: `¿Eliminar "${t.name}"?`,
       description:
-        "Los overrides que los docentes hayan hecho de esta plantilla quedarán huérfanos (parent_id NULL). " +
+        "Las personalizaciones que los docentes hayan hecho de esta plantilla quedarán huérfanas (parent_id NULL). " +
         "Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
@@ -293,7 +293,7 @@ function Inner() {
                   <TableRow>
                     <TableHead>Nombre</TableHead>
                     <TableHead className="hidden md:table-cell">Descripción</TableHead>
-                    <TableHead>Scope</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead className="hidden sm:table-cell">Página</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>

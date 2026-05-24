@@ -9,7 +9,7 @@
  *   - Por fila:
  *       · Generar → modal de selector curso/alumno → preview HTML en
  *         iframe → botón "Imprimir / Guardar como PDF".
- *       · Sobreescribir (solo en globales sin override del curso elegido) →
+ *       · Personalizar (solo en globales sin override del curso elegido) →
  *         abre editor pre-rellenado para crear override.
  *       · Editar / Eliminar (solo en propias / overrides propios).
  */
@@ -114,7 +114,7 @@ function originBadge(origin: Origin, courseName?: string) {
   if (origin === "override") {
     return (
       <Badge variant="outline" className="text-xs border-violet-300 text-violet-700">
-        Override{courseName ? ` · ${courseName}` : ""}
+        Personalizada{courseName ? ` · ${courseName}` : ""}
       </Badge>
     );
   }
@@ -235,7 +235,7 @@ function Inner() {
   const openOverride = (t: Template) => {
     if (originOf(t) !== "global") return;
     const d: TemplateDraft = {
-      name: `${t.name} (override)`,
+      name: `${t.name} (personalizada)`,
       description: t.description ?? "",
       scope: t.scope,
       body_html: t.body_html,
@@ -303,7 +303,7 @@ function Inner() {
       (editorMode === "new_override" || editorMode === "edit_override") &&
       !editorCourseId
     ) {
-      toast.error("Selecciona el curso del override");
+      toast.error("Selecciona el curso para la personalización");
       return;
     }
 
@@ -485,7 +485,7 @@ function Inner() {
   const handlePrint = () => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) {
-      toast.error("Preview no disponible");
+      toast.error("Vista previa no disponible");
       return;
     }
     iframe.contentWindow.focus();
@@ -528,7 +528,7 @@ function Inner() {
               <SelectContent>
                 <SelectItem value="all">Todos los orígenes</SelectItem>
                 <SelectItem value="global">Globales</SelectItem>
-                <SelectItem value="override">Overrides</SelectItem>
+                <SelectItem value="override">Personalizadas</SelectItem>
                 <SelectItem value="privada">Privadas</SelectItem>
               </SelectContent>
             </Select>
@@ -549,7 +549,7 @@ function Inner() {
                   <TableRow>
                     <TableHead>Nombre</TableHead>
                     <TableHead className="hidden sm:table-cell">Origen</TableHead>
-                    <TableHead>Scope</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead className="hidden md:table-cell">Descripción</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
@@ -590,7 +590,7 @@ function Inner() {
                                   onClick: () => openGenerate(t),
                                 },
                                 origin === "global" && {
-                                  label: "Sobreescribir para un curso",
+                                  label: "Personalizar para un curso",
                                   icon: GitBranch,
                                   onClick: () => openOverride(t),
                                   separatorBefore: true,
@@ -633,14 +633,14 @@ function Inner() {
           <DialogHeader>
             <DialogTitle>
               {editorMode === "new_private" && "Nueva plantilla privada"}
-              {editorMode === "new_override" && "Crear override por curso"}
+              {editorMode === "new_override" && "Personalizar para un curso"}
               {editorMode === "edit_private" && "Editar plantilla privada"}
-              {editorMode === "edit_override" && "Editar override"}
+              {editorMode === "edit_override" && "Editar personalización"}
             </DialogTitle>
             {editorMode.startsWith("new_override") && (
               <DialogDescription>
-                Este override solo aplicará al curso seleccionado y reemplazará la plantilla
-                global cuando lo uses ahí.
+                Esta personalización solo aplicará al curso seleccionado y reemplazará la
+                plantilla global cuando la uses allí.
               </DialogDescription>
             )}
           </DialogHeader>
@@ -767,7 +767,7 @@ function Inner() {
             <div className="border rounded-md overflow-hidden bg-white">
               <iframe
                 ref={iframeRef}
-                title="Preview del informe"
+                title="Vista previa del informe"
                 srcDoc={genHtml}
                 className="w-full"
                 style={{ height: "60vh" }}

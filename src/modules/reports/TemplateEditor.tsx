@@ -105,7 +105,11 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
               </div>
               <div className="space-y-1">
                 <Label>
-                  Scope <HelpHint>'estudiante' = un informe por alumno. 'curso' = un consolidado iterando sobre {`{{#each estudiantes}}`}.</HelpHint>
+                  Tipo de informe{" "}
+                  <HelpHint>
+                    &quot;Por estudiante&quot; = un informe por alumno. &quot;Por curso&quot; =
+                    un consolidado iterando sobre {`{{#each estudiantes}}`}.
+                  </HelpHint>
                 </Label>
                 <Select
                   value={value.scope}
