@@ -308,6 +308,8 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
     kind: "group",
     children: [
       { label: "Nota final", path: "nota_final", kind: "scalar" },
+      { label: "Aprobado (true/false)", path: "aprobado", kind: "scalar", hint: "Para usar con {{#if aprobado}}" },
+      { label: "Estado de aprobación", path: "estado_aprobacion", kind: "scalar", hint: "'Aprobado', 'Reprobado' o 'Sin nota'" },
       { label: "Escala máxima", path: "escala_max", kind: "scalar" },
       {
         label: "Iterar cortes",
@@ -356,8 +358,12 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
         label: "Iterar estudiantes",
         path: "estudiantes",
         kind: "each",
-        hint: "Dentro: {{nombre}}, {{email}}, {{codigo}}, {{documento}}, {{nota_final}}, {{asistencia.porcentaje}}",
+        hint: "Dentro: {{nombre}}, {{email}}, {{codigo}}, {{documento}}, {{nota_final}}, {{estado_aprobacion}}, {{asistencia.porcentaje}}",
       },
+      { label: "Total estudiantes", path: "total_estudiantes", kind: "scalar" },
+      { label: "Total aprobados", path: "total_aprobados", kind: "scalar" },
+      { label: "Total reprobados", path: "total_reprobados", kind: "scalar" },
+      { label: "Total sin nota", path: "total_sin_nota", kind: "scalar" },
     ],
   },
 ];

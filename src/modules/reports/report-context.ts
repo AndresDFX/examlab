@@ -66,6 +66,12 @@ interface StudentCtx {
   /** Programa académico al que pertenece el estudiante. */
   programa: string;
   nota_final: number | null;
+  /** Computed: nota_final != null && >= passing_grade. Útil para
+   *  {{#if aprobado}} en actas y certificados. */
+  aprobado: boolean;
+  /** Computed: "Aprobado" | "Reprobado" | "Sin nota". Para mostrar
+   *  como texto en plantillas sin necesidad de lógica. */
+  estado_aprobacion: string;
   cortes: CutCtx[];
   examenes: ItemCtx[];
   talleres: ItemCtx[];
@@ -112,7 +118,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, period_id, grade_scale_max, program_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status)",
+      "id, name, code, semestre, grupo, period, period_id, grade_scale_max, passing_grade, program_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -248,6 +254,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
 
   // ── Construir StudentCtx por usuario ─────────────────────────────
   const escalaMax = Number(courseRow.grade_scale_max ?? 5);
+  // Nota mínima para aprobar (usada en plantilla de Acta para marcar
+  // 'Aprobado' / 'Reprobado'). Default 3 — coincide con el default del
+  // form de cursos en app.admin.courses.tsx.
+  const passingGrade = Number(courseRow.passing_grade ?? 3);
 
   const buildStudent = (p: {
     id: string;
@@ -341,6 +351,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     const finalItems: GradedItem[] = cortes.map((c) => ({ weight: c.peso, score: c.nota }));
     const notaFinal = computeWeightedGrade(finalItems);
 
+    // Calcular estado de aprobación. notaFinal null = "Sin nota".
+    const aprobado = notaFinal != null && notaFinal >= passingGrade;
+    const estadoAprobacion =
+      notaFinal == null ? "Sin nota" : aprobado ? "Aprobado" : "Reprobado";
     return {
       id: userId,
       nombre: p.full_name ?? "—",
@@ -351,6 +365,8 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       estado: p.estado ?? "",
       programa: p.programa?.name ?? "",
       nota_final: notaFinal,
+      aprobado,
+      estado_aprobacion: estadoAprobacion,
       cortes,
       examenes,
       talleres,
@@ -425,11 +441,20 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       estado: s.estado,
       programa: s.programa,
       nota_final: s.nota_final,
+      aprobado: s.aprobado,
+      estado_aprobacion: s.estado_aprobacion,
       asistencia: s.asistencia,
       cortes: s.cortes,
       examenes: s.examenes,
       talleres: s.talleres,
       proyectos: s.proyectos,
     })),
+    // Estadísticas agregadas del curso (para encabezados de actas).
+    total_estudiantes: studentList.length,
+    total_aprobados: studentList.filter((s) => s.aprobado).length,
+    total_reprobados: studentList.filter(
+      (s) => s.nota_final != null && !s.aprobado,
+    ).length,
+    total_sin_nota: studentList.filter((s) => s.nota_final == null).length,
   };
 }
