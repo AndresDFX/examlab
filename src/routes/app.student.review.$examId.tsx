@@ -98,6 +98,33 @@ function StudentExamReview() {
           .eq("user_id", user.id)
           .maybeSingle();
 
+        // Resolución del set de exam_ids a buscar: la URL trae UN id,
+        // pero un examen puede tener un padre (cuando este es un makeup)
+        // O hijos makeup. La entrega del alumno puede estar en cualquiera
+        // de esos tres puntos del árbol — antes la query se hacía solo
+        // contra el id de la URL y devolvía null cuando el alumno había
+        // tomado un makeup pero el link traía el padre (o viceversa).
+        // Resultado visible: "No hay una entrega registrada" aunque sí
+        // existiera, simplemente bajo otro exam_id.
+        const { data: examRow } = await supabase
+          .from("exams")
+          .select("id, parent_exam_id")
+          .eq("id", examId)
+          .maybeSingle();
+        const { data: makeupRows } = await supabase
+          .from("exams")
+          .select("id")
+          .eq("parent_exam_id", examId);
+        const relatedExamIds = Array.from(
+          new Set<string>([
+            examId,
+            ...((examRow as { parent_exam_id?: string | null } | null)?.parent_exam_id
+              ? [(examRow as { parent_exam_id: string }).parent_exam_id]
+              : []),
+            ...((makeupRows ?? []) as { id: string }[]).map((m) => m.id),
+          ]),
+        );
+
         // limit(1): un examen con varios intentos tiene VARIAS filas en
         // `submissions` para el mismo (exam_id, user_id). Sin el limit,
         // `.maybeSingle()` lanza error ante >1 fila y la revisión queda
@@ -105,7 +132,7 @@ function StudentExamReview() {
         const { data: subGate } = await supabase
           .from("submissions")
           .select("id")
-          .eq("exam_id", examId)
+          .in("exam_id", relatedExamIds)
           .eq("user_id", user.id)
           .limit(1)
           .maybeSingle();
@@ -127,26 +154,45 @@ function StudentExamReview() {
             )
             .eq("id", examId)
             .single(),
-          // Último intento: ordenamos por created_at desc + limit(1).
-          // Con varios intentos hay varias filas; sin el order+limit
-          // `.maybeSingle()` falla y la revisión sale vacía. El alumno
-          // ve el detalle/feedback del intento más reciente.
+          // Último intento del alumno en CUALQUIERA de los exam_ids
+          // relacionados (la URL, su padre, o un makeup hijo). Si el
+          // alumno solo tomó el makeup pero el link trae el padre, esta
+          // query sigue trayendo la entrega correcta.
           supabase
             .from("submissions")
             .select(
-              "id, status, answers, ai_grade, ai_feedback, final_override_grade, submitted_at, teacher_feedback",
+              "id, exam_id, status, answers, ai_grade, ai_feedback, final_override_grade, submitted_at, teacher_feedback",
             )
-            .eq("exam_id", examId)
+            .in("exam_id", relatedExamIds)
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+          // Para las preguntas: si la entrega vino de un exam_id distinto
+          // al de la URL, las preguntas deben corresponder al exam_id REAL
+          // de la entrega — si no, el render del breakdown queda vacío
+          // porque los question_ids no matchean. Lo resolvemos abajo tras
+          // saber qué entrega ganó.
           supabase
             .from("questions")
             .select("id, type, content, options, points, position, expected_rubric, language")
             .eq("exam_id", examId)
             .order("position", { ascending: true }),
         ]);
+
+        // Si la submission ganadora pertenece a OTRO exam_id (makeup vs
+        // padre), recargamos las questions desde ESE exam para que el
+        // render del breakdown matche los question_ids.
+        let qsForSub = qs;
+        const subExamId = (sub as { exam_id?: string } | null)?.exam_id;
+        if (subExamId && subExamId !== examId) {
+          const { data: qsAlt } = await supabase
+            .from("questions")
+            .select("id, type, content, options, points, position, expected_rubric, language")
+            .eq("exam_id", subExamId)
+            .order("position", { ascending: true });
+          if (qsAlt) qsForSub = qsAlt;
+        }
 
         if (cancelled) return;
         if (exErr || !ex) {
