@@ -496,7 +496,7 @@ function VideoLibrary() {
             <Table resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Video</TableHead>
+                  <TableHead className="max-w-[320px]">Video</TableHead>
                   <TableHead className="w-24">Tipo</TableHead>
                   <TableHead className="w-40 hidden md:table-cell">Curso</TableHead>
                   <TableHead className="w-32 hidden lg:table-cell">Agregado</TableHead>

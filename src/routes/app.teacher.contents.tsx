@@ -719,7 +719,7 @@ function TeacherContents() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("contents.topicColumn")}</TableHead>
+                  <TableHead className="max-w-[320px]">{t("contents.topicColumn")}</TableHead>
                   <TableHead className="w-32">{t("contents.modeColumn")}</TableHead>
                   <TableHead className="w-32">{t("common.course")}</TableHead>
                   <TableHead className="w-24">{t("common.status")}</TableHead>

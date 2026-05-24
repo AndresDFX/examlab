@@ -268,6 +268,8 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
     children: [
       { label: "Nombre", path: "curso.nombre", kind: "scalar" },
       { label: "Código", path: "curso.codigo", kind: "scalar" },
+      { label: "Semestre", path: "curso.semestre", kind: "scalar", hint: "Si el curso lo tiene definido" },
+      { label: "Grupo", path: "curso.grupo", kind: "scalar", hint: "Si el curso lo tiene definido" },
       { label: "Periodo", path: "periodo", kind: "scalar" },
       { label: "Fecha de emisión", path: "fecha_emision", kind: "scalar" },
     ],

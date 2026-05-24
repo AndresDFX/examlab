@@ -2111,7 +2111,7 @@ function TeacherWorkshops() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead>{t("common.title")}</TableHead>
+                <TableHead className="max-w-[320px]">{t("common.title")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-32">{t("common.course")}</TableHead>
                 <TableHead className="hidden md:table-cell w-24">{t("exam.columns.cut")}</TableHead>
                 <TableHead className="hidden lg:table-cell text-right w-16">

@@ -90,6 +90,12 @@ type Course = {
   name: string;
   description: string | null;
   period: string | null;
+  /** Código corto / abreviatura (opcional). Ej: "ProgII". */
+  code: string | null;
+  /** Número de semestre dentro del programa (1..12, opcional). */
+  semestre: number | null;
+  /** Identificador del grupo / sección (opcional). Ej: "341-C". */
+  grupo: string | null;
   start_date: string | null;
   end_date: string | null;
   grade_scale_min: number;
@@ -259,7 +265,7 @@ export function AdminCourses() {
       return;
     }
     setLoadError(null);
-    setCourses((data ?? []) as Course[]);
+    setCourses((data ?? []) as unknown as Course[]);
   };
   useEffect(() => {
     load();
@@ -273,6 +279,9 @@ export function AdminCourses() {
       name: "",
       description: "",
       period: "",
+      code: null,
+      semestre: null,
+      grupo: null,
       start_date: "",
       end_date: "",
       grade_scale_min: 0,
@@ -464,6 +473,10 @@ export function AdminCourses() {
       name: editing.name,
       description: editing.description || null,
       period: editing.period || null,
+      // Opcionales: solo persistimos si tienen valor — null para limpiar.
+      code: editing.code?.trim() || null,
+      semestre: editing.semestre == null ? null : Number(editing.semestre),
+      grupo: editing.grupo?.trim() || null,
       start_date: startInput || null,
       end_date: endInput || null,
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
@@ -476,11 +489,15 @@ export function AdminCourses() {
       max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
     let courseId = editing.id ?? "";
+    // Cast a any: code/semestre/grupo recién agregados en la migración
+    // 20260610000000; types.ts se regenera tras Publish en Lovable.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
     if (editing.id) {
-      const { error } = await supabase.from("courses").update(payload).eq("id", editing.id);
+      const { error } = await db.from("courses").update(payload).eq("id", editing.id);
       if (error) return toast.error(friendlyError(error));
     } else {
-      const { data: created, error } = await supabase
+      const { data: created, error } = await db
         .from("courses")
         .insert(payload)
         .select("id")
@@ -959,7 +976,7 @@ export function AdminCourses() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead>{t("common.name")}</TableHead>
+                <TableHead className="max-w-[320px]">{t("common.name")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-32">{t("common.period")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-24">{t("common.scale")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
@@ -1115,6 +1132,44 @@ export function AdminCourses() {
                   onChange={(e) => setEditing({ ...editing, period: e.target.value })}
                   placeholder="Ej: 2026-1"
                 />
+              </div>
+              {/* Campos opcionales que alimentan los headers de los informes
+                  institucionales (Diagnóstico, Acuerdo Pedagógico). Si el
+                  docente no los completa quedan vacíos en el reporte —
+                  preferible a forzar a inventar valores. */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label>Código</Label>
+                  <Input
+                    value={editing.code ?? ""}
+                    onChange={(e) => setEditing({ ...editing, code: e.target.value || null })}
+                    placeholder="Ej: ProgII"
+                  />
+                </div>
+                <div>
+                  <Label>Semestre</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={editing.semestre ?? ""}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        semestre: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                    placeholder="1–12"
+                  />
+                </div>
+                <div>
+                  <Label>Grupo</Label>
+                  <Input
+                    value={editing.grupo ?? ""}
+                    onChange={(e) => setEditing({ ...editing, grupo: e.target.value || null })}
+                    placeholder="Ej: 341-C"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

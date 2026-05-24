@@ -573,8 +573,8 @@ function AdminUsers() {
                     <TableHead className="w-10">
                       <MultiSelectHeaderCheckbox state={sel} />
                     </TableHead>
-                    <TableHead>{t("users.fullName")}</TableHead>
-                    <TableHead className="hidden sm:table-cell">
+                    <TableHead className="max-w-[260px]">{t("users.fullName")}</TableHead>
+                    <TableHead className="hidden sm:table-cell max-w-[260px]">
                       {t("users.institutionalEmail")}
                     </TableHead>
                     <TableHead className="hidden md:table-cell">

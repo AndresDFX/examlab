@@ -101,7 +101,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   // ── Curso ────────────────────────────────────────────────────────
   const { data: courseRow } = await db
     .from("courses")
-    .select("id, name, code, grade_scale_max")
+    .select("id, name, code, semestre, grupo, period, grade_scale_max")
     .eq("id", courseId)
     .maybeSingle();
   if (!courseRow) {
@@ -339,11 +339,17 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     curso: {
       nombre: courseRow.name,
       codigo: courseRow.code ?? "",
+      semestre: courseRow.semestre ?? "",
+      grupo: courseRow.grupo ?? "",
     },
     docente,
     institucion,
     escala_max: escalaMax,
-    periodo: periodo ?? "",
+    // Si el caller pasó `periodo`, ese tiene prioridad; si no, usamos
+    // el campo del curso. Sin esto, plantillas que dependen de
+    // {{periodo}} se quedan en blanco cuando el docente no lo escribe
+    // en el dialog del generador (caso común — está en el curso).
+    periodo: periodo ?? courseRow.period ?? "",
     fecha_emision: formatDate(new Date()),
   };
 
