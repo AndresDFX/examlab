@@ -66,7 +66,7 @@ const MODULES: Array<{ key: string; label: string }> = [
   { key: "statistics", label: "Estadísticas" },
   { key: "messages", label: "Mensajes" },
   { key: "videos", label: "Biblioteca de videos" },
-  { key: "teacher_students", label: "Mis estudiantes (Docente)" },
+  { key: "teacher_students", label: "Usuarios (Docente)" },
 ];
 
 const ROLES: Array<{ key: "Admin" | "Docente" | "Estudiante"; label: string }> = [

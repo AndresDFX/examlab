@@ -180,7 +180,7 @@ function TeacherStudentsInner() {
   return (
     <div className="space-y-4 p-4 sm:p-6">
       <PageHeader
-        title="Mis estudiantes"
+        title="Usuarios"
         subtitle={loading ? undefined : `${students.length} estudiante(s) en tus cursos`}
         icon={<Users className="h-5 w-5 text-violet-500" />}
       />
