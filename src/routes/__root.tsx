@@ -63,8 +63,12 @@ export const Route = createRootRoute({
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.json" },
+      // Android/Chrome: PNG primero (favicon de pestaña + add-to-home-screen).
+      // SVG queda como fallback para browsers que prefieren vectorial.
+      { rel: "icon", type: "image/png", href: "/icons/icon-192.png" },
       { rel: "icon", type: "image/svg+xml", href: "/icons/icon-192.svg" },
-      { rel: "apple-touch-icon", href: "/icons/icon-192.svg" },
+      // iOS PWA: apple-touch-icon DEBE ser PNG (Safari ignora SVG aquí).
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

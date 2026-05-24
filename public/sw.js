@@ -15,7 +15,9 @@
  *  - Cache name v3 invalida las versiones anteriores en `activate`.
  */
 
-const CACHE_NAME = "examlab-v7";
+// v8: icons PNG para que Android Chrome NO descarte notificaciones (SVG en
+// icon/badge causa drop silencioso en Android).
+const CACHE_NAME = "examlab-v8";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -191,14 +193,22 @@ self.addEventListener("message", (event) => {
   }
 
   if (event.data && event.data.type === "examlab:notify") {
-    const { title, body, link } = event.data;
+    const { title, body, link, id } = event.data;
     if (self.registration && self.registration.showNotification) {
       self.registration.showNotification(title || "ExamLab", {
         body: body || "",
-        icon: "/icons/icon-192.svg",
-        badge: "/icons/icon-192.svg",
+        // ¡IMPORTANTE! Android Chrome NO renderiza notificaciones con icon SVG
+        // — las descarta silenciosamente. Debe ser PNG. badge va a la status
+        // bar y conviene un PNG monocromo (Android le aplica tinta del tema).
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-72.png",
         data: { link: link || "/app" },
-        tag: "examlab",
+        // Tag único por notificación (o el ID si lo pasaron) — un tag fijo
+        // colapsa todas las notifs en una sola y el usuario solo ve la
+        // última, no las anteriores.
+        tag: id ? `examlab:${id}` : `examlab:${Date.now()}`,
+        // Vibración corta para alertar en Android (ignorado en desktop).
+        vibrate: [200, 100, 200],
       });
     }
   }
@@ -212,14 +222,17 @@ self.addEventListener("push", (event) => {
   } catch {
     payload = { title: "ExamLab", body: event.data.text() };
   }
-  const { title = "ExamLab", body = "", link = "/app" } = payload;
+  const { title = "ExamLab", body = "", link = "/app", id } = payload;
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: "/icons/icon-192.svg",
-      badge: "/icons/icon-192.svg",
+      // Ver comentario en el handler 'message' arriba — PNG, NO SVG, o
+      // Android Chrome descarta la notificación sin error.
+      icon: "/icons/icon-192.png",
+      badge: "/icons/badge-72.png",
       data: { link },
-      tag: "examlab",
+      tag: id ? `examlab:${id}` : `examlab:${Date.now()}`,
+      vibrate: [200, 100, 200],
     }),
   );
 });

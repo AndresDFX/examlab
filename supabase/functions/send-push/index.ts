@@ -145,7 +145,25 @@ Deno.serve(async (req: Request) => {
     body: body.body ?? "",
     link: body.link ?? "/app",
     kind: body.kind ?? "info",
+    id: body.notification_id, // se usa como tag único en el SW
   });
+
+  // Opciones HTTP del push. CRÍTICAS para Android (FCM):
+  //  - TTL: sin él Chrome usa 4w default; con valor explícito FCM sabe
+  //    cuánto retener el mensaje. 24h es razonable para una notificación
+  //    de plataforma educativa.
+  //  - urgency 'high': FCM puede demorar o agrupar mensajes 'normal' o
+  //    inferiores cuando el dispositivo está en Doze mode. 'high' fuerza
+  //    entrega prácticamente inmediata.
+  //  - topic: si el mismo user_id recibe varias notifs del mismo kind en
+  //    rápida sucesión, FCM colapsa las anteriores. Útil para evitar
+  //    spammear al alumno con 10 notifs idénticas de "nuevo mensaje".
+  //    Diferente al `tag` del SW (que actúa una vez que ya llegó).
+  const pushOptions = {
+    ttl: 86400,
+    urgency: "high" as const,
+    topic: body.kind ? `examlab-${body.kind}`.slice(0, 32) : undefined,
+  };
 
   const stale: string[] = [];
   let sent = 0;
@@ -159,7 +177,7 @@ Deno.serve(async (req: Request) => {
           // expirationTime es opcional según la spec.
           expirationTime: null,
         });
-        await subscriber.pushTextMessage(payloadJson, {});
+        await subscriber.pushTextMessage(payloadJson, pushOptions);
         sent += 1;
       } catch (e) {
         // 404/410 del endpoint = suscripción muerta (usuario revocó
