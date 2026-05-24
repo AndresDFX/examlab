@@ -102,6 +102,9 @@ type Course = {
   /** FK al periodo académico (opcional). Coexiste con el campo
    *  `period` (text) por compat — al guardar, ambos se setean. */
   period_id: string | null;
+  /** FK a la asignatura (template del plan). Múltiples cursos pueden
+   *  apuntar a la misma asignatura (distintos grupos/periodos). */
+  subject_id: string | null;
   start_date: string | null;
   end_date: string | null;
   grade_scale_min: number;
@@ -252,6 +255,17 @@ export function AdminCourses() {
   const [periods, setPeriods] = useState<
     Array<{ id: string; code: string; name: string | null; status: string }>
   >([]);
+  // Asignaturas activas — alimentan el dropdown del template del plan.
+  // Filtramos por programa cuando hay program_id elegido (relevancia).
+  const [subjects, setSubjects] = useState<
+    Array<{
+      id: string;
+      name: string;
+      code: string | null;
+      program_id: string | null;
+      semestre: number | null;
+    }>
+  >([]);
 
   // Duplicate
   const [dupOpen, setDupOpen] = useState(false);
@@ -301,6 +315,22 @@ export function AdminCourses() {
     setPeriods(
       (pers ?? []) as Array<{ id: string; code: string; name: string | null; status: string }>,
     );
+    // Asignaturas activas (best-effort).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: subs } = await (supabase as any)
+      .from("academic_subjects")
+      .select("id, name, code, program_id, semestre")
+      .eq("active", true)
+      .order("name");
+    setSubjects(
+      (subs ?? []) as Array<{
+        id: string;
+        name: string;
+        code: string | null;
+        program_id: string | null;
+        semestre: number | null;
+      }>,
+    );
     setCourses((data ?? []) as unknown as Course[]);
   };
   useEffect(() => {
@@ -320,6 +350,7 @@ export function AdminCourses() {
       grupo: null,
       program_id: null,
       period_id: null,
+      subject_id: null,
       start_date: "",
       end_date: "",
       grade_scale_min: 0,
@@ -523,6 +554,7 @@ export function AdminCourses() {
       semestre: editing.semestre == null ? null : Number(editing.semestre),
       grupo: editing.grupo?.trim() || null,
       program_id: editing.program_id || null,
+      subject_id: editing.subject_id || null,
       // Si hay period_id, denormalizamos el code al campo legacy `period`
       // para que las queries que aún lo usan no rompan. Si no hay
       // period_id pero sí period (texto editado a mano), respetamos el texto.
@@ -1247,6 +1279,56 @@ export function AdminCourses() {
                         {p.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Asignatura del plan (opcional). Asociar el curso a una
+                  asignatura abstracta permite agrupar todos los grupos
+                  de "Programación II" en reportes. Al seleccionar una
+                  asignatura, si tiene programa fijo, lo sincronizamos
+                  para evitar inconsistencias. */}
+              <div>
+                <Label>Asignatura del plan</Label>
+                <Select
+                  value={editing.subject_id ?? "__none__"}
+                  onValueChange={(v) => {
+                    if (v === "__none__") {
+                      setEditing({ ...editing, subject_id: null });
+                      return;
+                    }
+                    const subj = subjects.find((s) => s.id === v);
+                    setEditing({
+                      ...editing,
+                      subject_id: v,
+                      // Sync defensivo: si la asignatura tiene programa
+                      // fijo y el curso no, lo heredamos.
+                      program_id: editing.program_id ?? subj?.program_id ?? null,
+                      // Y si la asignatura tiene semestre del plan,
+                      // sugerirlo cuando el curso no lo tiene.
+                      semestre: editing.semestre ?? subj?.semestre ?? null,
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin asignatura asociada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin asignatura asociada</SelectItem>
+                    {subjects
+                      // Filtrar por programa elegido si lo hay — relevancia.
+                      .filter(
+                        (s) =>
+                          !editing.program_id ||
+                          s.program_id === editing.program_id ||
+                          s.program_id == null,
+                      )
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.code ? ` (${s.code})` : ""}
+                          {s.semestre ? ` · Sem ${s.semestre}` : ""}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

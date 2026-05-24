@@ -24,7 +24,6 @@ import {
   Code2,
   ScrollText,
   Sliders,
-  Award,
   KeyRound,
   Layers,
   ListOrdered,
@@ -44,6 +43,7 @@ import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
 import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
 import { AdminAcademicPeriodsPanel } from "@/modules/admin/AdminAcademicPeriodsPanel";
+import { AdminAcademicSubjectsPanel } from "@/modules/admin/AdminAcademicSubjectsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -70,9 +70,14 @@ function AdminSettings() {
             <Sliders className="h-3.5 w-3.5" />
             Generales
           </TabsTrigger>
-          <TabsTrigger value="academic" className="gap-1.5">
+          {/* "Universidad" agrupa toda la configuración institucional:
+              programas académicos, periodos, datos de la institución
+              que aparecen en certificados/actas, y firmantes. La idea
+              es que el admin tenga UN solo lugar para "configurar la
+              universidad" en vez de 3 tabs separados. */}
+          <TabsTrigger value="university" className="gap-1.5">
             <GraduationCap className="h-3.5 w-3.5" />
-            Académico
+            Universidad
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" />
@@ -89,10 +94,6 @@ function AdminSettings() {
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />
             Auditoría
-          </TabsTrigger>
-          <TabsTrigger value="certificates" className="gap-1.5">
-            <Award className="h-3.5 w-3.5" />
-            Certificaciones
           </TabsTrigger>
           <TabsTrigger value="secrets" className="gap-1.5">
             <KeyRound className="h-3.5 w-3.5" />
@@ -114,9 +115,17 @@ function AdminSettings() {
         <TabsContent value="general" className="space-y-4 mt-4">
           <AdminGeneralSettingsPanel />
         </TabsContent>
-        <TabsContent value="academic" className="space-y-4 mt-4">
+        <TabsContent value="university" className="space-y-4 mt-4">
+          {/* Programas + Periodos + Certificaciones (datos de la
+              institución como nombre, logo, firma, etc.). Todos cuelgan
+              de "la Universidad" — el docente nunca los toca, son del
+              Admin. Mantener cards separados pero bajo el mismo tab
+              evita que el admin tenga que saltar entre 'Académico' y
+              'Certificaciones' para configurar cosas relacionadas. */}
           <AdminAcademicProgramsPanel />
+          <AdminAcademicSubjectsPanel />
           <AdminAcademicPeriodsPanel />
+          <AdminCertificateSettingsPanel />
         </TabsContent>
         <TabsContent value="email" className="space-y-4 mt-4">
           <AdminEmailSettingsPanel />
@@ -129,9 +138,6 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="audit" className="space-y-4 mt-4">
           <AdminAuditRetentionPanel />
-        </TabsContent>
-        <TabsContent value="certificates" className="space-y-4 mt-4">
-          <AdminCertificateSettingsPanel />
         </TabsContent>
         <TabsContent value="secrets" className="space-y-4 mt-4">
           <AdminEdgeSecretsPanel />

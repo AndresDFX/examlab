@@ -118,7 +118,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, period_id, grade_scale_max, passing_grade, program_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status)",
+      "id, name, code, semestre, grupo, period, period_id, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -390,6 +390,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       programa: courseRow.program?.name ?? "",
       programa_codigo: courseRow.program?.code ?? "",
       facultad: courseRow.program?.faculty ?? "",
+      // Asignatura del plan (FK subject_id). Si está asociado, exponemos
+      // el nombre + código + créditos para el header de informes
+      // (útil cuando el plan curricular dicta nombres específicos).
+      asignatura: courseRow.subject?.name ?? "",
+      asignatura_codigo: courseRow.subject?.code ?? "",
+      creditos: courseRow.subject?.credits ?? "",
     },
     docente,
     institucion,
