@@ -159,12 +159,12 @@ function TeacherStudentsInner() {
 
   const handleImpersonate = async (s: Student) => {
     const ok = await confirm({
-      title: `¿Ver la plataforma como ${s.full_name}?`,
+      title: `¿Iniciar sesión como ${s.full_name}?`,
       description:
-        "Entrarás a la plataforma con la cuenta de este estudiante. Verás exactamente lo que él ve. " +
-        "Aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
+        "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. " +
+        "Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
         "La acción queda registrada en el log de auditoría.",
-      confirmLabel: "Ver como",
+      confirmLabel: "Iniciar como",
       tone: "warning",
     });
     if (!ok) return;
@@ -181,7 +181,7 @@ function TeacherStudentsInner() {
     <div className="space-y-4 p-4 sm:p-6">
       <PageHeader
         title="Usuarios"
-        subtitle={loading ? undefined : `${students.length} estudiante(s) en tus cursos`}
+        subtitle={loading ? undefined : `${students.length} usuario(s) en tus cursos`}
         icon={<Users className="h-5 w-5 text-violet-500" />}
       />
 
@@ -219,7 +219,7 @@ function TeacherStudentsInner() {
               <TableSkeleton cols={3} rows={6} />
             ) : loadError ? (
               <ErrorState
-                message="No pudimos cargar los estudiantes"
+                message="No pudimos cargar los usuarios"
                 hint={loadError}
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />
@@ -227,7 +227,7 @@ function TeacherStudentsInner() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Estudiante</TableHead>
+                    <TableHead>Usuario</TableHead>
                     <TableHead className="hidden sm:table-cell">Correo</TableHead>
                     <TableHead className="hidden md:table-cell">Cursos</TableHead>
                     <TableHead className="w-10" />
@@ -235,7 +235,7 @@ function TeacherStudentsInner() {
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableEmpty colSpan={4} message="Sin estudiantes" />
+                    <TableEmpty colSpan={4} message="Sin usuarios" />
                   ) : (
                     filtered.map((s) => (
                       <TableRow key={s.id}>
@@ -261,9 +261,9 @@ function TeacherStudentsInner() {
                           <RowActionsMenu
                             actions={[
                               {
-                                label: "Ver como",
+                                label: "Iniciar como",
                                 icon: Eye,
-                                hint: `Ver la plataforma como ${s.full_name}`,
+                                hint: `Acceder a la plataforma como ${s.full_name}`,
                                 onClick: () => void handleImpersonate(s),
                                 disabled: impersonating === s.id,
                               },

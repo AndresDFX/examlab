@@ -1117,12 +1117,12 @@ function Gradebook() {
    */
   const handleImpersonateStudent = async (studentId: string, studentName: string) => {
     const ok = await confirm({
-      title: `Ver la plataforma como ${studentName}`,
+      title: `¿Iniciar sesión como ${studentName}?`,
       description:
-        "Vas a entrar a la plataforma con la cuenta de este estudiante. Verás todo lo que él ve. " +
-        "Mientras estés viéndolo, aparecerá un banner arriba con el botón 'Volver a mi cuenta'. " +
+        "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. " +
+        "Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
         "La acción queda registrada en el log de auditoría.",
-      confirmLabel: "Ver como",
+      confirmLabel: "Iniciar como",
       tone: "warning",
     });
     if (!ok) return;
