@@ -44,6 +44,7 @@ import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
 import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
 import { AdminAcademicPeriodsPanel } from "@/modules/admin/AdminAcademicPeriodsPanel";
 import { AdminAcademicSubjectsPanel } from "@/modules/admin/AdminAcademicSubjectsPanel";
+import { AdminProgramOverviewPanel } from "@/modules/admin/AdminProgramOverviewPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -122,6 +123,9 @@ function AdminSettings() {
               Admin. Mantener cards separados pero bajo el mismo tab
               evita que el admin tenga que saltar entre 'Académico' y
               'Certificaciones' para configurar cosas relacionadas. */}
+          {/* Orden intencional: resumen integral primero (vista de salud
+              institucional), luego CRUDs específicos. */}
+          <AdminProgramOverviewPanel />
           <AdminAcademicProgramsPanel />
           <AdminAcademicSubjectsPanel />
           <AdminAcademicPeriodsPanel />
