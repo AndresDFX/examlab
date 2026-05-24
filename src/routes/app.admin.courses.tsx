@@ -96,6 +96,9 @@ type Course = {
   semestre: number | null;
   /** Identificador del grupo / sección (opcional). Ej: "341-C". */
   grupo: string | null;
+  /** FK al programa académico (opcional). NULL si el curso no está
+   *  asociado a ningún programa todavía. */
+  program_id: string | null;
   start_date: string | null;
   end_date: string | null;
   grade_scale_min: number;
@@ -235,6 +238,11 @@ export function AdminCourses() {
   const [teachers, setTeachers] = useState<Profile[]>([]);
   const [assignedTeacherIds, setAssignedTeacherIds] = useState<Set<string>>(new Set());
 
+  // Programas académicos activos — alimentan el dropdown del form de
+  // curso. Cargados junto con la lista de cursos para no hacer query
+  // redundante al abrir el dialog.
+  const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
+
   // Duplicate
   const [dupOpen, setDupOpen] = useState(false);
   const [dupSource, setDupSource] = useState<Course | null>(null);
@@ -265,6 +273,15 @@ export function AdminCourses() {
       return;
     }
     setLoadError(null);
+    // Cargar programas activos (best-effort — si falla, el dropdown
+    // queda vacío pero el form sigue funcionando: program_id es opcional).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: progs } = await (supabase as any)
+      .from("academic_programs")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
+    setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
     setCourses((data ?? []) as unknown as Course[]);
   };
   useEffect(() => {
@@ -282,6 +299,7 @@ export function AdminCourses() {
       code: null,
       semestre: null,
       grupo: null,
+      program_id: null,
       start_date: "",
       end_date: "",
       grade_scale_min: 0,
@@ -477,6 +495,7 @@ export function AdminCourses() {
       code: editing.code?.trim() || null,
       semestre: editing.semestre == null ? null : Number(editing.semestre),
       grupo: editing.grupo?.trim() || null,
+      program_id: editing.program_id || null,
       start_date: startInput || null,
       end_date: endInput || null,
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
@@ -1132,6 +1151,32 @@ export function AdminCourses() {
                   onChange={(e) => setEditing({ ...editing, period: e.target.value })}
                   placeholder="Ej: 2026-1"
                 />
+              </div>
+              {/* Programa académico (opcional, pero recomendado). Define
+                  la carrera/pregrado al que pertenece el curso — alimenta
+                  los headers de informes institucionales y analytics
+                  agregados por programa. La lista la mantiene el Admin
+                  desde Configuración → Académico. */}
+              <div>
+                <Label>Programa académico</Label>
+                <Select
+                  value={editing.program_id ?? "__none__"}
+                  onValueChange={(v) =>
+                    setEditing({ ...editing, program_id: v === "__none__" ? null : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin programa asociado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin programa asociado</SelectItem>
+                    {programs.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {/* Campos opcionales que alimentan los headers de los informes
                   institucionales (Diagnóstico, Acuerdo Pedagógico). Si el

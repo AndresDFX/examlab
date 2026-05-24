@@ -98,10 +98,12 @@ function effectiveScore(sub: {
 export async function buildReportContext(args: BuildReportArgs): Promise<TemplateContext> {
   const { courseId, studentId, periodo } = args;
 
-  // ── Curso ────────────────────────────────────────────────────────
+  // ── Curso (con join al programa académico si tiene FK) ───────────
   const { data: courseRow } = await db
     .from("courses")
-    .select("id, name, code, semestre, grupo, period, grade_scale_max")
+    .select(
+      "id, name, code, semestre, grupo, period, grade_scale_max, program_id, program:academic_programs(name, code, faculty)",
+    )
     .eq("id", courseId)
     .maybeSingle();
   if (!courseRow) {
@@ -341,6 +343,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       codigo: courseRow.code ?? "",
       semestre: courseRow.semestre ?? "",
       grupo: courseRow.grupo ?? "",
+      // Programa académico — `program` viene del embed PostgREST.
+      // Si el curso no tiene program_id, queda como string vacío para
+      // que el render no muestre "undefined" en el PDF.
+      programa: courseRow.program?.name ?? "",
+      programa_codigo: courseRow.program?.code ?? "",
+      facultad: courseRow.program?.faculty ?? "",
     },
     docente,
     institucion,

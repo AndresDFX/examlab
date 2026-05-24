@@ -30,6 +30,7 @@ import {
   ListOrdered,
   Wrench,
   Database,
+  GraduationCap,
 } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
 import { AdminCodeExecutionPanel } from "@/modules/admin/AdminCodeExecutionPanel";
@@ -41,6 +42,7 @@ import { AdminModuleVisibilityPanel } from "@/modules/admin/AdminModuleVisibilit
 import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
+import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -66,6 +68,10 @@ function AdminSettings() {
           <TabsTrigger value="general" className="gap-1.5">
             <Sliders className="h-3.5 w-3.5" />
             Generales
+          </TabsTrigger>
+          <TabsTrigger value="academic" className="gap-1.5">
+            <GraduationCap className="h-3.5 w-3.5" />
+            Académico
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" />
@@ -106,6 +112,9 @@ function AdminSettings() {
         </TabsList>
         <TabsContent value="general" className="space-y-4 mt-4">
           <AdminGeneralSettingsPanel />
+        </TabsContent>
+        <TabsContent value="academic" className="space-y-4 mt-4">
+          <AdminAcademicProgramsPanel />
         </TabsContent>
         <TabsContent value="email" className="space-y-4 mt-4">
           <AdminEmailSettingsPanel />
