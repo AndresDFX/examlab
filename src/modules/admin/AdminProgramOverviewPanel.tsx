@@ -240,11 +240,11 @@ export function AdminProgramOverviewPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-indigo-500" />
-          Resumen por programa
+          Resumen institucional
           <HelpHint>
-            KPIs agregados — asignaturas activas, cursos totales (instancias), estudiantes y
-            docentes únicos por programa. Filtra por periodo para ver solo lo activo en ese
-            ciclo.
+            KPIs agregados por programa/nivel — asignaturas activas, cursos totales
+            (instancias), estudiantes y docentes únicos. Filtra por periodo para ver solo lo
+            activo en ese ciclo.
           </HelpHint>
         </CardTitle>
         <div className="w-44">
@@ -283,7 +283,7 @@ export function AdminProgramOverviewPanel() {
                   {programs.filter((p) => p.active).length}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">
-                  Programas activos
+                  Programas / Niveles
                 </div>
               </div>
               <div className="rounded-md border p-2.5 bg-card">
@@ -316,8 +316,8 @@ export function AdminProgramOverviewPanel() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="max-w-[260px]">Programa</TableHead>
-                    <TableHead className="hidden md:table-cell">Facultad</TableHead>
+                    <TableHead className="max-w-[260px]">Programa / Nivel</TableHead>
+                    <TableHead className="hidden md:table-cell">Área / Departamento</TableHead>
                     <TableHead className="text-center w-24">Asignaturas</TableHead>
                     <TableHead className="text-center w-24">
                       {showInPeriodColumn ? "Cursos · periodo" : "Cursos"}

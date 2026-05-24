@@ -71,14 +71,14 @@ function AdminSettings() {
             <Sliders className="h-3.5 w-3.5" />
             Generales
           </TabsTrigger>
-          {/* "Universidad" agrupa toda la configuración institucional:
-              programas académicos, periodos, datos de la institución
-              que aparecen en certificados/actas, y firmantes. La idea
-              es que el admin tenga UN solo lugar para "configurar la
-              universidad" en vez de 3 tabs separados. */}
-          <TabsTrigger value="university" className="gap-1.5">
+          {/* "Institución" agrupa toda la configuración educativa:
+              programas/niveles, asignaturas, periodos, certificaciones.
+              Diseñado para ser neutral entre universidad, instituto
+              técnico, colegio o academia — el modelo subyacente es
+              flexible (todos los campos son opcionales). */}
+          <TabsTrigger value="institution" className="gap-1.5">
             <GraduationCap className="h-3.5 w-3.5" />
-            Universidad
+            Institución
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" />
@@ -116,13 +116,13 @@ function AdminSettings() {
         <TabsContent value="general" className="space-y-4 mt-4">
           <AdminGeneralSettingsPanel />
         </TabsContent>
-        <TabsContent value="university" className="space-y-4 mt-4">
-          {/* Programas + Periodos + Certificaciones (datos de la
-              institución como nombre, logo, firma, etc.). Todos cuelgan
-              de "la Universidad" — el docente nunca los toca, son del
-              Admin. Mantener cards separados pero bajo el mismo tab
-              evita que el admin tenga que saltar entre 'Académico' y
-              'Certificaciones' para configurar cosas relacionadas. */}
+        <TabsContent value="institution" className="space-y-4 mt-4">
+          {/* Programas + Asignaturas + Periodos + Certificaciones (datos
+              de la institución como nombre, logo, firma, etc.). Todos
+              cuelgan de la institución — el docente nunca los toca, son
+              del Admin. Mantener cards separados pero bajo el mismo tab
+              evita que el admin tenga que saltar entre tabs para
+              configurar cosas relacionadas. */}
           {/* Orden intencional: resumen integral primero (vista de salud
               institucional), luego CRUDs específicos. */}
           <AdminProgramOverviewPanel />

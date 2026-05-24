@@ -1262,7 +1262,7 @@ export function AdminCourses() {
                   agregados por programa. La lista la mantiene el Admin
                   desde Configuración → Académico. */}
               <div>
-                <Label>Programa académico</Label>
+                <Label>Programa / Nivel</Label>
                 <Select
                   value={editing.program_id ?? "__none__"}
                   onValueChange={(v) =>
@@ -1346,7 +1346,7 @@ export function AdminCourses() {
                   />
                 </div>
                 <div>
-                  <Label>Semestre</Label>
+                  <Label>Grado / Semestre</Label>
                   <Input
                     type="number"
                     min={1}

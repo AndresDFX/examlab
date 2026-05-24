@@ -258,9 +258,9 @@ export function AdminAcademicPeriodsPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Define los periodos institucionales (semestres, trimestres) con sus fechas. Los cursos se
-          asocian a un periodo desde su formulario. Cerrar un periodo lo deja marcado para
-          referencia histórica.
+          Define los periodos lectivos (semestres, trimestres, año lectivo) con sus fechas. Los
+          cursos se asocian a un periodo desde su formulario. Cerrar un periodo lo deja marcado
+          para referencia histórica.
         </p>
 
         {loading ? (
@@ -344,17 +344,17 @@ export function AdminAcademicPeriodsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar periodo" : "Nuevo periodo"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto flex-1 -mx-2 px-2">
             <div className="space-y-1">
               <Label required>Código</Label>
               <Input
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-                placeholder="Ej: 2026-1"
+                placeholder="Ej: 2026-1, 2026-T2, 2026"
               />
             </div>
             <div className="space-y-1">
@@ -362,7 +362,7 @@ export function AdminAcademicPeriodsPanel() {
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="Ej: Primer semestre 2026"
+                placeholder="Ej: Primer semestre 2026, Trimestre II, Año lectivo 2026"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -249,7 +249,7 @@ export function AdminAcademicSubjectsPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-cyan-500" />
-          Asignaturas (plan de estudios)
+          Asignaturas / Materias
         </CardTitle>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-3.5 w-3.5 mr-1" />
@@ -258,10 +258,11 @@ export function AdminAcademicSubjectsPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          La asignatura es la materia abstracta del plan. Los cursos se asocian a una asignatura
-          desde su formulario — un mismo &quot;Programación II&quot; puede tener N cursos
-          (grupos/periodos distintos). El conteo &quot;Cursos&quot; muestra cuántas instancias
-          existen.
+          La materia abstracta del plan de estudios. Sirve para universidad (asignaturas
+          por semestre), colegio (materias por grado) o instituto técnico (módulos por
+          nivel). Los cursos se asocian a una asignatura desde su formulario — una misma
+          &quot;Programación II&quot; / &quot;Matemáticas 5°&quot; puede tener N cursos
+          (grupos/periodos distintos).
         </p>
 
         <div className="flex flex-col sm:flex-row gap-2">
@@ -304,8 +305,8 @@ export function AdminAcademicSubjectsPanel() {
                 <TableRow>
                   <TableHead className="max-w-[260px]">Nombre</TableHead>
                   <TableHead className="hidden sm:table-cell w-24">Código</TableHead>
-                  <TableHead className="hidden md:table-cell">Programa</TableHead>
-                  <TableHead className="hidden sm:table-cell w-20 text-center">Sem.</TableHead>
+                  <TableHead className="hidden md:table-cell">Programa / Nivel</TableHead>
+                  <TableHead className="hidden sm:table-cell w-20 text-center">Grado</TableHead>
                   <TableHead className="hidden sm:table-cell w-20 text-center">Cr.</TableHead>
                   <TableHead className="w-20 text-center">Cursos</TableHead>
                   <TableHead className="w-10" />
@@ -370,11 +371,11 @@ export function AdminAcademicSubjectsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar asignatura" : "Nueva asignatura"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto flex-1 -mx-2 px-2">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
               <div className="space-y-1">
                 <Label required>Nombre</Label>
@@ -394,7 +395,7 @@ export function AdminAcademicSubjectsPanel() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Programa</Label>
+              <Label>Programa / Nivel</Label>
               <Select
                 value={draft.program_id ?? "__none__"}
                 onValueChange={(v) =>
@@ -416,7 +417,7 @@ export function AdminAcademicSubjectsPanel() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Semestre del plan</Label>
+                <Label>Grado / Semestre</Label>
                 <Input
                   type="number"
                   min={1}
@@ -453,7 +454,7 @@ export function AdminAcademicSubjectsPanel() {
               <Textarea
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                placeholder="Resumen del syllabus / propósito de la asignatura"
+                placeholder="Resumen / propósito / temáticas principales"
                 rows={3}
               />
             </div>

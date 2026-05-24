@@ -185,7 +185,7 @@ export function AdminAcademicProgramsPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <GraduationCap className="h-4 w-4 text-violet-500" />
-          Programas académicos
+          Programas / Niveles
         </CardTitle>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-3.5 w-3.5 mr-1" />
@@ -194,8 +194,10 @@ export function AdminAcademicProgramsPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Los cursos se asocian a un programa desde el formulario de cursos. Los inactivos no
-          aparecen en el selector, pero se conservan asociados a los cursos históricos.
+          La unidad organizativa principal: carrera, programa, nivel educativo o área técnica
+          según tu institución (ej. &quot;Ingeniería de Sistemas&quot;, &quot;Bachillerato Técnico&quot;,
+          &quot;Educación Básica Primaria&quot;, &quot;Auxiliar Contable&quot;). Los cursos se
+          asocian a un programa desde el formulario de cursos.
         </p>
 
         {loading ? (
@@ -215,7 +217,7 @@ export function AdminAcademicProgramsPanel() {
                 <TableRow>
                   <TableHead className="max-w-[260px]">Nombre</TableHead>
                   <TableHead className="hidden sm:table-cell w-24">Código</TableHead>
-                  <TableHead className="hidden md:table-cell">Facultad</TableHead>
+                  <TableHead className="hidden md:table-cell">Área / Departamento</TableHead>
                   <TableHead className="w-24">Activo</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -279,17 +281,20 @@ export function AdminAcademicProgramsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+        {/* max-h + flex-col + scroll en el body interno + footer sticky:
+            sin esto en viewports cortos (móvil landscape, browser zoom)
+            los botones se solapaban con el último campo del form. */}
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar programa" : "Nuevo programa"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto flex-1 -mx-2 px-2">
             <div className="space-y-1">
               <Label required>Nombre</Label>
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="Ingeniería de Sistemas"
+                placeholder="Ej: Ingeniería de Sistemas, Bachillerato, Auxiliar Contable"
               />
             </div>
             <div className="space-y-1">
@@ -297,15 +302,15 @@ export function AdminAcademicProgramsPanel() {
               <Input
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-                placeholder="Ej: IS, ING-SIS"
+                placeholder="Ej: IS, BTC, AUX-CON"
               />
             </div>
             <div className="space-y-1">
-              <Label>Facultad / Departamento</Label>
+              <Label>Área / Departamento</Label>
               <Input
                 value={draft.faculty}
                 onChange={(e) => setDraft({ ...draft, faculty: e.target.value })}
-                placeholder="Facultad de Ingeniería"
+                placeholder="Ej: Facultad de Ingeniería, Sección Bachillerato, Área Técnica"
               />
             </div>
             <div className="flex items-center gap-2 pt-1">
@@ -313,7 +318,7 @@ export function AdminAcademicProgramsPanel() {
                 checked={draft.active}
                 onCheckedChange={(v) => setDraft({ ...draft, active: v })}
               />
-              <Label className="text-sm">Activo (aparece en el selector de curso)</Label>
+              <Label className="text-sm">Activo (aparece al crear cursos)</Label>
             </div>
           </div>
           <DialogFooter>
