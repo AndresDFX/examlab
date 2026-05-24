@@ -59,6 +59,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { startImpersonate } from "@/modules/admin/impersonation";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
@@ -1106,6 +1107,33 @@ function Gradebook() {
     [],
   );
 
+  /**
+   * "Ver como" — el Docente impersonar a un estudiante de uno de sus
+   * cursos. Confirmamos antes para evitar clicks accidentales (el flow
+   * dispara un full reload y deja al docente "dentro" de la sesión del
+   * alumno). El edge function `admin-impersonate` revalida server-side
+   * el overlap de cursos, así que aunque el botón aparezca acá nadie
+   * puede saltarse el gate haciendo otra petición.
+   */
+  const handleImpersonateStudent = async (studentId: string, studentName: string) => {
+    const ok = await confirm({
+      title: `Ver la plataforma como ${studentName}`,
+      description:
+        "Vas a entrar a la plataforma con la cuenta de este estudiante. Verás todo lo que él ve. " +
+        "Mientras estés viéndolo, aparecerá un banner arriba con el botón 'Volver a mi cuenta'. " +
+        "La acción queda registrada en el log de auditoría.",
+      confirmLabel: "Ver como",
+      tone: "warning",
+    });
+    if (!ok) return;
+    try {
+      await startImpersonate(studentId);
+      // startImpersonate dispara window.location.href → no llegamos aquí.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al iniciar la vista");
+    }
+  };
+
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   if (loadError) {
@@ -1344,14 +1372,36 @@ function Gradebook() {
                     return (
                       <TableRow key={row.student.id}>
                         <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
-                          <div className="font-medium text-sm truncate" title={row.student.full_name}>
-                            {row.student.full_name}
-                          </div>
-                          <div
-                            className="text-xs text-muted-foreground truncate"
-                            title={row.student.institutional_email}
-                          >
-                            {row.student.institutional_email}
+                          <div className="flex items-start gap-1.5">
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className="font-medium text-sm truncate"
+                                title={row.student.full_name}
+                              >
+                                {row.student.full_name}
+                              </div>
+                              <div
+                                className="text-xs text-muted-foreground truncate"
+                                title={row.student.institutional_email}
+                              >
+                                {row.student.institutional_email}
+                              </div>
+                            </div>
+                            {/* "Ver como" — entra a la plataforma con la
+                                sesión del estudiante. Útil para reproducir
+                                un problema reportado o verificar qué ve el
+                                alumno. Server gate (admin-impersonate)
+                                revalida el overlap de cursos del Docente. */}
+                            <RowAction
+                              label={`Ver la plataforma como ${row.student.full_name}`}
+                              icon={Eye}
+                              onClick={() =>
+                                void handleImpersonateStudent(
+                                  row.student.id,
+                                  row.student.full_name,
+                                )
+                              }
+                            />
                           </div>
                         </TableCell>
                         {row.cutGrades.map((cg, ci) => {

@@ -1,17 +1,22 @@
 /**
- * Impersonación admin → usuario no-Admin.
+ * Impersonación: Admin → cualquier no-Admin, o Docente → estudiantes
+ * matriculados en uno de sus cursos. La autorización vive en el edge
+ * function `admin-impersonate` (a pesar del nombre legacy, soporta
+ * ambos roles); el cliente solo cambia la sesión y guarda backup.
  *
  * Flow:
- *   1. Admin pulsa "Iniciar como X" en la grid de usuarios.
+ *   1. Caller pulsa "Iniciar como X" / "Ver como X" (grid de usuarios
+ *      Admin, o gradebook del Docente).
  *   2. `startImpersonate(userId)` llama al edge function `admin-impersonate`
- *      que devuelve `hashed_token` (magic link OTP).
- *   3. Antes de cambiar la sesión, guardamos las tokens del admin en
+ *      que devuelve `hashed_token` (magic link OTP) — el edge revalida
+ *      el overlap de cursos si el caller es Docente.
+ *   3. Antes de cambiar la sesión, guardamos las tokens del caller en
  *      localStorage bajo `IMPERSONATION_BACKUP_KEY` para poder restaurar.
  *   4. `verifyOtp({ token_hash, type: 'email' })` reemplaza la sesión
  *      activa por la del target. Forzamos un `window.location` para
  *      que TODO el estado (queries, hooks) se re-inicialice limpio.
  *   5. `stopImpersonate()` lee el backup, llama `auth.setSession` con
- *      las tokens del admin y vuelve a recargar.
+ *      las tokens originales y vuelve a recargar.
  *
  * Banner global (`ImpersonationBanner`) detecta la presencia del backup
  * en localStorage y se renderiza pegado al top mientras dura la sesión
@@ -20,7 +25,7 @@
  * Limitación: la access_token tiene TTL de 1h. Si la impersonación dura
  * más de 1h, `setSession` la refresca usando la refresh_token (también
  * persistida). Si refresh_token expira (default 1 semana), el restore
- * falla y caemos a logout — el admin debe loguearse manualmente.
+ * falla y caemos a logout — el caller debe loguearse manualmente.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +34,9 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 export const IMPERSONATION_BACKUP_KEY = "examlab_admin_impersonation_backup";
 
 interface ImpersonationBackup {
+  /** Sesión del caller original (Admin o Docente). Nombre legacy
+   *  `admin_session` se mantiene para no romper backups existentes
+   *  en localStorage de sesiones impersonadas en curso. */
   admin_session: {
     access_token: string;
     refresh_token: string;
