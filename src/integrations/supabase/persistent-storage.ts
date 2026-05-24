@@ -19,6 +19,36 @@ import { createStore, get, set, del } from "idb-keyval";
 // caches y poder limpiar uno sin tocar el otro.
 const store = createStore("examlab-auth", "session");
 
+// Pide al browser marcar el storage como "persistente" — la SO no lo
+// desalojará bajo presión de memoria, solo si el usuario lo borra a mano
+// desde Settings. Sin esto, Chrome Android puede evictar IndexedDB
+// cuando hay poca memoria → el alumno reabre la PWA y se quedó fuera
+// aunque tenía sesión válida.
+//
+// Es idempotente (browser lo recuerda); seguro llamarlo en cada arranque.
+// Algunos browsers solo lo conceden si la PWA está "installed" o tiene
+// notification permission — ambos casos comunes en ExamLab. Si lo
+// rechaza, no rompemos nada — degrada al comportamiento anterior.
+let persistenceRequested = false;
+async function requestPersistentStorage(): Promise<void> {
+  if (persistenceRequested) return;
+  persistenceRequested = true;
+  try {
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.storage &&
+      typeof navigator.storage.persist === "function"
+    ) {
+      // Si ya está persistido no volvemos a pedirlo (algunos browsers
+      // muestran prompt; queremos minimizar).
+      const already = await navigator.storage.persisted?.();
+      if (!already) await navigator.storage.persist();
+    }
+  } catch {
+    // ignore
+  }
+}
+
 /** Helper: lee localStorage de forma segura (puede tirar en modo
  *  privado de Safari, en SSR, o si las cookies del sitio fueron
  *  bloqueadas). Devuelve null en cualquier error. */
@@ -62,6 +92,9 @@ export const persistentAuthStorage = {
     return null;
   },
   async setItem(key: string, value: string): Promise<void> {
+    // Best-effort: pedir persistencia al primer setItem (cuando el
+    // alumno acaba de loguearse). Fire-and-forget — no bloqueamos.
+    void requestPersistentStorage();
     try {
       await set(key, value, store);
     } catch {

@@ -29,7 +29,15 @@ export function useAuth() {
 
   useEffect(() => {
     // Auth listener FIRST
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, sess) => {
+      // Log eventos críticos a la consola para diagnosticar pérdidas de
+      // sesión inesperadas. Idealmente con telemetría real (Sentry), pero
+      // por ahora la consola del browser es suficiente — el alumno puede
+      // mandar screenshot.
+      if (evt === "SIGNED_OUT") {
+        // eslint-disable-next-line no-console
+        console.warn(`[auth] ${evt} — session lost`);
+      }
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
@@ -53,7 +61,12 @@ export function useAuth() {
   }, [loadExtras]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // `scope: 'local'` es CRÍTICO. Sin esto, Supabase v2 usa scope
+    // 'global' por default e invalida los refresh tokens del usuario
+    // en TODOS sus dispositivos. Resultado: el alumno cierra sesión en
+    // su celular y al rato Chrome desktop también se queda fuera (al
+    // próximo intento de refresh).
+    await supabase.auth.signOut({ scope: "local" });
     // Defensa en profundidad: limpiar storages locales antes del full
     // reload, por si en el futuro alguien refactoriza a SPA nav y el
     // reload deja de pasar.

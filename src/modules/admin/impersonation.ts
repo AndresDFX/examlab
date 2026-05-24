@@ -155,7 +155,10 @@ export async function stopImpersonate(): Promise<void> {
       // refresh_token sobrevive). Si refresh también falló, no podemos
       // restaurar — limpiamos y forzamos al admin a re-loguearse.
       localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
-      await supabase.auth.signOut();
+      // scope:'local' para no invalidar refresh tokens del Admin en otros
+      // dispositivos. El backup falló SOLO en este browser; las sesiones
+      // del Admin en su PC personal/celular deben seguir vivas.
+      await supabase.auth.signOut({ scope: "local" });
       window.location.href = "/auth";
       return;
     }
