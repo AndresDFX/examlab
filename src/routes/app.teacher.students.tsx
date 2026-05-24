@@ -235,7 +235,7 @@ function TeacherStudentsInner() {
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableEmpty colSpan={4} message="Sin usuarios" />
+                    <TableEmpty colSpan={4} text="Sin usuarios" />
                   ) : (
                     filtered.map((s) => (
                       <TableRow key={s.id}>
