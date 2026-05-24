@@ -31,6 +31,33 @@ export const JAVA_STARTER = `public class Main {
     }
 }`;
 
+const PYTHON_STARTER = `print("Holi")`;
+
+const JAVASCRIPT_STARTER = `console.log("Holi");`;
+
+/**
+ * Devuelve el starter code por defecto para un lenguaje. Lo usan los
+ * takers (alumno) y los formularios (docente) como fallback cuando la
+ * pregunta no tiene `starter_code` propio. Mismo template que ve el
+ * docente al previsualizar y el alumno al entrar — consistencia
+ * docente↔alumno garantizada.
+ *
+ * Para lenguajes desconocidos (legacy/typo) devuelve string vacío en vez
+ * de tirar — el editor renderea ok y el alumno puede empezar desde 0.
+ */
+export function getStarterCode(language: CodeLanguage | string | null | undefined): string {
+  switch (language) {
+    case "java":
+      return JAVA_STARTER;
+    case "python":
+      return PYTHON_STARTER;
+    case "javascript":
+      return JAVASCRIPT_STARTER;
+    default:
+      return "";
+  }
+}
+
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;

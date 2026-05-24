@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
-import { CodeEditor, JAVA_STARTER } from "@/modules/code/CodeEditor";
+import { CodeEditor, getStarterCode } from "@/modules/code/CodeEditor";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -248,8 +248,8 @@ export function TeacherWorkshopQuestionsEditor({
         starter_code:
           qType === "java_gui"
             ? JAVA_GUI_STARTER
-            : qType === "codigo" && language === "java"
-              ? JAVA_STARTER
+            : qType === "codigo"
+              ? getStarterCode(language) || null
               : null,
       });
       if (error) {
@@ -1518,9 +1518,7 @@ export function StudentWorkshopTaker({
             )}
             {q.type === "codigo" && (
               <CodeEditor
-                value={
-                  answers[q.id] ?? q.starter_code ?? (q.language === "java" ? JAVA_STARTER : "")
-                }
+                value={answers[q.id] ?? q.starter_code ?? getStarterCode(q.language)}
                 onChange={(v) => updateAnswer(q.id, v ?? "")}
                 language={(q.language as any) ?? "java"}
                 showLanguageSelector={false}

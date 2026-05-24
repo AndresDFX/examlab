@@ -28,7 +28,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { CodeEditor, type CodeLanguage, JAVA_STARTER } from "@/modules/code/CodeEditor";
+import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
@@ -111,8 +111,7 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
     // el editor muestra JAVA_STARTER por defecto — eso cuenta como
     // tener contenido visible (se persistirá en mergeStarterCodeAnswers).
     const starter =
-      (q.starter_code ?? "").trim() ||
-      (q.type === "codigo" && q.language === "java" ? JAVA_STARTER : "");
+      (q.starter_code ?? "").trim() || (q.type === "codigo" ? getStarterCode(q.language) : "");
     const code = (typeof v === "string" ? v : "").trim() || starter.trim();
     return code.length > 0;
   }
@@ -146,8 +145,8 @@ function mergeStarterCodeAnswers(
     // por defecto en el editor) para que la entrega no llegue vacía.
     const fallback = (q.starter_code ?? "").trim()
       ? q.starter_code
-      : q.type === "codigo" && q.language === "java"
-        ? JAVA_STARTER
+      : q.type === "codigo"
+        ? getStarterCode(q.language) || null
         : null;
     if (fallback) next[q.id] = fallback;
   }
@@ -1797,9 +1796,7 @@ function TakeExam() {
                       />
                     </div>
                     <CodeEditor
-                      value={
-                        answers[q.id] ?? q.starter_code ?? (lang === "java" ? JAVA_STARTER : "")
-                      }
+                      value={answers[q.id] ?? q.starter_code ?? getStarterCode(lang)}
                       onChange={(v) => updateAnswer(q.id, v)}
                       language={lang}
                       onRun={() => runCode(q.id, lang)}

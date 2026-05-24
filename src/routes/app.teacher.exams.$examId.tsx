@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { TeacherExamNotes } from "@/modules/exams/ExamNotesManager";
 import { JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
-import { JAVA_STARTER } from "@/modules/code/CodeEditor";
+import { getStarterCode } from "@/modules/code/CodeEditor";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
@@ -485,8 +485,8 @@ function ExamEditor() {
         starter_code:
           qType === "java_gui"
             ? JAVA_GUI_STARTER
-            : qType === "codigo" && language === "java"
-              ? JAVA_STARTER
+            : qType === "codigo"
+              ? getStarterCode(language) || null
               : null,
       });
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
