@@ -280,6 +280,7 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
       { label: "Asignatura del plan", path: "curso.asignatura", kind: "scalar", hint: "Si el curso está asociado a una asignatura del plan" },
       { label: "Código de la asignatura", path: "curso.asignatura_codigo", kind: "scalar" },
       { label: "Créditos", path: "curso.creditos", kind: "scalar" },
+      { label: "Horario", path: "curso.horario", kind: "scalar", hint: "Bloques semanales formateados: 'Lun 10:00–12:00 · Jue 14:00–16:00'" },
       { label: "Periodo", path: "periodo", kind: "scalar" },
       { label: "Periodo · Inicio", path: "periodo_obj.start_date", kind: "scalar" },
       { label: "Periodo · Fin", path: "periodo_obj.end_date", kind: "scalar" },

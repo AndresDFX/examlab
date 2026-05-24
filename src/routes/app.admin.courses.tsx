@@ -47,6 +47,7 @@ import {
   ChevronRight,
   BookOpen,
   CalendarRange,
+  CalendarClock,
   FileText,
   Hammer,
   FolderKanban,
@@ -67,6 +68,7 @@ import {
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { CourseScheduleEditor } from "@/modules/schedules/CourseScheduleEditor";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -175,6 +177,10 @@ export function AdminCourses() {
   // y el docente puede asignar contenido a cada sesión inline.
   const [boardForCourse, setBoardForCourse] = useState<Course | null>(null);
   const [certForCourse, setCertForCourse] = useState<Course | null>(null);
+  // Editor de horarios — dialog independiente abierto desde el menú
+  // de acciones de fila. Mantener fuera del editing principal evita
+  // sobrecargar el dialog del form de curso.
+  const [scheduleForCourse, setScheduleForCourse] = useState<Course | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Search params: `subjectFilter` viene del flujo 'Ver cursos asociados'
   // desde el panel de asignaturas. Filtra el grid a una sola asignatura.
@@ -1259,6 +1265,14 @@ export function AdminCourses() {
                           icon: Award,
                           onClick: () => setCertForCourse(c),
                         },
+                        {
+                          // Editor de horario semanal (días + horas + aula
+                          // + modalidad). Dialog separado para no
+                          // sobrecargar el form principal del curso.
+                          label: "Horario",
+                          icon: CalendarClock,
+                          onClick: () => setScheduleForCourse(c),
+                        },
                         { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
                         {
                           label: t("common.delete"),
@@ -1978,6 +1992,14 @@ export function AdminCourses() {
         course={certForCourse}
         onClose={() => setCertForCourse(null)}
       />
+      {scheduleForCourse && (
+        <CourseScheduleEditor
+          open={!!scheduleForCourse}
+          onOpenChange={(o) => !o && setScheduleForCourse(null)}
+          courseId={scheduleForCourse.id}
+          courseName={scheduleForCourse.name}
+        />
+      )}
     </div>
   );
 }

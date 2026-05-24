@@ -15,6 +15,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
 import { formatDate } from "@/shared/lib/format";
+import {
+  formatScheduleText,
+  type CourseScheduleBlock,
+} from "@/modules/schedules/course-schedule";
 import type { TemplateContext } from "./template-engine";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,6 +157,23 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     .from("certificate_settings")
     .select("institution_name, institution_logo_url")
     .maybeSingle();
+
+  // Horario del curso (bloques semanales). Lo formateamos a texto
+  // plano para que la plantilla lo use como un campo simple.
+  const { data: scheduleRows } = await db
+    .from("course_schedules")
+    .select("day_of_week, start_time, end_time, aula, modalidad")
+    .eq("course_id", courseId);
+  const scheduleText = formatScheduleText(
+    ((scheduleRows ?? []) as CourseScheduleBlock[]).map((b) => ({
+      day_of_week: b.day_of_week,
+      start_time: b.start_time,
+      end_time: b.end_time,
+      aula: b.aula ?? null,
+      modalidad: b.modalidad,
+      notes: null,
+    })),
+  );
   const institucion = {
     nombre: certSettings?.institution_name ?? "—",
     logo: certSettings?.institution_logo_url ?? "",
@@ -396,6 +417,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       asignatura: courseRow.subject?.name ?? "",
       asignatura_codigo: courseRow.subject?.code ?? "",
       creditos: courseRow.subject?.credits ?? "",
+      // Horario semanal formateado: "Lun 10:00–12:00 (Aula 301) · Jue 14:00–16:00 (virtual)".
+      // Vacío si el curso no tiene bloques definidos todavía.
+      horario: scheduleText,
     },
     docente,
     institucion,
