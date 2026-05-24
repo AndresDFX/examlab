@@ -344,11 +344,11 @@ export function AdminAcademicPeriodsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar periodo" : "Nuevo periodo"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 overflow-y-auto flex-1 -mx-2 px-2">
+          <div className="space-y-3">
             <div className="space-y-1">
               <Label required>Código</Label>
               <Input

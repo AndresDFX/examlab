@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { BarChart3 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { StatTile } from "@/components/ui/stat-tile";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -276,40 +277,35 @@ export function AdminProgramOverviewPanel() {
           />
         ) : (
           <>
-            {/* Fila de totales arriba — visión rápida de la institución completa. */}
+            {/* Fila de totales arriba — visión rápida de la institución
+                completa. Usa <StatTile> del design system para mantener
+                consistencia con los headers de stats de student/teacher
+                dashboards. */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="rounded-md border p-2.5 bg-card">
-                <div className="text-2xl font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">
-                  {programs.filter((p) => p.active).length}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">
-                  Programas / Niveles
-                </div>
-              </div>
-              <div className="rounded-md border p-2.5 bg-card">
-                <div className="text-2xl font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
-                  {totals.subjects}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">
-                  Asignaturas
-                </div>
-              </div>
-              <div className="rounded-md border p-2.5 bg-card">
-                <div className="text-2xl font-semibold tabular-nums text-violet-600 dark:text-violet-400">
-                  {showInPeriodColumn ? totals.coursesInPeriod : totals.courses}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">
-                  Cursos {showInPeriodColumn ? "del periodo" : "total histórico"}
-                </div>
-              </div>
-              <div className="rounded-md border p-2.5 bg-card">
-                <div className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                  {totals.students}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">
-                  Estudiantes únicos
-                </div>
-              </div>
+              <StatTile
+                label="Programas / Niveles"
+                value={programs.filter((p) => p.active).length}
+                color="text-indigo-600 dark:text-indigo-400"
+                bg="bg-indigo-500/10"
+              />
+              <StatTile
+                label="Asignaturas"
+                value={totals.subjects}
+                color="text-cyan-600 dark:text-cyan-400"
+                bg="bg-cyan-500/10"
+              />
+              <StatTile
+                label={showInPeriodColumn ? "Cursos · periodo" : "Cursos · histórico"}
+                value={showInPeriodColumn ? totals.coursesInPeriod : totals.courses}
+                color="text-violet-600 dark:text-violet-400"
+                bg="bg-violet-500/10"
+              />
+              <StatTile
+                label="Estudiantes únicos"
+                value={totals.students}
+                color="text-emerald-600 dark:text-emerald-400"
+                bg="bg-emerald-500/10"
+              />
             </div>
 
             <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">

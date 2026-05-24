@@ -371,11 +371,11 @@ export function AdminAcademicSubjectsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar asignatura" : "Nueva asignatura"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 overflow-y-auto flex-1 -mx-2 px-2">
+          <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
               <div className="space-y-1">
                 <Label required>Nombre</Label>

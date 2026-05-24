@@ -281,14 +281,15 @@ export function AdminAcademicProgramsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        {/* max-h + flex-col + scroll en el body interno + footer sticky:
-            sin esto en viewports cortos (móvil landscape, browser zoom)
-            los botones se solapaban con el último campo del form. */}
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] flex flex-col">
+        {/* DialogContent del design system ya maneja: width responsive,
+            max-h-[calc(100dvh-2rem)] + overflow-y-auto, y DialogFooter es
+            sticky bottom-0 con bg + border-t. No hace falta añadir
+            flex/scroll propio — solo personalizamos el max-width. */}
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar programa" : "Nuevo programa"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 overflow-y-auto flex-1 -mx-2 px-2">
+          <div className="space-y-3">
             <div className="space-y-1">
               <Label required>Nombre</Label>
               <Input
