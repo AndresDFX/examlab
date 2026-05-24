@@ -43,6 +43,7 @@ import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
 import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
+import { AdminAcademicPeriodsPanel } from "@/modules/admin/AdminAcademicPeriodsPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
@@ -115,6 +116,7 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="academic" className="space-y-4 mt-4">
           <AdminAcademicProgramsPanel />
+          <AdminAcademicPeriodsPanel />
         </TabsContent>
         <TabsContent value="email" className="space-y-4 mt-4">
           <AdminEmailSettingsPanel />

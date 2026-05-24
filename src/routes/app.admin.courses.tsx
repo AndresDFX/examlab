@@ -99,6 +99,9 @@ type Course = {
   /** FK al programa académico (opcional). NULL si el curso no está
    *  asociado a ningún programa todavía. */
   program_id: string | null;
+  /** FK al periodo académico (opcional). Coexiste con el campo
+   *  `period` (text) por compat — al guardar, ambos se setean. */
+  period_id: string | null;
   start_date: string | null;
   end_date: string | null;
   grade_scale_min: number;
@@ -242,6 +245,13 @@ export function AdminCourses() {
   // curso. Cargados junto con la lista de cursos para no hacer query
   // redundante al abrir el dialog.
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
+  // Periodos académicos no-cerrados — alimentan el otro dropdown.
+  // Los cerrados se filtran para evitar asociar cursos nuevos a periodos
+  // históricos, pero se permiten en modo edición (el código del periodo
+  // sigue mostrándose por el embed).
+  const [periods, setPeriods] = useState<
+    Array<{ id: string; code: string; name: string | null; status: string }>
+  >([]);
 
   // Duplicate
   const [dupOpen, setDupOpen] = useState(false);
@@ -282,6 +292,15 @@ export function AdminCourses() {
       .eq("active", true)
       .order("name");
     setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
+    // Periodos académicos (best-effort).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pers } = await (supabase as any)
+      .from("academic_periods")
+      .select("id, code, name, status")
+      .order("code", { ascending: false });
+    setPeriods(
+      (pers ?? []) as Array<{ id: string; code: string; name: string | null; status: string }>,
+    );
     setCourses((data ?? []) as unknown as Course[]);
   };
   useEffect(() => {
@@ -300,6 +319,7 @@ export function AdminCourses() {
       semestre: null,
       grupo: null,
       program_id: null,
+      period_id: null,
       start_date: "",
       end_date: "",
       grade_scale_min: 0,
@@ -487,15 +507,26 @@ export function AdminCourses() {
         return;
       }
     }
+    // Si seleccionaron periodo del dropdown, denormalizamos el code al
+    // campo legacy `period` (texto) para que queries antiguas sigan
+    // funcionando. Si no hay period_id pero sí texto, respetamos el texto.
+    const selectedPeriod = editing.period_id
+      ? periods.find((p) => p.id === editing.period_id)
+      : null;
+    const periodText = selectedPeriod?.code ?? editing.period?.trim() ?? null;
     const payload = {
       name: editing.name,
       description: editing.description || null,
-      period: editing.period || null,
+      period: periodText || null,
       // Opcionales: solo persistimos si tienen valor — null para limpiar.
       code: editing.code?.trim() || null,
       semestre: editing.semestre == null ? null : Number(editing.semestre),
       grupo: editing.grupo?.trim() || null,
       program_id: editing.program_id || null,
+      // Si hay period_id, denormalizamos el code al campo legacy `period`
+      // para que las queries que aún lo usan no rompan. Si no hay
+      // period_id pero sí period (texto editado a mano), respetamos el texto.
+      period_id: editing.period_id || null,
       start_date: startInput || null,
       end_date: endInput || null,
       grade_scale_min: Number(editing.grade_scale_min ?? 0),
@@ -1144,13 +1175,54 @@ export function AdminCourses() {
                   placeholder="Ej: Programación II"
                 />
               </div>
+              {/* Periodo académico — si el admin mantiene la lista
+                  centralizada (Configuración → Académico) el docente
+                  selecciona del dropdown. El campo `period` (texto) se
+                  rellena automáticamente con el code del periodo para
+                  preservar compat con queries y display existentes.
+                  Si NO hay periodos definidos todavía, el dropdown está
+                  vacío y el admin puede igual escribir el texto en
+                  "Periodo (texto libre)" abajo. */}
               <div>
-                <Label required>Periodo</Label>
-                <Input
-                  value={editing.period ?? ""}
-                  onChange={(e) => setEditing({ ...editing, period: e.target.value })}
-                  placeholder="Ej: 2026-1"
-                />
+                <Label required>Periodo académico</Label>
+                <Select
+                  value={editing.period_id ?? "__manual__"}
+                  onValueChange={(v) =>
+                    setEditing({
+                      ...editing,
+                      period_id: v === "__manual__" ? null : v,
+                      // Si seleccionan un periodo del dropdown, sincroniza
+                      // el campo de texto para reflejar el code.
+                      period:
+                        v === "__manual__"
+                          ? editing.period
+                          : (periods.find((p) => p.id === v)?.code ?? editing.period),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un periodo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__manual__">Texto libre (sin asociar)</SelectItem>
+                    {periods.map((p) => (
+                      <SelectItem key={p.id} value={p.id} disabled={p.status === "cerrado"}>
+                        {p.code}
+                        {p.name ? ` — ${p.name}` : ""}
+                        {p.status === "cerrado" ? " (cerrado)" : ""}
+                        {p.status === "planificado" ? " (planificado)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!editing.period_id && (
+                  <Input
+                    className="mt-2"
+                    value={editing.period ?? ""}
+                    onChange={(e) => setEditing({ ...editing, period: e.target.value })}
+                    placeholder="Ej: 2026-1 (texto libre)"
+                  />
+                )}
               </div>
               {/* Programa académico (opcional, pero recomendado). Define
                   la carrera/pregrado al que pertenece el curso — alimenta

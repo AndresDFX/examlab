@@ -108,11 +108,11 @@ function effectiveScore(sub: {
 export async function buildReportContext(args: BuildReportArgs): Promise<TemplateContext> {
   const { courseId, studentId, periodo } = args;
 
-  // ── Curso (con join al programa académico si tiene FK) ───────────
+  // ── Curso (con join al programa académico + periodo si tiene FKs) ──
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, grade_scale_max, program_id, program:academic_programs(name, code, faculty)",
+      "id, name, code, semestre, grupo, period, period_id, grade_scale_max, program_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -378,11 +378,14 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     docente,
     institucion,
     escala_max: escalaMax,
-    // Si el caller pasó `periodo`, ese tiene prioridad; si no, usamos
-    // el campo del curso. Sin esto, plantillas que dependen de
-    // {{periodo}} se quedan en blanco cuando el docente no lo escribe
-    // en el dialog del generador (caso común — está en el curso).
-    periodo: periodo ?? courseRow.period ?? "",
+    // Prioridad para {{periodo}}:
+    //   1. periodo del caller (lo que escriba el docente en el dialog)
+    //   2. code del periodo asociado vía FK
+    //   3. campo texto legacy `period`
+    periodo: periodo ?? courseRow.periodo_obj?.code ?? courseRow.period ?? "",
+    // Estructura completa del periodo (cuando hay FK). Útil para
+    // plantillas avanzadas que quieran fechas o estado.
+    periodo_obj: courseRow.periodo_obj ?? null,
     fecha_emision: formatDate(new Date()),
   };
 
