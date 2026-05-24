@@ -35,6 +35,7 @@ import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.a
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
 import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cron'
 import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
+import { Route as AppTeacherReportsRouteImport } from './routes/app.teacher.reports'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
@@ -195,6 +196,11 @@ const AppTeacherAiCronRoute = AppTeacherAiCronRouteImport.update({
 const AppTeacherStudentsRoute = AppTeacherStudentsRouteImport.update({
   id: '/teacher/students',
   path: '/teacher/students',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherReportsRoute = AppTeacherReportsRouteImport.update({
+  id: '/teacher/reports',
+  path: '/teacher/reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
@@ -402,6 +408,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
+  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
+  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -519,6 +527,7 @@ export interface FileRoutesById {
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
+  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -580,6 +589,7 @@ export interface FileRouteTypes {
     | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
+    | '/app/teacher/reports'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -637,6 +647,7 @@ export interface FileRouteTypes {
     | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
+    | '/app/teacher/reports'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -696,6 +707,7 @@ export interface FileRouteTypes {
     | '/app/teacher/question-bank'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
+    | '/app/teacher/reports'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -900,6 +912,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/students'
       fullPath: '/app/teacher/students'
       preLoaderRoute: typeof AppTeacherStudentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/reports': {
+      id: '/app/teacher/reports'
+      path: '/teacher/reports'
+      fullPath: '/app/teacher/reports'
+      preLoaderRoute: typeof AppTeacherReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/workshops': {
@@ -1185,6 +1204,7 @@ interface AppRouteChildren {
   AppTeacherQuestionBankRoute: typeof AppTeacherQuestionBankRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
   AppTeacherStudentsRoute: typeof AppTeacherStudentsRoute
+  AppTeacherReportsRoute: typeof AppTeacherReportsRoute
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
   AppStudentProjectProjectIdRoute: typeof AppStudentProjectProjectIdRoute
   AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
@@ -1236,6 +1256,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherQuestionBankRoute: AppTeacherQuestionBankRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
   AppTeacherStudentsRoute: AppTeacherStudentsRoute,
+  AppTeacherReportsRoute: AppTeacherReportsRoute,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
   AppStudentProjectProjectIdRoute: AppStudentProjectProjectIdRoute,
   AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
