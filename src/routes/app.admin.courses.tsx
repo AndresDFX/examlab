@@ -83,7 +83,21 @@ import { useTranslation } from "react-i18next";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-export const Route = createFileRoute("/app/admin/courses")({ component: AdminCourses });
+export const Route = createFileRoute("/app/admin/courses")({
+  component: AdminCourses,
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { fromSubject?: string; subjectFilter?: string } => ({
+    // `fromSubject=<id>` viene del menú 'Crear curso desde esta
+    // asignatura' en /admin Universidad → Asignaturas. Al recibirlo,
+    // este route abre el dialog 'Nuevo curso' con campos pre-rellenados
+    // desde la asignatura (name, program_id, semestre, pesos).
+    fromSubject: typeof s.fromSubject === "string" ? s.fromSubject : undefined,
+    // `subjectFilter=<id>` filtra el grid a los cursos cuya
+    // subject_id matchee — útil para 'Ver cursos asociados'.
+    subjectFilter: typeof s.subjectFilter === "string" ? s.subjectFilter : undefined,
+  }),
+});
 
 type Course = {
   id: string;
@@ -162,18 +176,32 @@ export function AdminCourses() {
   const [boardForCourse, setBoardForCourse] = useState<Course | null>(null);
   const [certForCourse, setCertForCourse] = useState<Course | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  // Search params: `subjectFilter` viene del flujo 'Ver cursos asociados'
+  // desde el panel de asignaturas. Filtra el grid a una sola asignatura.
+  const routeSearch = Route.useSearch();
+  const subjectFilter = routeSearch.subjectFilter ?? null;
+  const fromSubject = routeSearch.fromSubject ?? null;
+
   // Filtramos por nombre + período + descripción. Case-insensitive,
-  // includes. El multi-select trabaja sobre la lista visible.
+  // includes. El multi-select trabaja sobre la lista visible. Si hay
+  // subjectFilter (URL search), también acotamos.
   const filteredCourses = useMemo(() => {
-    if (!search.trim()) return courses;
-    const q = search.toLowerCase();
-    return courses.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(q) ||
-        c.period?.toLowerCase().includes(q) ||
-        c.description?.toLowerCase().includes(q),
-    );
-  }, [courses, search]);
+    let result = courses;
+    if (subjectFilter) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result = result.filter((c: any) => c.subject_id === subjectFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(q) ||
+          c.period?.toLowerCase().includes(q) ||
+          c.description?.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [courses, search, subjectFilter]);
   const sel = useMultiSelect(filteredCourses);
 
   // Export del listado filtrado. No soportamos import porque cada curso
@@ -264,6 +292,12 @@ export function AdminCourses() {
       code: string | null;
       program_id: string | null;
       semestre: number | null;
+      sistema_evaluacion?: {
+        exam_weight?: number;
+        workshop_weight?: number;
+        project_weight?: number;
+        attendance_weight?: number;
+      } | null;
     }>
   >([]);
 
@@ -315,11 +349,13 @@ export function AdminCourses() {
     setPeriods(
       (pers ?? []) as Array<{ id: string; code: string; name: string | null; status: string }>,
     );
-    // Asignaturas activas (best-effort).
+    // Asignaturas activas (best-effort). Incluimos sistema_evaluacion
+    // para poder pre-rellenar los pesos del curso cuando viene del
+    // flujo 'Crear curso desde esta asignatura'.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: subs } = await (supabase as any)
       .from("academic_subjects")
-      .select("id, name, code, program_id, semestre")
+      .select("id, name, code, program_id, semestre, sistema_evaluacion")
       .eq("active", true)
       .order("name");
     setSubjects(
@@ -329,6 +365,12 @@ export function AdminCourses() {
         code: string | null;
         program_id: string | null;
         semestre: number | null;
+        sistema_evaluacion?: {
+          exam_weight?: number;
+          workshop_weight?: number;
+          project_weight?: number;
+          attendance_weight?: number;
+        } | null;
       }>,
     );
     setCourses((data ?? []) as unknown as Course[]);
@@ -336,6 +378,50 @@ export function AdminCourses() {
   useEffect(() => {
     load();
   }, []);
+
+  // Si el admin viene del flujo "Crear curso desde esta asignatura"
+  // (via /admin/asignaturas), pre-abrimos el dialog con los campos
+  // pre-rellenados desde la asignatura. Solo se dispara una vez
+  // cuando subjects ya está cargado (sin él no podemos resolver
+  // el subject).
+  const [fromSubjectHandled, setFromSubjectHandled] = useState(false);
+  useEffect(() => {
+    if (!fromSubject || fromSubjectHandled || subjects.length === 0) return;
+    const subj = subjects.find((s) => s.id === fromSubject);
+    if (!subj) return;
+    const ev = subj.sistema_evaluacion ?? {};
+    setEditing({
+      id: "",
+      // Nombre del curso = nombre de la asignatura (el admin puede
+      // ajustarlo antes de guardar, ej. agregar grupo/periodo).
+      name: subj.name,
+      description: "",
+      period: "",
+      code: subj.code ?? null,
+      semestre: subj.semestre ?? null,
+      grupo: null,
+      program_id: subj.program_id ?? null,
+      period_id: null,
+      subject_id: subj.id,
+      start_date: "",
+      end_date: "",
+      grade_scale_min: 0,
+      grade_scale_max: 5,
+      // Pesos: si la asignatura los definió, los heredamos; si no,
+      // usamos los defaults del sistema.
+      exam_weight: Number(ev.exam_weight ?? 40),
+      workshop_weight: Number(ev.workshop_weight ?? 30),
+      attendance_weight: Number(ev.attendance_weight ?? 10),
+      project_weight: Number(ev.project_weight ?? 20),
+      passing_grade: 3,
+      max_exam_attempts: 1,
+    });
+    setEditingCuts([]);
+    setOriginalCutIds(new Set());
+    setExpandedCuts(new Set());
+    setOpen(true);
+    setFromSubjectHandled(true);
+  }, [fromSubject, fromSubjectHandled, subjects]);
 
   // ── Course CRUD ──────────────────────────────────────────
 

@@ -46,13 +46,21 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { BookOpen, Plus, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, BookOpenCheck, FilePlus2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
+import { useNavigate } from "@tanstack/react-router";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+interface EvalWeights {
+  exam_weight?: number;
+  workshop_weight?: number;
+  project_weight?: number;
+  attendance_weight?: number;
+}
 
 interface Subject {
   id: string;
@@ -63,6 +71,12 @@ interface Subject {
   credits: number | null;
   description: string | null;
   active: boolean;
+  // Campos de definición (lo que se dicta) — todos opcionales.
+  objetivos: string | null;
+  contenidos: string | null;
+  sistema_evaluacion: EvalWeights | null;
+  bibliografia: string | null;
+  intensidad_horaria: number | null;
   course_count?: number;
 }
 
@@ -80,6 +94,17 @@ interface Draft {
   credits: number | null;
   description: string;
   active: boolean;
+  objetivos: string;
+  contenidos: string;
+  bibliografia: string;
+  intensidad_horaria: number | null;
+  // Pesos default de evaluación. Suma esperada = 100. Si suma 0 →
+  // no se persiste (sistema_evaluacion queda NULL en DB y el curso
+  // hereda los defaults del sistema).
+  exam_weight: number;
+  workshop_weight: number;
+  project_weight: number;
+  attendance_weight: number;
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -91,11 +116,20 @@ const EMPTY_DRAFT: Draft = {
   credits: null,
   description: "",
   active: true,
+  objetivos: "",
+  contenidos: "",
+  bibliografia: "",
+  intensidad_horaria: null,
+  exam_weight: 0,
+  workshop_weight: 0,
+  project_weight: 0,
+  attendance_weight: 0,
 };
 
 export function AdminAcademicSubjectsPanel() {
   const { user } = useAuth();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Subject[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +147,9 @@ export function AdminAcademicSubjectsPanel() {
     const [subRes, progRes, courseCountRes] = await Promise.all([
       db
         .from("academic_subjects")
-        .select("id, name, code, program_id, semestre, credits, description, active")
+        .select(
+          "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria",
+        )
         .order("name"),
       db.from("academic_programs").select("id, name").order("name"),
       // Count de cursos por subject_id. Lo agregamos al lado para
@@ -174,6 +210,7 @@ export function AdminAcademicSubjectsPanel() {
   };
 
   const openEdit = (r: Subject) => {
+    const ev = r.sistema_evaluacion ?? {};
     setDraft({
       id: r.id,
       name: r.name,
@@ -183,6 +220,14 @@ export function AdminAcademicSubjectsPanel() {
       credits: r.credits,
       description: r.description ?? "",
       active: r.active,
+      objetivos: r.objetivos ?? "",
+      contenidos: r.contenidos ?? "",
+      bibliografia: r.bibliografia ?? "",
+      intensidad_horaria: r.intensidad_horaria,
+      exam_weight: Number(ev.exam_weight ?? 0),
+      workshop_weight: Number(ev.workshop_weight ?? 0),
+      project_weight: Number(ev.project_weight ?? 0),
+      attendance_weight: Number(ev.attendance_weight ?? 0),
     });
     setOpen(true);
   };
@@ -194,6 +239,15 @@ export function AdminAcademicSubjectsPanel() {
       toast.error("El nombre es obligatorio");
       return;
     }
+    // Pesos de evaluación: si el admin no completó ninguno (suma 0),
+    // dejamos sistema_evaluacion en NULL — el curso instanciado usa
+    // los defaults del sistema. Si completó algo, validamos la suma.
+    const evalSum =
+      draft.exam_weight + draft.workshop_weight + draft.project_weight + draft.attendance_weight;
+    if (evalSum > 0 && Math.abs(evalSum - 100) > 0.01) {
+      toast.error(`Los pesos del sistema de evaluación deben sumar 100 (actualmente ${evalSum})`);
+      return;
+    }
     setSaving(true);
     const payload = {
       name,
@@ -203,6 +257,19 @@ export function AdminAcademicSubjectsPanel() {
       credits: draft.credits,
       description: draft.description.trim() || null,
       active: draft.active,
+      objetivos: draft.objetivos.trim() || null,
+      contenidos: draft.contenidos.trim() || null,
+      bibliografia: draft.bibliografia.trim() || null,
+      intensidad_horaria: draft.intensidad_horaria,
+      sistema_evaluacion:
+        evalSum > 0
+          ? {
+              exam_weight: draft.exam_weight,
+              workshop_weight: draft.workshop_weight,
+              project_weight: draft.project_weight,
+              attendance_weight: draft.attendance_weight,
+            }
+          : null,
       updated_by: user.id,
     };
     const { error } = draft.id
@@ -376,6 +443,29 @@ export function AdminAcademicSubjectsPanel() {
                           actions={[
                             { label: "Editar", icon: Pencil, onClick: () => openEdit(r) },
                             {
+                              // Instanciar un curso a partir de esta asignatura.
+                              // Pasamos el subjectId vía search param para que
+                              // la ruta de cursos abra el dialog pre-rellenado
+                              // con name, program_id, semestre y pesos default.
+                              label: "Crear curso desde esta asignatura",
+                              icon: FilePlus2,
+                              onClick: () =>
+                                void navigate({
+                                  to: "/app/admin/courses",
+                                  search: { fromSubject: r.id } as never,
+                                }),
+                              separatorBefore: true,
+                            },
+                            (r.course_count ?? 0) > 0 && {
+                              label: `Ver cursos asociados (${r.course_count})`,
+                              icon: BookOpenCheck,
+                              onClick: () =>
+                                void navigate({
+                                  to: "/app/admin/courses",
+                                  search: { subjectFilter: r.id } as never,
+                                }),
+                            },
+                            {
                               label: "Eliminar",
                               icon: Trash2,
                               tone: "destructive",
@@ -478,10 +568,137 @@ export function AdminAcademicSubjectsPanel() {
               <Textarea
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                placeholder="Resumen / propósito / temáticas principales"
-                rows={3}
+                placeholder="Resumen breve para mostrar en listados"
+                rows={2}
               />
             </div>
+
+            {/* ── Definición de qué se dicta (template del curso) ─────────────
+                Estos campos no se autocompletan en el curso instanciado al pie
+                de la letra; sirven como referencia institucional + para que
+                los informes (acuerdo pedagógico, acta) puedan citarlos. */}
+            <div className="rounded-md border p-3 space-y-3 bg-muted/30">
+              <p className="text-sm font-medium">Definición del plan</p>
+              <div className="space-y-1">
+                <Label className="text-xs">Objetivos</Label>
+                <Textarea
+                  value={draft.objetivos}
+                  onChange={(e) => setDraft({ ...draft, objetivos: e.target.value })}
+                  placeholder="Propósito general de la asignatura"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Contenidos / temáticas</Label>
+                <Textarea
+                  value={draft.contenidos}
+                  onChange={(e) => setDraft({ ...draft, contenidos: e.target.value })}
+                  placeholder="Módulos o unidades temáticas (uno por línea)"
+                  rows={4}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Bibliografía sugerida</Label>
+                <Textarea
+                  value={draft.bibliografia}
+                  onChange={(e) => setDraft({ ...draft, bibliografia: e.target.value })}
+                  placeholder="Referencias principales (una por línea)"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Intensidad horaria semanal</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={60}
+                  value={draft.intensidad_horaria ?? ""}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      intensidad_horaria:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="Ej: 4"
+                  className="w-32"
+                />
+              </div>
+            </div>
+
+            {/* ── Sistema de evaluación sugerido (% por tipo) ─────────────
+                Pesos default que el curso instanciado puede heredar para
+                ahorrar configuración. Si se dejan en 0 (default), el curso
+                usa los defaults del sistema. */}
+            <div className="rounded-md border p-3 space-y-3 bg-muted/30">
+              <p className="text-sm font-medium">
+                Sistema de evaluación sugerido{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  (los pesos deben sumar 100; déjalo todo en 0 para usar defaults)
+                </span>
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <Label className="text-xs">% Exámenes</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.exam_weight}
+                    onChange={(e) =>
+                      setDraft({ ...draft, exam_weight: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">% Talleres</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.workshop_weight}
+                    onChange={(e) =>
+                      setDraft({ ...draft, workshop_weight: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">% Proyectos</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.project_weight}
+                    onChange={(e) =>
+                      setDraft({ ...draft, project_weight: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">% Asistencia</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.attendance_weight}
+                    onChange={(e) =>
+                      setDraft({ ...draft, attendance_weight: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                Suma actual:{" "}
+                <strong>
+                  {draft.exam_weight +
+                    draft.workshop_weight +
+                    draft.project_weight +
+                    draft.attendance_weight}
+                </strong>
+                {" "}/ 100
+              </p>
+            </div>
+
             <div className="flex items-center gap-2 pt-1">
               <Switch
                 checked={draft.active}
