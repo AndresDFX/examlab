@@ -74,6 +74,7 @@ import {
 } from "@/modules/reports/TemplateEditor";
 import { renderTemplate } from "@/modules/reports/template-engine";
 import { buildReportContext } from "@/modules/reports/report-context";
+import { ActasManager } from "@/modules/reports/ActasManager";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -415,6 +416,31 @@ function Inner() {
     setGenOpen(true);
   };
 
+  // Click en "Imprimir acta" desde ActasManager: busca la plantilla
+  // seed "Acta de finalización del curso" y abre el generador con
+  // el curso y periodo del acta pre-seleccionados.
+  const handlePrintActa = (acta: {
+    course_id: string;
+    periodo_codigo: string | null;
+  }) => {
+    const actaTpl = templates.find(
+      (t) => t.name === "Acta de finalización del curso" && t.owner_id == null && t.course_id == null,
+    );
+    if (!actaTpl) {
+      toast.error(
+        "No se encontró la plantilla 'Acta de finalización del curso'. Pídele al admin que la publique.",
+      );
+      return;
+    }
+    setGenTemplate(actaTpl);
+    setGenCourseId(acta.course_id);
+    setGenStudentId("");
+    setGenPeriodo(acta.periodo_codigo ?? "");
+    setGenStudents([]);
+    setGenHtml(null);
+    setGenOpen(true);
+  };
+
   // Cargar alumnos del curso cuando cambia el curso seleccionado y
   // scope='estudiante' (no necesitamos lista de alumnos para scope='curso')
   useEffect(() => {
@@ -510,6 +536,8 @@ function Inner() {
           </Button>
         }
       />
+
+      <ActasManager onPrintActa={handlePrintActa} />
 
       <Card>
         <CardContent className="p-4 space-y-3">
