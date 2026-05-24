@@ -299,3 +299,29 @@ input[type="week"] {
 .dark *::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.04);
 }
+
+/* ────────────────────────────────────────────────────────────────────
+ * Ocultar el badge "Edit with Lovable" que Lovable inyecta en sitios
+ * publicados. El badge no está en el source — viene del CDN de Lovable
+ * en runtime con IDs/clases que varían. Cubrimos las variantes conocidas
+ * para asegurar que ningún ratoncito de marca quede visible al usuario
+ * final.
+ *
+ * Si Lovable cambia los selectores, esta lista deja de aplicar y hay
+ * que actualizar — pero la app sigue funcionando, solo reaparecería el
+ * badge.
+ * ──────────────────────────────────────────────────────────────────── */
+[id*="lovable" i],
+[class*="lovable" i],
+[id*="gpteng" i],
+[class*="gpteng" i],
+[data-lovable-badge],
+a[href*="lovable.dev"],
+a[href*="lovable.app/edit"],
+iframe[src*="lovable.dev"],
+iframe[src*="gpteng"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
