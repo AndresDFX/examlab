@@ -281,6 +281,13 @@ const NAV: NavItem[] = [
   // patrón que campana de notificaciones: badge con conteo de no leídos
   // + popover con "Marcar todo leído" + link a /app/messages.
   // (Item viejo del nav removido.)
+  // Docente: vista de sus estudiantes con opción "Ver como" (impersonación acotada).
+  {
+    to: "/app/teacher/students",
+    labelKey: "nav.teacherStudents",
+    icon: Users,
+    roles: ["Docente"],
+  },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
   // Diagnóstico de infraestructura (`/app/admin/system`) ya no vive en
@@ -346,6 +353,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/teacher/attendance": "text-cyan-300",
   "/app/teacher/statistics": "text-blue-300",
   "/app/admin/statistics": "text-blue-300",
+  "/app/teacher/students": "text-violet-300",
   "/app/teacher/audit-logs": "text-teal-300",
   "/app/admin/audit-logs": "text-teal-300",
   "/app/student/exams": "text-amber-300",
@@ -554,6 +562,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/teacher/contents", "contents"],
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],
+    ["/app/teacher/students", "teacher_students"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

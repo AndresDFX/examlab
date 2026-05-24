@@ -36,7 +36,8 @@ export type ModuleKey =
   | "messages"
   | "dashboard"
   | "videos"
-  | "contents";
+  | "contents"
+  | "teacher_students";
 
 export type RoleKey = "Admin" | "Docente" | "Estudiante";
 
