@@ -248,23 +248,33 @@ function TeacherStudentsInner() {
                         <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                           {s.institutional_email}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell max-w-[280px]">
-                          <div className="flex flex-wrap gap-1">
-                            {s.courses.slice(0, 3).map((c) => (
-                              <Badge key={c} variant="outline" className="text-xs">
-                                {c}
-                              </Badge>
-                            ))}
-                            {s.courses.length > 3 && (
+                        <TableCell className="hidden md:table-cell">
+                          {s.courses.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
+                            // Un solo badge (truncado a 160px) + chip '+N' cuando hay más
+                            // cursos. Patrón compacto que mantiene la columna ~200px
+                            // máx en lugar de expandirse con cada curso adicional.
+                            // El tooltip del chip revela los nombres restantes.
+                            <div className="flex items-center gap-1 max-w-[220px]">
                               <Badge
-                                variant="secondary"
-                                className="text-xs"
-                                title={s.courses.slice(3).join(", ")}
+                                variant="outline"
+                                className="text-xs max-w-[160px] truncate inline-block"
+                                title={s.courses[0]}
                               >
-                                +{s.courses.length - 3}
+                                {s.courses[0]}
                               </Badge>
-                            )}
-                          </div>
+                              {s.courses.length > 1 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs shrink-0"
+                                  title={s.courses.slice(1).join(", ")}
+                                >
+                                  +{s.courses.length - 1}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <RowActionsMenu
