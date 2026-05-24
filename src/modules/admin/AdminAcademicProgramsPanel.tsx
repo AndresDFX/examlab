@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { GraduationCap, Plus, Pencil, Trash2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -141,6 +142,15 @@ export function AdminAcademicProgramsPanel() {
       toast.error(friendlyError(error, "No se pudo guardar el programa"));
       return;
     }
+    void logEvent({
+      action: draft.id ? "program.updated" : "program.created",
+      category: "academic",
+      severity: "info",
+      entityType: "academic_program",
+      entityId: draft.id ?? undefined,
+      entityName: name,
+      metadata: { code: payload.code, faculty: payload.faculty, active: payload.active },
+    });
     toast.success(draft.id ? "Programa actualizado" : "Programa creado");
     setOpen(false);
     void load();
@@ -148,15 +158,25 @@ export function AdminAcademicProgramsPanel() {
 
   const toggleActive = async (r: AcademicProgram) => {
     setTogglingId(r.id);
+    const next = !r.active;
     const { error } = await db
       .from("academic_programs")
-      .update({ active: !r.active })
+      .update({ active: next })
       .eq("id", r.id);
     setTogglingId(null);
     if (error) {
       toast.error(friendlyError(error));
       return;
     }
+    void logEvent({
+      action: "program.toggled",
+      category: "academic",
+      severity: "info",
+      entityType: "academic_program",
+      entityId: r.id,
+      entityName: r.name,
+      metadata: { active: next },
+    });
     void load();
   };
 
@@ -176,6 +196,14 @@ export function AdminAcademicProgramsPanel() {
       toast.error(friendlyError(error));
       return;
     }
+    void logEvent({
+      action: "program.deleted",
+      category: "academic",
+      severity: "warning",
+      entityType: "academic_program",
+      entityId: r.id,
+      entityName: r.name,
+    });
     toast.success("Programa eliminado");
     void load();
   };

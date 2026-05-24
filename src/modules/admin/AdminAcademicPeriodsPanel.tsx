@@ -51,6 +51,7 @@ import { toast } from "sonner";
 import { CalendarRange, Plus, Pencil, Trash2, Lock, Unlock } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -190,6 +191,20 @@ export function AdminAcademicPeriodsPanel() {
       toast.error(friendlyError(error, "No se pudo guardar el periodo"));
       return;
     }
+    void logEvent({
+      action: draft.id ? "period.updated" : "period.created",
+      category: "academic",
+      severity: "info",
+      entityType: "academic_period",
+      entityId: draft.id ?? undefined,
+      entityName: code,
+      metadata: {
+        name: draft.name,
+        start_date: draft.start_date,
+        end_date: draft.end_date,
+        status: draft.status,
+      },
+    });
     toast.success(draft.id ? "Periodo actualizado" : "Periodo creado");
     setOpen(false);
     void load();
@@ -221,6 +236,16 @@ export function AdminAcademicPeriodsPanel() {
       toast.error(friendlyError(error));
       return;
     }
+    void logEvent({
+      action: newStatus === "cerrado" ? "period.closed" : "period.reopened",
+      category: "academic",
+      // 'warning' porque cerrar/reabrir un periodo es una acción
+      // institucionalmente significativa (futuro: bloquea calificaciones).
+      severity: "warning",
+      entityType: "academic_period",
+      entityId: r.id,
+      entityName: r.code,
+    });
     void load();
   };
 
@@ -240,6 +265,14 @@ export function AdminAcademicPeriodsPanel() {
       toast.error(friendlyError(error));
       return;
     }
+    void logEvent({
+      action: "period.deleted",
+      category: "academic",
+      severity: "warning",
+      entityType: "academic_period",
+      entityId: r.id,
+      entityName: r.code,
+    });
     toast.success("Periodo eliminado");
     void load();
   };

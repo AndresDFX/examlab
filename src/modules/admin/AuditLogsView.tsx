@@ -105,6 +105,22 @@ const ACTION_LABELS: Record<string, string> = {
   "course.updated": "Curso actualizado",
   "course.deleted": "Curso eliminado",
 
+  // ── Institución — programas, periodos, asignaturas, actas ──
+  "program.created": "Programa creado",
+  "program.updated": "Programa actualizado",
+  "program.deleted": "Programa eliminado",
+  "program.toggled": "Programa activado/desactivado",
+  "period.created": "Periodo creado",
+  "period.updated": "Periodo actualizado",
+  "period.closed": "Periodo cerrado",
+  "period.reopened": "Periodo reabierto",
+  "period.deleted": "Periodo eliminado",
+  "subject.created": "Asignatura creada",
+  "subject.updated": "Asignatura actualizada",
+  "subject.deleted": "Asignatura eliminada",
+  "acta.generated": "Acta oficial generada",
+  "acta.deleted": "Acta oficial eliminada",
+
   // ── Matrículas ──
   "enrollment.added": "Estudiante matriculado",
   "enrollment.removed": "Estudiante desmatriculado",
@@ -308,6 +324,12 @@ const CATEGORY_CONFIG: Record<string, { cls: string }> = {
   },
   system: {
     cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
+  },
+  // Configuración institucional: programas, periodos, asignaturas y actas
+  // oficiales. Color violeta para diferenciarlo del 'course' (acciones
+  // sobre instancias) y de 'system' (config genérica).
+  academic: {
+    cls: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
   },
 };
 

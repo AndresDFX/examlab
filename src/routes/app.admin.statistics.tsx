@@ -27,6 +27,13 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   BarChart3,
   CheckCircle2,
   Bot,
@@ -49,7 +56,13 @@ export const Route = createFileRoute("/app/admin/statistics")({
 });
 
 type CourseSummary = {
-  course: { id: string; name: string; period: string | null };
+  course: {
+    id: string;
+    name: string;
+    period: string | null;
+    program_id: string | null;
+    period_id: string | null;
+  };
   totalEnrolled: number;
   approvalRate: number;
   attendanceAvg: number;
@@ -68,6 +81,12 @@ function AdminStatistics() {
   const [drillCourseId, setDrillCourseId] = useState<string | null>(null);
   const [drillDataset, setDrillDataset] = useState<CourseDataset | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
+  // Filtros institucionales — solo aplican a la vista de resumen
+  // (no al drill-down de un curso individual).
+  const [programFilter, setProgramFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
+  const [periods, setPeriods] = useState<Array<{ id: string; code: string; status: string }>>([]);
 
   // Cargar resumen agregado por curso (Admin ve todos)
   useEffect(() => {
@@ -76,17 +95,37 @@ function AdminStatistics() {
     (async () => {
       setLoading(true);
       setLoadError(null);
-      const { data: courses, error } = await supabase
-        .from("courses")
-        .select("id, name, period")
-        .order("name");
+      // Cargar lista de cursos + dimensiones institucionales en paralelo.
+      // Las dimensiones (programas/periodos) alimentan los Selects de filtro.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [coursesRes, progsRes, periodsRes] = await Promise.all([
+        (supabase as any)
+          .from("courses")
+          .select("id, name, period, program_id, period_id")
+          .order("name"),
+        (supabase as any).from("academic_programs").select("id, name").order("name"),
+        (supabase as any)
+          .from("academic_periods")
+          .select("id, code, status")
+          .order("code", { ascending: false }),
+      ]);
       if (cancelled) return;
-      if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar las estadísticas."));
+      if (coursesRes.error) {
+        setLoadError(friendlyError(coursesRes.error, "No pudimos cargar las estadísticas."));
         setLoading(false);
         return;
       }
-      const list = (courses ?? []) as Array<{ id: string; name: string; period: string | null }>;
+      setPrograms((progsRes.data ?? []) as Array<{ id: string; name: string }>);
+      setPeriods(
+        (periodsRes.data ?? []) as Array<{ id: string; code: string; status: string }>,
+      );
+      const list = (coursesRes.data ?? []) as Array<{
+        id: string;
+        name: string;
+        period: string | null;
+        program_id: string | null;
+        period_id: string | null;
+      }>;
       // Cargamos en paralelo todos los datasets — ojo: si hay 50+ cursos
       // esto puede ser pesado. Para V1 nos sirve; si crece, mover a una
       // RPC server-side `admin_course_stats_summary()`.
@@ -155,8 +194,19 @@ function AdminStatistics() {
       .finally(() => setDrillLoading(false));
   }, [drillCourseId]);
 
+  // Aplicar filtros institucionales sobre `summaries`. Filtramos
+  // post-load (no antes) para que cambiar el filtro no dispare
+  // recargas — los datasets ya están en memoria.
+  const filteredSummaries = useMemo(() => {
+    return summaries.filter((s) => {
+      if (programFilter !== "all" && s.course.program_id !== programFilter) return false;
+      if (periodFilter !== "all" && s.course.period_id !== periodFilter) return false;
+      return true;
+    });
+  }, [summaries, programFilter, periodFilter]);
+
   const totals = useMemo(() => {
-    return summaries.reduce(
+    return filteredSummaries.reduce(
       (acc, s) => ({
         students: acc.students + s.totalEnrolled,
         courses: acc.courses + 1,
@@ -176,7 +226,7 @@ function AdminStatistics() {
         enrollmentSum: 0,
       },
     );
-  }, [summaries]);
+  }, [filteredSummaries]);
 
   const globalApproval =
     totals.enrollmentSum === 0 ? 0 : Math.round(totals.weightedApproval / totals.enrollmentSum);
@@ -242,6 +292,60 @@ function AdminStatistics() {
         />
       ) : (
         <>
+          {/* Filtros institucionales (programa + periodo). Filtran el
+              resumen de cursos sin disparar nuevas cargas: los datasets
+              ya están en memoria y solo recalculamos KPIs y la tabla. */}
+          <Card>
+            <CardContent className="p-3 flex flex-col sm:flex-row gap-2">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs text-muted-foreground">Programa</label>
+                <Select value={programFilter} onValueChange={setProgramFilter}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los programas</SelectItem>
+                    {programs.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1 space-y-1">
+                <label className="text-xs text-muted-foreground">Periodo</label>
+                <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los periodos</SelectItem>
+                    {periods.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.code} {p.status === "cerrado" ? "(cerrado)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(programFilter !== "all" || periodFilter !== "all") && (
+                <div className="flex items-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setProgramFilter("all");
+                      setPeriodFilter("all");
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* KPIs globales */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <KpiCard
@@ -290,7 +394,7 @@ function AdminStatistics() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CompareChart summaries={summaries} />
+              <CompareChart summaries={filteredSummaries} />
             </CardContent>
           </Card>
 
@@ -315,7 +419,14 @@ function AdminStatistics() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {summaries.map((s) => (
+                  {filteredSummaries.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
+                        Sin cursos que coincidan con los filtros.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {filteredSummaries.map((s) => (
                     <TableRow
                       key={s.course.id}
                       className="cursor-pointer hover:bg-muted/40"

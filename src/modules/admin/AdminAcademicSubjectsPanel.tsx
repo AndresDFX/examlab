@@ -49,6 +49,7 @@ import { toast } from "sonner";
 import { BookOpen, Plus, Pencil, Trash2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -212,6 +213,20 @@ export function AdminAcademicSubjectsPanel() {
       toast.error(friendlyError(error, "No se pudo guardar la asignatura"));
       return;
     }
+    void logEvent({
+      action: draft.id ? "subject.updated" : "subject.created",
+      category: "academic",
+      severity: "info",
+      entityType: "academic_subject",
+      entityId: draft.id ?? undefined,
+      entityName: name,
+      metadata: {
+        code: payload.code,
+        program_id: payload.program_id,
+        semestre: payload.semestre,
+        credits: payload.credits,
+      },
+    });
     toast.success(draft.id ? "Asignatura actualizada" : "Asignatura creada");
     setOpen(false);
     void load();
@@ -240,6 +255,15 @@ export function AdminAcademicSubjectsPanel() {
       toast.error(friendlyError(error));
       return;
     }
+    void logEvent({
+      action: "subject.deleted",
+      category: "academic",
+      severity: "warning",
+      entityType: "academic_subject",
+      entityId: r.id,
+      entityName: r.name,
+      metadata: { course_count: r.course_count ?? 0 },
+    });
     toast.success("Asignatura eliminada");
     void load();
   };

@@ -53,6 +53,7 @@ import { toast } from "sonner";
 import { Stamp, Plus, Trash2, FileText } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { logEvent } from "@/shared/lib/audit";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -147,6 +148,19 @@ export function ActasManager({ onPrintActa }: Props) {
       toast.error(friendlyError(error, "No se pudo generar el acta"));
       return;
     }
+    // Acta es registro institucional — `warning` para que destaque en
+    // el módulo de Auditoría junto a otras acciones críticas.
+    const course = courses.find((c) => c.id === genCourseId);
+    void logEvent({
+      action: "acta.generated",
+      category: "academic",
+      severity: "warning",
+      entityType: "course_acta",
+      entityId: String(data),
+      entityName: course?.name ?? "Acta",
+      courseId: genCourseId,
+      courseName: course?.name ?? null,
+    });
     toast.success(`Acta generada (ID: ${String(data).slice(0, 8)}…)`);
     setGenOpen(false);
     void load();
@@ -168,6 +182,19 @@ export function ActasManager({ onPrintActa }: Props) {
       toast.error(friendlyError(error));
       return;
     }
+    void logEvent({
+      action: "acta.deleted",
+      category: "academic",
+      // Eliminar un acta oficial es destructivo — log con warning para
+      // dejar rastro claro de quién/cuándo.
+      severity: "warning",
+      entityType: "course_acta",
+      entityId: acta.id,
+      entityName: acta.curso_nombre,
+      courseId: acta.course_id,
+      courseName: acta.curso_nombre,
+      metadata: { integrity_hash: acta.integrity_hash, periodo: acta.periodo_codigo },
+    });
     toast.success("Acta eliminada");
     void load();
   };

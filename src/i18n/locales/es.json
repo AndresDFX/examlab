@@ -167,7 +167,8 @@
       "grading": "Calificación",
       "fraud": "Fraude",
       "email": "Correo",
-      "system": "Sistema"
+      "system": "Sistema",
+      "academic": "Institución"
     },
     "severities": {
       "info": "Info",
