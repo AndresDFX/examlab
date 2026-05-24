@@ -258,7 +258,11 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
     children: [
       { label: "Nombre", path: "estudiante.nombre", kind: "scalar" },
       { label: "Correo", path: "estudiante.email", kind: "scalar" },
-      { label: "Código", path: "estudiante.codigo", kind: "scalar", hint: "Si está disponible" },
+      { label: "Código estudiantil", path: "estudiante.codigo", kind: "scalar", hint: "Matrícula institucional" },
+      { label: "Documento de identidad", path: "estudiante.documento", kind: "scalar" },
+      { label: "Cohorte", path: "estudiante.cohorte", kind: "scalar", hint: "Periodo de ingreso" },
+      { label: "Estado", path: "estudiante.estado", kind: "scalar", hint: "activo / retirado / graduado / aplazado" },
+      { label: "Programa", path: "estudiante.programa", kind: "scalar" },
     ],
   },
   {
@@ -349,7 +353,7 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
         label: "Iterar estudiantes",
         path: "estudiantes",
         kind: "each",
-        hint: "Dentro: {{nombre}}, {{email}}, {{nota_final}}, {{asistencia.porcentaje}}",
+        hint: "Dentro: {{nombre}}, {{email}}, {{codigo}}, {{documento}}, {{nota_final}}, {{asistencia.porcentaje}}",
       },
     ],
   },

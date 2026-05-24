@@ -54,7 +54,17 @@ interface StudentCtx {
   id: string;
   nombre: string;
   email: string;
+  /** Código estudiantil institucional (matrícula). Vacío si no se
+   *  configuró en el perfil — los reportes lo muestran como "—". */
   codigo: string;
+  /** Documento de identidad (cédula/pasaporte). */
+  documento: string;
+  /** Cohorte de ingreso. */
+  cohorte: string;
+  /** Estado académico: activo / retirado / graduado / aplazado. */
+  estado: string;
+  /** Programa académico al que pertenece el estudiante. */
+  programa: string;
   nota_final: number | null;
   cortes: CutCtx[];
   examenes: ItemCtx[];
@@ -192,7 +202,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
 
   const { data: profs } = await db
     .from("profiles")
-    .select("id, full_name, institutional_email")
+    .select(
+      "id, full_name, institutional_email, codigo, documento, cohorte, estado, programa_id, programa:academic_programs!profiles_programa_id_fkey(name)",
+    )
     .in("id", userIds)
     .order("full_name");
 
@@ -237,7 +249,16 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   // ── Construir StudentCtx por usuario ─────────────────────────────
   const escalaMax = Number(courseRow.grade_scale_max ?? 5);
 
-  const buildStudent = (p: { id: string; full_name: string; institutional_email: string; document_id?: string | null }): StudentCtx => {
+  const buildStudent = (p: {
+    id: string;
+    full_name: string;
+    institutional_email: string;
+    codigo?: string | null;
+    documento?: string | null;
+    cohorte?: string | null;
+    estado?: string | null;
+    programa?: { name: string } | null;
+  }): StudentCtx => {
     const userId = p.id;
 
     // Items por tipo (con su nota efectiva)
@@ -324,7 +345,11 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       id: userId,
       nombre: p.full_name ?? "—",
       email: p.institutional_email ?? "—",
-      codigo: p.document_id ?? "",
+      codigo: p.codigo ?? "",
+      documento: p.documento ?? "",
+      cohorte: p.cohorte ?? "",
+      estado: p.estado ?? "",
+      programa: p.programa?.name ?? "",
       nota_final: notaFinal,
       cortes,
       examenes,
@@ -367,7 +392,15 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     if (!s) throw new Error("Estudiante no encontrado");
     return {
       ...baseCtx,
-      estudiante: { nombre: s.nombre, email: s.email, codigo: s.codigo },
+      estudiante: {
+        nombre: s.nombre,
+        email: s.email,
+        codigo: s.codigo,
+        documento: s.documento,
+        cohorte: s.cohorte,
+        estado: s.estado,
+        programa: s.programa,
+      },
       nota_final: s.nota_final,
       cortes: s.cortes,
       examenes: s.examenes,
@@ -384,6 +417,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       nombre: s.nombre,
       email: s.email,
       codigo: s.codigo,
+      documento: s.documento,
+      cohorte: s.cohorte,
+      estado: s.estado,
+      programa: s.programa,
       nota_final: s.nota_final,
       asistencia: s.asistencia,
       cortes: s.cortes,

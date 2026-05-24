@@ -31,6 +31,7 @@ type Student = {
   id: string;
   full_name: string;
   institutional_email: string;
+  codigo: string | null;
   courses: string[];
 };
 
@@ -101,10 +102,11 @@ function TeacherStudentsInner() {
       return;
     }
 
-    // 3. Perfiles
-    const { data: profiles, error: profErr } = await supabase
+    // 3. Perfiles (incluye código estudiantil para mostrar en grid)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profiles, error: profErr } = await (supabase as any)
       .from("profiles")
-      .select("id, full_name, institutional_email")
+      .select("id, full_name, institutional_email, codigo")
       .in("id", userIds)
       .order("full_name");
     if (profErr) {
@@ -129,6 +131,7 @@ function TeacherStudentsInner() {
         id: p.id,
         full_name: p.full_name ?? p.institutional_email,
         institutional_email: p.institutional_email,
+        codigo: p.codigo ?? null,
         courses: coursesByStudent.get(p.id) ?? [],
       })),
     );
@@ -151,7 +154,8 @@ function TeacherStudentsInner() {
       result = result.filter(
         (s) =>
           s.full_name.toLowerCase().includes(q) ||
-          s.institutional_email.toLowerCase().includes(q),
+          s.institutional_email.toLowerCase().includes(q) ||
+          (s.codigo?.toLowerCase().includes(q) ?? false),
       );
     }
     return result;
@@ -227,25 +231,32 @@ function TeacherStudentsInner() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Usuario</TableHead>
-                    <TableHead className="hidden sm:table-cell">Correo</TableHead>
+                    <TableHead className="max-w-[260px]">Usuario</TableHead>
+                    <TableHead className="hidden sm:table-cell w-32">Código</TableHead>
+                    <TableHead className="hidden sm:table-cell max-w-[260px]">Correo</TableHead>
                     <TableHead className="hidden md:table-cell">Cursos</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableEmpty colSpan={4} text="Sin usuarios" />
+                    <TableEmpty colSpan={5} text="Sin usuarios" />
                   ) : (
                     filtered.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell>
-                          <div className="font-medium">{s.full_name}</div>
+                          <div className="font-medium truncate" title={s.full_name}>
+                            {s.full_name}
+                          </div>
                           <div className="text-xs text-muted-foreground sm:hidden">
+                            {s.codigo ? `${s.codigo} · ` : ""}
                             {s.institutional_email}
                           </div>
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground tabular-nums">
+                          {s.codigo ?? "—"}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground truncate">
                           {s.institutional_email}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">

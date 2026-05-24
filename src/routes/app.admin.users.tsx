@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -49,15 +56,31 @@ import {
 
 export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
 
+type StudentEstado = "activo" | "retirado" | "graduado" | "aplazado";
+
 type Row = {
   id: string;
   full_name: string;
   institutional_email: string;
   personal_email: string | null;
   roles: AppRole[];
+  // Identidad estudiantil (opcionales, solo tienen sentido para
+  // usuarios con rol Estudiante; quedan null para Admin/Docente).
+  codigo: string | null;
+  documento: string | null;
+  cohorte: string | null;
+  estado: StudentEstado | null;
+  programa_id: string | null;
 };
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante"];
+
+const ESTADO_OPTIONS: Array<{ value: StudentEstado; label: string }> = [
+  { value: "activo", label: "Activo" },
+  { value: "retirado", label: "Retirado" },
+  { value: "graduado", label: "Graduado" },
+  { value: "aplazado", label: "Aplazado" },
+];
 
 const EMPTY_NEW: Row = {
   id: "",
@@ -65,6 +88,11 @@ const EMPTY_NEW: Row = {
   institutional_email: "",
   personal_email: "",
   roles: ["Estudiante"],
+  codigo: null,
+  documento: null,
+  cohorte: null,
+  estado: null,
+  programa_id: null,
 };
 
 const USERS_TEMPLATE_CSV = toCSV([
@@ -91,6 +119,9 @@ function AdminUsers() {
   const [savingUser, setSavingUser] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Programas activos para el dropdown de identidad estudiantil.
+  // Se cargan en `load` junto con los perfiles.
+  const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
   const confirm = useConfirm();
   // Filtramos por nombre + ambos correos + rol. case-insensitive,
   // includes (no prefix). Cualquier match en cualquier campo cuenta —
@@ -182,6 +213,15 @@ function AdminUsers() {
       grouped.set(r.user_id, arr);
     });
     setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
+    // Programas activos (best-effort — si la migración no se aplicó, el
+    // dropdown queda vacío pero el form no se rompe: programa_id es opcional).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: progs } = await (supabase as any)
+      .from("academic_programs")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
+    setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
     setLoading(false);
   };
 
@@ -313,12 +353,22 @@ function AdminUsers() {
       }
       if (editing.id) {
         // Update profile
-        const { error } = await supabase
+        // Identidad estudiantil — solo se persiste para usuarios con rol
+        // Estudiante. Para Admin/Docente forzamos NULL aunque el form
+        // hubiese tenido valores (mejor pisarlos que dejar inconsistencia).
+        const isStudent = editing.roles.includes("Estudiante");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
           .from("profiles")
           .update({
             full_name: editing.full_name,
             personal_email: editing.personal_email || null,
             institutional_email: editing.institutional_email,
+            codigo: isStudent ? editing.codigo?.trim() || null : null,
+            documento: isStudent ? editing.documento?.trim() || null : null,
+            cohorte: isStudent ? editing.cohorte?.trim() || null : null,
+            estado: isStudent ? editing.estado || null : null,
+            programa_id: isStudent ? editing.programa_id || null : null,
           })
           .eq("id", editing.id);
         if (error) {
@@ -772,6 +822,102 @@ function AdminUsers() {
                   ))}
                 </div>
               </div>
+
+              {/* Identidad estudiantil — solo visible cuando el usuario
+                  tiene rol Estudiante. Todos los campos son opcionales
+                  pero recomendados: alimentan actas, certificados con
+                  datos oficiales y el roster del Acuerdo Pedagógico. */}
+              {editing.roles.includes("Estudiante") && (
+                <div className="rounded-md border p-3 space-y-3">
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    Identidad estudiantil
+                    <HelpHint>
+                      Datos institucionales que aparecen en actas y certificados oficiales. Todos
+                      opcionales, pero recomendados.
+                    </HelpHint>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Código estudiantil</Label>
+                      <Input
+                        value={editing.codigo ?? ""}
+                        onChange={(e) =>
+                          setEditing({ ...editing, codigo: e.target.value || null })
+                        }
+                        placeholder="Ej: 202412345"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Documento de identidad</Label>
+                      <Input
+                        value={editing.documento ?? ""}
+                        onChange={(e) =>
+                          setEditing({ ...editing, documento: e.target.value || null })
+                        }
+                        placeholder="Cédula / pasaporte"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Cohorte</Label>
+                      <Input
+                        value={editing.cohorte ?? ""}
+                        onChange={(e) =>
+                          setEditing({ ...editing, cohorte: e.target.value || null })
+                        }
+                        placeholder="Ej: 2024-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Estado</Label>
+                      <Select
+                        value={editing.estado ?? "__none__"}
+                        onValueChange={(v) =>
+                          setEditing({
+                            ...editing,
+                            estado: v === "__none__" ? null : (v as StudentEstado),
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sin estado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin estado</SelectItem>
+                          {ESTADO_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label className="text-xs">Programa académico</Label>
+                      <Select
+                        value={editing.programa_id ?? "__none__"}
+                        onValueChange={(v) =>
+                          setEditing({
+                            ...editing,
+                            programa_id: v === "__none__" ? null : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sin programa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin programa</SelectItem>
+                          {programs.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
