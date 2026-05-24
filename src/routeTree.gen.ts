@@ -53,6 +53,7 @@ import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
 import { Route as AppAdminAiCronRouteImport } from './routes/app.admin.ai-cron'
+import { Route as AppAdminReportTemplatesRouteImport } from './routes/app.admin.report-templates'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
@@ -286,6 +287,11 @@ const AppAdminAiCronRoute = AppAdminAiCronRouteImport.update({
   path: '/admin/ai-cron',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminReportTemplatesRoute = AppAdminReportTemplatesRouteImport.update({
+  id: '/admin/report-templates',
+  path: '/admin/report-templates',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   id: '/teacher/exams/',
   path: '/teacher/exams/',
@@ -366,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
+  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -422,6 +429,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
+  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -481,6 +489,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
+  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
@@ -541,6 +550,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/auth/'
     | '/app/admin/ai-cron'
+    | '/app/admin/report-templates'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -597,6 +607,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/app/admin/ai-cron'
+    | '/app/admin/report-templates'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -655,6 +666,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/auth/'
     | '/app/admin/ai-cron'
+    | '/app/admin/report-templates'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
@@ -1016,6 +1028,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAiCronRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/report-templates': {
+      id: '/app/admin/report-templates'
+      path: '/admin/report-templates'
+      fullPath: '/app/admin/report-templates'
+      preLoaderRoute: typeof AppAdminReportTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/exams/': {
       id: '/app/teacher/exams/'
       path: '/teacher/exams'
@@ -1137,6 +1156,7 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAdminAiCronRoute: typeof AppAdminAiCronRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
+  AppAdminReportTemplatesRoute: typeof AppAdminReportTemplatesRoute
   AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminEmailSettingsRoute: typeof AppAdminEmailSettingsRoute
@@ -1187,6 +1207,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAdminAiCronRoute: AppAdminAiCronRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
+  AppAdminReportTemplatesRoute: AppAdminReportTemplatesRoute,
   AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminEmailSettingsRoute: AppAdminEmailSettingsRoute,

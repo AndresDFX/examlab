@@ -263,6 +263,15 @@ const NAV: NavItem[] = [
   // de jobs ordenados" mejor que el Cpu original.
   { to: "/app/teacher/ai-cron", labelKey: "nav.aiCron", icon: ListOrdered, roles: ["Docente"] },
   { to: "/app/admin/ai-cron", labelKey: "nav.aiCron", icon: ListOrdered, roles: ["Admin"] },
+  // Informes: Admin gestiona plantillas globales. Docente (PR 3) podrá
+  // generar informes y crear overrides/privadas. Posición tras Cola
+  // porque es una herramienta operacional, no de configuración pura.
+  {
+    to: "/app/admin/report-templates",
+    labelKey: "nav.reportTemplates",
+    icon: FileText,
+    roles: ["Admin"],
+  },
   // Auditoría: Admin ve todo, Docente ve su alcance.
   {
     to: "/app/teacher/audit-logs",
@@ -354,6 +363,7 @@ const NAV_ICON_COLOR: Record<string, string> = {
   "/app/teacher/statistics": "text-blue-300",
   "/app/admin/statistics": "text-blue-300",
   "/app/teacher/students": "text-violet-300",
+  "/app/admin/report-templates": "text-pink-300",
   "/app/teacher/audit-logs": "text-teal-300",
   "/app/admin/audit-logs": "text-teal-300",
   "/app/student/exams": "text-amber-300",
@@ -563,6 +573,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],
     ["/app/teacher/students", "teacher_students"],
+    ["/app/admin/report-templates", "reports"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).
