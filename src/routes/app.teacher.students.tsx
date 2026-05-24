@@ -248,13 +248,22 @@ function TeacherStudentsInner() {
                         <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                           {s.institutional_email}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">
+                        <TableCell className="hidden md:table-cell max-w-[280px]">
                           <div className="flex flex-wrap gap-1">
-                            {s.courses.map((c) => (
+                            {s.courses.slice(0, 3).map((c) => (
                               <Badge key={c} variant="outline" className="text-xs">
                                 {c}
                               </Badge>
                             ))}
+                            {s.courses.length > 3 && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs"
+                                title={s.courses.slice(3).join(", ")}
+                              >
+                                +{s.courses.length - 3}
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">

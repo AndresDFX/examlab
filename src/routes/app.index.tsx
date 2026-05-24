@@ -28,7 +28,6 @@ import {
   Reply,
   Inbox,
   CalendarClock,
-  Sparkles,
   Bot,
   CircleCheck,
   Search,
@@ -108,11 +107,15 @@ function AdminDashboard() {
   // Los nombres `*LastHour` se mantienen por backward-compat con el
   // shape inicial; hoy la ventana real es 24h (ver sinceHour más abajo).
   const [aiStats, setAiStats] = useState({
-    callsLastHour: 0,
     errorsLastHour: 0,
     gradingsLastHour: 0,
     questionsGenLastHour: 0,
     plagiarismLastHour: 0,
+    /** Comentarios pendientes de respuesta del docente — agregado a nivel
+     *  plataforma (todos los cursos, todos los docentes). Threads abiertos
+     *  cuyo último comentario NO es de un docente. Reemplaza el card
+     *  "Llamadas IA (24h)" que daba menos accionabilidad. */
+    pendingTeacherResponses: 0,
   });
   const [emailStats, setEmailStats] = useState<{
     delivered: number;
@@ -154,21 +157,11 @@ function AdminDashboard() {
 
       // Si alguna acción no existe (migración no aplicada en este
       // entorno) el count queda en 0 — el dashboard no rompe.
-      const [aiCallsRes, aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes] =
+      // "Llamadas IA" eliminado por baja accionabilidad — el desglose
+      // útil (errores / calificaciones / preguntas / plagio) ya está
+      // separado en sus propias métricas.
+      const [aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes, openThreadsRes] =
         await Promise.all([
-          dbAny
-            .from("audit_logs")
-            .select("id", { count: "exact", head: true })
-            .in("action", [
-              "ai.grading_started",
-              "ai.grading_failed",
-              "ai_grading.completed",
-              "ai_questions.generated",
-              "ai_plagiarism.detected",
-              "ai.grading_retry_run",
-              "ai.questions_generation_failed",
-            ])
-            .gte("created_at", sinceHour),
           dbAny
             .from("audit_logs")
             .select("id", { count: "exact", head: true })
@@ -189,14 +182,41 @@ function AdminDashboard() {
             .select("id", { count: "exact", head: true })
             .eq("action", "ai_plagiarism.detected")
             .gte("created_at", sinceHour),
+          // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
+          // Los usamos para calcular cuántos esperan respuesta de un docente.
+          dbAny.from("feedback_threads").select("id").eq("closed", false),
         ]);
       if (cancelled) return;
+
+      // Cálculo de pendientes globales: para cada thread abierto, mirar
+      // el último comentario; si no es de rol 'teacher', el thread cuenta.
+      // Reutiliza el helper `pendingResponsesCount` que ya usa el dashboard
+      // del docente — misma definición, scope global.
+      const openThreadIds: string[] = ((openThreadsRes.data ?? []) as Array<{ id: string }>)
+        .map((r) => r.id);
+      let pendingTeacherResponses = 0;
+      if (openThreadIds.length > 0) {
+        const { data: cmts } = await dbAny
+          .from("feedback_comments")
+          .select("thread_id, author_role, created_at")
+          .in("thread_id", openThreadIds);
+        if (cancelled) return;
+        pendingTeacherResponses = pendingResponsesCount(
+          openThreadIds,
+          (cmts ?? []) as Array<{
+            thread_id: string;
+            author_role: string | null;
+            created_at: string;
+          }>,
+        );
+      }
+
       setAiStats({
-        callsLastHour: aiCallsRes.count ?? 0,
         errorsLastHour: aiErrorsRes.count ?? 0,
         gradingsLastHour: aiGradingsRes.count ?? 0,
         questionsGenLastHour: aiQuestionsRes.count ?? 0,
         plagiarismLastHour: aiPlagiarismRes.count ?? 0,
+        pendingTeacherResponses,
       });
 
       const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
@@ -256,18 +276,11 @@ function AdminDashboard() {
     // ocupando el alto restante del viewport. Errores se consultan
     // ahora desde /app/admin/audit-logs con filtro severity=error.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      {/* Row PRIMARIA (arriba) — 5 mini-stats de IA (24h) como resumen
-          compacto. Llamadas / Errores / Calificaciones / Preguntas /
-          Plagio. Replica el orden del TeacherDashboard y
-          StudentDashboard donde los stats van arriba y los cards
-          accionables abajo. NO ocupan flex-1 — alto natural. */}
+      {/* Row PRIMARIA (arriba) — 5 mini-stats de operación.
+          Errores / Calificaciones / Respuestas IA / Plagio (todos 24h)
+          + Pendientes docentes (estado global agregado, no ventana).
+          NO ocupan flex-1 — alto natural. */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat
-          icon={Sparkles}
-          label="Llamadas IA (24h)"
-          value={aiStats.callsLastHour}
-          color="text-indigo-500 dark:text-indigo-400"
-        />
         <Stat
           icon={AlertTriangle}
           label="Errores IA (24h)"
@@ -286,7 +299,7 @@ function AdminDashboard() {
         />
         <Stat
           icon={Bot}
-          label="Preguntas IA (24h)"
+          label="Respuestas IA (24h)"
           value={aiStats.questionsGenLastHour}
           color="text-violet-500 dark:text-violet-400"
         />
@@ -295,6 +308,16 @@ function AdminDashboard() {
           label="Plagio detectado (24h)"
           value={aiStats.plagiarismLastHour}
           color="text-amber-500 dark:text-amber-400"
+        />
+        {/* Comentarios pendientes a nivel plataforma: threads abiertos
+            donde el último comment NO es de un docente. Métrica
+            accionable para el Admin — ve cuánta carga de respuesta
+            está pendiente entre todos los docentes de la plataforma. */}
+        <Stat
+          icon={Reply}
+          label="Pendientes docentes"
+          value={aiStats.pendingTeacherResponses}
+          color="text-rose-500 dark:text-rose-400"
         />
       </div>
 
