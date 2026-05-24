@@ -77,7 +77,6 @@ function StudentExamReview() {
     status: string;
     answers: Record<string, unknown> | null;
     ai_grade: number | null;
-    ai_feedback: string | null;
     final_override_grade: number | null;
     submitted_at: string | null;
     teacher_feedback?: string | null;
@@ -146,7 +145,11 @@ function StudentExamReview() {
           return;
         }
 
-        const [{ data: ex, error: exErr }, { data: sub }, { data: qs }] = await Promise.all([
+        const [
+          { data: ex, error: exErr },
+          { data: sub, error: subErr },
+          { data: qs, error: qsErr },
+        ] = await Promise.all([
           supabase
             .from("exams")
             .select(
@@ -158,10 +161,19 @@ function StudentExamReview() {
           // relacionados (la URL, su padre, o un makeup hijo). Si el
           // alumno solo tomó el makeup pero el link trae el padre, esta
           // query sigue trayendo la entrega correcta.
+          // OJO: `submissions` (tabla de entregas de examen) NO tiene la
+          // columna `ai_feedback` — esa columna vive en
+          // `workshop_submission_answers` y `project_submission_files`,
+          // no acá. Incluirla en el SELECT hacía que PostgREST devolviera
+          // un error y `data:null`, lo que se rendereaba como "No hay una
+          // entrega registrada" para TODOS los alumnos y exámenes (sin
+          // pista del error porque destructurábamos sin chequear `error`).
+          // Bug regresivo introducido en a847b42; restauramos el SELECT
+          // a las columnas reales.
           supabase
             .from("submissions")
             .select(
-              "id, exam_id, status, answers, ai_grade, ai_feedback, final_override_grade, submitted_at, teacher_feedback",
+              "id, exam_id, status, answers, ai_grade, final_override_grade, submitted_at, teacher_feedback",
             )
             .in("exam_id", relatedExamIds)
             .eq("user_id", user.id)
@@ -199,6 +211,16 @@ function StudentExamReview() {
           setError("not_found");
           return;
         }
+        // Log defensivo: si Postgrest tira un error (típicamente columnas
+        // inexistentes), antes el `data:null` se rendereaba como "no
+        // submission" sin pista del problema. Ahora al menos queda en
+        // console.warn para depurar regresiones rápido.
+        if (subErr) {
+          console.warn("[exam-review] submissions query error:", subErr);
+        }
+        if (qsErr) {
+          console.warn("[exam-review] questions query error:", qsErr);
+        }
 
         setExam(ex as ExamLoaded);
         setSubmission(
@@ -207,13 +229,12 @@ function StudentExamReview() {
             status: string;
             answers: Record<string, unknown> | null;
             ai_grade: number | null;
-            ai_feedback: string | null;
             final_override_grade: number | null;
             submitted_at: string | null;
             teacher_feedback?: string | null;
           } | null,
         );
-        setQuestions((qs ?? []) as QuestionRow[]);
+        setQuestions((qsForSub ?? []) as QuestionRow[]);
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del examen."));
       } finally {
@@ -334,12 +355,13 @@ function StudentExamReview() {
           NO override-eó (final_override_grade es null) Y la IA no
           escribió la nota todavía. Si el docente ya calificó manual, la
           nota visible es la suya — no tiene sentido confundir con el
-          banner de "pendiente IA". */}
+          banner de "pendiente IA".
+          Para exámenes basta con chequear `ai_grade == null` — la tabla
+          `submissions` no tiene `ai_feedback` (a diferencia de talleres
+          y proyectos). `isAiGradePending` acepta el campo opcional y
+          cae al check de ai_grade cuando se omite. */}
       {submission.final_override_grade == null &&
-        isAiGradePending({
-          ai_grade: submission.ai_grade,
-          ai_feedback: submission.ai_feedback,
-        }) && <PendingAiGradeBanner />}
+        isAiGradePending({ ai_grade: submission.ai_grade }) && <PendingAiGradeBanner />}
 
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
