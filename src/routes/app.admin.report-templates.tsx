@@ -36,7 +36,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { ClipboardList, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   TemplateEditor,
@@ -259,8 +259,8 @@ function Inner() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<FileText className="h-5 w-5 text-violet-500" />}
-        title="Plantillas de informes"
+        icon={<ClipboardList className="h-5 w-5 text-pink-500" />}
+        title="Informes"
         subtitle={loading ? undefined : `${templates.length} plantilla(s) global(es)`}
         actions={
           <Button onClick={openNew}>

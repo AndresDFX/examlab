@@ -263,14 +263,15 @@ const NAV: NavItem[] = [
   // de jobs ordenados" mejor que el Cpu original.
   { to: "/app/teacher/ai-cron", labelKey: "nav.aiCron", icon: ListOrdered, roles: ["Docente"] },
   { to: "/app/admin/ai-cron", labelKey: "nav.aiCron", icon: ListOrdered, roles: ["Admin"] },
-  // Informes: Admin gestiona plantillas globales; Docente genera
-  // informes desde plantillas (con overrides por curso y privadas).
-  // Posición tras Cola porque es una herramienta operacional, no de
-  // configuración pura.
+  // Informes: módulo unificado entre roles. Admin gestiona las plantillas
+  // globales; Docente genera informes desde esas plantillas (con
+  // personalizaciones por curso y privadas). Lo que cambia es qué puede
+  // hacer cada rol DENTRO; el nombre del módulo es el mismo para no
+  // descolocar al usuario al cambiar de rol.
   {
     to: "/app/admin/report-templates",
-    labelKey: "nav.reportTemplates",
-    icon: FileText,
+    labelKey: "nav.reports",
+    icon: ClipboardList,
     roles: ["Admin"],
   },
   {
