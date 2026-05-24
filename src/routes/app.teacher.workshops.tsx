@@ -117,7 +117,15 @@ Programación I,Taller de árboles,,Resuelve los ejercicios 1-5,,2025-09-30T23:5
 
 export const Route = createFileRoute("/app/teacher/workshops")({
   component: TeacherWorkshops,
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): {
+    workshop?: string;
+    id?: string;
+    submission?: string;
+    question?: string;
+    edit?: string;
+  } => ({
     workshop: typeof s.workshop === "string" ? s.workshop : undefined,
     id: typeof s.id === "string" ? s.id : undefined,
     submission: typeof s.submission === "string" ? s.submission : undefined,

@@ -117,7 +117,9 @@ const db = supabase as any;
 
 export const Route = createFileRoute("/app/teacher/projects")({
   component: TeacherProjects,
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { project?: string; submission?: string; file?: string; edit?: string } => ({
     project: typeof s.project === "string" ? s.project : undefined,
     submission: typeof s.submission === "string" ? s.submission : undefined,
     file: typeof s.file === "string" ? s.file : undefined,

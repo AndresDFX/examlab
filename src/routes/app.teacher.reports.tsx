@@ -113,7 +113,10 @@ function originBadge(origin: Origin, courseName?: string) {
   }
   if (origin === "override") {
     return (
-      <Badge variant="outline" className="text-xs border-violet-300 text-violet-700">
+      <Badge
+        variant="outline"
+        className="text-xs border-violet-300 text-violet-700 dark:border-violet-500/50 dark:text-violet-300"
+      >
         Personalizada{courseName ? ` · ${courseName}` : ""}
       </Badge>
     );
@@ -495,7 +498,7 @@ function Inner() {
   // ── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <div className="space-y-5">
       <PageHeader
         icon={<ClipboardList className="h-5 w-5 text-pink-500" />}
         title="Informes"
@@ -744,15 +747,32 @@ function Inner() {
               <Label>Periodo</Label>
               <Input
                 value={genPeriodo}
-                onChange={(e) => setGenPeriodo(e.target.value)}
+                onChange={(e) => {
+                  setGenPeriodo(e.target.value);
+                  // El periodo va al render — si cambia, el preview ya no
+                  // corresponde a esa selección. Lo limpiamos para forzar
+                  // al docente a regenerar antes de imprimir.
+                  if (genHtml) setGenHtml(null);
+                }}
                 placeholder="2026-1, Trimestre 2, etc."
               />
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => void handleGenerate()} disabled={genBuilding}>
-              {genBuilding ? <Spinner size="sm" className="mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+            <Button
+              onClick={() => void handleGenerate()}
+              disabled={
+                genBuilding ||
+                !genCourseId ||
+                (genTemplate?.scope === "estudiante" && !genStudentId)
+              }
+            >
+              {genBuilding ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Play className="h-4 w-4 mr-1" />
+              )}
               {genBuilding ? "Generando…" : "Generar"}
             </Button>
             {genHtml && (

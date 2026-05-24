@@ -191,7 +191,8 @@ function formatStudentAnswer(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const opts = (question?.options as any) ?? [];
     const arr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
-    const opt = arr[idx];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const opt = arr[idx] as any;
     const label = typeof opt === "string" ? opt : (opt?.text ?? opt?.label ?? `Opción ${idx + 1}`);
     return `Marcó la opción ${idx + 1}: ${label}`;
   }
@@ -203,7 +204,8 @@ function formatStudentAnswer(
     const optsArr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
     const labels = arr.map((i) => {
       const n = typeof i === "number" ? i : Number(i);
-      const opt = optsArr[n];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const opt = optsArr[n] as any;
       const label = typeof opt === "string" ? opt : (opt?.text ?? opt?.label ?? "?");
       return `(${n + 1}) ${label}`;
     });

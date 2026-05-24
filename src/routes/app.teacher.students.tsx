@@ -178,7 +178,7 @@ function TeacherStudentsInner() {
   };
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <div className="space-y-5">
       <PageHeader
         title="Usuarios"
         subtitle={loading ? undefined : `${students.length} usuario(s) en tus cursos`}
