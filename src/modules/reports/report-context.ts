@@ -11,6 +11,10 @@
  * Todos los datos se leen vía supabase (RLS aplica). Las notas se calculan
  * con los mismos helpers que usa el gradebook (`computeWeightedGrade`),
  * así que el boletín y la pantalla del gradebook nunca divergen.
+ *
+ * Para imprimir un ACTA OFICIAL con datos INMUTABLES, usa
+ * `buildReportContextFromActa(actaId)` — lee el snapshot congelado de
+ * `course_actas` (notas, cohorte, cortes calculados al cierre).
  */
 import { supabase } from "@/integrations/supabase/client";
 import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
@@ -487,4 +491,120 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     ).length,
     total_sin_nota: studentList.filter((s) => s.nota_final == null).length,
   };
+}
+
+/**
+ * Construye el TemplateContext desde el SNAPSHOT INMUTABLE de un acta
+ * oficial (`course_actas.snapshot`). Las notas, cohorte y datos del
+ * curso vienen congelados al momento del cierre — modificar el
+ * gradebook después NO afecta lo que se imprime.
+ *
+ * La institución (logo + nombre) sí se lee viva, porque es branding
+ * y debe reflejar la realidad actual de la institución, no la del
+ * momento del cierre.
+ */
+export async function buildReportContextFromActa(actaId: string): Promise<TemplateContext> {
+  const { data: actaRow, error } = await db
+    .from("course_actas")
+    .select("snapshot, generated_at, integrity_hash, periodo_codigo")
+    .eq("id", actaId)
+    .maybeSingle();
+  if (error || !actaRow) {
+    throw new Error("Acta no encontrada o sin permisos");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snap = actaRow.snapshot as any;
+
+  // Institución se lee viva (branding actual, no histórico).
+  const { data: certSettings } = await db
+    .from("certificate_settings")
+    .select("institution_name, institution_logo_url")
+    .maybeSingle();
+  const institucion = {
+    nombre: certSettings?.institution_name ?? "—",
+    logo: certSettings?.institution_logo_url ?? "",
+  };
+
+  const escalaMax = Number(snap?.curso?.escala_max ?? 5);
+  const periodoCode = snap?.periodo?.code ?? actaRow.periodo_codigo ?? "";
+
+  // El snapshot guarda estudiantes con nota_final y estado_aprobacion
+  // como string ('aprobado'|'reprobado'|'sin_nota'). Re-mapeamos al
+  // shape que las plantillas esperan (con booleano 'aprobado').
+  const studentList = (Array.isArray(snap?.estudiantes) ? snap.estudiantes : []).map(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (s: any) => {
+      const notaFinal = s.nota_final == null ? null : Number(s.nota_final);
+      const estadoApr =
+        s.estado_aprobacion === "aprobado"
+          ? "Aprobado"
+          : s.estado_aprobacion === "reprobado"
+            ? "Reprobado"
+            : "Sin nota";
+      return {
+        id: s.id,
+        nombre: s.nombre ?? "—",
+        email: s.email ?? "",
+        codigo: s.codigo ?? "",
+        documento: s.documento ?? "",
+        cohorte: s.cohorte ?? "",
+        estado: s.estado ?? "",
+        programa: snap?.programa?.nombre ?? "",
+        nota_final: notaFinal,
+        aprobado: s.estado_aprobacion === "aprobado",
+        estado_aprobacion: estadoApr,
+        // El snapshot tiene cortes por estudiante con shape
+        // { nombre, peso, nota } — idéntico a CutCtx, lo pasamos tal cual.
+        cortes: Array.isArray(s.cortes) ? s.cortes : [],
+        // El snapshot NO almacena los items individuales (examenes,
+        // talleres, proyectos) ni asistencia detallada — solo el roll-up
+        // por corte. Estos quedan como arrays vacíos para que las
+        // plantillas no rompan al hacer {{#each}}.
+        examenes: [],
+        talleres: [],
+        proyectos: [],
+        asistencia: { presentes: 0, ausentes: 0, total: 0, porcentaje: 0 },
+      };
+    },
+  );
+
+  const baseCtx: TemplateContext = {
+    curso: {
+      nombre: snap?.curso?.nombre ?? "—",
+      codigo: snap?.curso?.codigo ?? "",
+      semestre: snap?.curso?.semestre ?? "",
+      grupo: snap?.curso?.grupo ?? "",
+      programa: snap?.programa?.nombre ?? "",
+      programa_codigo: snap?.programa?.codigo ?? "",
+      facultad: "",
+      asignatura: "",
+      asignatura_codigo: "",
+      creditos: "",
+      horario: "",
+    },
+    docente: {
+      nombre: snap?.docente?.nombre ?? "—",
+      email: snap?.docente?.email ?? "",
+    },
+    institucion,
+    escala_max: escalaMax,
+    periodo: periodoCode,
+    periodo_obj: snap?.periodo ?? null,
+    fecha_emision: formatDate(new Date(actaRow.generated_at)),
+    // Metadata propia del acta — útil para que la plantilla muestre
+    // el hash y la fecha original del cierre (auditoría visible).
+    acta: {
+      id: actaId,
+      generated_at: actaRow.generated_at,
+      integrity_hash: actaRow.integrity_hash,
+      hash_corto: String(actaRow.integrity_hash).slice(0, 16),
+    },
+    estudiantes: studentList,
+    total_estudiantes: Number(snap?.total_estudiantes ?? studentList.length),
+    total_aprobados: Number(snap?.total_aprobados ?? 0),
+    total_reprobados: Number(snap?.total_reprobados ?? 0),
+    total_sin_nota: Number(snap?.total_sin_nota ?? 0),
+  };
+
+  return baseCtx;
 }

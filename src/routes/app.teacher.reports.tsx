@@ -73,7 +73,7 @@ import {
   type TemplateDraft,
 } from "@/modules/reports/TemplateEditor";
 import { renderTemplate } from "@/modules/reports/template-engine";
-import { buildReportContext } from "@/modules/reports/report-context";
+import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
 import { ActasManager } from "@/modules/reports/ActasManager";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,6 +166,10 @@ function Inner() {
   const [genLoadingStudents, setGenLoadingStudents] = useState(false);
   const [genHtml, setGenHtml] = useState<string | null>(null);
   const [genBuilding, setGenBuilding] = useState(false);
+  // Si el docente abrió el generador desde "Imprimir acta" en
+  // ActasManager, este id apunta al snapshot inmutable. Cuando está
+  // presente, handleGenerate lee del snapshot en vez de datos vivos.
+  const [genActaId, setGenActaId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const load = async () => {
@@ -413,6 +417,9 @@ function Inner() {
     setGenPeriodo("");
     setGenStudents([]);
     setGenHtml(null);
+    // Generación normal (no desde acta) — limpia el actaId para
+    // forzar el path 'datos vivos'.
+    setGenActaId(null);
     setGenOpen(true);
   };
 
@@ -420,6 +427,7 @@ function Inner() {
   // seed "Acta de finalización del curso" y abre el generador con
   // el curso y periodo del acta pre-seleccionados.
   const handlePrintActa = (acta: {
+    id: string;
     course_id: string;
     periodo_codigo: string | null;
   }) => {
@@ -438,6 +446,11 @@ function Inner() {
     setGenPeriodo(acta.periodo_codigo ?? "");
     setGenStudents([]);
     setGenHtml(null);
+    // El actaId activa el path inmutable: handleGenerate leerá del
+    // snapshot en lugar de gradebook en vivo. El docente puede
+    // imprimir la misma acta mañana y obtener exactamente las mismas
+    // notas, aunque haya editado el gradebook entre tanto.
+    setGenActaId(acta.id);
     setGenOpen(true);
   };
 
@@ -484,11 +497,13 @@ function Inner() {
     }
     setGenBuilding(true);
     try {
-      const ctx = await buildReportContext({
-        courseId: genCourseId,
-        studentId: genTemplate.scope === "estudiante" ? genStudentId : undefined,
-        periodo: genPeriodo.trim() || undefined,
-      });
+      const ctx = genActaId
+        ? await buildReportContextFromActa(genActaId)
+        : await buildReportContext({
+            courseId: genCourseId,
+            studentId: genTemplate.scope === "estudiante" ? genStudentId : undefined,
+            periodo: genPeriodo.trim() || undefined,
+          });
       const renderedBody = renderTemplate(genTemplate.body_html, ctx);
       const renderedHeader = genTemplate.header_html
         ? renderTemplate(genTemplate.header_html, ctx)
