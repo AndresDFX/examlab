@@ -75,6 +75,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "users": "Usuarios",
+    "tenants": "Instituciones",
     "courses": "Cursos",
     "exams": "Exámenes",
     "grades": "Calificaciones",
@@ -118,7 +119,8 @@
   "roles": {
     "Admin": "Administrador",
     "Docente": "Docente",
-    "Estudiante": "Estudiante"
+    "Estudiante": "Estudiante",
+    "SuperAdmin": "SuperAdmin"
   },
   "audit": {
     "title": "Registro de auditoría",

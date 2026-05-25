@@ -73,6 +73,7 @@ import {
   Award,
   Video,
   ListOrdered,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -307,6 +308,15 @@ const NAV: NavItem[] = [
   },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
+  // SuperAdmin: panel cross-tenant para gestionar instituciones. Se muestra
+  // siempre que el usuario tenga el rol SuperAdmin, independiente del
+  // activeRole (ver lógica especial en visibleNav filter más abajo).
+  {
+    to: "/app/superadmin/tenants",
+    labelKey: "nav.tenants",
+    icon: Building2,
+    roles: ["SuperAdmin"],
+  },
   // Diagnóstico de infraestructura (`/app/admin/system`) ya no vive en
   // el sidebar — está accesible como tab "Sistema" dentro de
   // Configuración para reducir el ruido de navegación.
@@ -348,6 +358,13 @@ const ROLE_CONFIG: Record<
     accent: "text-emerald-400 dark:text-emerald-300",
     badgeClass:
       "bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:bg-emerald-400/15 dark:text-emerald-300 dark:border-emerald-400/25",
+  },
+  SuperAdmin: {
+    labelKey: "roles.SuperAdmin",
+    icon: ShieldEllipsis,
+    accent: "text-rose-400 dark:text-rose-300",
+    badgeClass:
+      "bg-rose-500/15 text-rose-700 border-rose-500/25 dark:bg-rose-400/15 dark:text-rose-300 dark:border-rose-400/25",
   },
 };
 
@@ -592,7 +609,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return found ? found[1] : null;
   };
   const visibleNav = NAV.filter((n) => {
-    if (!activeRole || !n.roles.includes(activeRole)) return false;
+    if (!activeRole) return false;
+    // Items marcados como "SuperAdmin" se muestran si el usuario TIENE el
+    // rol SuperAdmin, independiente del activeRole. SuperAdmin es una
+    // capa transversal (cross-tenant) — al estar logueado se ve aunque
+    // estés operando como Admin/Docente/Estudiante.
+    if (n.roles.length === 1 && n.roles[0] === "SuperAdmin") {
+      return roles.includes("SuperAdmin");
+    }
+    if (!n.roles.includes(activeRole)) return false;
     // Banco de preguntas legacy: el admin puede esconderlo globalmente.
     if (n.to === "/app/teacher/question-bank" && !questionBankEnabled) return false;
     // Admin bypassa los toggles de visibilidad (siempre ve todo en el nav).

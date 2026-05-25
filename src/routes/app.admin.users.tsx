@@ -73,7 +73,7 @@ type Row = {
   programa_id: string | null;
 };
 
-const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante"];
+const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante", "SuperAdmin"];
 
 const ESTADO_OPTIONS: Array<{ value: StudentEstado; label: string }> = [
   { value: "activo", label: "Activo" },
@@ -239,7 +239,12 @@ function AdminUsers() {
     const toAdd = newRoles.filter((r) => !currentSet.has(r));
     const toRemove = [...currentSet].filter((r) => !newSet.has(r));
     if (toAdd.length) {
-      const { error } = await supabase
+      // Cast: el tipo regenerado de supabase aún no incluye 'SuperAdmin'
+      // en el enum app_role (Lovable lo regenera en el próximo Publish).
+      // El INSERT igual funciona en server-side porque el enum ya tiene
+      // el valor desde la migración 20260621.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
         .from("user_roles")
         .insert(toAdd.map((role) => ({ user_id: userId, role })));
       if (error) {
@@ -248,7 +253,8 @@ function AdminUsers() {
       }
     }
     if (toRemove.length) {
-      const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
         .from("user_roles")
         .delete()
         .eq("user_id", userId)
