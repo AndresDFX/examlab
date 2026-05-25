@@ -499,6 +499,34 @@ export function FeedbackThread({
   const toggleClosed = async () => {
     if (!thread || !user) return;
     const next = !thread.closed;
+
+    // Auto-comment al CERRAR cuando el último comentario es del
+    // estudiante. Pedagógicamente cerrar sin responder lo deja como si
+    // el docente lo hubiera ignorado; insertar un "Ajustado." automático
+    // marca la respuesta del docente y deja al thread "respondido por
+    // docente" en los counts (pendingResponsesCount / studentPending).
+    // Solo aplica al cerrar (no al reabrir) y solo si el caller es el
+    // docente con permiso para cerrar.
+    if (next && isTeacher && comments.length > 0) {
+      const last = comments[comments.length - 1];
+      const lastIsStudent =
+        (last as { author_role?: string | null }).author_role !== "teacher";
+      if (lastIsStudent) {
+        const { error: insErr } = await db
+          .from("feedback_comments")
+          .insert({
+            thread_id: thread.id,
+            user_id: user.id,
+            body: "Ajustado.",
+            author_role: "teacher",
+          });
+        if (insErr) {
+          console.warn("[FeedbackThread] auto-ajustado comment failed:", insErr.message);
+          // No abortamos: si falla el comment, igual cerramos el thread.
+        }
+      }
+    }
+
     const { error } = await db
       .from("feedback_threads")
       .update({

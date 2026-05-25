@@ -68,11 +68,12 @@ type ThreadRow = {
  * Modo de filtrado del modal:
  *   - "all" (default): muestra todas las conversaciones abiertas
  *     (closed=false). Es el card "Conversaciones abiertas" del dashboard.
- *   - "needsMyResponse": muestra solo aquellas donde el ÚLTIMO comment
- *     no es del docente actual — es decir, la pelota está en mi cancha.
- *     Es el card "Comentarios pendientes por respuesta".
+ *   - "needsMyResponse": para el DOCENTE — threads cuyo ÚLTIMO comment
+ *     no es de un docente (estudiante esperando mi respuesta).
+ *   - "studentNeedsResponse": para el ESTUDIANTE — threads cuyo ÚLTIMO
+ *     comment ES de un docente (yo, alumno, debo responder).
  */
-export type FeedbackFilterMode = "all" | "needsMyResponse";
+export type FeedbackFilterMode = "all" | "needsMyResponse" | "studentNeedsResponse";
 
 interface Props {
   open: boolean;
@@ -301,11 +302,15 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
         };
       });
 
-      // Filtrado por modo. "needsMyResponse" se queda solo con los
-      // threads cuyo último comment NO es de un docente (cualquier
-      // docente del curso cuenta como respondido — ver feedback-stats.ts).
+      // Filtrado por modo.
+      //   - "needsMyResponse" (docente): threads cuyo último comment NO
+      //     es de un docente (alguien — un estudiante — espera respuesta).
+      //   - "studentNeedsResponse" (estudiante): threads cuyo último
+      //     comment SÍ es de un docente (alumno debe responder).
+      // Cualquier docente del curso cuenta como "respondido" —
+      // ver feedback-stats.ts.
       let final = enriched;
-      if (filterMode === "needsMyResponse") {
+      if (filterMode === "needsMyResponse" || filterMode === "studentNeedsResponse") {
         const allowed = threadsPendingTeacherResponse(
           enriched.map((t) => t.id),
           enriched
@@ -323,7 +328,12 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                 x !== null,
             ),
         );
-        final = enriched.filter((t) => allowed.has(t.id));
+        // "needsMyResponse" = allowed (pendientes del docente);
+        // "studentNeedsResponse" = inverso (pendientes del estudiante).
+        final =
+          filterMode === "needsMyResponse"
+            ? enriched.filter((t) => allowed.has(t.id))
+            : enriched.filter((t) => !allowed.has(t.id) && t.lastComment != null);
       }
 
       setThreads(final);
@@ -436,14 +446,16 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {filterMode === "needsMyResponse" ? (
+            {filterMode === "needsMyResponse" || filterMode === "studentNeedsResponse" ? (
               <Reply className="h-5 w-5" />
             ) : (
               <MessageSquareText className="h-5 w-5" />
             )}
             {filterMode === "needsMyResponse"
               ? "Comentarios pendientes por respuesta"
-              : "Comentarios abiertos"}
+              : filterMode === "studentNeedsResponse"
+                ? "Conversaciones pendientes"
+                : "Comentarios abiertos"}
             {!loading && (
               <Badge variant="secondary" className="text-[10px]">
                 {threads.length}
@@ -460,7 +472,9 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
           <p className="py-8 text-center text-sm text-muted-foreground">
             {filterMode === "needsMyResponse"
               ? "Ningún estudiante está esperando respuesta tuya 🎉"
-              : "No hay comentarios abiertos 🎉"}
+              : filterMode === "studentNeedsResponse"
+                ? "No tienes conversaciones pendientes por responder 🎉"
+                : "No hay comentarios abiertos 🎉"}
           </p>
         ) : (
           <div className="space-y-4 min-w-0">

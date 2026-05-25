@@ -12,7 +12,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { OpenFeedbackModal } from "@/modules/grading/OpenFeedbackModal";
 import { PendingExamNotesModal } from "@/modules/exams/PendingExamNotesModal";
-import { pendingResponsesCount } from "@/modules/grading/feedback-stats";
+import {
+  pendingResponsesCount,
+  studentPendingResponseCount,
+} from "@/modules/grading/feedback-stats";
 import { AiGradingQueueWidget } from "@/modules/ai/AiGradingQueueWidget";
 import {
   FileText,
@@ -915,19 +918,20 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    ═══════════════════════════════════════════════════════════ */
 function StudentDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
   const [pendingProjects, setPendingProjects] = useState<any[]>([]);
   /** Próximas sesiones de asistencia en cursos donde estoy matriculado,
    *  con session_date >= hoy. Mirror del bloque del docente. */
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  /** Modal "Conversaciones pendientes" — abre OpenFeedbackModal con
+   *  filterMode='studentNeedsResponse'. */
+  const [pendingResponseModalOpen, setPendingResponseModalOpen] = useState(false);
   const [counts, setCounts] = useState({
-    /** Mensajes pendientes sin responder — mismo RPC que el docente
-     *  (`count_unanswered_conversations`), filtrado por `auth.uid()`. */
-    unansweredMessages: 0,
-    /** Sesiones de asistencia con `session_date = today` en mis cursos. */
-    todaySessions: 0,
+    /** Conversaciones pendientes: feedback_threads abiertos cuyo
+     *  último comentario es del docente (la pelota está en mi cancha).
+     *  Inversa del card del docente. */
+    pendingMyResponse: 0,
   });
 
   useEffect(() => {
@@ -1090,28 +1094,33 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       if (cancelled) return;
       setPendingProjects(pjs);
 
-      // Métricas tipo "docente": mensajes sin responder + sesiones hoy.
-      // El RPC count_unanswered_conversations es simétrico — filtra por
-      // auth.uid(), funciona igual para docente que para estudiante.
-      // Las sesiones de hoy las contamos limitando a cursos donde estoy
-      // matriculado (RLS de attendance_sessions es abierta, filtramos en
-      // cliente para no traer todo el campus).
-      const [unansweredRes, todaySess] = await Promise.all([
-        dbAny.rpc("count_unanswered_conversations"),
-        enrolledCourseIds.length
-          ? dbAny
-              .from("attendance_sessions")
-              .select("id", { count: "exact", head: true })
-              .eq("session_date", todayStr)
-              .in("course_id", enrolledCourseIds)
-          : Promise.resolve({ count: 0 }),
-      ]);
-      const unansweredCount = typeof unansweredRes.data === "number" ? unansweredRes.data : 0;
+      // Conversaciones pendientes — feedback_threads abiertos del
+      // estudiante donde el ÚLTIMO comentario es de un docente (la pelota
+      // está en mi cancha). RLS solo me trae mis threads.
+      const { data: openThreadsRes } = await dbAny
+        .from("feedback_threads")
+        .select("id")
+        .eq("closed", false);
+      const openThreadIds: string[] = ((openThreadsRes ?? []) as Array<{ id: string }>).map(
+        (r) => r.id,
+      );
+      let pendingMyResponse = 0;
+      if (openThreadIds.length > 0) {
+        const { data: cmts } = await dbAny
+          .from("feedback_comments")
+          .select("thread_id, author_role, created_at")
+          .in("thread_id", openThreadIds);
+        pendingMyResponse = studentPendingResponseCount(
+          openThreadIds,
+          (cmts ?? []) as Array<{
+            thread_id: string;
+            author_role: string | null;
+            created_at: string;
+          }>,
+        );
+      }
       if (cancelled) return;
-      setCounts({
-        unansweredMessages: unansweredCount,
-        todaySessions: todaySess.count ?? 0,
-      });
+      setCounts({ pendingMyResponse });
 
       // Próximas clases — top 8 sesiones >= hoy en mis cursos, ordenadas
       // por fecha y hora. Si no estoy matriculado en nada queda vacío.
@@ -1139,7 +1148,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
     // disponible. Cada card scrollea internamente su lista cuando hay
     // muchos items, sin empujar el botón "Ver todo" fuera de pantalla.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={FileText}
           label={t("dashboard.stats.pendingExams")}
@@ -1158,27 +1167,18 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           value={pendingProjects.length}
           color="text-rose-500 dark:text-rose-400"
         />
-        {/* Mensajes pendientes sin responder — mismo RPC que el docente.
-            Click abre /app/messages para ir directo a la bandeja. */}
+        {/* Conversaciones pendientes — threads abiertos del estudiante
+            donde el último comment fue del docente (estoy pendiente de
+            responder). Inversa del card del docente. Click → abre el
+            modal de OpenFeedbackModal con filterMode=needsMyResponse. */}
         <Stat
-          icon={Inbox}
-          label={t("dashboard.stats.unansweredMessages", {
-            defaultValue: "Mensajes pendientes sin responder",
+          icon={MessageSquareText}
+          label={t("dashboard.stats.conversationsPending", {
+            defaultValue: "Conversaciones pendientes",
           })}
-          value={counts.unansweredMessages}
-          color="text-amber-500 dark:text-amber-400"
-          onClick={() => void navigate({ to: "/app/messages" })}
-        />
-        {/* Sesiones de asistencia HOY en mis cursos matriculados.
-            Click → módulo de asistencia del estudiante. */}
-        <Stat
-          icon={CalendarClock}
-          label={t("dashboard.stats.todaySessions", {
-            defaultValue: "Sesiones hoy",
-          })}
-          value={counts.todaySessions}
-          color="text-blue-500 dark:text-blue-400"
-          onClick={() => void navigate({ to: "/app/student/attendance" })}
+          value={counts.pendingMyResponse}
+          color="text-sky-500 dark:text-sky-400"
+          onClick={() => setPendingResponseModalOpen(true)}
         />
       </div>
 
@@ -1393,6 +1393,15 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal "Conversaciones pendientes" — abre desde el stat tile.
+          Reutiliza OpenFeedbackModal con filterMode='studentNeedsResponse'
+          que filtra a threads donde el último comment es del docente. */}
+      <OpenFeedbackModal
+        open={pendingResponseModalOpen}
+        onOpenChange={setPendingResponseModalOpen}
+        filterMode="studentNeedsResponse"
+      />
     </div>
   );
 }

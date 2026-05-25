@@ -93,3 +93,23 @@ export function threadsPendingTeacherResponse(
   }
   return out;
 }
+
+/**
+ * Inversa de pendingResponsesCount — para el dashboard del ESTUDIANTE.
+ * Cuenta los threads abiertos cuyo último comentario SÍ es de un
+ * docente. Es decir: el docente respondió y la pelota está en la cancha
+ * del estudiante. Mismo predicado role-based (cualquier teacher cuenta).
+ */
+export function studentPendingResponseCount(
+  threadIds: readonly string[],
+  comments: readonly CommentLite[],
+): number {
+  if (threadIds.length === 0) return 0;
+  const idSet = new Set(threadIds);
+  const last = lastCommentByThread(comments.filter((c) => idSet.has(c.thread_id)));
+  let n = 0;
+  for (const [, c] of last) {
+    if (isTeacherComment(c)) n += 1;
+  }
+  return n;
+}
