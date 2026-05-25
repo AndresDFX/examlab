@@ -54,34 +54,26 @@ Estos son los contenidos generados por el docente para este curso. Al responder,
 // ── AI gateway: reutiliza el patrón del edge function de grading ──
 // Multi-tenant: hint para resolver ai_model_settings por tenant.
 
-interface AiModel {
-  provider: "openai" | "gemini" | "lovable";
-  model: string;
-}
-
 let requestModelHint: { courseId?: string | null; authHeader?: string | null } = {};
 function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
   requestModelHint = h;
 }
 
-async function getActiveAiModel(): Promise<AiModel> {
-  const m = await resolveActiveModel(requestModelHint);
-  return { provider: m.provider, model: m.model };
-}
-
 async function callAi(messages: Array<{ role: string; content: string }>) {
-  const m = await getActiveAiModel();
+  // Resolve modelo + API keys per-tenant (tutor-chat usa el shared helper
+  // que ya incluye lovable/openai/gemini keys del tenant).
+  const m = await resolveActiveModel(requestModelHint);
   let url: string;
   let key: string | undefined;
   if (m.provider === "openai") {
     url = "https://api.openai.com/v1/chat/completions";
-    key = Deno.env.get("OPENAI_API_KEY");
+    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
   } else if (m.provider === "gemini") {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = Deno.env.get("GEMINI_API_KEY");
+    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
   } else {
     url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = Deno.env.get("LOVABLE_API_KEY");
+    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
   }
   if (!key) throw new Error(`API key del provider ${m.provider} no configurada`);
 

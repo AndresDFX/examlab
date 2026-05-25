@@ -40,6 +40,9 @@ type ModelRow = {
   provider: Provider;
   model: string;
   is_active: boolean;
+  lovable_api_key: string | null;
+  openai_api_key: string | null;
+  gemini_api_key: string | null;
 };
 
 const PROVIDER_LABELS: Record<Provider, string> = {
@@ -65,6 +68,12 @@ export function AdminModelPanel() {
   const [activeRow, setActiveRow] = useState<ModelRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<Provider>("lovable");
   const [draftModel, setDraftModel] = useState<string>("google/gemini-2.5-flash");
+  // API keys per-tenant. Sentinel `"__keep"` indica "no cambiar la existente"
+  // (cuando el admin abre el panel sin tocar el campo, no la sobrescribimos).
+  // Cualquier otro string la reemplaza; "" la borra.
+  const [draftLovableKey, setDraftLovableKey] = useState<string>("__keep");
+  const [draftOpenaiKey, setDraftOpenaiKey] = useState<string>("__keep");
+  const [draftGeminiKey, setDraftGeminiKey] = useState<string>("__keep");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -75,7 +84,7 @@ export function AdminModelPanel() {
     setLoadError(null);
     const { data, error } = await db
       .from("ai_model_settings")
-      .select("id, provider, model, is_active")
+      .select("id, provider, model, is_active, lovable_api_key, openai_api_key, gemini_api_key")
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
@@ -88,6 +97,9 @@ export function AdminModelPanel() {
       setActiveRow(row);
       setDraftProvider(row.provider);
       setDraftModel(row.model);
+      setDraftLovableKey("__keep");
+      setDraftOpenaiKey("__keep");
+      setDraftGeminiKey("__keep");
     }
     setLoading(false);
   };
@@ -100,7 +112,15 @@ export function AdminModelPanel() {
   const dirty =
     !activeRow ||
     draftProvider !== activeRow.provider ||
-    draftModel !== activeRow.model;
+    draftModel !== activeRow.model ||
+    draftLovableKey !== "__keep" ||
+    draftOpenaiKey !== "__keep" ||
+    draftGeminiKey !== "__keep";
+
+  // Helper para mostrar "••••XXXX" cuando hay una key guardada pero el
+  // admin no la está editando. Si la key no existe, muestra placeholder.
+  const maskKey = (k: string | null | undefined): string =>
+    k && k.length > 4 ? `••••${k.slice(-4)}` : "";
 
   const handleProviderChange = (p: Provider) => {
     setDraftProvider(p);
@@ -117,6 +137,15 @@ export function AdminModelPanel() {
     }
     setSaving(true);
     try {
+      // Resolución de keys: si el admin no las tocó ("__keep"), heredan
+      // las del activeRow. Si las cambió, usa el nuevo valor (incluido "" = borrar).
+      const nextLovableKey =
+        draftLovableKey === "__keep" ? activeRow?.lovable_api_key ?? null : draftLovableKey || null;
+      const nextOpenaiKey =
+        draftOpenaiKey === "__keep" ? activeRow?.openai_api_key ?? null : draftOpenaiKey || null;
+      const nextGeminiKey =
+        draftGeminiKey === "__keep" ? activeRow?.gemini_api_key ?? null : draftGeminiKey || null;
+
       const { error: deactErr } = await db
         .from("ai_model_settings")
         .update({ is_active: false, updated_by: user.id })
@@ -130,6 +159,9 @@ export function AdminModelPanel() {
         model: draftModel.trim(),
         is_active: true,
         updated_by: user.id,
+        lovable_api_key: nextLovableKey,
+        openai_api_key: nextOpenaiKey,
+        gemini_api_key: nextGeminiKey,
       });
       if (insErr) {
         toast.error(friendlyError(insErr));
@@ -232,17 +264,46 @@ export function AdminModelPanel() {
           </datalist>
         </div>
 
+        {/* API keys per-tenant.
+            - Cada institución gestiona su propia key y sus propios
+              costos de IA.
+            - Si dejas un campo vacío, la edge cae al env legacy
+              (Lovable Secrets) — útil para tenant default + onboarding.
+            - "Mantener actual" significa: no tocar el valor previo.
+              Útil para edits parciales sin re-pegar la key. */}
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertDescription className="text-xs space-y-1">
-            <p>
-              La API key de <strong>{PROVIDER_LABELS[draftProvider]}</strong> se lee del secret{" "}
-              <code className="text-[11px]">{SECRET_NAME[draftProvider]}</code> configurado en
-              Lovable → Edge Function Secrets. Si está vacío o inválido, las llamadas de IA fallarán
-              con mensaje accionable.
-            </p>
+          <AlertDescription className="text-xs">
+            Configura las API keys de tu institución. Cada institución gestiona sus propias
+            keys y costos de IA. Si dejas un campo vacío al guardar, la plataforma cae al
+            secret configurado por el SuperAdmin (<code>{SECRET_NAME[draftProvider]}</code>).
           </AlertDescription>
         </Alert>
+
+        <ApiKeyInput
+          label="API key — Lovable AI Gateway"
+          stored={activeRow?.lovable_api_key ?? null}
+          value={draftLovableKey}
+          onChange={setDraftLovableKey}
+          maskFn={maskKey}
+          help="LOVABLE_API_KEY — créditos administrados por Lovable."
+        />
+        <ApiKeyInput
+          label="API key — OpenAI"
+          stored={activeRow?.openai_api_key ?? null}
+          value={draftOpenaiKey}
+          onChange={setDraftOpenaiKey}
+          maskFn={maskKey}
+          help="sk-... desde platform.openai.com. Cobra a tu cuenta OpenAI."
+        />
+        <ApiKeyInput
+          label="API key — Google Gemini (directo)"
+          stored={activeRow?.gemini_api_key ?? null}
+          value={draftGeminiKey}
+          onChange={setDraftGeminiKey}
+          maskFn={maskKey}
+          help="AIza... desde Google AI Studio. Cobra a tu proyecto GCP."
+        />
 
         <div className="flex flex-wrap gap-2 justify-end pt-1">
           {dirty && activeRow && (
@@ -265,5 +326,59 @@ export function AdminModelPanel() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * ApiKeyInput — campo para una API key con UX no-destructivo.
+ *
+ * Cuando hay una key guardada (stored != null) el placeholder muestra
+ * "••••XXXX" para no exponer la key completa. El admin puede:
+ *   - Dejar el campo en "Mantener actual" → no se modifica.
+ *   - Tipear una nueva key → reemplaza al guardar.
+ *   - Click "Borrar" → setea "" (vacío) → al guardar la columna queda NULL
+ *     y la edge cae al env legacy.
+ */
+function ApiKeyInput({
+  label,
+  stored,
+  value,
+  onChange,
+  maskFn,
+  help,
+}: {
+  label: string;
+  stored: string | null;
+  value: string;
+  onChange: (v: string) => void;
+  maskFn: (k: string | null) => string;
+  help?: string;
+}) {
+  const isKeep = value === "__keep";
+  const masked = maskFn(stored);
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          type="password"
+          value={isKeep ? "" : value}
+          placeholder={isKeep && masked ? masked : "Sin configurar — usa env legacy"}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 font-mono text-xs"
+        />
+        {!isKeep && (
+          <Button variant="ghost" size="sm" onClick={() => onChange("__keep")}>
+            Cancelar
+          </Button>
+        )}
+        {isKeep && stored && (
+          <Button variant="ghost" size="sm" onClick={() => onChange("")} title="Borrar y usar env legacy">
+            Borrar
+          </Button>
+        )}
+      </div>
+      {help && <p className="text-[11px] text-muted-foreground mt-1">{help}</p>}
+    </div>
   );
 }

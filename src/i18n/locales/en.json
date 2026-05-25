@@ -76,6 +76,7 @@
     "dashboard": "Dashboard",
     "users": "Users",
     "tenants": "Institutions",
+    "system": "System",
     "courses": "Courses",
     "exams": "Exams",
     "grades": "Grades",

@@ -74,6 +74,7 @@ import {
   Video,
   ListOrdered,
   Building2,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -315,6 +316,12 @@ const NAV: NavItem[] = [
     to: "/app/superadmin/tenants",
     labelKey: "nav.tenants",
     icon: Building2,
+    roles: ["SuperAdmin"],
+  },
+  {
+    to: "/app/superadmin/system",
+    labelKey: "nav.system",
+    icon: Wrench,
     roles: ["SuperAdmin"],
   },
   // Diagnóstico de infraestructura (`/app/admin/system`) ya no vive en

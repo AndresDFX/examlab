@@ -45,13 +45,13 @@ async function aiChat(messages: any[]): Promise<Response> {
   let key: string | undefined;
   if (m.provider === "openai") {
     url = "https://api.openai.com/v1/chat/completions";
-    key = Deno.env.get("OPENAI_API_KEY");
+    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
   } else if (m.provider === "gemini") {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = Deno.env.get("GEMINI_API_KEY");
+    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
   } else {
     url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = Deno.env.get("LOVABLE_API_KEY");
+    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
   }
   if (!key) throw new Error(`${m.provider.toUpperCase()}_API_KEY missing`);
   return fetch(url, {

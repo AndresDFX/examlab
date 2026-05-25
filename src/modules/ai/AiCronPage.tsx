@@ -75,6 +75,10 @@ interface Props {
   /** Admin habilita "Procesar ahora" (drain de toda la cola pending) y ve
    *  todos los jobs sin filtro de curso (RLS ya lo permite). */
   isAdmin?: boolean;
+  /** SuperAdmin muestra la tab "Tareas programadas" (pg_cron). Es
+   *  gestión de infraestructura — el Admin de un tenant no tiene
+   *  business viéndola. */
+  showInfraTab?: boolean;
 }
 
 type Status = "pending" | "processing" | "failed" | "done" | "cancelled";
@@ -170,19 +174,19 @@ function targetRouteForJob(
  * siendo `ai_cron` por compat (bookmarks, module_visibility, RBAC). No
  * "limpiar" la key sin migración.
  */
-export function AiCronPage({ isAdmin = false }: Props) {
+export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
   return (
     <div className="space-y-5">
       <PageHeader
         icon={<ListOrdered className="h-6 w-6 text-primary" />}
         title="Cola"
         subtitle={
-          isAdmin
+          showInfraTab
             ? "Cola de calificación con IA y tareas programadas de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."
             : "Cola de calificación con IA. Aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
         }
       />
-      {isAdmin ? (
+      {showInfraTab ? (
         <Tabs defaultValue="ia">
           <TabsList>
             <TabsTrigger value="ia" className="gap-1.5">
@@ -195,14 +199,14 @@ export function AiCronPage({ isAdmin = false }: Props) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="ia" className="space-y-4 mt-4">
-            <AiQueuePanel isAdmin />
+            <AiQueuePanel isAdmin={isAdmin} />
           </TabsContent>
           <TabsContent value="supabase" className="space-y-4 mt-4">
             <SupabaseCronPanel />
           </TabsContent>
         </Tabs>
       ) : (
-        <AiQueuePanel />
+        <AiQueuePanel isAdmin={isAdmin} />
       )}
     </div>
   );

@@ -37,6 +37,7 @@ import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.a
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
 import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cron'
 import { Route as AppSuperadminTenantsRouteImport } from './routes/app.superadmin.tenants'
+import { Route as AppSuperadminSystemRouteImport } from './routes/app.superadmin.system'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
@@ -207,6 +208,11 @@ const AppTeacherAiCronRoute = AppTeacherAiCronRouteImport.update({
 const AppSuperadminTenantsRoute = AppSuperadminTenantsRouteImport.update({
   id: '/superadmin/tenants',
   path: '/superadmin/tenants',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSuperadminSystemRoute = AppSuperadminSystemRouteImport.update({
+  id: '/superadmin/system',
+  path: '/superadmin/system',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
@@ -402,6 +408,7 @@ export interface FileRoutesByFullPath {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
@@ -461,6 +468,7 @@ export interface FileRoutesByTo {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
@@ -523,6 +531,7 @@ export interface FileRoutesById {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
@@ -586,6 +595,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/system'
     | '/app/superadmin/tenants'
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/system'
     | '/app/superadmin/tenants'
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
@@ -706,6 +717,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/system'
     | '/app/superadmin/tenants'
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
@@ -938,6 +950,13 @@ declare module '@tanstack/react-router' {
       path: '/superadmin/tenants'
       fullPath: '/app/superadmin/tenants'
       preLoaderRoute: typeof AppSuperadminTenantsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/superadmin/system': {
+      id: '/app/superadmin/system'
+      path: '/superadmin/system'
+      fullPath: '/app/superadmin/system'
+      preLoaderRoute: typeof AppSuperadminSystemRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/workshops': {
@@ -1211,6 +1230,7 @@ interface AppRouteChildren {
   AppStudentGradesRoute: typeof AppStudentGradesRoute
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
+  AppSuperadminSystemRoute: typeof AppSuperadminSystemRoute
   AppSuperadminTenantsRoute: typeof AppSuperadminTenantsRoute
   AppTeacherAiCronRoute: typeof AppTeacherAiCronRoute
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
@@ -1264,6 +1284,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentGradesRoute: AppStudentGradesRoute,
   AppStudentProjectsRoute: AppStudentProjectsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
+  AppSuperadminSystemRoute: AppSuperadminSystemRoute,
   AppSuperadminTenantsRoute: AppSuperadminTenantsRoute,
   AppTeacherAiCronRoute: AppTeacherAiCronRoute,
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,

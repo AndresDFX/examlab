@@ -24,7 +24,10 @@ export type AiProvider = "lovable" | "openai" | "gemini";
 export interface ActiveModel {
   provider: AiProvider;
   model: string;
+  /** API keys per-tenant. NULL → la edge cae al env legacy. */
   gemini_api_key: string | null;
+  openai_api_key: string | null;
+  lovable_api_key: string | null;
   /** Tenant resolved (null si fallback hardcoded). Útil para logging. */
   tenant_id: string | null;
 }
@@ -33,6 +36,8 @@ const DEFAULT_MODEL: ActiveModel = {
   provider: "lovable",
   model: "google/gemini-2.5-flash",
   gemini_api_key: null,
+  openai_api_key: null,
+  lovable_api_key: null,
   tenant_id: null,
 };
 
@@ -107,16 +112,24 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
   if (tenantId) {
     const { data } = await adminClient
       .from("ai_model_settings")
-      .select("provider, model, gemini_api_key")
+      .select("provider, model, gemini_api_key, openai_api_key, lovable_api_key")
       .eq("is_active", true)
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (data) {
-      const row = data as { provider: string; model: string; gemini_api_key: string | null };
+      const row = data as {
+        provider: string;
+        model: string;
+        gemini_api_key: string | null;
+        openai_api_key: string | null;
+        lovable_api_key: string | null;
+      };
       const resolved: ActiveModel = {
         provider: row.provider as AiProvider,
         model: row.model,
         gemini_api_key: row.gemini_api_key,
+        openai_api_key: row.openai_api_key,
+        lovable_api_key: row.lovable_api_key,
         tenant_id: tenantId,
       };
       cache.set(tenantId, resolved);

@@ -1,18 +1,23 @@
 /**
- * Configuración global (Admin).
+ * Configuración de la institución (Admin).
  *
- * Módulo central para parámetros operativos de la plataforma.
+ * Tabs operativos del Admin de un tenant. Las tabs de infra-platforma
+ * (Backups, Sistema, Secretos infra) viven en /app/superadmin/system —
+ * son responsabilidad del dueño de la plataforma, no del Admin de
+ * una institución individual.
+ *
  * Tabs:
  *   - Generales:     defaults de cursos/exámenes + alerta de volumen de correos.
+ *   - Institución:   branding + programas + asignaturas + periodos + certificados.
  *   - Correos:       kill switch global + toggles por categoría de email.
  *   - Compilador:    proveedor de ejecución de código.
- *   - Cola:          modo sync/async + códigos override.
+ *   - Modelo IA:     provider/modelo + API keys per-tenant (Gemini/OpenAI/Lovable).
+ *   - Cola IA:       modo sync/async + códigos override.
  *   - Auditoría:     retención de audit_logs por severidad.
- *   - Certificados:  parámetros del certificado de finalización.
- *   - Secretos:      keys de servicios externos (Lovable AI, Gemini, etc.).
  *   - Módulos:       visibilidad por rol.
- *   - Backups:       snapshots lógicos de la BD (manual + cron semanal).
- *   - Sistema:       diagnósticos generales (storage, edge functions, etc.).
+ *
+ * Movidas a SuperAdmin (/app/superadmin/system):
+ *   - Backups, Sistema, Secretos infra.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
@@ -24,11 +29,9 @@ import {
   Code2,
   ScrollText,
   Sliders,
-  KeyRound,
   Layers,
   ListOrdered,
-  Wrench,
-  Database,
+  Cpu,
   GraduationCap,
 } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
@@ -36,11 +39,9 @@ import { AdminCodeExecutionPanel } from "@/modules/admin/AdminCodeExecutionPanel
 import { AdminAuditRetentionPanel } from "@/modules/admin/AdminAuditRetentionPanel";
 import { AdminGeneralSettingsPanel } from "@/modules/admin/AdminGeneralSettingsPanel";
 import { AdminCertificateSettingsPanel } from "@/modules/admin/AdminCertificateSettingsPanel";
-import { AdminEdgeSecretsPanel } from "@/modules/admin/AdminEdgeSecretsPanel";
 import { AdminModuleVisibilityPanel } from "@/modules/admin/AdminModuleVisibilityPanel";
 import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
-import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
-import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
+import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
 import { AdminAcademicPeriodsPanel } from "@/modules/admin/AdminAcademicPeriodsPanel";
 import { AdminAcademicSubjectsPanel } from "@/modules/admin/AdminAcademicSubjectsPanel";
@@ -51,7 +52,7 @@ export const Route = createFileRoute("/app/admin/settings")({ component: AdminSe
 
 function AdminSettings() {
   const { roles } = useAuth();
-  const isAdmin = roles.includes("Admin");
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
@@ -60,13 +61,12 @@ function AdminSettings() {
       <PageHeader
         icon={<Settings className="h-6 w-6 text-indigo-500" />}
         title="Configuración"
-        subtitle="Parámetros operativos de la plataforma."
+        subtitle="Parámetros operativos de tu institución."
       />
 
       <Tabs defaultValue="general">
-        {/* Tabs en flex-wrap + h-auto: 10 pestañas no caben en una sola
-            fila en monitores estándar, así que dejamos que envuelvan a
-            varias filas en lugar de scroll horizontal. */}
+        {/* Tabs en flex-wrap + h-auto: caben en 1-2 filas según viewport,
+            sin scroll horizontal. */}
         <TabsList className="flex flex-wrap h-auto justify-start gap-1">
           <TabsTrigger value="general" className="gap-1.5">
             <Sliders className="h-3.5 w-3.5" />
@@ -89,41 +89,27 @@ function AdminSettings() {
             <Code2 className="h-3.5 w-3.5" />
             Compilador
           </TabsTrigger>
+          <TabsTrigger value="ai-model" className="gap-1.5">
+            <Cpu className="h-3.5 w-3.5" />
+            Modelo IA
+          </TabsTrigger>
           <TabsTrigger value="ai-grading" className="gap-1.5">
             <ListOrdered className="h-3.5 w-3.5" />
-            Cola
+            Cola IA
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />
             Auditoría
           </TabsTrigger>
-          <TabsTrigger value="secrets" className="gap-1.5">
-            <KeyRound className="h-3.5 w-3.5" />
-            Secretos
-          </TabsTrigger>
           <TabsTrigger value="modules" className="gap-1.5">
             <Layers className="h-3.5 w-3.5" />
             Módulos
-          </TabsTrigger>
-          <TabsTrigger value="backups" className="gap-1.5">
-            <Database className="h-3.5 w-3.5" />
-            Backups
-          </TabsTrigger>
-          <TabsTrigger value="system" className="gap-1.5">
-            <Wrench className="h-3.5 w-3.5" />
-            Sistema
           </TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-4 mt-4">
           <AdminGeneralSettingsPanel />
         </TabsContent>
         <TabsContent value="institution" className="space-y-4 mt-4">
-          {/* Programas + Asignaturas + Periodos + Certificaciones (datos
-              de la institución como nombre, logo, firma, etc.). Todos
-              cuelgan de la institución — el docente nunca los toca, son
-              del Admin. Mantener cards separados pero bajo el mismo tab
-              evita que el admin tenga que saltar entre tabs para
-              configurar cosas relacionadas. */}
           {/* Orden intencional: branding institucional primero (lo que
               el Admin edita cuando "configura su institución"), luego
               resumen integral, luego CRUDs académicos específicos. */}
@@ -140,23 +126,17 @@ function AdminSettings() {
         <TabsContent value="compiler" className="space-y-4 mt-4">
           <AdminCodeExecutionPanel />
         </TabsContent>
+        <TabsContent value="ai-model" className="space-y-4 mt-4">
+          <AdminModelPanel />
+        </TabsContent>
         <TabsContent value="ai-grading" className="space-y-4 mt-4">
           <AdminAiGradingPanel />
         </TabsContent>
         <TabsContent value="audit" className="space-y-4 mt-4">
           <AdminAuditRetentionPanel />
         </TabsContent>
-        <TabsContent value="secrets" className="space-y-4 mt-4">
-          <AdminEdgeSecretsPanel />
-        </TabsContent>
         <TabsContent value="modules" className="space-y-4 mt-4">
           <AdminModuleVisibilityPanel />
-        </TabsContent>
-        <TabsContent value="backups" className="space-y-4 mt-4">
-          <DbBackupsPanel />
-        </TabsContent>
-        <TabsContent value="system" className="space-y-4 mt-4">
-          <SystemDiagnosticsPanel />
         </TabsContent>
       </Tabs>
     </div>

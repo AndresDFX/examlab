@@ -56,22 +56,24 @@ async function aiChatCompletion(body: {
   const m = await getActiveAiModel();
   let url: string;
   let key: string | undefined;
+  // Per-tenant primero, env como fallback legacy.
   if (m.provider === "openai") {
     url = "https://api.openai.com/v1/chat/completions";
-    key = Deno.env.get("OPENAI_API_KEY");
-    if (!key) throw new Error("OPENAI_API_KEY missing. Configura el secret o cambia el provider.");
+    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
+    if (!key)
+      throw new Error("Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.");
   } else if (m.provider === "gemini") {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
     if (!key)
-      throw new Error(
-        "Falta la API key de Gemini. Configúrala en Admin → Configuración → Modelo IA.",
-      );
+      throw new Error("Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.");
   } else {
     url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = Deno.env.get("LOVABLE_API_KEY");
+    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
     if (!key)
-      throw new Error("LOVABLE_API_KEY missing. Configura el secret o cambia el provider.");
+      throw new Error(
+        "Falta la API key de Lovable AI Gateway. Configúrala en Configuración → Modelo IA.",
+      );
   }
   // El `model` final: si el caller pasó override, lo usa; si no, el de settings.
   const finalModel = body.modelOverride ?? m.model;
