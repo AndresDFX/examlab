@@ -29,6 +29,7 @@ import {
   ArrowRight,
   MessageSquareText,
   Reply,
+  User,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -77,10 +78,13 @@ interface Props {
   filterMode?: FeedbackFilterMode;
 }
 
+type GroupBy = "type" | "student";
+
 export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [threads, setThreads] = useState<ThreadRow[]>([]);
+  const [groupBy, setGroupBy] = useState<GroupBy>("type");
 
   useEffect(() => {
     if (!open) return;
@@ -371,12 +375,26 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
     }
   };
 
-  const groups: Record<ParentKind, ThreadRow[]> = {
+  const groupsByType: Record<ParentKind, ThreadRow[]> = {
     exam: [],
     workshop: [],
     project: [],
   };
-  threads.forEach((t) => groups[t.parent_kind].push(t));
+  threads.forEach((t) => groupsByType[t.parent_kind].push(t));
+
+  // Agrupación por estudiante: el "id de grupo" es studentUserId si existe;
+  // los threads cuyo dueño no se resolvió van a una sección "Sin estudiante".
+  const studentGroupsMap = new Map<string, { name: string; threads: ThreadRow[] }>();
+  threads.forEach((t) => {
+    const key = t.studentUserId ?? "__unknown__";
+    const name = t.studentName ?? "Estudiante desconocido";
+    const g = studentGroupsMap.get(key);
+    if (g) g.threads.push(t);
+    else studentGroupsMap.set(key, { name, threads: [t] });
+  });
+  const studentGroups = Array.from(studentGroupsMap.entries())
+    .map(([key, g]) => ({ key, ...g }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -411,41 +429,82 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
           </p>
         ) : (
           <div className="space-y-4 min-w-0">
-            {groups.exam.length > 0 && (
-              <Section
-                icon={FileText}
-                title="Exámenes"
-                color="text-violet-500 dark:text-violet-400"
-                count={groups.exam.length}
+            {/* Toggle de agrupación */}
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-muted-foreground mr-1">Agrupar por:</span>
+              <Button
+                size="sm"
+                variant={groupBy === "type" ? "secondary" : "ghost"}
+                className="h-7 px-2"
+                onClick={() => setGroupBy("type")}
               >
-                {groups.exam.map((t) => (
-                  <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
-                ))}
-              </Section>
-            )}
-            {groups.workshop.length > 0 && (
-              <Section
-                icon={Hammer}
-                title="Talleres"
-                color="text-amber-500 dark:text-amber-400"
-                count={groups.workshop.length}
+                Tipo
+              </Button>
+              <Button
+                size="sm"
+                variant={groupBy === "student" ? "secondary" : "ghost"}
+                className="h-7 px-2"
+                onClick={() => setGroupBy("student")}
               >
-                {groups.workshop.map((t) => (
-                  <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                Estudiante
+              </Button>
+            </div>
+
+            {groupBy === "type" ? (
+              <>
+                {groupsByType.exam.length > 0 && (
+                  <Section
+                    icon={FileText}
+                    title="Exámenes"
+                    color="text-violet-500 dark:text-violet-400"
+                    count={groupsByType.exam.length}
+                  >
+                    {groupsByType.exam.map((t) => (
+                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                    ))}
+                  </Section>
+                )}
+                {groupsByType.workshop.length > 0 && (
+                  <Section
+                    icon={Hammer}
+                    title="Talleres"
+                    color="text-amber-500 dark:text-amber-400"
+                    count={groupsByType.workshop.length}
+                  >
+                    {groupsByType.workshop.map((t) => (
+                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                    ))}
+                  </Section>
+                )}
+                {groupsByType.project.length > 0 && (
+                  <Section
+                    icon={FolderKanban}
+                    title="Proyectos"
+                    color="text-rose-500 dark:text-rose-400"
+                    count={groupsByType.project.length}
+                  >
+                    {groupsByType.project.map((t) => (
+                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                    ))}
+                  </Section>
+                )}
+              </>
+            ) : (
+              <>
+                {studentGroups.map((g) => (
+                  <Section
+                    key={g.key}
+                    icon={User}
+                    title={g.name}
+                    color="text-sky-500 dark:text-sky-400"
+                    count={g.threads.length}
+                  >
+                    {g.threads.map((t) => (
+                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} hideStudent />
+                    ))}
+                  </Section>
                 ))}
-              </Section>
-            )}
-            {groups.project.length > 0 && (
-              <Section
-                icon={FolderKanban}
-                title="Proyectos"
-                color="text-rose-500 dark:text-rose-400"
-                count={groups.project.length}
-              >
-                {groups.project.map((t) => (
-                  <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
-                ))}
-              </Section>
+              </>
             )}
           </div>
         )}
@@ -482,17 +541,30 @@ function Section({
   );
 }
 
-function ThreadRowItem({ thread, onGo }: { thread: ThreadRow; onGo: () => void }) {
+function ThreadRowItem({
+  thread,
+  onGo,
+  hideStudent,
+}: {
+  thread: ThreadRow;
+  onGo: () => void;
+  hideStudent?: boolean;
+}) {
   const lastWhen = thread.lastComment?.created_at ?? thread.created_at;
   const lastAuthor = thread.lastComment?.authorName;
+  // En el modo "Por estudiante" el nombre ya es el header de la sección,
+  // así que el título de la fila pasa a ser el ref (examen/taller/proyecto).
+  const primary = hideStudent
+    ? (thread.refTitle ?? "(eliminado)")
+    : (thread.studentName ?? "Estudiante");
+  const secondary = hideStudent
+    ? thread.courseName ?? ""
+    : `${thread.courseName ? `${thread.courseName} · ` : ""}${thread.refTitle ?? "(eliminado)"}`;
   return (
     <div className="flex w-full min-w-0 items-center gap-2 rounded-md border p-2.5">
       <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden">
-        <div className="text-sm font-medium truncate">{thread.studentName ?? "Estudiante"}</div>
-        <div className="text-xs text-muted-foreground truncate">
-          {thread.courseName ? `${thread.courseName} · ` : ""}
-          {thread.refTitle ?? "(eliminado)"}
-        </div>
+        <div className="text-sm font-medium truncate">{primary}</div>
+        <div className="text-xs text-muted-foreground truncate">{secondary}</div>
         {thread.questionTitle && (
           <div className="text-[11px] text-muted-foreground/80 truncate break-words">
             {thread.questionTitle}
