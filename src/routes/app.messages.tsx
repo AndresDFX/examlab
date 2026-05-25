@@ -66,6 +66,7 @@ import {
   MailOpen,
   Mail,
   MoreVertical,
+  ArrowLeft,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1022,8 +1023,15 @@ function MessagesPage() {
 
       <Card>
         <CardContent className="p-0 grid md:grid-cols-[280px_1fr] min-h-[60vh]">
-          {/* Lista de conversaciones */}
-          <div className="border-r min-h-[60vh] max-h-[75vh] overflow-y-auto">
+          {/* Lista de conversaciones — en mobile se oculta cuando hay
+              conv activa (single-pane navigation tipo iMessage). En md+
+              siempre visible. */}
+          <div
+            className={cn(
+              "border-r min-h-[60vh] max-h-[75vh] overflow-y-auto md:block",
+              activeConvId ? "hidden" : "block",
+            )}
+          >
             {loading ? (
               <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
                 <Spinner size="sm" /> Cargando…
@@ -1108,7 +1116,10 @@ function MessagesPage() {
                             }
                           }}
                           className={cn(
-                            "w-full text-left px-3 py-2.5 hover:bg-muted/40 transition-colors",
+                            // pr-10 reserva espacio para el kebab absoluto
+                            // (right-1 + w-7 ~ 36px) y que la fila de badges
+                            // no se solape con el botón.
+                            "w-full text-left pl-3 pr-10 py-2.5 hover:bg-muted/40 transition-colors",
                             isActive && !inSelectionMode && "bg-primary/5 border-l-2 border-primary",
                             isSelected && "bg-primary/10",
                           )}
@@ -1117,26 +1128,46 @@ function MessagesPage() {
                             {/* Checkbox: en modo selección reemplaza el ícono
                                 de rol; sino aparece en hover para iniciar
                                 selección. */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleConvSelected(c.conv.id);
-                              }}
-                              className={cn(
-                                "shrink-0 flex items-center justify-center w-4 h-4 rounded transition-opacity",
-                                inSelectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                              )}
-                              aria-label={isSelected ? "Quitar selección" : "Seleccionar"}
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="h-4 w-4 text-primary" />
-                              ) : (
-                                <Square className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </button>
-                            {!inSelectionMode && (
-                              <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:hidden" />
+                            {/* Checkbox + ícono de rol: en mobile, NO hay
+                                hover, así que NO ocultamos el ícono de rol
+                                ni mostramos el checkbox por hover. En su lugar
+                                damos un long-press / tap explícito desde el
+                                kebab para entrar en modo selección.
+                                En md+ usamos hover para no recargar la lista
+                                con dos columnas visibles. */}
+                            {inSelectionMode ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleConvSelected(c.conv.id);
+                                }}
+                                className="shrink-0 flex items-center justify-center w-4 h-4 rounded"
+                                aria-label={isSelected ? "Quitar selección" : "Seleccionar"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <Square className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </button>
+                            ) : (
+                              <>
+                                {/* mobile: ícono rol siempre visible.
+                                    desktop: checkbox aparece en hover. */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleConvSelected(c.conv.id);
+                                  }}
+                                  className="hidden md:group-hover:flex md:focus-visible:flex shrink-0 items-center justify-center w-4 h-4 rounded"
+                                  aria-label="Seleccionar"
+                                >
+                                  <Square className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                                <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 md:group-hover:hidden" />
+                              </>
                             )}
                             <span className="font-medium text-sm truncate flex-1">
                               {c.other.full_name ?? c.other.email ?? "Usuario"}
@@ -1186,14 +1217,14 @@ function MessagesPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="absolute right-1 top-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                className="absolute right-1 top-2 h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
                                 onClick={(e) => e.stopPropagation()}
                                 aria-label="Acciones de la conversación"
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuContent align="end" className="w-52">
                               {c.unread > 0 ? (
                                 <DropdownMenuItem
                                   onClick={async () => {
@@ -1213,6 +1244,15 @@ function MessagesPage() {
                                   Marcar como no leída
                                 </DropdownMenuItem>
                               )}
+                              {/* Entrar al modo selección. Disparador
+                                  principal en mobile (no hay hover) — desktop
+                                  también puede usarlo. */}
+                              <DropdownMenuItem
+                                onClick={() => toggleConvSelected(c.conv.id)}
+                              >
+                                <CheckSquare className="h-4 w-4 mr-2" />
+                                Seleccionar
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
@@ -1232,8 +1272,14 @@ function MessagesPage() {
             )}
           </div>
 
-          {/* Panel de chat */}
-          <div className="flex flex-col min-h-[60vh] max-h-[75vh]">
+          {/* Panel de chat — en mobile se oculta cuando NO hay conv
+              activa. En md+ siempre visible. */}
+          <div
+            className={cn(
+              "flex-col min-h-[60vh] max-h-[75vh] md:flex",
+              activeConvId ? "flex" : "hidden",
+            )}
+          >
             {!activeConv ? (
               <div className="flex-1 flex items-center justify-center p-6 text-sm text-muted-foreground">
                 Selecciona una conversación o inicia una nueva.
@@ -1241,8 +1287,20 @@ function MessagesPage() {
             ) : (
               <>
                 {/* Header */}
-                <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b">
-                  <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 border-b">
+                  {/* Back button: solo mobile — vuelve a la lista
+                      cerrando activeConvId. En md+ no se necesita
+                      porque la lista está siempre visible. */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="md:hidden shrink-0 h-8 w-8 p-0"
+                    onClick={() => setActiveConvId(null)}
+                    aria-label="Volver a la lista"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm truncate flex items-center gap-1.5">
                       {(() => {
                         const RI = ROLE_ICON[activeConv.other.role_label];

@@ -31,7 +31,7 @@ import {
   AlertTriangle,
   ArrowRight,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 
 const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   exam: FileText,
@@ -62,6 +62,10 @@ interface MessagesFabProps {
 export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
   const { user } = useAuth();
   const activeRole = useActiveRole();
+  const location = useLocation();
+  // En /app/messages el FAB es redundante (ya estás en mensajes) y
+  // en mobile se solapa con el composer del chat. Lo ocultamos.
+  const onMessagesPage = location.pathname.startsWith("/app/messages");
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(
     user?.id,
     activeRole,
@@ -96,6 +100,9 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
   // header ya cumple el mismo rol y no queremos duplicar el badge.
   // En mobile o desktop colapsado, lo mostramos.
   if (!user) return null;
+  // En /app/messages ocultamos el FAB en mobile (overlap con composer).
+  // En desktop con sidebar colapsado igual lo ocultamos (estás en mensajes).
+  if (onMessagesPage) return null;
   const hideOnDesktop = !sidebarCollapsed;
 
   const handleNotificationClick = (n: Notification) => {
