@@ -17,7 +17,10 @@ export interface RouteRule {
 }
 
 export const ROUTE_RULES: RouteRule[] = [
-  { prefix: "/app/admin", roles: ["Admin"] },
+  // SuperAdmin tiene acceso a TODO lo de Admin (es dueño de la plataforma,
+  // necesita poder hacer soporte cross-tenant) + rutas /app/superadmin.
+  { prefix: "/app/superadmin", roles: ["SuperAdmin"] },
+  { prefix: "/app/admin", roles: ["Admin", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },
   { prefix: "/app/student", roles: ["Estudiante"] },
   { prefix: "/app/unauthorized", roles: null },
@@ -61,10 +64,9 @@ export function checkAccess(
 export function homeForRole(role: AppRole | null): string {
   switch (role) {
     case "Admin":
-      return "/app";
     case "Docente":
-      return "/app";
     case "Estudiante":
+    case "SuperAdmin":
       return "/app";
     default:
       return "/auth";

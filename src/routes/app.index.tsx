@@ -61,6 +61,7 @@ function Dashboard() {
   const isAdmin = activeRole === "Admin";
   const isTeacher = activeRole === "Docente";
   const isStudent = activeRole === "Estudiante";
+  const isSuperAdmin = activeRole === "SuperAdmin";
 
   useEffect(() => {
     if (unreadCount > 0) {
@@ -84,14 +85,17 @@ function Dashboard() {
           {t("dashboard.hello")}, {profile?.full_name?.split(" ")[0] ?? "👋"}
         </h1>
         <p className="text-muted-foreground">
-          {isAdmin
-            ? t("dashboard.greetingAdmin")
-            : isTeacher
-              ? t("dashboard.greetingTeacher")
-              : t("dashboard.greetingStudent")}
+          {isSuperAdmin
+            ? t("dashboard.greetingSuperAdmin")
+            : isAdmin
+              ? t("dashboard.greetingAdmin")
+              : isTeacher
+                ? t("dashboard.greetingTeacher")
+                : t("dashboard.greetingStudent")}
         </p>
       </div>
 
+      {isSuperAdmin && <SuperAdminDashboard />}
       {isAdmin && <AdminDashboard />}
       {isTeacher && <TeacherDashboard userId={user?.id} />}
       {isStudent && <StudentDashboard userId={user?.id} />}
@@ -1475,5 +1479,210 @@ function EventRow({
       </div>
       {badge && <Badge className={`text-[10px] shrink-0 ${badgeColor}`}>{badge}</Badge>}
     </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SUPERADMIN DASHBOARD
+   ═══════════════════════════════════════════════════════════ */
+
+/**
+ * SuperAdminDashboard — vista global de la plataforma para el dueño.
+ *
+ * SuperAdmin = dueño de la plataforma (vos). Ve métricas agregadas
+ * cross-tenant para entender salud / volumen de uso. NO duplica el
+ * dashboard de Admin (al activeRole=Admin se ve ese); este es el
+ * "tablero del dueño" con stats que solo importan a nivel plataforma:
+ *   - # de instituciones activas
+ *   - # de usuarios totales
+ *   - # de cursos activos
+ *   - # de jobs IA pendientes (cross-tenant)
+ *   - # de tenants nuevos en los últimos 30 días
+ *
+ * Plus: lista de las últimas N instituciones creadas con quick access
+ * a "Ver como" o a editar.
+ */
+function SuperAdminDashboard() {
+  const [stats, setStats] = useState({
+    tenantsActive: 0,
+    tenantsInactive: 0,
+    usersTotal: 0,
+    coursesTotal: 0,
+    aiJobsPending: 0,
+    aiJobsFailed: 0,
+    newTenants30d: 0,
+  });
+  const [recentTenants, setRecentTenants] = useState<
+    Array<{ id: string; slug: string; name: string; is_active: boolean; created_at: string }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const [
+        tenantsActiveRes,
+        tenantsInactiveRes,
+        usersRes,
+        coursesRes,
+        aiPendingRes,
+        aiFailedRes,
+        newTenantsRes,
+        recentRes,
+      ] = await Promise.all([
+        dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", true),
+        dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", false),
+        dbAny.from("profiles").select("id", { count: "exact", head: true }),
+        dbAny.from("courses").select("id", { count: "exact", head: true }),
+        dbAny
+          .from("ai_grading_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
+        dbAny
+          .from("ai_grading_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "failed"),
+        dbAny
+          .from("tenants")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", since30),
+        dbAny
+          .from("tenants")
+          .select("id, slug, name, is_active, created_at")
+          .order("created_at", { ascending: false })
+          .limit(8),
+      ]);
+      if (cancelled) return;
+      setStats({
+        tenantsActive: tenantsActiveRes.count ?? 0,
+        tenantsInactive: tenantsInactiveRes.count ?? 0,
+        usersTotal: usersRes.count ?? 0,
+        coursesTotal: coursesRes.count ?? 0,
+        aiJobsPending: aiPendingRes.count ?? 0,
+        aiJobsFailed: aiFailedRes.count ?? 0,
+        newTenants30d: newTenantsRes.count ?? 0,
+      });
+      setRecentTenants((recentRes.data ?? []) as typeof recentTenants);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {/* Stat tiles: 4 columnas en desktop, 2 en mobile */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <SuperAdminStat
+          label="Instituciones"
+          value={loading ? "—" : String(stats.tenantsActive)}
+          sub={
+            stats.tenantsInactive > 0
+              ? `${stats.tenantsInactive} pausada${stats.tenantsInactive === 1 ? "" : "s"}`
+              : "todas activas"
+          }
+          color="text-violet-500"
+        />
+        <SuperAdminStat
+          label="Usuarios"
+          value={loading ? "—" : String(stats.usersTotal)}
+          sub="cross-tenant"
+          color="text-indigo-500"
+        />
+        <SuperAdminStat
+          label="Cursos"
+          value={loading ? "—" : String(stats.coursesTotal)}
+          sub="cross-tenant"
+          color="text-fuchsia-500"
+        />
+        <SuperAdminStat
+          label="Cola IA"
+          value={loading ? "—" : String(stats.aiJobsPending)}
+          sub={
+            stats.aiJobsFailed > 0
+              ? `${stats.aiJobsFailed} fallido${stats.aiJobsFailed === 1 ? "" : "s"}`
+              : "sin fallidos"
+          }
+          color={stats.aiJobsFailed > 0 ? "text-amber-500" : "text-emerald-500"}
+        />
+      </div>
+
+      {/* Card: instituciones recientes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base">Instituciones recientes</CardTitle>
+          <Link to="/app/superadmin/tenants">
+            <Button variant="ghost" size="sm" className="h-7 text-xs">
+              Ver todas →
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : recentTenants.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Sin instituciones todavía. Crea la primera desde el panel.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {recentTenants.map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-center justify-between gap-2 rounded-md border p-2.5"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{t.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      <code>/t/{t.slug}</code> · {formatDate(t.created_at)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {!t.is_active && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Pausada
+                      </Badge>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {stats.newTenants30d > 0 && !loading && (
+            <p className="text-[11px] text-muted-foreground mt-2">
+              {stats.newTenants30d} nueva{stats.newTenants30d === 1 ? "" : "s"} en los últimos
+              30 días.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SuperAdminStat({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  color: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+        <div className="text-[10px] text-muted-foreground/70 mt-1">{sub}</div>
+      </CardContent>
+    </Card>
   );
 }

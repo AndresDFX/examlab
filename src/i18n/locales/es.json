@@ -364,6 +364,7 @@
   },
   "dashboard": {
     "greetingAdmin": "Panel de administración",
+    "greetingSuperAdmin": "Panel SuperAdmin · vista global de la plataforma",
     "greetingTeacher": "Panel docente",
     "greetingStudent": "Tu espacio de estudio",
     "hello": "Hola",

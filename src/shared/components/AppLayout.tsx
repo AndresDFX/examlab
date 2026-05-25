@@ -620,6 +620,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (n.roles.length === 1 && n.roles[0] === "SuperAdmin") {
       return activeRole === "SuperAdmin";
     }
+    // SuperAdmin = dueño de la plataforma. Ve TODO lo que ve Admin
+    // (gestión de cursos, configuración, prompts, cola, informes, etc.)
+    // PLUS los items SuperAdmin-only. Operativamente trabaja sobre el
+    // tenant activo (el suyo por default, o el override via "Ver como").
+    // No le ocultamos los items Admin — al revés, los necesita para
+    // hacer soporte / configuración cross-tenant.
+    if (activeRole === "SuperAdmin" && n.roles.includes("Admin")) {
+      return true;
+    }
     if (!n.roles.includes(activeRole)) return false;
     // Banco de preguntas legacy: el admin puede esconderlo globalmente.
     if (n.to === "/app/teacher/question-bank" && !questionBankEnabled) return false;

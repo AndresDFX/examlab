@@ -24,7 +24,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Clock,
@@ -286,15 +285,10 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
               </div>
             </div>
 
-            {/* Badge informativo de jobs en cola (admin y docente). El
-                botón "Procesar ahora" se quitó del widget — la cola la
-                drena el cron horario; si se necesita disparar ad-hoc,
-                el módulo Cron tiene el ícono por fila. */}
-            {counts.pending + counts.failed > 0 && (
-              <Badge variant="outline" className="text-[10px] w-full justify-center py-1">
-                {counts.pending + counts.failed} en cola
-              </Badge>
-            )}
+            {/* Eliminamos el badge "X en cola": duplicaba la stat tile
+                superior "Pendientes" y el conteo de items renderizados
+                bajo "EN COLA". Tres copias del mismo número en el mismo
+                card era ruido visual. */}
             {activeRole && (
               <Link to={cronModulePath} className="block">
                 <Button variant="ghost" size="sm" className="w-full text-xs h-7">

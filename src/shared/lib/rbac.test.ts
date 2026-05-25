@@ -7,6 +7,7 @@ describe("findRouteRule", () => {
     expect(findRouteRule("/app/admin/users")?.prefix).toBe("/app/admin");
     expect(findRouteRule("/app/teacher/exams/123")?.prefix).toBe("/app/teacher");
     expect(findRouteRule("/app/student/take/abc")?.prefix).toBe("/app/student");
+    expect(findRouteRule("/app/superadmin/tenants")?.prefix).toBe("/app/superadmin");
   });
 
   it("falls back to /app for generic app routes", () => {
@@ -40,6 +41,29 @@ describe("checkAccess", () => {
     expect(checkAccess("/app", "Estudiante", ["Estudiante"])).toBeNull();
     expect(checkAccess("/app/unauthorized", "Estudiante", ["Estudiante"])).toBeNull();
   });
+
+  it("SuperAdmin accede a /app/admin (rutas Admin) y a /app/superadmin", () => {
+    expect(checkAccess("/app/admin/users", "SuperAdmin", ["SuperAdmin"])).toBeNull();
+    expect(checkAccess("/app/admin/settings", "SuperAdmin", ["SuperAdmin"])).toBeNull();
+    expect(
+      checkAccess("/app/superadmin/tenants", "SuperAdmin", ["SuperAdmin"]),
+    ).toBeNull();
+  });
+
+  it("Admin NO accede a /app/superadmin (es cross-tenant)", () => {
+    expect(checkAccess("/app/superadmin/tenants", "Admin", ["Admin"])).toBe(
+      "/app/unauthorized",
+    );
+  });
+
+  it("Docente y Estudiante NO acceden a /app/superadmin", () => {
+    expect(checkAccess("/app/superadmin/tenants", "Docente", ["Docente"])).toBe(
+      "/app/unauthorized",
+    );
+    expect(
+      checkAccess("/app/superadmin/tenants", "Estudiante", ["Estudiante"]),
+    ).toBe("/app/unauthorized");
+  });
 });
 
 describe("homeForRole", () => {
@@ -47,6 +71,7 @@ describe("homeForRole", () => {
     expect(homeForRole("Admin")).toBe("/app");
     expect(homeForRole("Docente")).toBe("/app");
     expect(homeForRole("Estudiante")).toBe("/app");
+    expect(homeForRole("SuperAdmin")).toBe("/app");
   });
 
   it("returns /auth when there is no role", () => {
