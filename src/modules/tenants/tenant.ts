@@ -26,11 +26,44 @@ export interface Tenant {
   slug: string;
   name: string;
   logo_url: string | null;
+  /** Path dentro del bucket `tenant-logos`. Si está seteado, el cliente
+   *  resuelve la URL pública con `supabase.storage.from('tenant-logos').getPublicUrl(logo_path)`. */
+  logo_path: string | null;
   primary_color: string | null;
+  /** Color secundario (acento) hex. Se aplica como `--brand-secondary`
+   *  en el theme. */
+  secondary_color: string | null;
   email_domain: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Helper: resuelve la URL renderizable del logo del tenant.
+ *   1. Si tiene logo_path → URL publica del bucket Storage.
+ *   2. Si tiene logo_url externa (legacy) → la usa directa.
+ *   3. Si nada → null (el caller pinta fallback con iniciales o "ExamLab" plano).
+ *
+ * Necesita el cliente de Supabase para resolver la URL del bucket.
+ */
+export function resolveTenantLogoUrl(
+  tenant: Pick<Tenant, "logo_path" | "logo_url"> | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseClient: any,
+): string | null {
+  if (!tenant) return null;
+  if (tenant.logo_path) {
+    try {
+      const { data } = supabaseClient.storage
+        .from("tenant-logos")
+        .getPublicUrl(tenant.logo_path);
+      return (data?.publicUrl as string | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  }
+  return tenant.logo_url ?? null;
 }
 
 /** Validación de slug — debe coincidir con el CHECK en SQL. */

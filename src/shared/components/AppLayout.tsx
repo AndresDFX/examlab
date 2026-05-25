@@ -1,6 +1,8 @@
 import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/modules/tenants/use-tenant";
+import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
 import {
@@ -417,6 +419,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const confirm = useConfirm();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const currentLang = (i18n.language.slice(0, 2) as SupportedLanguage) ?? "es";
+  // Branding del tenant: logo + nombre. Si no hay (loading o sin
+  // configurar), caemos al fallback GraduationCap + "Plataforma de exámenes".
+  const { tenant } = useTenant();
+  const tenantLogoUrl = resolveTenantLogoUrl(tenant, supabase);
   // Toast efímero en realtime cuando llega un mensaje y NO estoy ya
   // viendo /app/messages. La notificación persistente para el bell la
   // crea el trigger SQL `tg_notify_new_message`.
@@ -683,13 +689,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="px-4 py-3 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm shrink-0">
-              <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
+            {/* Logo del tenant si está configurado, sino fallback al
+                ícono de plataforma. El logo entra como <img> con
+                object-contain para no deformar PNG/SVG con aspect ratio
+                distinto del cuadrado. */}
+            {tenantLogoUrl ? (
+              <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+                <img
+                  src={tenantLogoUrl}
+                  alt={tenant?.name ?? "Logo institución"}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div
+                className="h-8 w-8 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm shrink-0"
+                style={
+                  tenant?.primary_color
+                    ? { background: tenant.primary_color }
+                    : undefined
+                }
+              >
+                <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="font-semibold tracking-tight text-sm">ExamLab</div>
-              <div className="text-[10px] text-sidebar-foreground/50 tracking-wide truncate">
-                Plataforma de exámenes
+              <div className="text-[10px] text-sidebar-foreground/60 tracking-wide truncate">
+                {tenant?.name ?? "Plataforma de exámenes"}
               </div>
             </div>
             <Button
@@ -950,15 +977,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <SheetHeader className="px-5 py-5 border-b border-sidebar-border text-left">
                 <div className="flex items-center gap-2">
-                  <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm">
-                    <GraduationCap className="h-5 w-5 text-sidebar-primary-foreground" />
-                  </div>
+                  {tenantLogoUrl ? (
+                    <div className="h-9 w-9 rounded-lg bg-white/5 flex items-center justify-center shadow-sm overflow-hidden">
+                      <img
+                        src={tenantLogoUrl}
+                        alt={tenant?.name ?? "Logo institución"}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="h-9 w-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm"
+                      style={
+                        tenant?.primary_color
+                          ? { background: tenant.primary_color }
+                          : undefined
+                      }
+                    >
+                      <GraduationCap className="h-5 w-5 text-sidebar-primary-foreground" />
+                    </div>
+                  )}
                   <div>
                     <SheetTitle className="text-sidebar-foreground tracking-tight text-base">
                       ExamLab
                     </SheetTitle>
-                    <div className="text-[10px] text-sidebar-foreground/50 tracking-wide">
-                      {t("auth.brandSubtitle")}
+                    <div className="text-[10px] text-sidebar-foreground/60 tracking-wide">
+                      {tenant?.name ?? t("auth.brandSubtitle")}
                     </div>
                   </div>
                 </div>
@@ -1105,10 +1149,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </Sheet>
 
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-7 w-7 rounded-md bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shrink-0">
-              <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
+            {tenantLogoUrl ? (
+              <div className="h-7 w-7 rounded-md bg-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                <img
+                  src={tenantLogoUrl}
+                  alt={tenant?.name ?? "Logo"}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div
+                className="h-7 w-7 rounded-md bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shrink-0"
+                style={
+                  tenant?.primary_color
+                    ? { background: tenant.primary_color }
+                    : undefined
+                }
+              >
+                <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="font-semibold truncate leading-tight">ExamLab</div>
+              {tenant?.name && (
+                <div className="text-[10px] text-sidebar-foreground/60 truncate leading-tight">
+                  {tenant.name}
+                </div>
+              )}
             </div>
-            <span className="font-semibold truncate">ExamLab</span>
           </div>
         </div>
 

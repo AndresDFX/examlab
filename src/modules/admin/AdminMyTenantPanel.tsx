@@ -25,16 +25,17 @@
  * server-side: el caller debe tener rol Admin y el tenant_id debe ser
  * el suyo.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/modules/tenants/use-tenant";
+import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SectionLoader } from "@/components/ui/loaders";
 import { ErrorState } from "@/components/ui/empty-state";
-import { Save, Building2 } from "lucide-react";
+import { Save, Building2, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 
@@ -44,7 +45,10 @@ const db = supabase as any;
 interface FormState {
   name: string;
   logo_url: string;
+  /** Path en bucket tenant-logos. Lo setea uploadLogo / removeLogo. */
+  logo_path: string;
   primary_color: string;
+  secondary_color: string;
   email_domain: string;
 }
 
@@ -53,21 +57,81 @@ export function AdminMyTenantPanel() {
   const [form, setForm] = useState<FormState>({
     name: "",
     logo_url: "",
+    logo_path: "",
     primary_color: "",
+    secondary_color: "",
     email_domain: "",
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (tenant) {
       setForm({
         name: tenant.name,
         logo_url: tenant.logo_url ?? "",
+        logo_path: tenant.logo_path ?? "",
         primary_color: tenant.primary_color ?? "",
+        secondary_color: tenant.secondary_color ?? "",
         email_domain: tenant.email_domain ?? "",
       });
     }
   }, [tenant]);
+
+  // URL renderizable del logo CURRENT (lo que esta guardado, no el draft).
+  // Tras subir el logo, esta URL se actualiza al refetch del tenant.
+  const currentLogoUrl = resolveTenantLogoUrl(tenant, supabase);
+
+  /**
+   * Sube un archivo de imagen al bucket tenant-logos.
+   * Path: <tenant_id>/logo.<ext>. Upsert = sobrescribe el anterior.
+   * Guarda la nueva ruta en form.logo_path para que al "Guardar" se
+   * persista en tenants.logo_path.
+   */
+  const uploadLogo = async (file: File) => {
+    if (!tenant) return;
+    const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Formato no soportado. Usa PNG, JPG, SVG o WebP.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("El logo no puede pesar más de 2 MB.");
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      // Extraemos la extensión del MIME (más confiable que el nombre).
+      const ext =
+        file.type === "image/png"
+          ? "png"
+          : file.type === "image/jpeg"
+            ? "jpg"
+            : file.type === "image/svg+xml"
+              ? "svg"
+              : "webp";
+      const path = `${tenant.id}/logo.${ext}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: upErr } = await (supabase.storage as any)
+        .from("tenant-logos")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) {
+        toast.error(friendlyError(upErr, "No se pudo subir el logo"));
+        return;
+      }
+      setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
+      toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeLogo = () => {
+    setForm((p) => ({ ...p, logo_path: "", logo_url: "" }));
+    toast.info("Logo removido. 'Guardar' para aplicar.");
+  };
 
   if (loading) return <SectionLoader text="Cargando datos de la institución…" />;
   if (error || !tenant) {
@@ -95,6 +159,8 @@ export function AdminMyTenantPanel() {
       _logo_url: form.logo_url.trim() || null,
       _primary_color: form.primary_color.trim() || null,
       _email_domain: form.email_domain.trim().toLowerCase() || null,
+      _secondary_color: form.secondary_color.trim() || null,
+      _logo_path: form.logo_path.trim() || null,
     });
     setSaving(false);
     if (rpcErr) {
@@ -133,41 +199,112 @@ export function AdminMyTenantPanel() {
         </div>
 
         <div>
-          <Label>Logo (URL)</Label>
-          <Input
-            value={form.logo_url}
-            onChange={(e) => setForm((p) => ({ ...p, logo_url: e.target.value }))}
-            placeholder="https://…/logo.png"
-          />
-          {form.logo_url && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              Preview:
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={form.logo_url}
-                alt="Logo"
-                className="h-10 w-10 object-contain border rounded bg-background"
+          <Label>Logo institucional</Label>
+          <div className="flex items-center gap-3 mt-1">
+            {/* Preview del logo guardado (resuelto via Storage) o
+                placeholder si no hay todavía. */}
+            {currentLogoUrl || form.logo_path ? (
+              <div className="h-16 w-16 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src={
+                    currentLogoUrl ??
+                    (form.logo_path
+                      ? supabase.storage.from("tenant-logos").getPublicUrl(form.logo_path).data
+                          ?.publicUrl
+                      : "")
+                  }
+                  alt={form.name}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="h-16 w-16 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+                Sin logo
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadLogo(f);
+                }}
               />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1" />
+                  {uploadingLogo ? "Subiendo…" : "Subir logo"}
+                </Button>
+                {(currentLogoUrl || form.logo_path) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={removeLogo}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Quitar
+                  </Button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                PNG, JPG, SVG o WebP · máximo 2 MB. Aparece en el header de
+                la app y en el login para usuarios de tu institución.
+              </p>
             </div>
-          )}
+          </div>
         </div>
 
-        <div>
-          <Label>Color primario (hex)</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              value={form.primary_color}
-              onChange={(e) => setForm((p) => ({ ...p, primary_color: e.target.value }))}
-              placeholder="#3B82F6"
-              className="flex-1"
-            />
-            {/^#[0-9a-fA-F]{6}$/.test(form.primary_color.trim()) && (
-              <div
-                className="h-9 w-9 rounded border shrink-0"
-                style={{ backgroundColor: form.primary_color.trim() }}
-                title={form.primary_color.trim()}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label>Color primario (hex)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={form.primary_color}
+                onChange={(e) => setForm((p) => ({ ...p, primary_color: e.target.value }))}
+                placeholder="#3B82F6"
+                className="flex-1 font-mono text-xs"
               />
-            )}
+              {/^#[0-9a-fA-F]{6}$/.test(form.primary_color.trim()) && (
+                <div
+                  className="h-9 w-9 rounded border shrink-0"
+                  style={{ backgroundColor: form.primary_color.trim() }}
+                  title={form.primary_color.trim()}
+                />
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Color principal de la marca. Aplica en acentos / botones primarios.
+            </p>
+          </div>
+          <div>
+            <Label>Color secundario (hex)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={form.secondary_color}
+                onChange={(e) => setForm((p) => ({ ...p, secondary_color: e.target.value }))}
+                placeholder="#8B5CF6"
+                className="flex-1 font-mono text-xs"
+              />
+              {/^#[0-9a-fA-F]{6}$/.test(form.secondary_color.trim()) && (
+                <div
+                  className="h-9 w-9 rounded border shrink-0"
+                  style={{ backgroundColor: form.secondary_color.trim() }}
+                  title={form.secondary_color.trim()}
+                />
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Color de acento opcional. Usado en hovers y badges secundarios.
+            </p>
           </div>
         </div>
 

@@ -69,6 +69,7 @@ function SuperAdminTenantsPage() {
     name: "",
     logo_url: "",
     primary_color: "",
+    secondary_color: "",
     email_domain: "",
   });
   const [saving, setSaving] = useState(false);
@@ -103,7 +104,14 @@ function SuperAdminTenantsPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ slug: "", name: "", logo_url: "", primary_color: "", email_domain: "" });
+    setForm({
+      slug: "",
+      name: "",
+      logo_url: "",
+      primary_color: "",
+      secondary_color: "",
+      email_domain: "",
+    });
     setDialogOpen(true);
   };
 
@@ -114,6 +122,7 @@ function SuperAdminTenantsPage() {
       name: t.name,
       logo_url: t.logo_url ?? "",
       primary_color: t.primary_color ?? "",
+      secondary_color: t.secondary_color ?? "",
       email_domain: t.email_domain ?? "",
     });
     setDialogOpen(true);
@@ -136,6 +145,7 @@ function SuperAdminTenantsPage() {
       name: form.name.trim(),
       logo_url: form.logo_url.trim() || null,
       primary_color: form.primary_color.trim() || null,
+      secondary_color: form.secondary_color.trim() || null,
       email_domain: form.email_domain.trim().toLowerCase() || null,
     };
     if (editing) {
@@ -351,14 +361,30 @@ function SuperAdminTenantsPage() {
                 placeholder="https://.../logo.png"
               />
             </div>
-            <div>
-              <Label>Color primario (hex)</Label>
-              <Input
-                value={form.primary_color}
-                onChange={(e) => setForm((p) => ({ ...p, primary_color: e.target.value }))}
-                placeholder="#3B82F6"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label>Color primario (hex)</Label>
+                <Input
+                  value={form.primary_color}
+                  onChange={(e) => setForm((p) => ({ ...p, primary_color: e.target.value }))}
+                  placeholder="#3B82F6"
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <Label>Color secundario (hex)</Label>
+                <Input
+                  value={form.secondary_color}
+                  onChange={(e) => setForm((p) => ({ ...p, secondary_color: e.target.value }))}
+                  placeholder="#8B5CF6"
+                  className="font-mono text-xs"
+                />
+              </div>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Para subir el logo como archivo, deja que el Admin de la institución
+              lo configure desde su panel <code>Configuración → Institución</code>.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>

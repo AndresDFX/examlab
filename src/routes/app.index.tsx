@@ -36,6 +36,9 @@ import {
   Search,
   ListOrdered,
   RefreshCw,
+  Building2,
+  Users as UsersIcon,
+  BookOpen,
 } from "lucide-react";
 
 /** Formato relativo simple ("ahora", "5m", "2h", "1d"). Duplicado del
@@ -277,10 +280,10 @@ function AdminDashboard() {
     // ahora desde /app/admin/audit-logs con filtro severity=error.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
       {/* Row PRIMARIA (arriba) — 5 mini-stats de operación.
-          Errores / Calificaciones / Respuestas IA / Plagio (todos 24h)
-          + Pendientes docentes (estado global agregado, no ventana).
+          Errores / Respuestas IA / Plagio (todos 24h) + Pendientes
+          docentes (estado global agregado, no ventana).
           NO ocupan flex-1 — alto natural. */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={AlertTriangle}
           label="Errores IA (24h)"
@@ -672,7 +675,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     // automáticamente (cada card scrollea internamente). min-h-0
     // permite el shrinking dentro del padre flex.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={FileText}
           label={t("dashboard.stats.pendingExamNotes", {
@@ -707,17 +710,11 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-rose-500 dark:text-rose-400"
           onClick={() => setPendingResponseModalOpen(true)}
         />
-        <Stat
-          icon={MessageSquareText}
-          label={t("dashboard.stats.openThreads", {
-            defaultValue: "Comentarios abiertos",
-          })}
-          value={counts.openThreads}
-          color="text-pink-500 dark:text-pink-400"
-          onClick={() => setOpenFeedbackModalOpen(true)}
-        />
         {/* Sesiones de asistencia HOY en mis cursos. Click → módulo
-            de asistencia para tomar la lista o cerrar el check-in. */}
+            de asistencia para tomar la lista o cerrar el check-in.
+            "Comentarios abiertos" (metric) se removió: era redundante
+            con "Pendientes por respuesta" que es accionable; el modal
+            sigue accesible por click directo en la card de pendientes. */}
         <Stat
           icon={CalendarClock}
           label={t("dashboard.stats.todaySessions", {
@@ -1414,12 +1411,16 @@ function Stat({
   icon: Icon,
   label,
   value,
+  sub,
   color = "text-primary",
   onClick,
 }: {
   icon: any;
   label: string;
-  value: number;
+  value: number | string;
+  /** Línea secundaria debajo del valor (ej. "todas activas", "8 de 24").
+   *  Opcional — solo se muestra si se pasa. */
+  sub?: string;
   color?: string;
   onClick?: () => void;
 }) {
@@ -1434,13 +1435,16 @@ function Stat({
       }
     >
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground truncate">{label}</div>
             <div className="text-2xl font-semibold tabular-nums">{value}</div>
+            {sub && (
+              <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{sub}</div>
+            )}
           </div>
           <div
-            className={`h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center ${color}`}
+            className={`h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 ${color}`}
           >
             <Icon className="h-4.5 w-4.5" />
           </div>
@@ -1572,39 +1576,50 @@ function SuperAdminDashboard() {
 
   return (
     <div className="space-y-4">
-      {/* Stat tiles: 4 columnas en desktop, 2 en mobile */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SuperAdminStat
+      {/* Stat tiles: 4 columnas en desktop, 2 en mobile. Reutilizan el
+          mismo componente <Stat> que el resto de dashboards para tener
+          look-and-feel idéntico (mismo padding, icono a la derecha,
+          color del icono, hover state). */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat
+          icon={Building2}
           label="Instituciones"
-          value={loading ? "—" : String(stats.tenantsActive)}
+          value={loading ? "—" : stats.tenantsActive}
           sub={
             stats.tenantsInactive > 0
               ? `${stats.tenantsInactive} pausada${stats.tenantsInactive === 1 ? "" : "s"}`
               : "todas activas"
           }
-          color="text-violet-500"
+          color="text-violet-500 dark:text-violet-400"
         />
-        <SuperAdminStat
+        <Stat
+          icon={UsersIcon}
           label="Usuarios"
-          value={loading ? "—" : String(stats.usersTotal)}
+          value={loading ? "—" : stats.usersTotal}
           sub="cross-tenant"
-          color="text-indigo-500"
+          color="text-indigo-500 dark:text-indigo-400"
         />
-        <SuperAdminStat
+        <Stat
+          icon={BookOpen}
           label="Cursos"
-          value={loading ? "—" : String(stats.coursesTotal)}
+          value={loading ? "—" : stats.coursesTotal}
           sub="cross-tenant"
-          color="text-fuchsia-500"
+          color="text-fuchsia-500 dark:text-fuchsia-400"
         />
-        <SuperAdminStat
+        <Stat
+          icon={ListOrdered}
           label="Cola IA"
-          value={loading ? "—" : String(stats.aiJobsPending)}
+          value={loading ? "—" : stats.aiJobsPending}
           sub={
             stats.aiJobsFailed > 0
               ? `${stats.aiJobsFailed} fallido${stats.aiJobsFailed === 1 ? "" : "s"}`
               : "sin fallidos"
           }
-          color={stats.aiJobsFailed > 0 ? "text-amber-500" : "text-emerald-500"}
+          color={
+            stats.aiJobsFailed > 0
+              ? "text-amber-500 dark:text-amber-400"
+              : "text-emerald-500 dark:text-emerald-400"
+          }
         />
       </div>
 
@@ -1661,24 +1676,3 @@ function SuperAdminDashboard() {
   );
 }
 
-function SuperAdminStat({
-  label,
-  value,
-  sub,
-  color,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  color: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-3">
-        <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
-        <div className="text-[10px] text-muted-foreground/70 mt-1">{sub}</div>
-      </CardContent>
-    </Card>
-  );
-}
