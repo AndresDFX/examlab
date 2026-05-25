@@ -72,6 +72,9 @@ type Row = {
   cohorte: string | null;
   estado: StudentEstado | null;
   programa_id: string | null;
+  /** Tenant del usuario (Fase 1 multi-tenant). Para Admin viene siempre
+   *  el suyo (RLS filtra); para SuperAdmin viene cross-tenant. */
+  tenant_id: string | null;
 };
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante", "SuperAdmin"];
@@ -94,6 +97,7 @@ const EMPTY_NEW: Row = {
   cohorte: null,
   estado: null,
   programa_id: null,
+  tenant_id: null,
 };
 
 const USERS_TEMPLATE_CSV = toCSV([
@@ -123,22 +127,40 @@ function AdminUsers() {
   // Programas activos para el dropdown de identidad estudiantil.
   // Se cargan en `load` junto con los perfiles.
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
+  // Tenants visibles para el caller. Solo el SuperAdmin ve TODAS las
+  // instituciones (via RLS); el Admin normal solo ve la suya. Cuando el
+  // SuperAdmin tiene >1 tenant cargado, exponemos un filtro arriba del
+  // grid para acotar la vista — sin él la lista cross-tenant puede ser
+  // ruidosa.
+  const [tenants, setTenants] = useState<
+    Array<{ id: string; slug: string; name: string }>
+  >([]);
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const isSuperAdminCaller = roles.includes("SuperAdmin");
   const confirm = useConfirm();
   // Filtramos por nombre + ambos correos + rol. case-insensitive,
   // includes (no prefix). Cualquier match en cualquier campo cuenta —
   // los admins suelen buscar por nombre parcial o pedazo de email
   // (dominio, prefijo) sin recordar el campo exacto.
+  // SuperAdmin: filtramos también por tenant si seleccionó uno (default
+  // 'all' = cross-tenant view).
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter(
-      (r) =>
-        r.full_name.toLowerCase().includes(q) ||
-        r.institutional_email.toLowerCase().includes(q) ||
-        (r.personal_email?.toLowerCase().includes(q) ?? false) ||
-        r.roles.some((role) => role.toLowerCase().includes(q)),
-    );
-  }, [rows, search]);
+    let out = rows;
+    if (tenantFilter !== "all") {
+      out = out.filter((r) => r.tenant_id === tenantFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      out = out.filter(
+        (r) =>
+          r.full_name.toLowerCase().includes(q) ||
+          r.institutional_email.toLowerCase().includes(q) ||
+          (r.personal_email?.toLowerCase().includes(q) ?? false) ||
+          r.roles.some((role) => role.toLowerCase().includes(q)),
+      );
+    }
+    return out;
+  }, [rows, search, tenantFilter]);
   // El multi-select trabaja sobre la lista visible. Si seleccioné todo
   // con un filtro activo, "seleccionar todos" se refiere a lo filtrado.
   const sel = useMultiSelect(filteredRows);
@@ -223,6 +245,14 @@ function AdminUsers() {
       .eq("active", true)
       .order("name");
     setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
+    // Tenants visibles (RLS-filtrado): Admin ve solo el suyo; SuperAdmin
+    // ve todos. Solo expone el filtro cuando hay >1 institución cargada.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tens } = await (supabase as any)
+      .from("tenants")
+      .select("id, slug, name")
+      .order("name");
+    setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
     setLoading(false);
   };
 
@@ -603,11 +633,32 @@ function AdminUsers() {
         }
       />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por nombre, correo o rol…"
-      />
+      <div className="flex flex-col sm:flex-row gap-2">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por nombre, correo o rol…"
+          className="flex-1"
+        />
+        {/* Filtro de tenant solo se muestra al SuperAdmin con >1 tenant
+            cargado. Admin normal ve solo su tenant; ocultar el filtro
+            evita un dropdown deshabilitado de 1 opción. */}
+        {isSuperAdminCaller && tenants.length > 1 && (
+          <Select value={tenantFilter} onValueChange={setTenantFilter}>
+            <SelectTrigger className="sm:w-64">
+              <SelectValue placeholder="Todas las instituciones" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las instituciones</SelectItem>
+              {tenants.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       <MultiSelectToolbar
         count={sel.count}
@@ -640,13 +691,19 @@ function AdminUsers() {
                     <TableHead className="hidden xs:table-cell w-40">
                       {t("common.roles")}
                     </TableHead>
+                    {/* Columna Institución solo visible al SuperAdmin
+                        con cross-tenant view. Para el Admin normal es
+                        siempre su tenant (redundante). */}
+                    {isSuperAdminCaller && tenants.length > 1 && (
+                      <TableHead className="hidden lg:table-cell w-40">Institución</TableHead>
+                    )}
                     <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRows.length === 0 && (
                     <TableEmpty
-                      colSpan={6}
+                      colSpan={isSuperAdminCaller && tenants.length > 1 ? 7 : 6}
                       icon={UsersIcon}
                       text={
                         search.trim() && rows.length > 0
@@ -698,6 +755,11 @@ function AdminUsers() {
                       <TableCell className="hidden sm:table-cell">
                         <BadgeOverflow items={r.roles} max={2} />
                       </TableCell>
+                      {isSuperAdminCaller && tenants.length > 1 && (
+                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                          {tenants.find((t) => t.id === r.tenant_id)?.name ?? "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <RowActionsMenu
                           actions={[
