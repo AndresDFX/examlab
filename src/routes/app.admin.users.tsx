@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { BadgeOverflow } from "@/components/ui/badge-overflow";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Dialog,
@@ -680,12 +681,8 @@ function AdminUsers() {
                           <span className="text-xs text-muted-foreground sm:hidden truncate">
                             {r.institutional_email}
                           </span>
-                          <div className="flex flex-wrap gap-1 sm:hidden">
-                            {r.roles.map((role) => (
-                              <Badge key={role} variant="secondary" className="text-[10px]">
-                                {role}
-                              </Badge>
-                            ))}
+                          <div className="sm:hidden">
+                            <BadgeOverflow items={r.roles} max={2} />
                           </div>
                         </div>
                       </TableCell>
@@ -699,16 +696,7 @@ function AdminUsers() {
                         <div className="truncate">{r.personal_email ?? "—"}</div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {r.roles.length === 0 && (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                          {r.roles.map((role) => (
-                            <Badge key={role} variant="secondary" className="text-[10px]">
-                              {role}
-                            </Badge>
-                          ))}
-                        </div>
+                        <BadgeOverflow items={r.roles} max={2} />
                       </TableCell>
                       <TableCell className="text-right">
                         <RowActionsMenu
