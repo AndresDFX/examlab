@@ -63,6 +63,18 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
   const [presentCount, setPresentCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [viewport, setViewport] = useState(() => ({
+    w: typeof window !== "undefined" ? window.innerWidth : 1024,
+    h: typeof window !== "undefined" ? window.innerHeight : 768,
+  }));
+
+  // El QR se calcula contra ambas dimensiones del viewport — sin esto, en
+  // móvil portrait el alto sobra pero el ancho es chico y el QR se sale.
+  useEffect(() => {
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Recalcula el código cuando cambia el período actual.
   const recomputeCode = useCallback(async () => {
@@ -222,9 +234,9 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
       className="fixed inset-0 z-[100] bg-background text-foreground flex flex-col"
     >
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="text-sm sm:text-base font-medium truncate">
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="hidden sm:block text-sm sm:text-base font-medium truncate">
             Check-in de asistencia
             {state.sessionLabel && (
               <span className="text-muted-foreground"> — {state.sessionLabel}</span>
@@ -234,16 +246,26 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             Cierra en {formatRemaining(msToClose)}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {isFullscreen ? (
-            <Button variant="ghost" size="sm" onClick={() => void exitFullscreen()}>
-              <Minimize2 className="h-4 w-4 mr-1" />
-              Salir pantalla completa
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void exitFullscreen()}
+              aria-label="Salir pantalla completa"
+            >
+              <Minimize2 className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Salir pantalla completa</span>
             </Button>
           ) : (
-            <Button variant="ghost" size="sm" onClick={() => void requestFullscreen()}>
-              <Maximize2 className="h-4 w-4 mr-1" />
-              Pantalla completa
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void requestFullscreen()}
+              aria-label="Pantalla completa"
+            >
+              <Maximize2 className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Pantalla completa</span>
             </Button>
           )}
           <Button
@@ -251,41 +273,50 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             size="sm"
             onClick={handleCloseCheckIn}
             disabled={closing}
+            aria-label="Cerrar check-in"
           >
             {closing ? (
-              <Spinner size="md" className="mr-1" />
+              <Spinner size="md" className="sm:mr-1" />
             ) : (
-              <X className="h-4 w-4 mr-1" />
+              <X className="h-4 w-4 sm:mr-1" />
             )}
-            Cerrar check-in
+            <span className="hidden sm:inline">Cerrar check-in</span>
           </Button>
         </div>
       </div>
 
       {/* Main: QR centrado a la izquierda, info a la derecha */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6 p-4 sm:p-8 items-center justify-items-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+      <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 sm:gap-6 p-3 sm:p-8 items-center justify-items-center">
+        <div className="flex flex-col items-center gap-3 max-w-full">
+          <div className="bg-white p-3 sm:p-6 rounded-xl shadow-lg">
             <QRCodeSVG
               value={qrUrl}
-              // Tamaño dinámico — 70vmin permite que llene la pantalla en proyección.
-              size={Math.min(typeof window !== "undefined" ? window.innerHeight * 0.6 : 480, 600)}
+              // Cap por ancho (con padding de la card + p-3) Y por alto, para
+              // que no rebase ni en móvil portrait ni en proyección.
+              size={Math.max(
+                160,
+                Math.min(
+                  viewport.h * 0.55,
+                  viewport.w - 48, // 2 × p-3 del contenedor + 2 × p-3 de la card blanca
+                  600,
+                ),
+              )}
               level="M"
               includeMargin={false}
             />
           </div>
-          <p className="text-sm text-muted-foreground text-center max-w-md">
+          <p className="text-xs sm:text-sm text-muted-foreground text-center max-w-md px-2">
             Escanea desde la app del estudiante (Asistencia → Escanear QR)
             o con la cámara nativa del celular.
           </p>
         </div>
 
-        <div className="flex flex-col gap-6 items-center lg:items-start min-w-[260px]">
-          <div className="flex flex-col items-center lg:items-start gap-1">
+        <div className="flex flex-col gap-4 sm:gap-6 items-center lg:items-start min-w-0 sm:min-w-[260px] w-full sm:w-auto">
+          <div className="flex flex-col items-center lg:items-start gap-1 w-full">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
               Código manual
             </div>
-            <div className="font-mono font-bold tabular-nums text-5xl sm:text-7xl tracking-wider">
+            <div className="font-mono font-bold tabular-nums text-4xl sm:text-7xl tracking-wider">
               {codePretty}
             </div>
             {/* Barra de progreso a próxima rotación */}
@@ -306,9 +337,9 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
               Presentes
             </div>
-            <div className="text-5xl sm:text-7xl font-semibold tabular-nums">
+            <div className="text-4xl sm:text-7xl font-semibold tabular-nums">
               {presentCount}
-              <span className="text-2xl sm:text-3xl text-muted-foreground"> / {state.totalEnrolled}</span>
+              <span className="text-xl sm:text-3xl text-muted-foreground"> / {state.totalEnrolled}</span>
             </div>
           </div>
         </div>
