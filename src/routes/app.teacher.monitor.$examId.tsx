@@ -3426,14 +3426,14 @@ function ExamMonitor() {
                                       aiGradingQid === q.id || aiGradingId === viewingSub.id
                                     }
                                     className="h-8"
-                                    title="Calificar esta pregunta con IA"
+                                    title="Recalificar esta pregunta con IA"
                                   >
                                     {aiGradingQid === q.id ? (
                                       <Spinner size="sm" className="mr-1" />
                                     ) : (
                                       <Sparkles className="h-3.5 w-3.5 mr-1" />
                                     )}
-                                    IA
+                                    Recalificar
                                   </Button>
                                 )}
                               </div>

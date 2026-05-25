@@ -63,7 +63,17 @@ import {
   Square,
   Paperclip,
   Megaphone,
+  MailOpen,
+  Mail,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import {
   Select,
@@ -160,6 +170,9 @@ function MessagesPage() {
   const [conversationsLoadError, setConversationsLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  /** IDs de conversaciones seleccionadas para acciones bulk. Cuando hay
+   *  >0, los clicks en items togglean selección en lugar de abrir el chat. */
+  const [selectedConvIds, setSelectedConvIds] = useState<Set<string>>(() => new Set());
   const [messages, setMessages] = useState<MessageLite[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [body, setBody] = useState("");
@@ -867,6 +880,71 @@ function MessagesPage() {
     setActiveConvId(convId);
   };
 
+  const toggleConvSelected = (id: string) => {
+    setSelectedConvIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearConvSelection = () => setSelectedConvIds(new Set());
+
+  const markConvRead = async (convId: string) => {
+    const { error } = await db.rpc("mark_conversation_read", { _conv_id: convId });
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo marcar como leída"));
+      return false;
+    }
+    return true;
+  };
+
+  const markConvUnread = async (convId: string) => {
+    const { error } = await db.rpc("mark_conversation_unread", { _conv_id: convId });
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo marcar como no leída"));
+      return false;
+    }
+    return true;
+  };
+
+  const markSelectedRead = async () => {
+    const ids = Array.from(selectedConvIds);
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => markConvRead(id)));
+    clearConvSelection();
+    await loadAll();
+    toast.success(`${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como leída${ids.length === 1 ? "" : "s"}`);
+  };
+
+  const markSelectedUnread = async () => {
+    const ids = Array.from(selectedConvIds);
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => markConvUnread(id)));
+    clearConvSelection();
+    await loadAll();
+    toast.success(`${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como no leída${ids.length === 1 ? "" : "s"}`);
+  };
+
+  const clearSelectedConversations = async () => {
+    const ids = Array.from(selectedConvIds);
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `Eliminar ${ids.length} conversación${ids.length === 1 ? "" : "es"}`,
+      description:
+        "Desaparecerán SOLO para ti. La otra persona las sigue viendo. Si te escriben de nuevo, las volverás a ver con los mensajes nuevos.",
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    await Promise.all(ids.map((id) => db.rpc("clear_conversation", { _conv_id: id })));
+    if (activeConvId && ids.includes(activeConvId)) setActiveConvId(null);
+    clearConvSelection();
+    await loadAll();
+    toast.success(`${ids.length} conversación${ids.length === 1 ? "" : "es"} eliminada${ids.length === 1 ? "" : "s"} para ti`);
+  };
+
   const clearConversation = async (convId: string) => {
     const ok = await confirm({
       title: "Eliminar conversación",
@@ -962,62 +1040,195 @@ function MessagesPage() {
                 description="Inicia una conversación con alguien de tus cursos o con un Admin."
               />
             ) : (
-              <ul className="divide-y">
-                {conversations.map((c) => {
-                  const RoleIcon = ROLE_ICON[c.other.role_label];
-                  const isActive = c.conv.id === activeConvId;
-                  return (
-                    <li key={c.conv.id}>
-                      <button
-                        type="button"
-                        onClick={() => setActiveConvId(c.conv.id)}
-                        className={cn(
-                          "w-full text-left px-3 py-2.5 hover:bg-muted/40 transition-colors",
-                          isActive && "bg-primary/5 border-l-2 border-primary",
-                        )}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-sm truncate flex-1">
-                            {c.other.full_name ?? c.other.email ?? "Usuario"}
-                          </span>
-                          {c.unread > 0 && (
-                            <Badge
-                              className="text-[10px] h-4 min-w-4 px-1 bg-primary text-primary-foreground"
-                              data-testid={`unread-badge-${c.conv.id}`}
-                            >
-                              {c.unread}
-                            </Badge>
-                          )}
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[9px] px-1 py-0 h-auto", ROLE_BADGE_CLASS[c.other.role_label])}
-                          >
-                            {c.other.role_label}
-                          </Badge>
-                        </div>
-                        <p
+              <>
+                {/* Toolbar bulk: visible cuando hay selección */}
+                {selectedConvIds.size > 0 && (
+                  <div className="sticky top-0 z-10 flex items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur">
+                    <span className="text-xs font-medium mr-1">
+                      {selectedConvIds.size} seleccionada{selectedConvIds.size === 1 ? "" : "s"}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={() => void markSelectedRead()}
+                      title="Marcar como leídas"
+                    >
+                      <MailOpen className="h-3.5 w-3.5 mr-1" />
+                      <span className="text-xs">Leídas</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={() => void markSelectedUnread()}
+                      title="Marcar como no leídas"
+                    >
+                      <Mail className="h-3.5 w-3.5 mr-1" />
+                      <span className="text-xs">No leídas</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-destructive hover:text-destructive"
+                      onClick={() => void clearSelectedConversations()}
+                      title="Eliminar conversaciones (solo para mí)"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 ml-auto"
+                      onClick={clearConvSelection}
+                      title="Cancelar selección"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+                <ul className="divide-y">
+                  {conversations.map((c) => {
+                    const RoleIcon = ROLE_ICON[c.other.role_label];
+                    const isActive = c.conv.id === activeConvId;
+                    const isSelected = selectedConvIds.has(c.conv.id);
+                    const inSelectionMode = selectedConvIds.size > 0;
+                    return (
+                      <li key={c.conv.id} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // En modo selección, click togglea selección
+                            // en vez de abrir el chat (patrón estándar tipo
+                            // app de correo / iMessage).
+                            if (inSelectionMode) {
+                              toggleConvSelected(c.conv.id);
+                            } else {
+                              setActiveConvId(c.conv.id);
+                            }
+                          }}
                           className={cn(
-                            "text-[11px] truncate",
-                            c.unread > 0
-                              ? "text-foreground font-medium"
-                              : "text-muted-foreground",
+                            "w-full text-left px-3 py-2.5 hover:bg-muted/40 transition-colors",
+                            isActive && !inSelectionMode && "bg-primary/5 border-l-2 border-primary",
+                            isSelected && "bg-primary/10",
                           )}
                         >
-                          {previewBody(c.lastMessage?.body, 50) || (
-                            <span className="italic">Sin mensajes visibles</span>
-                          )}
-                        </p>
-                        {c.lastMessage && (
-                          <p className="text-[10px] text-muted-foreground/70 mt-0.5 tabular-nums">
-                            {formatDateTime(c.lastMessage.created_at)}
+                          <div className="flex items-center gap-2 mb-1">
+                            {/* Checkbox: en modo selección reemplaza el ícono
+                                de rol; sino aparece en hover para iniciar
+                                selección. */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleConvSelected(c.conv.id);
+                              }}
+                              className={cn(
+                                "shrink-0 flex items-center justify-center w-4 h-4 rounded transition-opacity",
+                                inSelectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                              )}
+                              aria-label={isSelected ? "Quitar selección" : "Seleccionar"}
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="h-4 w-4 text-primary" />
+                              ) : (
+                                <Square className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                            {!inSelectionMode && (
+                              <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:hidden" />
+                            )}
+                            <span className="font-medium text-sm truncate flex-1">
+                              {c.other.full_name ?? c.other.email ?? "Usuario"}
+                            </span>
+                            {c.unread > 0 && (
+                              <Badge
+                                className="text-[10px] h-4 min-w-4 px-1 bg-primary text-primary-foreground"
+                                data-testid={`unread-badge-${c.conv.id}`}
+                              >
+                                {c.unread}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[9px] px-1 py-0 h-auto",
+                                ROLE_BADGE_CLASS[c.other.role_label],
+                              )}
+                            >
+                              {c.other.role_label}
+                            </Badge>
+                          </div>
+                          <p
+                            className={cn(
+                              "text-[11px] truncate pl-6",
+                              c.unread > 0
+                                ? "text-foreground font-medium"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {previewBody(c.lastMessage?.body, 50) || (
+                              <span className="italic">Sin mensajes visibles</span>
+                            )}
                           </p>
+                          {c.lastMessage && (
+                            <p className="text-[10px] text-muted-foreground/70 mt-0.5 pl-6 tabular-nums">
+                              {formatDateTime(c.lastMessage.created_at)}
+                            </p>
+                          )}
+                        </button>
+                        {/* Kebab por conv: solo visible si no hay selección
+                            activa (cuando hay, la toolbar arriba toma el
+                            control y el kebab confunde). */}
+                        {!inSelectionMode && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-1 top-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                onClick={(e) => e.stopPropagation()}
+                                aria-label="Acciones de la conversación"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {c.unread > 0 ? (
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    if (await markConvRead(c.conv.id)) await loadAll();
+                                  }}
+                                >
+                                  <MailOpen className="h-4 w-4 mr-2" />
+                                  Marcar como leída
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    if (await markConvUnread(c.conv.id)) await loadAll();
+                                  }}
+                                >
+                                  <Mail className="h-4 w-4 mr-2" />
+                                  Marcar como no leída
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => void clearConversation(c.conv.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
           </div>
 
