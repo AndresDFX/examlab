@@ -73,6 +73,11 @@ function SuperAdminTenantsPage() {
     primary_color: "",
     secondary_color: "",
     email_domain: "",
+    // Cuotas. "" = ilimitado (se persiste como NULL). Cualquier número
+    // entero >= 0 es el tope.
+    max_admins: "" as string,
+    max_teachers: "" as string,
+    max_students: "" as string,
   });
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -116,6 +121,9 @@ function SuperAdminTenantsPage() {
       primary_color: "",
       secondary_color: "",
       email_domain: "",
+      max_admins: "",
+      max_teachers: "",
+      max_students: "",
     });
     setDialogOpen(true);
   };
@@ -130,6 +138,9 @@ function SuperAdminTenantsPage() {
       primary_color: t.primary_color ?? "",
       secondary_color: t.secondary_color ?? "",
       email_domain: t.email_domain ?? "",
+      max_admins: t.max_admins == null ? "" : String(t.max_admins),
+      max_teachers: t.max_teachers == null ? "" : String(t.max_teachers),
+      max_students: t.max_students == null ? "" : String(t.max_students),
     });
     setDialogOpen(true);
   };
@@ -208,6 +219,26 @@ function SuperAdminTenantsPage() {
       return;
     }
     setSaving(true);
+    // Cuotas: "" → null (ilimitado). Cualquier otro → parseInt; rechazo
+    // si no es entero >= 0.
+    const parseQuota = (raw: string, label: string): number | null | undefined => {
+      const v = raw.trim();
+      if (!v) return null;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0) {
+        toast.error(`Cuota inválida para ${label}. Debe ser entero ≥ 0 (o vacío = ilimitado).`);
+        return undefined; // sentinel = abort
+      }
+      return n;
+    };
+    const maxAdmins = parseQuota(form.max_admins, "administradores");
+    const maxTeachers = parseQuota(form.max_teachers, "docentes");
+    const maxStudents = parseQuota(form.max_students, "estudiantes");
+    if (maxAdmins === undefined || maxTeachers === undefined || maxStudents === undefined) {
+      setSaving(false);
+      return;
+    }
+
     const payload = {
       slug: form.slug.trim(),
       name: form.name.trim(),
@@ -216,6 +247,9 @@ function SuperAdminTenantsPage() {
       primary_color: form.primary_color.trim() || null,
       secondary_color: form.secondary_color.trim() || null,
       email_domain: form.email_domain.trim().toLowerCase() || null,
+      max_admins: maxAdmins,
+      max_teachers: maxTeachers,
+      max_students: maxStudents,
     };
     if (editing) {
       const { error } = await db.from("tenants").update(payload).eq("id", editing.id);
@@ -527,6 +561,60 @@ function SuperAdminTenantsPage() {
                   placeholder="#8B5CF6"
                   className="font-mono text-xs"
                 />
+              </div>
+            </div>
+
+            {/* Cuotas de usuarios — define el plan/contrato del tenant.
+                NULL = ilimitado. El trigger tg_check_tenant_user_quota
+                rechaza INSERT en user_roles cuando se excede. Aplica
+                solo a Admin/Docente/Estudiante (SuperAdmin es
+                cross-tenant, no cuenta). */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-sm font-medium">Cuotas de usuarios</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Tope de usuarios por rol. Deja vacío para ilimitado. SuperAdmin
+                no consume cuota.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Administradores</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.max_admins}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, max_admins: e.target.value }))
+                    }
+                    placeholder="∞"
+                    className="text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Docentes</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.max_teachers}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, max_teachers: e.target.value }))
+                    }
+                    placeholder="∞"
+                    className="text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Estudiantes</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.max_students}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, max_students: e.target.value }))
+                    }
+                    placeholder="∞"
+                    className="text-xs"
+                  />
+                </div>
               </div>
             </div>
           </div>

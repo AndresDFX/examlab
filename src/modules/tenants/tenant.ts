@@ -35,6 +35,13 @@ export interface Tenant {
   secondary_color: string | null;
   email_domain: string | null;
   is_active: boolean;
+  /** Cuotas de usuarios por rol. NULL = ilimitado. SuperAdmin las define
+   *  desde el panel /app/superadmin/tenants. SuperAdmin no consume cuota
+   *  (cross-tenant). El trigger tg_check_tenant_user_quota rechaza
+   *  INSERT en user_roles cuando se excede. */
+  max_admins: number | null;
+  max_teachers: number | null;
+  max_students: number | null;
   created_at: string;
   updated_at: string;
 }
