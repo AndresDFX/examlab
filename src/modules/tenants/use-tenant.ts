@@ -39,6 +39,10 @@ export function setTenantOverride(slug: string | null): void {
   } else {
     window.localStorage.removeItem(OVERRIDE_KEY);
   }
+  // Notificamos a useTenant() hooks montados en la misma pestaña.
+  // localStorage 'storage' event solo dispara en OTRAS pestañas; para
+  // refresh dentro de la misma pestaña usamos un CustomEvent custom.
+  window.dispatchEvent(new CustomEvent("examlab:tenant-override-changed"));
 }
 
 export interface UseTenantResult {
@@ -117,6 +121,21 @@ export function useTenant(): UseTenantResult {
       cancelled = true;
     };
   }, [authLoading, profile?.tenant_id, roles, nonce]);
+
+  // Reacciona cuando otro componente llama setTenantOverride (ej. el
+  // SuperAdmin clica "Ver como"). Sin esto, el branding del sidebar no
+  // se actualizaba hasta refrescar la página.
+  useEffect(() => {
+    const handler = () => setNonce((n) => n + 1);
+    window.addEventListener("examlab:tenant-override-changed", handler);
+    // También escuchamos 'storage' por si el override cambió en OTRA
+    // pestaña — útil para mantener consistencia cross-tab.
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("examlab:tenant-override-changed", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
 
   return { tenant, loading, error, refresh: () => setNonce((n) => n + 1) };
 }

@@ -14,6 +14,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BadgeOverflow } from "@/components/ui/badge-overflow";
+import { TenantQuotaCard } from "@/modules/tenants/TenantQuotaCard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Dialog,
@@ -671,6 +672,11 @@ function AdminUsers() {
           </>
         }
       />
+
+      {/* Licencias del tenant — solo aplica al Admin (su propio tenant).
+          Al SuperAdmin en vista cross-tenant lo ocultamos: las licencias
+          son por institución; sin filtro de tenant no aporta info útil. */}
+      {!isSuperAdminCaller && <TenantQuotaCard compact title="Licencias de usuarios" />}
 
       <div className="flex flex-col sm:flex-row gap-2">
         <SearchInput

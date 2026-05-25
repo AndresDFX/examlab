@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/modules/tenants/use-tenant";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { resizeImageForLogo } from "@/modules/tenants/image-resize";
+import { TenantQuotaCard } from "@/modules/tenants/TenantQuotaCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,13 +67,6 @@ export function AdminMyTenantPanel() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Conteos actuales (X / max) por rol. Read-only para el Admin —
-  // los limites los gestiona el SuperAdmin desde su panel.
-  const [counts, setCounts] = useState<{
-    admins: number;
-    teachers: number;
-    students: number;
-  } | null>(null);
 
   useEffect(() => {
     if (tenant) {
@@ -86,27 +80,6 @@ export function AdminMyTenantPanel() {
       });
     }
   }, [tenant]);
-
-  // Conteos actuales por rol. RPC tenant_user_counts agrupa por
-  // user_roles + JOIN profiles donde p.tenant_id = current_tenant_id().
-  useEffect(() => {
-    if (!tenant?.id) return;
-    let cancelled = false;
-    void (async () => {
-      const { data } = await db.rpc("tenant_user_counts");
-      if (cancelled) return;
-      const c = data as { admins?: number; teachers?: number; students?: number } | null;
-      if (c)
-        setCounts({
-          admins: c.admins ?? 0,
-          teachers: c.teachers ?? 0,
-          students: c.students ?? 0,
-        });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [tenant?.id]);
 
   // URL renderizable del logo CURRENT (lo que esta guardado, no el draft).
   // Tras subir el logo, esta URL se actualiza al refetch del tenant.
@@ -361,31 +334,18 @@ export function AdminMyTenantPanel() {
           </p>
         </div>
 
-        {/* Cuotas de usuarios — read-only para el Admin. Los limites
-            los define el SuperAdmin desde su panel. Mostramos X / Y
-            con barrita visual para que el Admin vea cuánto le queda. */}
-        {counts && (
-          <div className="pt-2 border-t space-y-2">
-            <div className="text-sm font-medium">Cuotas de usuarios</div>
-            <p className="text-[11px] text-muted-foreground">
-              Definidas por el SuperAdmin de la plataforma. Para ajustar
-              estos topes, contacta al equipo de ExamLab.
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <QuotaTile
-                label="Administradores"
-                current={counts.admins}
-                max={tenant.max_admins}
-              />
-              <QuotaTile label="Docentes" current={counts.teachers} max={tenant.max_teachers} />
-              <QuotaTile
-                label="Estudiantes"
-                current={counts.students}
-                max={tenant.max_students}
-              />
-            </div>
-          </div>
-        )}
+        {/* Cuotas: ahora vienen del componente compartido del design
+            system. Read-only para el Admin (los limites los gestiona
+            el SuperAdmin). El mismo widget se monta en el grid de
+            usuarios para que el Admin vea cuanto le queda antes de
+            crear uno nuevo. */}
+        <div className="pt-2 border-t">
+          <TenantQuotaCard compact title="Licencias de usuarios" />
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Definidas por el SuperAdmin de la plataforma. Para ajustar estos topes,
+            contacta al equipo de ExamLab.
+          </p>
+        </div>
 
         <div className="flex justify-end pt-2">
           <Button onClick={save} disabled={saving}>
@@ -398,41 +358,3 @@ export function AdminMyTenantPanel() {
   );
 }
 
-/**
- * QuotaTile — celda de "X / Y" con barra visual.
- *
- * `max` null = ilimitado: muestra "X / ∞" sin barra. Cuando max está
- * definido, pinta la barra al porcentaje correspondiente y vuelve
- * destructive si llegamos al tope.
- */
-function QuotaTile({
-  label,
-  current,
-  max,
-}: {
-  label: string;
-  current: number;
-  max: number | null;
-}) {
-  const unlimited = max == null;
-  const atLimit = !unlimited && current >= (max as number);
-  const pct = unlimited ? 0 : Math.min(100, Math.round((current / Math.max(1, max as number)) * 100));
-  return (
-    <div className="rounded-md border p-2 bg-background">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div
-        className={`text-sm font-semibold tabular-nums mt-0.5 ${atLimit ? "text-destructive" : ""}`}
-      >
-        {current} / {unlimited ? "∞" : max}
-      </div>
-      {!unlimited && (
-        <div className="h-1 mt-1.5 rounded-full bg-muted overflow-hidden">
-          <div
-            className={`h-full ${atLimit ? "bg-destructive" : "bg-primary"}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}

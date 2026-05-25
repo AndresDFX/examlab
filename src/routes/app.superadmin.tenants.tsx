@@ -430,11 +430,18 @@ function SuperAdminTenantsPage() {
                 value={form.slug}
                 onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value }))}
                 placeholder="sena-bogota"
-                disabled={!!editing} // slug es la URL — no cambiar después de creado
               />
               <p className="text-[11px] text-muted-foreground mt-1">
                 URL: <code>/t/{form.slug || "..."}/app/...</code>. Minúsculas, números
                 y guiones; 3–50 chars.
+                {editing && (
+                  <>
+                    {" "}
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Cambiar el slug rompe links existentes a <code>/t/{editing.slug}/...</code>.
+                    </span>
+                  </>
+                )}
               </p>
             </div>
             <div>

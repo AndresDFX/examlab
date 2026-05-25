@@ -1222,10 +1222,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             gutters on mobile. Bottom padding reserva espacio para el
             bottom-nav fixed mobile. Durante el examen el bottom-nav no
             se renderiza (`!isTakingExam`), así que bajamos el padding
-            para no dejar 96px de aire vacío debajo del contenido. */}
+            para no dejar 96px de aire vacío debajo del contenido.
+
+            Antes era `mx-auto` con max-w-7xl: en monitores muy anchos
+            (>1280 + sidebar) generaba un gap notable entre el sidebar
+            (izquierda) y el contenido centrado. Ahora `mr-auto`
+            alinea el container a la izquierda pegado al sidebar y
+            deja el espacio extra a la derecha del contenido. */}
         <div
           className={cn(
-            "px-4 md:px-8 py-5 md:py-8 max-w-7xl mx-auto",
+            "px-4 md:px-8 py-5 md:py-8 max-w-7xl mr-auto",
             isTakingExam ? "pb-5 md:pb-8" : "pb-24 md:pb-8",
           )}
         >
