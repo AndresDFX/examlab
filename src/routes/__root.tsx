@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/shared/components/ConfirmDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import { TenantUrlGuard } from "@/modules/tenants/TenantUrlGuard";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -223,6 +224,7 @@ function RootComponent() {
     <ErrorBoundary>
       <TooltipProvider delayDuration={200}>
         <ConfirmProvider>
+          <TenantUrlGuard />
           <Outlet />
           <Toaster richColors position="top-right" expand visibleToasts={6} />
         </ConfirmProvider>
