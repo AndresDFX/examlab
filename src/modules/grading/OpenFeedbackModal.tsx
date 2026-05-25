@@ -30,10 +30,13 @@ import {
   MessageSquareText,
   Reply,
   User,
+  Lock,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/shared/lib/format";
 import { threadsPendingTeacherResponse } from "@/modules/grading/feedback-stats";
+import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -331,6 +334,38 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
     };
   }, [open, filterMode]);
 
+  /**
+   * Cierra el thread directamente desde el modal — espeja la acción del
+   * botón "Cerrar" que vive dentro del FeedbackThread, pero accesible
+   * sin navegar a la entidad padre. Al cerrar, el thread sale del SELECT
+   * (closed=false) y desaparece de la lista en el próximo refresh.
+   * Hacemos un optimistic remove del state local para que la fila
+   * desaparezca al instante.
+   */
+  const closeThread = async (t: ThreadRow) => {
+    const { error } = await db
+      .from("feedback_threads")
+      .update({
+        closed: true,
+        closed_at: new Date().toISOString(),
+      })
+      .eq("id", t.id);
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo cerrar la conversación"));
+      return;
+    }
+    // Optimistic: sacamos del state.
+    setThreads((prev) => prev.filter((x) => x.id !== t.id));
+    toast.success("Conversación cerrada");
+    // Notify event para que el otro extremo (estudiante) vea el badge
+    // actualizado y, si está, el FeedbackThread se cierre.
+    void db.rpc("notify_feedback_event", {
+      _thread_id: t.id,
+      _event: "closed",
+      _actor_role: "teacher",
+    });
+  };
+
   const goToThread = (t: ThreadRow) => {
     if (!t.refId) return;
     onOpenChange(false);
@@ -460,7 +495,12 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                     count={groupsByType.exam.length}
                   >
                     {groupsByType.exam.map((t) => (
-                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                      <ThreadRowItem
+                        key={t.id}
+                        thread={t}
+                        onGo={() => goToThread(t)}
+                        onClose={() => void closeThread(t)}
+                      />
                     ))}
                   </Section>
                 )}
@@ -472,7 +512,12 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                     count={groupsByType.workshop.length}
                   >
                     {groupsByType.workshop.map((t) => (
-                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                      <ThreadRowItem
+                        key={t.id}
+                        thread={t}
+                        onGo={() => goToThread(t)}
+                        onClose={() => void closeThread(t)}
+                      />
                     ))}
                   </Section>
                 )}
@@ -484,7 +529,12 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                     count={groupsByType.project.length}
                   >
                     {groupsByType.project.map((t) => (
-                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} />
+                      <ThreadRowItem
+                        key={t.id}
+                        thread={t}
+                        onGo={() => goToThread(t)}
+                        onClose={() => void closeThread(t)}
+                      />
                     ))}
                   </Section>
                 )}
@@ -500,7 +550,13 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                     count={g.threads.length}
                   >
                     {g.threads.map((t) => (
-                      <ThreadRowItem key={t.id} thread={t} onGo={() => goToThread(t)} hideStudent />
+                      <ThreadRowItem
+                        key={t.id}
+                        thread={t}
+                        onGo={() => goToThread(t)}
+                        onClose={() => void closeThread(t)}
+                        hideStudent
+                      />
                     ))}
                   </Section>
                 ))}
@@ -544,10 +600,12 @@ function Section({
 function ThreadRowItem({
   thread,
   onGo,
+  onClose,
   hideStudent,
 }: {
   thread: ThreadRow;
   onGo: () => void;
+  onClose?: () => void;
   hideStudent?: boolean;
 }) {
   const lastWhen = thread.lastComment?.created_at ?? thread.created_at;
@@ -575,9 +633,26 @@ function ThreadRowItem({
           {formatDateTime(lastWhen)}
         </div>
       </div>
-      <Button size="sm" variant="outline" onClick={onGo} className="shrink-0">
-        Ir <ArrowRight className="h-3 w-3 ml-1" />
-      </Button>
+      <div className="flex items-center gap-1 shrink-0">
+        {/* Cerrar inline: dismissea el thread sin navegar. Util cuando ya
+            respondiste en otro lado o no requiere acción. La fila
+            desaparece optimistamente y se persiste closed=true en DB. */}
+        {onClose && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            onClick={onClose}
+            aria-label="Cerrar conversación"
+            title="Cerrar conversación"
+          >
+            <Lock className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={onGo}>
+          Ir <ArrowRight className="h-3 w-3 ml-1" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -113,11 +113,21 @@ COMMENT ON FUNCTION public.current_tenant_id() IS
 -- is_super_admin(): bypass cross-tenant. Mantiene la misma forma que
 -- has_role para que las policies puedan usar `OR is_super_admin()` de
 -- forma legible.
+--
+-- IMPORTANTE: usamos `role::text = 'SuperAdmin'` en vez de
+-- `'SuperAdmin'::public.app_role`. Postgres prohíbe USAR un valor recién
+-- agregado al enum dentro de la misma transacción en la que se hizo el
+-- ADD VALUE (error: "unsafe use of new value of enum type"). El cast de
+-- la COLUMNA a text esquiva ese problema — la query funcional es
+-- idéntica.
 CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN
 LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public
 AS $$
-  SELECT public.has_role(auth.uid(), 'SuperAdmin'::public.app_role);
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid() AND role::text = 'SuperAdmin'
+  );
 $$;
 
 GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
