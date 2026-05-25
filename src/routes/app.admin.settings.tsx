@@ -30,7 +30,6 @@ import {
   ScrollText,
   Sliders,
   Layers,
-  ListOrdered,
   Cpu,
   GraduationCap,
 } from "lucide-react";
@@ -40,7 +39,6 @@ import { AdminAuditRetentionPanel } from "@/modules/admin/AdminAuditRetentionPan
 import { AdminGeneralSettingsPanel } from "@/modules/admin/AdminGeneralSettingsPanel";
 import { AdminCertificateSettingsPanel } from "@/modules/admin/AdminCertificateSettingsPanel";
 import { AdminModuleVisibilityPanel } from "@/modules/admin/AdminModuleVisibilityPanel";
-import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
 import { AdminAcademicPeriodsPanel } from "@/modules/admin/AdminAcademicPeriodsPanel";
@@ -93,10 +91,9 @@ function AdminSettings() {
             <Cpu className="h-3.5 w-3.5" />
             Modelo IA
           </TabsTrigger>
-          <TabsTrigger value="ai-grading" className="gap-1.5">
-            <ListOrdered className="h-3.5 w-3.5" />
-            Cola IA
-          </TabsTrigger>
+          {/* La tab 'Cola IA' (sync/async + códigos override) se movió al
+              módulo Cron del sidebar. Ahí se centralizan todas las colas
+              (IA + procesamiento de mensajes) en un solo lugar. */}
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />
             Auditoría
@@ -128,9 +125,6 @@ function AdminSettings() {
         </TabsContent>
         <TabsContent value="ai-model" className="space-y-4 mt-4">
           <AdminModelPanel />
-        </TabsContent>
-        <TabsContent value="ai-grading" className="space-y-4 mt-4">
-          <AdminAiGradingPanel />
         </TabsContent>
         <TabsContent value="audit" className="space-y-4 mt-4">
           <AdminAuditRetentionPanel />

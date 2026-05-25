@@ -37,6 +37,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
+import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
@@ -59,6 +60,7 @@ import {
   ChevronRight,
   ExternalLink,
   CalendarClock,
+  Sliders,
   Sparkles,
   ListOrdered,
 } from "lucide-react";
@@ -186,24 +188,40 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
             : "Cola de calificación con IA. Aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
         }
       />
-      {showInfraTab ? (
+      {isAdmin ? (
         <Tabs defaultValue="ia">
           <TabsList>
             <TabsTrigger value="ia" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               IA
             </TabsTrigger>
-            <TabsTrigger value="supabase" className="gap-1.5">
-              <CalendarClock className="h-3.5 w-3.5" />
-              Tareas programadas
+            {/* Configuración: sync/async + códigos override. Antes vivía
+                en Admin → Configuración → 'Cola IA'. Centralizada acá
+                porque toda la operativa de cola (procesamiento +
+                configuración) queda en un solo módulo. */}
+            <TabsTrigger value="config" className="gap-1.5">
+              <Sliders className="h-3.5 w-3.5" />
+              Configuración
             </TabsTrigger>
+            {/* pg_cron solo SuperAdmin (infra cross-tenant). */}
+            {showInfraTab && (
+              <TabsTrigger value="supabase" className="gap-1.5">
+                <CalendarClock className="h-3.5 w-3.5" />
+                Tareas programadas
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="ia" className="space-y-4 mt-4">
             <AiQueuePanel isAdmin={isAdmin} />
           </TabsContent>
-          <TabsContent value="supabase" className="space-y-4 mt-4">
-            <SupabaseCronPanel />
+          <TabsContent value="config" className="space-y-4 mt-4">
+            <AdminAiGradingPanel />
           </TabsContent>
+          {showInfraTab && (
+            <TabsContent value="supabase" className="space-y-4 mt-4">
+              <SupabaseCronPanel />
+            </TabsContent>
+          )}
         </Tabs>
       ) : (
         <AiQueuePanel isAdmin={isAdmin} />

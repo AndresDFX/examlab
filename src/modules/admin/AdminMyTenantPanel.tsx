@@ -29,6 +29,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/modules/tenants/use-tenant";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
+import { resizeImageForLogo } from "@/modules/tenants/image-resize";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,26 +103,37 @@ export function AdminMyTenantPanel() {
     }
     setUploadingLogo(true);
     try {
-      // Extraemos la extensión del MIME (más confiable que el nombre).
+      // Auto-resize client-side: el helper escala a 512×512 max
+      // proporcional. SVG/archivos chicos pasan sin tocar.
+      const { file: finalFile, resized, originalSize, finalSize } =
+        await resizeImageForLogo(file);
       const ext =
-        file.type === "image/png"
+        finalFile.type === "image/png"
           ? "png"
-          : file.type === "image/jpeg"
+          : finalFile.type === "image/jpeg"
             ? "jpg"
-            : file.type === "image/svg+xml"
+            : finalFile.type === "image/svg+xml"
               ? "svg"
               : "webp";
       const path = `${tenant.id}/logo.${ext}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: upErr } = await (supabase.storage as any)
         .from("tenant-logos")
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, finalFile, { upsert: true, contentType: finalFile.type });
       if (upErr) {
         toast.error(friendlyError(upErr, "No se pudo subir el logo"));
         return;
       }
       setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
-      toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
+      if (resized) {
+        const kbBefore = Math.round(originalSize / 1024);
+        const kbAfter = Math.round(finalSize / 1024);
+        toast.success(
+          `Logo subido (optimizado: ${kbBefore} KB → ${kbAfter} KB). Recuerda 'Guardar'.`,
+        );
+      } else {
+        toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
+      }
     } finally {
       setUploadingLogo(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

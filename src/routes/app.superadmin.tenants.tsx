@@ -12,9 +12,10 @@
  * por manipulación de URL, RLS rechaza las operaciones.
  */
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { resizeImageForLogo } from "@/modules/tenants/image-resize";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Building2, Plus, Eye, Pencil, Power, Save } from "lucide-react";
+import { Building2, Plus, Eye, Pencil, Power, Save, Upload, Trash2 } from "lucide-react";
 import { isValidTenantSlug } from "@/modules/tenants/tenant";
 import { setTenantOverride } from "@/modules/tenants/use-tenant";
 import type { Tenant } from "@/modules/tenants/tenant";
@@ -68,11 +69,14 @@ function SuperAdminTenantsPage() {
     slug: "",
     name: "",
     logo_url: "",
+    logo_path: "",
     primary_color: "",
     secondary_color: "",
     email_domain: "",
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -108,6 +112,7 @@ function SuperAdminTenantsPage() {
       slug: "",
       name: "",
       logo_url: "",
+      logo_path: "",
       primary_color: "",
       secondary_color: "",
       email_domain: "",
@@ -121,11 +126,74 @@ function SuperAdminTenantsPage() {
       slug: t.slug,
       name: t.name,
       logo_url: t.logo_url ?? "",
+      logo_path: t.logo_path ?? "",
       primary_color: t.primary_color ?? "",
       secondary_color: t.secondary_color ?? "",
       email_domain: t.email_domain ?? "",
     });
     setDialogOpen(true);
+  };
+
+  /**
+   * SuperAdmin sube el logo de CUALQUIER institución. La RLS del bucket
+   * permite a SuperAdmin escribir en `<tenant_id>/...` independiente del
+   * `current_tenant_id()` del caller. Solo aplica en edit (necesitamos
+   * `editing.id` para construir el path).
+   */
+  const uploadLogo = async (file: File) => {
+    if (!editing) {
+      toast.error("Crea la institución primero, luego edita para subir el logo.");
+      return;
+    }
+    const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Formato no soportado. Usa PNG, JPG, SVG o WebP.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("El logo no puede pesar más de 2 MB.");
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const { file: finalFile, resized, originalSize, finalSize } =
+        await resizeImageForLogo(file);
+      const ext =
+        finalFile.type === "image/png"
+          ? "png"
+          : finalFile.type === "image/jpeg"
+            ? "jpg"
+            : finalFile.type === "image/svg+xml"
+              ? "svg"
+              : "webp";
+      const path = `${editing.id}/logo.${ext}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: upErr } = await (supabase.storage as any)
+        .from("tenant-logos")
+        .upload(path, finalFile, { upsert: true, contentType: finalFile.type });
+      if (upErr) {
+        toast.error(friendlyError(upErr, "No se pudo subir el logo"));
+        return;
+      }
+      setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
+      if (resized) {
+        const kbBefore = Math.round(originalSize / 1024);
+        const kbAfter = Math.round(finalSize / 1024);
+        toast.success(
+          `Logo subido (optimizado: ${kbBefore} KB → ${kbAfter} KB). Recuerda 'Guardar'.`,
+        );
+      } else {
+        toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
+      }
+    } finally {
+      setUploadingLogo(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = "";
+    }
+  };
+
+  const removeLogo = () => {
+    setForm((p) => ({ ...p, logo_path: "", logo_url: "" }));
+    toast.info("Logo removido. 'Guardar' para aplicar.");
   };
 
   const save = async () => {
@@ -144,6 +212,7 @@ function SuperAdminTenantsPage() {
       slug: form.slug.trim(),
       name: form.name.trim(),
       logo_url: form.logo_url.trim() || null,
+      logo_path: form.logo_path.trim() || null,
       primary_color: form.primary_color.trim() || null,
       secondary_color: form.secondary_color.trim() || null,
       email_domain: form.email_domain.trim().toLowerCase() || null,
@@ -354,12 +423,91 @@ function SuperAdminTenantsPage() {
               </p>
             </div>
             <div>
-              <Label>Logo (URL)</Label>
-              <Input
-                value={form.logo_url}
-                onChange={(e) => setForm((p) => ({ ...p, logo_url: e.target.value }))}
-                placeholder="https://.../logo.png"
-              />
+              <Label>Logo institucional</Label>
+              {editing ? (
+                <div className="flex items-center gap-3 mt-1">
+                  {/* Preview del logo (path actual del form). Si el SuperAdmin
+                      acaba de subir uno nuevo, form.logo_path lo refleja al
+                      instante. resolveTenantLogoUrl resuelve la URL pública
+                      desde el bucket. */}
+                  {form.logo_path ? (
+                    <div className="h-14 w-14 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
+                      <img
+                        src={
+                          supabase.storage
+                            .from("tenant-logos")
+                            .getPublicUrl(form.logo_path).data?.publicUrl ?? ""
+                        }
+                        alt={form.name}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  ) : form.logo_url ? (
+                    <div className="h-14 w-14 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
+                      <img
+                        src={form.logo_url}
+                        alt={form.name}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-14 w-14 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+                      Sin logo
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <input
+                      ref={logoFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void uploadLogo(f);
+                      }}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => logoFileInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                      >
+                        <Upload className="h-3.5 w-3.5 mr-1" />
+                        {uploadingLogo ? "Subiendo…" : "Subir logo"}
+                      </Button>
+                      {(form.logo_path || form.logo_url) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={removeLogo}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Quitar
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      PNG/JPG/SVG/WebP · 2 MB max. Sobrescribe el que tenga el
+                      Admin del tenant.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    value={form.logo_url}
+                    onChange={(e) => setForm((p) => ({ ...p, logo_url: e.target.value }))}
+                    placeholder="https://.../logo.png (opcional)"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Para subir un archivo, crea la institución primero y luego
+                    edítala — necesitamos el ID del tenant para guardar el archivo
+                    en el bucket.
+                  </p>
+                </>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
@@ -381,10 +529,6 @@ function SuperAdminTenantsPage() {
                 />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Para subir el logo como archivo, deja que el Admin de la institución
-              lo configure desde su panel <code>Configuración → Institución</code>.
-            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
