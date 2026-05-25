@@ -5,6 +5,10 @@
 // (con fallback hardcodeado al texto del seed).
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { describeAiError } from "../_shared/ai-error.ts";
+import {
+  getActiveAiModel as resolveActiveModel,
+  type ActiveModel,
+} from "../_shared/ai-model.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,37 +20,13 @@ const adminClient = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-type AiProvider = "lovable" | "openai" | "gemini";
-interface ActiveModel {
-  provider: AiProvider;
-  model: string;
-  gemini_api_key: string | null;
+// Multi-tenant: hint para resolver ai_model_settings por tenant del caller.
+let requestModelHint: { courseId?: string | null; authHeader?: string | null } = {};
+function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
+  requestModelHint = h;
 }
-let cachedModel: ActiveModel | null = null;
 async function getActiveAiModel(): Promise<ActiveModel> {
-  if (cachedModel) return cachedModel;
-  try {
-    const { data } = await adminClient
-      .from("ai_model_settings")
-      .select("provider, model, gemini_api_key")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (
-      data &&
-      (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
-    ) {
-      cachedModel = {
-        provider: data.provider,
-        model: data.model,
-        gemini_api_key: (data as { gemini_api_key?: string | null }).gemini_api_key ?? null,
-      };
-      return cachedModel;
-    }
-  } catch (e) {
-    console.warn("[ai_model_settings] resolve failed, using default:", e);
-  }
-  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash", gemini_api_key: null };
-  return cachedModel;
+  return await resolveActiveModel(requestModelHint);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,6 +147,12 @@ Deno.serve(async (req) => {
       .eq("id", examId)
       .single();
     if (eErr || !exam) throw new Error("Examen no encontrado");
+
+    // Multi-tenant: resolver modelo activo para el curso del examen.
+    setRequestModelHint({
+      courseId: (exam as { course_id?: string | null }).course_id ?? null,
+      authHeader: req.headers.get("Authorization"),
+    });
 
     // Authz: el caller debe ser docente DEL curso del examen (o Admin).
     // Sin esto cualquier docente puede leer metadata de exámenes de

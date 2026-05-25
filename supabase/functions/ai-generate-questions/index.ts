@@ -8,49 +8,29 @@ import { adminClient, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { describeAiError as describeSharedAiError } from "../_shared/ai-error.ts";
+import {
+  getActiveAiModel as resolveActiveModel,
+  type ActiveModel,
+  type AiProvider,
+} from "../_shared/ai-model.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ── Provider de IA dinámico ──────────────────────────────────────────
-// Cachea la fila `is_active=true` de `ai_model_settings` por invocación.
-// Permite múltiples llamadas (ej. proyecto con N preguntas) sin re-query.
-type AiProvider = "lovable" | "openai" | "gemini";
-interface ActiveModel {
-  provider: AiProvider;
-  model: string;
-  /** Override de API key gestionado desde el panel admin (solo gemini hoy). */
-  gemini_api_key: string | null;
+// Multi-tenant: hint del request para resolver ai_model_settings por
+// tenant. Se setea al inicio del handler con courseId del body / auth.
+let requestModelHint: { courseId?: string | null; authHeader?: string | null } = {};
+
+function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
+  requestModelHint = h;
 }
-let cachedModel: ActiveModel | null = null;
 
 async function getActiveAiModel(): Promise<ActiveModel> {
-  if (cachedModel) return cachedModel;
-  try {
-    const { data } = await adminClient
-      .from("ai_model_settings")
-      .select("provider, model, gemini_api_key")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (
-      data &&
-      (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
-    ) {
-      cachedModel = {
-        provider: data.provider,
-        model: data.model,
-        gemini_api_key: (data as { gemini_api_key?: string | null }).gemini_api_key ?? null,
-      };
-      return cachedModel;
-    }
-  } catch (e) {
-    console.warn("[ai_model_settings] resolve failed, using default:", e);
-  }
-  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash", gemini_api_key: null };
-  return cachedModel;
+  return await resolveActiveModel(requestModelHint);
 }
+export type { AiProvider };
 
 /**
  * Wrapper de chat completions. Decide URL/key/modelo según el provider
@@ -166,6 +146,10 @@ Deno.serve(async (req) => {
   let auditActorId: string | null = null;
   try {
     const body = await req.json();
+    setRequestModelHint({
+      courseId: (body as { courseId?: string | null }).courseId ?? null,
+      authHeader: req.headers.get("Authorization"),
+    });
     auditMode = body.projectDescriptionGeneration
       ? "project_description"
       : body.projectQuestionsAndAssets

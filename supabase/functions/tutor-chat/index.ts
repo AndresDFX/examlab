@@ -18,6 +18,7 @@
  */
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { buildTutorSystemPrompt, truncateHistory, type ChatMessage } from "./tutor-prompt.ts";
+import { getActiveAiModel as resolveActiveModel } from "../_shared/ai-model.ts";
 
 const MAX_HISTORY_MESSAGES = 30;
 const MAX_USER_MESSAGE_LENGTH = 4000;
@@ -51,22 +52,21 @@ Estos son los contenidos generados por el docente para este curso. Al responder,
 - Cierra la respuesta con UNA pregunta de seguimiento que invite al estudiante a verificar su comprensión o avanzar al siguiente paso.`;
 
 // ── AI gateway: reutiliza el patrón del edge function de grading ──
+// Multi-tenant: hint para resolver ai_model_settings por tenant.
 
 interface AiModel {
   provider: "openai" | "gemini" | "lovable";
   model: string;
 }
 
+let requestModelHint: { courseId?: string | null; authHeader?: string | null } = {};
+function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
+  requestModelHint = h;
+}
+
 async function getActiveAiModel(): Promise<AiModel> {
-  const { data } = await admin
-    .from("ai_model_settings")
-    .select("provider, model")
-    .eq("is_active", true)
-    .maybeSingle();
-  if (data?.provider && data?.model) {
-    return { provider: data.provider as AiModel["provider"], model: data.model };
-  }
-  return { provider: "lovable", model: "google/gemini-2.5-flash" };
+  const m = await resolveActiveModel(requestModelHint);
+  return { provider: m.provider, model: m.model };
 }
 
 async function callAi(messages: Array<{ role: string; content: string }>) {
@@ -179,6 +179,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (sErr || !session) throw new Error("Sesión no encontrada");
     if (session.user_id !== userId) throw new Error("No autorizado");
+
+    // Multi-tenant: resolver modelo activo para el curso de la sesión.
+    setRequestModelHint({
+      courseId: (session as { course_id?: string | null }).course_id ?? null,
+      authHeader: req.headers.get("Authorization"),
+    });
 
     // Cargar historial existente (antes de insertar el nuevo)
     const { data: history } = await admin

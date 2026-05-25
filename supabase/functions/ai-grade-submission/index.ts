@@ -3,6 +3,11 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { describeAiError } from "../_shared/ai-error.ts";
+import {
+  getActiveAiModel as resolveActiveModel,
+  type ActiveModel,
+  type AiProvider,
+} from "../_shared/ai-model.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,44 +31,21 @@ const adminClient = createClient(
  *      hardcoded (mismo texto que el seed) para que la calificación nunca
  *      se rompa por config faltante.
  */
-// Cache del modelo activo por invocación. La edge function es stateless
-// entre invocaciones, pero dentro de una sola invocación pueden hacerse
-// múltiples llamadas (ej. exam con N preguntas) — evitamos N queries.
-type AiProvider = "lovable" | "openai" | "gemini";
-interface ActiveModel {
-  provider: AiProvider;
-  model: string;
-  /** Override de API key gestionado desde el panel admin (solo gemini hoy). */
-  gemini_api_key: string | null;
+
+// Hint del request actual para resolver `ai_model_settings` por tenant.
+// Se setea al inicio del handler con `courseId` del body y `Authorization`
+// del request. Los call sites internos hacen `await getActiveAiModel()` y
+// la función delega al helper shared con el hint cacheado.
+let requestModelHint: { courseId?: string | null; authHeader?: string | null } = {};
+
+function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
+  requestModelHint = h;
 }
-let cachedModel: ActiveModel | null = null;
 
 async function getActiveAiModel(): Promise<ActiveModel> {
-  if (cachedModel) return cachedModel;
-  try {
-    const { data } = await adminClient
-      .from("ai_model_settings")
-      .select("provider, model, gemini_api_key")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (
-      data &&
-      (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
-    ) {
-      cachedModel = {
-        provider: data.provider,
-        model: data.model,
-        gemini_api_key: (data as { gemini_api_key?: string | null }).gemini_api_key ?? null,
-      };
-      return cachedModel;
-    }
-  } catch (e) {
-    console.warn("[ai_model_settings] resolve failed, using default:", e);
-  }
-  // Fallback al comportamiento previo si no hay config.
-  cachedModel = { provider: "lovable", model: "google/gemini-2.5-flash", gemini_api_key: null };
-  return cachedModel;
+  return await resolveActiveModel(requestModelHint);
 }
+export type { AiProvider };
 
 /**
  * Wrapper único de chat completions. Internamente decide endpoint/auth/modelo
@@ -437,6 +419,13 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
+    // Multi-tenant: setear hint del modelo según courseId del body o JWT
+    // del caller. Las llamadas internas de aiChatCompletion() lo
+    // consumirán para resolver `ai_model_settings` filtrado por tenant.
+    setRequestModelHint({
+      courseId: (body as { courseId?: string | null }).courseId ?? null,
+      authHeader: req.headers.get("Authorization"),
+    });
     auditMode = body.batchGrading
       ? "batch"
       : body.workshopGrading

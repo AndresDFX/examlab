@@ -70,10 +70,17 @@ async function fetchAiSettings(): Promise<AiSettings | null> {
     const supa = createClient(url, key, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    // Multi-tenant: con N tenants activos hay N filas is_active=true.
+    // Health-check es diagnostico cross-tenant para el operador (SuperAdmin);
+    // queremos saber "¿hay configuración en algún lado?". Usamos limit(1)
+    // + order updated_at para mostrar la más reciente sin romper con
+    // multiples filas.
     const { data } = await supa
       .from("ai_model_settings")
       .select("provider, model, updated_at")
       .eq("is_active", true)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
     return (data as AiSettings) ?? null;
   } catch {

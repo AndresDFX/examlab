@@ -14,6 +14,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { describeAiError } from "../_shared/ai-error.ts";
+import {
+  getActiveAiModel as resolveActiveModel,
+  type ActiveModel,
+} from "../_shared/ai-model.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,28 +29,13 @@ const adminClient = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-type AiProvider = "lovable" | "openai" | "gemini";
-let cachedModel: { provider: AiProvider; model: string } | null = null;
-async function getActiveAiModel() {
-  if (cachedModel) return cachedModel;
-  try {
-    const { data } = await adminClient
-      .from("ai_model_settings")
-      .select("provider, model")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (
-      data &&
-      (data.provider === "lovable" || data.provider === "openai" || data.provider === "gemini")
-    ) {
-      cachedModel = { provider: data.provider, model: data.model };
-      return cachedModel;
-    }
-  } catch (e) {
-    console.warn("[ai_model_settings]", e);
-  }
-  cachedModel = { provider: "lovable", model: "google/gemini-2.5-pro" };
-  return cachedModel;
+// Multi-tenant: hint del request para resolver ai_model_settings por tenant.
+let requestModelHint: { courseId?: string | null; authHeader?: string | null } = {};
+function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
+  requestModelHint = h;
+}
+async function getActiveAiModel(): Promise<ActiveModel> {
+  return await resolveActiveModel(requestModelHint);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -310,6 +299,12 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  // Multi-tenant: resolver modelo activo para el course de este content.
+  setRequestModelHint({
+    courseId: (gen as { course_id?: string | null }).course_id ?? null,
+    authHeader: req.headers.get("Authorization"),
+  });
   const isPartial = typeof body.target_class === "number" && body.target_class > 0;
   // Para regen completa: si ya está done/processing, no hacemos nada
   // (el cliente debe poner status='queued' antes de invocar).
