@@ -112,7 +112,6 @@ function AdminDashboard() {
   // shape inicial; hoy la ventana real es 24h (ver sinceHour más abajo).
   const [aiStats, setAiStats] = useState({
     errorsLastHour: 0,
-    gradingsLastHour: 0,
     questionsGenLastHour: 0,
     plagiarismLastHour: 0,
     /** Comentarios pendientes de respuesta del docente — agregado a nivel
@@ -164,17 +163,12 @@ function AdminDashboard() {
       // "Llamadas IA" eliminado por baja accionabilidad — el desglose
       // útil (errores / calificaciones / preguntas / plagio) ya está
       // separado en sus propias métricas.
-      const [aiErrorsRes, aiGradingsRes, aiQuestionsRes, aiPlagiarismRes, openThreadsRes] =
+      const [aiErrorsRes, aiQuestionsRes, aiPlagiarismRes, openThreadsRes] =
         await Promise.all([
           dbAny
             .from("audit_logs")
             .select("id", { count: "exact", head: true })
             .in("action", ["ai.grading_failed", "ai.questions_generation_failed"])
-            .gte("created_at", sinceHour),
-          dbAny
-            .from("audit_logs")
-            .select("id", { count: "exact", head: true })
-            .eq("action", "ai_grading.completed")
             .gte("created_at", sinceHour),
           dbAny
             .from("audit_logs")
@@ -217,7 +211,6 @@ function AdminDashboard() {
 
       setAiStats({
         errorsLastHour: aiErrorsRes.count ?? 0,
-        gradingsLastHour: aiGradingsRes.count ?? 0,
         questionsGenLastHour: aiQuestionsRes.count ?? 0,
         plagiarismLastHour: aiPlagiarismRes.count ?? 0,
         pendingTeacherResponses,
@@ -294,12 +287,6 @@ function AdminDashboard() {
               ? "text-destructive"
               : "text-emerald-500 dark:text-emerald-400"
           }
-        />
-        <Stat
-          icon={CircleCheck}
-          label="Calificaciones IA (24h)"
-          value={aiStats.gradingsLastHour}
-          color="text-emerald-500 dark:text-emerald-400"
         />
         <Stat
           icon={Bot}
