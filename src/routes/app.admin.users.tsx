@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -113,7 +113,7 @@ const USERS_TEMPLATE_CSV = toCSV([
 
 function AdminUsers() {
   const { t } = useTranslation();
-  const { roles } = useAuth();
+  const { roles, profile } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -137,6 +137,14 @@ function AdminUsers() {
   >([]);
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const isSuperAdminCaller = roles.includes("SuperAdmin");
+  // Tenant del Admin actual — necesario para auto-asignar nuevos usuarios
+  // a SU institución cuando el SuperAdmin no eligió otra. Lo guardamos en
+  // un ref para no re-renderizar cada vez que cambia, y lo populamos al
+  // cargar el primer profile del Admin.
+  const myTenantIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (profile?.tenant_id) myTenantIdRef.current = profile.tenant_id;
+  }, [profile?.tenant_id]);
   const confirm = useConfirm();
   // Filtramos por nombre + ambos correos + rol. case-insensitive,
   // includes (no prefix). Cualquier match en cualquier campo cuenta —
@@ -394,19 +402,26 @@ function AdminUsers() {
         // Estudiante. Para Admin/Docente forzamos NULL aunque el form
         // hubiese tenido valores (mejor pisarlos que dejar inconsistencia).
         const isStudent = editing.roles.includes("Estudiante");
+        // SuperAdmin puede reasignar tenant en edit (sujeto al trigger
+        // tg_check_profile_tenant_change que bloquea si el user tiene
+        // cursos activos en el tenant viejo). Admin no lo toca.
+        const updatePayload: Record<string, unknown> = {
+          full_name: editing.full_name,
+          personal_email: editing.personal_email || null,
+          institutional_email: editing.institutional_email,
+          codigo: isStudent ? editing.codigo?.trim() || null : null,
+          documento: isStudent ? editing.documento?.trim() || null : null,
+          cohorte: isStudent ? editing.cohorte?.trim() || null : null,
+          estado: isStudent ? editing.estado || null : null,
+          programa_id: isStudent ? editing.programa_id || null : null,
+        };
+        if (isSuperAdminCaller && editing.tenant_id) {
+          updatePayload.tenant_id = editing.tenant_id;
+        }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from("profiles")
-          .update({
-            full_name: editing.full_name,
-            personal_email: editing.personal_email || null,
-            institutional_email: editing.institutional_email,
-            codigo: isStudent ? editing.codigo?.trim() || null : null,
-            documento: isStudent ? editing.documento?.trim() || null : null,
-            cohorte: isStudent ? editing.cohorte?.trim() || null : null,
-            estado: isStudent ? editing.estado || null : null,
-            programa_id: isStudent ? editing.programa_id || null : null,
-          })
+          .update(updatePayload)
           .eq("id", editing.id);
         if (error) {
           toast.error(friendlyError(error));
@@ -480,6 +495,30 @@ function AdminUsers() {
             toast.error(result?.error ?? result?.reason ?? "Error al crear usuario");
           }
           return;
+        }
+        // Asignación de tenant al nuevo profile:
+        //   - SuperAdmin elige institución en el form (editing.tenant_id).
+        //   - Admin: si editing.tenant_id viene null/vacío, se asigna a SU
+        //     tenant (los Admin solo crean usuarios para su institución).
+        //   - El trigger handle_new_user ya creó el profile con tenant
+        //     default; ahora lo ajustamos.
+        const newUserId = (result as { userId?: string })?.userId;
+        const targetTenantId =
+          editing.tenant_id || (isSuperAdminCaller ? null : myTenantIdRef.current);
+        if (newUserId && targetTenantId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: tErr } = await (supabase as any)
+            .from("profiles")
+            .update({ tenant_id: targetTenantId })
+            .eq("id", newUserId);
+          if (tErr) {
+            console.warn("[admin.users] tenant assign failed:", tErr.message);
+            // No bloqueamos: el usuario quedó creado, solo le falta el tenant
+            // correcto. Toast warning para que el admin lo arregle desde el edit.
+            toast.warning(
+              "Usuario creado, pero no se pudo asignar a la institución. Edítalo y guarda de nuevo.",
+            );
+          }
         }
         toast.success("Usuario creado correctamente");
         void logEvent({
@@ -878,6 +917,40 @@ function AdminUsers() {
                   ))}
                 </div>
               </div>
+
+              {/* Institución — solo SuperAdmin elige. El Admin normal
+                  no ve este campo y el usuario nuevo se asigna automá-
+                  ticamente a SU tenant. Para usuarios EXISTENTES, el
+                  SuperAdmin también puede reasignar (sujeto al trigger
+                  tg_check_profile_tenant_change que bloquea si el user
+                  tiene cursos activos en el tenant viejo). */}
+              {isSuperAdminCaller && (
+                <div>
+                  <Label className="mb-2 block">Institución</Label>
+                  <Select
+                    value={editing.tenant_id ?? ""}
+                    onValueChange={(v) =>
+                      setEditing({ ...editing, tenant_id: v || null })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona institución…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    El SuperAdmin puede asignar el usuario a cualquier institución.
+                    {editing.id &&
+                      " Cambiar el valor falla si el usuario ya tiene cursos en la institución actual."}
+                  </p>
+                </div>
+              )}
 
               {/* Identidad estudiantil — solo visible cuando el usuario
                   tiene rol Estudiante. Todos los campos son opcionales

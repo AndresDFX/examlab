@@ -1652,11 +1652,173 @@ function TeacherWorkshops() {
     if (decision === "cancel") return false;
     setAiGradingId(sub.id);
     try {
-      // Build the prompt for AI grading
+      // ── Modo moderno: taller con preguntas (workshop_questions).
+      // El estudiante entrega respuestas por pregunta en
+      // workshop_submission_answers. Para recalificar mandamos TODAS las
+      // respuestas en UN solo prompt (batchGrading) — antes hacíamos
+      // workshopGrading sobre sub.content (textarea legacy) y para los
+      // talleres modernos sub.content era null → la IA respondía
+      // "El estudiante no proporcionó ninguna respuesta para este taller".
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const [{ data: qs }, { data: ans }] = await Promise.all([
+        dbAny
+          .from("workshop_questions")
+          .select("id, type, content, points, expected_rubric, language, starter_code")
+          .eq("workshop_id", gradingWs.id)
+          .order("position"),
+        dbAny
+          .from("workshop_submission_answers")
+          .select(
+            "question_id, answer_text, selected_option, code_content, diagram_code",
+          )
+          .eq("submission_id", sub.id),
+      ]);
+      const questions = (qs ?? []) as Array<{
+        id: string;
+        type: string;
+        content: string;
+        points: number;
+        expected_rubric: string | null;
+        language: string | null;
+        starter_code: string | null;
+      }>;
+      const answersByQid = new Map(
+        ((ans ?? []) as Array<{
+          question_id: string;
+          answer_text: string | null;
+          selected_option: string | null;
+          code_content: string | null;
+          diagram_code: string | null;
+        }>).map((a) => [a.question_id, a]),
+      );
+
+      if (questions.length > 0) {
+        // Construye batch items SOLO para preguntas abiertas/código/diagrama
+        // con respuesta del alumno. Las cerradas se califican localmente
+        // (correct_index match) y NO entran al prompt — economía de tokens.
+        const batchItems: Array<{
+          qid: string;
+          type: string;
+          content: string;
+          rubric: string;
+          userAnswer: string;
+          maxPoints: number;
+          language?: string | null;
+        }> = [];
+        const localScores = new Map<string, { earned: number; feedback: string }>();
+        let totalPoints = 0;
+        let totalEarned = 0;
+
+        for (const q of questions) {
+          totalPoints += Number(q.points) || 0;
+          const a = answersByQid.get(q.id);
+          if (q.type === "cerrada" || q.type === "cerrada_multi") {
+            // Scoring local determinístico. La RPC no se ejecuta acá; se
+            // limita a sumar al total.
+            localScores.set(q.id, { earned: 0, feedback: "Pregunta cerrada (calificación local)" });
+            continue;
+          }
+          const raw =
+            a?.code_content ?? a?.diagram_code ?? a?.answer_text ?? "";
+          const trimmed = String(raw).trim();
+          const starter = String(q.starter_code ?? "").trim();
+          const isEmpty =
+            !trimmed || (starter !== "" && trimmed === starter);
+          if (isEmpty) {
+            localScores.set(q.id, { earned: 0, feedback: "Sin respuesta" });
+            continue;
+          }
+          batchItems.push({
+            qid: q.id,
+            type: q.type === "java_gui" ? "codigo" : q.type,
+            content: q.content,
+            rubric: q.expected_rubric ?? "",
+            userAnswer: trimmed,
+            maxPoints: Number(q.points) || 0,
+            language: q.type === "java_gui" ? "java" : q.language,
+          });
+        }
+
+        // Si no hay nada para mandar a IA (todas vacías o cerradas), no
+        // gastamos el round-trip — solo persistimos los 0.
+        if (batchItems.length > 0) {
+          const { data: bData, error: bErr } = await supabase.functions.invoke(
+            "ai-grade-submission",
+            {
+              body: {
+                batchGrading: true,
+                items: batchItems,
+                useCase: "workshop_question",
+                courseId: gradingWs.course_id,
+              },
+            },
+          );
+          if (bErr || bData?.error) {
+            toast.error(`Error IA: ${bData?.error ?? bErr?.message ?? "desconocido"}`);
+            return false;
+          }
+          const results = (bData?.results ?? {}) as Record<
+            string,
+            { score?: number; feedback?: string }
+          >;
+          for (const it of batchItems) {
+            const r = results[it.qid];
+            const earned = r
+              ? Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0))
+              : 0;
+            localScores.set(it.qid, {
+              earned,
+              feedback: r?.feedback ?? "Sin retroalimentación",
+            });
+          }
+        }
+
+        // Persiste resultado per-pregunta + recalcula nota global.
+        const upserts: Array<Record<string, unknown>> = [];
+        for (const q of questions) {
+          const s = localScores.get(q.id) ?? { earned: 0, feedback: "Sin respuesta" };
+          totalEarned += s.earned;
+          upserts.push({
+            submission_id: sub.id,
+            question_id: q.id,
+            ai_grade: s.earned,
+            ai_feedback: s.feedback,
+          });
+        }
+        for (const u of upserts) {
+          await supabase
+            .from("workshop_submission_answers")
+            .upsert(u, { onConflict: "submission_id,question_id" });
+        }
+        const finalGrade =
+          totalPoints > 0
+            ? Number(((totalEarned / totalPoints) * Number(gradingWs.max_score)).toFixed(2))
+            : 0;
+        const summary = `Calificación recalculada en batch sobre ${batchItems.length} pregunta${batchItems.length === 1 ? "" : "s"} abierta${batchItems.length === 1 ? "" : "s"} (de ${questions.length} totales).`;
+        const { error: updateErr } = await supabase
+          .from("workshop_submissions")
+          .update({ ai_grade: finalGrade, ai_feedback: summary, status: "ai_revisado" })
+          .eq("id", sub.id);
+        if (updateErr) {
+          toast.error(`Error guardando: ${friendlyError(updateErr)}`);
+          return false;
+        }
+        setWsSubs((prev) =>
+          prev.map((s) =>
+            s.id === sub.id
+              ? { ...s, ai_grade: finalGrade, ai_feedback: summary, status: "ai_revisado" }
+              : s,
+          ),
+        );
+        return true;
+      }
+
+      // ── Modo legacy: taller sin preguntas (entrega monolítica en
+      // sub.content / external_link). Mismo flow original.
       const rubricText = gradingWs.rubric
         ? JSON.stringify(gradingWs.rubric)
         : "Evalúa la calidad, completitud y corrección de la respuesta.";
-
       const studentAnswer =
         [
           sub.content ? `Contenido: ${sub.content}` : "",
@@ -1665,7 +1827,6 @@ function TeacherWorkshops() {
           .filter(Boolean)
           .join("\n") || "Sin respuesta";
 
-      // Call AI via edge function with a generic approach
       const { data: aiData, error: aiErr } = await supabase.functions.invoke(
         "ai-grade-submission",
         {
@@ -1676,6 +1837,7 @@ function TeacherWorkshops() {
             rubric: rubricText,
             maxScore: gradingWs.max_score,
             studentAnswer,
+            courseId: gradingWs.course_id,
           },
         },
       );
@@ -1684,7 +1846,6 @@ function TeacherWorkshops() {
       let aiFeedback = "Sin retroalimentación de IA";
 
       if (aiErr || aiData?.error) {
-        // Fallback: if edge function doesn't support workshop mode, do a simple scoring
         toast.error(
           "La calificación IA requiere actualizar la edge function. Usa calificación manual.",
         );
@@ -1694,7 +1855,6 @@ function TeacherWorkshops() {
         aiFeedback = aiData?.feedback ?? "Sin retroalimentación de IA";
       }
 
-      // Save to DB
       const { error: updateErr } = await supabase
         .from("workshop_submissions")
         .update({

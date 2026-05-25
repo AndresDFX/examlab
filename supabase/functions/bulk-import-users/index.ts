@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
               );
           }
         }
-        result.push({ email: institutional_email, ok: true });
+        result.push({ email: institutional_email, ok: true, userId });
       } catch (e) {
         result.push({
           email: institutional_email,

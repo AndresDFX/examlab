@@ -264,46 +264,51 @@ export function AdminModelPanel() {
           </datalist>
         </div>
 
-        {/* API keys per-tenant.
-            - Cada institución gestiona su propia key y sus propios
-              costos de IA.
-            - Si dejas un campo vacío, la edge cae al env legacy
-              (Lovable Secrets) — útil para tenant default + onboarding.
-            - "Mantener actual" significa: no tocar el valor previo.
-              Útil para edits parciales sin re-pegar la key. */}
+        {/* API key del provider ACTIVO solamente. Mostrar las 3 era
+            ruido — el admin solo usa uno. Si cambia el provider arriba,
+            el input correspondiente aparece debajo.
+            UX: sentinel "__keep" = no tocar el valor previo (placeholder
+            "••••XXXX"); "" = borrar y caer al env legacy; cualquier otro
+            string = reemplazar. */}
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Configura las API keys de tu institución. Cada institución gestiona sus propias
-            keys y costos de IA. Si dejas un campo vacío al guardar, la plataforma cae al
-            secret configurado por el SuperAdmin (<code>{SECRET_NAME[draftProvider]}</code>).
+            Cada institución gestiona su propia API key del provider activo y sus propios
+            costos de IA. Si dejas el campo vacío al guardar, la plataforma cae al secret
+            configurado por el SuperAdmin (<code>{SECRET_NAME[draftProvider]}</code>).
           </AlertDescription>
         </Alert>
 
-        <ApiKeyInput
-          label="API key — Lovable AI Gateway"
-          stored={activeRow?.lovable_api_key ?? null}
-          value={draftLovableKey}
-          onChange={setDraftLovableKey}
-          maskFn={maskKey}
-          help="LOVABLE_API_KEY — créditos administrados por Lovable."
-        />
-        <ApiKeyInput
-          label="API key — OpenAI"
-          stored={activeRow?.openai_api_key ?? null}
-          value={draftOpenaiKey}
-          onChange={setDraftOpenaiKey}
-          maskFn={maskKey}
-          help="sk-... desde platform.openai.com. Cobra a tu cuenta OpenAI."
-        />
-        <ApiKeyInput
-          label="API key — Google Gemini (directo)"
-          stored={activeRow?.gemini_api_key ?? null}
-          value={draftGeminiKey}
-          onChange={setDraftGeminiKey}
-          maskFn={maskKey}
-          help="AIza... desde Google AI Studio. Cobra a tu proyecto GCP."
-        />
+        {draftProvider === "lovable" && (
+          <ApiKeyInput
+            label="API key — Lovable AI Gateway"
+            stored={activeRow?.lovable_api_key ?? null}
+            value={draftLovableKey}
+            onChange={setDraftLovableKey}
+            maskFn={maskKey}
+            help="LOVABLE_API_KEY — créditos administrados por Lovable."
+          />
+        )}
+        {draftProvider === "openai" && (
+          <ApiKeyInput
+            label="API key — OpenAI"
+            stored={activeRow?.openai_api_key ?? null}
+            value={draftOpenaiKey}
+            onChange={setDraftOpenaiKey}
+            maskFn={maskKey}
+            help="sk-... desde platform.openai.com. Cobra a tu cuenta OpenAI."
+          />
+        )}
+        {draftProvider === "gemini" && (
+          <ApiKeyInput
+            label="API key — Google Gemini (directo)"
+            stored={activeRow?.gemini_api_key ?? null}
+            value={draftGeminiKey}
+            onChange={setDraftGeminiKey}
+            maskFn={maskKey}
+            help="AIza... desde Google AI Studio. Cobra a tu proyecto GCP."
+          />
+        )}
 
         <div className="flex flex-wrap gap-2 justify-end pt-1">
           {dirty && activeRow && (
