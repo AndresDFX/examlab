@@ -60,131 +60,17 @@ import {
   QUEUED_STUDENT_TITLE,
 } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { validateCodeArchive } from "@/shared/lib/code-extensions";
+import {
+  LANG_TO_EXT,
+  LANG_OPTIONS,
+  MAX_CODE_FILES_TOTAL_BYTES,
+  MAX_CODE_FILES_COUNT,
+  isFileAllowed,
+  preValidateZipInBrowser,
+} from "@/shared/lib/code-upload";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-
-/**
- * Descomprime un .zip en cliente (con fflate) y valida que TODOS los
- * archivos adentro sean de extensiones permitidas. Defensa pre-upload
- * para que el estudiante reciba feedback inmediato si su ZIP contiene
- * PDFs, imágenes o cualquier no-código — y para evitar gastar Storage
- * + cuota IA en una entrega que el server va a rechazar igualmente.
- *
- * Si el ZIP no se puede leer (corrupto, password-protected) devuelve
- * `ok: false` con un mensaje genérico — el server tiene su propia
- * validación que actúa como red final.
- */
-async function preValidateZipInBrowser(
-  zipFile: File,
-  allowedExtensions: string[] | null,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const fflate = await import("fflate");
-    const buf = new Uint8Array(await zipFile.arrayBuffer());
-    const inner = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
-      fflate.unzip(buf, (err, files) => (err ? reject(err) : resolve(files)));
-    });
-    const paths = Object.keys(inner);
-    const result = validateCodeArchive(paths, allowedExtensions);
-    if (result.ok) return { ok: true };
-    const sample = result.violations.slice(0, 5).join(", ");
-    const more = result.violations.length > 5 ? ` (+${result.violations.length - 5} más)` : "";
-    const allowedLabel =
-      allowedExtensions && allowedExtensions.length > 0
-        ? `Solo se aceptan archivos ${allowedExtensions.map((e) => `.${e}`).join(", ")}`
-        : "Solo se aceptan archivos de código fuente (.java, .py, .ts, .cpp, etc.). PDFs, imágenes y binarios no se permiten en este slot";
-    return {
-      ok: false,
-      error: `El ZIP contiene archivos no permitidos: ${sample}${more}. ${allowedLabel}. Recomprime con SOLO los archivos de código y vuelve a entregar.`,
-    };
-  } catch {
-    return {
-      ok: false,
-      error: "No se pudo leer el ZIP (corrupto o protegido por contraseña).",
-    };
-  }
-}
-
-// Mapeo lenguaje → extensiones aceptadas para subida multi-archivo de
-// preguntas tipo `codigo_zip` (nombre legacy — ya no son ZIP). Usado por
-// el `accept` del <input type="file"> y por la validación cliente antes
-// de subir cada archivo. El edge function recibe `allowedExtensions` y
-// las re-valida defensivamente.
-//
-// Una entrada por opción del Select de lenguaje. Cada lenguaje fija las
-// extensiones permitidas — Java → solo .java, Python → solo .py, etc. Los
-// lenguajes con headers/variantes (.h junto a .c, .tsx junto a .ts) listan
-// el conjunto completo porque el código real se reparte entre los dos.
-const LANG_TO_EXT: Record<string, string[]> = {
-  java: ["java"],
-  python: ["py"],
-  javascript: ["js", "mjs", "cjs"],
-  typescript: ["ts", "tsx"],
-  c: ["c", "h"],
-  cpp: ["cpp", "cc", "cxx", "hpp", "hxx", "h"],
-  csharp: ["cs"],
-  go: ["go"],
-  rust: ["rs"],
-  php: ["php"],
-  ruby: ["rb"],
-  kotlin: ["kt", "kts"],
-  swift: ["swift"],
-  sql: ["sql"],
-};
-
-// Opciones del Select de lenguaje. ORDEN = orden visible en el dropdown.
-// El label incluye las extensiones para que el docente vea claramente qué
-// se aceptará en la subida del estudiante.
-const LANG_OPTIONS: Array<{ value: keyof typeof LANG_TO_EXT; label: string }> = [
-  { value: "java", label: "Java (.java)" },
-  { value: "python", label: "Python (.py)" },
-  { value: "javascript", label: "JavaScript (.js, .mjs, .cjs)" },
-  { value: "typescript", label: "TypeScript (.ts, .tsx)" },
-  { value: "c", label: "C (.c, .h)" },
-  { value: "cpp", label: "C++ (.cpp, .cc, .h, .hpp)" },
-  { value: "csharp", label: "C# (.cs)" },
-  { value: "go", label: "Go (.go)" },
-  { value: "rust", label: "Rust (.rs)" },
-  { value: "php", label: "PHP (.php)" },
-  { value: "ruby", label: "Ruby (.rb)" },
-  { value: "kotlin", label: "Kotlin (.kt, .kts)" },
-  { value: "swift", label: "Swift (.swift)" },
-  { value: "sql", label: "SQL (.sql)" },
-];
-
-const MAX_CODE_FILES_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB sumados.
-const MAX_CODE_FILES_COUNT = 50;
-
-/**
- * Política de subida = WHITELIST estricto. Un archivo es válido si y
- * solo si su extensión está en `allowedExts` del lenguaje (Java → solo
- * `.java`, Python → `.py`, etc.). No usamos blacklist auxiliar porque
- * cualquier cosa fuera del whitelist ya queda rechazada por definición:
- *
- *   `.gitignore` → ext "gitignore" no está en ["java"] → rechaza.
- *   `.env`       → ext "env"       no está en ["java"] → rechaza.
- *   `pom.xml`    → ext "xml"       no está en ["java"] → rechaza.
- *   `README.md`  → ext "md"        no está en ["java"] → rechaza.
- *   `Main`       → sin extensión real → rechaza (regla abajo).
- *
- * Esta función también dice "rechazar" cuando:
- *   - El nombre no tiene punto en absoluto (binario sin extensión).
- *   - El nombre arranca con punto y NO tiene segunda extensión real
- *     (`.gitignore`, `.env`, `.gitkeep`, etc.).
- *
- * Devuelve true si el archivo pasa el whitelist.
- */
-function isFileAllowed(name: string, allowedExts: string[] | null): boolean {
-  // Sin restricción de lenguaje configurada → no validamos extensión.
-  if (!allowedExts || allowedExts.length === 0) return true;
-  const base = name.split("/").pop() ?? name;
-  // Hidden / sin extensión real: rechaza.
-  if (!base.includes(".") || base.startsWith(".")) return false;
-  const ext = (base.split(".").pop() ?? "").toLowerCase();
-  return allowedExts.includes(ext);
-}
 
 export type ProjectFile = {
   id: string;

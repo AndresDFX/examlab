@@ -44,6 +44,14 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
+import {
+  LANG_TO_EXT,
+  MAX_CODE_FILES_TOTAL_BYTES,
+  MAX_CODE_FILES_COUNT,
+  isFileAllowed,
+  preValidateZipInBrowser,
+} from "@/shared/lib/code-upload";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import {
   getProcessingMode,
@@ -975,6 +983,11 @@ export function StudentWorkshopTaker({
           const minS = (q.options as any)?.min_selections;
           isBlank = typeof minS === "number" && minS > 0 && a.length < minS;
         }
+      } else if (q.type === "codigo_zip") {
+        // Para codigo_zip la respuesta es File (zip_single) o File[] (multi).
+        if (a instanceof File) isBlank = a.size === 0;
+        else if (Array.isArray(a)) isBlank = a.length === 0;
+        else isBlank = true;
       } else {
         isBlank = !String(a ?? "").trim();
       }
@@ -1084,6 +1097,20 @@ export function StudentWorkshopTaker({
         maxPoints: number;
         language?: string | null;
       }> = [];
+      // Encolas async pendientes de `codigo_zip` — se procesan después
+      // del upsert porque necesitamos el row id del answer.
+      const pendingZipEnqueues: Array<{
+        qid: string;
+        body: Record<string, unknown>;
+      }> = [];
+
+      // Detectamos el modo IA arriba (no después del loop) para que la
+      // ruta de `codigo_zip` —que sube archivos y llama al edge inline o
+      // encola un job— pueda ramificar sync/async desde el inicio.
+      const aiModeEarly = await getProcessingMode();
+      const aiOverrideActiveEarly = !!readOverrideExpiry();
+      const useAsyncAiEarly = aiModeEarly === "async" && !aiOverrideActiveEarly;
+      const rootFolder = groupId ?? user.id;
 
       for (const q of questions) {
         const raw = answers[q.id] ?? "";
@@ -1098,6 +1125,11 @@ export function StudentWorkshopTaker({
         else if (q.type === "cerrada") payload.selected_option = String(raw);
         else if (q.type === "cerrada_multi") {
           payload.answer_text = JSON.stringify(Array.isArray(raw) ? raw : []);
+        } else if (q.type === "codigo_zip") {
+          // `answer_text` queda vacío — la "respuesta" son los archivos
+          // subidos a Storage; los paths se persisten en `zip_path` /
+          // `code_paths` más abajo.
+          payload.answer_text = "";
         } else payload.answer_text = String(raw);
 
         if (q.type === "cerrada") {
@@ -1113,6 +1145,185 @@ export function StudentWorkshopTaker({
             earned: got,
             feedback: payload.ai_feedback,
           });
+        } else if (q.type === "codigo_zip") {
+          // ── codigo_zip: subimos archivos a `workshop-files` y, según
+          // modo IA, calificamos inline (sync) o encolamos (async). Mismo
+          // patrón que proyectos pero apuntando al bucket de talleres y
+          // pasando `workshopCodeZipGrading: true` al edge.
+          const langKey = (q.language ?? "").toLowerCase().trim();
+          const allowedExts = LANG_TO_EXT[langKey] ?? null;
+          if (q.zip_single) {
+            const zipFile = raw instanceof File ? raw : null;
+            if (!zipFile) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = "Sin archivo ZIP entregado";
+              breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+            } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = `El ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`;
+              toast.error(payload.ai_feedback, { duration: 8000 });
+              breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+            } else {
+              const preCheck = await preValidateZipInBrowser(zipFile, allowedExts);
+              if (!preCheck.ok) {
+                payload.ai_grade = 0;
+                payload.ai_feedback = preCheck.error;
+                toast.error(preCheck.error, { duration: 10000 });
+                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: preCheck.error });
+              } else {
+                const zipPath = `${rootFolder}/${submissionId}/${q.id}.zip`;
+                const { error: upErr } = await supabase.storage
+                  .from("workshop-files")
+                  .upload(zipPath, zipFile, { upsert: true, contentType: "application/zip" });
+                if (upErr) {
+                  payload.ai_grade = 0;
+                  payload.ai_feedback = `Error al subir el ZIP: ${upErr.message}`;
+                  toast.error(payload.ai_feedback, { duration: 8000 });
+                  breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                } else {
+                  payload.zip_path = zipPath;
+                  const aiBody: Record<string, unknown> = {
+                    workshopCodeZipGrading: true,
+                    zipPath,
+                    noMinify: true,
+                    fileTitle: q.content,
+                    expectedRubric: q.expected_rubric,
+                    maxPoints: q.points,
+                    courseLanguage,
+                  };
+                  if (useAsyncAiEarly) {
+                    payload.ai_grade = null;
+                    payload.ai_feedback = PENDING_AI_FEEDBACK;
+                    pendingZipEnqueues.push({ qid: q.id, body: aiBody });
+                    breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: PENDING_AI_FEEDBACK });
+                  } else {
+                    const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+                      "ai-grade-submission",
+                      { body: aiBody },
+                    );
+                    if (aiErr || (aiData as any)?.error) {
+                      const detail = await extractEdgeError(aiErr, aiData);
+                      payload.ai_grade = 0;
+                      payload.ai_feedback = detail || "Error IA al calificar el ZIP";
+                      toast.error(payload.ai_feedback, { duration: 8000 });
+                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                    } else {
+                      const earned = Math.max(0, Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0));
+                      const fb = (aiData as any)?.feedback ?? "Sin retroalimentación";
+                      payload.ai_grade = earned;
+                      payload.ai_feedback = fb;
+                      payload.ai_likelihood =
+                        typeof (aiData as any)?.ai_likelihood === "number" ? (aiData as any).ai_likelihood : null;
+                      payload.ai_reasons = (aiData as any)?.ai_reasons ?? null;
+                      if (typeof (aiData as any)?.zip_truncated === "boolean") {
+                        payload.zip_truncated = (aiData as any).zip_truncated;
+                      }
+                      if (typeof (aiData as any)?.zip_chars_used === "number") {
+                        payload.zip_chars_used = (aiData as any).zip_chars_used;
+                      }
+                      totalEarned += earned;
+                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
+                    }
+                  }
+                }
+              }
+            }
+          } else {
+            // Multi-archivo
+            const filesArr: File[] = Array.isArray(raw)
+              ? (raw.filter((f) => f instanceof File) as File[])
+              : raw instanceof File
+                ? [raw]
+                : [];
+            if (filesArr.length === 0) {
+              payload.ai_grade = 0;
+              payload.ai_feedback = "Sin archivos de código entregados";
+              breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+            } else {
+              const violations = allowedExts ? filesArr.filter((f) => !isFileAllowed(f.name, allowedExts)) : [];
+              const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
+              if (violations.length > 0) {
+                const sample = violations.slice(0, 5).map((f) => f.name).join(", ");
+                const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+                const allowedLabel = (allowedExts ?? []).map((e) => `.${e}`).join(", ");
+                payload.ai_grade = 0;
+                payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
+                toast.error(payload.ai_feedback, { duration: 8000 });
+                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+              } else if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
+                payload.ai_grade = 0;
+                payload.ai_feedback = `El total supera el tope de 50 MB (${formatFileSize(totalBytes)}).`;
+                toast.error(payload.ai_feedback, { duration: 8000 });
+                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+              } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
+                payload.ai_grade = 0;
+                payload.ai_feedback = `Demasiados archivos (${filesArr.length}). Máximo: ${MAX_CODE_FILES_COUNT}.`;
+                toast.error(payload.ai_feedback, { duration: 8000 });
+                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+              } else {
+                const usedNames = new Set<string>();
+                const uploads = await Promise.all(
+                  filesArr.map(async (f, idx) => {
+                    let safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                    if (usedNames.has(safeName)) safeName = `${idx}_${safeName}`;
+                    usedNames.add(safeName);
+                    const path = `${rootFolder}/${submissionId}/${q.id}/${safeName}`;
+                    const { error: upErr } = await supabase.storage
+                      .from("workshop-files")
+                      .upload(path, f, { upsert: true, contentType: f.type || "text/plain" });
+                    return { path, error: upErr };
+                  }),
+                );
+                const upFailed = uploads.filter((u) => u.error);
+                if (upFailed.length > 0) {
+                  payload.ai_grade = 0;
+                  payload.ai_feedback = `Error al subir ${upFailed.length} archivo(s): ${upFailed[0].error?.message ?? ""}`;
+                  toast.error(payload.ai_feedback, { duration: 8000 });
+                  breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                } else {
+                  const uploadedPaths = uploads.map((u) => u.path);
+                  payload.code_paths = uploadedPaths;
+                  const aiBody: Record<string, unknown> = {
+                    workshopCodeZipGrading: true,
+                    codePaths: uploadedPaths,
+                    fileTitle: q.content,
+                    expectedRubric: q.expected_rubric,
+                    maxPoints: q.points,
+                    courseLanguage,
+                    ...(allowedExts ? { allowedExtensions: allowedExts } : {}),
+                  };
+                  if (useAsyncAiEarly) {
+                    payload.ai_grade = null;
+                    payload.ai_feedback = PENDING_AI_FEEDBACK;
+                    pendingZipEnqueues.push({ qid: q.id, body: aiBody });
+                    breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: PENDING_AI_FEEDBACK });
+                  } else {
+                    const { data: aiData, error: aiErr } = await supabase.functions.invoke(
+                      "ai-grade-submission",
+                      { body: aiBody },
+                    );
+                    if (aiErr || (aiData as any)?.error) {
+                      const detail = await extractEdgeError(aiErr, aiData);
+                      payload.ai_grade = 0;
+                      payload.ai_feedback = detail || "Error IA al calificar los archivos";
+                      toast.error(payload.ai_feedback, { duration: 8000 });
+                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                    } else {
+                      const earned = Math.max(0, Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0));
+                      const fb = (aiData as any)?.feedback ?? "Sin retroalimentación";
+                      payload.ai_grade = earned;
+                      payload.ai_feedback = fb;
+                      payload.ai_likelihood =
+                        typeof (aiData as any)?.ai_likelihood === "number" ? (aiData as any).ai_likelihood : null;
+                      payload.ai_reasons = (aiData as any)?.ai_reasons ?? null;
+                      totalEarned += earned;
+                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
+                    }
+                  }
+                }
+              }
+            }
+          }
         } else if (q.type === "cerrada_multi") {
           const selectedArr = Array.isArray(raw) ? (raw as number[]) : [];
           const result = scoreCerradaMulti({
@@ -1176,16 +1387,9 @@ export function StudentWorkshopTaker({
         payloadsByQid[q.id] = payload;
       }
 
-      // Detectar modo IA antes de la Fase 2. En `async` sin override
-      // diferimos la calificación de las abiertas: marcamos cada
-      // respuesta con `ai_feedback = Pendiente IA…` y encolamos UN job
-      // por pregunta (kind="workshop_question") después del upsert.
-      // El worker drena la cola más tarde y persiste la nota real. El
-      // estudiante ve un toast informativo + el banner cuando vuelva
-      // a entrar al taller.
-      const aiMode = await getProcessingMode();
-      const aiOverrideActive = !!readOverrideExpiry();
-      const useAsyncAi = aiMode === "async" && !aiOverrideActive;
+      // Reutilizamos la detección hecha arriba para que el comportamiento
+      // sea consistente entre `codigo_zip` (loop) y `batchItems` (Fase 2).
+      const useAsyncAi = useAsyncAiEarly;
 
       // ── Fase 2: UNA llamada batch para todas las abiertas (SOLO sync) ──
       if (batchItems.length > 0 && !useAsyncAi) {
@@ -1317,7 +1521,42 @@ export function StudentWorkshopTaker({
         }
       }
 
-      if (useAsyncAi && batchItems.length > 0) {
+      // ── Encolado IA de `codigo_zip` (async) ──
+      if (useAsyncAi && pendingZipEnqueues.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dbForCourse2 = supabase as any;
+        const { data: wsRow2 } = await dbForCourse2
+          .from("workshops")
+          .select("course_id")
+          .eq("id", workshopId)
+          .maybeSingle();
+        const courseIdForZip = (wsRow2 as { course_id?: string } | null)?.course_id ?? null;
+        for (const it of pendingZipEnqueues) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: row } = await (supabase as any)
+            .from("workshop_submission_answers")
+            .select("id")
+            .eq("submission_id", submissionId)
+            .eq("question_id", it.qid)
+            .maybeSingle();
+          if (!row?.id) continue;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).rpc("enqueue_ai_grading", {
+            _kind: "workshop_codigo_zip",
+            _invoke_target: "ai-grade-submission",
+            _body: it.body,
+            _target_table: "workshop_submission_answers",
+            _target_row_id: row.id,
+            _field_grade: "ai_grade",
+            _field_feedback: "ai_feedback",
+            _field_likelihood: "ai_likelihood",
+            _field_reasons: "ai_reasons",
+            _course_id: courseIdForZip,
+          });
+        }
+      }
+
+      if (useAsyncAi && (batchItems.length > 0 || pendingZipEnqueues.length > 0)) {
         // En async dejamos la submission como `entregado` (no
         // `calificado`) porque la nota real todavía no se calculó.
         // ai_grade queda null y ai_feedback con el placeholder.
@@ -1536,6 +1775,191 @@ export function StudentWorkshopTaker({
                 height="280px"
               />
             )}
+            {q.type === "codigo_zip" && q.zip_single && (() => {
+              const currentZip: File | null =
+                answers[q.id] instanceof File ? (answers[q.id] as File) : null;
+              return (
+                <div className="space-y-2">
+                  <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                    <strong>Modo ZIP único:</strong> sube un archivo{" "}
+                    <code>.zip</code> con todo tu proyecto. El servidor lo
+                    descomprime y la IA califica todos los archivos juntos.
+                  </div>
+                  <input
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    onChange={(e) => {
+                      const picked = e.target.files?.[0];
+                      if (!picked) return;
+                      if (picked.size === 0) {
+                        toast.error("El archivo está vacío.");
+                        e.target.value = "";
+                        return;
+                      }
+                      if (picked.size > MAX_CODE_FILES_TOTAL_BYTES) {
+                        toast.error(
+                          `El ZIP pesa ${formatFileSize(picked.size)} y supera el tope de 50 MB.`,
+                        );
+                        e.target.value = "";
+                        return;
+                      }
+                      if (!picked.name.toLowerCase().endsWith(".zip")) {
+                        toast.error("Solo se acepta un archivo .zip.");
+                        e.target.value = "";
+                        return;
+                      }
+                      e.target.value = "";
+                      updateAnswer(q.id, picked);
+                    }}
+                    className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Comprimí tu carpeta de proyecto en un único{" "}
+                    <span className="font-mono">.zip</span>. Tope: 50 MB.
+                  </p>
+                  {currentZip && (
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <Badge variant="secondary" className="text-[10px] gap-1 pr-1">
+                        <span className="truncate max-w-[16rem]">{currentZip.name}</span>
+                        <span className="text-muted-foreground">
+                          · {formatFileSizeShort(currentZip.size)}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Quitar ${currentZip.name}`}
+                          className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
+                          onClick={() => updateAnswer(q.id, null)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {q.type === "codigo_zip" && !q.zip_single && (() => {
+              const langKey = (q.language ?? "").toLowerCase().trim();
+              const allowedExts = LANG_TO_EXT[langKey] ?? null;
+              const acceptAttr = allowedExts
+                ? allowedExts.map((e) => `.${e}`).join(",")
+                : undefined;
+              const allowedLabel = allowedExts
+                ? allowedExts.map((e) => `.${e}`).join(", ")
+                : "archivos de código fuente";
+              const current: File[] = Array.isArray(answers[q.id])
+                ? (answers[q.id] as File[])
+                : answers[q.id] instanceof File
+                  ? [answers[q.id] as File]
+                  : [];
+              return (
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    multiple
+                    accept={acceptAttr}
+                    onChange={(e) => {
+                      const picked = Array.from(e.target.files ?? []);
+                      if (picked.length === 0) return;
+                      if (allowedExts) {
+                        const bad = picked.filter((f) => !isFileAllowed(f.name, allowedExts));
+                        if (bad.length > 0) {
+                          const sample = bad.slice(0, 5).map((f) => f.name).join(", ");
+                          const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
+                          toast.error(
+                            `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+                            { duration: 8000 },
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                      }
+                      const merged: File[] = [...current];
+                      for (const f of picked) {
+                        const idx = merged.findIndex(
+                          (m) => m.name === f.name && m.size === f.size,
+                        );
+                        if (idx >= 0) merged[idx] = f;
+                        else merged.push(f);
+                      }
+                      const totalBytes = merged.reduce((a, f) => a + f.size, 0);
+                      if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
+                        toast.error(
+                          `Los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
+                        );
+                        e.target.value = "";
+                        return;
+                      }
+                      if (merged.length > MAX_CODE_FILES_COUNT) {
+                        toast.error(
+                          `Seleccionaste ${merged.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+                        );
+                        e.target.value = "";
+                        return;
+                      }
+                      if (picked.some((f) => f.size === 0)) {
+                        toast.error("Hay archivos vacíos en la selección.");
+                        e.target.value = "";
+                        return;
+                      }
+                      e.target.value = "";
+                      updateAnswer(q.id, merged);
+                    }}
+                    className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Sube uno o varios archivos de código fuente — sin comprimir.
+                    Extensiones aceptadas:{" "}
+                    <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB
+                    total y hasta {MAX_CODE_FILES_COUNT} archivos.
+                  </p>
+                  {current.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span>
+                          {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
+                          {formatFileSize(current.reduce((a, f) => a + f.size, 0))}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateAnswer(q.id, [])}
+                          className="text-destructive hover:underline"
+                        >
+                          Quitar todos
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {current.map((f, i) => (
+                          <Badge
+                            key={`${f.name}-${f.size}-${i}`}
+                            variant="secondary"
+                            className="text-[10px] gap-1 pr-1"
+                          >
+                            <span className="truncate max-w-[12rem]">{f.name}</span>
+                            <span className="text-muted-foreground">
+                              · {formatFileSizeShort(f.size)}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`Quitar ${f.name}`}
+                              className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
+                              onClick={() =>
+                                updateAnswer(
+                                  q.id,
+                                  current.filter((_, j) => j !== i),
+                                )
+                              }
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       ))}
