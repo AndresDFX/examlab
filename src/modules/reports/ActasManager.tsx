@@ -65,6 +65,8 @@ interface Acta {
   docente_nombre: string;
   periodo_codigo: string | null;
   total_estudiantes: number;
+  total_aprobados: number;
+  total_reprobados: number;
   generated_at: string;
   integrity_hash: string;
 }
@@ -103,7 +105,7 @@ export function ActasManager({ onPrintActa }: Props) {
       db
         .from("course_actas")
         .select(
-          "id, course_id, curso_nombre, docente_nombre, periodo_codigo, total_estudiantes, generated_at, integrity_hash",
+          "id, course_id, curso_nombre, docente_nombre, periodo_codigo, total_estudiantes, total_aprobados, total_reprobados, generated_at, integrity_hash",
         )
         .order("generated_at", { ascending: false }),
       db.from("courses").select("id, name").order("name"),
@@ -245,6 +247,7 @@ export function ActasManager({ onPrintActa }: Props) {
                   <TableHead className="hidden sm:table-cell w-28">Periodo</TableHead>
                   <TableHead className="hidden md:table-cell">Docente</TableHead>
                   <TableHead className="w-24 text-center">Estud.</TableHead>
+                  <TableHead className="hidden sm:table-cell w-24 text-center">% Aprob.</TableHead>
                   <TableHead className="hidden sm:table-cell w-32">Generada</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -252,7 +255,7 @@ export function ActasManager({ onPrintActa }: Props) {
               <TableBody>
                 {actas.length === 0 ? (
                   <TableEmpty
-                    colSpan={6}
+                    colSpan={7}
                     text="Sin actas"
                     hint="Cuando cierres el curso, genera el acta oficial desde aquí."
                   />
@@ -277,6 +280,20 @@ export function ActasManager({ onPrintActa }: Props) {
                       </TableCell>
                       <TableCell className="text-center tabular-nums">
                         {a.total_estudiantes}
+                      </TableCell>
+                      <TableCell className="text-center hidden sm:table-cell">
+                        {a.total_estudiantes > 0 ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-xs font-medium tabular-nums">
+                              {Math.round((a.total_aprobados / a.total_estudiantes) * 100)}%
+                            </span>
+                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                              {a.total_aprobados}/{a.total_estudiantes}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <DateCell value={a.generated_at} variant="datetime" />
