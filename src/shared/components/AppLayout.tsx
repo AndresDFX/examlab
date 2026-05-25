@@ -708,7 +708,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </SelectTrigger>
               <SelectContent>
                 {roles.map((r) => {
+                  // Defensive: si un rol nuevo se agrega en DB pero el
+                  // cliente no se ha actualizado, ROLE_CONFIG[r] puede ser
+                  // undefined. Sin guard la app entera crasheaba al
+                  // expandir el sidebar (TypeError: undefined.icon).
                   const cfg = ROLE_CONFIG[r];
+                  if (!cfg) return null;
                   const Icon = cfg.icon;
                   return (
                     <SelectItem key={r} value={r}>
@@ -962,7 +967,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </SelectTrigger>
                     <SelectContent>
                       {roles.map((r) => {
+                        // Defensive: ver comentario en el otro role-switcher.
                         const cfg = ROLE_CONFIG[r];
+                        if (!cfg) return null;
                         const Icon = cfg.icon;
                         return (
                           <SelectItem key={r} value={r}>
