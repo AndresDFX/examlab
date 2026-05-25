@@ -2,13 +2,17 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-export type AppRole = "Admin" | "Docente" | "Estudiante";
+export type AppRole = "Admin" | "Docente" | "Estudiante" | "SuperAdmin";
 
 export interface Profile {
   id: string;
   full_name: string;
   personal_email: string | null;
   institutional_email: string;
+  /** Institución a la que pertenece el usuario (Multi-tenancy Fase 1).
+   *  NULL solo en ventana transitoria — la Fase 6 cierra el sign-up
+   *  para que toda fila tenga tenant. */
+  tenant_id: string | null;
 }
 
 export function useAuth() {

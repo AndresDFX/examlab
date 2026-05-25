@@ -23,7 +23,9 @@ import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
+import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
+import { Route as AppTeacherReportsRouteImport } from './routes/app.teacher.reports'
 import { Route as AppTeacherQuestionBankRouteImport } from './routes/app.teacher.question-bank'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
@@ -34,8 +36,7 @@ import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.au
 import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.attendance'
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
 import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cron'
-import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
-import { Route as AppTeacherReportsRouteImport } from './routes/app.teacher.reports'
+import { Route as AppSuperadminTenantsRouteImport } from './routes/app.superadmin.tenants'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
@@ -49,12 +50,12 @@ import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminSettingsRouteImport } from './routes/app.admin.settings'
+import { Route as AppAdminReportTemplatesRouteImport } from './routes/app.admin.report-templates'
 import { Route as AppAdminEmailSettingsRouteImport } from './routes/app.admin.email-settings'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
 import { Route as AppAdminAiCronRouteImport } from './routes/app.admin.ai-cron'
-import { Route as AppAdminReportTemplatesRouteImport } from './routes/app.admin.report-templates'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
@@ -138,9 +139,19 @@ const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
   path: '/teacher/workshops',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherStudentsRoute = AppTeacherStudentsRouteImport.update({
+  id: '/teacher/students',
+  path: '/teacher/students',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherStatisticsRoute = AppTeacherStatisticsRouteImport.update({
   id: '/teacher/statistics',
   path: '/teacher/statistics',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherReportsRoute = AppTeacherReportsRouteImport.update({
+  id: '/teacher/reports',
+  path: '/teacher/reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherQuestionBankRoute = AppTeacherQuestionBankRouteImport.update({
@@ -193,14 +204,9 @@ const AppTeacherAiCronRoute = AppTeacherAiCronRouteImport.update({
   path: '/teacher/ai-cron',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTeacherStudentsRoute = AppTeacherStudentsRouteImport.update({
-  id: '/teacher/students',
-  path: '/teacher/students',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppTeacherReportsRoute = AppTeacherReportsRouteImport.update({
-  id: '/teacher/reports',
-  path: '/teacher/reports',
+const AppSuperadminTenantsRoute = AppSuperadminTenantsRouteImport.update({
+  id: '/superadmin/tenants',
+  path: '/superadmin/tenants',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
@@ -268,6 +274,11 @@ const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
   path: '/admin/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminReportTemplatesRoute = AppAdminReportTemplatesRouteImport.update({
+  id: '/admin/report-templates',
+  path: '/admin/report-templates',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminEmailSettingsRoute = AppAdminEmailSettingsRouteImport.update({
   id: '/admin/email-settings',
   path: '/admin/email-settings',
@@ -291,11 +302,6 @@ const AppAdminAiPromptsRoute = AppAdminAiPromptsRouteImport.update({
 const AppAdminAiCronRoute = AppAdminAiCronRouteImport.update({
   id: '/admin/ai-cron',
   path: '/admin/ai-cron',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAdminReportTemplatesRoute = AppAdminReportTemplatesRouteImport.update({
-  id: '/admin/report-templates',
-  path: '/admin/report-templates',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
@@ -378,11 +384,11 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
-  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
@@ -396,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
@@ -406,9 +413,9 @@ export interface FileRoutesByFullPath {
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
+  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
-  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -436,11 +443,11 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
-  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
@@ -454,6 +461,7 @@ export interface FileRoutesByTo {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
@@ -464,9 +472,9 @@ export interface FileRoutesByTo {
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
+  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
-  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -497,11 +505,11 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
-  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
@@ -515,6 +523,7 @@ export interface FileRoutesById {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
@@ -525,9 +534,9 @@ export interface FileRoutesById {
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
+  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
-  '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -559,11 +568,11 @@ export interface FileRouteTypes {
     | '/app/'
     | '/auth/'
     | '/app/admin/ai-cron'
-    | '/app/admin/report-templates'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/email-settings'
+    | '/app/admin/report-templates'
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
@@ -577,6 +586,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/tenants'
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
@@ -587,9 +597,9 @@ export interface FileRouteTypes {
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/question-bank'
+    | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
-    | '/app/teacher/reports'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -617,11 +627,11 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/app/admin/ai-cron'
-    | '/app/admin/report-templates'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/email-settings'
+    | '/app/admin/report-templates'
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
@@ -635,6 +645,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/tenants'
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
@@ -645,9 +656,9 @@ export interface FileRouteTypes {
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/question-bank'
+    | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
-    | '/app/teacher/reports'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -677,11 +688,11 @@ export interface FileRouteTypes {
     | '/app/'
     | '/auth/'
     | '/app/admin/ai-cron'
-    | '/app/admin/report-templates'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/email-settings'
+    | '/app/admin/report-templates'
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
@@ -695,6 +706,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/tenants'
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
@@ -705,9 +717,9 @@ export interface FileRouteTypes {
     | '/app/teacher/gradebook'
     | '/app/teacher/projects'
     | '/app/teacher/question-bank'
+    | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
-    | '/app/teacher/reports'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -830,11 +842,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherWorkshopsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/students': {
+      id: '/app/teacher/students'
+      path: '/teacher/students'
+      fullPath: '/app/teacher/students'
+      preLoaderRoute: typeof AppTeacherStudentsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/statistics': {
       id: '/app/teacher/statistics'
       path: '/teacher/statistics'
       fullPath: '/app/teacher/statistics'
       preLoaderRoute: typeof AppTeacherStatisticsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/reports': {
+      id: '/app/teacher/reports'
+      path: '/teacher/reports'
+      fullPath: '/app/teacher/reports'
+      preLoaderRoute: typeof AppTeacherReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/question-bank': {
@@ -907,18 +933,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherAiCronRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/teacher/students': {
-      id: '/app/teacher/students'
-      path: '/teacher/students'
-      fullPath: '/app/teacher/students'
-      preLoaderRoute: typeof AppTeacherStudentsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/teacher/reports': {
-      id: '/app/teacher/reports'
-      path: '/teacher/reports'
-      fullPath: '/app/teacher/reports'
-      preLoaderRoute: typeof AppTeacherReportsRouteImport
+    '/app/superadmin/tenants': {
+      id: '/app/superadmin/tenants'
+      path: '/superadmin/tenants'
+      fullPath: '/app/superadmin/tenants'
+      preLoaderRoute: typeof AppSuperadminTenantsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/workshops': {
@@ -1012,6 +1031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/report-templates': {
+      id: '/app/admin/report-templates'
+      path: '/admin/report-templates'
+      fullPath: '/app/admin/report-templates'
+      preLoaderRoute: typeof AppAdminReportTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/admin/email-settings': {
       id: '/app/admin/email-settings'
       path: '/admin/email-settings'
@@ -1045,13 +1071,6 @@ declare module '@tanstack/react-router' {
       path: '/admin/ai-cron'
       fullPath: '/app/admin/ai-cron'
       preLoaderRoute: typeof AppAdminAiCronRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/admin/report-templates': {
-      id: '/app/admin/report-templates'
-      path: '/admin/report-templates'
-      fullPath: '/app/admin/report-templates'
-      preLoaderRoute: typeof AppAdminReportTemplatesRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/exams/': {
@@ -1175,10 +1194,10 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAdminAiCronRoute: typeof AppAdminAiCronRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
-  AppAdminReportTemplatesRoute: typeof AppAdminReportTemplatesRoute
   AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminEmailSettingsRoute: typeof AppAdminEmailSettingsRoute
+  AppAdminReportTemplatesRoute: typeof AppAdminReportTemplatesRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
   AppAdminSystemRoute: typeof AppAdminSystemRoute
@@ -1192,6 +1211,7 @@ interface AppRouteChildren {
   AppStudentGradesRoute: typeof AppStudentGradesRoute
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
+  AppSuperadminTenantsRoute: typeof AppSuperadminTenantsRoute
   AppTeacherAiCronRoute: typeof AppTeacherAiCronRoute
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
@@ -1202,9 +1222,9 @@ interface AppRouteChildren {
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
   AppTeacherProjectsRoute: typeof AppTeacherProjectsRoute
   AppTeacherQuestionBankRoute: typeof AppTeacherQuestionBankRoute
+  AppTeacherReportsRoute: typeof AppTeacherReportsRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
   AppTeacherStudentsRoute: typeof AppTeacherStudentsRoute
-  AppTeacherReportsRoute: typeof AppTeacherReportsRoute
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
   AppStudentProjectProjectIdRoute: typeof AppStudentProjectProjectIdRoute
   AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
@@ -1227,10 +1247,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAdminAiCronRoute: AppAdminAiCronRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
-  AppAdminReportTemplatesRoute: AppAdminReportTemplatesRoute,
   AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminEmailSettingsRoute: AppAdminEmailSettingsRoute,
+  AppAdminReportTemplatesRoute: AppAdminReportTemplatesRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
   AppAdminSystemRoute: AppAdminSystemRoute,
@@ -1244,6 +1264,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentGradesRoute: AppStudentGradesRoute,
   AppStudentProjectsRoute: AppStudentProjectsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
+  AppSuperadminTenantsRoute: AppSuperadminTenantsRoute,
   AppTeacherAiCronRoute: AppTeacherAiCronRoute,
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
@@ -1254,9 +1275,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
   AppTeacherProjectsRoute: AppTeacherProjectsRoute,
   AppTeacherQuestionBankRoute: AppTeacherQuestionBankRoute,
+  AppTeacherReportsRoute: AppTeacherReportsRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
   AppTeacherStudentsRoute: AppTeacherStudentsRoute,
-  AppTeacherReportsRoute: AppTeacherReportsRoute,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
   AppStudentProjectProjectIdRoute: AppStudentProjectProjectIdRoute,
   AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
