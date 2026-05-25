@@ -24,7 +24,7 @@
  *     migramos archivo por archivo sin presionar para el v1.
  */
 import { useEffect } from "react";
-import { extractTenantSlugFromPath } from "@/modules/tenants/tenant";
+import { decideTenantUrlAction } from "@/modules/tenants/tenant";
 import { setTenantOverride } from "@/modules/tenants/use-tenant";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -36,21 +36,18 @@ export function TenantUrlGuard() {
     if (typeof window === "undefined") return;
 
     const apply = () => {
-      const pathname = window.location.pathname;
-      const slug = extractTenantSlugFromPath(pathname);
-      if (!slug) return;
+      const action = decideTenantUrlAction(
+        window.location.pathname,
+        roles.includes("SuperAdmin"),
+      );
+      if (action.strippedPath === null) return;
 
-      // Strip el prefijo `/t/<slug>` del pathname.
-      const stripped = pathname.replace(/^\/t\/[^/]+/, "") || "/";
-      const url = new URL(window.location.href);
-      url.pathname = stripped;
-
-      // SuperAdmin: el slug determina el contexto. Otros: lo dejamos
-      // pasar tal cual (el RLS aísla; el override no aplica).
-      if (roles.includes("SuperAdmin")) {
-        setTenantOverride(slug);
+      if (action.overrideSlug) {
+        setTenantOverride(action.overrideSlug);
       }
 
+      const url = new URL(window.location.href);
+      url.pathname = action.strippedPath;
       // replaceState para no agregar entrada al history.
       window.history.replaceState({}, "", url.toString());
     };
