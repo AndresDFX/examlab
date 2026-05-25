@@ -51,11 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Clock, X, KeyRound } from "lucide-react";
 import { useActiveRole } from "@/hooks/use-active-role";
-import {
-  readOverrideExpiry,
-  clearOverrideExpiry,
-  getProcessingMode,
-} from "@/modules/ai/ai-grading";
+import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 
 export type GateDecision = "proceed-sync" | "proceed-async" | "cancel";
@@ -158,7 +154,7 @@ export function useAiAuthorizationGate() {
   }, []);
 
   const ensureAuthorized = useCallback(async (): Promise<GateDecision> => {
-    // 1) Admin: pasa siempre. Los admins gestionan los códigos, ver la
+    // 1) Admin: pasa siempre. Los admins gestionan los códigos, ven la
     //    cola y entienden el modo async. Forzarlos a confirmar cada vez
     //    sería ruido.
     if (isAdmin) return "proceed-sync";
@@ -167,20 +163,25 @@ export function useAiAuthorizationGate() {
     const mode = await getProcessingMode();
     if (mode === "sync") return "proceed-sync";
 
-    // 3) Override activo + cupo: pasa como sync.
+    // 3) Override activo localmente → bypass del dialog.
+    //
+    //    Antes hacíamos un round-trip extra a `current_ai_override_status`
+    //    aquí para validar cap server-side. Resultado: si la RPC fallaba,
+    //    devolvía algo raro o el plan multi-tenant introducía RLS más
+    //    estricta, el gate caía al dialog y le pedía al docente entrar
+    //    el código OTRA VEZ aunque ya tenía uno válido.
+    //
+    //    Nueva estrategia: localStorage es la fuente para "el docente
+    //    activó un código". El cap real lo enforza
+    //    `claim_ai_override_message` en `aiGradeOrEnqueue` (atómico,
+    //    server-side, FOR UPDATE). Si el cap está agotado, el claim
+    //    devuelve `cap_reached`, el helper limpia el localStorage y cae
+    //    al path async de forma transparente — el docente ve "encolado"
+    //    en vez de un dialog molesto pidiendo otro código.
     const localExp = readOverrideExpiry();
-    if (localExp) {
-      const status = await fetchOverrideStatus();
-      if (hasOverrideBudget(status)) {
-        return "proceed-sync";
-      }
-      // Cap agotado o server dice que no está activo → limpiar el
-      // localStorage para que el resto de la UI deje de mostrar el
-      // badge "IA inmediata activa" y caemos al dialog.
-      clearOverrideExpiry();
-    }
+    if (localExp) return "proceed-sync";
 
-    // 4) Modo async + sin override válido → pedir confirmación.
+    // 4) Modo async + sin override → pedir confirmación.
     return new Promise<GateDecision>((resolve) => {
       pendingRef.current = { resolve };
       setOpen(true);
