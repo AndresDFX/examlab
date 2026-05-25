@@ -610,12 +610,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
   const visibleNav = NAV.filter((n) => {
     if (!activeRole) return false;
-    // Items marcados como "SuperAdmin" se muestran si el usuario TIENE el
-    // rol SuperAdmin, independiente del activeRole. SuperAdmin es una
-    // capa transversal (cross-tenant) — al estar logueado se ve aunque
-    // estés operando como Admin/Docente/Estudiante.
+    // Items marcados como "SuperAdmin" se muestran SOLO cuando el usuario
+    // está operando ACTIVAMENTE como SuperAdmin (no por simplemente
+    // tener el rol). El panel de Instituciones es una herramienta
+    // cross-tenant; cuando el usuario opera como Admin de su propia
+    // institución, no queremos saturar el nav con ese ítem global.
+    // Para editar SU PROPIA institución, el Admin lo hace desde
+    // Configuración → Institución (panel inline, sin salir del rol).
     if (n.roles.length === 1 && n.roles[0] === "SuperAdmin") {
-      return roles.includes("SuperAdmin");
+      return activeRole === "SuperAdmin";
     }
     if (!n.roles.includes(activeRole)) return false;
     // Banco de preguntas legacy: el admin puede esconderlo globalmente.
