@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
 import { MeetingLink } from "@/shared/components/MeetingLink";
+import { WeeklyScheduleView } from "@/modules/schedules/WeeklyScheduleView";
 import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -201,6 +202,10 @@ function StudentCourses() {
         title={t("nav.studentCourses")}
         subtitle={t("courseBoard.indexSubtitle")}
       />
+
+      {/* Horario semanal arriba — el estudiante ve de un vistazo qué
+          cursos tiene hoy/esta semana antes de entrar a uno específico. */}
+      <WeeklyScheduleView title="Mi semana" />
 
       <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o período…" />
 
