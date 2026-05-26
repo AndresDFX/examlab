@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,6 +260,7 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
  * lo wrappea el AiCronPage para combinarlo con la pestaña Supabase.
  */
 function AiQueuePanel({ isAdmin = false }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [counts, setCounts] = useState<Counts>({
@@ -970,10 +972,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             {isSuperAdminCaller && tenants.length > 1 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
                 <SelectTrigger className="h-8 w-48 text-xs">
-                  <SelectValue placeholder="Institución" />
+                  <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las instituciones</SelectItem>
+                  <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
                   {tenants.map((tn) => (
                     <SelectItem key={tn.id} value={tn.id}>
                       {tn.name}

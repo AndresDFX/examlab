@@ -113,6 +113,7 @@ function Dashboard() {
    ADMIN DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
+  const { t } = useTranslation();
   // ── Stat cards superiores: métricas INSTITUCIONALES ──
   // Antes eran 4 métricas IA (errores 24h, respuestas IA, plagio, pendientes
   // docentes). Reemplazadas por métricas de negocio del Admin: cursos
@@ -330,19 +331,19 @@ function AdminDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={BookOpen}
-          label="Cursos"
+          label={t("dashboard.stats.courses")}
           value={adminStats.coursesActive}
           color="text-fuchsia-500 dark:text-fuchsia-400"
         />
         <Stat
           icon={UsersIcon}
-          label="Usuarios"
+          label={t("dashboard.stats.users")}
           value={adminStats.usersTotal}
           color="text-indigo-500 dark:text-indigo-400"
         />
         <Stat
           icon={ListOrdered}
-          label="Pendientes de calificar"
+          label={t("dashboard.stats.pendingGrades")}
           value={adminStats.pendingGrading}
           color={
             adminStats.pendingGrading > 0
@@ -352,7 +353,7 @@ function AdminDashboard() {
         />
         <Stat
           icon={Reply}
-          label="Pendientes docentes"
+          label={t("dashboard.stats.pendingTeacherResponses")}
           value={adminStats.pendingTeacherResponses}
           color="text-rose-500 dark:text-rose-400"
         />
@@ -370,14 +371,14 @@ function AdminDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />
-              Próximos exámenes
+              {t("dashboard.upcomingExams")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {upcomingExams.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No hay exámenes próximos en la institución.
+                  {t("dashboard.adminNoUpcomingExams")}
                 </p>
               ) : (
                 upcomingExams.map((e) => {
@@ -390,7 +391,7 @@ function AdminDashboard() {
                       title={e.title}
                       subtitle={e.course?.name}
                       date={formatDate(e.start_time)}
-                      badge={isOpen ? "En curso" : undefined}
+                      badge={isOpen ? t("dashboard.inProgress") : undefined}
                       badgeColor="bg-success text-success-foreground"
                     />
                   );
@@ -399,7 +400,7 @@ function AdminDashboard() {
             </div>
             <Link to="/app/admin/audit-logs" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver auditoría <ArrowRight className="h-3 w-3 ml-1" />
+                {t("dashboard.viewAudit")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -410,14 +411,14 @@ function AdminDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-              Próximas clases
+              {t("dashboard.upcomingClasses")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {upcomingSessions.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No hay sesiones próximas en la institución.
+                  {t("dashboard.adminNoUpcomingClasses")}
                 </p>
               ) : (
                 upcomingSessions.map((s) => {
@@ -426,7 +427,7 @@ function AdminDashboard() {
                   return (
                     <EventRow
                       key={s.id}
-                      title={s.title ?? "Clase"}
+                      title={s.title ?? t("dashboard.untitledSession")}
                       subtitle={s.course?.name}
                       date={`${dateLabel}${timeLabel}`}
                     />

@@ -639,10 +639,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             {isSuperAdminCaller && tenants.length > 1 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
                 <SelectTrigger className="w-48 h-9">
-                  <SelectValue placeholder="Institución" />
+                  <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las instituciones</SelectItem>
+                  <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
                   {/* Renombrado a `tn` adentro para no shadowear el `t`
                       de useTranslation que se usa en otros SelectItems
                       hermanos (ej. category labels arriba). */}

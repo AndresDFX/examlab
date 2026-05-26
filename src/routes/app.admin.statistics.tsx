@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,6 +73,7 @@ type CourseSummary = {
 };
 
 function AdminStatistics() {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   const isSuperAdminCaller = roles.includes("SuperAdmin");
@@ -333,13 +335,15 @@ function AdminStatistics() {
                   courses → todo el pipeline de summaries hereda el filtro. */}
               {isSuperAdminCaller && tenants.length > 1 && (
                 <div className="flex-1 space-y-1">
-                  <label className="text-xs text-muted-foreground">Institución</label>
+                  <label className="text-xs text-muted-foreground">
+                    {t("tenant.filterTenantLabel")}
+                  </label>
                   <Select value={tenantFilter} onValueChange={setTenantFilter}>
                     <SelectTrigger className="h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas las instituciones</SelectItem>
+                      <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
                       {tenants.map((tn) => (
                         <SelectItem key={tn.id} value={tn.id}>
                           {tn.name}

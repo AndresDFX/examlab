@@ -13,6 +13,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,6 +67,7 @@ interface CertificateRow {
 }
 
 function CertificatesAdmin() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -240,10 +242,10 @@ function CertificatesAdmin() {
           {isSuperAdminCaller && tenants.length > 1 && (
             <Select value={tenantFilter} onValueChange={setTenantFilter}>
               <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-                <SelectValue placeholder="Institución" />
+                <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las instituciones</SelectItem>
+                <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
                 {tenants.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
