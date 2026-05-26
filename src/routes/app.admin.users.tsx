@@ -708,10 +708,10 @@ function AdminUsers() {
         {isSuperAdminCaller && tenants.length > 1 && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
             <SelectTrigger className="sm:w-64">
-              <SelectValue placeholder="Todas las instituciones" />
+              <SelectValue placeholder={t("tenant.filterAllTenants")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las instituciones</SelectItem>
+              <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
               {tenants.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}

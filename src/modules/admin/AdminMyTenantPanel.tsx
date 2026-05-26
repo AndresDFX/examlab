@@ -26,6 +26,7 @@
  * el suyo.
  */
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -65,6 +66,7 @@ interface FormState {
 }
 
 export function AdminMyTenantPanel() {
+  const { t } = useTranslation();
   const { tenant, loading, error, refresh } = useTenant();
   // Gate de rol: SuperAdmin en modo cross-tenant (rol activo SuperAdmin
   // + sin override "ver como X") NO tiene una "institución propia" que
@@ -185,17 +187,15 @@ export function AdminMyTenantPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-center space-y-3">
-          <p className="text-sm font-medium">Modo SuperAdmin cross-tenant</p>
+          <p className="text-sm font-medium">{t("superAdmin.crossTenantTitle")}</p>
           <p className="text-xs text-muted-foreground max-w-md mx-auto">
-            Como SuperAdmin no tienes "una institución propia" que editar acá. Para gestionar
-            branding, cuotas o logos de una institución específica, entrá al panel de instituciones
-            y elegila desde el listado o usá "Ver como esta institución" para entrar a su contexto.
+            {t("superAdmin.crossTenantMyTenantHint")}
           </p>
           <Link
             to="/app/superadmin/tenants"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Ir a Instituciones
+            {t("superAdmin.goToTenants")}
           </Link>
         </CardContent>
       </Card>

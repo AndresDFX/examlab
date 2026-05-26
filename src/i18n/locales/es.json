@@ -363,6 +363,24 @@
     "contactAdmin": "¿No tienes cuenta? Contacta a tu administrador para que te registre en la plataforma.",
     "backToHome": "← Volver al inicio"
   },
+  "tenant": {
+    "platformBrand": "Plataforma de Gestión Educativa",
+    "filterAllTenants": "Todas las instituciones",
+    "filterTenantPlaceholder": "Institución",
+    "filterTenantLabel": "Institución",
+    "overrideBannerViewingAs": "Viendo como institución",
+    "overrideBannerHint": "los datos están filtrados a este tenant.",
+    "overrideBannerExit": "Salir del modo institución",
+    "overrideBannerExitTitle": "Volver al modo cross-tenant del SuperAdmin"
+  },
+  "superAdmin": {
+    "crossTenantTitle": "Modo SuperAdmin cross-tenant",
+    "crossTenantMyTenantHint": "Como SuperAdmin no tienes \"una institución propia\" que editar acá. Para gestionar branding, cuotas o logos de una institución específica, entrá al panel de instituciones y elegila desde el listado o usá \"Ver como esta institución\" para entrar a su contexto.",
+    "crossTenantSettingsHint": "Esta sección configura una institución específica (branding, programas, periodos, correos, IA, etc.). Como SuperAdmin no estás dentro de una institución todavía. Entrá al panel de Instituciones y usá \"Ver como esta institución\" para configurarla.",
+    "crossTenantEmailHint": "Los toggles de correos son por institución. Entrá al panel de Instituciones y usá \"Ver como esta institución\" para configurar sus correos.",
+    "crossTenantAiHint": "Los prompts globales y el modelo IA son por institución (cada tenant tiene los suyos). Entrá al panel de Instituciones y usá \"Ver como esta institución\" para configurarlos.",
+    "goToTenants": "Ir a Instituciones"
+  },
   "dashboard": {
     "greetingAdmin": "Panel de administración",
     "greetingSuperAdmin": "Panel SuperAdmin · vista global de la plataforma",

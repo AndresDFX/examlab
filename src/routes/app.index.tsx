@@ -358,13 +358,13 @@ function AdminDashboard() {
         />
       </div>
 
-      {/* Row SECUNDARIA — 4 cards en grid 2x2 (md) / 4-col (xl) /
-          1-col (mobile). Antes eran 2 cards anchos (Cola IA + Correos).
-          Ahora suma Próximos exámenes + Próximas clases para alinear
-          con el patrón Teacher/Student (4 cards inferiores accionables).
-          Las 4 comparten alto via flex-1 + min-h-0 → cada lista hace
-          scroll interno cuando hay más items que espacio. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1 min-h-0">
+      {/* Row SECUNDARIA — 4 cards en grid 4-col (lg+) / 2x2 (sm-md) /
+          1-col (mobile). Patrón Teacher/Student. Antes el breakpoint a
+          4 cols era `xl:` (1280px+) y entre lg-xl quedaba un grid 2x2
+          con whitespace horizontal evidente. Bajado a `lg:` (1024px+)
+          para que tablets en horizontal y laptops chicos ya vean las
+          4 columnas. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1 min-h-0">
         {/* (1) Próximos exámenes — institución entera, max 8 */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">

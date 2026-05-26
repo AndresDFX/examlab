@@ -147,13 +147,15 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
           size="icon"
           aria-label={`Mensajes y notificaciones (${totalUnread} sin leer)`}
           className={cn(
-            // En mobile: bottom-20 para no chocar con el bottom-nav nativo
-            //   (que vive en `md:hidden ... fixed bottom-0`). En md+ no
-            //   hay bottom-nav → pegamos a bottom-4.
-            "fixed bottom-20 md:bottom-4 right-4 z-50 h-12 w-12 rounded-full shadow-lg",
-            // En desktop con sidebar expandido se oculta. md:hidden
-            // aplica a md+ (no a < md) — coherente con la breakpoint
-            // donde el sidebar deja de ser un drawer.
+            // Mobile (< md): SIEMPRE oculto. El header mobile ya tiene
+            // el `MessagesBell` (icono chat junto a la campana arriba a
+            // la derecha) que cumple el mismo rol; mostrar también el
+            // FAB duplicaba el badge y confundía. Reportado por el user
+            // en sesión 2026-05-26.
+            // Desktop (md+): bottom-4 derecha, oculto cuando el sidebar
+            // está expandido (el MessagesBell del header sidebar ya
+            // está visible) y visible cuando colapsado.
+            "fixed md:bottom-4 right-4 z-50 h-12 w-12 rounded-full shadow-lg hidden md:flex",
             hideOnDesktop && "md:hidden",
           )}
         >

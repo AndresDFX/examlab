@@ -401,9 +401,28 @@ function StudentGrades() {
           }
 
           const allCutItems = attItem ? [...cutItems, attItem] : cutItems;
-          const grade = computeWeightedGrade(
-            allCutItems.map((i) => ({ score: i.grade, weight: i.weight ?? 1 })),
-          );
+          // Card de resumen del corte: usamos AVG de items GRADED ONLY
+          // (skip nulls), no `computeWeightedGrade` que cuenta null=0.
+          // Razón UX: el card es un overview "cómo voy en lo que YA me
+          // calificaron" en escala 1-5 del curso. Si el estudiante tiene
+          // perfecto en lo entregado, el card muestra 5 — no 3.33
+          // penalizado por items pendientes. Match con el grid del
+          // docente (que en práctica solo lo penaliza si EL DOCENTE no
+          // calificó algo). La NOTA FINAL global sigue usando null=0
+          // (más abajo via `computeWeightedGrade`) porque ahí sí refleja
+          // "lo que tienes hoy si nada más se entrega".
+          const graded = allCutItems
+            .filter((i) => i.grade != null && (i.weight ?? 1) > 0)
+            .map((i) => ({ score: i.grade as number, weight: i.weight ?? 1 }));
+          const grade =
+            graded.length === 0
+              ? null
+              : Number(
+                  (
+                    graded.reduce((a, i) => a + i.score * i.weight, 0) /
+                    graded.reduce((a, i) => a + i.weight, 0)
+                  ).toFixed(2),
+                );
 
           return {
             cut,

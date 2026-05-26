@@ -10,6 +10,7 @@
  * solo prompts.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
@@ -23,6 +24,7 @@ import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 export const Route = createFileRoute("/app/admin/ai-prompts")({ component: AdminAIConfig });
 
 function AdminAIConfig() {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
@@ -46,17 +48,15 @@ function AdminAIConfig() {
         />
         <Card>
           <CardContent className="p-6 text-center space-y-3">
-            <p className="text-sm font-medium">Modo SuperAdmin cross-tenant</p>
+            <p className="text-sm font-medium">{t("superAdmin.crossTenantTitle")}</p>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              Los prompts globales y el modelo IA son por institución (cada tenant tiene los
-              suyos). Entrá al panel de Instituciones y usá "Ver como esta institución" para
-              configurarlos.
+              {t("superAdmin.crossTenantAiHint")}
             </p>
             <Link
               to="/app/superadmin/tenants"
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Ir a Instituciones
+              {t("superAdmin.goToTenants")}
             </Link>
           </CardContent>
         </Card>

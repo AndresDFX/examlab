@@ -363,6 +363,24 @@
     "contactAdmin": "No account? Contact your administrator to register you on the platform.",
     "backToHome": "← Back to home"
   },
+  "tenant": {
+    "platformBrand": "Educational Management Platform",
+    "filterAllTenants": "All institutions",
+    "filterTenantPlaceholder": "Institution",
+    "filterTenantLabel": "Institution",
+    "overrideBannerViewingAs": "Viewing as institution",
+    "overrideBannerHint": "data is filtered to this tenant.",
+    "overrideBannerExit": "Exit institution mode",
+    "overrideBannerExitTitle": "Return to SuperAdmin cross-tenant mode"
+  },
+  "superAdmin": {
+    "crossTenantTitle": "SuperAdmin cross-tenant mode",
+    "crossTenantMyTenantHint": "As SuperAdmin you don't have \"your own institution\" to edit here. To manage branding, quotas or logos for a specific institution, open the Institutions panel and pick one from the list or use \"View as this institution\" to enter its context.",
+    "crossTenantSettingsHint": "This section configures a specific institution (branding, programs, periods, email, AI, etc.). As SuperAdmin you're not inside an institution yet. Open the Institutions panel and use \"View as this institution\" to configure it.",
+    "crossTenantEmailHint": "Email toggles are per institution. Open the Institutions panel and use \"View as this institution\" to configure its emails.",
+    "crossTenantAiHint": "Global prompts and the AI model are per institution (each tenant has its own). Open the Institutions panel and use \"View as this institution\" to configure them.",
+    "goToTenants": "Go to Institutions"
+  },
   "dashboard": {
     "greetingAdmin": "Admin panel",
     "greetingSuperAdmin": "SuperAdmin panel · platform-wide view",

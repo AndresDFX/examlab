@@ -20,6 +20,7 @@
  *   - Backups, Sistema, Secretos infra.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
@@ -52,6 +53,7 @@ import { AdminMyTenantPanel } from "@/modules/admin/AdminMyTenantPanel";
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
 
 function AdminSettings() {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
@@ -75,17 +77,15 @@ function AdminSettings() {
         />
         <Card>
           <CardContent className="p-6 text-center space-y-3">
-            <p className="text-sm font-medium">Modo SuperAdmin cross-tenant</p>
+            <p className="text-sm font-medium">{t("superAdmin.crossTenantTitle")}</p>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              Esta sección configura una institución específica (branding, programas, periodos,
-              correos, IA, etc.). Como SuperAdmin no estás dentro de una institución todavía.
-              Entrá al panel de Instituciones y usá "Ver como esta institución" para configurarla.
+              {t("superAdmin.crossTenantSettingsHint")}
             </p>
             <Link
               to="/app/superadmin/tenants"
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Ir a Instituciones
+              {t("superAdmin.goToTenants")}
             </Link>
           </CardContent>
         </Card>

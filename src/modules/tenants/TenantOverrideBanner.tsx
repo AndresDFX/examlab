@@ -23,6 +23,7 @@
  * Se monta a nivel AppLayout. NO depende de la ruta.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Eye, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ interface TenantInfo {
 }
 
 export function TenantOverrideBanner() {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const [overrideSlug, setOverrideSlug] = useState<string | null>(() => readTenantOverride());
@@ -94,10 +96,11 @@ export function TenantOverrideBanner() {
       <div className="flex items-center gap-2 text-sm font-medium min-w-0">
         <Eye className="h-4 w-4 shrink-0" />
         <span className="truncate">
-          Viendo como institución <strong>{tenantInfo?.name ?? overrideSlug}</strong>
+          {t("tenant.overrideBannerViewingAs")}{" "}
+          <strong>{tenantInfo?.name ?? overrideSlug}</strong>
           <span className="hidden sm:inline text-blue-100 font-normal">
-            {" "}
-            — los datos están filtrados a este tenant.
+            {" — "}
+            {t("tenant.overrideBannerHint")}
           </span>
         </span>
       </div>
@@ -106,10 +109,10 @@ export function TenantOverrideBanner() {
         variant="secondary"
         onClick={handleExit}
         className="shrink-0"
-        title="Volver al modo cross-tenant del SuperAdmin"
+        title={t("tenant.overrideBannerExitTitle")}
       >
         <X className="h-3.5 w-3.5 mr-1" />
-        Salir del modo institución
+        {t("tenant.overrideBannerExit")}
       </Button>
     </div>
   );

@@ -1250,10 +1250,10 @@ export function AdminCourses() {
                 y whitespace a la derecha). Desde sm: ancho fijo 192px
                 pegado al search. Mismo patrón que app.admin.users.tsx. */}
             <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-              <SelectValue placeholder="Institución" />
+              <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las instituciones</SelectItem>
+              <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
               {tenants.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
