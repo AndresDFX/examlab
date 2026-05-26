@@ -127,19 +127,53 @@ function setForegroundVar(root: HTMLElement, name: string, hex: string | null) {
 
 export function TenantThemeProvider({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
+  // text_color e icon_color: las columnas se agregaron en mig
+  // 20260706000000 y los tipos generados de Supabase aún no las
+  // exponen — accedemos via cast. Extraídos a variables acá arriba
+  // para que las deps del useEffect sean estables y no queden
+  // expresiones complejas en el array.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tenantTextColor = (tenant as any)?.text_color ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tenantIconColor = (tenant as any)?.icon_color ?? null;
 
   useEffect(() => {
     const root = document.documentElement;
     const primary = normalizeHex(tenant?.primary_color);
     const secondary = normalizeHex(tenant?.secondary_color);
+    // Override explícito del color de letra sobre superficies con
+    // branding (sidebar + botones primarios). Si está seteado, gana
+    // sobre la derivación por luminancia. Si es NULL → auto-derivado
+    // como antes (white/black según primario oscuro/claro).
+    const textColor = normalizeHex(tenantTextColor);
+    // Override del color de íconos del sidebar nav. Lo aplicamos a la
+    // var `--sidebar-icon-color` que los íconos leen via inline style
+    // con fallback a `currentColor` (= sidebar-foreground). Si NULL,
+    // limpiamos la var → íconos heredan el color de texto.
+    const iconColor = normalizeHex(tenantIconColor);
+    if (iconColor) {
+      root.style.setProperty("--sidebar-icon-color", iconColor);
+    } else {
+      root.style.removeProperty("--sidebar-icon-color");
+    }
     // Detectamos si la app está en modo dark — el wash debe mezclar con
     // negro (dark) vs blanco (light) para que el fondo del contenido
     // siga siendo casi-blanco/casi-negro y no compita con el contenido.
     const isDarkTheme = root.classList.contains("dark");
 
+    /** Aplica el override de text_color si está, o cae al derivado por
+     *  luminancia. Usado en todos los foregrounds sobre branding. */
+    const setTextOnBranded = (name: string, branded: string | null) => {
+      if (textColor) {
+        root.style.setProperty(name, textColor);
+      } else {
+        setForegroundVar(root, name, branded);
+      }
+    };
+
     // ── Primary y sus derivados (identidad / acentos) ──
     setColorVar(root, "--primary", primary);
-    setForegroundVar(root, "--primary-foreground", primary);
+    setTextOnBranded("--primary-foreground", primary);
     // primary-glow: variante más brillante (mezcla 18% con blanco si
     // el color es oscuro, o 18% con negro si es claro). El theme
     // default tiene un glow distinto al base — replicamos esa semántica.
@@ -160,7 +194,7 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     // sobre el fondo primario (si pusiéramos `--sidebar-primary` =
     // primary también, el item activo se camuflaria con el fondo).
     setColorVar(root, "--sidebar", primary);
-    setForegroundVar(root, "--sidebar-foreground", primary);
+    setTextOnBranded("--sidebar-foreground", primary);
     if (primary) {
       const isDarkPrimary = luminanceOfHex(primary) < 0.5;
       // Active item: shift de luminosidad para destacar contra el fondo
@@ -173,14 +207,17 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
       // Border: muy sutil, apenas más oscuro/claro que el fondo.
       const sidebarBorder = tintHex(primary, 0.18, isDarkPrimary ? "white" : "black");
       root.style.setProperty("--sidebar-primary", sidebarActive);
+      // Si hay text_color override, lo aplicamos también al active item
+      // (el background del item activo es un tinte del primario, así
+      // que el mismo color de letra del sidebar funciona bien encima).
       root.style.setProperty(
         "--sidebar-primary-foreground",
-        luminanceOfHex(sidebarActive) < 0.55 ? "#ffffff" : "#0a0a0a",
+        textColor ?? (luminanceOfHex(sidebarActive) < 0.55 ? "#ffffff" : "#0a0a0a"),
       );
       root.style.setProperty("--sidebar-accent", sidebarAccent);
       root.style.setProperty(
         "--sidebar-accent-foreground",
-        luminanceOfHex(sidebarAccent) < 0.55 ? "#ffffff" : "#0a0a0a",
+        textColor ?? (luminanceOfHex(sidebarAccent) < 0.55 ? "#ffffff" : "#0a0a0a"),
       );
       root.style.setProperty("--sidebar-border", sidebarBorder);
       root.style.setProperty("--sidebar-ring", primary);
@@ -234,7 +271,7 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     else root.style.removeProperty("--brand-primary");
     if (secondary) root.style.setProperty("--brand-secondary", secondary);
     else root.style.removeProperty("--brand-secondary");
-  }, [tenant?.primary_color, tenant?.secondary_color]);
+  }, [tenant?.primary_color, tenant?.secondary_color, tenantTextColor, tenantIconColor]);
 
   return <>{children}</>;
 }

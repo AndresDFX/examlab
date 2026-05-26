@@ -35,6 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HexColorInput } from "@/components/ui/hex-color-input";
 import { SectionLoader } from "@/components/ui/loaders";
 import { ErrorState } from "@/components/ui/empty-state";
 import { Save, Building2, Upload, Trash2 } from "lucide-react";
@@ -51,6 +52,12 @@ interface FormState {
   logo_path: string;
   primary_color: string;
   secondary_color: string;
+  /** Hex opcional — override del color de letra sobre el sidebar y
+   *  botones primarios. Si vacío, se deriva por luminancia. */
+  text_color: string;
+  /** Hex opcional — override del color de íconos del sidebar nav.
+   *  Si vacío, los íconos heredan text_color. */
+  icon_color: string;
   email_domain: string;
 }
 
@@ -62,6 +69,8 @@ export function AdminMyTenantPanel() {
     logo_path: "",
     primary_color: "",
     secondary_color: "",
+    text_color: "",
+    icon_color: "",
     email_domain: "",
   });
   const [saving, setSaving] = useState(false);
@@ -76,6 +85,12 @@ export function AdminMyTenantPanel() {
         logo_path: tenant.logo_path ?? "",
         primary_color: tenant.primary_color ?? "",
         secondary_color: tenant.secondary_color ?? "",
+        // text_color / icon_color: las columnas se agregaron en mig
+        // 20260706000000; los tipos generados aún no las exponen.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        text_color: ((tenant as any).text_color as string | null) ?? "",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        icon_color: ((tenant as any).icon_color as string | null) ?? "",
         email_domain: tenant.email_domain ?? "",
       });
     }
@@ -174,6 +189,8 @@ export function AdminMyTenantPanel() {
       _email_domain: form.email_domain.trim().toLowerCase() || null,
       _secondary_color: form.secondary_color.trim() || null,
       _logo_path: form.logo_path.trim() || null,
+      _text_color: form.text_color.trim() || null,
+      _icon_color: form.icon_color.trim() || null,
     });
     setSaving(false);
     if (rpcErr) {
@@ -279,44 +296,51 @@ export function AdminMyTenantPanel() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <Label>Color primario (hex)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                value={form.primary_color}
-                onChange={(e) => setForm((p) => ({ ...p, primary_color: e.target.value }))}
-                placeholder="#3B82F6"
-                className="flex-1 font-mono text-xs"
-              />
-              {/^#[0-9a-fA-F]{6}$/.test(form.primary_color.trim()) && (
-                <div
-                  className="h-9 w-9 rounded border shrink-0"
-                  style={{ backgroundColor: form.primary_color.trim() }}
-                  title={form.primary_color.trim()}
-                />
-              )}
-            </div>
+            <HexColorInput
+              value={form.primary_color}
+              onChange={(v) => setForm((p) => ({ ...p, primary_color: v }))}
+              placeholder="#3B82F6"
+              ariaLabel="Color primario"
+            />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Color principal de la marca. Aplica en acentos / botones primarios.
+              Color principal de la marca. Aplica en acentos / botones primarios. Click en el swatch
+              para abrir el selector visual.
             </p>
           </div>
           <div>
             <Label>Color secundario (hex)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                value={form.secondary_color}
-                onChange={(e) => setForm((p) => ({ ...p, secondary_color: e.target.value }))}
-                placeholder="#8B5CF6"
-                className="flex-1 font-mono text-xs"
-              />
-              {/^#[0-9a-fA-F]{6}$/.test(form.secondary_color.trim()) && (
-                <div
-                  className="h-9 w-9 rounded border shrink-0"
-                  style={{ backgroundColor: form.secondary_color.trim() }}
-                  title={form.secondary_color.trim()}
-                />
-              )}
-            </div>
+            <HexColorInput
+              value={form.secondary_color}
+              onChange={(v) => setForm((p) => ({ ...p, secondary_color: v }))}
+              placeholder="#8B5CF6"
+              ariaLabel="Color secundario"
+            />
             <p className="text-[11px] text-muted-foreground mt-1">
               Color de acento opcional. Usado en hovers y badges secundarios.
+            </p>
+          </div>
+          <div>
+            <Label>Color de letra sobre el primario (hex)</Label>
+            <HexColorInput
+              value={form.text_color}
+              onChange={(v) => setForm((p) => ({ ...p, text_color: v }))}
+              placeholder="#FFFFFF"
+              ariaLabel="Color de letra sobre el primario"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Override del texto sobre el sidebar y botones primarios. Vacío = auto.
+            </p>
+          </div>
+          <div>
+            <Label>Color de íconos del sidebar (hex)</Label>
+            <HexColorInput
+              value={form.icon_color}
+              onChange={(v) => setForm((p) => ({ ...p, icon_color: v }))}
+              placeholder="#FFFFFF"
+              ariaLabel="Color de íconos del sidebar"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Override de los íconos del menú lateral. Vacío = heredan el color de letra.
             </p>
           </div>
         </div>

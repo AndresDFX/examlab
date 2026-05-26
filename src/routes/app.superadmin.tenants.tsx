@@ -19,6 +19,7 @@ import { resizeImageForLogo } from "@/modules/tenants/image-resize";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { HexColorInput } from "@/components/ui/hex-color-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
@@ -73,6 +74,8 @@ function SuperAdminTenantsPage() {
     logo_path: "",
     primary_color: "",
     secondary_color: "",
+    text_color: "",
+    icon_color: "",
     email_domain: "",
     // Cuotas. "" = ilimitado (se persiste como NULL). Cualquier número
     // entero >= 0 es el tope.
@@ -124,6 +127,8 @@ function SuperAdminTenantsPage() {
       logo_path: "",
       primary_color: "",
       secondary_color: "",
+      text_color: "",
+      icon_color: "",
       email_domain: "",
       max_admins: "",
       max_teachers: "",
@@ -141,6 +146,12 @@ function SuperAdminTenantsPage() {
       logo_path: t.logo_path ?? "",
       primary_color: t.primary_color ?? "",
       secondary_color: t.secondary_color ?? "",
+      // text_color / icon_color: las columnas se agregaron en mig
+      // 20260706000000; tipos generados de Supabase aún no las exponen.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      text_color: ((t as any).text_color as string | null) ?? "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      icon_color: ((t as any).icon_color as string | null) ?? "",
       email_domain: t.email_domain ?? "",
       max_admins: t.max_admins == null ? "" : String(t.max_admins),
       max_teachers: t.max_teachers == null ? "" : String(t.max_teachers),
@@ -250,6 +261,8 @@ function SuperAdminTenantsPage() {
       logo_path: form.logo_path.trim() || null,
       primary_color: form.primary_color.trim() || null,
       secondary_color: form.secondary_color.trim() || null,
+      text_color: form.text_color.trim() || null,
+      icon_color: form.icon_color.trim() || null,
       email_domain: form.email_domain.trim().toLowerCase() || null,
       max_admins: maxAdmins,
       max_teachers: maxTeachers,
@@ -562,21 +575,45 @@ function SuperAdminTenantsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <Label>Color primario (hex)</Label>
-                <Input
+                <HexColorInput
                   value={form.primary_color}
-                  onChange={(e) => setForm((p) => ({ ...p, primary_color: e.target.value }))}
+                  onChange={(v) => setForm((p) => ({ ...p, primary_color: v }))}
                   placeholder="#3B82F6"
-                  className="font-mono text-xs"
+                  ariaLabel="Color primario"
                 />
               </div>
               <div>
                 <Label>Color secundario (hex)</Label>
-                <Input
+                <HexColorInput
                   value={form.secondary_color}
-                  onChange={(e) => setForm((p) => ({ ...p, secondary_color: e.target.value }))}
+                  onChange={(v) => setForm((p) => ({ ...p, secondary_color: v }))}
                   placeholder="#8B5CF6"
-                  className="font-mono text-xs"
+                  ariaLabel="Color secundario"
                 />
+              </div>
+              <div>
+                <Label>Color de letra sobre el primario (hex)</Label>
+                <HexColorInput
+                  value={form.text_color}
+                  onChange={(v) => setForm((p) => ({ ...p, text_color: v }))}
+                  placeholder="#FFFFFF"
+                  ariaLabel="Color de letra sobre el primario"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Override del texto sobre el sidebar y botones primarios. Vacío = auto.
+                </p>
+              </div>
+              <div>
+                <Label>Color de íconos del sidebar (hex)</Label>
+                <HexColorInput
+                  value={form.icon_color}
+                  onChange={(v) => setForm((p) => ({ ...p, icon_color: v }))}
+                  placeholder="#FFFFFF"
+                  ariaLabel="Color de íconos del sidebar"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Override de íconos del menú lateral. Vacío = heredan el color de letra.
+                </p>
               </div>
             </div>
 

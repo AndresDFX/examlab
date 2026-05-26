@@ -33,6 +33,17 @@ export interface Tenant {
   /** Color secundario (acento) hex. Se aplica como `--brand-secondary`
    *  en el theme. */
   secondary_color: string | null;
+  /** Override del color de letra sobre superficies con branding (sidebar,
+   *  botones primarios). Si es NULL, TenantThemeProvider lo deriva por
+   *  luminancia (blanco si el primario es oscuro, negro si es claro).
+   *  Útil cuando la marca tiene un color de texto específico (ej. crema,
+   *  azul oscuro) que no surge naturalmente del primario. */
+  text_color: string | null;
+  /** Override del color de los íconos del sidebar nav. Si NULL, los
+   *  íconos heredan `text_color` (que a su vez puede ser auto-derivado).
+   *  Útil cuando la marca quiere íconos en color contrastante con el
+   *  texto (ej. íconos amarillos sobre texto blanco). */
+  icon_color: string | null;
   email_domain: string | null;
   is_active: boolean;
   /** Cuotas de usuarios por rol. NULL = ilimitado. SuperAdmin las define

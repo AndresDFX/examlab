@@ -85,7 +85,10 @@ import { useTranslation } from "react-i18next";
 interface NavItem {
   to: string;
   labelKey: string;
-  icon: React.ComponentType<{ className?: string }>;
+  // Permitimos `style` además de `className` para que los íconos puedan
+  // recibir el override de color por tenant via inline style con
+  // `var(--sidebar-icon-color, currentColor)`. Lucide los acepta nativo.
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   roles: AppRole[];
 }
 
@@ -377,39 +380,23 @@ const ROLE_CONFIG: Record<
   },
 };
 
-// Vivid icon colors per nav route key (path prefix → tailwind color class).
-// Works in both light and dark mode against the dark sidebar.
-const NAV_ICON_COLOR: Record<string, string> = {
-  "/app": "text-sky-300",
-  "/app/admin/users": "text-indigo-300",
-  "/app/admin/ai-prompts": "text-violet-300",
-  "/app/teacher/ai-prompts": "text-violet-300",
-  "/app/admin/ai-cron": "text-indigo-300",
-  "/app/teacher/ai-cron": "text-indigo-300",
-  "/app/teacher/contents": "text-pink-300",
-  "/app/admin/courses": "text-fuchsia-300",
-  "/app/teacher/courses": "text-fuchsia-300",
-  "/app/teacher/exams": "text-amber-300",
-  "/app/teacher/gradebook": "text-emerald-300",
-  "/app/teacher/workshops": "text-orange-300",
-  "/app/teacher/projects": "text-rose-300",
-  "/app/teacher/attendance": "text-cyan-300",
-  "/app/teacher/statistics": "text-blue-300",
-  "/app/admin/statistics": "text-blue-300",
-  "/app/teacher/students": "text-violet-300",
-  "/app/admin/report-templates": "text-pink-300",
-  "/app/teacher/reports": "text-pink-300",
-  "/app/teacher/audit-logs": "text-teal-300",
-  "/app/admin/audit-logs": "text-teal-300",
-  "/app/student/exams": "text-amber-300",
-  "/app/student/workshops": "text-orange-300",
-  "/app/student/projects": "text-rose-300",
-  "/app/student/courses": "text-fuchsia-300",
-  "/app/student/grades": "text-emerald-300",
-  "/app/student/certificates": "text-amber-400",
-  "/app/student/calendar": "text-blue-300",
-  "/app/messages": "text-cyan-300",
-};
+/**
+ * Class única que se aplica a todos los íconos del sidebar nav. Resuelve
+ * a `text-sidebar-foreground` (heredado del color de letra del sidebar,
+ * sea derivado por luminancia o sobreescrito por `tenant.text_color`).
+ *
+ * Decisión 20260706: antes existía un mapa `NAV_ICON_COLOR` por ruta
+ * (text-amber-300 para exámenes, text-rose-300 para proyectos, etc.).
+ * Sobre el sidebar oscuro default funcionaba, pero con branding tenant
+ * (sidebar rojo, naranja, verde) la paleta multicolor chocaba con el
+ * primario. Estandarizado a un solo color hereditario.
+ *
+ * Si el tenant define `tenant.icon_color`, TenantThemeProvider setea
+ * `--sidebar-icon-color` y los íconos lo toman vía inline style abajo.
+ * Cuando la var no está, `currentColor` cae al `text-sidebar-foreground`
+ * del nodo padre.
+ */
+const NAV_ICON_BASE_CLASS = "text-sidebar-foreground";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, roles, signOut, loading, user } = useAuth();
@@ -787,13 +774,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             const isActive =
               location.pathname === item.to ||
               (item.to !== "/app" && location.pathname.startsWith(item.to));
-            const iconColor = NAV_ICON_COLOR[item.to] ?? "text-sky-300";
             const navClassName = cn(
               "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors group",
+              // Antes: inactive con text-sidebar-foreground/75 — sobre el
+              // theme default OKLCH dark (sidebar oscuro) se veía bien,
+              // pero con branding tenant donde el sidebar puede ser un
+              // color medio (rojo, naranja) el 75% baja demasiado el
+              // contraste y el texto se confunde con el fondo. Subimos a
+              // /95 para que prácticamente sea blanco puro, manteniendo
+              // un toque sutil de jerarquía vs el activo (que ya tiene
+              // background propio + font-medium).
               isActive
                 ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                : "text-sidebar-foreground/95 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
             );
+            // Inline style con var fallback a `currentColor` (que es el
+            // text-sidebar-foreground del padre). Cuando tenant.icon_color
+            // está seteado, TenantThemeProvider asigna --sidebar-icon-color
+            // y aquí el ícono lo toma sin tocar nada más.
+            const iconStyle = { color: "var(--sidebar-icon-color, currentColor)" };
             if (isTakingExam) {
               return (
                 <button
@@ -802,14 +801,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   className={cn(navClassName, "w-full text-left")}
                   onClick={() => window.dispatchEvent(new CustomEvent("examlab:navAttempt"))}
                 >
-                  <Icon className={cn("h-4 w-4 transition-colors", iconColor)} />
+                  <Icon
+                    className={cn("h-4 w-4 transition-colors", NAV_ICON_BASE_CLASS)}
+                    style={iconStyle}
+                  />
                   {t(item.labelKey)}
                 </button>
               );
             }
             return (
               <Link key={item.to} to={item.to} className={navClassName}>
-                <Icon className={cn("h-4 w-4 transition-colors", iconColor)} />
+                <Icon
+                  className={cn("h-4 w-4 transition-colors", NAV_ICON_BASE_CLASS)}
+                  style={iconStyle}
+                />
                 {t(item.labelKey)}
               </Link>
             );
@@ -1061,13 +1066,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   const isActive =
                     location.pathname === item.to ||
                     (item.to !== "/app" && location.pathname.startsWith(item.to));
-                  const iconColor = NAV_ICON_COLOR[item.to] ?? "text-sky-300";
                   const navClassName = cn(
                     "flex items-center gap-3 px-3 py-3 rounded-md text-sm transition-colors touch-manipulation",
+                    // Mismo motivo que la versión desktop (línea ~795):
+                    // /80 sobre branding tenant queda con poco contraste.
+                    // /95 mantiene la jerarquía sin perder legibilidad.
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                      : "text-sidebar-foreground/95 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                   );
+                  const iconStyle = { color: "var(--sidebar-icon-color, currentColor)" };
                   if (isTakingExam) {
                     return (
                       <button
@@ -1076,14 +1084,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         className={cn(navClassName, "w-full text-left")}
                         onClick={() => window.dispatchEvent(new CustomEvent("examlab:navAttempt"))}
                       >
-                        <Icon className={cn("h-5 w-5 transition-colors", iconColor)} />
+                        <Icon
+                          className={cn("h-5 w-5 transition-colors", NAV_ICON_BASE_CLASS)}
+                          style={iconStyle}
+                        />
                         {t(item.labelKey)}
                       </button>
                     );
                   }
                   return (
                     <Link key={item.to} to={item.to} className={navClassName}>
-                      <Icon className={cn("h-5 w-5 transition-colors", iconColor)} />
+                      <Icon
+                        className={cn("h-5 w-5 transition-colors", NAV_ICON_BASE_CLASS)}
+                        style={iconStyle}
+                      />
                       {t(item.labelKey)}
                     </Link>
                   );
