@@ -129,15 +129,22 @@ function AdminUsers() {
   // Se cargan en `load` junto con los perfiles.
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
   // Tenants visibles para el caller. Solo el SuperAdmin ve TODAS las
-  // instituciones (via RLS); el Admin normal solo ve la suya. Cuando el
-  // SuperAdmin tiene >1 tenant cargado, exponemos un filtro arriba del
-  // grid para acotar la vista — sin él la lista cross-tenant puede ser
-  // ruidosa.
+  // instituciones (via RLS); el Admin normal solo ve la suya. Para el
+  // SuperAdmin exponemos un filtro de institución arriba del grid (ver
+  // `showTenantUI`) para acotar la vista cross-tenant.
   const [tenants, setTenants] = useState<
     Array<{ id: string; slug: string; name: string }>
   >([]);
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const isSuperAdminCaller = roles.includes("SuperAdmin");
+  // Mostrar el filtro + columna "Institución" cuando el caller es
+  // SuperAdmin y hay al menos una institución cargada. Antes el umbral
+  // era `> 1` (escondíamos el filtro con un solo tenant para no mostrar
+  // un dropdown de 1 opción), pero el SuperAdmin pidió poder filtrar
+  // siempre — útil incluso con 1 institución para confirmar el alcance,
+  // y queda listo al crecer. El Admin normal nunca lo ve
+  // (isSuperAdminCaller=false).
+  const showTenantUI = isSuperAdminCaller && tenants.length > 0;
   // Tenant del Admin actual — necesario para auto-asignar nuevos usuarios
   // a SU institución cuando el SuperAdmin no eligió otra. Lo guardamos en
   // un ref para no re-renderizar cada vez que cambia, y lo populamos al
@@ -276,9 +283,8 @@ function AdminUsers() {
     load();
     // SuperAdmin: cuando cambia el filtro de institución, recargamos la
     // query con `.eq('tenant_id', X)` aplicado. Para Admin normal el
-    // filtro no se renderiza (tenants.length <= 1), así que tenantFilter
-    // queda en 'all' permanente y este effect corre solo una vez al
-    // montar.
+    // filtro no se renderiza, así que tenantFilter queda en 'all'
+    // permanente y este effect corre solo una vez al montar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantFilter]);
 
@@ -702,10 +708,9 @@ function AdminUsers() {
           placeholder="Buscar por nombre, correo o rol…"
           className="flex-1"
         />
-        {/* Filtro de tenant solo se muestra al SuperAdmin con >1 tenant
-            cargado. Admin normal ve solo su tenant; ocultar el filtro
-            evita un dropdown deshabilitado de 1 opción. */}
-        {isSuperAdminCaller && tenants.length > 1 && (
+        {/* Filtro de institución — visible para el SuperAdmin siempre que
+            haya tenants cargados. Admin normal no lo ve. */}
+        {showTenantUI && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
             <SelectTrigger className="sm:w-64">
               <SelectValue placeholder={t("tenant.filterAllTenants")} />
@@ -753,10 +758,10 @@ function AdminUsers() {
                     <TableHead className="hidden xs:table-cell w-40">
                       {t("common.roles")}
                     </TableHead>
-                    {/* Columna Institución solo visible al SuperAdmin
-                        con cross-tenant view. Para el Admin normal es
-                        siempre su tenant (redundante). */}
-                    {isSuperAdminCaller && tenants.length > 1 && (
+                    {/* Columna Institución solo visible al SuperAdmin.
+                        Para el Admin normal es siempre su tenant
+                        (redundante). */}
+                    {showTenantUI && (
                       <TableHead className="hidden lg:table-cell w-40">Institución</TableHead>
                     )}
                     <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
@@ -765,7 +770,7 @@ function AdminUsers() {
                 <TableBody>
                   {filteredRows.length === 0 && (
                     <TableEmpty
-                      colSpan={isSuperAdminCaller && tenants.length > 1 ? 7 : 6}
+                      colSpan={showTenantUI ? 7 : 6}
                       icon={UsersIcon}
                       text={
                         search.trim() && rows.length > 0
@@ -817,7 +822,7 @@ function AdminUsers() {
                       <TableCell className="hidden sm:table-cell">
                         <BadgeOverflow items={r.roles} max={2} />
                       </TableCell>
-                      {isSuperAdminCaller && tenants.length > 1 && (
+                      {showTenantUI && (
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
                           {tenants.find((t) => t.id === r.tenant_id)?.name ?? "—"}
                         </TableCell>
