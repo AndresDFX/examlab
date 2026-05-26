@@ -237,6 +237,112 @@ Deno.serve(async (req) => {
     const { error: insErr } = await admin.from("notifications").insert(notifRows);
     if (insErr) return jsonError(`Error al insertar notificaciones: ${insErr.message}`, 500);
 
+    // ── Replicar como mensaje en cada conversación 1-a-1 ──
+    // El bell + correo BCC ya cubren la difusión, pero el usuario espera
+    // que el broadcast también aparezca en /app/messages → conversación
+    // con el docente/admin. Para cada alumno: asegurar conversación
+    // canónica (user_a < user_b) e insertar UN mensaje con el contenido
+    // del broadcast.
+    //
+    // No bloqueamos en errores acá: si falla, las notifs in-app ya
+    // están y el correo todavía puede salir. Auditamos el fallo y
+    // seguimos.
+    try {
+      // 1) Filtrar self-conversation (poco probable: el sender no debería
+      //    estar inscrito como alumno del curso que dicta, pero defensivo).
+      const studentIdsForMessages = students
+        .map((s) => s.id)
+        .filter((id) => id !== actorId);
+
+      if (studentIdsForMessages.length > 0) {
+        // 2) Calcular pares canónicos (user_a < user_b por orden lexicográfico).
+        const convPairs = studentIdsForMessages.map((sid) => {
+          const [user_a, user_b] = actorId! < sid ? [actorId!, sid] : [sid, actorId!];
+          return { user_a, user_b };
+        });
+
+        // 3) Insertar conversaciones que falten. ON CONFLICT DO NOTHING
+        //    contra el UNIQUE (user_a, user_b) — las existentes quedan
+        //    intactas (no perdemos cleared_at / last_read_at).
+        const { error: convInsErr } = await admin
+          .from("conversations")
+          .upsert(convPairs, { onConflict: "user_a,user_b", ignoreDuplicates: true });
+        if (convInsErr) {
+          throw new Error(`upsert conversations: ${convInsErr.message}`);
+        }
+
+        // 4) Releer los IDs (necesitamos el conversation_id para insertar
+        //    el mensaje). Filtrado server-side a conversaciones donde el
+        //    sender es UNO de los participantes — la otra parte queda en
+        //    el set de alumnos del curso. Evita traer conversaciones
+        //    ajenas (estudiante-estudiante) que comparten user_id.
+        const otherIds = studentIdsForMessages.join(",");
+        const { data: convRows, error: convFetchErr } = await admin
+          .from("conversations")
+          .select("id, user_a, user_b")
+          .or(
+            `and(user_a.eq.${actorId},user_b.in.(${otherIds})),and(user_b.eq.${actorId},user_a.in.(${otherIds}))`,
+          );
+        if (convFetchErr) {
+          throw new Error(`fetch conversations: ${convFetchErr.message}`);
+        }
+
+        // 5) Map student_id → conversation_id (escogemos la conv donde
+        //    el otro participante es el sender actual).
+        const convByStudent = new Map<string, string>();
+        for (const row of (convRows ?? []) as Array<{
+          id: string;
+          user_a: string;
+          user_b: string;
+        }>) {
+          const other = row.user_a === actorId ? row.user_b : row.user_a;
+          if (other !== actorId && studentIdsForMessages.includes(other)) {
+            convByStudent.set(other, row.id);
+          }
+        }
+
+        // 6) Bulk-insert de mensajes via RPC `insert_broadcast_messages`.
+        //    La RPC setea un GUC para que el trigger `tg_notify_new_message`
+        //    se salte la creación automática de notificaciones — sin esto
+        //    cada mensaje dispararía una notif kind='info' + email
+        //    individual al alumno, duplicando el bell y rompiendo el BCC
+        //    único del broadcast.
+        //
+        //    Body = "📢 subject\n\nmessage" para que el mensaje se
+        //    distinga visualmente de los mensajes 1-a-1 normales.
+        //    La RPC trunca a 4000 chars (CHECK de messages.body).
+        const broadcastBody = `📢 ${subject}\n\n${message}`;
+        const convIds: string[] = [];
+        for (const sid of studentIdsForMessages) {
+          const cid = convByStudent.get(sid);
+          if (cid) convIds.push(cid);
+        }
+
+        if (convIds.length > 0) {
+          // La RPC corre con la sesión del caller (no admin) para que
+          // auth.uid() = actorId al checkear permisos. Usamos
+          // userClient en vez del admin client.
+          const { error: msgInsErr } = await userClient.rpc("insert_broadcast_messages", {
+            _sender_id: actorId,
+            _conv_ids: convIds,
+            _body: broadcastBody,
+          });
+          if (msgInsErr) throw new Error(`insert_broadcast_messages: ${msgInsErr.message}`);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      void auditFromEdge(admin, {
+        actorId,
+        action: "broadcast.messages_replication_failed",
+        category: "system",
+        severity: "warning",
+        entityType: "course",
+        entityId: courseId,
+        metadata: { error: msg.slice(0, 500), notified: students.length },
+      });
+    }
+
     // ── Construir lista BCC ──
     // Prioridad institucional → personal. Si un alumno no tiene ningún
     // correo, lo saltamos (la notificación in-app sí le llegó).

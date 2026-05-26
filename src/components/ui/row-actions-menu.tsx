@@ -56,6 +56,11 @@ export type RowActionItem = {
   href?: string;
   /** Pinta rojo el item, para acciones destructivas (eliminar). */
   tone?: "default" | "destructive";
+  /** Color literal (hex / CSS var / oklch) para el ícono y el acento de
+   *  hover. Útil cuando la acción está conceptualmente atada a una
+   *  entidad con marca propia (ej. "Iniciar como Admin" pintado con el
+   *  color del tenant de esa fila). NO afecta el texto del label. */
+  iconColor?: string;
   disabled?: boolean;
   /** Inserta un separador horizontal ANTES de este item (típicamente
    *  antes de "Eliminar" para separar lo destructivo del resto). */
@@ -113,7 +118,17 @@ export function RowActionsMenu({
           );
           const inner = (
             <>
-              <ItemIcon className="h-4 w-4" aria-hidden />
+              {action.iconColor ? (
+                <span
+                  className="inline-flex"
+                  style={{ color: action.iconColor }}
+                  aria-hidden
+                >
+                  <ItemIcon className="h-4 w-4" aria-hidden />
+                </span>
+              ) : (
+                <ItemIcon className="h-4 w-4" aria-hidden />
+              )}
               <span className="flex-1">{action.label}</span>
             </>
           );

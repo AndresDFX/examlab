@@ -498,6 +498,11 @@ function SuperAdminTenantsPage() {
                             icon: LogIn,
                             onClick: () => void impersonateTenantAdmin(t),
                             hint: "Reemplaza tu sesión por la del Admin del tenant",
+                            // El ícono toma el primary del tenant de esta
+                            // fila — pista visual de que la acción va a
+                            // entrar al contexto de ESE tenant. Cae al
+                            // default si el tenant no tiene color.
+                            iconColor: t.primary_color ?? undefined,
                           },
                           {
                             label: "Gestionar usuarios",

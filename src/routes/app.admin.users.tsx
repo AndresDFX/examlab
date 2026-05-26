@@ -839,6 +839,12 @@ function AdminUsers() {
                               icon: Eye,
                               hint: `Acceder a la plataforma como ${r.full_name}`,
                               onClick: () => void handleImpersonate(r),
+                              // Pinta el ícono con el primary del tenant
+                              // actual (ya aplicado al theme via
+                              // TenantThemeProvider) — visualiza que la
+                              // impersonación se queda dentro de la
+                              // institución.
+                              iconColor: "var(--brand-primary)",
                             },
                             {
                               label: t("common.delete"),

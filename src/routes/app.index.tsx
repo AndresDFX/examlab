@@ -147,22 +147,6 @@ function AdminDashboard() {
       created_at: string;
     }>
   >([]);
-  const [emailStats, setEmailStats] = useState<{
-    delivered: number;
-    skipped: number;
-    failed: number;
-    recent: Array<{
-      action: string;
-      severity: string;
-      created_at: string;
-      metadata: Record<string, unknown>;
-    }>;
-  } | null>(null);
-  // Nonce + loading para el botón de recarga del card de Correos.
-  // Incrementar el nonce relanza el useEffect que consulta los
-  // `audit_logs` de email; `emailLoading` alimenta el spin del ícono.
-  const [emailLoading, setEmailLoading] = useState(false);
-  const [emailNonce, setEmailNonce] = useState(0);
 
   useEffect(() => {
     // Guard contra navegación rápida: si el admin sale del dashboard
@@ -171,17 +155,6 @@ function AdminDashboard() {
     // huérfano en pantalla nueva. `cancelled` corta el flow.
     let cancelled = false;
     (async () => {
-      setEmailLoading(true);
-      // Métricas de email en las últimas 24h. Un SELECT con filtros
-      // específicos por action — más eficiente que cargar todo y
-      // agrupar en cliente. Si la tabla aún no tiene la categoría
-      // 'email' (migración no aplicada en este entorno) los counts
-      // quedan en 0 sin romper.
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      // sinceHour mantiene el nombre legacy (la ventana real es 24h, no
-      // 1h). Cambiar el identifier ahora rompe llamados que asumen el
-      // shape de aiStats `*LastHour`.
-      const sinceHour = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
 
@@ -267,57 +240,11 @@ function AdminDashboard() {
       });
       setRecentCourses((recentCoursesRes.data ?? []) as typeof recentCourses);
       setRecentEvents((recentEventsRes.data ?? []) as typeof recentEvents);
-
-      const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
-        dbAny
-          .from("audit_logs")
-          .select("id", { count: "exact", head: true })
-          .eq("category", "email")
-          .eq("action", "email.delivered")
-          .gte("created_at", since),
-        dbAny
-          .from("audit_logs")
-          .select("id", { count: "exact", head: true })
-          .eq("category", "email")
-          .eq("action", "email.skipped")
-          .gte("created_at", since),
-        dbAny
-          .from("audit_logs")
-          .select("id", { count: "exact", head: true })
-          .eq("category", "email")
-          .eq("action", "email.failed")
-          .gte("created_at", since),
-        dbAny
-          .from("audit_logs")
-          .select("action, severity, created_at, metadata")
-          .eq("category", "email")
-          .gte("created_at", since)
-          .order("created_at", { ascending: false })
-          // Subido de 5 a 12 — ahora la card de Correos crece a alto
-          // de viewport y se veía casi vacía con 2 eventos visibles.
-          // El render hace slice + overflow-y-auto, así que 12 eventos
-          // llenan la lista en una pantalla típica sin desbordar.
-          .limit(12),
-      ]);
-      if (cancelled) return;
-      setEmailStats({
-        delivered: delivRes.count ?? 0,
-        skipped: skipRes.count ?? 0,
-        failed: failRes.count ?? 0,
-        recent: (recentRes.data ?? []) as Array<{
-          action: string;
-          severity: string;
-          created_at: string;
-          metadata: Record<string, unknown>;
-        }>,
-      });
-      setEmailLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emailNonce]);
+  }, []);
 
   return (
     // Wrapper flex-col + flex-1 + min-h-0 — espeja el patrón del
@@ -363,13 +290,12 @@ function AdminDashboard() {
         />
       </div>
 
-      {/* Row SECUNDARIA — 4 cards en grid 4-col (lg+) / 2x2 (sm-md) /
-          1-col (mobile). Patrón Teacher/Student. Antes el breakpoint a
-          4 cols era `xl:` (1280px+) y entre lg-xl quedaba un grid 2x2
-          con whitespace horizontal evidente. Bajado a `lg:` (1024px+)
-          para que tablets en horizontal y laptops chicos ya vean las
-          4 columnas. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1 min-h-0">
+      {/* 2 cards abajo que ocupan el alto restante. Antes eran 4
+          (Cursos recientes, Actividad reciente, Cola IA, Correos);
+          la salud operativa de Cola IA y Correos se ve en sus módulos
+          dedicados — el dashboard prioriza la vista institucional
+          accionable. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
         {/* (1) Cursos recientes — últimos 8 del tenant. RLS los acota. */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
@@ -462,159 +388,15 @@ function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
-
-        {/* (3) Cola IA — widget compacto existente */}
-        <AiGradingQueueWidget isAdmin />
-
-        {/* Métricas de correo — últimas 24h. `flex flex-col min-h-0`
-            permite que el botón "Ver auditoría" quede pegado abajo y el
-            resto del contenido se acomode arriba. */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="pb-2">
-            {/* Título alineado con el card de Cron (IA) a la izquierda:
-                misma jerarquía tipográfica (text-sm) + botón de recarga
-                ml-auto a la derecha. El nonce relanza el useEffect que
-                consulta `audit_logs` de email; el spin se ata a
-                `emailLoading`. */}
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Inbox className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
-              Correos (últimas 24h)
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 ml-auto"
-                onClick={() => setEmailNonce((n) => n + 1)}
-                title="Refrescar"
-              >
-                <RefreshCw className={`h-3 w-3 ${emailLoading ? "animate-spin" : ""}`} />
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 flex-1 flex flex-col min-h-0">
-            {!emailStats ? (
-              <p className="text-sm text-muted-foreground py-2">Cargando…</p>
-            ) : emailStats.delivered + emailStats.skipped + emailStats.failed === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Sin actividad de correo en las últimas 24 horas.
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-2">
-                  <EmailStatTile
-                    label="Entregados"
-                    value={emailStats.delivered}
-                    color="text-emerald-600 dark:text-emerald-400"
-                    bg="bg-emerald-500/10"
-                  />
-                  <EmailStatTile
-                    label="Omitidos"
-                    value={emailStats.skipped}
-                    color="text-amber-600 dark:text-amber-400"
-                    bg="bg-amber-500/10"
-                  />
-                  <EmailStatTile
-                    label="Fallidos"
-                    value={emailStats.failed}
-                    color="text-destructive"
-                    bg="bg-destructive/10"
-                  />
-                </div>
-                {/* "Último envío" — equivalente del "Último éxito" del
-                    card de Cron (IA). Filtramos `recent` por
-                    email.delivered para no contar dispatched/skipped/
-                    failed como envío exitoso. Misma jerarquía visual:
-                    text-[11px] muted + ícono verde de check. */}
-                {(() => {
-                  const lastDelivered = emailStats.recent.find(
-                    (e) => e.action === "email.delivered",
-                  );
-                  return (
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                      <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0" />
-                      Último envío:{" "}
-                      {lastDelivered ? formatDateTime(lastDelivered.created_at) : "—"}
-                    </div>
-                  );
-                })()}
-                {emailStats.recent.length > 0 && (
-                  // Mismo wrapper que el "EN COLA" del card de Cron:
-                  // border-t superior + título uppercase tracking-wide
-                  // + lista con overflow-y-auto que llena el alto
-                  // restante via flex-1.
-                  <div className="flex-1 min-h-0 flex flex-col gap-1 border-t pt-2">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium shrink-0">
-                      Últimos eventos
-                    </div>
-                    <div className="flex-1 overflow-y-auto pr-1 space-y-0.5 min-h-0">
-                    {emailStats.recent.map((ev, i) => {
-                      // Ícono semántico por severity — espeja la lógica
-                      // del card de Cron (Cpu en proceso, AlertTriangle
-                      // fail, Clock waiting). Para email: CircleCheck
-                      // delivered, AlertTriangle failed/error, Clock
-                      // dispatched/skipped.
-                      const isError = ev.severity === "error" || ev.action === "email.failed";
-                      const isDelivered = ev.action === "email.delivered";
-                      const reason =
-                        typeof ev.metadata?.reason === "string"
-                          ? (ev.metadata.reason as string)
-                          : null;
-                      return (
-                        <div
-                          key={i}
-                          className={`flex items-center gap-2 px-1.5 py-0.5 rounded text-[11px] ${
-                            isError ? "bg-destructive/5" : ""
-                          }`}
-                        >
-                          {isError ? (
-                            <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-                          ) : isDelivered ? (
-                            <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0" />
-                          ) : (
-                            <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
-                          )}
-                          <span className="flex-1 truncate font-mono">
-                            {ev.action}
-                            {reason && (
-                              <span className="text-muted-foreground"> · {reason}</span>
-                            )}
-                          </span>
-                          {/* Edad relativa (3h, 1d, ...) en vez de fecha
-                              absoluta: mismo formato que el card de Cron
-                              para mantener vocabulario temporal
-                              consistente en el dashboard. */}
-                          <span
-                            className="text-[10px] text-muted-foreground tabular-nums shrink-0"
-                            title={formatDateTime(ev.created_at)}
-                          >
-                            {relativeAge(ev.created_at)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-            <Link
-              to="/app/admin/audit-logs"
-              search={{ category: "email" } as Record<string, unknown>}
-              className="block mt-auto"
-            >
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver auditoría de correos <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
       </div>
 
     </div>
   );
 }
 
-/** Mini-tile para mostrar un count + label con color. Usado solo por
- *  el widget de correos del AdminDashboard. */
+/** Stub — la card de Correos del AdminDashboard se removió. Conservamos
+ *  el componente exportable para no romper imports si algún consumidor
+ *  externo lo referencia, aunque internamente ya no se usa. */
 function EmailStatTile({
   label,
   value,
@@ -662,8 +444,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     aiPendingJobs: 0,
   });
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
-  const [activeWorkshops, setActiveWorkshops] = useState<any[]>([]);
-  const [activeProjects, setActiveProjects] = useState<any[]>([]);
   /** Próximas sesiones de asistencia en cursos asignados al docente,
    *  con session_date >= hoy. Top 5 ordenadas por fecha + start_time. */
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
@@ -784,24 +564,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .limit(8);
       if (cancelled) return;
       setUpcomingExams(exams ?? []);
-
-      const { data: ws } = await supabase
-        .from("workshops")
-        .select("id, title, due_date, status, course:courses(name)")
-        .eq("status", "published")
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(8);
-      if (cancelled) return;
-      setActiveWorkshops(ws ?? []);
-
-      const { data: pjs } = await (supabase as any)
-        .from("projects")
-        .select("id, title, due_date, status, course:courses(name)")
-        .eq("status", "published")
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(8);
-      if (cancelled) return;
-      setActiveProjects(pjs ?? []);
     })();
     return () => {
       cancelled = true;
@@ -873,16 +635,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           completo donde el docente activa también el código override
           si necesita IA sincrónica YA. */}
 
-      {/* `flex-1 min-h-0` permite que la grid de 4 cards crezca hasta
-          el final del viewport cuando no hay tarjeta de notificaciones
-          abajo, y se encoja sin desbordar cuando sí la hay. Cada card
-          dentro escucha esa altura con su propio flex-col + scroll. */}
-      <div className="grid md:grid-cols-4 gap-4 flex-1 min-h-0">
-        {/* Próximas clases — sesiones de asistencia con session_date >=
-            hoy en los cursos asignados al docente. Reemplaza el bloque
-            "Acciones rápidas" porque es más accionable: el docente ve a
-            simple vista qué viene en los próximos días sin abrir el
-            módulo de asistencia. RLS filtra a sus cursos. */}
+      {/* 2 cards abajo que ocupan el alto restante del viewport. Antes
+          eran 4; talleres y proyectos activos se ven en sus módulos
+          dedicados — el dashboard prioriza lo time-critical (clases +
+          exámenes). */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
+        {/* Próximas clases */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -891,10 +649,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            {/* La lista usa flex-1 + overflow-y-auto: cuando hay muchos
-                items y la card creció (porque no hay notificaciones
-                abajo), se ven más sin que el botón "Gestionar" se
-                empuje fuera del viewport. */}
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {upcomingSessions.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
@@ -904,9 +658,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                 </p>
               ) : (
                 upcomingSessions.map((s: any) => {
-                  // session_date es DATE (YYYY-MM-DD); formatDate
-                  // ya maneja string ISO. start_time viene separado;
-                  // si existe lo concatenamos para mostrar hora.
                   const dateLabel = formatDate(s.session_date);
                   const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
                   return (
@@ -928,40 +679,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           </CardContent>
         </Card>
 
-        {/* Active projects */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
-              {t("dashboard.activeProjects")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {activeProjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.noActiveProjects")}
-                </p>
-              ) : (
-                activeProjects.map((p: any) => (
-                  <EventRow
-                    key={p.id}
-                    title={p.title}
-                    subtitle={p.course?.name}
-                    date={p.due_date ? formatDate(p.due_date) : t("dashboard.noDate")}
-                  />
-                ))
-              )}
-            </div>
-            <Link to="/app/teacher/projects" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Upcoming exams */}
+        {/* Próximos exámenes */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -993,39 +711,6 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
               )}
             </div>
             <Link to="/app/teacher/exams" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Active workshops */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" />{" "}
-              {t("dashboard.activeWorkshops")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {activeWorkshops.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.noActiveWorkshops")}
-                </p>
-              ) : (
-                activeWorkshops.map((w: any) => (
-                  <EventRow
-                    key={w.id}
-                    title={w.title}
-                    subtitle={w.course?.name}
-                    date={w.due_date ? formatDate(w.due_date) : t("dashboard.noDate")}
-                  />
-                ))
-              )}
-            </div>
-            <Link to="/app/teacher/workshops" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("dashboard.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -1320,13 +1005,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      {/* Grid de 4 cards con flex-1 + min-h-0 — mismo patrón del docente.
-          El orden replica el del docente: clases / proyectos / exámenes /
-          talleres. Eso unifica la lectura visual entre los dos roles. */}
-      <div className="grid md:grid-cols-4 gap-4 flex-1 min-h-0">
-        {/* Próximas clases — reemplaza el bloque "Acceso rápido" porque
-            es más accionable: el alumno ve a simple vista qué sesiones
-            tiene programadas sin tener que abrir el módulo de asistencia. */}
+      {/* 2 cards abajo que ocupan el alto restante. Antes eran 4
+          (clases / proyectos / exámenes / talleres); talleres y
+          proyectos pendientes se ven en sus módulos dedicados, el
+          dashboard prioriza lo time-critical (clases + exámenes). Los
+          contadores siguen visibles arriba como stats. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
+        {/* Próximas clases */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1365,62 +1050,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           </CardContent>
         </Card>
 
-        {/* Pending projects */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderKanban className="h-4 w-4 text-rose-500 dark:text-rose-400" />{" "}
-              {t("dashboard.pendingDeliveryProjects")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {pendingProjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.noPendingProjects")}
-                </p>
-              ) : (
-                pendingProjects.map((p: any) => {
-                  const isOverdue = p.due_date && new Date(p.due_date) < new Date();
-                  return (
-                    <Link key={p.id} to="/app/student/projects" className="block">
-                      <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
-                        <div className="mt-0.5">
-                          {isOverdue ? (
-                            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                          ) : (
-                            <Send className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{p.title}</div>
-                          <div className="text-xs text-muted-foreground">{p.course?.name}</div>
-                          {p.due_date && (
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {t("dashboard.dueLabel")}: {formatDate(p.due_date)}
-                            </div>
-                          )}
-                        </div>
-                        {isOverdue && (
-                          <Badge variant="destructive" className="text-[10px] shrink-0">
-                            {t("dashboard.overdue")}
-                          </Badge>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-            <Link to="/app/student/projects" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Upcoming exams */}
+        {/* Próximos exámenes */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1471,59 +1101,6 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
               )}
             </div>
             <Link to="/app/student/exams" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Pending workshops */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Hammer className="h-4 w-4 text-amber-500 dark:text-amber-400" />{" "}
-              {t("dashboard.pendingDeliveryWorkshops")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {pendingWorkshops.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.noPendingWorkshops")}
-                </p>
-              ) : (
-                pendingWorkshops.map((w: any) => {
-                  const isOverdue = w.due_date && new Date(w.due_date) < new Date();
-                  return (
-                    <div key={w.id} className="flex items-start gap-2 p-2.5 rounded-md border">
-                      <div className="mt-0.5">
-                        {isOverdue ? (
-                          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                        ) : (
-                          <Send className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{w.title}</div>
-                        <div className="text-xs text-muted-foreground">{w.course?.name}</div>
-                        {w.due_date && (
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {t("dashboard.dueLabel")}: {formatDate(w.due_date)}
-                          </div>
-                        )}
-                      </div>
-                      {isOverdue && (
-                        <Badge variant="destructive" className="text-[10px] shrink-0">
-                          {t("dashboard.overdue")}
-                        </Badge>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <Link to="/app/student/workshops" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
                 {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
@@ -1652,10 +1229,6 @@ function SuperAdminDashboard() {
     aiJobsPending: 0,
     aiJobsFailed: 0,
     newTenants30d: 0,
-    submissionsToday: 0,
-    examsActive: 0,
-    errors24h: 0,
-    newUsers7d: 0,
   });
   const [recentTenants, setRecentTenants] = useState<
     Array<{ id: string; slug: string; name: string; is_active: boolean; created_at: string }>
@@ -1679,17 +1252,7 @@ function SuperAdminDashboard() {
       setLoading(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
-      const now = new Date();
-      const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const since7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-      // "Hoy" en zona local: arrancamos a la medianoche local y lo
-      // convertimos a ISO para que las queries usen el timestamp UTC
-      // equivalente — alinea el corte con la percepción del SuperAdmin.
-      const todayStartLocal = new Date(now);
-      todayStartLocal.setHours(0, 0, 0, 0);
-      const sinceTodayIso = todayStartLocal.toISOString();
-      const nowIso = now.toISOString();
+      const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const [
         tenantsActiveRes,
         tenantsInactiveRes,
@@ -1699,12 +1262,6 @@ function SuperAdminDashboard() {
         aiFailedRes,
         newTenantsRes,
         recentRes,
-        submitExamRes,
-        submitWsRes,
-        submitProjRes,
-        examsActiveRes,
-        errors24hRes,
-        newUsers7dRes,
         eventsRes,
       ] = await Promise.all([
         dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", true),
@@ -1728,40 +1285,6 @@ function SuperAdminDashboard() {
           .select("id, slug, name, is_active, created_at")
           .order("created_at", { ascending: false })
           .limit(8),
-        // Entregas hoy: submitted_at >= medianoche local, cross-tenant
-        // (cuenta examen + taller + proyecto por separado y sumamos).
-        dbAny
-          .from("submissions")
-          .select("id", { count: "exact", head: true })
-          .gte("submitted_at", sinceTodayIso),
-        dbAny
-          .from("workshop_submissions")
-          .select("id", { count: "exact", head: true })
-          .gte("submitted_at", sinceTodayIso),
-        dbAny
-          .from("project_submissions")
-          .select("id", { count: "exact", head: true })
-          .gte("submitted_at", sinceTodayIso),
-        // Exámenes en curso: ahora cae entre start_time y end_time.
-        dbAny
-          .from("exams")
-          .select("id", { count: "exact", head: true })
-          .lte("start_time", nowIso)
-          .gte("end_time", nowIso),
-        // Errores plataforma últimas 24h.
-        dbAny
-          .from("audit_logs")
-          .select("id", { count: "exact", head: true })
-          .eq("severity", "error")
-          .gte("created_at", since24h),
-        // Usuarios nuevos últimos 7d.
-        dbAny
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", since7),
-        // Feed de eventos recientes (cualquier severidad) para el card
-        // de "Actividad reciente". Limit 8 para mantener la card
-        // contenida sin scroll exagerado.
         dbAny
           .from("audit_logs")
           .select("id, action, category, severity, actor_email, entity_name, created_at")
@@ -1777,13 +1300,6 @@ function SuperAdminDashboard() {
         aiJobsPending: aiPendingRes.count ?? 0,
         aiJobsFailed: aiFailedRes.count ?? 0,
         newTenants30d: newTenantsRes.count ?? 0,
-        submissionsToday:
-          (submitExamRes.count ?? 0) +
-          (submitWsRes.count ?? 0) +
-          (submitProjRes.count ?? 0),
-        examsActive: examsActiveRes.count ?? 0,
-        errors24h: errors24hRes.count ?? 0,
-        newUsers7d: newUsers7dRes.count ?? 0,
       });
       setRecentTenants((recentRes.data ?? []) as typeof recentTenants);
       setRecentEvents((eventsRes.data ?? []) as typeof recentEvents);
@@ -1796,7 +1312,7 @@ function SuperAdminDashboard() {
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      {/* Row PRIMARIA — métricas estructurales de la plataforma. */}
+      {/* 4 stats arriba — mismo grid que Teacher/Student/Admin. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={Building2}
@@ -1840,50 +1356,9 @@ function SuperAdminDashboard() {
         />
       </div>
 
-      {/* Row SECUNDARIA — actividad y salud del sistema. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat
-          icon={Send}
-          label="Entregas hoy"
-          value={loading ? "—" : stats.submissionsToday}
-          sub="examen + taller + proyecto"
-          color="text-sky-500 dark:text-sky-400"
-        />
-        <Stat
-          icon={Play}
-          label="Exámenes en curso"
-          value={loading ? "—" : stats.examsActive}
-          sub="ahora mismo, cross-tenant"
-          color={
-            stats.examsActive > 0
-              ? "text-emerald-500 dark:text-emerald-400"
-              : "text-muted-foreground"
-          }
-        />
-        <Stat
-          icon={AlertTriangle}
-          label="Errores 24h"
-          value={loading ? "—" : stats.errors24h}
-          sub={stats.errors24h > 0 ? "ver auditoría" : "sin incidentes"}
-          color={
-            stats.errors24h > 0
-              ? "text-rose-500 dark:text-rose-400"
-              : "text-emerald-500 dark:text-emerald-400"
-          }
-        />
-        <Stat
-          icon={UsersIcon}
-          label="Nuevos usuarios"
-          value={loading ? "—" : stats.newUsers7d}
-          sub="últimos 7 días"
-          color="text-teal-500 dark:text-teal-400"
-        />
-      </div>
-
-      {/* Detalles abajo: 2-col en lg+, apilados en mobile. Antes era 1
-          card ancho que dejaba whitespace en pantallas anchas. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
-        {/* (1) Instituciones recientes */}
+      {/* 2 cards abajo que ocupan el alto restante del viewport. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
+        {/* Instituciones recientes */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1906,18 +1381,18 @@ function SuperAdminDashboard() {
                 </p>
               ) : (
                 <ul className="space-y-1.5">
-                  {recentTenants.map((t) => (
+                  {recentTenants.map((tt) => (
                     <li
-                      key={t.id}
+                      key={tt.id}
                       className="flex items-center justify-between gap-2 rounded-md border p-2.5"
                     >
                       <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{t.name}</div>
+                        <div className="text-sm font-medium truncate">{tt.name}</div>
                         <div className="text-[11px] text-muted-foreground truncate">
-                          <code>/t/{t.slug}</code> · {formatDate(t.created_at)}
+                          <code>/t/{tt.slug}</code> · {formatDate(tt.created_at)}
                         </div>
                       </div>
-                      {!t.is_active && (
+                      {!tt.is_active && (
                         <Badge variant="outline" className="text-[10px] shrink-0">
                           Pausada
                         </Badge>
@@ -1936,8 +1411,7 @@ function SuperAdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* (2) Actividad reciente — últimos eventos de audit_logs
-            cross-tenant. Severidad colorea el punto izquierdo. */}
+        {/* Actividad reciente — eventos de audit_logs cross-tenant. */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1970,7 +1444,7 @@ function SuperAdminDashboard() {
                     return (
                       <li
                         key={ev.id}
-                        className="flex items-start gap-2 rounded-md border p-2.5"
+                        className="flex items-start gap-2 rounded-md border p-2"
                       >
                         <span
                           className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${sevDot}`}
