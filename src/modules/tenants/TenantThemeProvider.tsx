@@ -1,27 +1,28 @@
 /**
- * TenantThemeProvider — sobrescribe los tokens HSL del shadcn theme con
+ * TenantThemeProvider — sobrescribe los tokens de color del theme con
  * los colores del tenant activo, para que TODO el design system los use
  * (botones primary, focus rings, badges, links, etc.).
  *
- * Cómo funciona:
- *   - shadcn/Tailwind expone `--primary: <H> <S>% <L>%` y todo componente
- *     usa `hsl(var(--primary))` indirectamente via clases (`bg-primary`,
- *     `text-primary`, `border-primary`...). Sobrescribir ese token cambia
- *     la app entera de golpe.
- *   - Convertimos el hex del tenant a HSL y seteamos `--primary`,
- *     `--ring`, `--sidebar-primary` (para que el sidebar también respete
- *     el color institucional) y los homólogos `--secondary` con el
- *     secondary_color.
- *   - Foreground (texto sobre el color) lo decidimos por luminancia: si
- *     el color es oscuro → foreground blanco, si es claro → foreground
- *     negro. Eso evita que un primary amarillo deje texto blanco
- *     ilegible encima de un botón.
- *   - También exponemos `--brand-primary` / `--brand-secondary` en hex
- *     puro por si alguien quiere usar `style={{ color: 'var(--brand-primary)' }}`
- *     directo (sin pasar por HSL).
+ * IMPORTANTE: este proyecto usa Tailwind v4 con tokens **OKLCH**
+ * (`--primary: oklch(0.55 0.22 265)`). Antes intentamos setear HSL
+ * tipo `--primary: 220 50% 30%` — no funcionaba porque el CSS espera
+ * `oklch(...)` o un color CSS válido. La solución correcta es setear el
+ * color como valor CSS válido directamente (hex, oklch, rgb), que la
+ * propiedad `background-color: var(--color-primary)` interpreta sin
+ * conversión.
+ *
+ * Tokens que sobrescribimos:
+ *   --primary, --primary-foreground, --primary-glow, --ring
+ *   --sidebar-primary, --sidebar-primary-foreground, --sidebar-ring
+ *   --secondary, --secondary-foreground, --accent, --accent-foreground
+ *   --brand-primary, --brand-secondary (hex puro para opt-in)
+ *
+ * Foreground (texto sobre el color de fondo) se calcula por luminancia
+ * sRGB: blanco si el color es oscuro, negro si es claro. Evita texto
+ * blanco ilegible sobre un primary amarillo.
  *
  * Si el tenant NO tiene colores → no sobrescribimos nada y queda el
- * theme default de shadcn (azul / violeta).
+ * theme default OKLCH azul/violeta.
  */
 import { useEffect } from "react";
 import { useTenant } from "@/modules/tenants/use-tenant";
@@ -35,42 +36,9 @@ function normalizeHex(value: string | null | undefined): string | null {
   return withHash;
 }
 
-/** Convierte #RRGGBB a [H, S%, L%]. Devuelve null si no parsea. */
-function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
-  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m) return null;
-  const n = parseInt(m[1], 16);
-  const r = ((n >> 16) & 255) / 255;
-  const g = ((n >> 8) & 255) / 255;
-  const b = (n & 255) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0;
-  let s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r:
-        h = (g - b) / d + (g < b ? 6 : 0);
-        break;
-      case g:
-        h = (b - r) / d + 2;
-        break;
-      case b:
-        h = (r - g) / d + 4;
-        break;
-    }
-    h *= 60;
-  }
-  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
-}
-
 /**
- * Para texto sobre fondo del color: si la luminancia percibida del
- * color es < 0.55 → foreground blanco; sino negro. Usa fórmula sRGB
- * estándar para luminancia relativa.
+ * Luminancia sRGB relativa (0..1). Usada para decidir si el texto
+ * sobre el color debe ser blanco u oscuro.
  */
 function luminanceOfHex(hex: string): number {
   const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
@@ -86,14 +54,38 @@ function luminanceOfHex(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function setHslVar(root: HTMLElement, name: string, hex: string | null) {
+/**
+ * Mezcla un hex con blanco/negro por porcentaje (0..1). Usado para
+ * derivar `--primary-glow` (versión más brillante del primario, igual
+ * que el default `oklch(0.65 ...)` vs `oklch(0.55 ...)` del theme).
+ */
+function tintHex(hex: string, mix: number, toward: "white" | "black"): string {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const target = toward === "white" ? 255 : 0;
+  const lerp = (c: number) => Math.round(c + (target - c) * mix);
+  const nr = lerp(r),
+    ng = lerp(g),
+    nb = lerp(b);
+  const toHex = (v: number) => v.toString(16).padStart(2, "0");
+  return `#${toHex(nr)}${toHex(ng)}${toHex(nb)}`;
+}
+
+function setColorVar(root: HTMLElement, name: string, hex: string | null) {
   if (!hex) {
     root.style.removeProperty(name);
     return;
   }
-  const hsl = hexToHsl(hex);
-  if (!hsl) return;
-  root.style.setProperty(name, `${hsl.h} ${hsl.s}% ${hsl.l}%`);
+  // Setea el hex DIRECTAMENTE — el theme acepta cualquier valor CSS
+  // de color válido (hex, oklch, rgb) porque las propiedades CSS lo
+  // usan como `background-color: var(--color-primary)` sin envolver
+  // en hsl()/oklch(). Antes intentábamos formato HSL "H S% L%" pero
+  // el CSS no lo parsea porque las vars NO están dentro de hsl(...).
+  root.style.setProperty(name, hex);
 }
 
 function setForegroundVar(root: HTMLElement, name: string, hex: string | null) {
@@ -104,7 +96,7 @@ function setForegroundVar(root: HTMLElement, name: string, hex: string | null) {
   const lum = luminanceOfHex(hex);
   // Umbral 0.55 — ligeramente sobre el clásico 0.5 para que colores
   // medios (amarillos, verdes claros) tomen texto oscuro.
-  const fg = lum < 0.55 ? "0 0% 100%" : "0 0% 0%";
+  const fg = lum < 0.55 ? "#ffffff" : "#0a0a0a";
   root.style.setProperty(name, fg);
 }
 
@@ -116,19 +108,33 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     const primary = normalizeHex(tenant?.primary_color);
     const secondary = normalizeHex(tenant?.secondary_color);
 
-    // Tokens HSL del shadcn theme — afectan TODO el design system.
-    // Si tenant no tiene color, removeProperty deja que tome el default.
-    setHslVar(root, "--primary", primary);
+    // ── Primary y sus derivados ──
+    setColorVar(root, "--primary", primary);
     setForegroundVar(root, "--primary-foreground", primary);
-    setHslVar(root, "--ring", primary);
-    setHslVar(root, "--sidebar-primary", primary);
+    // primary-glow: variante más brillante (mezcla 15% con blanco si
+    // el color es oscuro, o 15% con negro si es claro). El theme
+    // default tiene un glow distinto al base — replicamos esa semántica.
+    if (primary) {
+      const isDark = luminanceOfHex(primary) < 0.5;
+      root.style.setProperty(
+        "--primary-glow",
+        tintHex(primary, 0.18, isDark ? "white" : "black"),
+      );
+    } else {
+      root.style.removeProperty("--primary-glow");
+    }
+    setColorVar(root, "--ring", primary);
+    setColorVar(root, "--sidebar-primary", primary);
     setForegroundVar(root, "--sidebar-primary-foreground", primary);
-    setHslVar(root, "--sidebar-ring", primary);
+    setColorVar(root, "--sidebar-ring", primary);
 
-    setHslVar(root, "--secondary", secondary);
+    // ── Secondary ──
+    setColorVar(root, "--secondary", secondary);
     setForegroundVar(root, "--secondary-foreground", secondary);
+    setColorVar(root, "--accent", secondary);
+    setForegroundVar(root, "--accent-foreground", secondary);
 
-    // Hex directo para usos puntuales (`var(--brand-primary)`).
+    // ── Hex directo para usos puntuales (style={{ color: 'var(--brand-primary)' }}) ──
     if (primary) root.style.setProperty("--brand-primary", primary);
     else root.style.removeProperty("--brand-primary");
     if (secondary) root.style.setProperty("--brand-secondary", secondary);

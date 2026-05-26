@@ -41,7 +41,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Building2, Plus, Eye, Pencil, Power, Save, Upload, Trash2 } from "lucide-react";
+import { Building2, Plus, Eye, Pencil, Power, Save, Upload, Trash2, UserPlus } from "lucide-react";
+import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
 import { isValidTenantSlug } from "@/modules/tenants/tenant";
 import { setTenantOverride } from "@/modules/tenants/use-tenant";
 import type { Tenant } from "@/modules/tenants/tenant";
@@ -82,6 +83,9 @@ function SuperAdminTenantsPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
+  /** Estado del dialog 'Asignar usuarios' — el SuperAdmin elige users
+   *  para mover a este tenant. tenant=null = cerrado. */
+  const [assignUsersTenant, setAssignUsersTenant] = useState<Tenant | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -390,6 +394,11 @@ function SuperAdminTenantsPage() {
                       <RowActionsMenu
                         actions={[
                           {
+                            label: "Asignar usuarios",
+                            icon: UserPlus,
+                            onClick: () => setAssignUsersTenant(t),
+                          },
+                          {
                             label: "Ver como esta institución",
                             icon: Eye,
                             onClick: () => viewAs(t),
@@ -636,6 +645,19 @@ function SuperAdminTenantsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog 'Asignar usuarios' — el SuperAdmin selecciona profiles
+          cross-tenant y los mueve a este tenant. Trigger DB rechaza si
+          el user tiene cursos activos en otro tenant. */}
+      <AssignUsersToTenantDialog
+        tenant={assignUsersTenant}
+        open={assignUsersTenant !== null}
+        onOpenChange={(o) => {
+          if (!o) setAssignUsersTenant(null);
+        }}
+        tenants={tenants}
+        onAssigned={() => void load()}
+      />
     </div>
   );
 }
