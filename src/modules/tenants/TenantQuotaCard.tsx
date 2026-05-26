@@ -15,11 +15,21 @@
  *   - Estado destructive cuando current >= max (cuota llena).
  *
  * El widget NO permite editar — los límites los configura el SuperAdmin.
+ *
+ * Gate de visibilidad (single source of truth, no en los callers):
+ * cuando el caller es SuperAdmin con activeRole=SuperAdmin y SIN
+ * override "ver como X" activo, retornamos null. El concepto de
+ * "cuotas" es por-tenant; en modo cross-tenant del SuperAdmin no
+ * aplica ("X / Y" de qué tenant?). Esto cierra el item #2 del audit
+ * RBAC: antes el SuperAdmin veía las cuotas de su tenant default y
+ * asumía que eran "globales", confundiendo el modo cross-tenant.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useTenant } from "@/modules/tenants/use-tenant";
+import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
+import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { Spinner } from "@/components/ui/spinner";
 import { Users as UsersIcon } from "lucide-react";
 
@@ -44,11 +54,22 @@ export function TenantQuotaCard({
   title = "Licencias de usuarios",
 }: TenantQuotaCardProps) {
   const { tenant, loading: tenantLoading } = useTenant();
+  const { roles } = useAuth();
+  const activeRole = useActiveRole();
   const [counts, setCounts] = useState<Counts | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Gate de visibilidad — ver header del archivo. SuperAdmin operando
+  // cross-tenant no debe ver cuotas (concepto por-tenant que no aplica
+  // en su contexto). Si elige "Ver como X" desde /app/superadmin/tenants
+  // el override se activa y las cuotas vuelven a mostrarse para ESE
+  // tenant elegido. Calculado en cada render porque depende del state
+  // de localStorage; es síncrono y barato.
+  const isSuperAdminCrossTenant =
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
+
   useEffect(() => {
-    if (!tenant?.id) return;
+    if (!tenant?.id || isSuperAdminCrossTenant) return;
     let cancelled = false;
     void (async () => {
       setLoading(true);
@@ -65,7 +86,13 @@ export function TenantQuotaCard({
     return () => {
       cancelled = true;
     };
-  }, [tenant?.id]);
+  }, [tenant?.id, isSuperAdminCrossTenant]);
+
+  // Gate: SuperAdmin cross-tenant no ve el card. Retornamos null en
+  // lugar de un placeholder visible para no agregar ruido — el
+  // SuperAdmin ya tiene su propio dashboard global con métricas
+  // cross-tenant (SuperAdminDashboard).
+  if (isSuperAdminCrossTenant) return null;
 
   if (tenantLoading || loading || !counts || !tenant) {
     return (

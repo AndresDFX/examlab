@@ -42,6 +42,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { ensurePushSubscription } from "@/modules/notifications/push-subscription";
 import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
+import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -1025,7 +1026,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <SheetHeader className="px-5 py-5 border-b border-sidebar-border text-left">
                 <div className="flex items-center gap-2">
-                  {tenantLogoUrl ? (
+                  {/* Mismo gate que el sidebar desktop: SuperAdmin
+                      cross-tenant NO ve logo ni nombre del tenant
+                      default (línea ~717). Mobile drawer espeja el
+                      comportamiento. */}
+                  {tenantLogoUrl && !isSuperAdminCrossTenant ? (
                     <div className="h-9 w-9 rounded-lg bg-white/5 flex items-center justify-center shadow-sm overflow-hidden">
                       <img
                         src={tenantLogoUrl}
@@ -1037,7 +1042,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <div
                       className="h-9 w-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm"
                       style={
-                        tenant?.primary_color
+                        tenant?.primary_color && !isSuperAdminCrossTenant
                           ? { background: tenant.primary_color }
                           : undefined
                       }
@@ -1050,7 +1055,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       ExamLab
                     </SheetTitle>
                     <div className="text-[10px] text-sidebar-foreground/60 tracking-wide">
-                      {tenant?.name ?? t("auth.brandSubtitle")}
+                      {isSuperAdminCrossTenant
+                        ? "Modo SuperAdmin · cross-tenant"
+                        : (tenant?.name ?? t("auth.brandSubtitle"))}
                     </div>
                   </div>
                 </div>
@@ -1212,7 +1219,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </Sheet>
 
           <div className="flex items-center gap-2 min-w-0">
-            {tenantLogoUrl ? (
+            {/* Mobile top header (sidebar colapsado): mismo gate que
+                el sidebar desktop expandido y el mobile drawer. Sin
+                esto el SuperAdmin sin override veía el logo del
+                tenant default acá aunque sí estuviera oculto en los
+                otros sidebars — fix consistente. */}
+            {tenantLogoUrl && !isSuperAdminCrossTenant ? (
               <div className="h-7 w-7 rounded-md bg-white/5 flex items-center justify-center shrink-0 overflow-hidden">
                 <img
                   src={tenantLogoUrl}
@@ -1224,7 +1236,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div
                 className="h-7 w-7 rounded-md bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shrink-0"
                 style={
-                  tenant?.primary_color
+                  tenant?.primary_color && !isSuperAdminCrossTenant
                     ? { background: tenant.primary_color }
                     : undefined
                 }
@@ -1234,10 +1246,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             <div className="min-w-0">
               <div className="font-semibold truncate leading-tight">ExamLab</div>
-              {tenant?.name && (
+              {isSuperAdminCrossTenant ? (
                 <div className="text-[10px] text-sidebar-foreground/60 truncate leading-tight">
-                  {tenant.name}
+                  Modo SuperAdmin · cross-tenant
                 </div>
+              ) : (
+                tenant?.name && (
+                  <div className="text-[10px] text-sidebar-foreground/60 truncate leading-tight">
+                    {tenant.name}
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -1285,6 +1303,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             por el contenido. Vive dentro del <main> (no a nivel root)
             para no chocar con el sidebar fixed del desktop. */}
         <ImpersonationBanner />
+        {/* Banner de override de tenant: solo SuperAdmin con activeRole
+            SuperAdmin y un "Ver como X" activo. Le recuerda que los
+            datos están filtrados a ese tenant y le da el botón "Salir
+            del modo institución" para volver al estado cross-tenant. */}
+        <TenantOverrideBanner />
         {/* Page container — constrained on desktop, full-bleed with 16px
             gutters on mobile. Bottom padding reserva espacio para el
             bottom-nav fixed mobile. Durante el examen el bottom-nav no

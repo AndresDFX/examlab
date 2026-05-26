@@ -686,10 +686,14 @@ function AdminUsers() {
         }
       />
 
-      {/* Licencias del tenant — solo aplica al Admin (su propio tenant).
-          Al SuperAdmin en vista cross-tenant lo ocultamos: las licencias
-          son por institución; sin filtro de tenant no aporta info útil. */}
-      {!isSuperAdminCaller && <TenantQuotaCard compact title="Licencias de usuarios" />}
+      {/* Licencias del tenant — el componente tiene su propio gate
+          interno: se auto-oculta cuando es SuperAdmin sin override
+          (modo cross-tenant). Cuando SuperAdmin tiene "Ver como X"
+          activo, las cuotas SÍ se muestran (las de ese tenant elegido).
+          Antes había un guard manual `{!isSuperAdminCaller && ...}`
+          que escondía el card en ambos casos — quitado para que ahora
+          aparezca correctamente cuando el SuperAdmin está overrideado. */}
+      <TenantQuotaCard compact title="Licencias de usuarios" />
 
       <div className="flex flex-col sm:flex-row gap-2">
         <SearchInput
