@@ -88,7 +88,7 @@ function Dashboard() {
     <div className="flex flex-col gap-6 min-h-[calc(100vh-5rem)]">
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          {t("dashboard.hello")}, {profile?.full_name?.split(" ")[0] ?? "👋"}
+          {t("dashboard.hello")}, {profile?.full_name ?? "👋"}
         </h1>
         <p className="text-muted-foreground">
           {isSuperAdmin

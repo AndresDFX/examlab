@@ -24,6 +24,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { DateCell } from "@/components/ui/date-cell";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -31,8 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Award, Download, Copy, ExternalLink, Hash, User as UserIcon } from "lucide-react";
-import { formatDateLong } from "@/shared/lib/format";
+import { Award, Download, Copy, ExternalLink } from "lucide-react";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
 
@@ -323,78 +332,108 @@ function CertificatesAdmin() {
           description="Ajusta el curso, la búsqueda o limpia los filtros para ver el resto."
         />
       ) : (
-        <div className="space-y-3">
-          {filtered.map((c) => (
-            <Card
-              key={c.id}
-              className={c.revoked_at ? "border-destructive/40 bg-destructive/5" : undefined}
-            >
-              <CardContent className="p-4 flex flex-wrap items-start gap-3">
-                <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <Award className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <UserIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium text-sm">{c.student_full_name}</span>
-                    {c.revoked_at && (
-                      <Badge variant="destructive" className="text-[10px]">
-                        Revocado
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {c.course_name}
-                    {c.course_period ? ` · ${c.course_period}` : ""}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-                    <span className="tabular-nums">
-                      Nota: {Number(c.final_grade).toFixed(2)} / {c.grade_scale_max}
-                    </span>
-                    <span>·</span>
-                    <span>Emitido: {formatDateLong(c.issued_at)}</span>
-                    <span>·</span>
-                    <Hash className="h-3 w-3" />
-                    <code className="text-[10px]">{c.short_code}</code>
-                  </div>
-                  {c.revoked_at && c.revoke_reason && (
-                    <p className="text-[11px] text-destructive mt-1">
-                      Motivo de revocación: {c.revoke_reason}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleDownload(c)}
-                    title="Descargar PDF"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleCopyLink(c)}
-                    title="Copiar link de verificación"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                  <a
-                    href={buildVerifyUrl(c.short_code)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Abrir verificación pública"
-                  >
-                    <Button size="sm" variant="ghost">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Button>
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table fixed resizable>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-40">Estudiante</TableHead>
+                  <TableHead className="hidden md:table-cell w-56">Curso</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell w-24">Nota</TableHead>
+                  <TableHead className="hidden sm:table-cell w-28">Emitido</TableHead>
+                  <TableHead className="hidden lg:table-cell w-32">Código</TableHead>
+                  <TableHead className="text-right w-12">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableEmpty
+                    colSpan={6}
+                    icon={Award}
+                    title="Sin resultados con esos filtros"
+                    description="Ajusta el curso, la búsqueda o limpia los filtros para ver el resto."
+                  />
+                ) : (
+                  filtered.map((c) => (
+                    <TableRow
+                      key={c.id}
+                      data-state={c.revoked_at ? "selected" : undefined}
+                      className={c.revoked_at ? "bg-destructive/5" : undefined}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span className="truncate" title={c.student_full_name}>
+                              {c.student_full_name}
+                            </span>
+                            {c.revoked_at && (
+                              <Badge variant="destructive" className="text-[10px]">
+                                Revocado
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="md:hidden text-xs text-muted-foreground truncate">
+                            {c.course_name}
+                            {c.course_period ? ` · ${c.course_period}` : ""}
+                          </div>
+                          <div className="sm:hidden text-[11px] text-muted-foreground tabular-nums">
+                            {Number(c.final_grade).toFixed(2)} / {c.grade_scale_max}
+                          </div>
+                          {c.revoked_at && c.revoke_reason && (
+                            <div className="text-[11px] text-destructive">
+                              Motivo: {c.revoke_reason}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground hidden md:table-cell">
+                        <div className="truncate" title={c.course_name}>
+                          {c.course_name}
+                        </div>
+                        {c.course_period && (
+                          <div className="text-[10px] text-muted-foreground">{c.course_period}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums hidden sm:table-cell">
+                        {Number(c.final_grade).toFixed(2)}
+                        <span className="text-[10px] text-muted-foreground ml-1">
+                          / {c.grade_scale_max}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <DateCell value={c.issued_at} variant="date" />
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <code className="text-[10px] text-muted-foreground">{c.short_code}</code>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu
+                          actions={[
+                            {
+                              label: "Descargar PDF",
+                              icon: Download,
+                              onClick: () => void handleDownload(c),
+                            },
+                            {
+                              label: "Copiar link de verificación",
+                              icon: Copy,
+                              onClick: () => handleCopyLink(c),
+                            },
+                            {
+                              label: "Abrir verificación pública",
+                              icon: ExternalLink,
+                              href: buildVerifyUrl(c.short_code),
+                            },
+                          ]}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

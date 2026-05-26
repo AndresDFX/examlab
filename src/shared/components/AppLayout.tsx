@@ -69,7 +69,6 @@ import {
   MoreHorizontal,
   Sun,
   Moon,
-  Monitor,
   Languages,
   Settings,
   Bell,
@@ -938,12 +937,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2">
                         <Moon className="h-4 w-4" /> {t("nav.themeDark")}
                         {theme === "dark" && (
-                          <span className="ml-auto text-xs text-primary">✓</span>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("system")} className="gap-2">
-                        <Monitor className="h-4 w-4" /> {t("nav.themeSystem")}
-                        {theme === "system" && (
                           <span className="ml-auto text-xs text-primary">✓</span>
                         )}
                       </DropdownMenuItem>

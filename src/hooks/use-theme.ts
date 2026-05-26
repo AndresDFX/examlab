@@ -1,23 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 
-type Theme = "light" | "dark" | "system";
-
-function getSystemTheme(): "light" | "dark" {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+type Theme = "light" | "dark";
 
 function applyTheme(theme: Theme) {
   if (typeof document === "undefined") return;
-  const resolved = theme === "system" ? getSystemTheme() : theme;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
+  document.documentElement.classList.toggle("dark", theme === "dark");
+}
+
+function readStoredTheme(): Theme {
+  if (typeof localStorage === "undefined") return "light";
+  const raw = localStorage.getItem("examlab-theme");
+  if (raw === "dark") return "dark";
+  if (raw === "light") return "light";
+  // Migra valores legacy ("system") y cualquier basura a claro — el
+  // default actual de la app.
+  return "light";
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof localStorage === "undefined") return "system";
-    return (localStorage.getItem("examlab-theme") as Theme) ?? "system";
-  });
+  const [theme, setThemeState] = useState<Theme>(readStoredTheme);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -29,16 +30,5 @@ export function useTheme() {
     applyTheme(theme);
   }, [theme]);
 
-  // Listen for system theme changes when in "system" mode
-  useEffect(() => {
-    if (theme !== "system") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => applyTheme("system");
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
-
-  const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
-
-  return { theme, setTheme, resolvedTheme };
+  return { theme, setTheme, resolvedTheme: theme };
 }
