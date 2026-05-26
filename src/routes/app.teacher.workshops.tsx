@@ -861,55 +861,95 @@ function TeacherWorkshops() {
         courseName: courses.find((c) => c.id === form.course_id)?.name,
       });
     } else {
+      // M:N — 1 INSERT en workshops + N INSERTs en workshop_courses.
+      // El curso "primario" (workshops.course_id) es el primero del set
+      // por compat con queries legacy. workshops.weight / cut_id usan los
+      // valores del PRIMER curso; los demás cursos viven en
+      // workshop_courses.weight / cut_id que pueden diferir.
+      const firstCid = courseIds[0];
+      const firstCc = isMultiCourse ? courseCuts[firstCid] : undefined;
+      const primaryPayload: Record<string, any> = {
+        ...basePayload,
+        course_id: firstCid,
+      };
+      if (isMultiCourse && firstCc?.cut_id) {
+        primaryPayload.cut_id = firstCc.cut_id;
+        if (firstCc.weight != null) {
+          primaryPayload.weight = Math.max(0, Number(firstCc.weight));
+        }
+      }
+      const { data: newWs, error } = await supabase
+        .from("workshops")
+        .insert(primaryPayload as any)
+        .select()
+        .single();
+      if (error) {
+        toast.error(friendlyUniqueViolation(error) ?? error.message);
+        return;
+      }
+      if (!newWs) {
+        toast.error("No se pudo crear el taller");
+        return;
+      }
+      // Insertamos las N relaciones workshop_courses. La primera dup-checks
+      // por UNIQUE pero ON CONFLICT no aplica acá; insertamos array de una.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wcRows = courseIds.map((cid) => {
+        const cc = isMultiCourse ? courseCuts[cid] : undefined;
+        return {
+          workshop_id: newWs.id,
+          course_id: cid,
+          cut_id: cc?.cut_id || (cid === firstCid ? form.cut_id || null : null),
+          weight:
+            cc?.weight != null
+              ? Math.max(0, Number(cc.weight))
+              : cid === firstCid && (form as any).weight != null
+                ? Math.max(0, Number((form as any).weight))
+                : null,
+        };
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: wcErr } = await (supabase as any)
+        .from("workshop_courses")
+        .insert(wcRows);
+      if (wcErr) {
+        toast.error(friendlyUniqueViolation(wcErr) ?? wcErr.message);
+        return;
+      }
+      await syncWorkshopIntroVideos(newWs.id, formIntroVideos);
+      // Auto-assign + notify por cada curso. RLS de workshops sigue
+      // filtrando por course_id legacy, así que para que el alumno del
+      // segundo curso vea el taller, dependemos de la próxima fase del
+      // refactor RLS. POR AHORA solo el primer curso del taller refleja
+      // visibilidad estándar — los demás llegan al alumno via assignment.
       for (const cid of courseIds) {
-        const perCourse: Record<string, any> = { ...basePayload, course_id: cid };
-        if (isMultiCourse) {
-          const cc = courseCuts[cid];
-          perCourse.cut_id = cc?.cut_id || null;
-          if (cc?.cut_id && cc?.weight != null) {
-            perCourse.weight = Math.max(0, Number(cc.weight));
-          }
-        }
-        const { data: newWs, error } = await supabase
-          .from("workshops")
-          .insert(perCourse as any)
-          .select()
-          .single();
-        if (error) {
-          toast.error(friendlyUniqueViolation(error) ?? error.message);
-          return;
-        }
-        // Auto-asignar a todos los estudiantes matriculados al crear
-        if (newWs) {
-          await syncWorkshopIntroVideos(newWs.id, formIntroVideos);
-          await autoAssignWorkshop(newWs.id, cid);
-          if (form.status === "published") {
-            await supabase.rpc("notify_course_students", {
-              _course_id: cid,
-              _title: "Nuevo taller disponible",
-              _body: `Se ha publicado el taller "${form.title}"`,
-              _kind: "workshop",
-              _link: "/app/student/workshops",
-            });
-          }
+        await autoAssignWorkshop(newWs.id, cid);
+        if (form.status === "published") {
+          await supabase.rpc("notify_course_students", {
+            _course_id: cid,
+            _title: "Nuevo taller disponible",
+            _body: `Se ha publicado el taller "${form.title}"`,
+            _kind: "workshop",
+            _link: "/app/student/workshops",
+          });
         }
       }
       toast.success(
         courseIds.length > 1
-          ? `Taller creado en ${courseIds.length} cursos correctamente`
+          ? `Taller creado en ${courseIds.length} cursos (1 registro compartido).`
           : "Taller creado correctamente",
       );
-      for (const cid of courseIds) {
-        void logEvent({
-          action: "workshop.created",
-          category: "workshop",
-          actorRole: roles[0],
-          entityType: "workshop",
-          entityName: form.title,
-          courseId: cid,
-          courseName: courses.find((c) => c.id === cid)?.name,
-        });
-      }
+      void logEvent({
+        action: "workshop.created",
+        category: "workshop",
+        actorRole: roles[0],
+        entityType: "workshop",
+        entityId: newWs.id,
+        entityName: form.title,
+        courseId: firstCid,
+        courseName: courses.find((c) => c.id === firstCid)?.name,
+        metadata: { course_ids: courseIds, multi_course: isMultiCourse },
+      });
     }
     setOpen(false);
     load();
