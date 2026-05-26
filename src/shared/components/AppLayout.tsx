@@ -40,6 +40,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/shared/lib/rbac";
 import { logEvent } from "@/shared/lib/audit";
 import { ensurePushSubscription } from "@/modules/notifications/push-subscription";
+import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -529,6 +530,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setActiveRole(order.find((r) => roles.includes(r)) ?? roles[0]);
     }
   }, [roles, activeRole]);
+
+  // Publica el rol activo en el signal compartido para que
+  // TenantThemeProvider (en __root.tsx, fuera de este árbol de contexto)
+  // pueda reaccionar al cambio. Cuando el usuario tiene SuperAdmin +
+  // Admin y togglea, el provider limpia el branding (SuperAdmin) o lo
+  // re-aplica (Admin) inmediatamente sin recargar la página.
+  useEffect(() => {
+    setActiveRoleSignal(activeRole);
+  }, [activeRole]);
 
   // RBAC route guard: when the active role doesn't match the required roles
   // for the current path, redirect to /app/unauthorized (or /auth if no role).

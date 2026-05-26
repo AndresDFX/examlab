@@ -76,13 +76,205 @@ Después del free tier:
 Ejemplo: 100K execs/mes × 5s × 1GB = 500K GB-segundos → te pasas del free
 tier por 100K GB-segundos = **$1.67/mes**. Despreciable.
 
+## Permisos AWS necesarios para el deploy
+
+El usuario o rol IAM que corra `deploy.sh` necesita estos permisos. La
+política es **least-privilege** — solo permite tocar los recursos
+específicos del runner (`examlab-code-runner`), no toda la cuenta.
+
+### Atajo: política AWS managed (rápido pero más amplio)
+
+Si tu org no es estricta con least-privilege, adjuntá estas managed
+policies al usuario:
+
+- `AmazonEC2ContainerRegistryFullAccess` — ECR (repo + push)
+- `AWSLambda_FullAccess` — Lambda (function + URL)
+- `AWSCloudFormationFullAccess` — CloudFormation (stack)
+- `IAMFullAccess` — IAM (rol del Lambda, **demasiado amplio para prod**)
+- `AmazonSSMFullAccess` — SSM Parameter Store (API key)
+- `CloudWatchLogsFullAccess` — CloudWatch Logs
+
+### Recomendado: política custom least-privilege
+
+Una sola policy JSON para pegar en IAM. Solo permite tocar recursos
+con prefijo `examlab-code-runner`. Cambiá `<ACCOUNT_ID>` y `<REGION>`
+por los tuyos (o dejá `*` en `Resource` para multi-región).
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AccountIdentity",
+      "Effect": "Allow",
+      "Action": ["sts:GetCallerIdentity"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrAuthLogin",
+      "Effect": "Allow",
+      "Action": ["ecr:GetAuthorizationToken"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrRepoManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:DescribeRepositories",
+        "ecr:CreateRepository",
+        "ecr:TagResource",
+        "ecr:PutImageScanningConfiguration"
+      ],
+      "Resource": "arn:aws:ecr:*:<ACCOUNT_ID>:repository/examlab-code-runner"
+    },
+    {
+      "Sid": "EcrImagePush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:CompleteLayerUpload",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:DescribeImages"
+      ],
+      "Resource": "arn:aws:ecr:*:<ACCOUNT_ID>:repository/examlab-code-runner"
+    },
+    {
+      "Sid": "CloudFormationStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ValidateTemplate",
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:ListChangeSets"
+      ],
+      "Resource": "arn:aws:cloudformation:*:<ACCOUNT_ID>:stack/examlab-code-runner/*"
+    },
+    {
+      "Sid": "CloudFormationTemplateUpload",
+      "Effect": "Allow",
+      "Action": ["cloudformation:GetTemplateSummary", "cloudformation:ValidateTemplate"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaFunction",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:DeleteFunction",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:CreateFunctionUrlConfig",
+        "lambda:UpdateFunctionUrlConfig",
+        "lambda:DeleteFunctionUrlConfig",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:GetPolicy",
+        "lambda:ListVersionsByFunction",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:ListTags"
+      ],
+      "Resource": "arn:aws:lambda:*:<ACCOUNT_ID>:function:examlab-code-runner"
+    },
+    {
+      "Sid": "IamRoleForLambda",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:PassRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:TagRole",
+        "iam:UntagRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::<ACCOUNT_ID>:role/examlab-code-runner-*",
+        "arn:aws:iam::<ACCOUNT_ID>:role/ExamlabCodeRunner*"
+      ]
+    },
+    {
+      "Sid": "SsmApiKey",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"],
+      "Resource": "arn:aws:ssm:*:<ACCOUNT_ID>:parameter/examlab-code-runner/*"
+    },
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:DescribeLogGroups",
+        "logs:PutRetentionPolicy",
+        "logs:TagLogGroup",
+        "logs:UntagLogGroup",
+        "logs:TagResource",
+        "logs:UntagResource",
+        "logs:ListTagsForResource",
+        "logs:TailLogs"
+      ],
+      "Resource": "arn:aws:logs:*:<ACCOUNT_ID>:log-group:/aws/lambda/examlab-code-runner*"
+    }
+  ]
+}
+```
+
+### Cómo aplicar la política
+
+1. IAM Console → Policies → Create policy → JSON → pegar el bloque de
+   arriba (reemplazá `<ACCOUNT_ID>`) → Name: `ExamLabCodeRunnerDeploy`.
+2. IAM Console → Users → tu usuario → Add permissions → Attach existing
+   policy → marcar `ExamLabCodeRunnerDeploy`.
+3. Si querés un rol asumible en CI (GitHub Actions / GitLab):
+   - Create role → Web identity (OIDC) → attach `ExamLabCodeRunnerDeploy`.
+4. Verificá: `aws sts get-caller-identity` y luego `./deploy.sh`.
+
+### Notas
+
+- **No incluye permisos para crear el bucket S3 que CloudFormation usa
+  para staging**: `aws cloudformation deploy` lo crea silenciosamente
+  en `cf-templates-<random>-<region>` y CF lo gestiona con su propio rol
+  de servicio. Si tu cuenta nunca usó CloudFormation, también necesitarás
+  `s3:CreateBucket`, `s3:PutObject`, `s3:GetObject` sobre
+  `arn:aws:s3:::cf-templates-*`. Una vez creado el bucket, esto no se
+  necesita más.
+- **El runner Lambda corre con SU PROPIO rol** (creado por la
+  CloudFormation stack) — ese rol solo tiene
+  `AWSLambdaBasicExecutionRole` (logs). El usuario que despliega NO le
+  da permisos al runner; eso lo hace CF al crear el `ExecutionRole`.
+- **Region**: las policies usan `*` en region porque el deploy soporta
+  multi-region via `AWS_REGION=...`. Si solo deployás en una, podés
+  restringir cambiando `*` por `us-east-1` (o la tuya).
+
 ## Setup paso a paso
 
 ### Pre-requisitos
 
-- AWS CLI configurado (`aws configure` con un IAM user que tenga permisos
-  de `ecr:*`, `lambda:*`, `iam:CreateRole`, `cloudformation:*`, `logs:*`,
-  `ssm:PutParameter`).
+- AWS CLI configurado (`aws configure`) con un IAM user que tenga la
+  policy `ExamLabCodeRunnerDeploy` (ver sección anterior).
 - Docker corriendo localmente.
 - `openssl` (para generar la API key).
 

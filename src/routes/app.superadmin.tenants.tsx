@@ -42,7 +42,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Building2, Plus, Eye, Pencil, Power, Save, Upload, Trash2, UserPlus } from "lucide-react";
+import {
+  Building2,
+  Plus,
+  Eye,
+  Pencil,
+  Power,
+  Save,
+  Upload,
+  Trash2,
+  UserPlus,
+  LogIn,
+} from "lucide-react";
+import { startImpersonate } from "@/modules/admin/impersonation";
 import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
 import { isValidTenantSlug } from "@/modules/tenants/tenant";
 import { setTenantOverride } from "@/modules/tenants/use-tenant";
@@ -324,6 +336,74 @@ function SuperAdminTenantsPage() {
     toast.success("Override de tenant limpiado. Recarga para volver al tuyo.");
   };
 
+  /**
+   * Inicia sesión como el Admin de un tenant — el SuperAdmin queda
+   * "aislado" hasta que pare la impersonación. A diferencia del
+   * "Ver como esta institución" (que solo cambia branding pero mantiene
+   * tu identidad/rol), esto reemplaza la sesión por la del Admin del
+   * tenant. Útil para reproducir bugs reportados por ese Admin sin
+   * pedirle su contraseña.
+   *
+   * Selección del target:
+   *   - Buscamos profiles del tenant con rol Admin (via user_roles).
+   *   - Si hay 1, lo usamos.
+   *   - Si hay >1, tomamos el más antiguo (created_at ASC) — el que
+   *     más probablemente sea el "Admin principal" del tenant. Si más
+   *     adelante queremos permitir elegir, se agrega un dialog acá.
+   *   - Si hay 0, mostramos toast y abortamos: el SuperAdmin debe
+   *     asignar un Admin primero al tenant.
+   */
+  const impersonateTenantAdmin = async (t: Tenant) => {
+    // 1. IDs de users con rol Admin (cross-tenant — luego filtramos por tenant_id).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: adminRoleRows } = await (supabase as any)
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "Admin");
+    const adminUserIds = ((adminRoleRows ?? []) as { user_id: string }[]).map((r) => r.user_id);
+    if (adminUserIds.length === 0) {
+      toast.error("No hay usuarios con rol Admin en la plataforma.");
+      return;
+    }
+    // 2. Profiles del tenant que estén en ese set de Admins.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: candidates } = await (supabase as any)
+      .from("profiles")
+      .select("id, full_name, institutional_email, created_at")
+      .eq("tenant_id", t.id)
+      .in("id", adminUserIds)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    const target = (candidates ?? [])[0] as
+      | { id: string; full_name: string | null; institutional_email: string }
+      | undefined;
+    if (!target) {
+      toast.error(
+        `${t.name} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.`,
+      );
+      return;
+    }
+    // 3. Confirmación — esta acción reemplaza la sesión del SuperAdmin
+    //    y recarga la app. Damos chance de cancelar.
+    const ok = window.confirm(
+      `Iniciar sesión como ${target.full_name ?? target.institutional_email}\n` +
+        `(Admin de ${t.name})?\n\n` +
+        `Tu sesión de SuperAdmin queda guardada. Para volver, usa el banner ` +
+        `"Estás viendo como X — Salir" arriba.`,
+    );
+    if (!ok) return;
+    try {
+      // 4. Limpiamos el override de "ver como tenant" para que la sesión
+      //    impersonada vea su propia institución natural, no la que el
+      //    SuperAdmin tenía pegada.
+      setTenantOverride(null);
+      await startImpersonate(target.id);
+      // startImpersonate hace window.location.href — no llegamos acá.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo iniciar la impersonación");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -407,6 +487,12 @@ function SuperAdminTenantsPage() {
                       <RowActionsMenu
                         actions={[
                           {
+                            label: "Iniciar sesión como Admin",
+                            icon: LogIn,
+                            onClick: () => void impersonateTenantAdmin(t),
+                            hint: "Reemplaza tu sesión por la del Admin del tenant",
+                          },
+                          {
                             label: "Asignar usuarios",
                             icon: UserPlus,
                             onClick: () => setAssignUsersTenant(t),
@@ -415,11 +501,13 @@ function SuperAdminTenantsPage() {
                             label: "Ver como esta institución",
                             icon: Eye,
                             onClick: () => viewAs(t),
+                            hint: "Solo cambia branding visual, mantiene tu sesión",
                           },
                           {
                             label: "Editar",
                             icon: Pencil,
                             onClick: () => openEdit(t),
+                            separatorBefore: true,
                           },
                           {
                             label: t.is_active ? "Pausar" : "Reactivar",

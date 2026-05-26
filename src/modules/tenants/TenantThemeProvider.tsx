@@ -37,8 +37,46 @@
  * Si el tenant NO tiene colores → no sobrescribimos nada y queda el
  * theme default OKLCH azul/violeta.
  */
-import { useEffect } from "react";
-import { useTenant } from "@/modules/tenants/use-tenant";
+import { useEffect, useState } from "react";
+import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
+import { getActiveRoleSignal, subscribeActiveRole } from "@/modules/tenants/active-role-signal";
+import type { AppRole } from "@/hooks/use-auth";
+
+/** Limpia TODAS las CSS vars que el provider haya seteado. Se usa cuando
+ *  el SuperAdmin tiene el rol activo y no está "viendo como" otra
+ *  institución — queremos el theme default de la plataforma, sin
+ *  branding de ningún tenant. */
+function clearTenantVars(root: HTMLElement): void {
+  const vars = [
+    "--primary",
+    "--primary-foreground",
+    "--primary-glow",
+    "--ring",
+    "--sidebar",
+    "--sidebar-foreground",
+    "--sidebar-primary",
+    "--sidebar-primary-foreground",
+    "--sidebar-accent",
+    "--sidebar-accent-foreground",
+    "--sidebar-border",
+    "--sidebar-ring",
+    "--sidebar-icon-color",
+    "--secondary",
+    "--secondary-foreground",
+    "--accent",
+    "--accent-foreground",
+    "--background",
+    "--foreground",
+    "--card",
+    "--card-foreground",
+    "--popover",
+    "--popover-foreground",
+    "--muted",
+    "--brand-primary",
+    "--brand-secondary",
+  ];
+  for (const v of vars) root.style.removeProperty(v);
+}
 
 function normalizeHex(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -137,8 +175,28 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tenantIconColor = (tenant as any)?.icon_color ?? null;
 
+  // Suscripción al rol activo publicado por AppLayout. Es state local
+  // para que el effect de aplicación del theme reaccione al cambio.
+  // Inicializamos con el valor actual del signal (puede haber sido
+  // seteado antes de que este provider re-renderee).
+  const [activeRole, setActiveRoleLocal] = useState<AppRole | null>(getActiveRoleSignal);
+  useEffect(() => {
+    return subscribeActiveRole((r) => setActiveRoleLocal(r));
+  }, []);
+
   useEffect(() => {
     const root = document.documentElement;
+    // ── Caso especial SuperAdmin SIN override ──
+    // Si el usuario está actuando como SuperAdmin y NO eligió "Ver como
+    // institución X", la plataforma debe mostrar el theme base
+    // (OKLCH azul/violeta por defecto). Limpiamos todas las CSS vars
+    // que cualquier render anterior haya seteado y salimos. Cuando el
+    // usuario vuelva a Admin/Docente/Estudiante, el siguiente run del
+    // effect re-aplica los colores de su tenant.
+    if (activeRole === "SuperAdmin" && !readTenantOverride()) {
+      clearTenantVars(root);
+      return;
+    }
     const primary = normalizeHex(tenant?.primary_color);
     const secondary = normalizeHex(tenant?.secondary_color);
     // Override explícito del color de letra sobre superficies con
@@ -238,25 +296,28 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     setForegroundVar(root, "--accent-foreground", secondary);
 
     // ── Background del área principal: wash del secundario ──
-    // No usamos el secundario puro — sería demasiado saturado para todo
-    // el viewport. Mezclamos ~90% con blanco (light) / negro (dark) para
-    // que el tono asome sutil sin volver ilegible el contenido. Cards y
-    // muted toman tintes incluso más suaves para tener jerarquía visual.
-    if (secondary) {
-      const bg = washHex(secondary, isDarkTheme);
-      // Card va un poco más cerca del blanco/negro puro para que las
-      // cards "floten" sobre el fondo wash. En dark, al revés: card más
-      // claro que el fondo (jerarquía invertida estándar de dark themes).
-      const card = tintHex(secondary, isDarkTheme ? 0.78 : 0.96, isDarkTheme ? "black" : "white");
-      const muted = tintHex(secondary, isDarkTheme ? 0.82 : 0.88, isDarkTheme ? "black" : "white");
+    // SOLO en light mode. En dark mode no overrideamos `--background` /
+    // `--card` / `--muted` porque el wash de un secundario claro
+    // (típico: blanco, crema, gris perla) sobre el negro produce un
+    // gris oscuro que el usuario percibe como "se ve gris pero yo
+    // configuré blanco" — exactamente el bug reportado. En dark mode
+    // dejamos el fondo default del tema y el secundario solo afecta
+    // acentos (badges, hovers, --accent), que es lo que tiene sentido
+    // visualmente: marca por acentos, no por superficie completa.
+    if (secondary && !isDarkTheme) {
+      const bg = washHex(secondary, false);
+      const card = tintHex(secondary, 0.96, "white");
+      const muted = tintHex(secondary, 0.88, "white");
       root.style.setProperty("--background", bg);
-      root.style.setProperty("--foreground", isDarkTheme ? "#fafafa" : "#0a0a0a");
+      root.style.setProperty("--foreground", "#0a0a0a");
       root.style.setProperty("--card", card);
-      root.style.setProperty("--card-foreground", isDarkTheme ? "#fafafa" : "#0a0a0a");
+      root.style.setProperty("--card-foreground", "#0a0a0a");
       root.style.setProperty("--popover", card);
-      root.style.setProperty("--popover-foreground", isDarkTheme ? "#fafafa" : "#0a0a0a");
+      root.style.setProperty("--popover-foreground", "#0a0a0a");
       root.style.setProperty("--muted", muted);
     } else {
+      // Sin secundario, o en dark mode: limpiamos los overrides para
+      // que el theme default vuelva a aplicar.
       root.style.removeProperty("--background");
       root.style.removeProperty("--foreground");
       root.style.removeProperty("--card");
@@ -271,7 +332,13 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     else root.style.removeProperty("--brand-primary");
     if (secondary) root.style.setProperty("--brand-secondary", secondary);
     else root.style.removeProperty("--brand-secondary");
-  }, [tenant?.primary_color, tenant?.secondary_color, tenantTextColor, tenantIconColor]);
+  }, [
+    tenant?.primary_color,
+    tenant?.secondary_color,
+    tenantTextColor,
+    tenantIconColor,
+    activeRole,
+  ]);
 
   return <>{children}</>;
 }

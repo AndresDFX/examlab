@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const caller = u?.user;
     if (!caller) return jsonError("No autenticado", 401);
 
-    // Verificar rol del caller — Admin o Docente.
+    // Verificar rol del caller — Admin, Docente o SuperAdmin.
     const { data: callerRoles } = await admin
       .from("user_roles")
       .select("role")
@@ -54,8 +54,9 @@ Deno.serve(async (req) => {
     );
     const callerIsAdmin = callerRoleSet.has("Admin");
     const callerIsDocente = callerRoleSet.has("Docente");
-    if (!callerIsAdmin && !callerIsDocente) {
-      return jsonError("Solo Admin o Docente pueden impersonar usuarios", 403);
+    const callerIsSuperAdmin = callerRoleSet.has("SuperAdmin");
+    if (!callerIsAdmin && !callerIsDocente && !callerIsSuperAdmin) {
+      return jsonError("Solo SuperAdmin, Admin o Docente pueden impersonar usuarios", 403);
     }
 
     // Parsear body.
@@ -81,21 +82,28 @@ Deno.serve(async (req) => {
     const targetRoleSet = new Set(
       ((targetRoles ?? []) as { role: string }[]).map((r) => r.role),
     );
-    if (targetRoleSet.has("Admin")) {
+    // Reglas de impersonación:
+    //   - SuperAdmin: puede impersonar Admin/Docente/Estudiante de
+    //     cualquier tenant (su rol es cross-tenant; debe poder entrar
+    //     "como" cualquier usuario para soporte). NO puede impersonar a
+    //     otro SuperAdmin.
+    //   - Admin: puede impersonar a no-Admins (y no-SuperAdmins).
+    //   - Docente: solo a estudiantes en sus cursos.
+    if (targetRoleSet.has("SuperAdmin")) {
+      return jsonError("No se puede impersonar a un SuperAdmin", 403);
+    }
+    if (!callerIsSuperAdmin && targetRoleSet.has("Admin")) {
       return jsonError("No se puede impersonar a otro administrador", 403);
     }
-    // Docente solo puede impersonar a ESTUDIANTES — bloqueamos otros
-    // Docentes para evitar que un Docente espíe a colegas. Admin sí
-    // puede impersonar Docentes (típico para debug).
-    if (!callerIsAdmin && targetRoleSet.has("Docente")) {
+    if (!callerIsAdmin && !callerIsSuperAdmin && targetRoleSet.has("Docente")) {
       return jsonError("Como Docente solo puedes impersonar estudiantes", 403);
     }
 
-    // Si el caller es SOLO Docente (no también Admin), validar overlap
-    // de cursos: el target debe estar matriculado en al menos un curso
-    // donde el caller esté asignado como course_teachers. Esto evita
-    // que un docente impersonar a estudiantes de cursos ajenos.
-    if (!callerIsAdmin && callerIsDocente) {
+    // Si el caller es SOLO Docente (no también Admin ni SuperAdmin),
+    // validar overlap de cursos: el target debe estar matriculado en al
+    // menos un curso donde el caller esté asignado como course_teachers.
+    // Esto evita que un docente impersone a estudiantes de cursos ajenos.
+    if (!callerIsAdmin && !callerIsSuperAdmin && callerIsDocente) {
       const { data: callerCourses } = await admin
         .from("course_teachers")
         .select("course_id")
@@ -155,9 +163,14 @@ Deno.serve(async (req) => {
 
     // Audit log via RPC (preserva actor_id = caller via auth.uid()).
     // Acción separada por rol del caller para que el log refleje el
-    // scope real — Admin (sin restricción) vs Docente (acotado a sus
-    // cursos). El metadata incluye el rol efectivo usado.
-    const actorRole = callerIsAdmin ? "admin" : "teacher";
+    // scope real — SuperAdmin (cross-tenant), Admin (sin restricción
+    // intra-tenant) o Docente (acotado a sus cursos). El metadata
+    // incluye el rol efectivo usado.
+    const actorRole = callerIsSuperAdmin
+      ? "superadmin"
+      : callerIsAdmin
+        ? "admin"
+        : "teacher";
     try {
       await userClient.rpc("log_audit_event", {
         p_action: `${actorRole}.impersonation.start`,
