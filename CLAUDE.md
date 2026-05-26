@@ -367,7 +367,11 @@ Los 4 dashboards (`SuperAdmin`, `Admin`, `Teacher`, `Student`) en [app.index.tsx
 
 ### Broadcast docente → mensajes en /app/messages
 
-`/app/messages` tiene un botón "Difundir a curso" (rol Docente/Admin) que llama la edge function `broadcast-course-message`. Efectos del broadcast:
+`/app/messages` tiene un botón "Difundir a curso" (rol Docente/Admin) que llama la edge function `broadcast-course-message`.
+
+**Multi-curso**: el dialog permite seleccionar **varios cursos** a la vez (lista de checkboxes + "Seleccionar todos"). El body manda `courseIds: string[]` (la edge sigue aceptando `courseId` legacy vía `normalizeCourseIds`). Un alumno matriculado en >1 curso seleccionado recibe **UNA sola** notif/correo/mensaje — la edge dedup por `user_id`. Autorización: Admin bypassa; Docente debe dictar **TODOS** los cursos seleccionados (uno no autorizado → 403, sin difusión parcial). Helpers puros en [src/modules/messaging/broadcast.ts](src/modules/messaging/broadcast.ts) (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`) están testeados y **replicados** dentro del edge (Deno no importa de `src/` — si cambian, sincronizar ambos lados).
+
+Efectos del broadcast:
 
 1. **Notificación in-app por estudiante** (`kind='broadcast'`, título `📢 ...`). El predicado `_notification_kind_emails` excluye `broadcast`, así que NO dispara emails individuales.
 2. **UN solo correo SMTP** con TODOS los estudiantes en BCC (privacidad — ningún alumno ve la lista del resto).
@@ -497,6 +501,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/shared/lib/format.ts` | LOCALE = "es-CO" hardcoded | App se ve distinta según OS del usuario (lo que originó la centralización) |
 | `src/modules/tenants/TenantThemeProvider.tsx` (`clearTenantVars`) ↔ `src/shared/components/AppLayout.tsx` (`isSuperAdminCrossTenant` + gates de logo/label/quota) | Definición de "SuperAdmin cross-tenant puro": `activeRole === "SuperAdmin" && !readTenantOverride()` | Branding del tenant queda en cross-tenant, o se quitan vars cuando NO debían quitarse |
 | `supabase/migrations/20260707000000_broadcast_messages_in_inbox.sql` (`app.skip_message_notif`) ↔ `supabase/functions/broadcast-course-message/index.ts` (`insert_broadcast_messages`) | Nombre del GUC + lógica de skip del trigger `tg_notify_new_message` | Renombrar el GUC en uno sin actualizar el otro → broadcast vuelve a duplicar notifs + emails |
+| `src/modules/messaging/broadcast.ts` (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`) ↔ `supabase/functions/broadcast-course-message/index.ts` (réplicas inline) | Normalización de cursos, dedup de alumnos, orden canónico de conversación, formato 📢 + truncado a 4000 | Lógica divergente → broadcast manda duplicados, viola el CHECK de `messages.body`, o el dialog y la edge interpretan distinto el set de cursos |
 | `src/hooks/use-theme.ts` (`STORAGE_KEY` + `EVENT_NAME`) ↔ `src/routes/__root.tsx` (script inline pre-paint que lee `'examlab-theme'`) | Nombre de la key en localStorage (`examlab-theme`) + nombre del custom event | Cambiar la key en uno sin el otro → el script pre-paint no aplica `.dark` (flash) o el tema se desincroniza entre instancias |
 
 **Archivos donde no se debe explicar más de lo que ya está:**

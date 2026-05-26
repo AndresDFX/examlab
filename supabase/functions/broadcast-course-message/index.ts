@@ -1,9 +1,13 @@
 // ──────────────────────────────────────────────────────────────────────
-// broadcast-course-message — envía un mensaje a TODOS los estudiantes
-// inscritos en un curso. Solo Docente del curso o Admin.
+// broadcast-course-message — envía un anuncio a TODOS los estudiantes
+// inscritos en UNO O MÁS cursos. Admin (cualquier curso) o Docente (solo
+// cursos que dicta — debe dictar TODOS los seleccionados).
+//
+// Multi-curso: un alumno matriculado en >1 curso seleccionado recibe UNA
+// sola notif/correo/mensaje (dedup por user_id).
 //
 // Efecto:
-//   1. Bulk-insert de notificaciones (1 por estudiante) con
+//   1. Bulk-insert de notificaciones (1 por estudiante único) con
 //      kind='broadcast'. Desde la mig 20260708000000, 'broadcast' SÍ
 //      está en `_notification_kind_emails`, así que el trigger SQL
 //      `notify_send_email` dispara correo POR DESTINATARIO (camino
@@ -15,15 +19,17 @@
 //      trigger de notif de mensajes con un GUC para no duplicar).
 //
 // Body:
-//   { courseId: string, subject: string, body: string }
+//   { courseIds: string[], subject, body }  — `courseId: string` legacy
+//   también se acepta (normalizeCourseIds lo une a courseIds).
 //
 // Response:
 //   { notified: number, email_sent: boolean, recipients_with_email: number }
 //
 // Errores:
 //   401  No autenticado.
-//   403  No es Admin ni Docente del curso.
-//   400  Body inválido o curso sin alumnos.
+//   403  No es Admin ni Docente de uno o más cursos seleccionados.
+//   404  Uno o más cursos no existen.
+//   400  Body inválido o cursos sin alumnos.
 //   500  DB error.
 //
 // Auditoría: log `broadcast.sent` con metadata { notified,
@@ -41,7 +47,10 @@ import {
 import { auditFromEdge } from "../_shared/audit.ts";
 
 interface BroadcastBody {
-  courseId: string;
+  /** Legacy single-course. Se acepta por compat; preferir `courseIds`. */
+  courseId?: string;
+  /** Multi-curso: difunde a varios cursos a la vez (dedup de alumnos). */
+  courseIds?: string[];
   subject: string;
   body: string;
 }
@@ -53,11 +62,34 @@ interface StudentProfile {
   personal_email: string | null;
 }
 
+/**
+ * Normaliza `courseId` (legacy) / `courseIds` (nuevo) a IDs únicos no
+ * vacíos. Réplica de `src/modules/messaging/broadcast.ts#normalizeCourseIds`
+ * (Deno no puede importar de src/). Si cambia uno, actualizar el otro.
+ */
+function normalizeCourseIds(input: { courseId?: unknown; courseIds?: unknown }): string[] {
+  const raw: unknown[] = Array.isArray(input.courseIds)
+    ? input.courseIds
+    : input.courseId != null
+      ? [input.courseId]
+      : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== "string") continue;
+    const id = v.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   let actorId: string | undefined;
-  let courseId: string | undefined;
+  let courseIds: string[] = [];
 
   try {
     // ── Auth ──
@@ -70,9 +102,9 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as BroadcastBody;
     const subject = String(body.subject ?? "").trim();
     const message = String(body.body ?? "").trim();
-    courseId = String(body.courseId ?? "").trim();
+    courseIds = normalizeCourseIds(body);
 
-    if (!courseId) return jsonError("courseId requerido", 400);
+    if (courseIds.length === 0) return jsonError("Selecciona al menos un curso", 400);
     if (!subject) return jsonError("subject requerido", 400);
     if (!message) return jsonError("body requerido", 400);
     // Topes defensivos. 200 chars en asunto cabe en clientes de correo
@@ -80,7 +112,7 @@ Deno.serve(async (req) => {
     if (subject.length > 200) return jsonError("subject demasiado largo (máx 200)", 400);
     if (message.length > 10000) return jsonError("body demasiado largo (máx 10K)", 400);
 
-    // ── Autorización: Admin o Docente del curso ──
+    // ── Roles del caller ──
     const { data: roleRows } = await admin
       .from("user_roles")
       .select("role")
@@ -88,46 +120,58 @@ Deno.serve(async (req) => {
     const isAdmin = (roleRows ?? []).some((r: { role: string }) => r.role === "Admin");
     const isDocenteRole = (roleRows ?? []).some((r: { role: string }) => r.role === "Docente");
 
-    let isCourseTeacher = false;
-    if (!isAdmin) {
-      const { data: ct } = await admin
-        .from("course_teachers")
-        .select("id")
-        .eq("course_id", courseId)
-        .eq("user_id", actorId)
-        .maybeSingle();
-      isCourseTeacher = !!ct;
-    }
-    if (!isAdmin && !isCourseTeacher) {
-      return jsonError("No tienes permiso para enviar mensajes en este curso", 403);
-    }
-
-    // ── Curso (para subject y para validar existencia) ──
-    const { data: course } = await admin
+    // ── Cursos: existencia + autorización por cada uno ──
+    // El Admin bypassa; el Docente debe dictar CADA curso seleccionado
+    // (un solo curso no autorizado aborta todo — evita difusiones
+    // parciales silenciosas).
+    const { data: courseRows, error: courseErr } = await admin
       .from("courses")
       .select("id, name")
-      .eq("id", courseId)
-      .maybeSingle();
-    if (!course) return jsonError("Curso no encontrado", 404);
+      .in("id", courseIds);
+    if (courseErr) return jsonError(`No se pudieron leer cursos: ${courseErr.message}`, 500);
+    const courses = (courseRows ?? []) as Array<{ id: string; name: string }>;
+    if (courses.length !== courseIds.length) {
+      return jsonError("Uno o más cursos no existen", 404);
+    }
 
-    // ── Estudiantes inscritos ──
-    // Antes hacíamos JOIN implícito con `profile:profiles!course_enrollments_user_id_fkey(...)`
-    // pero PostgREST no encuentra la relación (no hay FK declarada o el
-    // nombre auto-generado difiere). Más robusto: dos queries
-    // independientes — primero los user_id, luego los profiles. Cuesta
-    // un round-trip extra pero NO depende del schema cache.
+    if (!isAdmin) {
+      const { data: taught } = await admin
+        .from("course_teachers")
+        .select("course_id")
+        .eq("user_id", actorId)
+        .in("course_id", courseIds);
+      const taughtIds = new Set(
+        ((taught ?? []) as Array<{ course_id: string }>).map((r) => r.course_id),
+      );
+      const unauthorized = courseIds.filter((id) => !taughtIds.has(id));
+      if (unauthorized.length > 0) {
+        return jsonError("No tienes permiso para enviar mensajes en uno o más cursos", 403);
+      }
+    }
+
+    // ── Estudiantes inscritos (dedup a través de todos los cursos) ──
+    // Un alumno en >1 curso seleccionado recibe UNA sola notif/correo/
+    // mensaje. Dos queries (matrículas → perfiles) para no depender del
+    // schema cache de PostgREST (no hay FK declarada course_enrollments→
+    // profiles). El dedup réplica `dedupeRecipients` de
+    // src/modules/messaging/broadcast.ts.
     const { data: enrollRows, error: enrollErr } = await admin
       .from("course_enrollments")
       .select("user_id")
-      .eq("course_id", courseId);
+      .in("course_id", courseIds);
     if (enrollErr) return jsonError(`No se pudo leer matrículas: ${enrollErr.message}`, 500);
 
-    const userIds = (enrollRows ?? [])
-      .map((r: { user_id?: string | null }) => r.user_id)
-      .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+    const seenIds = new Set<string>();
+    const userIds: string[] = [];
+    for (const r of (enrollRows ?? []) as Array<{ user_id?: string | null }>) {
+      const id = r.user_id;
+      if (typeof id !== "string" || !id || id === actorId || seenIds.has(id)) continue;
+      seenIds.add(id);
+      userIds.push(id);
+    }
 
     if (userIds.length === 0) {
-      return jsonError("El curso no tiene estudiantes inscritos", 400);
+      return jsonError("Los cursos seleccionados no tienen estudiantes inscritos", 400);
     }
 
     const { data: profileRows, error: profileErr } = await admin
@@ -140,7 +184,7 @@ Deno.serve(async (req) => {
     const students: StudentProfile[] = (profileRows ?? []) as StudentProfile[];
 
     if (students.length === 0) {
-      return jsonError("El curso no tiene estudiantes inscritos con perfil válido", 400);
+      return jsonError("Los cursos no tienen estudiantes con perfil válido", 400);
     }
 
     // ── Bulk-insert de notificaciones ──
@@ -266,8 +310,8 @@ Deno.serve(async (req) => {
         category: "system",
         severity: "warning",
         entityType: "course",
-        entityId: courseId,
-        metadata: { error: msg.slice(0, 500), notified: students.length },
+        entityId: courseIds[0] ?? null,
+        metadata: { error: msg.slice(0, 500), notified: students.length, course_ids: courseIds },
       });
     }
 
@@ -293,10 +337,12 @@ Deno.serve(async (req) => {
       category: "system",
       severity: "info",
       entityType: "course",
-      entityId: courseId,
+      entityId: courseIds[0] ?? null,
       metadata: {
         notified: students.length,
         recipients_with_email: countWithEmail,
+        course_ids: courseIds,
+        course_count: courseIds.length,
         subject_len: subject.length,
         body_len: message.length,
       },
@@ -315,8 +361,8 @@ Deno.serve(async (req) => {
       category: "system",
       severity: "error",
       entityType: "course",
-      entityId: courseId ?? null,
-      metadata: { error: msg },
+      entityId: courseIds[0] ?? null,
+      metadata: { error: msg, course_ids: courseIds },
     });
     return jsonError(msg, 500);
   }

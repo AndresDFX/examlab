@@ -87,14 +87,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { extractEdgeError } from "@/shared/lib/edge-error";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   groupMessagesByDay,
   formatMessageTime,
@@ -216,7 +210,10 @@ function MessagesPage() {
   const [broadcastCourses, setBroadcastCourses] = useState<
     Array<{ id: string; name: string; student_count?: number }>
   >([]);
-  const [broadcastCourseId, setBroadcastCourseId] = useState<string>("");
+  // Multi-curso: el docente/admin puede difundir a varios cursos a la vez.
+  // Los alumnos matriculados en >1 curso seleccionado reciben UNA sola
+  // notificación/correo/mensaje (la edge dedup por user_id).
+  const [broadcastCourseIds, setBroadcastCourseIds] = useState<string[]>([]);
   const [broadcastSubject, setBroadcastSubject] = useState("");
   const [broadcastBody, setBroadcastBody] = useState("");
   const [broadcastSending, setBroadcastSending] = useState(false);
@@ -441,9 +438,15 @@ function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [broadcastDialogOpen, myUserId]);
 
+  const toggleBroadcastCourse = (courseId: string) => {
+    setBroadcastCourseIds((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId],
+    );
+  };
+
   const sendBroadcast = async () => {
-    if (!broadcastCourseId) {
-      toast.error("Selecciona un curso.");
+    if (broadcastCourseIds.length === 0) {
+      toast.error("Selecciona al menos un curso.");
       return;
     }
     if (!broadcastSubject.trim() || !broadcastBody.trim()) {
@@ -454,7 +457,9 @@ function MessagesPage() {
     try {
       const { data, error } = await supabase.functions.invoke("broadcast-course-message", {
         body: {
-          courseId: broadcastCourseId,
+          // `courseIds` es el shape nuevo (multi-curso). La edge sigue
+          // aceptando `courseId` legacy via normalizeCourseIds.
+          courseIds: broadcastCourseIds,
           subject: broadcastSubject.trim(),
           body: broadcastBody.trim(),
         },
@@ -467,17 +472,18 @@ function MessagesPage() {
       const notified = typeof data?.notified === "number" ? data.notified : 0;
       const withEmail =
         typeof data?.recipients_with_email === "number" ? data.recipients_with_email : 0;
+      const courseWord = broadcastCourseIds.length === 1 ? "curso" : "cursos";
       if (withEmail > 0) {
         toast.success(
-          `Mensaje enviado a ${notified} estudiante(s). ${withEmail} recibirá(n) correo (uno por destinatario).`,
+          `Mensaje enviado a ${notified} estudiante(s) de ${broadcastCourseIds.length} ${courseWord}. ${withEmail} recibirá(n) correo.`,
         );
       } else {
         toast.success(
-          `Mensaje enviado a ${notified} estudiante(s). Ninguno tiene correo configurado — solo notificación in-app.`,
+          `Mensaje enviado a ${notified} estudiante(s) de ${broadcastCourseIds.length} ${courseWord}. Solo notificación in-app (sin correos configurados).`,
         );
       }
       setBroadcastDialogOpen(false);
-      setBroadcastCourseId("");
+      setBroadcastCourseIds([]);
       setBroadcastSubject("");
       setBroadcastBody("");
     } finally {
@@ -1904,42 +1910,66 @@ function MessagesPage() {
               Enviar a todos los estudiantes
             </DialogTitle>
             <DialogDescription>
-              Crea una notificación in-app para cada estudiante del curso y envía un correo con
-              todos los alumnos en copia oculta (BCC). Ningún estudiante verá la lista del resto.
+              Crea una notificación in-app para cada estudiante de los cursos seleccionados, les
+              envía un correo individual y replica el anuncio en su conversación de Mensajes.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Curso</Label>
-              <Select
-                value={broadcastCourseId}
-                onValueChange={setBroadcastCourseId}
-                disabled={broadcastSending || broadcastCourses.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      broadcastCourses.length === 0 ? "Cargando cursos…" : "Selecciona un curso"
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Cursos</Label>
+                {broadcastCourses.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                    disabled={broadcastSending}
+                    onClick={() =>
+                      setBroadcastCourseIds(
+                        broadcastCourseIds.length === broadcastCourses.length
+                          ? []
+                          : broadcastCourses.map((c) => c.id),
+                      )
                     }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {broadcastCourses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                      {typeof c.student_count === "number" && (
-                        <span className="ml-2 text-[11px] text-muted-foreground">
-                          · {c.student_count} estudiante{c.student_count === 1 ? "" : "s"}
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {broadcastCourses.length === 0 && (
+                  >
+                    {broadcastCourseIds.length === broadcastCourses.length
+                      ? "Limpiar"
+                      : "Seleccionar todos"}
+                  </button>
+                )}
+              </div>
+              {broadcastCourses.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground mt-1">
                   No tienes cursos donde enviar mensajes masivos.
+                </p>
+              ) : (
+                <div className="mt-1 max-h-44 overflow-y-auto rounded-md border divide-y">
+                  {broadcastCourses.map((c) => (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 cursor-pointer text-sm"
+                    >
+                      <Checkbox
+                        checked={broadcastCourseIds.includes(c.id)}
+                        onCheckedChange={() => toggleBroadcastCourse(c.id)}
+                        disabled={broadcastSending}
+                      />
+                      <span className="flex-1 truncate">{c.name}</span>
+                      {typeof c.student_count === "number" && (
+                        <span className="text-[11px] text-muted-foreground shrink-0">
+                          {c.student_count} est.
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {broadcastCourseIds.length > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {broadcastCourseIds.length} curso
+                  {broadcastCourseIds.length === 1 ? "" : "s"} seleccionado
+                  {broadcastCourseIds.length === 1 ? "" : "s"}. Los alumnos en varios cursos reciben
+                  un solo mensaje.
                 </p>
               )}
             </div>
@@ -1994,7 +2024,7 @@ function MessagesPage() {
               onClick={() => void sendBroadcast()}
               disabled={
                 broadcastSending ||
-                !broadcastCourseId ||
+                broadcastCourseIds.length === 0 ||
                 !broadcastSubject.trim() ||
                 !broadcastBody.trim()
               }
