@@ -73,7 +73,8 @@ type CourseSummary = {
 
 function AdminStatistics() {
   const { roles } = useAuth();
-  const isAdmin = roles.includes("Admin");
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
+  const isSuperAdminCaller = roles.includes("SuperAdmin");
   const [summaries, setSummaries] = useState<CourseSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -85,8 +86,31 @@ function AdminStatistics() {
   // (no al drill-down de un curso individual).
   const [programFilter, setProgramFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
+  // SuperAdmin: filtro funcional por institución. Aplica `.eq('tenant_id', X)`
+  // a la query de courses; el resto del pipeline (summaries por curso)
+  // hereda la restricción porque opera sobre los course IDs ya filtrados.
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
   const [periods, setPeriods] = useState<Array<{ id: string; code: string; status: string }>>([]);
+
+  // Cargar lista de tenants para el Select cuando es SuperAdmin.
+  useEffect(() => {
+    if (!isSuperAdminCaller) return;
+    let cancelled = false;
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("tenants")
+        .select("id, slug, name")
+        .order("name");
+      if (cancelled) return;
+      setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdminCaller]);
 
   // Cargar resumen agregado por curso (Admin ve todos)
   useEffect(() => {
@@ -98,12 +122,18 @@ function AdminStatistics() {
       // Cargar lista de cursos + dimensiones institucionales en paralelo.
       // Las dimensiones (programas/periodos) alimentan los Selects de filtro.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let coursesQuery: any = (supabase as any)
+        .from("courses")
+        .select("id, name, period, program_id, period_id")
+        .order("name");
+      if (isSuperAdminCaller && tenantFilter !== "all") {
+        coursesQuery = coursesQuery.eq("tenant_id", tenantFilter);
+      }
       const [coursesRes, progsRes, periodsRes] = await Promise.all([
-        (supabase as any)
-          .from("courses")
-          .select("id, name, period, program_id, period_id")
-          .order("name"),
+        coursesQuery,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any).from("academic_programs").select("id, name").order("name"),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("academic_periods")
           .select("id, code, status")
@@ -180,7 +210,7 @@ function AdminStatistics() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, retryNonce]);
+  }, [isAdmin, retryNonce, isSuperAdminCaller, tenantFilter]);
 
   // Drill-down: carga el dataset completo del curso seleccionado
   useEffect(() => {
@@ -292,11 +322,33 @@ function AdminStatistics() {
         />
       ) : (
         <>
-          {/* Filtros institucionales (programa + periodo). Filtran el
-              resumen de cursos sin disparar nuevas cargas: los datasets
-              ya están en memoria y solo recalculamos KPIs y la tabla. */}
+          {/* Filtros institucionales (programa + periodo + tenant para
+              SuperAdmin). Filtran el resumen de cursos. Programa/periodo
+              son client-side (datasets ya en memoria). Tenant dispara
+              re-load porque la lista de courses sí cambia con tenant. */}
           <Card>
             <CardContent className="p-3 flex flex-col sm:flex-row gap-2">
+              {/* Filtro institución — solo SuperAdmin con ≥1 tenant.
+                  Aplica `.eq('tenant_id', X)` a la query principal de
+                  courses → todo el pipeline de summaries hereda el filtro. */}
+              {isSuperAdminCaller && tenants.length > 1 && (
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">Institución</label>
+                  <Select value={tenantFilter} onValueChange={setTenantFilter}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las instituciones</SelectItem>
+                      {tenants.map((tn) => (
+                        <SelectItem key={tn.id} value={tn.id}>
+                          {tn.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex-1 space-y-1">
                 <label className="text-xs text-muted-foreground">Programa</label>
                 <Select value={programFilter} onValueChange={setProgramFilter}>
@@ -329,7 +381,9 @@ function AdminStatistics() {
                   </SelectContent>
                 </Select>
               </div>
-              {(programFilter !== "all" || periodFilter !== "all") && (
+              {(programFilter !== "all" ||
+                periodFilter !== "all" ||
+                tenantFilter !== "all") && (
                 <div className="flex items-end">
                   <Button
                     size="sm"
@@ -337,6 +391,7 @@ function AdminStatistics() {
                     onClick={() => {
                       setProgramFilter("all");
                       setPeriodFilter("all");
+                      setTenantFilter("all");
                     }}
                   >
                     Limpiar filtros

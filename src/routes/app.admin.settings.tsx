@@ -19,10 +19,13 @@
  * Movidas a SuperAdmin (/app/superadmin/system):
  *   - Backups, Sistema, Secretos infra.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Settings,
   Mail,
@@ -50,9 +53,45 @@ export const Route = createFileRoute("/app/admin/settings")({ component: AdminSe
 
 function AdminSettings() {
   const { roles } = useAuth();
+  const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
+  // SuperAdmin cross-tenant: este panel está pensado para configurar UNA
+  // institución (branding, programas, periodos, etc.). Cuando el
+  // SuperAdmin no eligió una vía "Ver como X", redirige a Instituciones.
+  const isSuperAdminCrossTenant =
+    roles.includes("SuperAdmin") &&
+    activeRole === "SuperAdmin" &&
+    readTenantOverride() === null;
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+
+  if (isSuperAdminCrossTenant) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          icon={<Settings className="h-6 w-6 text-indigo-500" />}
+          title="Configuración"
+          subtitle="Configuración por institución."
+        />
+        <Card>
+          <CardContent className="p-6 text-center space-y-3">
+            <p className="text-sm font-medium">Modo SuperAdmin cross-tenant</p>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              Esta sección configura una institución específica (branding, programas, periodos,
+              correos, IA, etc.). Como SuperAdmin no estás dentro de una institución todavía.
+              Entrá al panel de Instituciones y usá "Ver como esta institución" para configurarla.
+            </p>
+            <Link
+              to="/app/superadmin/tenants"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Ir a Instituciones
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

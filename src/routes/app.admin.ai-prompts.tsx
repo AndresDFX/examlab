@@ -9,10 +9,13 @@
  * URLs y el routeTree generado, aunque el módulo ahora abarca más que
  * solo prompts.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles, Cpu, FileText } from "lucide-react";
 import { AdminPromptsPanel } from "@/modules/admin/AdminPromptsPanel";
 import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
@@ -21,9 +24,45 @@ export const Route = createFileRoute("/app/admin/ai-prompts")({ component: Admin
 
 function AdminAIConfig() {
   const { roles } = useAuth();
-  const isAdmin = roles.includes("Admin");
+  const activeRole = useActiveRole();
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
+  // SuperAdmin cross-tenant: los prompts y el modelo IA son por institución
+  // (ai_prompts.tenant_id + ai_model_settings.tenant_id). Sin tenant
+  // elegido el panel no tiene scope. Redirige a Instituciones.
+  const isSuperAdminCrossTenant =
+    roles.includes("SuperAdmin") &&
+    activeRole === "SuperAdmin" &&
+    readTenantOverride() === null;
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+
+  if (isSuperAdminCrossTenant) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
+          title="IA"
+          subtitle="Prompts y modelo IA por institución."
+        />
+        <Card>
+          <CardContent className="p-6 text-center space-y-3">
+            <p className="text-sm font-medium">Modo SuperAdmin cross-tenant</p>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              Los prompts globales y el modelo IA son por institución (cada tenant tiene los
+              suyos). Entrá al panel de Instituciones y usá "Ver como esta institución" para
+              configurarlos.
+            </p>
+            <Link
+              to="/app/superadmin/tenants"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Ir a Instituciones
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

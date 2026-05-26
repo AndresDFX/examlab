@@ -539,15 +539,22 @@ function SuperAdminTenantsPage() {
               {editing ? `Editar ${editing.name}` : "Nueva institución"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <div className="space-y-4">
+            {/* Cada field es un stack vertical Label → Input → helper text
+                con gap consistente de 6px (space-y-1.5). Antes los divs
+                NO tenían class interna y la Label (leading-none, sin
+                margin) quedaba pegada al Input — visualmente "labels
+                no alineados con inputs". Fix: space-y-1.5 a cada field.
+                El gap entre fields se subió a space-y-4 (16px) para no
+                achicar la separación entre grupos. */}
+            <div className="space-y-1.5">
               <Label required>Slug</Label>
               <Input
                 value={form.slug}
                 onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value }))}
                 placeholder="sena-bogota"
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted-foreground">
                 URL: <code>/t/{form.slug || "..."}/app/...</code>. Minúsculas, números
                 y guiones; 3–50 chars.
                 {editing && (
@@ -560,7 +567,7 @@ function SuperAdminTenantsPage() {
                 )}
               </p>
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label required>Nombre</Label>
               <Input
                 value={form.name}
@@ -568,18 +575,18 @@ function SuperAdminTenantsPage() {
                 placeholder="SENA - Centro Bogotá"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Dominio email (opcional)</Label>
               <Input
                 value={form.email_domain}
                 onChange={(e) => setForm((p) => ({ ...p, email_domain: e.target.value }))}
                 placeholder="sena.edu.co"
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted-foreground">
                 Reservado para futura asignación automática de usuarios por dominio.
               </p>
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Logo institucional</Label>
               {editing ? (
                 <div className="flex items-center gap-3 mt-1">
@@ -666,8 +673,8 @@ function SuperAdminTenantsPage() {
                 </>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
+              <div className="space-y-1.5">
                 <Label>Color primario (hex)</Label>
                 <HexColorInput
                   value={form.primary_color}
@@ -676,7 +683,7 @@ function SuperAdminTenantsPage() {
                   ariaLabel="Color primario"
                 />
               </div>
-              <div>
+              <div className="space-y-1.5">
                 <Label>Color secundario (hex)</Label>
                 <HexColorInput
                   value={form.secondary_color}
@@ -685,7 +692,7 @@ function SuperAdminTenantsPage() {
                   ariaLabel="Color secundario"
                 />
               </div>
-              <div>
+              <div className="space-y-1.5">
                 <Label>Color de letra sobre el primario (hex)</Label>
                 <HexColorInput
                   value={form.text_color}
@@ -693,11 +700,11 @@ function SuperAdminTenantsPage() {
                   placeholder="#FFFFFF"
                   ariaLabel="Color de letra sobre el primario"
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-[11px] text-muted-foreground">
                   Override del texto sobre el sidebar y botones primarios. Vacío = auto.
                 </p>
               </div>
-              <div>
+              <div className="space-y-1.5">
                 <Label>Color de íconos del sidebar (hex)</Label>
                 <HexColorInput
                   value={form.icon_color}
@@ -705,7 +712,7 @@ function SuperAdminTenantsPage() {
                   placeholder="#FFFFFF"
                   ariaLabel="Color de íconos del sidebar"
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-[11px] text-muted-foreground">
                   Override de íconos del menú lateral. Vacío = heredan el color de letra.
                 </p>
               </div>
@@ -723,41 +730,35 @@ function SuperAdminTenantsPage() {
                 no consume cuota.
               </p>
               <div className="grid grid-cols-3 gap-2">
-                <div>
+                <div className="space-y-1.5">
                   <Label className="text-xs">Administradores</Label>
                   <Input
                     type="number"
                     min={0}
                     value={form.max_admins}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, max_admins: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, max_admins: e.target.value }))}
                     placeholder="∞"
                     className="text-xs"
                   />
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <Label className="text-xs">Docentes</Label>
                   <Input
                     type="number"
                     min={0}
                     value={form.max_teachers}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, max_teachers: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, max_teachers: e.target.value }))}
                     placeholder="∞"
                     className="text-xs"
                   />
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <Label className="text-xs">Estudiantes</Label>
                   <Input
                     type="number"
                     min={0}
                     value={form.max_students}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, max_students: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, max_students: e.target.value }))}
                     placeholder="∞"
                     className="text-xs"
                   />

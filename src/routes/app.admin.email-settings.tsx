@@ -3,9 +3,12 @@
  * bookmarks existentes, pero la configuración vive ahora en
  * /app/admin/settings (tab Correos).
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent } from "@/components/ui/card";
 import { Mail } from "lucide-react";
 import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
 
@@ -15,10 +18,47 @@ export const Route = createFileRoute("/app/admin/email-settings")({
 
 function AdminEmailSettings() {
   const { roles } = useAuth();
-  if (!roles.includes("Admin")) {
+  const activeRole = useActiveRole();
+  // SuperAdmin cross-tenant: el toggle de envío de correos es por
+  // institución (singleton del tenant). Sin tenant elegido el panel no
+  // tiene contexto — redirigimos a Instituciones, mismo patrón que
+  // AdminMyTenantPanel y AdminSettings.
+  const isSuperAdminCrossTenant =
+    roles.includes("SuperAdmin") &&
+    activeRole === "SuperAdmin" &&
+    readTenantOverride() === null;
+
+  if (!roles.includes("Admin") && !roles.includes("SuperAdmin")) {
     return (
       <div className="container mx-auto p-6">
         <p className="text-muted-foreground">Necesitas rol Admin.</p>
+      </div>
+    );
+  }
+
+  if (isSuperAdminCrossTenant) {
+    return (
+      <div className="container mx-auto space-y-6 p-4 sm:p-6">
+        <PageHeader
+          icon={<Mail className="h-6 w-6" />}
+          title="Configuración de correos"
+          subtitle="Toggles por categoría de email."
+        />
+        <Card>
+          <CardContent className="p-6 text-center space-y-3">
+            <p className="text-sm font-medium">Modo SuperAdmin cross-tenant</p>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              Los toggles de correos son por institución. Entrá al panel de Instituciones y usá
+              "Ver como esta institución" para configurar sus correos.
+            </p>
+            <Link
+              to="/app/superadmin/tenants"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Ir a Instituciones
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }

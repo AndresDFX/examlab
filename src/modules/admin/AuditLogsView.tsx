@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -406,9 +407,30 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   const [courseFilter, setCourseFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Filtro tenant — solo SuperAdmin lo ve. RLS para Admin/Docente ya
+  // acota los logs a su tenant. Para SuperAdmin (cross-tenant) ofrecemos
+  // un Select que aplica `.eq('tenant_id', X)` a la query principal.
+  const { roles } = useAuth();
+  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  const [tenantFilter, setTenantFilter] = useState("all");
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
 
   // Datos de soporte
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
+
+  // Cargar tenants si SuperAdmin (para el Select de instituciones).
+  useEffect(() => {
+    if (!isSuperAdminCaller) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.from("tenants").select("id, slug, name").order("name");
+      if (cancelled) return;
+      setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdminCaller]);
 
   // Dialog detalle
   const [detail, setDetail] = useState<AuditLog | null>(null);
@@ -446,6 +468,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         if (severity !== "all") q = q.eq("severity", severity);
         if (roleFilter !== "all") q = q.eq("actor_role", roleFilter);
         if (mode === "admin" && courseFilter !== "all") q = q.eq("course_id", courseFilter);
+        if (isSuperAdminCaller && tenantFilter !== "all") q = q.eq("tenant_id", tenantFilter);
         if (dateFrom) q = q.gte("created_at", new Date(dateFrom).toISOString());
         if (dateTo) {
           const to = new Date(dateTo);
@@ -489,7 +512,18 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         setLoadingMore(false);
       }
     },
-    [category, severity, roleFilter, courseFilter, dateFrom, dateTo, actionGroup, mode],
+    [
+      category,
+      severity,
+      roleFilter,
+      courseFilter,
+      dateFrom,
+      dateTo,
+      actionGroup,
+      mode,
+      isSuperAdminCaller,
+      tenantFilter,
+    ],
   ); // search es client-side
 
   // Reload cuando cambian filtros de servidor o se reintenta
@@ -599,6 +633,27 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 className="pl-8 h-9"
               />
             </div>
+
+            {/* Filtro institución — solo SuperAdmin con ≥1 tenant cargado.
+                Aplica `.eq('tenant_id', X)` a la query de audit_logs. */}
+            {isSuperAdminCaller && tenants.length > 1 && (
+              <Select value={tenantFilter} onValueChange={setTenantFilter}>
+                <SelectTrigger className="w-48 h-9">
+                  <SelectValue placeholder="Institución" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las instituciones</SelectItem>
+                  {/* Renombrado a `tn` adentro para no shadowear el `t`
+                      de useTranslation que se usa en otros SelectItems
+                      hermanos (ej. category labels arriba). */}
+                  {tenants.map((tn) => (
+                    <SelectItem key={tn.id} value={tn.id}>
+                      {tn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-44 h-9">

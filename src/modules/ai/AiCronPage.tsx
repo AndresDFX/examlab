@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -282,6 +283,27 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   // y mostrar el banner inline al docente que originó el job. Admin
   // que rechazó NO necesita banner; ya sabe que rechazó.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // SuperAdmin: filtro por institución. ai_grading_queue NO tiene
+  // tenant_id propio (vive en course_id → courses.tenant_id). Lo
+  // resolvemos en 2 pasos dentro de `load`: primero los course_ids del
+  // tenant elegido, luego `.in('course_id', ids)` en cada count + en
+  // la lista. Para Admin normal RLS acota; el Select no se renderiza.
+  const { roles } = useAuth();
+  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+  useEffect(() => {
+    if (!isSuperAdminCaller) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.from("tenants").select("id, slug, name").order("name");
+      if (cancelled) return;
+      setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdminCaller]);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -308,6 +330,30 @@ function AiQueuePanel({ isAdmin = false }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
+      // Filtro tenant (SuperAdmin): resolvemos los course_ids del tenant
+      // elegido UNA VEZ y los inyectamos en todos los count + list query.
+      // Si el tenant no tiene cursos, devolvemos counts en cero sin
+      // pegarle a ai_grading_queue (evita el comportamiento de PostgREST
+      // donde `.in('col', [])` devuelve TODO).
+      let courseIdsFilter: string[] | null = null;
+      if (isSuperAdminCaller && tenantFilter !== "all") {
+        const { data: courseRows } = await db
+          .from("courses")
+          .select("id")
+          .eq("tenant_id", tenantFilter);
+        courseIdsFilter = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
+        if (courseIdsFilter.length === 0) {
+          setCounts({ pending: 0, processing: 0, failed: 0, lastDoneAt: null });
+          setJobs([]);
+          setLoading(false);
+          return;
+        }
+      }
+      // Helper: aplica `.in('course_id', ids)` cuando hay filter activo.
+      // Centralizado para no repetir la condición en cada query.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const applyTenant = (q: any) => (courseIdsFilter ? q.in("course_id", courseIdsFilter) : q);
+
       // Counts agregados — corren en paralelo y siempre se refrescan.
       // `failed` cuenta TODOS los jobs en estado failed (sin ventana de
       // tiempo) para que el contador coincida con la lista — la lista
@@ -320,25 +366,32 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         { count: failed },
         { data: lastDone },
       ] = await Promise.all([
-        db
-          .from("ai_grading_queue")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending"),
-        db
-          .from("ai_grading_queue")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "processing"),
-        db
-          .from("ai_grading_queue")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "failed"),
-        db
-          .from("ai_grading_queue")
-          .select("completed_at")
-          .eq("status", "done")
-          .order("completed_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        applyTenant(
+          db
+            .from("ai_grading_queue")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+        ),
+        applyTenant(
+          db
+            .from("ai_grading_queue")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "processing"),
+        ),
+        applyTenant(
+          db
+            .from("ai_grading_queue")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "failed"),
+        ),
+        applyTenant(
+          db
+            .from("ai_grading_queue")
+            .select("completed_at")
+            .eq("status", "done")
+            .order("completed_at", { ascending: false })
+            .limit(1),
+        ).maybeSingle(),
       ]);
       setCounts({
         pending: pending ?? 0,
@@ -356,6 +409,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         )
         .order("created_at", { ascending: false })
         .limit(PAGE_LIMIT);
+      query = applyTenant(query);
       if (statusFilter === "active") {
         // Activo = pending/processing/failed + rechazos sin acusar. El
         // rechazo no acusado sigue "pendiente" desde la óptica del
@@ -502,7 +556,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, isSuperAdminCaller, tenantFilter]);
 
   useEffect(() => {
     void load();
@@ -908,6 +962,26 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             </Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Filtro institución — solo SuperAdmin con ≥1 tenant.
+                Resuelve los course_ids del tenant y los aplica como
+                `.in('course_id', ids)` a TODAS las queries del panel
+                (counts + lista). Para Admin RLS ya acota — el Select
+                no se renderiza para evitar dropdowns ruidosos. */}
+            {isSuperAdminCaller && tenants.length > 1 && (
+              <Select value={tenantFilter} onValueChange={setTenantFilter}>
+                <SelectTrigger className="h-8 w-48 text-xs">
+                  <SelectValue placeholder="Institución" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las instituciones</SelectItem>
+                  {tenants.map((tn) => (
+                    <SelectItem key={tn.id} value={tn.id}>
+                      {tn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}

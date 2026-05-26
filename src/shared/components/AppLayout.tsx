@@ -743,7 +743,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     activa el override y vuelve a mostrar el nombre del
                     tenant elegido. */}
                 {isSuperAdminCrossTenant
-                  ? "Modo SuperAdmin · cross-tenant"
+                  ? "Plataforma de Gestión Educativa"
                   : (tenant?.name ?? "Plataforma de exámenes")}
               </div>
             </div>
@@ -1056,7 +1056,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </SheetTitle>
                     <div className="text-[10px] text-sidebar-foreground/60 tracking-wide">
                       {isSuperAdminCrossTenant
-                        ? "Modo SuperAdmin · cross-tenant"
+                        ? "Plataforma de Gestión Educativa"
                         : (tenant?.name ?? t("auth.brandSubtitle"))}
                     </div>
                   </div>
@@ -1248,7 +1248,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="font-semibold truncate leading-tight">ExamLab</div>
               {isSuperAdminCrossTenant ? (
                 <div className="text-[10px] text-sidebar-foreground/60 truncate leading-tight">
-                  Modo SuperAdmin · cross-tenant
+                  Plataforma de Gestión Educativa
                 </div>
               ) : (
                 tenant?.name && (

@@ -39,6 +39,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
+import { useTheme } from "@/hooks/use-theme";
 import { getActiveRoleSignal, subscribeActiveRole } from "@/modules/tenants/active-role-signal";
 import type { AppRole } from "@/hooks/use-auth";
 
@@ -240,6 +241,14 @@ function setForegroundVar(root: HTMLElement, name: string, hex: string | null) {
 
 export function TenantThemeProvider({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
+  // resolvedTheme = 'light' | 'dark'. Suscribimos al hook directamente
+  // porque el effect que aplica branding lee `document.documentElement
+  // .classList.contains("dark")` UNA sola vez por run. Sin esto, al
+  // togglear dark mode AFTER de aplicar el tenant, las CSS vars se
+  // quedaban con la versión light y el usuario reportaba "dark mode
+  // no funciona dentro de la universidad". Agregamos resolvedTheme a
+  // deps → re-corre cada vez que el theme cambia.
+  const { resolvedTheme } = useTheme();
   // text_color e icon_color: las columnas se agregaron en mig
   // 20260706000000 y los tipos generados de Supabase aún no las
   // exponen — accedemos via cast. Extraídos a variables acá arriba
@@ -289,10 +298,14 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     } else {
       root.style.removeProperty("--sidebar-icon-color");
     }
-    // Detectamos si la app está en modo dark — el wash debe mezclar con
-    // negro (dark) vs blanco (light) para que el fondo del contenido
-    // siga siendo casi-blanco/casi-negro y no compita con el contenido.
-    const isDarkTheme = root.classList.contains("dark");
+    // Detectamos si la app está en modo dark vía `resolvedTheme` del
+    // useTheme hook (no via `classList.contains`) — esto asegura que
+    // el effect REACCIONA al toggle del usuario, no solo lee una
+    // snapshot. Ver comentario del import. Si hay condiciones de race
+    // entre la aplicación del class y este render, también verificamos
+    // el classList como fallback (cuando resolvedTheme es 'system' y
+    // el OS está en dark).
+    const isDarkTheme = resolvedTheme === "dark" || root.classList.contains("dark");
 
     /** Aplica el override de text_color si está, o cae al derivado por
      *  luminancia. Usado en todos los foregrounds sobre branding. */
@@ -419,6 +432,7 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     tenantTextColor,
     tenantIconColor,
     activeRole,
+    resolvedTheme,
   ]);
 
   return <>{children}</>;

@@ -73,11 +73,33 @@ function CertificatesAdmin() {
   const [retryNonce, setRetryNonce] = useState(0);
   const isAdmin = roles.includes("Admin");
   const isDocente = roles.includes("Docente");
+  const isSuperAdminCaller = roles.includes("SuperAdmin");
   // Filtros UI (mismo patrón que otros módulos): selector de curso +
   // search por nombre/email/código + toggle "mostrar revocados".
   const [filterCourseId, setFilterCourseId] = useState<string>("");
   const [search, setSearch] = useState("");
   const [showRevoked, setShowRevoked] = useState(false);
+  // SuperAdmin: filtro funcional por institución. Como `certificates`
+  // NO tiene tenant_id directo, lo resolvemos en 2 pasos: primero los
+  // course_ids del tenant elegido, luego `.in('course_id', ...)` en
+  // la query de certificados. Para Admin normal el filtro no se
+  // renderiza (RLS ya lo acota a su tenant).
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+
+  // Cargar tenants para el Select cuando es SuperAdmin.
+  useEffect(() => {
+    if (!isSuperAdminCaller) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.from("tenants").select("id, slug, name").order("name");
+      if (cancelled) return;
+      setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdminCaller]);
 
   useEffect(() => {
     if (!user) return;
@@ -85,10 +107,28 @@ function CertificatesAdmin() {
     (async () => {
       setLoading(true);
       setLoadError(null);
-      const { data, error } = await db
-        .from("certificates")
-        .select("*")
-        .order("issued_at", { ascending: false });
+      // Filtro tenant del SuperAdmin: 2-step query porque certificates
+      // no tiene tenant_id propio (vive en el course).
+      let courseIdsFilter: string[] | null = null;
+      if (isSuperAdminCaller && tenantFilter !== "all") {
+        const { data: courseRows } = await db
+          .from("courses")
+          .select("id")
+          .eq("tenant_id", tenantFilter);
+        courseIdsFilter = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
+        // Caso edge: el tenant elegido NO tiene cursos. Cortar el query
+        // a corto antes de pegarle a certificates (un `.in('course_id', [])`
+        // devuelve todos los certificados según PostgREST — peligroso).
+        if (courseIdsFilter.length === 0) {
+          if (cancelled) return;
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+      }
+      let q = db.from("certificates").select("*").order("issued_at", { ascending: false });
+      if (courseIdsFilter) q = q.in("course_id", courseIdsFilter);
+      const { data, error } = await q;
       if (cancelled) return;
       if (error) {
         setLoadError(friendlyError(error, "No pudimos cargar los certificados."));
@@ -100,7 +140,7 @@ function CertificatesAdmin() {
     return () => {
       cancelled = true;
     };
-  }, [user, retryNonce]);
+  }, [user, retryNonce, isSuperAdminCaller, tenantFilter]);
 
   // Lista derivada (course_id, nombre) para alimentar el selector. Como
   // los certificados ya están filtrados por RLS al alcance del usuario,
@@ -184,7 +224,7 @@ function CertificatesAdmin() {
       />
 
       {/* Filtros: mismo patrón que talleres/proyectos/exámenes. */}
-      {!loading && items.length > 0 && (
+      {!loading && (items.length > 0 || tenantFilter !== "all") && (
         <div className="flex flex-wrap items-center gap-2">
           <SearchInput
             value={search}
@@ -192,6 +232,26 @@ function CertificatesAdmin() {
             placeholder="Buscar por nombre, código, identificación…"
             className="w-full sm:w-72"
           />
+          {/* Filtro de institución (solo SuperAdmin con >1 tenant).
+              Funcional: aplica `.in('course_id', courseIdsDelTenant)` a
+              la query principal. Mismo patrón que app.admin.users y
+              app.admin.courses pero adaptado al schema sin tenant_id
+              en certificates (resuelto via cursos del tenant). */}
+          {isSuperAdminCaller && tenants.length > 1 && (
+            <Select value={tenantFilter} onValueChange={setTenantFilter}>
+              <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+                <SelectValue placeholder="Institución" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las instituciones</SelectItem>
+                {tenants.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select
             value={filterCourseId || "__all"}
             onValueChange={(v) => setFilterCourseId(v === "__all" ? "" : v)}
