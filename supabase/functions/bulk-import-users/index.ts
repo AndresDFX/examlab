@@ -24,11 +24,17 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", u.user.id);
-    if (!roles?.some((r) => r.role === "Admin")) {
-      return new Response(JSON.stringify({ error: "Solo Admin puede importar" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const callerRoles = (roles ?? []).map((r) => r.role as string);
+    const callerIsAdmin = callerRoles.includes("Admin");
+    const callerIsSuperAdmin = callerRoles.includes("SuperAdmin");
+    if (!callerIsAdmin && !callerIsSuperAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Solo Admin o SuperAdmin pueden importar" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const { rows, allowExisting } = await req.json();
@@ -146,7 +152,16 @@ Deno.serve(async (req) => {
           .map((r: string) => r.trim())
           .filter(Boolean);
         for (const r of roleList) {
-          if (["Admin", "Docente", "Estudiante"].includes(r)) {
+          // SuperAdmin sólo lo puede asignar otro SuperAdmin — escalación
+          // de privilegios lateral protegida acá Y por la RLS de
+          // user_roles (que valida is_super_admin()). Si un Admin manda
+          // SuperAdmin en el CSV, lo ignoramos silenciosamente.
+          if (r === "SuperAdmin") {
+            if (!callerIsSuperAdmin) continue;
+            await adminClient
+              .from("user_roles")
+              .upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });
+          } else if (["Admin", "Docente", "Estudiante"].includes(r)) {
             await adminClient
               .from("user_roles")
               .upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });

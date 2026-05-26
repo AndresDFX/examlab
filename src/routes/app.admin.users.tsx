@@ -928,22 +928,29 @@ function AdminUsers() {
                   Roles
                 </Label>
                 <div className="space-y-1.5">
-                  {ALL_ROLES.map((role) => (
-                    <label key={role} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={editing.roles.includes(role)}
-                        onCheckedChange={(v) => {
-                          setEditing({
-                            ...editing,
-                            roles: v
-                              ? [...editing.roles, role]
-                              : editing.roles.filter((x) => x !== role),
-                          });
-                        }}
-                      />
-                      {role}
-                    </label>
-                  ))}
+                  {ALL_ROLES
+                    // Sólo SuperAdmin puede asignar/quitar el rol
+                    // SuperAdmin a otro usuario. El edge function +
+                    // RLS validan esto server-side; aquí ocultamos el
+                    // checkbox para que un Admin común no vea siquiera
+                    // la opción.
+                    .filter((role) => role !== "SuperAdmin" || isSuperAdminCaller)
+                    .map((role) => (
+                      <label key={role} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={editing.roles.includes(role)}
+                          onCheckedChange={(v) => {
+                            setEditing({
+                              ...editing,
+                              roles: v
+                                ? [...editing.roles, role]
+                                : editing.roles.filter((x) => x !== role),
+                            });
+                          }}
+                        />
+                        {role}
+                      </label>
+                    ))}
                 </div>
               </div>
 
