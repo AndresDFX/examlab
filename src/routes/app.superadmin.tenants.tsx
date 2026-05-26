@@ -98,8 +98,9 @@ function SuperAdminTenantsPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
-  /** Estado del dialog 'Asignar usuarios' — el SuperAdmin elige users
-   *  para mover a este tenant. tenant=null = cerrado. */
+  /** Estado del dialog 'Gestionar usuarios' — el SuperAdmin decide qué
+   *  usuarios pertenecen a este tenant (marca para agregar, desmarca
+   *  para quitar). tenant=null = cerrado. */
   const [assignUsersTenant, setAssignUsersTenant] = useState<Tenant | null>(null);
 
   const load = async () => {
@@ -499,7 +500,7 @@ function SuperAdminTenantsPage() {
                             hint: "Reemplaza tu sesión por la del Admin del tenant",
                           },
                           {
-                            label: "Asignar usuarios",
+                            label: "Gestionar usuarios",
                             icon: UserPlus,
                             onClick: () => setAssignUsersTenant(t),
                           },
@@ -778,9 +779,10 @@ function SuperAdminTenantsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog 'Asignar usuarios' — el SuperAdmin selecciona profiles
-          cross-tenant y los mueve a este tenant. Trigger DB rechaza si
-          el user tiene cursos activos en otro tenant. */}
+      {/* Dialog 'Gestionar usuarios' — el SuperAdmin marca/desmarca
+          profiles cross-tenant para agregar o quitar de este tenant.
+          Trigger DB rechaza si el user tiene cursos activos en su
+          tenant actual. */}
       <AssignUsersToTenantDialog
         tenant={assignUsersTenant}
         open={assignUsersTenant !== null}
