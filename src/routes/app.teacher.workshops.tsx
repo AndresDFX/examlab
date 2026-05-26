@@ -253,6 +253,12 @@ function TeacherWorkshops() {
   const aiGate = useAiAuthorizationGate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  /** Mapa workshop_id → courseIds[]. Poblado desde workshop_courses (M:N).
+   *  Para talleres single-course tiene un único course_id; para multi
+   *  trae varios. Usado por el grid (badges) y el edit dialog (set inicial). */
+  const [workshopCourses, setWorkshopCourses] = useState<Map<string, string[]>>(
+    new Map(),
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
@@ -267,12 +273,18 @@ function TeacherWorkshops() {
   const filteredWorkshops = useMemo(() => {
     const q = search.trim().toLowerCase();
     return workshops.filter((w) => {
-      if (courseFilter && w.course_id !== courseFilter) return false;
+      if (courseFilter) {
+        // Multi-curso: el filtro matchea si CUALQUIER curso del taller
+        // coincide (workshop_courses) — no solo el course_id primario.
+        const wcIds = workshopCourses.get(w.id);
+        const allCourseIds = wcIds && wcIds.length > 0 ? wcIds : [w.course_id];
+        if (!allCourseIds.includes(courseFilter)) return false;
+      }
       if (cutFilter && (w as any).cut_id !== cutFilter) return false;
       if (q && !w.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [workshops, search, courseFilter, cutFilter]);
+  }, [workshops, search, courseFilter, cutFilter, workshopCourses]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Cuatro tiles: borradores, publicados, cerrados, externos. La idea
@@ -522,6 +534,7 @@ function TeacherWorkshops() {
       { data: ws, error: wsErr },
       { data: cuts },
       { data: aiErr },
+      { data: wcRows },
     ] = await Promise.all([
       supabase
         .from("courses")
@@ -538,6 +551,10 @@ function TeacherWorkshops() {
         )
         .order("position"),
       (supabase as any).rpc("count_ai_errors_per_workshop"),
+      // workshop_courses: tabla M:N introducida en mig 20260704000000.
+      // Mapeamos {workshop_id → course_id[]} para que la columna 'Curso'
+      // del grid pueda mostrar N badges en talleres multi-curso.
+      (supabase as any).from("workshop_courses").select("workshop_id, course_id"),
     ]);
     // Si las queries crítica fallan (courses, workshops), marcamos
     // loadError para mostrar ErrorState en vez de "0 talleres" silencioso.
@@ -556,6 +573,14 @@ function TeacherWorkshops() {
       errMap[row.workshop_id] = Number(row.error_count) || 0;
     }
     setAiErrorsByWorkshop(errMap);
+    // Index workshop_courses → courseIds[] por workshop_id.
+    const wcMap = new Map<string, string[]>();
+    for (const r of (wcRows ?? []) as Array<{ workshop_id: string; course_id: string }>) {
+      const arr = wcMap.get(r.workshop_id) ?? [];
+      arr.push(r.course_id);
+      wcMap.set(r.workshop_id, arr);
+    }
+    setWorkshopCourses(wcMap);
   };
   useEffect(() => {
     load();
@@ -828,6 +853,36 @@ function TeacherWorkshops() {
         .update({ ...basePayload, course_id: form.course_id! })
         .eq("id", form.id);
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      // ── Sync workshop_courses (M:N) ──
+      // El form en edit-mode permite gestionar TODOS los cursos del
+      // taller. Estrategia DELETE + INSERT en batch — atómica por
+      // workshop_id (la tabla tiene UNIQUE workshop_id,course_id que
+      // previene races dentro del mismo workshop). Las entregas y
+      // assignments siguen ligadas via workshop_id directo, no via
+      // workshop_courses, así que no se borran.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny2 = supabase as any;
+      const editedCourseIds = [...selectedCourseIds];
+      // Si el set quedó vacío (edge case), forzamos al menos el primario.
+      const finalCourseIds =
+        editedCourseIds.length > 0 ? editedCourseIds : [form.course_id!];
+      await dbAny2.from("workshop_courses").delete().eq("workshop_id", form.id);
+      const wcEditRows = finalCourseIds.map((cid) => {
+        const cc = courseCuts[cid];
+        return {
+          workshop_id: form.id,
+          course_id: cid,
+          cut_id:
+            cc?.cut_id || (cid === form.course_id ? form.cut_id || null : null),
+          weight:
+            cc?.weight != null
+              ? Math.max(0, Number(cc.weight))
+              : cid === form.course_id && (form as any).weight != null
+                ? Math.max(0, Number((form as any).weight))
+                : null,
+        };
+      });
+      await dbAny2.from("workshop_courses").insert(wcEditRows);
       // ── Sync `workshop_intro_videos` (lista N) ──
       // Estrategia idéntica a proyectos: DELETE all + INSERT all. El
       // CASCADE de `workshop_submission_video_views` resetea el progreso
@@ -835,10 +890,13 @@ function TeacherWorkshops() {
       await syncWorkshopIntroVideos(form.id, formIntroVideos);
       if (courseChanged) {
         await supabase.from("workshop_assignments").delete().eq("workshop_id", form.id);
-        await autoAssignWorkshop(form.id, form.course_id!);
-      } else if (form.status === "published") {
-        // Auto-assign all enrolled students when published (idempotente)
-        await autoAssignWorkshop(form.id, form.course_id!);
+      }
+      // Auto-assign en TODOS los cursos del taller (no solo el primario).
+      // Es idempotente — re-aplica matriculados sin duplicar assignments.
+      if (form.status === "published" || courseChanged) {
+        for (const cid of finalCourseIds) {
+          await autoAssignWorkshop(form.id, cid);
+        }
       }
       if (form.status === "published" || courseChanged) {
         await supabase.rpc("notify_course_students", {
@@ -2360,24 +2418,49 @@ function TeacherWorkshops() {
                         )}
                       </span>
                       <span className="text-xs text-muted-foreground sm:hidden truncate">
-                        {ws.course?.name}
+                        {(() => {
+                          const wcIds = workshopCourses.get(ws.id);
+                          const ids =
+                            wcIds && wcIds.length > 0
+                              ? wcIds
+                              : ws.course_id
+                                ? [ws.course_id]
+                                : [];
+                          const names = ids
+                            .map((cid) => courses.find((c) => c.id === cid)?.name)
+                            .filter(Boolean);
+                          if (names.length === 0) return "—";
+                          if (names.length === 1) return names[0];
+                          return `${names[0]} +${names.length - 1}`;
+                        })()}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden sm:table-cell">
-                    {ws.course ? (
-                      <CourseListCell
-                        courses={[
-                          {
-                            id: ws.course_id,
-                            name: ws.course.name,
-                            period: ws.course.period,
-                          },
-                        ]}
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
+                    {(() => {
+                      // workshop_courses (M:N) es la fuente real de
+                      // verdad de a qué cursos pertenece este taller.
+                      // Si la tabla está poblada usamos los N courseIds;
+                      // si no (talleres legacy sin backfill), fallback a
+                      // workshops.course_id como antes.
+                      const wcIds = workshopCourses.get(ws.id);
+                      const ids =
+                        wcIds && wcIds.length > 0 ? wcIds : ws.course_id ? [ws.course_id] : [];
+                      const items = ids
+                        .map((cid) => {
+                          const c = courses.find((x) => x.id === cid);
+                          if (!c) return null;
+                          return { id: c.id, name: c.name, period: c.period };
+                        })
+                        .filter(
+                          (x): x is { id: string; name: string; period: string | null } =>
+                            x !== null,
+                        );
+                      if (items.length === 0) {
+                        return <span className="text-xs text-muted-foreground">—</span>;
+                      }
+                      return <CourseListCell courses={items} />;
+                    })()}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
                     {cuts.find((c) => c.id === (ws as any).cut_id)?.name ?? "—"}
@@ -2442,6 +2525,36 @@ function TeacherWorkshops() {
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             } as any);
                             setOriginalCourseId(ws.course_id ?? null);
+                            // Hidratar el set de cursos asociados desde
+                            // workshop_courses (M:N). Permite que el form
+                            // de edit muestre TODOS los cursos del taller,
+                            // no solo el primario.
+                            const wcIds = workshopCourses.get(ws.id);
+                            const allIds =
+                              wcIds && wcIds.length > 0
+                                ? wcIds
+                                : ws.course_id
+                                  ? [ws.course_id]
+                                  : [];
+                            setSelectedCourseIds(new Set(allIds));
+                            // courseCuts per-curso: si no tenemos detalle
+                            // de cuts por curso, dejamos los defaults; el
+                            // save flow respeta el primary cut_id/weight
+                            // del workshop para el curso primario.
+                            const cutsByCourse: Record<
+                              string,
+                              { cut_id: string | null; weight: number }
+                            > = {};
+                            for (const cid of allIds) {
+                              cutsByCourse[cid] = {
+                                cut_id: cid === ws.course_id ? ((ws as any).cut_id ?? null) : null,
+                                weight:
+                                  cid === ws.course_id
+                                    ? Number((ws as any).weight ?? 1)
+                                    : 1,
+                              };
+                            }
+                            setCourseCuts(cutsByCourse);
                             setOpen(true);
                           },
                         },
@@ -2540,50 +2653,41 @@ function TeacherWorkshops() {
               <Label required>
                 Cursos{" "}
                 <span className="text-xs text-muted-foreground font-normal">
-                  {form.id ? "" : "(selecciona uno o más)"}
+                  (selecciona uno o más)
                 </span>
               </Label>
-              {form.id ? (
-                <Select
-                  value={form.course_id}
-                  onValueChange={(v) => setForm({ ...form, course_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Curso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                        {c.period ? ` (${c.period})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
-                  {courses.map((c) => (
-                    <label
-                      key={c.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedCourseIds.has(c.id)}
-                        onCheckedChange={() => toggleCourse(c.id)}
-                      />
-                      <span className="flex-1">{c.name}</span>
-                      {c.period && (
-                        <Badge variant="outline" className="text-[9px]">
-                          {c.period}
-                        </Badge>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              )}
-              {!form.id && selectedCourseIds.size > 1 && (
+              {/* Tanto en NEW como en EDIT usamos checkboxes M:N. El
+                  taller es UN registro con N workshop_courses; el form
+                  permite agregar/quitar cursos de un taller existente. */}
+              <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
+                {courses.map((c) => (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={selectedCourseIds.has(c.id)}
+                      onCheckedChange={() => toggleCourse(c.id)}
+                    />
+                    <span className="flex-1">{c.name}</span>
+                    {c.period && (
+                      <Badge variant="outline" className="text-[9px]">
+                        {c.period}
+                      </Badge>
+                    )}
+                  </label>
+                ))}
+              </div>
+              {selectedCourseIds.size > 1 && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Se creará una copia del taller en cada curso seleccionado.
+                  {form.id
+                    ? "El taller queda asociado a todos los cursos seleccionados (1 sólo registro)."
+                    : "Se creará UN taller asociado a todos los cursos seleccionados."}
+                </p>
+              )}
+              {form.id && selectedCourseIds.size === 0 && (
+                <p className="text-xs text-destructive mt-1">
+                  Debes mantener al menos 1 curso asociado.
                 </p>
               )}
             </div>
