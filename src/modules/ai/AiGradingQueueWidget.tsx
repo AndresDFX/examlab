@@ -33,6 +33,7 @@ import {
   RefreshCw,
   ArrowRight,
   ListOrdered,
+  MessageSquareWarning,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -94,6 +95,11 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
     failed: 0,
     lastDoneAt: null,
   });
+  /** Rechazos sin acusar dirigidos al usuario actual (created_by = me y
+   *  acknowledged_at IS NULL). El docente debe cerrar la conversación
+   *  desde el módulo Cron para que el job pase a historial. Aquí solo
+   *  mostramos el contador como banner discreto. */
+  const [myRejectedPending, setMyRejectedPending] = useState(0);
   // Lista compacta de jobs activos para llenar el alto del card cuando
   // el dashboard lo estira a viewport-fill. Sin acciones por fila (esas
   // viven en el módulo Cron); solo un glance de "qué hay pendiente".
@@ -103,6 +109,23 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Usuario actual (para contar rechazos dirigidos a mí). El
+      // SELECT cuenta sólo `rejected` sin `acknowledged_at` y filtrados
+      // por `created_by` — RLS ya restringe la fila al docente dueño.
+      const { data: userData } = await supabase.auth.getUser();
+      const myId = userData.user?.id ?? null;
+      if (myId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { count } = await (db as any)
+          .from("ai_grading_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "rejected")
+          .is("acknowledged_at", null)
+          .eq("created_by", myId);
+        setMyRejectedPending(count ?? 0);
+      } else {
+        setMyRejectedPending(0);
+      }
       // Cuatro head-counts + lista compacta de jobs activos. La lista
       // se muestra en un overflow-y-auto dentro del card; trae hasta 20
       // para que el alumno típico vea todo lo que está en cola.
@@ -208,6 +231,21 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
           </div>
         ) : (
           <>
+            {/* Banner de rechazos sin acusar — solo visible para el
+                docente que tiene jobs rechazados pendientes de cerrar.
+                Linkea directo al módulo Cron donde está el banner full
+                con razón + botón "Cerrar conversación". */}
+            {myRejectedPending > 0 && (
+              <Link to={cronModulePath} className="block">
+                <div className="rounded-md border border-orange-500/40 bg-orange-500/10 px-2.5 py-1.5 flex items-center gap-2 hover:bg-orange-500/15 transition-colors">
+                  <MessageSquareWarning className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                  <span className="text-[11px] font-medium text-orange-700 dark:text-orange-400 flex-1 min-w-0 truncate">
+                    {myRejectedPending} rechazo{myRejectedPending === 1 ? "" : "s"} sin cerrar
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-orange-500 shrink-0" />
+                </div>
+              </Link>
+            )}
             {/* Stats — mismo estilo visual que el widget "Correos
                 (últimas 24h)" del dashboard admin (ver app.index.tsx
                 `EmailStatTile`): bloque con bg tintado, número grande

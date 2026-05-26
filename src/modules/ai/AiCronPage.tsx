@@ -49,6 +49,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
   Clock,
   Cpu,
   AlertTriangle,
@@ -63,6 +73,9 @@ import {
   Sliders,
   Sparkles,
   ListOrdered,
+  Ban,
+  MessageSquareWarning,
+  CheckCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -83,7 +96,7 @@ interface Props {
   showInfraTab?: boolean;
 }
 
-type Status = "pending" | "processing" | "failed" | "done" | "cancelled";
+type Status = "pending" | "processing" | "failed" | "done" | "cancelled" | "rejected";
 
 interface Counts {
   pending: number;
@@ -104,10 +117,18 @@ interface QueueJob {
   target_table: string;
   target_row_id: string;
   course_id: string | null;
+  created_by: string | null;
   created_at: string;
   completed_at: string | null;
   attempts: number | null;
   last_error: string | null;
+  // Rechazo con razón (Admin/SuperAdmin) — mig 20260705000000.
+  rejection_reason: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  /** Set cuando el docente (created_by) acusa recibo del rechazo. Hasta
+   *  que esté seteado, el job aparece pendiente para el docente. */
+  acknowledged_at: string | null;
   // Resolución best-effort
   examTitle?: string;
   projectTitle?: string;
@@ -133,6 +154,7 @@ const STATUS_LABELS: Record<Status, string> = {
   failed: "Fallados",
   done: "Completados",
   cancelled: "Cancelados",
+  rejected: "Rechazados",
 };
 
 /** Tope amplio — el módulo es para gestión, no para vista compacta. La
@@ -248,10 +270,29 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  // Filtro por estado. "active" = pending + processing + failed (default,
-  // útil para el caso típico "qué hay corriendo"). "all" trae también
-  // done y cancelled — útil para auditoría.
-  const [statusFilter, setStatusFilter] = useState<"active" | Status | "all">("active");
+  // Filtro por estado. "active" = pending + processing + failed +
+  // rechazos no acusados (default, útil para "qué hay corriendo / qué me
+  // toca cerrar"). "history" = done + cancelled + rechazos acusados —
+  // los jobs ya cerrados. "all" trae todo sin discriminar. Y cada
+  // estado individual queda como filtro fino.
+  const [statusFilter, setStatusFilter] = useState<"active" | "history" | Status | "all">(
+    "active",
+  );
+  // Usuario actual — necesario para detectar "este rechazo es para mí"
+  // y mostrar el banner inline al docente que originó el job. Admin
+  // que rechazó NO necesita banner; ya sabe que rechazó.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+      setCurrentUserId(data.user?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Detalle expandido inline — necesario para Admin (sin acceso a
   // /app/teacher/monitor) y útil para Docente para no perder contexto.
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -311,12 +352,24 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       let query: any = db
         .from("ai_grading_queue")
         .select(
-          "id, kind, status, target_table, target_row_id, course_id, created_at, completed_at, attempts, last_error",
+          "id, kind, status, target_table, target_row_id, course_id, created_by, created_at, completed_at, attempts, last_error, rejection_reason, rejected_by, rejected_at, acknowledged_at",
         )
         .order("created_at", { ascending: false })
         .limit(PAGE_LIMIT);
       if (statusFilter === "active") {
-        query = query.in("status", ["pending", "processing", "failed"]);
+        // Activo = pending/processing/failed + rechazos sin acusar. El
+        // rechazo no acusado sigue "pendiente" desde la óptica del
+        // docente — es una conversación abierta hasta que él cierre.
+        query = query.or(
+          "status.in.(pending,processing,failed),and(status.eq.rejected,acknowledged_at.is.null)",
+        );
+      } else if (statusFilter === "history") {
+        // Historial = done/cancelled + rechazos ya acusados. El job
+        // rejected acked es equivalente a "cerrado" — pertenece al
+        // archivo, no a la cola activa.
+        query = query.or(
+          "status.in.(done,cancelled),and(status.eq.rejected,acknowledged_at.not.is.null)",
+        );
       } else if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
@@ -528,6 +581,62 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         return next;
       });
     }
+  };
+
+  /**
+   * Rechazar job con razón (Admin/SuperAdmin). Distinto a Cancelar:
+   * deja registro de la decisión + notifica al docente + el job queda
+   * VISIBLE para el docente hasta que el docente acuse recibo.
+   */
+  const [rejectJobTarget, setRejectJobTarget] = useState<{ id: string; label: string } | null>(
+    null,
+  );
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const openReject = (jobId: string, label: string) => {
+    setRejectReason("");
+    setRejectJobTarget({ id: jobId, label });
+  };
+  const confirmReject = async () => {
+    if (!rejectJobTarget) return;
+    if (rejectReason.trim().length < 5) {
+      toast.error("La razón es obligatoria (mínimo 5 caracteres).");
+      return;
+    }
+    setRejecting(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("reject_ai_grading_job", {
+        _job_id: rejectJobTarget.id,
+        _reason: rejectReason.trim(),
+      });
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo rechazar el job"));
+        return;
+      }
+      toast.success("Job rechazado. El docente recibió la notificación.");
+      setRejectJobTarget(null);
+      await load();
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  /**
+   * Acusar recibo de un rechazo (docente). Mueve el job al historial.
+   */
+  const acknowledgeReject = async (jobId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc(
+      "acknowledge_rejected_ai_grading_job",
+      { _job_id: jobId },
+    );
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo cerrar el rechazo"));
+      return;
+    }
+    toast.success("Rechazo cerrado. El job se movió al historial.");
+    await load();
   };
 
   const processOne = async (jobId: string) => {
@@ -807,10 +916,12 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Activos (P / Pr / F)</SelectItem>
+                <SelectItem value="active">Activos + rechazos abiertos</SelectItem>
+                <SelectItem value="history">Historial (cerrados)</SelectItem>
                 <SelectItem value="pending">Solo pendientes</SelectItem>
                 <SelectItem value="processing">Solo en proceso</SelectItem>
                 <SelectItem value="failed">Solo fallados</SelectItem>
+                <SelectItem value="rejected">Solo rechazados</SelectItem>
                 <SelectItem value="done">Solo completados</SelectItem>
                 <SelectItem value="cancelled">Solo cancelados</SelectItem>
                 <SelectItem value="all">Todos</SelectItem>
@@ -845,9 +956,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
               description={
                 statusFilter === "active"
                   ? "No hay jobs activos en la cola. Cuando se encole una calificación con IA aparecerá aquí."
-                  : `No hay jobs con el estado "${
-                      statusFilter === "all" ? "todos" : STATUS_LABELS[statusFilter as Status]
-                    }".`
+                  : statusFilter === "history"
+                    ? "Aún no hay jobs cerrados (completados, cancelados o rechazos acusados)."
+                    : `No hay jobs con el estado "${
+                        statusFilter === "all" ? "todos" : STATUS_LABELS[statusFilter as Status]
+                      }".`
               }
             />
           ) : (
@@ -859,6 +972,9 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 const isPending = j.status === "pending";
                 const isDone = j.status === "done";
                 const isCancelled = j.status === "cancelled";
+                const isRejected = j.status === "rejected";
+                const isMyRejection =
+                  isRejected && !j.acknowledged_at && j.created_by === currentUserId;
                 const route = targetRouteForJob(j, isAdmin);
                 const isRetrying = retrying.has(j.id);
                 const isCancelling = cancelling.has(j.id);
@@ -873,7 +989,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                   <div key={j.id} className="text-sm">
                     <div
                       className={`px-3 py-2 flex items-center gap-2 ${
-                        isFailed ? "bg-destructive/5" : ""
+                        isFailed
+                          ? "bg-destructive/5"
+                          : isMyRejection
+                            ? "bg-orange-500/5"
+                            : ""
                       } hover:bg-muted/40 transition-colors`}
                     >
                       {/* Checkbox por fila — visible para jobs cancelables
@@ -903,16 +1023,22 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             <Badge variant="outline" className="text-[10px] shrink-0">
                               {kindLabel}
                             </Badge>
-                            {(isProcessing || isFailed || isPending) && (
+                            {(isProcessing || isFailed || isPending || isRejected) && (
                               <Badge
                                 variant={
                                   isFailed
                                     ? "destructive"
-                                    : isProcessing
-                                      ? "secondary"
-                                      : "outline"
+                                    : isRejected
+                                      ? "destructive"
+                                      : isProcessing
+                                        ? "secondary"
+                                        : "outline"
                                 }
-                                className="text-[10px] shrink-0"
+                                className={`text-[10px] shrink-0 ${
+                                  isRejected
+                                    ? "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20"
+                                    : ""
+                                }`}
                               >
                                 {STATUS_LABELS[j.status]}
                               </Badge>
@@ -979,6 +1105,24 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             )}
                           </Button>
                         )}
+                        {/* Rechazar con razón — solo Admin/SuperAdmin, y solo
+                            sobre jobs pending/failed. Distinto a Cancelar:
+                            queda registrado con razón + notifica al docente
+                            + el job sigue visible hasta que el docente lo
+                            cierre. Para "matar" un job sin conversación, sigue
+                            disponible el botón Cancelar al lado. */}
+                        {isAdmin && (isPending || isFailed) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
+                            disabled={busy}
+                            onClick={() => openReject(j.id, label)}
+                            title="Rechazar con razón (notifica al docente)"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {(isPending || isFailed || isProcessing) && (
                           <Button
                             size="icon"
@@ -999,8 +1143,54 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             )}
                           </Button>
                         )}
+                        {/* Acusar recibo del rechazo. Aparece para el docente
+                            cuyo job fue rechazado (banner naranja arriba) o
+                            para Admin que quiere cerrar como soporte. La
+                            misma RPC `acknowledge_rejected_ai_grading_job`
+                            valida el caller en el server (created_by o
+                            Admin/SuperAdmin). */}
+                        {isRejected && !j.acknowledged_at && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            onClick={() => void acknowledgeReject(j.id)}
+                            title="Cerrar conversación (acusar recibo del rechazo y mover al historial)"
+                          >
+                            <CheckCheck className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
+                    {isMyRejection && (
+                      <div className="px-10 pr-3 pb-3 -mt-1">
+                        <div className="rounded-md border border-orange-500/40 bg-orange-500/5 px-3 py-2 flex items-start gap-2">
+                          <MessageSquareWarning className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-xs font-medium text-orange-700 dark:text-orange-400">
+                              El administrador rechazó este trabajo de IA
+                            </p>
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                              {j.rejection_reason ?? "Sin razón especificada."}
+                            </p>
+                            {j.rejected_at && (
+                              <p className="text-[10px] text-muted-foreground">
+                                Rechazado el {formatDateTime(j.rejected_at)}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs shrink-0 border-orange-500/40 hover:bg-orange-500/10"
+                            onClick={() => void acknowledgeReject(j.id)}
+                          >
+                            <CheckCheck className="h-3.5 w-3.5 mr-1" />
+                            Cerrar conversación
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {expanded && (
                       <div className="px-10 pr-3 pb-3 text-xs space-y-1 bg-muted/20 border-t">
                         <DetailRow k="ID" v={j.id} mono />
@@ -1036,6 +1226,31 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <p className="pt-1 text-muted-foreground">
                             Cancelado manualmente — no se procesó.
                           </p>
+                        )}
+                        {isRejected && (
+                          <>
+                            {j.rejection_reason && (
+                              <div className="pt-1">
+                                <div className="text-muted-foreground mb-0.5">Razón del rechazo</div>
+                                <pre className="text-[11px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
+                                  {j.rejection_reason}
+                                </pre>
+                              </div>
+                            )}
+                            {j.rejected_at && (
+                              <DetailRow k="Rechazado" v={formatDateTime(j.rejected_at)} />
+                            )}
+                            {j.acknowledged_at ? (
+                              <p className="pt-1 text-muted-foreground">
+                                Rechazo cerrado por el docente el{" "}
+                                {formatDateTime(j.acknowledged_at)}.
+                              </p>
+                            ) : (
+                              <p className="pt-1 text-orange-600 dark:text-orange-400">
+                                Esperando que el docente cierre la conversación.
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -1080,6 +1295,76 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           cola para que el flujo entero (ver cola → decidir → activar
           sync) viva en el mismo módulo. */}
       <AiOverrideDialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen} />
+
+      {/* Dialog de rechazo con razón — Admin/SuperAdmin. La razón se
+          envía al docente como notificación, queda en el audit log, y
+          aparece como banner en la fila del docente hasta que éste
+          cierre la conversación. Mínimo 5 chars para forzar contexto
+          útil (no aceptamos rechazos vacíos). */}
+      <Dialog
+        open={rejectJobTarget !== null}
+        onOpenChange={(o) => {
+          if (!o && !rejecting) setRejectJobTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ban className="h-4 w-4 text-orange-500" />
+              Rechazar job con razón
+            </DialogTitle>
+            <DialogDescription>
+              {rejectJobTarget?.label && (
+                <span className="block mb-2 font-medium text-foreground">
+                  {rejectJobTarget.label}
+                </span>
+              )}
+              El docente que encoló el job recibirá una notificación con la razón. El job no se
+              eliminará hasta que el docente cierre la conversación desde su panel Cola. Esto sí
+              queda en el audit log.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reject-reason" required>
+              Razón del rechazo
+            </Label>
+            <Textarea
+              id="reject-reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Ej. La entrega quedó fuera del scope del curso, no procede gastar cuota IA."
+              rows={4}
+              disabled={rejecting}
+              maxLength={500}
+            />
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Mínimo 5 caracteres. El docente verá este texto.</span>
+              <span className="tabular-nums">{rejectReason.length}/500</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRejectJobTarget(null)}
+              disabled={rejecting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void confirmReject()}
+              disabled={rejecting || rejectReason.trim().length < 5}
+            >
+              {rejecting ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Ban className="h-4 w-4 mr-1" />
+              )}
+              Rechazar y notificar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1097,7 +1382,9 @@ function StatusDot({ status }: { status: Status }) {
           ? "bg-emerald-500"
           : status === "cancelled"
             ? "bg-muted-foreground/50"
-            : "bg-blue-500";
+            : status === "rejected"
+              ? "bg-orange-500"
+              : "bg-blue-500";
   return <span className={`h-2 w-2 rounded-full shrink-0 ${color}`} />;
 }
 

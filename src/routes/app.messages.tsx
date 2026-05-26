@@ -24,7 +24,7 @@
  *   - `messages.UPDATE`: sender = yo. `DELETE`: sender = yo.
  *   - `message_attachments.*`: el uploader es yo + el mensaje es mío.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -67,7 +67,18 @@ import {
   Mail,
   MoreVertical,
   ArrowLeft,
+  AtSign,
+  Hammer,
+  FileText,
+  FolderKanban,
 } from "lucide-react";
+import {
+  parseMessageBody,
+  tagRoute,
+  buildTagToken,
+  type ContentTag,
+} from "@/modules/messaging/message-tags";
+import { MessageTagPicker } from "@/modules/messaging/MessageTagPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -179,6 +190,21 @@ function MessagesPage() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
+  // Picker para etiquetar contenido (taller/examen/proyecto) dentro del
+  // mensaje. Se abre desde el botón AtSign al lado del adjuntar. El tag
+  // queda embebido como token `[[T:type:id:label]]` en el body — el
+  // renderer lo parsea y lo muestra como Link clickeable.
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const insertTag = (tag: ContentTag) => {
+    const token = buildTagToken(tag);
+    // Si hay texto, agregamos espacio antes del token para separarlo
+    // del último char (que típicamente es texto del usuario o un tag
+    // previo). Si el body está vacío, no necesitamos espacio.
+    setBody((prev) => (prev.length === 0 ? token + " " : `${prev.trimEnd()} ${token} `));
+    // Devolvemos foco al textarea para que el usuario siga escribiendo.
+    setTimeout(() => composerRef.current?.focus(), 0);
+  };
   const [contactSearch, setContactSearch] = useState("");
 
   // ── Broadcast a curso (Docente/Admin) ──
@@ -1078,11 +1104,12 @@ function MessagesPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 px-2 text-destructive hover:text-destructive"
+                      className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => void clearSelectedConversations()}
-                      title="Eliminar conversaciones (solo para mí)"
+                      title="Eliminar conversaciones seleccionadas (solo para mí — el otro las sigue viendo)"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      <span className="text-xs">Eliminar</span>
                     </Button>
                     <Button
                       size="sm"
@@ -1545,11 +1572,56 @@ function MessagesPage() {
                                 ) : (
                                   <>
                                     <p className="whitespace-pre-wrap break-words">
-                                      {searchQuery.trim()
-                                        ? splitByMatch(m.body, searchQuery).map((seg, i) =>
-                                            seg.isMatch ? (
+                                      {/* Si hay tags embebidos, los
+                                          renderizamos como Link (chip
+                                          clickeable con icon). Si no,
+                                          fallback al render plano
+                                          (incluye highlight de search
+                                          si aplica). El parser maneja
+                                          el caso mixto: texto + tag +
+                                          texto + tag, etc. */}
+                                      {parseMessageBody(m.body).map((seg, i) => {
+                                        if (seg.kind === "tag") {
+                                          const TagIcon =
+                                            seg.tag.type === "workshop"
+                                              ? Hammer
+                                              : seg.tag.type === "exam"
+                                                ? FileText
+                                                : seg.tag.type === "project"
+                                                  ? FolderKanban
+                                                  : AtSign;
+                                          const role: "student" | "teacher" =
+                                            isStaff ? "teacher" : "student";
+                                          return (
+                                            <Link
+                                              key={i}
+                                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                              to={tagRoute(seg.tag, role) as any}
+                                              className={cn(
+                                                "inline-flex items-center gap-1 rounded px-1.5 py-0.5 mx-0.5 text-xs font-medium border align-middle",
+                                                mine
+                                                  ? "bg-primary-foreground/15 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/25"
+                                                  : "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20",
+                                              )}
+                                              title={`${seg.tag.label} — abrir módulo`}
+                                            >
+                                              <TagIcon className="h-3 w-3 shrink-0" />
+                                              <span className="truncate max-w-[180px]">
+                                                {seg.tag.label}
+                                              </span>
+                                            </Link>
+                                          );
+                                        }
+                                        // Segment de texto: aplicamos
+                                        // highlight de search si está activo.
+                                        if (!searchQuery.trim()) {
+                                          return <span key={i}>{seg.text}</span>;
+                                        }
+                                        return splitByMatch(seg.text, searchQuery).map(
+                                          (s, j) =>
+                                            s.isMatch ? (
                                               <mark
-                                                key={i}
+                                                key={`${i}-${j}`}
                                                 className={cn(
                                                   "rounded px-0.5",
                                                   mine
@@ -1557,13 +1629,13 @@ function MessagesPage() {
                                                     : "bg-yellow-200 text-foreground dark:bg-yellow-500/40",
                                                 )}
                                               >
-                                                {seg.text}
+                                                {s.text}
                                               </mark>
                                             ) : (
-                                              <span key={i}>{seg.text}</span>
+                                              <span key={`${i}-${j}`}>{s.text}</span>
                                             ),
-                                          )
-                                        : m.body}
+                                        );
+                                      })}
                                     </p>
                                     {atts.length > 0 && (
                                       <MessageAttachments attachments={atts} inverted={mine} />
@@ -1645,6 +1717,7 @@ function MessagesPage() {
                 <div className="border-t p-2 space-y-1.5">
                   <div className="flex gap-2">
                     <Textarea
+                      ref={composerRef}
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
                       placeholder="Escribe un mensaje…"
@@ -1667,6 +1740,22 @@ function MessagesPage() {
                         aria-label="Adjuntar archivos"
                         data-testid="message-file-input"
                       />
+                      {/* Etiquetar contenido: abre picker con tabs por
+                          tipo (taller/examen/proyecto). Útil cuando el
+                          estudiante pregunta sobre un item específico y
+                          quiere darle al docente un link directo. */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 px-2"
+                        onClick={() => setTagPickerOpen(true)}
+                        disabled={sending}
+                        title="Etiquetar contenido (taller, examen o proyecto)"
+                        aria-label="Etiquetar contenido"
+                      >
+                        <AtSign className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         type="button"
                         size="sm"
@@ -1922,6 +2011,14 @@ function MessagesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Picker para etiquetar contenido — insertado a nivel root del
+          componente para que no compita con z-index del bubble. */}
+      <MessageTagPicker
+        open={tagPickerOpen}
+        onOpenChange={setTagPickerOpen}
+        onPick={insertTag}
+      />
     </div>
   );
 }

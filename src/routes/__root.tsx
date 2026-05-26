@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { TenantUrlGuard } from "@/modules/tenants/TenantUrlGuard";
 import { TenantThemeProvider } from "@/modules/tenants/TenantThemeProvider";
 import { GlobalErrorLogger } from "@/shared/components/GlobalErrorLogger";
+import { IosInstallBanner } from "@/modules/pwa/IosInstallBanner";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -231,6 +232,10 @@ function RootComponent() {
           <TenantThemeProvider>
             <Outlet />
           </TenantThemeProvider>
+          {/* Banner iOS para instalar la PWA — fuera del Outlet para que
+              persista al navegar entre rutas. No-op en otros browsers /
+              ya instalado / descartado por el usuario. */}
+          <IosInstallBanner />
           <Toaster richColors position="top-right" expand visibleToasts={6} />
         </ConfirmProvider>
       </TooltipProvider>

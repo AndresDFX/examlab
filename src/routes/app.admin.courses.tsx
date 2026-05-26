@@ -162,13 +162,32 @@ function formatPercent(n: number): string {
 }
 type Profile = { id: string; full_name: string; institutional_email: string };
 
+/** Stats por curso para la columna "Actividad" del grid. Se cargan en
+ *  batch con queries sobre tablas relacionadas (sin RPC). Mejor UX que
+ *  navegar al detalle del curso para saber cuánta gente y contenido hay. */
+type CourseStats = {
+  students: number;
+  teachers: number;
+  exams: number;
+  workshops: number;
+  projects: number;
+};
+
 export function AdminCourses() {
   const { t } = useTranslation();
   const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
+  /** Mapa courseId → stats. Vacío al inicio; se llena después del primer
+   *  load de cursos. Si falla la carga (RLS / network), simplemente la
+   *  columna "Actividad" muestra "—" — el grid no se rompe. */
+  const [courseStats, setCourseStats] = useState<Map<string, CourseStats>>(new Map());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // Filtro de institución (solo SuperAdmin). 'all' = ve cross-tenant
+  // (default). Cuando elige una, la query se restringe con `.eq('tenant_id', X)`.
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
   // Curso cuyo "Tablero del estudiante" estamos viendo/editando. Cuando
@@ -321,17 +340,28 @@ export function AdminCourses() {
 
   const isAdmin = roles.includes("Admin");
   const isTeacher = roles.includes("Docente");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isSuperAdminCaller = (roles as any[]).includes("SuperAdmin");
   // Docente tiene los mismos privilegios que Admin para gestionar
   // cursos, EXCEPTO auto-asignarse en course_teachers (lo bloquea
   // tanto la RLS como el filtro del dialog de docentes más abajo).
   const canManage = isAdmin || isTeacher;
 
   const load = async () => {
-    const { data, error } = await supabase
+    // SuperAdmin con filtro de institución activo: aplicamos
+    // `.eq('tenant_id', X)` a la query principal. Para Admin normal el
+    // filtro no se renderiza (solo ve su tenant via RLS), así que
+    // tenantFilter queda en 'all' y la query no se restringe.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase
       .from("courses")
       .select("*")
       .order("period", { ascending: false, nullsFirst: false })
       .order("name");
+    if (isSuperAdminCaller && tenantFilter !== "all") {
+      q = q.eq("tenant_id", tenantFilter);
+    }
+    const { data, error } = await q;
     if (error) {
       setLoadError(friendlyError(error, "No pudimos cargar la lista de cursos."));
       return;
@@ -379,11 +409,87 @@ export function AdminCourses() {
         } | null;
       }>,
     );
+    // Tenants visibles — solo el SuperAdmin ve >1 institución; el Admin
+    // normal ve solo el suyo (RLS). Si el array queda en ≤1, el filtro
+    // UI no se renderiza más abajo.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tens } = await (supabase as any)
+      .from("tenants")
+      .select("id, slug, name")
+      .order("name");
+    setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
     setCourses((data ?? []) as unknown as Course[]);
+
+    // Stats por curso (Actividad): cargamos en paralelo 5 queries
+    // ligeras (solo course_id) y agrupamos en memoria. Evita N+1 y RPCs.
+    // Talleres y proyectos son M:N (workshop_courses / project_courses);
+    // exámenes son 1:N directo. course_students y course_teachers son
+    // tablas de relación directas.
+    const courseIds = (data ?? []).map((c: { id: string }) => c.id);
+    if (courseIds.length > 0) {
+      try {
+        const [
+          { data: studs },
+          { data: teaches },
+          { data: exs },
+          { data: wks },
+          { data: prs },
+        ] = await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("course_students")
+            .select("course_id")
+            .in("course_id", courseIds),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("course_teachers")
+            .select("course_id")
+            .in("course_id", courseIds),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any).from("exams").select("course_id").in("course_id", courseIds),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("workshop_courses")
+            .select("course_id")
+            .in("course_id", courseIds),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("project_courses")
+            .select("course_id")
+            .in("course_id", courseIds),
+        ]);
+        const next = new Map<string, CourseStats>();
+        for (const id of courseIds) {
+          next.set(id, { students: 0, teachers: 0, exams: 0, workshops: 0, projects: 0 });
+        }
+        const bump = (rows: Array<{ course_id: string }> | null, key: keyof CourseStats) => {
+          for (const r of rows ?? []) {
+            const s = next.get(r.course_id);
+            if (s) s[key] = s[key] + 1;
+          }
+        };
+        bump(studs as Array<{ course_id: string }> | null, "students");
+        bump(teaches as Array<{ course_id: string }> | null, "teachers");
+        bump(exs as Array<{ course_id: string }> | null, "exams");
+        bump(wks as Array<{ course_id: string }> | null, "workshops");
+        bump(prs as Array<{ course_id: string }> | null, "projects");
+        setCourseStats(next);
+      } catch {
+        // Si falla, dejamos el mapa vacío — la UI muestra "—".
+        setCourseStats(new Map());
+      }
+    } else {
+      setCourseStats(new Map());
+    }
   };
   useEffect(() => {
     load();
-  }, []);
+    // SuperAdmin: recargamos cuando cambia el filtro de institución para
+    // aplicar `.eq('tenant_id', X)` a la query principal. Para Admin
+    // normal tenantFilter queda en 'all' permanente y este effect corre
+    // solo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantFilter]);
 
   // Si el admin viene del flujo "Crear curso desde esta asignatura"
   // (via /admin/asignaturas), pre-abrimos el dialog con los campos
@@ -1124,11 +1230,35 @@ export function AdminCourses() {
         }
       />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por nombre, período o descripción…"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 min-w-[200px]">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre, período o descripción…"
+          />
+        </div>
+        {/* Filtro de institución (solo SuperAdmin con >1 tenant visible).
+            Antes /app/admin/courses no tenía filtro funcional por tenant
+            — el SuperAdmin veía cursos cross-tenant sin poder acotar a
+            una institución específica. Ahora aplica .eq('tenant_id', X)
+            a la query principal. */}
+        {isSuperAdminCaller && tenants.length > 1 && (
+          <Select value={tenantFilter} onValueChange={setTenantFilter}>
+            <SelectTrigger className="w-48 h-9 text-xs">
+              <SelectValue placeholder="Institución" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las instituciones</SelectItem>
+              {tenants.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       <MultiSelectToolbar
         count={sel.count}
@@ -1155,7 +1285,9 @@ export function AdminCourses() {
                 <TableHead className="hidden sm:table-cell w-24">{t("common.scale")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.end")}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t("common.description")}</TableHead>
+                <TableHead className="hidden lg:table-cell w-44" title="Estudiantes / Docentes / Items">
+                  Actividad
+                </TableHead>
                 <TableHead className="text-right w-28">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1193,9 +1325,18 @@ export function AdminCourses() {
                     {/* Wrapper truncate: con table-fixed el cell respeta
                         el ancho de su columna, pero solo si el contenido
                         usa truncate. min-w-0 permite el shrinking dentro
-                        del flex-col. */}
+                        del flex-col. La descripción se queda en el title
+                        del span para que se vea al pasar el mouse — la
+                        columna dedicada se reemplazó por Actividad. */}
                     <div className="flex flex-col gap-1 min-w-0">
-                      <span className="truncate" title={c.name}>
+                      <span
+                        className="truncate"
+                        title={
+                          c.description
+                            ? `${c.name}\n\n${c.description}`
+                            : c.name
+                        }
+                      >
                         {c.name}
                       </span>
                       {c.period && (
@@ -1228,8 +1369,43 @@ export function AdminCourses() {
                   <TableCell className="hidden md:table-cell">
                     <DateCell value={c.end_date} variant="auto" />
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden lg:table-cell max-w-48 truncate">
-                    {c.description ?? "—"}
+                  <TableCell className="hidden lg:table-cell">
+                    {/* Stats por curso: estudiantes, docentes, items totales.
+                        Permite al admin saber qué cursos son los más
+                        cargados sin tener que entrar uno a uno. Si las
+                        stats aún no cargaron (o fallaron), mostramos "—". */}
+                    {(() => {
+                      const s = courseStats.get(c.id);
+                      if (!s) {
+                        return <span className="text-muted-foreground text-xs">—</span>;
+                      }
+                      const items = s.exams + s.workshops + s.projects;
+                      return (
+                        <div className="flex items-center gap-2 text-xs tabular-nums">
+                          <span
+                            className="inline-flex items-center gap-0.5 text-muted-foreground"
+                            title={`${s.students} estudiante(s) matriculado(s)`}
+                          >
+                            <Users className="h-3 w-3" />
+                            <span className="font-medium text-foreground">{s.students}</span>
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-0.5 text-muted-foreground"
+                            title={`${s.teachers} docente(s) asignado(s)`}
+                          >
+                            <UserCog className="h-3 w-3" />
+                            <span className="font-medium text-foreground">{s.teachers}</span>
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-0.5 text-muted-foreground"
+                            title={`${items} item(s) total: ${s.exams} examen(es), ${s.workshops} taller(es), ${s.projects} proyecto(s)`}
+                          >
+                            <FileText className="h-3 w-3" />
+                            <span className="font-medium text-foreground">{items}</span>
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActionsMenu

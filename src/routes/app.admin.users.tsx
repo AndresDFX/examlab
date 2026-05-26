@@ -151,13 +151,12 @@ function AdminUsers() {
   // includes (no prefix). Cualquier match en cualquier campo cuenta —
   // los admins suelen buscar por nombre parcial o pedazo de email
   // (dominio, prefijo) sin recordar el campo exacto.
-  // SuperAdmin: filtramos también por tenant si seleccionó uno (default
-  // 'all' = cross-tenant view).
+  // SuperAdmin: el filtro por tenant ya se aplica a la query en `load`
+  // (re-corre cuando tenantFilter cambia). Aquí solo dejamos el filtro
+  // por search, que necesita ser en memoria para responder rápido a cada
+  // tecla sin re-pegarle a la DB.
   const filteredRows = useMemo(() => {
     let out = rows;
-    if (tenantFilter !== "all") {
-      out = out.filter((r) => r.tenant_id === tenantFilter);
-    }
     if (search.trim()) {
       const q = search.toLowerCase();
       out = out.filter(
@@ -169,7 +168,7 @@ function AdminUsers() {
       );
     }
     return out;
-  }, [rows, search, tenantFilter]);
+  }, [rows, search]);
   // El multi-select trabaja sobre la lista visible. Si seleccioné todo
   // con un filtro activo, "seleccionar todos" se refiere a lo filtrado.
   const sel = useMultiSelect(filteredRows);
@@ -228,10 +227,18 @@ function AdminUsers() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data: profs, error: profsErr } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("full_name");
+    // SuperAdmin con filtro de institución activo: aplicamos
+    // `.eq('tenant_id', X)` a la query. Antes el filtro era puramente en
+    // memoria — funcionaba pero traía TODO el dataset cross-tenant. Ahora
+    // es funcional: el dataset llega ya filtrado por la institución
+    // elegida. Para "Todas" mantenemos el comportamiento original (sin
+    // restricción adicional; la RLS de SuperAdmin permite cross-tenant).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase.from("profiles").select("*").order("full_name");
+    if (isSuperAdminCaller && tenantFilter !== "all") {
+      q = q.eq("tenant_id", tenantFilter);
+    }
+    const { data: profs, error: profsErr } = await q;
     if (profsErr) {
       setLoadError(friendlyError(profsErr, "No pudimos cargar la lista de usuarios."));
       setLoading(false);
@@ -267,7 +274,13 @@ function AdminUsers() {
 
   useEffect(() => {
     load();
-  }, []);
+    // SuperAdmin: cuando cambia el filtro de institución, recargamos la
+    // query con `.eq('tenant_id', X)` aplicado. Para Admin normal el
+    // filtro no se renderiza (tenants.length <= 1), así que tenantFilter
+    // queda en 'all' permanente y este effect corre solo una vez al
+    // montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantFilter]);
 
   const saveRoles = async (userId: string, newRoles: AppRole[]) => {
     const { data: current } = await supabase

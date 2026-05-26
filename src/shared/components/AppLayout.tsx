@@ -1207,9 +1207,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <main
         className={cn(
           "flex-1 min-w-0 pt-14 md:pt-0",
-          // Compensar el sidebar fijo en desktop. Cuando está colapsado
-          // el contenido ocupa todo el ancho.
-          !sidebarCollapsed && "md:ml-64",
+          // Compensar el sidebar fijo en desktop. Con sidebar abierto:
+          // 256px = ancho del sidebar. Con sidebar colapsado: 56px de
+          // gutter para que el botón "Mostrar menú" (fixed top-3 left-3,
+          // 36px) no se monte sobre el contenido y para dejar respiro
+          // visual. Sin este gutter, el primer pixel de contenido queda
+          // pegado al edge izquierdo y la app se siente apretada.
+          sidebarCollapsed ? "md:ml-14" : "md:ml-64",
         )}
       >
         {/* Banner de impersonación: se renderiza arriba de TODO el main

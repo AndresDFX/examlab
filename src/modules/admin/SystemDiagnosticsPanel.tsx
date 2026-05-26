@@ -18,7 +18,11 @@ import {
   Puzzle,
   Zap,
   Clock,
+  Bell,
+  Send,
 } from "lucide-react";
+import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 
@@ -323,6 +327,73 @@ function MutedLine({ label, value }: { label: string; value: React.ReactNode }) 
 export function SystemDiagnosticsPanel() {
   const [hc, setHc] = useState<CheckResult<HealthCheckResponse>>({ state: "idle" });
   const [db, setDb] = useState<CheckResult<{ courses: number }>>({ state: "idle" });
+  // Suscripciones web push del admin actual — para que el Card "Push" pueda
+  // mostrar cuántos devices tiene este user registrados y desde cuándo.
+  // RLS limita la SELECT al user_id del caller, así que no se necesitan
+  // permisos especiales.
+  const [pushSubs, setPushSubs] = useState<
+    Array<{ id: string; user_agent: string | null; updated_at: string }>
+  >([]);
+  const [sendingTestPush, setSendingTestPush] = useState(false);
+
+  /**
+   * Inserta una notification de prueba para el admin actual. El trigger
+   * `notifications_send_push` dispara la llamada a la edge function, así
+   * que probamos el chain completo: notifications INSERT → pg_net →
+   * send-push → VAPID → device push service. Si el admin tiene la PWA
+   * instalada con permisos, el push debería llegar en segundos.
+   *
+   * NO llamamos directo a supabase.functions.invoke('send-push', …) porque
+   * la edge exige X-Trigger-Secret (que vive en push_config, lock-down
+   * via RLS). El camino legítimo desde el cliente es el trigger.
+   */
+  async function sendTestPush() {
+    setSendingTestPush(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) {
+        toast.error("No estás autenticado");
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("notifications").insert({
+        user_id: u.user.id,
+        title: "Push de prueba",
+        body: "Si ves esto en tu dispositivo, el chain de web push está funcionando.",
+        kind: "info",
+        link: "/app/admin/system",
+      });
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo encolar la notificación"));
+        return;
+      }
+      toast.success(
+        "Notificación encolada. Si tienes la PWA instalada con permisos, debería llegar en segundos.",
+      );
+      void logEvent({
+        action: "system.diagnostic.test_push_sent",
+        category: "system",
+        severity: "info",
+        metadata: { user_id: u.user.id },
+      });
+      // Re-cargamos las subscriptions por si fue la primera vez.
+      void loadPushSubs();
+    } finally {
+      setSendingTestPush(false);
+    }
+  }
+
+  async function loadPushSubs() {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("push_subscriptions")
+      .select("id, user_agent, updated_at")
+      .eq("user_id", u.user.id)
+      .order("updated_at", { ascending: false });
+    setPushSubs(data ?? []);
+  }
 
   async function runEdgeFunction() {
     setHc({ state: "loading" });
@@ -398,7 +469,7 @@ export function SystemDiagnosticsPanel() {
     // El estado de storage viene EMBEBIDO en la respuesta del health-check
     // (que corre con service_role y ve los buckets reales). No corremos
     // listBuckets() desde el cliente porque RLS lo bloquea y devolveria 0.
-    await Promise.all([runEdgeFunction(), runDb()]);
+    await Promise.all([runEdgeFunction(), runDb(), loadPushSubs()]);
   }
 
   const allLoading = hc.state === "loading" || db.state === "loading";
@@ -660,6 +731,151 @@ export function SystemDiagnosticsPanel() {
             </>
           )}
         </StatusCard>
+
+        {/* Web Push — verificamos los 3 eslabones del chain:
+            (1) push_config en DB (URL + secret) — leído desde health-check.
+            (2) Secrets VAPID + PUSH_TRIGGER_SECRET en el edge — leídos del
+                array de secrets del health-check.
+            (3) Suscripciones del admin actual — cuántos devices.
+            Más el botón "Push de prueba" para validar end-to-end. */}
+        {(() => {
+          const pushUrl = hcData?.push?.send_push_url ?? null;
+          const pointsOk = hcData?.push?.points_to_current_project ?? null;
+          const vapidPub = secrets.find((s) => s.name === "VAPID_PUBLIC_KEY")?.present ?? false;
+          const vapidPriv = secrets.find((s) => s.name === "VAPID_PRIVATE_KEY")?.present ?? false;
+          const triggerSecret =
+            secrets.find((s) => s.name === "PUSH_TRIGGER_SECRET")?.present ?? false;
+          const allSecretsOk = vapidPub && vapidPriv && triggerSecret;
+          const configOk = !!pushUrl && pointsOk === true;
+          const pushState: "idle" | "ok" | "warning" | "error" = !hcData
+            ? "idle"
+            : !configOk
+              ? "error"
+              : !allSecretsOk
+                ? "error"
+                : pushSubs.length === 0
+                  ? "warning"
+                  : "ok";
+          return (
+            <StatusCard
+              title="Web Push (PWA)"
+              description="Chain completo: push_config + secrets VAPID + suscripciones del admin actual."
+              icon={<Bell className="h-4 w-4 text-sky-500" />}
+              state={pushState}
+            >
+              {!hcData ? (
+                <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+              ) : (
+                <>
+                  {/* push_config */}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">push_config.send_push_url</span>
+                    {pushUrl ? (
+                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3" />
+                        configurado
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-destructive">
+                        <XCircle className="h-3 w-3" />
+                        sin configurar
+                      </span>
+                    )}
+                  </div>
+                  {pushUrl && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">apunta al proyecto actual</span>
+                      {pointsOk ? (
+                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          sí
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="h-3 w-3" />
+                          no
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* Secrets VAPID */}
+                  {(["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "PUSH_TRIGGER_SECRET"] as const).map(
+                    (name) => {
+                      const present = secrets.find((s) => s.name === name)?.present ?? false;
+                      return (
+                        <div key={name} className="flex items-center justify-between text-xs">
+                          <span className="font-mono text-muted-foreground">{name}</span>
+                          {present ? (
+                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              presente
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-destructive">
+                              <XCircle className="h-3 w-3" />
+                              ausente
+                            </span>
+                          )}
+                        </div>
+                      );
+                    },
+                  )}
+                  {/* Suscripciones del admin */}
+                  <div className="border-t pt-2 mt-2 space-y-1">
+                    <MutedLine label="Tus devices suscritos" value={pushSubs.length} />
+                    {pushSubs.length === 0 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Sin suscripciones — abre esta sesión en una PWA instalada (móvil o
+                        escritorio) y otorga permisos de notificación.
+                      </p>
+                    )}
+                    {pushSubs.slice(0, 3).map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between text-[11px] text-muted-foreground gap-2"
+                      >
+                        <span className="truncate flex-1" title={s.user_agent ?? ""}>
+                          {s.user_agent
+                            ? s.user_agent.slice(0, 60) + (s.user_agent.length > 60 ? "…" : "")
+                            : "device sin UA"}
+                        </span>
+                        <span className="tabular-nums shrink-0">
+                          {formatDateTime(s.updated_at)}
+                        </span>
+                      </div>
+                    ))}
+                    {pushSubs.length > 3 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        + {pushSubs.length - 3} más
+                      </p>
+                    )}
+                  </div>
+                  {/* Botón de prueba — encola una notification para el admin
+                      actual, que dispara el trigger y manda el push. */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 w-full"
+                    onClick={() => void sendTestPush()}
+                    disabled={sendingTestPush || !configOk || !allSecretsOk}
+                  >
+                    {sendingTestPush ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Enviar push de prueba a mí mismo
+                  </Button>
+                  {(!configOk || !allSecretsOk) && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                      Configura push_config y los secrets antes de probar.
+                    </p>
+                  )}
+                </>
+              )}
+            </StatusCard>
+          );
+        })()}
 
         {/* Secrets de Edge Functions */}
         <StatusCard
