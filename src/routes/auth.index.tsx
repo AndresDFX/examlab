@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { logEvent } from "@/shared/lib/audit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,7 +71,7 @@ function AuthPage() {
   const onLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +82,17 @@ function AuthPage() {
       toast.error(t("auth.invalidCredentials"));
       return;
     }
+    // Login exitoso → audit log. logEvent es fire-and-forget; el RPC
+    // server-side recaptura auth.uid() (ya seteado tras el signin) y
+    // el actor_email de auth.users.
+    void logEvent({
+      action: "user.login_success",
+      category: "user",
+      severity: "info",
+      entityType: "user",
+      entityId: data.user?.id,
+      entityName: data.user?.email ?? email,
+    });
     toast.success(t("auth.welcome"));
     navigate({ to: "/app" });
   };

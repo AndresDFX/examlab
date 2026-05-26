@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { logEvent } from "@/shared/lib/audit";
 
 /**
  * ErrorBoundary — captura excepciones en el árbol de React que NO
@@ -86,6 +87,21 @@ export class ErrorBoundary extends Component<Props, State> {
     // donde reportarías. Mantengo el warn en lugar de console.error
     // porque ya React lo loguea como error en su propio canal.
     console.warn("[ErrorBoundary] caught", error, info.componentStack);
+    // Audit log: el render boundary atrapó un error de UI. Truncamos el
+    // stack para no inflar audit_logs (typical stacks son cientos de
+    // líneas; los primeros 2KB suelen ser suficientes para diagnóstico).
+    void logEvent({
+      action: "app.render_error",
+      category: "system",
+      severity: "error",
+      entityName: error.name || "Error",
+      metadata: {
+        message: (error.message ?? "").slice(0, 500),
+        stack: (error.stack ?? "").slice(0, 2000),
+        component_stack: (info.componentStack ?? "").slice(0, 2000),
+        url: typeof window !== "undefined" ? window.location.pathname : null,
+      },
+    });
   }
 
   reset = (): void => {

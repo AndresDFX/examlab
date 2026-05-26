@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { TenantUrlGuard } from "@/modules/tenants/TenantUrlGuard";
 import { TenantThemeProvider } from "@/modules/tenants/TenantThemeProvider";
+import { GlobalErrorLogger } from "@/shared/components/GlobalErrorLogger";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -225,6 +226,7 @@ function RootComponent() {
     <ErrorBoundary>
       <TooltipProvider delayDuration={200}>
         <ConfirmProvider>
+          <GlobalErrorLogger />
           <TenantUrlGuard />
           <TenantThemeProvider>
             <Outlet />

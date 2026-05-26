@@ -241,7 +241,13 @@ const ACTION_LABELS: Record<string, string> = {
   "user.email_changed": "Correo actualizado",
   "user.logged_out": "Sesión cerrada",
   "user.login_failed": "Inicio de sesión fallido",
+  "user.login_success": "Inicio de sesión exitoso",
   "user.navigated": "Navegación interna",
+
+  // ── Errores de aplicación (capturados por ErrorBoundary y handlers globales) ──
+  "app.render_error": "Error en render (ErrorBoundary)",
+  "app.runtime_error": "Error en runtime (window.error)",
+  "app.unhandled_rejection": "Promesa rechazada sin manejar",
 
   // ── Calendario externo (Google / Outlook) ──
   "calendar.connected": "Calendario conectado",
