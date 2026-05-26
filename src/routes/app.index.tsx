@@ -1627,9 +1627,24 @@ function SuperAdminDashboard() {
     aiJobsPending: 0,
     aiJobsFailed: 0,
     newTenants30d: 0,
+    submissionsToday: 0,
+    examsActive: 0,
+    errors24h: 0,
+    newUsers7d: 0,
   });
   const [recentTenants, setRecentTenants] = useState<
     Array<{ id: string; slug: string; name: string; is_active: boolean; created_at: string }>
+  >([]);
+  const [recentEvents, setRecentEvents] = useState<
+    Array<{
+      id: string;
+      action: string;
+      category: string;
+      severity: string;
+      actor_email: string | null;
+      entity_name: string | null;
+      created_at: string;
+    }>
   >([]);
   const [loading, setLoading] = useState(true);
 
@@ -1639,7 +1654,17 @@ function SuperAdminDashboard() {
       setLoading(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
-      const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const now = new Date();
+      const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const since7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      // "Hoy" en zona local: arrancamos a la medianoche local y lo
+      // convertimos a ISO para que las queries usen el timestamp UTC
+      // equivalente — alinea el corte con la percepción del SuperAdmin.
+      const todayStartLocal = new Date(now);
+      todayStartLocal.setHours(0, 0, 0, 0);
+      const sinceTodayIso = todayStartLocal.toISOString();
+      const nowIso = now.toISOString();
       const [
         tenantsActiveRes,
         tenantsInactiveRes,
@@ -1649,6 +1674,13 @@ function SuperAdminDashboard() {
         aiFailedRes,
         newTenantsRes,
         recentRes,
+        submitExamRes,
+        submitWsRes,
+        submitProjRes,
+        examsActiveRes,
+        errors24hRes,
+        newUsers7dRes,
+        eventsRes,
       ] = await Promise.all([
         dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", true),
         dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", false),
@@ -1671,6 +1703,45 @@ function SuperAdminDashboard() {
           .select("id, slug, name, is_active, created_at")
           .order("created_at", { ascending: false })
           .limit(8),
+        // Entregas hoy: submitted_at >= medianoche local, cross-tenant
+        // (cuenta examen + taller + proyecto por separado y sumamos).
+        dbAny
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .gte("submitted_at", sinceTodayIso),
+        dbAny
+          .from("workshop_submissions")
+          .select("id", { count: "exact", head: true })
+          .gte("submitted_at", sinceTodayIso),
+        dbAny
+          .from("project_submissions")
+          .select("id", { count: "exact", head: true })
+          .gte("submitted_at", sinceTodayIso),
+        // Exámenes en curso: ahora cae entre start_time y end_time.
+        dbAny
+          .from("exams")
+          .select("id", { count: "exact", head: true })
+          .lte("start_time", nowIso)
+          .gte("end_time", nowIso),
+        // Errores plataforma últimas 24h.
+        dbAny
+          .from("audit_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("severity", "error")
+          .gte("created_at", since24h),
+        // Usuarios nuevos últimos 7d.
+        dbAny
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", since7),
+        // Feed de eventos recientes (cualquier severidad) para el card
+        // de "Actividad reciente". Limit 8 para mantener la card
+        // contenida sin scroll exagerado.
+        dbAny
+          .from("audit_logs")
+          .select("id, action, category, severity, actor_email, entity_name, created_at")
+          .order("created_at", { ascending: false })
+          .limit(8),
       ]);
       if (cancelled) return;
       setStats({
@@ -1681,8 +1752,16 @@ function SuperAdminDashboard() {
         aiJobsPending: aiPendingRes.count ?? 0,
         aiJobsFailed: aiFailedRes.count ?? 0,
         newTenants30d: newTenantsRes.count ?? 0,
+        submissionsToday:
+          (submitExamRes.count ?? 0) +
+          (submitWsRes.count ?? 0) +
+          (submitProjRes.count ?? 0),
+        examsActive: examsActiveRes.count ?? 0,
+        errors24h: errors24hRes.count ?? 0,
+        newUsers7d: newUsers7dRes.count ?? 0,
       });
       setRecentTenants((recentRes.data ?? []) as typeof recentTenants);
+      setRecentEvents((eventsRes.data ?? []) as typeof recentEvents);
       setLoading(false);
     })();
     return () => {
@@ -1691,11 +1770,8 @@ function SuperAdminDashboard() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Stat tiles: 4 columnas en desktop, 2 en mobile. Reutilizan el
-          mismo componente <Stat> que el resto de dashboards para tener
-          look-and-feel idéntico (mismo padding, icono a la derecha,
-          color del icono, hover state). */}
+    <div className="flex flex-col gap-4 flex-1 min-h-0">
+      {/* Row PRIMARIA — métricas estructurales de la plataforma. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={Building2}
@@ -1739,55 +1815,164 @@ function SuperAdminDashboard() {
         />
       </div>
 
-      {/* Card: instituciones recientes */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base">Instituciones recientes</CardTitle>
-          <Link to="/app/superadmin/tenants">
-            <Button variant="ghost" size="sm" className="h-7 text-xs">
-              Ver todas →
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
-          ) : recentTenants.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Sin instituciones todavía. Crea la primera desde el panel.
-            </p>
-          ) : (
-            <ul className="space-y-1.5">
-              {recentTenants.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between gap-2 rounded-md border p-2.5"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{t.name}</div>
-                    <div className="text-[11px] text-muted-foreground truncate">
-                      <code>/t/{t.slug}</code> · {formatDate(t.created_at)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!t.is_active && (
-                      <Badge variant="outline" className="text-[10px]">
-                        Pausada
-                      </Badge>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {stats.newTenants30d > 0 && !loading && (
-            <p className="text-[11px] text-muted-foreground mt-2">
-              {stats.newTenants30d} nueva{stats.newTenants30d === 1 ? "" : "s"} en los últimos
-              30 días.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Row SECUNDARIA — actividad y salud del sistema. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat
+          icon={Send}
+          label="Entregas hoy"
+          value={loading ? "—" : stats.submissionsToday}
+          sub="examen + taller + proyecto"
+          color="text-sky-500 dark:text-sky-400"
+        />
+        <Stat
+          icon={Play}
+          label="Exámenes en curso"
+          value={loading ? "—" : stats.examsActive}
+          sub="ahora mismo, cross-tenant"
+          color={
+            stats.examsActive > 0
+              ? "text-emerald-500 dark:text-emerald-400"
+              : "text-muted-foreground"
+          }
+        />
+        <Stat
+          icon={AlertTriangle}
+          label="Errores 24h"
+          value={loading ? "—" : stats.errors24h}
+          sub={stats.errors24h > 0 ? "ver auditoría" : "sin incidentes"}
+          color={
+            stats.errors24h > 0
+              ? "text-rose-500 dark:text-rose-400"
+              : "text-emerald-500 dark:text-emerald-400"
+          }
+        />
+        <Stat
+          icon={UsersIcon}
+          label="Nuevos usuarios"
+          value={loading ? "—" : stats.newUsers7d}
+          sub="últimos 7 días"
+          color="text-teal-500 dark:text-teal-400"
+        />
+      </div>
+
+      {/* Detalles abajo: 2-col en lg+, apilados en mobile. Antes era 1
+          card ancho que dejaba whitespace en pantallas anchas. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
+        {/* (1) Instituciones recientes */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+              Instituciones recientes
+            </CardTitle>
+            <Link to="/app/superadmin/tenants">
+              <Button variant="ghost" size="sm" className="h-7 text-xs">
+                Ver todas <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+              {loading ? (
+                <p className="text-sm text-muted-foreground py-2">Cargando…</p>
+              ) : recentTenants.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  Sin instituciones todavía. Crea la primera desde el panel.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {recentTenants.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-2 rounded-md border p-2.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{t.name}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          <code>/t/{t.slug}</code> · {formatDate(t.created_at)}
+                        </div>
+                      </div>
+                      {!t.is_active && (
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          Pausada
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {stats.newTenants30d > 0 && !loading && (
+              <p className="text-[11px] text-muted-foreground">
+                {stats.newTenants30d} nueva{stats.newTenants30d === 1 ? "" : "s"} en los últimos
+                30 días.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* (2) Actividad reciente — últimos eventos de audit_logs
+            cross-tenant. Severidad colorea el punto izquierdo. */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CircleCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              Actividad reciente
+            </CardTitle>
+            <Link to="/app/admin/audit-logs">
+              <Button variant="ghost" size="sm" className="h-7 text-xs">
+                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+              {loading ? (
+                <p className="text-sm text-muted-foreground py-2">Cargando…</p>
+              ) : recentEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  Sin eventos registrados todavía.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {recentEvents.map((ev) => {
+                    const sevDot =
+                      ev.severity === "error"
+                        ? "bg-rose-500"
+                        : ev.severity === "warning"
+                          ? "bg-amber-500"
+                          : "bg-emerald-500";
+                    return (
+                      <li
+                        key={ev.id}
+                        className="flex items-start gap-2 rounded-md border p-2.5"
+                      >
+                        <span
+                          className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${sevDot}`}
+                          aria-hidden
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate" title={ev.action}>
+                            {ev.action}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate">
+                            {ev.actor_email ?? "sistema"}
+                            {ev.entity_name ? ` · ${ev.entity_name}` : ""} ·{" "}
+                            {relativeAge(ev.created_at)}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {ev.category}
+                        </Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
