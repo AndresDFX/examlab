@@ -6,16 +6,17 @@ import { GraduationCap, ShieldCheck, Sparkles, Eye, Code, Wifi, Clock } from "lu
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ExamLab — Plataforma de Exámenes Online" },
+      { title: "ExamLab — Plataforma de Gestión Educativa" },
       {
         name: "description",
         content:
-          "Plataforma académica con IA, proctoring y gestión completa de exámenes para Admin, Docentes y Estudiantes.",
+          "Multi-institución, IA y proctoring para gestionar cursos, exámenes, talleres, proyectos, asistencia y certificados. Para Administradores, Docentes y Estudiantes.",
       },
-      { property: "og:title", content: "ExamLab — Plataforma de Exámenes Online" },
+      { property: "og:title", content: "ExamLab — Plataforma de Gestión Educativa" },
       {
         property: "og:description",
-        content: "Diseña, asigna y califica exámenes con IA y proctoring integrado.",
+        content:
+          "Cursos, exámenes con IA, talleres en grupo, proyectos con sustentación, asistencia con QR y certificados — todo en una sola plataforma.",
       },
     ],
   }),
@@ -44,15 +45,15 @@ function Home() {
 
       <section className="max-w-7xl mx-auto px-6 py-20 md:py-28 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs mb-6">
-          <Sparkles className="h-3 w-3" /> Calificación con IA · Proctoring integrado · PWA
+          <Sparkles className="h-3 w-3" /> Multi-institución · IA · Proctoring · PWA
         </div>
         <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-4xl mx-auto leading-[1.1]">
-          La plataforma moderna para <span className="text-primary">evaluar a tus estudiantes</span>
-          .
+          La plataforma integral para tu{" "}
+          <span className="text-primary">institución educativa</span>.
         </h1>
         <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-          Crea exámenes con preguntas generadas por IA, ejecuta código en vivo, gestiona supletorios
-          y exporta calificaciones — todo en un solo lugar.
+          Cursos, exámenes con IA, talleres en grupo, proyectos con sustentación, asistencia con QR
+          y certificados — para Administradores, Docentes y Estudiantes en una sola plataforma.
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <Link to="/auth">
@@ -65,33 +66,33 @@ function Home() {
         {[
           {
             icon: ShieldCheck,
-            t: "Roles dinámicos",
-            d: "Admin, Docente y Estudiante con permisos granulares y RLS en base de datos.",
+            t: "Roles y multi-institución",
+            d: "Admin, Docente, Estudiante y SuperAdmin con permisos granulares enforced en base de datos (RLS). Cada institución con su marca, usuarios y datos aislados.",
           },
           {
             icon: Sparkles,
-            t: "Generación con IA",
-            d: "Crea preguntas abiertas, cerradas y de código a partir de temas y rúbricas.",
+            t: "Calificación con IA",
+            d: "Genera preguntas y rúbricas con Gemini. Califica respuestas abiertas, código fuente y proyectos completos con feedback explicado al estudiante.",
           },
           {
             icon: Eye,
-            t: "Proctoring incluido",
-            d: "Pantalla completa, bloqueo de copia y tracking de salida de pestaña.",
+            t: "Proctoring y antifraude",
+            d: "Pantalla completa, bloqueo de copia, salida de pestaña monitoreada y detección de respuestas generadas por IA. Análisis de similitud entre entregas.",
           },
           {
             icon: Code,
-            t: "Compilador integrado",
-            d: "Editor Monaco con ejecución de Java, Python y JavaScript en tiempo real.",
+            t: "Compilador en vivo",
+            d: "Editor Monaco con ejecución de Java, Python, JavaScript y C. Java GUI con screenshot via AWS Lambda. Override por pregunta para resiliencia.",
           },
           {
             icon: Clock,
-            t: "Tiempo real",
-            d: "Temporizador sincronizado con Supabase Realtime. Pausa y tiempo extra en vivo.",
+            t: "Cortes, asistencia y QR",
+            d: "Pesos por corte, asistencia integrada al cálculo de nota final y check-in self-service con código rotativo TOTP que el docente proyecta.",
           },
           {
             icon: Wifi,
-            t: "Modo offline",
-            d: "PWA instalable con respuestas guardadas localmente y sincronización automática.",
+            t: "Offline y PWA",
+            d: "Instalable como app. Respuestas guardadas localmente en IndexedDB y sincronización automática al recuperar conexión. Push notifications nativas.",
           },
         ].map(({ icon: Icon, t, d }) => (
           <div
