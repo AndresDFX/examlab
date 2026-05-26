@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { useTenant } from "@/modules/tenants/use-tenant";
+import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
@@ -438,6 +438,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     signOut();
   };
   const [activeRole, setActiveRole] = useState<AppRole | null>(null);
+  // Modo SuperAdmin "puro" — rol activo SuperAdmin sin "ver como X".
+  // En este modo el SuperAdmin debe operar cross-tenant: no mostramos
+  // branding de su tenant default (que es ruido — sugiere que está
+  // viendo data de una institución), no mostramos cuotas, los paneles
+  // de "mi institución" se gatean. Se recalcula cuando cambia el role
+  // o cuando se setea/limpia el override (via custom event).
+  const [hasTenantOverride, setHasTenantOverride] = useState<boolean>(
+    () => readTenantOverride() !== null,
+  );
+  useEffect(() => {
+    const refresh = () => setHasTenantOverride(readTenantOverride() !== null);
+    window.addEventListener("examlab:tenant-override-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("examlab:tenant-override-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+  const isSuperAdminCrossTenant = activeRole === "SuperAdmin" && !hasTenantOverride;
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -690,7 +709,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 ícono de plataforma. El logo entra como <img> con
                 object-contain para no deformar PNG/SVG con aspect ratio
                 distinto del cuadrado. */}
-            {tenantLogoUrl ? (
+            {/* SuperAdmin sin override: ocultamos el logo del tenant
+                (sugería que el SuperAdmin está viendo "su institución"
+                cuando en realidad debe operar cross-tenant). Mostramos
+                el ícono de plataforma genérico. */}
+            {tenantLogoUrl && !isSuperAdminCrossTenant ? (
               <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
                 <img
                   src={tenantLogoUrl}
@@ -702,7 +725,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div
                 className="h-8 w-8 rounded-lg bg-gradient-to-br from-sidebar-primary to-primary flex items-center justify-center shadow-sm shrink-0"
                 style={
-                  tenant?.primary_color
+                  tenant?.primary_color && !isSuperAdminCrossTenant
                     ? { background: tenant.primary_color }
                     : undefined
                 }
@@ -713,7 +736,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex-1 min-w-0">
               <div className="font-semibold tracking-tight text-sm">ExamLab</div>
               <div className="text-[10px] text-sidebar-foreground/60 tracking-wide truncate">
-                {tenant?.name ?? "Plataforma de exámenes"}
+                {/* En cross-tenant: indicamos modo SuperAdmin explícito,
+                    no el nombre del tenant default del usuario. Al
+                    elegir "Ver como X" desde /app/superadmin/tenants se
+                    activa el override y vuelve a mostrar el nombre del
+                    tenant elegido. */}
+                {isSuperAdminCrossTenant
+                  ? "Modo SuperAdmin · cross-tenant"
+                  : (tenant?.name ?? "Plataforma de exámenes")}
               </div>
             </div>
             <Button
@@ -741,7 +771,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <SelectTrigger className="w-full h-9 bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent text-sm gap-2 [&>svg:last-child]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <ActiveIcon className={cn("h-4 w-4 shrink-0", activeCfg?.accent)} />
+                  <ActiveIcon
+                    className={cn("h-4 w-4 shrink-0", NAV_ICON_BASE_CLASS)}
+                    style={{ color: "var(--sidebar-icon-color, currentColor)" }}
+                  />
                   <span className="truncate">{activeCfg ? t(activeCfg.labelKey) : ""}</span>
                 </div>
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
@@ -1035,7 +1068,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     <SelectTrigger className="w-full bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent gap-2 [&>svg:last-child]:hidden">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <ActiveIcon className={cn("h-4 w-4 shrink-0", activeCfg?.accent)} />
+                        <ActiveIcon
+                          className={cn("h-4 w-4 shrink-0", NAV_ICON_BASE_CLASS)}
+                          style={{ color: "var(--sidebar-icon-color, currentColor)" }}
+                        />
                         <span className="truncate">{activeCfg ? t(activeCfg.labelKey) : ""}</span>
                       </div>
                       <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
@@ -1062,7 +1098,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 activeRole && (
                   <div className="px-3 py-3 border-b border-sidebar-border">
                     <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-sidebar-accent/60 text-sm">
-                      <ActiveIcon className={cn("h-4 w-4 shrink-0", activeCfg?.accent)} />
+                      <ActiveIcon
+                        className={cn("h-4 w-4 shrink-0", NAV_ICON_BASE_CLASS)}
+                        style={{ color: "var(--sidebar-icon-color, currentColor)" }}
+                      />
                       <span>{activeCfg ? t(activeCfg.labelKey) : ""}</span>
                     </div>
                   </div>

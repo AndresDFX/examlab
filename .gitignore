@@ -16,6 +16,10 @@ dist-ssr
 .nitro
 *.local
 
+# Vitest coverage output (se sube como artifact en CI, no commit)
+coverage/
+.nyc_output/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

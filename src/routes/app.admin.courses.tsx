@@ -1245,7 +1245,11 @@ export function AdminCourses() {
             a la query principal. */}
         {isSuperAdminCaller && tenants.length > 1 && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
-            <SelectTrigger className="w-48 h-9 text-xs">
+            {/* En mobile: w-full para que después del wrap ocupe todo el
+                ancho disponible (sin un dropdown chiquito a la izquierda
+                y whitespace a la derecha). Desde sm: ancho fijo 192px
+                pegado al search. Mismo patrón que app.admin.users.tsx. */}
+            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
               <SelectValue placeholder="Institución" />
             </SelectTrigger>
             <SelectContent>

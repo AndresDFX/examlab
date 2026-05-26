@@ -1,41 +1,28 @@
-# Corre la suite de tests unitarios (vitest) en cada push a main y en
-# cada pull request. Falla bloquea el merge.
+# Corre la suite de tests unitarios (vitest) + gate de coverage en
+# cada push a main, cada PR, y bajo demanda (workflow_dispatch).
 #
-# Cubre: helpers puros de src/lib + src/utils. Edge functions y E2E
-# quedan para workflows separados (no en esta fase).
+# Cubre: helpers puros de src/lib + src/utils + modulos. Edge functions
+# y E2E quedan para workflows separados (no en esta fase).
 #
-# Tiempo aprox: 1-2 min total (instalacion + 5s de tests).
+# Tiempo aprox: 1-2 min total (instalacion + ~5s de tests + coverage).
 #
-# `paths` filter (optimizacion 2026-05-30):
-#   Antes corria en TODO push (incluso commits de docs, SQL migrations,
-#   YAML workflows) — gastaba minutos de Actions sin valor. Ahora solo
-#   dispara cuando hay cambios en codigo que los tests cubren:
-#   src/, lockfile, configs de build/test, tsconfig, vitest.config.
-#   PRs ven el check si tocan esos paths; commits puros de docs/SQL
-#   no disparan el job.
+# Gate de coverage: 80% (lines/functions/branches/statements). Si una
+# metric cae bajo 80%, vitest exit 1 y el workflow falla → bloquea el
+# merge. Configurado en vitest.config.ts:thresholds.
+#
+# Decisión 2026-05-26: el path filter anterior (que excluía commits
+# puros de docs/SQL) se eliminó. El usuario pidió "siempre se ejecuta"
+# para que el gate de coverage sea infalible — un cambio que mueva
+# código sin tocar src/ (ej. mover un archivo a otra carpeta via
+# refactor de YAML) DEBE pasar por el gate igual.
 name: Run Tests
 
 on:
   push:
     branches: [main]
-    paths:
-      - "src/**"
-      - "package.json"
-      - "bun.lock"
-      - "tsconfig*.json"
-      - "vite.config.*"
-      - "vitest.config.*"
-      - ".github/workflows/run-tests.yml"
   pull_request:
     branches: [main]
-    paths:
-      - "src/**"
-      - "package.json"
-      - "bun.lock"
-      - "tsconfig*.json"
-      - "vite.config.*"
-      - "vitest.config.*"
-      - ".github/workflows/run-tests.yml"
+  workflow_dispatch:
 
 concurrency:
   group: run-tests-${{ github.ref }}
@@ -83,11 +70,51 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Run tests
-        run: bun run test:run
+      # Coverage SIEMPRE corre (no es un step "opcional"). El gate
+      # configurado en vitest.config.ts:thresholds está en 80% — si
+      # alguna métrica (lines/functions/branches/statements) cae
+      # debajo, vitest sale con exit 1 y este step falla → CI rojo.
+      #
+      # Esto reemplaza el `bun run test:run` plano: ya no tiene sentido
+      # correr tests sin coverage porque el gate es el guardrail real.
+      - name: Run tests with coverage gate (>= 80%)
+        run: bun run test:coverage
+
+      # Subimos el reporte LCOV como artifact descargable. Útil para:
+      #   - Ver el reporte HTML browseable en local (descargar +
+      #     abrir coverage/index.html).
+      #   - Integrar con Codecov / Coveralls más adelante (ya tenemos
+      #     lcov.info listo para upload-action).
+      - name: Upload coverage report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/lcov.info
+            coverage/coverage-summary.json
+            coverage/index.html
+            coverage/**/*.html
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Test summary
         if: ${{ always() }}
         run: |
-          echo "Tests ejecutados en commit ${GITHUB_SHA::7}"
-          echo "Ver detalle en el job 'Run tests' arriba."
+          echo "Tests + coverage gate (≥80%) ejecutados en commit ${GITHUB_SHA::7}"
+          if [ -f coverage/coverage-summary.json ]; then
+            echo ""
+            echo "=== Coverage summary ==="
+            # Pretty-print del total — sin jq porque CI no siempre lo tiene.
+            node -e '
+              const j = require("./coverage/coverage-summary.json").total;
+              for (const k of ["lines","statements","functions","branches"]) {
+                const pct = j[k].pct;
+                const status = pct >= 80 ? "✓" : "✗";
+                console.log(`  ${status} ${k.padEnd(11)} ${pct.toFixed(2)}% (${j[k].covered}/${j[k].total})`);
+              }
+            '
+          fi
+          echo ""
+          echo "Detalle en 'Run tests with coverage gate' arriba."
+          echo "Para descargar el HTML browseable: pestaña Artifacts → coverage-report."

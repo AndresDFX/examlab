@@ -384,13 +384,19 @@ function SuperAdminTenantsPage() {
       return;
     }
     // 3. Confirmación — esta acción reemplaza la sesión del SuperAdmin
-    //    y recarga la app. Damos chance de cancelar.
-    const ok = window.confirm(
-      `Iniciar sesión como ${target.full_name ?? target.institutional_email}\n` +
-        `(Admin de ${t.name})?\n\n` +
-        `Tu sesión de SuperAdmin queda guardada. Para volver, usa el banner ` +
-        `"Estás viendo como X — Salir" arriba.`,
-    );
+    //    y recarga la app. Usamos useConfirm del design system (tono
+    //    'warning' por ser cambio importante reversible, no destructivo
+    //    en datos).
+    const ok = await confirm({
+      title: "Iniciar sesión como Admin",
+      description:
+        `Vas a reemplazar tu sesión de SuperAdmin por la de ` +
+        `${target.full_name ?? target.institutional_email} (Admin de ${t.name}). ` +
+        `Tu sesión queda guardada — para volver, usa el banner "Estás viendo como…" ` +
+        `que aparece arriba.`,
+      confirmLabel: "Iniciar como Admin",
+      tone: "warning",
+    });
     if (!ok) return;
     try {
       // 4. Limpiamos el override de "ver como tenant" para que la sesión

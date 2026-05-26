@@ -1055,11 +1055,18 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         </span>
                       </button>
                       <div className="flex items-center gap-0.5 shrink-0">
+                        {/* External link oculto en mobile (`hidden sm:flex`):
+                            la fila entera ya es clickeable para expandir
+                            el panel de detalle inline. En mobile hasta 4
+                            botones más este chocaban contra el espacio
+                            del título; quitarlo deja respiro sin perder
+                            funcionalidad (el detalle inline tiene el
+                            mismo info que el monitor). */}
                         {route && (
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-7 w-7 hidden sm:flex"
                             onClick={() =>
                               navigate({
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1164,25 +1171,33 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                     </div>
                     {isMyRejection && (
                       <div className="px-10 pr-3 pb-3 -mt-1">
-                        <div className="rounded-md border border-orange-500/40 bg-orange-500/5 px-3 py-2 flex items-start gap-2">
-                          <MessageSquareWarning className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <p className="text-xs font-medium text-orange-700 dark:text-orange-400">
-                              El administrador rechazó este trabajo de IA
-                            </p>
-                            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
-                              {j.rejection_reason ?? "Sin razón especificada."}
-                            </p>
-                            {j.rejected_at && (
-                              <p className="text-[10px] text-muted-foreground">
-                                Rechazado el {formatDateTime(j.rejected_at)}
+                        {/* En mobile: stack vertical (icon+texto arriba,
+                            botón "Cerrar conversación" full-width abajo).
+                            En sm+: layout horizontal con el botón a la
+                            derecha. Antes era flex-row siempre y a 375px
+                            el botón se comía ~160px dejando ~130px para
+                            la razón del rechazo. */}
+                        <div className="rounded-md border border-orange-500/40 bg-orange-500/5 px-3 py-2 flex flex-col sm:flex-row sm:items-start gap-2">
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
+                            <MessageSquareWarning className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <p className="text-xs font-medium text-orange-700 dark:text-orange-400">
+                                El administrador rechazó este trabajo de IA
                               </p>
-                            )}
+                              <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                                {j.rejection_reason ?? "Sin razón especificada."}
+                              </p>
+                              {j.rejected_at && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  Rechazado el {formatDateTime(j.rejected_at)}
+                                </p>
+                              )}
+                            </div>
                           </div>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs shrink-0 border-orange-500/40 hover:bg-orange-500/10"
+                            className="h-7 text-xs shrink-0 border-orange-500/40 hover:bg-orange-500/10 w-full sm:w-auto"
                             onClick={() => void acknowledgeReject(j.id)}
                           >
                             <CheckCheck className="h-3.5 w-3.5 mr-1" />

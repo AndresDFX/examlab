@@ -113,19 +113,29 @@ function Dashboard() {
    ADMIN DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
-  // Métricas operacionales del admin (IA + correos), ventana de 24h.
-  // Los nombres `*LastHour` se mantienen por backward-compat con el
-  // shape inicial; hoy la ventana real es 24h (ver sinceHour más abajo).
-  const [aiStats, setAiStats] = useState({
-    errorsLastHour: 0,
-    questionsGenLastHour: 0,
-    plagiarismLastHour: 0,
-    /** Comentarios pendientes de respuesta del docente — agregado a nivel
-     *  plataforma (todos los cursos, todos los docentes). Threads abiertos
-     *  cuyo último comentario NO es de un docente. Reemplaza el card
-     *  "Llamadas IA (24h)" que daba menos accionabilidad. */
+  // ── Stat cards superiores: métricas INSTITUCIONALES ──
+  // Antes eran 4 métricas IA (errores 24h, respuestas IA, plagio, pendientes
+  // docentes). Reemplazadas por métricas de negocio del Admin: cursos
+  // activos, usuarios matriculados, items pendientes de calificar, y
+  // pendientes docentes (única que sobrevivió — la más accionable de las
+  // originales). Las métricas IA siguen visibles para el Admin desde el
+  // card "Cola IA" abajo + /app/admin/audit-logs.
+  const [adminStats, setAdminStats] = useState({
+    coursesActive: 0,
+    usersTotal: 0,
+    pendingGrading: 0,
     pendingTeacherResponses: 0,
   });
+  // ── Cards inferiores estilo Teacher/Student: 4 cards en grid ──
+  // Antes 2 cards anchos (Cola IA + Correos). Ahora 4 para mismo
+  // patrón visual que otros dashboards. Próximos exámenes/clases son
+  // institución-wide (no filtran por docente).
+  const [upcomingExams, setUpcomingExams] = useState<
+    Array<{ id: string; title: string; start_time: string; end_time: string; course?: { name: string } }>
+  >([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<
+    Array<{ id: string; title: string | null; session_date: string; start_time: string | null; course?: { name: string } }>
+  >([]);
   const [emailStats, setEmailStats] = useState<{
     delivered: number;
     skipped: number;
@@ -164,38 +174,62 @@ function AdminDashboard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
 
-      // Si alguna acción no existe (migración no aplicada en este
-      // entorno) el count queda en 0 — el dashboard no rompe.
-      // "Llamadas IA" eliminado por baja accionabilidad — el desglose
-      // útil (errores / calificaciones / preguntas / plagio) ya está
-      // separado en sus propias métricas.
-      const [aiErrorsRes, aiQuestionsRes, aiPlagiarismRes, openThreadsRes] =
-        await Promise.all([
-          dbAny
-            .from("audit_logs")
-            .select("id", { count: "exact", head: true })
-            .in("action", ["ai.grading_failed", "ai.questions_generation_failed"])
-            .gte("created_at", sinceHour),
-          dbAny
-            .from("audit_logs")
-            .select("id", { count: "exact", head: true })
-            .eq("action", "ai_questions.generated")
-            .gte("created_at", sinceHour),
-          dbAny
-            .from("audit_logs")
-            .select("id", { count: "exact", head: true })
-            .eq("action", "ai_plagiarism.detected")
-            .gte("created_at", sinceHour),
-          // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
-          // Los usamos para calcular cuántos esperan respuesta de un docente.
-          dbAny.from("feedback_threads").select("id").eq("closed", false),
-        ]);
+      // Métricas institucionales (RLS filtra al tenant del admin).
+      // Plus listas para los cards inferiores (próximos exámenes y
+      // próximas clases — institución-wide).
+      const nowIso = new Date().toISOString();
+      const todayDateOnly = new Date().toISOString().slice(0, 10);
+      const [
+        coursesRes,
+        usersRes,
+        examPendingRes,
+        workshopPendingRes,
+        projectPendingRes,
+        openThreadsRes,
+        upcomingExamsRes,
+        upcomingSessionsRes,
+      ] = await Promise.all([
+        dbAny.from("courses").select("id", { count: "exact", head: true }),
+        dbAny.from("profiles").select("id", { count: "exact", head: true }),
+        dbAny
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .in("status", ["submitted", "in_progress"])
+          .is("final_grade", null),
+        dbAny
+          .from("workshop_submissions")
+          .select("id", { count: "exact", head: true })
+          .in("status", ["submitted", "in_progress"])
+          .is("final_grade", null),
+        dbAny
+          .from("project_submissions")
+          .select("id", { count: "exact", head: true })
+          .in("status", ["submitted", "in_progress"])
+          .is("final_grade", null),
+        // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
+        // Los usamos para calcular cuántos esperan respuesta de un docente.
+        dbAny.from("feedback_threads").select("id").eq("closed", false),
+        // Exámenes próximos / en curso de la institución, max 8.
+        dbAny
+          .from("exams")
+          .select("id, title, start_time, end_time, course:courses(name)")
+          .gte("end_time", nowIso)
+          .order("start_time", { ascending: true })
+          .limit(8),
+        // Próximas sesiones de asistencia (institución), max 8.
+        dbAny
+          .from("attendance_sessions")
+          .select("id, title, session_date, start_time, course:courses(name)")
+          .gte("session_date", todayDateOnly)
+          .order("session_date", { ascending: true })
+          .order("start_time", { ascending: true, nullsFirst: false })
+          .limit(8),
+      ]);
       if (cancelled) return;
 
-      // Cálculo de pendientes globales: para cada thread abierto, mirar
-      // el último comentario; si no es de rol 'teacher', el thread cuenta.
-      // Reutiliza el helper `pendingResponsesCount` que ya usa el dashboard
-      // del docente — misma definición, scope global.
+      // Cálculo de pendientes docentes: para cada thread abierto, mirar
+      // el último comentario; si no es de rol 'teacher', cuenta. Reutiliza
+      // `pendingResponsesCount` (mismo helper que el TeacherDashboard).
       const openThreadIds: string[] = ((openThreadsRes.data ?? []) as Array<{ id: string }>)
         .map((r) => r.id);
       let pendingTeacherResponses = 0;
@@ -215,12 +249,19 @@ function AdminDashboard() {
         );
       }
 
-      setAiStats({
-        errorsLastHour: aiErrorsRes.count ?? 0,
-        questionsGenLastHour: aiQuestionsRes.count ?? 0,
-        plagiarismLastHour: aiPlagiarismRes.count ?? 0,
+      setAdminStats({
+        coursesActive: coursesRes.count ?? 0,
+        usersTotal: usersRes.count ?? 0,
+        pendingGrading:
+          (examPendingRes.count ?? 0) +
+          (workshopPendingRes.count ?? 0) +
+          (projectPendingRes.count ?? 0),
         pendingTeacherResponses,
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setUpcomingExams((upcomingExamsRes.data ?? []) as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setUpcomingSessions((upcomingSessionsRes.data ?? []) as any);
 
       const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
         dbAny
@@ -279,50 +320,124 @@ function AdminDashboard() {
     // ocupando el alto restante del viewport. Errores se consultan
     // ahora desde /app/admin/audit-logs con filtro severity=error.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      {/* Row PRIMARIA (arriba) — 5 mini-stats de operación.
-          Errores / Respuestas IA / Plagio (todos 24h) + Pendientes
-          docentes (estado global agregado, no ventana).
-          NO ocupan flex-1 — alto natural. */}
+      {/* Row PRIMARIA — 4 stat cards INSTITUCIONALES. Antes eran 4
+          métricas operativas IA (errores, respuestas, plagio,
+          pendientes docentes). Cambio 2026-05-26: las 3 primeras
+          movidas a la Cola IA + auditoría; arriba quedan métricas de
+          negocio del Admin (cursos, usuarios, items pendientes,
+          pendientes docentes). Mismo grid (2-col mobile, 4-col md+)
+          y mismo componente <Stat> que Teacher/Student/SuperAdmin. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
-          icon={AlertTriangle}
-          label="Errores IA (24h)"
-          value={aiStats.errorsLastHour}
+          icon={BookOpen}
+          label="Cursos"
+          value={adminStats.coursesActive}
+          color="text-fuchsia-500 dark:text-fuchsia-400"
+        />
+        <Stat
+          icon={UsersIcon}
+          label="Usuarios"
+          value={adminStats.usersTotal}
+          color="text-indigo-500 dark:text-indigo-400"
+        />
+        <Stat
+          icon={ListOrdered}
+          label="Pendientes de calificar"
+          value={adminStats.pendingGrading}
           color={
-            aiStats.errorsLastHour > 0
-              ? "text-destructive"
+            adminStats.pendingGrading > 0
+              ? "text-amber-500 dark:text-amber-400"
               : "text-emerald-500 dark:text-emerald-400"
           }
         />
         <Stat
-          icon={Bot}
-          label="Respuestas IA (24h)"
-          value={aiStats.questionsGenLastHour}
-          color="text-violet-500 dark:text-violet-400"
-        />
-        <Stat
-          icon={Search}
-          label="Plagio detectado (24h)"
-          value={aiStats.plagiarismLastHour}
-          color="text-amber-500 dark:text-amber-400"
-        />
-        {/* Comentarios pendientes a nivel plataforma: threads abiertos
-            donde el último comment NO es de un docente. Métrica
-            accionable para el Admin — ve cuánta carga de respuesta
-            está pendiente entre todos los docentes de la plataforma. */}
-        <Stat
           icon={Reply}
           label="Pendientes docentes"
-          value={aiStats.pendingTeacherResponses}
+          value={adminStats.pendingTeacherResponses}
           color="text-rose-500 dark:text-rose-400"
         />
       </div>
 
-      {/* Row SECUNDARIA (abajo) — Cron (IA) + Correos, grow-to-fill. Los
-          2 cards comparten en md+ una grilla 2-col que ocupa el resto
-          del alto del viewport. En mobile colapsa a 1 columna y cada
-          card crece según su contenido. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
+      {/* Row SECUNDARIA — 4 cards en grid 2x2 (md) / 4-col (xl) /
+          1-col (mobile). Antes eran 2 cards anchos (Cola IA + Correos).
+          Ahora suma Próximos exámenes + Próximas clases para alinear
+          con el patrón Teacher/Student (4 cards inferiores accionables).
+          Las 4 comparten alto via flex-1 + min-h-0 → cada lista hace
+          scroll interno cuando hay más items que espacio. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1 min-h-0">
+        {/* (1) Próximos exámenes — institución entera, max 8 */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+              Próximos exámenes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {upcomingExams.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  No hay exámenes próximos en la institución.
+                </p>
+              ) : (
+                upcomingExams.map((e) => {
+                  const isOpen =
+                    new Date() >= new Date(e.start_time) &&
+                    new Date() <= new Date(e.end_time);
+                  return (
+                    <EventRow
+                      key={e.id}
+                      title={e.title}
+                      subtitle={e.course?.name}
+                      date={formatDate(e.start_time)}
+                      badge={isOpen ? "En curso" : undefined}
+                      badgeColor="bg-success text-success-foreground"
+                    />
+                  );
+                })
+              )}
+            </div>
+            <Link to="/app/admin/audit-logs" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                Ver auditoría <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* (2) Próximas clases — sesiones de asistencia próximas, max 8 */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+              Próximas clases
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+              {upcomingSessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  No hay sesiones próximas en la institución.
+                </p>
+              ) : (
+                upcomingSessions.map((s) => {
+                  const dateLabel = formatDate(s.session_date);
+                  const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
+                  return (
+                    <EventRow
+                      key={s.id}
+                      title={s.title ?? "Clase"}
+                      subtitle={s.course?.name}
+                      date={`${dateLabel}${timeLabel}`}
+                    />
+                  );
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* (3) Cola IA — widget compacto existente */}
         <AiGradingQueueWidget isAdmin />
 
         {/* Métricas de correo — últimas 24h. `flex flex-col min-h-0`

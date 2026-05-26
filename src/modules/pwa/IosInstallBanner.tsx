@@ -88,7 +88,13 @@ export function IosInstallBanner() {
 
   return (
     <div
-      className="fixed inset-x-3 bottom-3 z-[60] rounded-lg border border-primary/30 bg-background/95 backdrop-blur shadow-lg p-3 sm:max-w-md sm:left-auto sm:right-3"
+      // bottom-24 en mobile para no taparse con el bottom-nav fixed
+      // (height ~56px + safe-area-inset-bottom en iPhone con home bar
+      // ≈ 80px total). En sm+ no hay bottom-nav (sidebar desktop) →
+      // banner a bottom-3 como flotante esquina-inferior-derecha.
+      // El paddingBottom respeta el notch/home indicator del iPhone.
+      className="fixed inset-x-3 bottom-24 z-[60] rounded-lg border border-primary/30 bg-background/95 backdrop-blur shadow-lg p-3 sm:bottom-3 sm:max-w-md sm:left-auto sm:right-3"
+      style={{ marginBottom: "env(safe-area-inset-bottom)" }}
       role="dialog"
       aria-label="Instalar ExamLab en iPhone"
     >
