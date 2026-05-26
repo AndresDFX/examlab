@@ -423,8 +423,8 @@ export function AdminCourses() {
     // Stats por curso (Actividad): cargamos en paralelo 5 queries
     // ligeras (solo course_id) y agrupamos en memoria. Evita N+1 y RPCs.
     // Talleres y proyectos son M:N (workshop_courses / project_courses);
-    // exámenes son 1:N directo. course_students y course_teachers son
-    // tablas de relación directas.
+    // exámenes son 1:N directo. course_enrollments (alumnos) y
+    // course_teachers son tablas de relación directas.
     const courseIds = (data ?? []).map((c: { id: string }) => c.id);
     if (courseIds.length > 0) {
       try {
@@ -437,7 +437,7 @@ export function AdminCourses() {
         ] = await Promise.all([
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (supabase as any)
-            .from("course_students")
+            .from("course_enrollments")
             .select("course_id")
             .in("course_id", courseIds),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
