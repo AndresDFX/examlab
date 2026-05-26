@@ -74,9 +74,45 @@ export function buildTagToken(tag: ContentTag): string {
  *  necesita; el caller debe usar `parseMessageBody`. */
 const TAG_RE = /\[\[T:(workshop|exam|project|content|video):([0-9a-f-]+):([^\]]+)\]\]/g;
 
-export type MessageSegment =
-  | { kind: "text"; text: string }
-  | { kind: "tag"; tag: ContentTag };
+export type MessageSegment = { kind: "text"; text: string } | { kind: "tag"; tag: ContentTag };
+
+/**
+ * Detecta una "mención" activa de tag en el composer: un `#` seguido de
+ * texto SIN espacios, con el caret justo después. Es el trigger del
+ * autocomplete inline (estilo Slack/Discord) para etiquetar contenido
+ * escribiendo `#`.
+ *
+ * Reglas:
+ *   - El `#` debe estar al inicio del texto o precedido por whitespace.
+ *     Así "C#" o "x#y" NO disparan (el `#` está pegado a una palabra),
+ *     pero "mira #parc" sí.
+ *   - Si entre el `#` y el caret hay un espacio, no hay mención activa
+ *     (el usuario ya cerró el token — ej. nombres como "Taller #1" que
+ *     siguen con espacio quedan como literal si no se selecciona nada).
+ *
+ * Devuelve `{ query, start }` donde `start` es el índice del `#`, o null
+ * si no hay mención activa en esa posición de caret.
+ */
+export function findActiveTagQuery(
+  text: string,
+  caret: number,
+): { query: string; start: number } | null {
+  let i = caret - 1;
+  while (i >= 0) {
+    const ch = text[i];
+    if (ch === "#") {
+      const prev = i > 0 ? text[i - 1] : " ";
+      if (i === 0 || /\s/.test(prev)) {
+        return { query: text.slice(i + 1, caret), start: i };
+      }
+      return null;
+    }
+    // Cualquier whitespace entre el caret y un posible '#' cierra la mención.
+    if (/\s/.test(ch)) return null;
+    i--;
+  }
+  return null;
+}
 
 /**
  * Parsea un body de mensaje y devuelve segmentos alternados text/tag

@@ -1309,20 +1309,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             datos están filtrados a ese tenant y le da el botón "Salir
             del modo institución" para volver al estado cross-tenant. */}
         <TenantOverrideBanner />
-        {/* Page container — constrained on desktop, full-bleed with 16px
-            gutters on mobile. Bottom padding reserva espacio para el
+        {/* Page container — full-bleed: ocupa TODO el ancho disponible
+            (viewport menos el sidebar fixed), con gutters de 16px mobile
+            / 32px desktop. Bottom padding reserva espacio para el
             bottom-nav fixed mobile. Durante el examen el bottom-nav no
             se renderiza (`!isTakingExam`), así que bajamos el padding
             para no dejar 96px de aire vacío debajo del contenido.
 
-            Antes era `mx-auto` con max-w-7xl: en monitores muy anchos
-            (>1280 + sidebar) generaba un gap notable entre el sidebar
-            (izquierda) y el contenido centrado. Ahora `mr-auto`
-            alinea el container a la izquierda pegado al sidebar y
-            deja el espacio extra a la derecha del contenido. */}
+            Historial: tuvo `mx-auto max-w-7xl` (centrado, dejaba gap a
+            ambos lados), luego `mr-auto max-w-7xl` (izquierda, gap solo
+            a la derecha). En monitores anchos (1920px+) ese cap de
+            1280px dejaba ~400px muertos a la derecha. Ahora SIN cap: los
+            grids/tablas/cards se estiran a todo el ancho manteniendo sus
+            proporciones internas (cada pantalla ya controla su layout
+            con grids responsive + columnas progresivas). */}
         <div
           className={cn(
-            "px-4 md:px-8 py-5 md:py-8 max-w-7xl mr-auto",
+            "px-4 md:px-8 py-5 md:py-8",
             isTakingExam ? "pb-5 md:pb-8" : "pb-24 md:pb-8",
           )}
         >
