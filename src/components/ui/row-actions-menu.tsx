@@ -119,11 +119,7 @@ export function RowActionsMenu({
           const inner = (
             <>
               {action.iconColor ? (
-                <span
-                  className="inline-flex"
-                  style={{ color: action.iconColor }}
-                  aria-hidden
-                >
+                <span className="inline-flex" style={{ color: action.iconColor }} aria-hidden>
                   <ItemIcon className="h-4 w-4" aria-hidden />
                 </span>
               ) : (

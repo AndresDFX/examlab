@@ -4,29 +4,33 @@
 //
 // Efecto:
 //   1. Bulk-insert de notificaciones (1 por estudiante) con
-//      kind='broadcast'. Como 'broadcast' NO está en
-//      `_notification_kind_emails`, el trigger SQL `notify_send_email`
-//      saltea el envío automático — evita N correos individuales que es
-//      lo opuesto a lo que queremos.
-//   2. UN solo correo SMTP enviado desde acá con TODOS los estudiantes
-//      en BCC. Privacidad: ningún alumno ve la lista del resto.
+//      kind='broadcast'. Desde la mig 20260708000000, 'broadcast' SÍ
+//      está en `_notification_kind_emails`, así que el trigger SQL
+//      `notify_send_email` dispara correo POR DESTINATARIO (camino
+//      estándar: edge send-email, respetando preferencias/toggles).
+//      Ya NO mandamos un BCC desde acá (no llegaba confiable + duplicaría).
+//   2. Replicación como mensaje 1-a-1 en /app/messages: para cada alumno
+//      se asegura la conversación canónica con el sender y se inserta UN
+//      mensaje via RPC `insert_broadcast_messages` (que se salta el
+//      trigger de notif de mensajes con un GUC para no duplicar).
 //
 // Body:
 //   { courseId: string, subject: string, body: string }
 //
 // Response:
-//   { notified: number, email_sent: boolean, bcc_count: number }
+//   { notified: number, email_sent: boolean, recipients_with_email: number }
 //
 // Errores:
 //   401  No autenticado.
 //   403  No es Admin ni Docente del curso.
 //   400  Body inválido o curso sin alumnos.
-//   500  SMTP/DB error.
+//   500  DB error.
 //
-// Auditoría: logs `broadcast.sent` y `broadcast.email_failed` con
-// metadata { course_id, recipients, subject_len, bcc_count }.
+// Auditoría: log `broadcast.sent` con metadata { notified,
+// recipients_with_email, subject_len, body_len }. La entrega real de
+// cada correo se audita aparte por el flujo send-email (email.delivered
+// / email.skipped / email.failed por usuario).
 // ──────────────────────────────────────────────────────────────────────
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import {
   adminClient as admin,
   corsHeaders,
@@ -47,78 +51,6 @@ interface StudentProfile {
   full_name: string | null;
   institutional_email: string | null;
   personal_email: string | null;
-}
-
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function renderBroadcastHtml(params: {
-  courseName: string;
-  senderName: string;
-  subject: string;
-  body: string;
-  appUrl: string;
-  brandName: string;
-}): string {
-  const subject = escapeHtml(params.subject);
-  const courseName = escapeHtml(params.courseName);
-  const senderName = escapeHtml(params.senderName);
-  const brand = escapeHtml(params.brandName);
-  const bodyHtml = escapeHtml(params.body).replace(/\n/g, "<br>");
-  const link = params.appUrl.replace(/\/+$/, "") + "/app/messages";
-  const cta = `
-    <tr>
-      <td style="padding: 24px 0 8px 0; text-align: center;">
-        <a href="${escapeHtml(link)}"
-           style="display:inline-block; background-color:#2563eb; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:500; font-size:14px;">
-          Abrir ${brand}
-        </a>
-      </td>
-    </tr>`;
-  return `<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="utf-8"><title>${subject}</title></head>
-<body style="margin:0; padding:24px; background:#f1f5f9; font-family:Arial,sans-serif;">
-  <table role="presentation" width="100%" style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:8px; padding:24px;">
-    <tr>
-      <td style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">
-        📢 Mensaje del curso · ${courseName}
-      </td>
-    </tr>
-    <tr>
-      <td style="padding-top:8px; font-size:20px; font-weight:600; color:#0f172a;">
-        ${subject}
-      </td>
-    </tr>
-    <tr>
-      <td style="padding-top:16px; font-size:14px; color:#334155; line-height:1.6;">
-        ${bodyHtml}
-      </td>
-    </tr>
-    ${cta}
-    <tr>
-      <td style="padding-top:20px; padding-bottom:10px;">
-        <div style="padding:10px 12px; font-size:12px; color:#92400e; background-color:#fef3c7; border-left:3px solid #f59e0b; line-height:1.5;">
-          <strong>⚠️ Notificación automática.</strong> No respondas a este correo —
-          las respuestas no se procesan. Si necesitas contestar al docente,
-          hazlo directamente en la plataforma: <strong>Mensajes → Nueva conversación</strong>.
-        </div>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding-top:8px; font-size:11px; color:#94a3b8;">
-        Enviado por <strong>${senderName}</strong> a través de ${brand}.
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
 }
 
 Deno.serve(async (req) => {
@@ -211,15 +143,11 @@ Deno.serve(async (req) => {
       return jsonError("El curso no tiene estudiantes inscritos con perfil válido", 400);
     }
 
-    // ── Bulk-insert de notificaciones (kind='broadcast' evita auto-email) ──
-    const senderProfile = await admin
-      .from("profiles")
-      .select("full_name")
-      .eq("id", actorId)
-      .maybeSingle();
-    const senderName =
-      (senderProfile.data?.full_name as string | null) ?? (isAdmin ? "Administración" : "Docente");
-
+    // ── Bulk-insert de notificaciones ──
+    // `kind='broadcast'` AHORA SÍ dispara correo por destinatario (mig
+    // 20260708000000 lo añadió a `_notification_kind_emails`). El trigger
+    // `notify_send_email` se encarga, uno por alumno, respetando sus
+    // preferencias. Acá solo insertamos las notifs.
     const notifTitle = `📢 ${subject}`;
     const notifRows = students.map((s) => ({
       user_id: s.id,
@@ -343,163 +271,42 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Construir lista BCC ──
-    // Prioridad institucional → personal. Si un alumno no tiene ningún
-    // correo, lo saltamos (la notificación in-app sí le llegó).
-    const bccEmails: string[] = [];
-    for (const s of students) {
-      const email =
+    // ── Correo por destinatario (vía notificaciones) ──
+    // Las notifs `kind='broadcast'` insertadas arriba disparan el trigger
+    // `notify_send_email`, que ahora SÍ emaila broadcast (mig
+    // 20260708000000) por el camino estándar: send-email edge, uno por
+    // alumno, respetando preferencias + toggles del usuario. Ya NO
+    // mandamos un BCC desde acá — eso (a) no llegaba confiablemente y
+    // (b) duplicaría el correo con el camino por-destinatario.
+    //
+    // `count_with_email` es informativo para el toast del cliente: cuántos
+    // alumnos tienen correo (el resto recibe solo la notif in-app).
+    const countWithEmail = students.filter(
+      (s) =>
         (s.institutional_email && s.institutional_email.trim()) ||
-        (s.personal_email && s.personal_email.trim());
-      if (email) bccEmails.push(email);
-    }
+        (s.personal_email && s.personal_email.trim()),
+    ).length;
 
-    // ── SMTP ──
-    const host = Deno.env.get("SMTP_HOST");
-    const portRaw = Deno.env.get("SMTP_PORT");
-    const smtpUser = Deno.env.get("SMTP_USER");
-    const smtpPass = Deno.env.get("SMTP_PASSWORD");
-    const from = Deno.env.get("EMAIL_FROM");
-    const fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "ExamLab";
-    const appUrl = Deno.env.get("APP_PUBLIC_URL") ?? "";
-
-    if (!host || !portRaw || !smtpUser || !smtpPass || !from) {
-      // Las notificaciones in-app ya se crearon. Retornamos parcial: el
-      // mensaje llegó al bell de todos, pero el email no salió por
-      // falta de config. Auditamos y avisamos al cliente.
-      void auditFromEdge(admin, {
-        actorId,
-        action: "broadcast.email_skipped",
-        category: "system",
-        severity: "warning",
-        entityType: "course",
-        entityId: courseId,
-        metadata: {
-          reason: "smtp_env_missing",
-          notified: students.length,
-        },
-      });
-      return jsonResponse({
+    void auditFromEdge(admin, {
+      actorId,
+      action: "broadcast.sent",
+      category: "system",
+      severity: "info",
+      entityType: "course",
+      entityId: courseId,
+      metadata: {
         notified: students.length,
-        email_sent: false,
-        bcc_count: 0,
-        warning: "Notificaciones in-app enviadas, pero SMTP no está configurado.",
-      });
-    }
-    const port = Number(portRaw);
-    if (!Number.isFinite(port)) {
-      return jsonError("SMTP_PORT inválido", 500);
-    }
-
-    if (bccEmails.length === 0) {
-      // Mismo caso parcial: in-app sí, email no porque nadie tiene correo.
-      void auditFromEdge(admin, {
-        actorId,
-        action: "broadcast.email_skipped",
-        category: "system",
-        severity: "info",
-        entityType: "course",
-        entityId: courseId,
-        metadata: { reason: "no_emails_found", notified: students.length },
-      });
-      return jsonResponse({
-        notified: students.length,
-        email_sent: false,
-        bcc_count: 0,
-        warning: "Ningún estudiante tiene correo configurado.",
-      });
-    }
-
-    // UN solo correo. El destinatario "to" es el remitente (la cuenta
-    // institucional que envía); los alumnos van todos en BCC para que
-    // ninguno vea la lista del resto. denomailer manda 1 transacción
-    // SMTP con N RCPT TO — Gmail/Outlook contabilizan cada uno contra
-    // el rate-limit diario, pero la VISIBILIDAD es solo del propio
-    // destinatario en BCC.
-    const html = renderBroadcastHtml({
-      courseName: course.name as string,
-      senderName,
-      subject,
-      body: message,
-      appUrl,
-      brandName: fromName,
+        recipients_with_email: countWithEmail,
+        subject_len: subject.length,
+        body_len: message.length,
+      },
     });
-    const plain = `📢 ${course.name} — ${subject}\n\n${message}\n\n— Enviado por ${senderName} via ${fromName}`;
 
-    const smtpStartMs = Date.now();
-    try {
-      const client = new SMTPClient({
-        connection: {
-          hostname: host,
-          port,
-          tls: port === 465,
-          auth: { username: smtpUser, password: smtpPass },
-        },
-      });
-      await client.send({
-        from: `${fromName} <${from}>`,
-        // 'to' = self para que el correo tenga un destinatario visible
-        // válido. Si dejamos 'to' vacío con solo BCC algunos providers
-        // (Gmail) marcan como spam por header "Undisclosed-recipients".
-        to: from,
-        bcc: bccEmails,
-        replyTo: from,
-        subject: `[${course.name}] ${subject}`,
-        content: plain,
-        html,
-        headers: {
-          "X-Entity-Ref-ID": `broadcast-${courseId}-${Date.now()}`,
-        },
-      });
-      await client.close();
-
-      void auditFromEdge(admin, {
-        actorId,
-        action: "broadcast.sent",
-        category: "system",
-        severity: "info",
-        entityType: "course",
-        entityId: courseId,
-        metadata: {
-          notified: students.length,
-          bcc_count: bccEmails.length,
-          smtp_ms: Date.now() - smtpStartMs,
-          subject_len: subject.length,
-          body_len: message.length,
-        },
-      });
-
-      return jsonResponse({
-        notified: students.length,
-        email_sent: true,
-        bcc_count: bccEmails.length,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      void auditFromEdge(admin, {
-        actorId,
-        action: "broadcast.email_failed",
-        category: "system",
-        severity: "error",
-        entityType: "course",
-        entityId: courseId,
-        metadata: {
-          error: msg.slice(0, 500),
-          notified: students.length,
-          bcc_count: bccEmails.length,
-        },
-      });
-      // Las notifs in-app SÍ salieron; el correo falló. Es un éxito
-      // parcial — devolvemos 200 con warning para que el cliente no
-      // muestre toast destructivo (sería confuso: el alumno sí recibe
-      // la notif).
-      return jsonResponse({
-        notified: students.length,
-        email_sent: false,
-        bcc_count: bccEmails.length,
-        warning: `Notificaciones in-app enviadas, pero el correo falló: ${msg}`,
-      });
-    }
+    return jsonResponse({
+      notified: students.length,
+      email_sent: countWithEmail > 0,
+      recipients_with_email: countWithEmail,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     void auditFromEdge(admin, {

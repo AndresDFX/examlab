@@ -48,6 +48,10 @@ const CRITICAL_KINDS = [
   "workshop",
   "project",
   "attendance",
+  // broadcast: difusión docente/admin a todo un curso, emaila por
+  // destinatario. Sincronizado con SQL `_notification_kind_emails`
+  // (mig 20260708000000) y src/modules/notifications/notification-email.ts.
+  "broadcast",
 ];
 const MESSAGE_LINK_PREFIX = "/app/messages";
 const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";

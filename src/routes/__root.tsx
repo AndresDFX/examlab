@@ -93,6 +93,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        {/* Theme pre-paint: aplica la clase `.dark` desde localStorage
+            ANTES de que el contenido pinte, para que el fondo no
+            parpadee de claro→oscuro en usuarios con tema oscuro. Va como
+            primer hijo del body (corre durante el parse, antes de
+            `{children}`). El árbol React de useTheme arranca en "light"
+            determinista (ver use-theme.ts) y se sincroniza post-mount;
+            esta clase solo evita el flash visual del fondo. Mantener el
+            nombre de la key en sync con use-theme.ts (`examlab-theme`). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('examlab-theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         {children}
         <Scripts />
         <script

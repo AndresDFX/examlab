@@ -342,8 +342,7 @@ function MessagesPage() {
         // Último mensaje + lista corta para contar no-leídos del otro
         // posteriores a MI last_read_at. RLS recorta lo "borrado para
         // mí" automáticamente.
-        const lastReadAt =
-          c.user_a === myUserId ? c.user_a_last_read_at : c.user_b_last_read_at;
+        const lastReadAt = c.user_a === myUserId ? c.user_a_last_read_at : c.user_b_last_read_at;
         const { data: recent } = await db
           .from("messages")
           .select("id, sender_id, created_at")
@@ -388,10 +387,7 @@ function MessagesPage() {
   useEffect(() => {
     if (!myUserId) return;
     void (async () => {
-      const { data } = await db
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", myUserId);
+      const { data } = await db.from("user_roles").select("role").eq("user_id", myUserId);
       const roles = (data ?? []) as Array<{ role: string }>;
       setIsStaff(roles.some((r) => r.role === "Docente" || r.role === "Admin"));
     })();
@@ -407,10 +403,7 @@ function MessagesPage() {
     if (!broadcastDialogOpen || !myUserId) return;
     void (async () => {
       // 1) Cursos según rol.
-      const { data: roleRows } = await db
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", myUserId);
+      const { data: roleRows } = await db.from("user_roles").select("role").eq("user_id", myUserId);
       const roles = ((roleRows ?? []) as Array<{ role: string }>).map((r) => r.role);
       const isAdminLocal = roles.includes("Admin");
 
@@ -421,9 +414,7 @@ function MessagesPage() {
           .from("course_teachers")
           .select("course_id")
           .eq("user_id", myUserId);
-        const courseIds = ((ctRows ?? []) as Array<{ course_id: string }>).map(
-          (r) => r.course_id,
-        );
+        const courseIds = ((ctRows ?? []) as Array<{ course_id: string }>).map((r) => r.course_id);
         if (courseIds.length === 0) {
           setBroadcastCourses([]);
           return;
@@ -474,15 +465,15 @@ function MessagesPage() {
         return;
       }
       const notified = typeof data?.notified === "number" ? data.notified : 0;
-      const bcc = typeof data?.bcc_count === "number" ? data.bcc_count : 0;
-      const emailSent = data?.email_sent === true;
-      if (emailSent) {
+      const withEmail =
+        typeof data?.recipients_with_email === "number" ? data.recipients_with_email : 0;
+      if (withEmail > 0) {
         toast.success(
-          `Mensaje enviado a ${notified} estudiante(s). Correo con ${bcc} BCC despachado.`,
+          `Mensaje enviado a ${notified} estudiante(s). ${withEmail} recibirá(n) correo (uno por destinatario).`,
         );
       } else {
-        toast.warning(
-          data?.warning ?? `Notificaciones a ${notified} estudiante(s) creadas, pero el correo no salió.`,
+        toast.success(
+          `Mensaje enviado a ${notified} estudiante(s). Ninguno tiene correo configurado — solo notificación in-app.`,
         );
       }
       setBroadcastDialogOpen(false);
@@ -578,10 +569,7 @@ function MessagesPage() {
 
   /** Recarga la map de adjuntos para los mensajes de UNA conv. */
   const reloadAttachments = async (convId: string) => {
-    const { data: msgs } = await db
-      .from("messages")
-      .select("id")
-      .eq("conversation_id", convId);
+    const { data: msgs } = await db.from("messages").select("id").eq("conversation_id", convId);
     const ids = ((msgs ?? []) as Array<{ id: string }>).map((m) => m.id);
     if (ids.length === 0) {
       setAttachmentsByMessageId(new Map());
@@ -724,9 +712,7 @@ function MessagesPage() {
       // Subir adjuntos antes del append para que el bubble pinte ya con
       // los archivos en su lugar.
       const newAtts = await uploadPendingFiles(inserted.id);
-      setMessages((prev) =>
-        prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted],
-      );
+      setMessages((prev) => (prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]));
       if (newAtts.length > 0) {
         setAttachmentsByMessageId((prev) => {
           const next = new Map(prev);
@@ -798,8 +784,7 @@ function MessagesPage() {
     }
     const ok = await confirm({
       title: "Eliminar mensaje",
-      description:
-        "Se eliminará el mensaje para ambas partes. Esta acción no se puede deshacer.",
+      description: "Se eliminará el mensaje para ambas partes. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
@@ -942,7 +927,9 @@ function MessagesPage() {
     await Promise.all(ids.map((id) => markConvRead(id)));
     clearConvSelection();
     await loadAll();
-    toast.success(`${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como leída${ids.length === 1 ? "" : "s"}`);
+    toast.success(
+      `${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como leída${ids.length === 1 ? "" : "s"}`,
+    );
   };
 
   const markSelectedUnread = async () => {
@@ -951,7 +938,9 @@ function MessagesPage() {
     await Promise.all(ids.map((id) => markConvUnread(id)));
     clearConvSelection();
     await loadAll();
-    toast.success(`${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como no leída${ids.length === 1 ? "" : "s"}`);
+    toast.success(
+      `${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como no leída${ids.length === 1 ? "" : "s"}`,
+    );
   };
 
   const clearSelectedConversations = async () => {
@@ -969,7 +958,9 @@ function MessagesPage() {
     if (activeConvId && ids.includes(activeConvId)) setActiveConvId(null);
     clearConvSelection();
     await loadAll();
-    toast.success(`${ids.length} conversación${ids.length === 1 ? "" : "es"} eliminada${ids.length === 1 ? "" : "s"} para ti`);
+    toast.success(
+      `${ids.length} conversación${ids.length === 1 ? "" : "es"} eliminada${ids.length === 1 ? "" : "s"} para ti`,
+    );
   };
 
   const clearConversation = async (convId: string) => {
@@ -1147,7 +1138,9 @@ function MessagesPage() {
                             // (right-1 + w-7 ~ 36px) y que la fila de badges
                             // no se solape con el botón.
                             "w-full text-left pl-3 pr-10 py-2.5 hover:bg-muted/40 transition-colors",
-                            isActive && !inSelectionMode && "bg-primary/5 border-l-2 border-primary",
+                            isActive &&
+                              !inSelectionMode &&
+                              "bg-primary/5 border-l-2 border-primary",
                             isSelected && "bg-primary/10",
                           )}
                         >
@@ -1274,9 +1267,7 @@ function MessagesPage() {
                               {/* Entrar al modo selección. Disparador
                                   principal en mobile (no hay hover) — desktop
                                   también puede usarlo. */}
-                              <DropdownMenuItem
-                                onClick={() => toggleConvSelected(c.conv.id)}
-                              >
+                              <DropdownMenuItem onClick={() => toggleConvSelected(c.conv.id)}>
                                 <CheckSquare className="h-4 w-4 mr-2" />
                                 Seleccionar
                               </DropdownMenuItem>
@@ -1336,7 +1327,10 @@ function MessagesPage() {
                       {activeConv.other.full_name ?? activeConv.other.email ?? "Usuario"}
                       <Badge
                         variant="outline"
-                        className={cn("text-[9px] px-1 py-0 h-auto", ROLE_BADGE_CLASS[activeConv.other.role_label])}
+                        className={cn(
+                          "text-[9px] px-1 py-0 h-auto",
+                          ROLE_BADGE_CLASS[activeConv.other.role_label],
+                        )}
                       >
                         {activeConv.other.role_label}
                       </Badge>
@@ -1590,8 +1584,9 @@ function MessagesPage() {
                                                 : seg.tag.type === "project"
                                                   ? FolderKanban
                                                   : AtSign;
-                                          const role: "student" | "teacher" =
-                                            isStaff ? "teacher" : "student";
+                                          const role: "student" | "teacher" = isStaff
+                                            ? "teacher"
+                                            : "student";
                                           return (
                                             <Link
                                               key={i}
@@ -1617,23 +1612,22 @@ function MessagesPage() {
                                         if (!searchQuery.trim()) {
                                           return <span key={i}>{seg.text}</span>;
                                         }
-                                        return splitByMatch(seg.text, searchQuery).map(
-                                          (s, j) =>
-                                            s.isMatch ? (
-                                              <mark
-                                                key={`${i}-${j}`}
-                                                className={cn(
-                                                  "rounded px-0.5",
-                                                  mine
-                                                    ? "bg-primary-foreground text-primary"
-                                                    : "bg-yellow-200 text-foreground dark:bg-yellow-500/40",
-                                                )}
-                                              >
-                                                {s.text}
-                                              </mark>
-                                            ) : (
-                                              <span key={`${i}-${j}`}>{s.text}</span>
-                                            ),
+                                        return splitByMatch(seg.text, searchQuery).map((s, j) =>
+                                          s.isMatch ? (
+                                            <mark
+                                              key={`${i}-${j}`}
+                                              className={cn(
+                                                "rounded px-0.5",
+                                                mine
+                                                  ? "bg-primary-foreground text-primary"
+                                                  : "bg-yellow-200 text-foreground dark:bg-yellow-500/40",
+                                              )}
+                                            >
+                                              {s.text}
+                                            </mark>
+                                          ) : (
+                                            <span key={`${i}-${j}`}>{s.text}</span>
+                                          ),
                                         );
                                       })}
                                     </p>
@@ -1644,7 +1638,9 @@ function MessagesPage() {
                                       <p
                                         className={cn(
                                           "text-[9px] tabular-nums flex items-center gap-1",
-                                          mine ? "text-primary-foreground/70" : "text-muted-foreground",
+                                          mine
+                                            ? "text-primary-foreground/70"
+                                            : "text-muted-foreground",
                                         )}
                                       >
                                         <span>
@@ -1762,9 +1758,7 @@ function MessagesPage() {
                         variant="outline"
                         className="h-9 px-2"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={
-                          sending || pendingFiles.length >= MESSAGE_ATTACHMENT_MAX_COUNT
-                        }
+                        disabled={sending || pendingFiles.length >= MESSAGE_ATTACHMENT_MAX_COUNT}
                         title="Adjuntar archivos"
                         aria-label="Adjuntar archivos"
                       >
@@ -1872,7 +1866,10 @@ function MessagesPage() {
                           </div>
                           <Badge
                             variant="outline"
-                            className={cn("text-[9px] px-1 py-0 h-auto", ROLE_BADGE_CLASS[c.role_label])}
+                            className={cn(
+                              "text-[9px] px-1 py-0 h-auto",
+                              ROLE_BADGE_CLASS[c.role_label],
+                            )}
                           >
                             {c.role_label}
                           </Badge>
@@ -1890,9 +1887,10 @@ function MessagesPage() {
       {/* ── Broadcast a curso (Docente/Admin) ──
           Envía un mensaje a TODOS los estudiantes de un curso. Edge
           function: broadcast-course-message. Crea notificación in-app
-          por cada alumno (kind='broadcast', no dispara correo
-          automático) y manda UN solo correo con todos en BCC para
-          que ninguno vea la lista del resto. */}
+          por cada alumno (kind='broadcast'), que dispara correo por
+          destinatario (camino estándar send-email, respeta preferencias)
+          y replica el mensaje en la conversación 1-a-1 de cada alumno
+          (/app/messages). */}
       <Dialog
         open={broadcastDialogOpen}
         onOpenChange={(open) => {
@@ -2014,11 +2012,7 @@ function MessagesPage() {
 
       {/* Picker para etiquetar contenido — insertado a nivel root del
           componente para que no compita con z-index del bubble. */}
-      <MessageTagPicker
-        open={tagPickerOpen}
-        onOpenChange={setTagPickerOpen}
-        onPick={insertTag}
-      />
+      <MessageTagPicker open={tagPickerOpen} onOpenChange={setTagPickerOpen} onPick={insertTag} />
     </div>
   );
 }

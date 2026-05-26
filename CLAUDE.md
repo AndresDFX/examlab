@@ -337,6 +337,7 @@ Sobrescribe los tokens OKLCH del theme (`--primary`, `--sidebar`, `--background`
 
 - **Default = `light`** (ex-`"system"`). Migración silenciosa: `readStoredTheme()` mapea cualquier valor distinto de `"light"`/`"dark"` (incluyendo `"system"` legacy y basura) a `"light"`. La opción "Sistema" del menú se removió — el usuario elige claro u oscuro explícitamente.
 - **Estado compartido entre instancias**: cada `useTheme()` tenía state local. Cuando `ThemeToggle` cambiaba el tema, `TenantThemeProvider`'s hook NO se enteraba y dejaba aplicadas las CSS vars del tema viejo (síntoma: bordes cambiaban pero backgrounds quedaban iguales). Fix: `setTheme()` dispara un `CustomEvent("examlab:theme-changed", { detail: theme })`; todas las instancias se suscriben (more `storage` event para cross-tab) y sincronizan su state. Mismo patrón que el override del tenant.
+- **Hidratación SSR (React #418)**: `useTheme()` inicializa el state DETERMINISTA a `"light"` — NO lee `localStorage` en el initializer. El HTML pre-renderizado no tiene `localStorage`, así que sale en "light"; si el primer render del cliente leyera "dark" de storage, el árbol React diferiría del pre-renderizado → hydration mismatch, visible en componentes theme-dependientes (`ThemeToggle`: ícono Sol vs Luna). El valor real se aplica **post-mount** (`sync()` en el effect). Para que el FONDO no parpadee claro→oscuro mientras tanto, un `<script>` inline al inicio del `<body>` en `__root.tsx` aplica la clase `.dark` desde `localStorage` ANTES del paint. El árbol React (íconos) puede parpadear un frame; el fondo no.
 
 ### Dashboards — patrón uniforme (4 stats + 2 cards)
 
@@ -496,7 +497,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/shared/lib/format.ts` | LOCALE = "es-CO" hardcoded | App se ve distinta según OS del usuario (lo que originó la centralización) |
 | `src/modules/tenants/TenantThemeProvider.tsx` (`clearTenantVars`) ↔ `src/shared/components/AppLayout.tsx` (`isSuperAdminCrossTenant` + gates de logo/label/quota) | Definición de "SuperAdmin cross-tenant puro": `activeRole === "SuperAdmin" && !readTenantOverride()` | Branding del tenant queda en cross-tenant, o se quitan vars cuando NO debían quitarse |
 | `supabase/migrations/20260707000000_broadcast_messages_in_inbox.sql` (`app.skip_message_notif`) ↔ `supabase/functions/broadcast-course-message/index.ts` (`insert_broadcast_messages`) | Nombre del GUC + lógica de skip del trigger `tg_notify_new_message` | Renombrar el GUC en uno sin actualizar el otro → broadcast vuelve a duplicar notifs + emails |
-| `src/hooks/use-theme.ts` (`STORAGE_KEY` + `EVENT_NAME`) | Nombre de la key en localStorage + nombre del custom event | Cambiar uno sin migrar las suscripciones / lectores → tema se aplica desincronizado entre instancias |
+| `src/hooks/use-theme.ts` (`STORAGE_KEY` + `EVENT_NAME`) ↔ `src/routes/__root.tsx` (script inline pre-paint que lee `'examlab-theme'`) | Nombre de la key en localStorage (`examlab-theme`) + nombre del custom event | Cambiar la key en uno sin el otro → el script pre-paint no aplica `.dark` (flash) o el tema se desincroniza entre instancias |
 
 **Archivos donde no se debe explicar más de lo que ya está:**
 - `routeTree.gen.ts` — autogenerado por TanStack, no tocar

@@ -98,9 +98,7 @@ export function AssignUsersToTenantDialog({
       } else {
         const rows = (data ?? []) as ProfileRow[];
         setProfiles(rows);
-        const current = new Set(
-          rows.filter((r) => r.tenant_id === tenant.id).map((r) => r.id),
-        );
+        const current = new Set(rows.filter((r) => r.tenant_id === tenant.id).map((r) => r.id));
         setDesiredMembers(new Set(current));
         setInitialMembers(current);
       }
@@ -123,8 +121,7 @@ export function AssignUsersToTenantDialog({
     return profiles.filter((p) => {
       if (!q) return true;
       return (
-        p.full_name.toLowerCase().includes(q) ||
-        p.institutional_email.toLowerCase().includes(q)
+        p.full_name.toLowerCase().includes(q) || p.institutional_email.toLowerCase().includes(q)
       );
     });
   }, [profiles, search, tenant]);
@@ -174,10 +171,7 @@ export function AssignUsersToTenantDialog({
     }> = [];
 
     for (const id of toAdd) {
-      const { error } = await db
-        .from("profiles")
-        .update({ tenant_id: tenant.id })
-        .eq("id", id);
+      const { error } = await db.from("profiles").update({ tenant_id: tenant.id }).eq("id", id);
       results.push({
         id,
         kind: "add",
@@ -186,10 +180,7 @@ export function AssignUsersToTenantDialog({
       });
     }
     for (const id of toRemove) {
-      const { error } = await db
-        .from("profiles")
-        .update({ tenant_id: null })
-        .eq("id", id);
+      const { error } = await db.from("profiles").update({ tenant_id: null }).eq("id", id);
       results.push({
         id,
         kind: "remove",
@@ -223,9 +214,7 @@ export function AssignUsersToTenantDialog({
         });
       }
       if (failed.length > sample.length) {
-        toast.error(
-          `Y ${failed.length - sample.length} más con error similar.`,
-        );
+        toast.error(`Y ${failed.length - sample.length} más con error similar.`);
       }
     }
 
@@ -249,10 +238,9 @@ export function AssignUsersToTenantDialog({
 
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Marca los usuarios que pertenecen a esta institución. Desmarca para
-            quitarlos. El trigger del servidor rechaza el cambio si el usuario
-            tiene cursos activos en su institución actual — en ese caso debe
-            desmatricularse primero.
+            Marca los usuarios que pertenecen a esta institución. Desmarca para quitarlos. El
+            trigger del servidor rechaza el cambio si el usuario tiene cursos activos en su
+            institución actual — en ese caso debe desmatricularse primero.
           </p>
 
           <SearchInput
@@ -268,9 +256,7 @@ export function AssignUsersToTenantDialog({
                 <>
                   {" · "}
                   {toAdd.length > 0 && (
-                    <span className="text-emerald-600 dark:text-emerald-400">
-                      +{toAdd.length}
-                    </span>
+                    <span className="text-emerald-600 dark:text-emerald-400">+{toAdd.length}</span>
                   )}
                   {toAdd.length > 0 && toRemove.length > 0 && " · "}
                   {toRemove.length > 0 && (
@@ -306,21 +292,16 @@ export function AssignUsersToTenantDialog({
                 const willChange = isMember !== wasMember;
                 const otherTenant =
                   p.tenant_id && p.tenant_id !== tenant.id
-                    ? tenantNameById.get(p.tenant_id) ?? "otra institución"
+                    ? (tenantNameById.get(p.tenant_id) ?? "otra institución")
                     : null;
                 return (
                   <label
                     key={p.id}
                     className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 cursor-pointer"
                   >
-                    <Checkbox
-                      checked={isMember}
-                      onCheckedChange={() => toggle(p.id)}
-                    />
+                    <Checkbox checked={isMember} onCheckedChange={() => toggle(p.id)} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">
-                        {p.full_name}
-                      </div>
+                      <div className="text-sm font-medium truncate">{p.full_name}</div>
                       <div className="text-[11px] text-muted-foreground truncate">
                         {p.institutional_email}
                       </div>
@@ -364,19 +345,11 @@ export function AssignUsersToTenantDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
           <Button onClick={save} disabled={saving || !hasChanges}>
-            {saving ? (
-              <Spinner size="sm" className="mr-1" />
-            ) : (
-              <Save className="h-4 w-4 mr-1" />
-            )}
+            {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
             Guardar
             {hasChanges && ` (${toAdd.length + toRemove.length})`}
           </Button>

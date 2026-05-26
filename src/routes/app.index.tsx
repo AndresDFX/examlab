@@ -210,8 +210,9 @@ function AdminDashboard() {
       // Cálculo de pendientes docentes: para cada thread abierto, mirar
       // el último comentario; si no es de rol 'teacher', cuenta. Reutiliza
       // `pendingResponsesCount` (mismo helper que el TeacherDashboard).
-      const openThreadIds: string[] = ((openThreadsRes.data ?? []) as Array<{ id: string }>)
-        .map((r) => r.id);
+      const openThreadIds: string[] = ((openThreadsRes.data ?? []) as Array<{ id: string }>).map(
+        (r) => r.id,
+      );
       let pendingTeacherResponses = 0;
       if (openThreadIds.length > 0) {
         const { data: cmts } = await dbAny
@@ -307,9 +308,7 @@ function AdminDashboard() {
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {recentCourses.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  Sin cursos creados todavía.
-                </p>
+                <p className="text-sm text-muted-foreground py-2">Sin cursos creados todavía.</p>
               ) : (
                 recentCourses.map((c) => (
                   <EventRow
@@ -354,10 +353,7 @@ function AdminDashboard() {
                           ? "bg-amber-500"
                           : "bg-emerald-500";
                     return (
-                      <li
-                        key={ev.id}
-                        className="flex items-start gap-2 rounded-md border p-2"
-                      >
+                      <li key={ev.id} className="flex items-start gap-2 rounded-md border p-2">
                         <span
                           className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${sevDot}`}
                           aria-hidden
@@ -389,29 +385,6 @@ function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-
-    </div>
-  );
-}
-
-/** Stub — la card de Correos del AdminDashboard se removió. Conservamos
- *  el componente exportable para no romper imports si algún consumidor
- *  externo lo referencia, aunque internamente ya no se usa. */
-function EmailStatTile({
-  label,
-  value,
-  color,
-  bg,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <div className={`rounded-md p-2.5 ${bg}`}>
-      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }
@@ -1404,8 +1377,8 @@ function SuperAdminDashboard() {
             </div>
             {stats.newTenants30d > 0 && !loading && (
               <p className="text-[11px] text-muted-foreground">
-                {stats.newTenants30d} nueva{stats.newTenants30d === 1 ? "" : "s"} en los últimos
-                30 días.
+                {stats.newTenants30d} nueva{stats.newTenants30d === 1 ? "" : "s"} en los últimos 30
+                días.
               </p>
             )}
           </CardContent>
@@ -1442,10 +1415,7 @@ function SuperAdminDashboard() {
                           ? "bg-amber-500"
                           : "bg-emerald-500";
                     return (
-                      <li
-                        key={ev.id}
-                        className="flex items-start gap-2 rounded-md border p-2"
-                      >
+                      <li key={ev.id} className="flex items-start gap-2 rounded-md border p-2">
                         <span
                           className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${sevDot}`}
                           aria-hidden
@@ -1475,4 +1445,3 @@ function SuperAdminDashboard() {
     </div>
   );
 }
-

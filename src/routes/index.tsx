@@ -1,3 +1,20 @@
+/**
+ * Landing pública (`/`) — la cara de marketing antes del login. Es la
+ * URL que ve un visitante anónimo (examlab.lovable.app).
+ *
+ * Estructura fija (NO cambiar sin pedido explícito de diseño):
+ *   - Header: logo + ThemeToggle + botón "Acceder" (→ /auth).
+ *   - Hero centrado: badge de features, título con palabra en color
+ *     primary, subtítulo, CTA "Comenzar ahora".
+ *   - Grid de 6 feature cards (3-col en md+) — describen el alcance real
+ *     del producto (multi-institución, IA, proctoring, código, asistencia,
+ *     offline). Si se agrega/quita una feature mayor, actualizar este grid.
+ *   - Footer minimal con año dinámico.
+ *
+ * Copy en español hardcodeado (NO i18n): la landing es pre-login, antes
+ * de que el usuario elija idioma. Concepto = "plataforma integral para
+ * instituciones", no solo exámenes.
+ */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
@@ -48,8 +65,8 @@ function Home() {
           <Sparkles className="h-3 w-3" /> Multi-institución · IA · Proctoring · PWA
         </div>
         <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-4xl mx-auto leading-[1.1]">
-          La plataforma integral para tu{" "}
-          <span className="text-primary">institución educativa</span>.
+          La plataforma integral para tu <span className="text-primary">institución educativa</span>
+          .
         </h1>
         <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
           Cursos, exámenes con IA, talleres en grupo, proyectos con sustentación, asistencia con QR

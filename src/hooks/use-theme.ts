@@ -27,7 +27,16 @@ function readStoredTheme(): Theme {
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(readStoredTheme);
+  // Init DETERMINISTA a "light" — NO leer localStorage en el initializer.
+  // El HTML pre-renderizado (SSR/SSG no tiene localStorage) sale en
+  // "light"; si el primer render del cliente leyera localStorage y
+  // devolviera "dark", el árbol React diferiría del pre-renderizado →
+  // hydration mismatch (React #418), visible en componentes
+  // theme-dependientes como ThemeToggle (ícono Sol vs Luna). El valor
+  // real guardado se aplica post-mount en el effect de abajo (`sync()`),
+  // y el script inline del shell (__root.tsx) ya puso la clase `.dark`
+  // antes del paint para que el FONDO no parpadee.
+  const [theme, setThemeState] = useState<Theme>("light");
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -39,19 +48,21 @@ export function useTheme() {
     }
   }, []);
 
-  // Aplica el theme al primer mount + sincroniza state desde localStorage
-  // si otra instancia/pestaña ya lo cambió.
+  // Refleja en el DOM (clase `.dark`) cualquier cambio de `theme`.
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  // Suscribe a cambios disparados por OTRAS instancias del hook
-  // (custom event same-tab) o por OTRAS pestañas (storage event).
+  // Post-mount: (1) pull del theme real guardado — corrige el "light"
+  // determinista del primer render; (2) suscribe a cambios de OTRAS
+  // instancias del hook (custom event same-tab) o de OTRAS pestañas
+  // (storage event).
   useEffect(() => {
     const sync = () => {
       const next = readStoredTheme();
       setThemeState((prev) => (prev === next ? prev : next));
     };
+    sync();
     const onCustom = (e: Event) => {
       const t = (e as CustomEvent<Theme>).detail;
       if (t === "light" || t === "dark") {

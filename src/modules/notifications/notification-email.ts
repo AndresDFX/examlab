@@ -33,6 +33,11 @@ export const CRITICAL_KINDS = [
   "workshop",
   "project",
   "attendance",
+  // broadcast: difusión docente/admin a todo un curso. Emaila por
+  // destinatario (la edge broadcast-course-message ya NO manda BCC).
+  // Sincronizado con el SQL `_notification_kind_emails` (mig
+  // 20260708000000) y con send-email/index.ts.
+  "broadcast",
 ] as const;
 
 /** Prefijo de link que indica "mensaje 1-a-1" — usado para discriminar
@@ -53,11 +58,7 @@ export interface ShouldSendEmailParams {
   hasEmail?: boolean;
 }
 
-export type SkipReason =
-  | "kind_not_critical"
-  | "user_opted_out"
-  | "no_email"
-  | null;
+export type SkipReason = "kind_not_critical" | "user_opted_out" | "no_email" | null;
 
 /**
  * Decide si enviar email + en caso negativo, el motivo exacto.
