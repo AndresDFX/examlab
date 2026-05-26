@@ -127,15 +127,25 @@ function AdminDashboard() {
     pendingGrading: 0,
     pendingTeacherResponses: 0,
   });
-  // ── Cards inferiores estilo Teacher/Student: 4 cards en grid ──
-  // Antes 2 cards anchos (Cola IA + Correos). Ahora 4 para mismo
-  // patrón visual que otros dashboards. Próximos exámenes/clases son
-  // institución-wide (no filtran por docente).
-  const [upcomingExams, setUpcomingExams] = useState<
-    Array<{ id: string; title: string; start_time: string; end_time: string; course?: { name: string } }>
+  // ── Cards inferiores: 4 en grid, contenido admin-céntrico ──
+  // Antes mostraban "Próximos exámenes" / "Próximas clases" que se
+  // sentían como vista de Docente. Reemplazados por "Cursos recientes"
+  // + "Actividad reciente" (audit_logs del tenant) — más alineado al rol
+  // Admin que ya tiene métricas de carga y operación, no agenda
+  // pedagógica.
+  const [recentCourses, setRecentCourses] = useState<
+    Array<{ id: string; name: string; period: string | null; created_at: string }>
   >([]);
-  const [upcomingSessions, setUpcomingSessions] = useState<
-    Array<{ id: string; title: string | null; session_date: string; start_time: string | null; course?: { name: string } }>
+  const [recentEvents, setRecentEvents] = useState<
+    Array<{
+      id: string;
+      action: string;
+      category: string;
+      severity: string;
+      actor_email: string | null;
+      entity_name: string | null;
+      created_at: string;
+    }>
   >([]);
   const [emailStats, setEmailStats] = useState<{
     delivered: number;
@@ -176,10 +186,8 @@ function AdminDashboard() {
       const dbAny = supabase as any;
 
       // Métricas institucionales (RLS filtra al tenant del admin).
-      // Plus listas para los cards inferiores (próximos exámenes y
-      // próximas clases — institución-wide).
-      const nowIso = new Date().toISOString();
-      const todayDateOnly = new Date().toISOString().slice(0, 10);
+      // Plus listas para los cards inferiores admin-céntricos: cursos
+      // recientes y eventos recientes de audit_logs.
       const [
         coursesRes,
         usersRes,
@@ -187,8 +195,8 @@ function AdminDashboard() {
         workshopPendingRes,
         projectPendingRes,
         openThreadsRes,
-        upcomingExamsRes,
-        upcomingSessionsRes,
+        recentCoursesRes,
+        recentEventsRes,
       ] = await Promise.all([
         dbAny.from("courses").select("id", { count: "exact", head: true }),
         dbAny.from("profiles").select("id", { count: "exact", head: true }),
@@ -210,20 +218,18 @@ function AdminDashboard() {
         // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
         // Los usamos para calcular cuántos esperan respuesta de un docente.
         dbAny.from("feedback_threads").select("id").eq("closed", false),
-        // Exámenes próximos / en curso de la institución, max 8.
+        // Cursos recientes (institución), max 8.
         dbAny
-          .from("exams")
-          .select("id, title, start_time, end_time, course:courses(name)")
-          .gte("end_time", nowIso)
-          .order("start_time", { ascending: true })
+          .from("courses")
+          .select("id, name, period, created_at")
+          .order("created_at", { ascending: false })
           .limit(8),
-        // Próximas sesiones de asistencia (institución), max 8.
+        // Eventos recientes (audit_logs del tenant, max 8). RLS los
+        // filtra al tenant del Admin.
         dbAny
-          .from("attendance_sessions")
-          .select("id, title, session_date, start_time, course:courses(name)")
-          .gte("session_date", todayDateOnly)
-          .order("session_date", { ascending: true })
-          .order("start_time", { ascending: true, nullsFirst: false })
+          .from("audit_logs")
+          .select("id, action, category, severity, actor_email, entity_name, created_at")
+          .order("created_at", { ascending: false })
           .limit(8),
       ]);
       if (cancelled) return;
@@ -259,10 +265,8 @@ function AdminDashboard() {
           (projectPendingRes.count ?? 0),
         pendingTeacherResponses,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setUpcomingExams((upcomingExamsRes.data ?? []) as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setUpcomingSessions((upcomingSessionsRes.data ?? []) as any);
+      setRecentCourses((recentCoursesRes.data ?? []) as typeof recentCourses);
+      setRecentEvents((recentEventsRes.data ?? []) as typeof recentEvents);
 
       const [delivRes, skipRes, failRes, recentRes] = await Promise.all([
         dbAny
@@ -366,36 +370,89 @@ function AdminDashboard() {
           para que tablets en horizontal y laptops chicos ya vean las
           4 columnas. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1 min-h-0">
-        {/* (1) Próximos exámenes — institución entera, max 8 */}
+        {/* (1) Cursos recientes — últimos 8 del tenant. RLS los acota. */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />
-              {t("dashboard.upcomingExams")}
+              <BookOpen className="h-4 w-4 text-fuchsia-500 dark:text-fuchsia-400" />
+              Cursos recientes
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {upcomingExams.length === 0 ? (
+              {recentCourses.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.adminNoUpcomingExams")}
+                  Sin cursos creados todavía.
                 </p>
               ) : (
-                upcomingExams.map((e) => {
-                  const isOpen =
-                    new Date() >= new Date(e.start_time) &&
-                    new Date() <= new Date(e.end_time);
-                  return (
-                    <EventRow
-                      key={e.id}
-                      title={e.title}
-                      subtitle={e.course?.name}
-                      date={formatDate(e.start_time)}
-                      badge={isOpen ? t("dashboard.inProgress") : undefined}
-                      badgeColor="bg-success text-success-foreground"
-                    />
-                  );
-                })
+                recentCourses.map((c) => (
+                  <EventRow
+                    key={c.id}
+                    title={c.name}
+                    subtitle={c.period ?? undefined}
+                    date={formatDate(c.created_at)}
+                  />
+                ))
+              )}
+            </div>
+            <Link to="/app/admin/courses" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* (2) Actividad reciente — eventos recientes del audit_log
+            scopado al tenant del Admin vía RLS. */}
+        <Card className="flex flex-col min-h-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CircleCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              Actividad reciente
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+              {recentEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  Sin eventos registrados todavía.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {recentEvents.map((ev) => {
+                    const sevDot =
+                      ev.severity === "error"
+                        ? "bg-rose-500"
+                        : ev.severity === "warning"
+                          ? "bg-amber-500"
+                          : "bg-emerald-500";
+                    return (
+                      <li
+                        key={ev.id}
+                        className="flex items-start gap-2 rounded-md border p-2"
+                      >
+                        <span
+                          className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${sevDot}`}
+                          aria-hidden
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate" title={ev.action}>
+                            {ev.action}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate">
+                            {ev.actor_email ?? "sistema"}
+                            {ev.entity_name ? ` · ${ev.entity_name}` : ""} ·{" "}
+                            {relativeAge(ev.created_at)}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {ev.category}
+                        </Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
             <Link to="/app/admin/audit-logs" className="block">
@@ -403,38 +460,6 @@ function AdminDashboard() {
                 {t("dashboard.viewAudit")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
-          </CardContent>
-        </Card>
-
-        {/* (2) Próximas clases — sesiones de asistencia próximas, max 8 */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-              {t("dashboard.upcomingClasses")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.adminNoUpcomingClasses")}
-                </p>
-              ) : (
-                upcomingSessions.map((s) => {
-                  const dateLabel = formatDate(s.session_date);
-                  const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
-                  return (
-                    <EventRow
-                      key={s.id}
-                      title={s.title ?? t("dashboard.untitledSession")}
-                      subtitle={s.course?.name}
-                      date={`${dateLabel}${timeLabel}`}
-                    />
-                  );
-                })
-              )}
-            </div>
           </CardContent>
         </Card>
 

@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
+import { useTenant, readTenantOverride, setTenantOverride } from "@/modules/tenants/use-tenant";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { ActiveRoleContext } from "@/hooks/use-active-role";
 import { Button } from "@/components/ui/button";
@@ -559,6 +559,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveRoleSignal(activeRole);
   }, [activeRole]);
 
+  /**
+   * Handler unificado del Select de rol (desktop + mobile drawer).
+   * Cuando el usuario cambia explícitamente a SuperAdmin, limpiamos
+   * cualquier `examlab_tenant_override` que pudo quedar en localStorage
+   * de un "Ver como X" anterior — sin esto, `useTenant()` seguía
+   * resolviendo al tenant del override y el branding (logo + colores)
+   * persistía aunque el rol activo fuera SuperAdmin.
+   */
+  const handleRoleChange = (v: string) => {
+    setActiveRole(v as AppRole);
+    if (v === "SuperAdmin") setTenantOverride(null);
+    navigate({ to: "/app" });
+  };
+
   // RBAC route guard: when the active role doesn't match the required roles
   // for the current path, redirect to /app/unauthorized (or /auth if no role).
   // RLS remains the authoritative guard at the API layer; this is UX.
@@ -764,10 +778,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-3 py-3 border-b border-sidebar-border">
             <Select
               value={activeRole ?? undefined}
-              onValueChange={(v) => {
-                setActiveRole(v as AppRole);
-                navigate({ to: "/app" });
-              }}
+              onValueChange={handleRoleChange}
             >
               <SelectTrigger className="w-full h-9 bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent text-sm gap-2 [&>svg:last-child]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1061,10 +1072,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="px-3 py-3 border-b border-sidebar-border">
                   <Select
                     value={activeRole ?? undefined}
-                    onValueChange={(v) => {
-                      setActiveRole(v as AppRole);
-                      navigate({ to: "/app" });
-                    }}
+                    onValueChange={handleRoleChange}
                   >
                     <SelectTrigger className="w-full bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent gap-2 [&>svg:last-child]:hidden">
                       <div className="flex items-center gap-2 flex-1 min-w-0">

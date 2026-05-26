@@ -404,8 +404,6 @@
       "todaySessions": "Sessions today",
       "pendingTeacherResponses": "Pending teacher replies"
     },
-    "adminNoUpcomingExams": "No upcoming exams in the institution.",
-    "adminNoUpcomingClasses": "No upcoming sessions in the institution.",
     "viewAudit": "View audit",
     "recentUsers": "Recent users",
     "manageUsers": "Manage users",
