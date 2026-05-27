@@ -157,8 +157,13 @@ Cuatro reglas universales — aplicar siempre que se añada layout nuevo:
 | `src/routes/app.superadmin.tenants.tsx`      | Panel SuperAdmin para tenants — CRUD, "Ver como", impersonar Admin |
 | `src/hooks/use-theme.ts`                     | Hook `useTheme()` con state sincronizado entre instancias vía `examlab:theme-changed` event |
 | `src/shared/components/AppLayout.tsx`        | Layout principal + role-switcher + `handleRoleChange` (limpia override al pasar a SuperAdmin) |
-| `supabase/functions/broadcast-course-message/index.ts`| Edge function: notif `kind='broadcast'` + BCC + replica como mensaje 1-a-1 |
+| `supabase/functions/broadcast-course-message/index.ts`| Edge function: notif `kind='broadcast'` + correo por destinatario + replica como mensaje 1-a-1. Acepta `courseIds[]` (multi-curso) |
 | `supabase/functions/bulk-import-users/index.ts`| Edge function: CSV / single user create. Acepta Admin + SuperAdmin como callers; rol `SuperAdmin` solo asignable por SuperAdmin |
+| `src/modules/messaging/TagTextarea.tsx`      | Textarea reusable con autocomplete `#` para etiquetar contenido + preview. Usado en chat 1-a-1 y composer de difusión |
+| `src/modules/messaging/broadcast.ts`         | Helpers puros de difusión (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`, `humanizeTags`) — replicados en el edge |
+| `src/modules/messaging/scheduled.ts`         | Helpers de mensajes programados (`validateScheduledSend`, `localToIso`, `SCHEDULED_STATUS_LABEL`) |
+| `supabase/migrations/20260709000000_scheduled_messages.sql`| Tabla `scheduled_messages` + `dispatch_scheduled_messages()` (SQL) + cron cada minuto |
+| `src/modules/auth/ForceChangePasswordDialog.tsx`| Diálogo bloqueante de cambio de contraseña forzado (primer login). Montado en AppLayout cuando `profile.must_change_password` |
 
 ---
 
@@ -383,7 +388,33 @@ Efectos del broadcast:
 - Nueva RPC `insert_broadcast_messages(_sender_id, _conv_ids[], _body)` SECURITY DEFINER hace `PERFORM set_config('app.skip_message_notif', 'true', true)` (transaction-local) y bulk-inserta los mensajes. Trunca body a 4000 chars (CHECK de `messages.body`). Valida `auth.uid() = _sender_id`.
 - La edge llama la RPC con `userClient.rpc(...)` (no `admin`) para que `auth.uid()` coincida con el caller. Si falla la replicación, se audita `broadcast.messages_replication_failed` (severity warning) y se sigue — las notifs in-app y el BCC ya están aplicados.
 
-**Resultado neto por broadcast**: 1 notif (`📢 …`) por alumno + 1 correo BCC total + N mensajes en las conversaciones 1-a-1. Sin duplicación.
+**Resultado neto por broadcast**: 1 notif (`📢 …`) por alumno + 1 correo por destinatario + N mensajes en las conversaciones 1-a-1. Sin duplicación.
+
+### Etiquetar contenido en mensajes (`#`)
+
+En el chat 1-a-1 y en el composer de difusión el usuario puede etiquetar talleres/exámenes/proyectos escribiendo `#`. El componente reusable [TagTextarea](src/modules/messaging/TagTextarea.tsx) maneja el autocomplete inline (dropdown estilo Slack, navegable con flechas + Enter), inserta el token `[[T:type:id:label]]` en el body, y muestra un preview con el **nombre humano** debajo (el textarea no puede renderizar chips). El picker por tabs (`MessageTagPicker`, botón `#`) sigue como alternativa.
+
+- **Detección del trigger**: `findActiveTagQuery(text, caret)` en [message-tags.ts](src/modules/messaging/message-tags.ts) — el `#` debe estar al inicio o tras espacio; un espacio cierra la mención (así "Taller #1" no se rompe). Testeado.
+- **Render del chip**: en el bubble, `parseMessageBody` → `<Link to={tagRoute(tag, role)}>` con ícono + label. Redirige al listado del módulo según rol.
+- **Difusión**: el body con tokens se replica como chips en /app/messages, pero en la notif/correo (que no renderizan chips) se **humaniza** a `#label` vía `humanizeTags` (replicado en SQL `dispatch_scheduled_messages` + en el edge de broadcast).
+
+### Mensajes programados (Docente/Admin)
+
+Permite programar el envío de un mensaje a futuro, en modo `direct` (1-a-1) o `broadcast` (a cursos). Tabla `scheduled_messages` + función SQL `dispatch_scheduled_messages()` que un **pg_cron cada minuto** ejecuta (migración 20260709000000).
+
+- **Dispatch 100% en SQL** (sin edge): para `direct` inserta el mensaje en la conversación (el trigger `tg_notify_new_message` notifica + emaila); para `broadcast` replica la lógica del edge en PL/pgSQL — notif `kind='broadcast'` humanizada por alumno único + mensaje replicado con tokens crudos (chips) usando el GUC `app.skip_message_notif`.
+- **Autorización RE-VALIDADA en dispatch** (no confía en lo agendado): `direct` → `can_message(creator, recipient)`; `broadcast` → Admin o el creator dicta TODOS los `course_ids`. Una fila no autorizada se marca `failed` con el motivo (no aborta el batch — loop con `BEGIN/EXCEPTION` por fila + `FOR UPDATE SKIP LOCKED`).
+- **UI**: en el dialog de difusión un `DateTimePicker` opcional ("Programar envío") cambia el botón a "Programar"; en el composer del chat un botón reloj abre una fila para programar el directo. El botón "Programados" del header abre el dialog de gestión (lista + cancelar). Validación client-side: `validateScheduledSend` exige ≥1 min en el futuro.
+- **RLS**: el creador gestiona los suyos (SELECT/INSERT/UPDATE/DELETE con `creator_id = auth.uid()`); INSERT exige rol Docente/Admin/SuperAdmin. SuperAdmin ve todos.
+
+### Cambio de contraseña forzado en el primer login
+
+Los usuarios los crea el Admin/SuperAdmin con contraseña temporal. En su primer inicio deben cambiarla antes de usar la app.
+
+- **DB** (mig 20260710000000): `profiles.must_change_password BOOLEAN DEFAULT false`. Lo pone `true`: la edge `bulk-import-users` al CREAR un usuario nuevo, y `admin-update-password` cuando un Admin resetea la contraseña de OTRO (no la propia). Lo baja a `false` el propio usuario al cambiarla.
+- **UI**: [ForceChangePasswordDialog](src/modules/auth/ForceChangePasswordDialog.tsx) montado en `AppLayout` cuando `user && profile?.must_change_password`. Es BLOQUEANTE: sin X, sin Cancelar, `onEscapeKeyDown`/`onPointerDownOutside`/`onInteractOutside` con `preventDefault`. Única salida alternativa: "Cerrar sesión". Al guardar hace `auth.updateUser({password})` → `profiles.update({must_change_password:false})` → `refreshRoles()` (re-carga el perfil → el diálogo se desmonta).
+- **`useAuth` Profile** incluye `must_change_password?: boolean` (el `select("*")` ya lo trae; opcional en el type por compat con entornos sin la migración).
+- **No es control de seguridad** (un cliente podría flipear el flag por API) — es un nudge de UX. La sesión ya es válida; lo que forzamos es el cambio de la contraseña temporal.
 
 ### Notificaciones realtime + push
 
@@ -501,7 +532,8 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/shared/lib/format.ts` | LOCALE = "es-CO" hardcoded | App se ve distinta según OS del usuario (lo que originó la centralización) |
 | `src/modules/tenants/TenantThemeProvider.tsx` (`clearTenantVars`) ↔ `src/shared/components/AppLayout.tsx` (`isSuperAdminCrossTenant` + gates de logo/label/quota) | Definición de "SuperAdmin cross-tenant puro": `activeRole === "SuperAdmin" && !readTenantOverride()` | Branding del tenant queda en cross-tenant, o se quitan vars cuando NO debían quitarse |
 | `supabase/migrations/20260707000000_broadcast_messages_in_inbox.sql` (`app.skip_message_notif`) ↔ `supabase/functions/broadcast-course-message/index.ts` (`insert_broadcast_messages`) | Nombre del GUC + lógica de skip del trigger `tg_notify_new_message` | Renombrar el GUC en uno sin actualizar el otro → broadcast vuelve a duplicar notifs + emails |
-| `src/modules/messaging/broadcast.ts` (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`) ↔ `supabase/functions/broadcast-course-message/index.ts` (réplicas inline) | Normalización de cursos, dedup de alumnos, orden canónico de conversación, formato 📢 + truncado a 4000 | Lógica divergente → broadcast manda duplicados, viola el CHECK de `messages.body`, o el dialog y la edge interpretan distinto el set de cursos |
+| `src/modules/messaging/broadcast.ts` (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`, `humanizeTags`) ↔ `supabase/functions/broadcast-course-message/index.ts` (réplicas inline) ↔ `supabase/migrations/20260709000000_scheduled_messages.sql` (`dispatch_scheduled_messages` replica dedup + canonical pair + humanize en PL/pgSQL para el broadcast programado) | Normalización de cursos, dedup de alumnos, orden canónico de conversación, formato 📢 + truncado a 4000, humanización de tags `[[T:...]]` → `#label` | Lógica divergente → broadcast (inmediato o programado) manda duplicados, viola el CHECK de `messages.body`, muestra tokens crudos en notif/correo, o interpreta distinto el set de cursos |
+| `src/modules/messaging/message-tags.ts` (`buildTagToken`/`parseMessageBody` regex) ↔ `src/modules/messaging/broadcast.ts` (`humanizeTags` regex) ↔ SQL `dispatch_scheduled_messages` (`regexp_replace`) | Formato del token `[[T:type:id:label]]` (whitelist de tipos + id hex + label sin `]`) | Cambiar el formato del token en uno sin los otros → tags no se parsean, no se humanizan, o se rompe el chip |
 | `src/hooks/use-theme.ts` (`STORAGE_KEY` + `EVENT_NAME`) ↔ `src/routes/__root.tsx` (script inline pre-paint que lee `'examlab-theme'`) | Nombre de la key en localStorage (`examlab-theme`) + nombre del custom event | Cambiar la key en uno sin el otro → el script pre-paint no aplica `.dark` (flash) o el tema se desincroniza entre instancias |
 
 **Archivos donde no se debe explicar más de lo que ya está:**

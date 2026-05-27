@@ -5,6 +5,7 @@ import {
   canonicalConvPair,
   dedupeRecipients,
   normalizeCourseIds,
+  humanizeTags,
 } from "./broadcast";
 
 describe("buildBroadcastBody", () => {
@@ -110,5 +111,29 @@ describe("normalizeCourseIds", () => {
     expect(normalizeCourseIds({})).toEqual([]);
     expect(normalizeCourseIds({ courseIds: [] })).toEqual([]);
     expect(normalizeCourseIds({ courseId: "" })).toEqual([]);
+  });
+});
+
+describe("humanizeTags", () => {
+  it("convierte un token a #label", () => {
+    expect(humanizeTags("[[T:workshop:a1:Taller Final]]")).toBe("#Taller Final");
+  });
+
+  it("conserva el texto alrededor del token", () => {
+    expect(humanizeTags("Revisen [[T:exam:e1:Parcial 1]] para hoy")).toBe(
+      "Revisen #Parcial 1 para hoy",
+    );
+  });
+
+  it("aplana múltiples tokens", () => {
+    expect(humanizeTags("[[T:workshop:a1:T1]] y [[T:project:b1:P1]]")).toBe("#T1 y #P1");
+  });
+
+  it("deja el texto sin tokens intacto", () => {
+    expect(humanizeTags("mensaje normal sin tags")).toBe("mensaje normal sin tags");
+  });
+
+  it("ignora tokens con type desconocido (no matchea la whitelist)", () => {
+    expect(humanizeTags("[[T:malware:x:y]]")).toBe("[[T:malware:x:y]]");
   });
 });

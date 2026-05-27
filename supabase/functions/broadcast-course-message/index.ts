@@ -85,6 +85,19 @@ function normalizeCourseIds(input: { courseId?: unknown; courseIds?: unknown }):
   return out;
 }
 
+/**
+ * Aplana los tokens de tag `[[T:type:id:label]]` a `#label` para
+ * contextos que NO renderizan chips (notificación in-app, correo). El
+ * mensaje replicado en /app/messages conserva los tokens crudos para los
+ * chips. Réplica de `src/modules/messaging/broadcast.ts#humanizeTags`.
+ */
+function humanizeTags(body: string): string {
+  return body.replace(
+    /\[\[T:(?:workshop|exam|project|content|video):[0-9a-f-]+:([^\]]+)\]\]/g,
+    (_m, label) => `#${label}`,
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -193,10 +206,15 @@ Deno.serve(async (req) => {
     // `notify_send_email` se encarga, uno por alumno, respetando sus
     // preferencias. Acá solo insertamos las notifs.
     const notifTitle = `📢 ${subject}`;
+    // El body de la notif/correo se humaniza: los tokens `[[T:...]]` se
+    // muestran como `#label` (el bell y el correo no renderizan chips).
+    // El mensaje replicado en /app/messages SÍ conserva los tokens crudos
+    // (ver más abajo) para pintarlos como chips clickeables.
+    const notifBody = humanizeTags(message);
     const notifRows = students.map((s) => ({
       user_id: s.id,
       title: notifTitle,
-      body: message,
+      body: notifBody,
       kind: "broadcast",
       // Link al inbox de mensajes — desde ahí el alumno puede iniciar
       // conversación con el docente si quiere responder. El mensaje en

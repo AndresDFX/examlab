@@ -1,0 +1,173 @@
+/**
+ * ForceChangePasswordDialog — diálogo BLOQUEANTE que obliga al usuario a
+ * cambiar su contraseña en el primer inicio de sesión.
+ *
+ * Se monta en AppLayout cuando `profile.must_change_password === true`
+ * (el Admin creó/reseteó la cuenta con una contraseña temporal). A
+ * diferencia de `ChangePasswordDialog`:
+ *   - NO se puede cerrar (sin botón Cancelar, sin X, sin cerrar al click
+ *     afuera ni con Escape) — `onOpenChange` no-op + `hideCloseButton`.
+ *   - Al guardar, además de `auth.updateUser({password})`, pone
+ *     `profiles.must_change_password = false` y refresca el perfil, lo
+ *     que desmonta el diálogo y libera la app.
+ *   - Ofrece "Cerrar sesión" como única salida alternativa.
+ */
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { KeyRound, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { logEvent } from "@/shared/lib/audit";
+import { friendlyError } from "@/shared/lib/db-errors";
+
+interface Props {
+  userId: string;
+  /** Refresca el perfil tras el cambio para desmontar el diálogo. */
+  onChanged: () => void | Promise<void>;
+  /** Cerrar sesión (escape alternativo). */
+  onSignOut: () => void;
+}
+
+export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Props) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const handleSave = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error("Completa ambos campos.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("La nueva contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden.");
+      return;
+    }
+    setSaving(true);
+    try {
+      // 1) Cambiar la contraseña en Auth.
+      const { error: pwErr } = await supabase.auth.updateUser({ password: newPassword });
+      if (pwErr) {
+        void logEvent({
+          action: "user.password_change_failed",
+          category: "user",
+          severity: "error",
+          metadata: { reason: pwErr.message, forced: true },
+        });
+        toast.error(friendlyError(pwErr));
+        return;
+      }
+      // 2) Bajar el flag must_change_password (RLS: el user edita su fila).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: profErr } = await (supabase as any)
+        .from("profiles")
+        .update({ must_change_password: false })
+        .eq("id", userId);
+      if (profErr) {
+        // La contraseña YA cambió; si esto falla el diálogo reaparecerá.
+        // Avisamos pero no bloqueamos — el próximo refresh lo reintenta.
+        toast.error(friendlyError(profErr));
+        return;
+      }
+      void logEvent({
+        action: "user.password_changed",
+        category: "user",
+        severity: "warning",
+        metadata: { self: true, forced: true },
+      });
+      toast.success("Contraseña actualizada. ¡Bienvenido!");
+      await onChanged();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent
+        className="max-w-sm"
+        hideCloseButton
+        // Bloqueante: no cerrar al click afuera ni con Escape.
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-amber-500" />
+            Cambia tu contraseña
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Por seguridad, debes cambiar la contraseña temporal antes de continuar.
+          </p>
+          <div>
+            <Label required>Nueva contraseña</Label>
+            <div className="relative mt-1">
+              <Input
+                type={showNew ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                className="pr-9"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSave();
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNew(!showNew)}
+                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                aria-label={showNew ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <Label required>Confirmar contraseña</Label>
+            <Input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repite la nueva contraseña"
+              className="mt-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleSave();
+              }}
+            />
+            {confirmPassword && newPassword !== confirmPassword && (
+              <p className="text-xs text-destructive mt-1">Las contraseñas no coinciden.</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onSignOut} disabled={saving}>
+            Cerrar sesión
+          </Button>
+          <Button
+            onClick={() => void handleSave()}
+            disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+          >
+            {saving ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <KeyRound className="h-4 w-4 mr-1" />
+            )}
+            Guardar y continuar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -146,6 +146,13 @@ Deno.serve(async (req) => {
           if (error) throw error;
           userId = data.user!.id;
           emailToId.set(emailKey, userId);
+          // Usuario nuevo creado con contraseña temporal por el Admin →
+          // debe cambiarla en su primer inicio de sesión. El profile lo
+          // crea el trigger handle_new_user; acá marcamos el flag.
+          await adminClient
+            .from("profiles")
+            .update({ must_change_password: true })
+            .eq("id", userId);
         }
         const roleList = (rolesStr || "Estudiante")
           .split("|")

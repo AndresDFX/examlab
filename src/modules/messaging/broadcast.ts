@@ -17,6 +17,22 @@
 export const BROADCAST_BODY_MAX = 4000;
 
 /**
+ * Convierte los tokens de tag `[[T:type:id:label]]` a su forma humana
+ * `#label`, para contextos que NO renderizan chips (notificación in-app,
+ * correo). El mensaje replicado en /app/messages conserva los tokens
+ * crudos para que el chat los pinte como chips clickeables; pero el bell
+ * y el email mostrarían `[[T:...]]` feo — acá los aplanamos a `#label`.
+ *
+ * Réplica de la regex de `message-tags.ts` (Deno no importa de src/).
+ */
+export function humanizeTags(body: string): string {
+  return body.replace(
+    /\[\[T:(?:workshop|exam|project|content|video):[0-9a-f-]+:([^\]]+)\]\]/g,
+    (_m, label) => `#${label}`,
+  );
+}
+
+/**
  * Construye el cuerpo del mensaje de difusión con el prefijo 📢, de modo
  * que se distinga visualmente de un mensaje 1-a-1 normal en /app/messages.
  * Trunca a `BROADCAST_BODY_MAX` para respetar el CHECK de messages.body.

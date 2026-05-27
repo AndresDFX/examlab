@@ -13,6 +13,12 @@ export interface Profile {
    *  NULL solo en ventana transitoria — la Fase 6 cierra el sign-up
    *  para que toda fila tenga tenant. */
   tenant_id: string | null;
+  /** Forzar cambio de contraseña en el primer login. true cuando el
+   *  Admin creó/reseteó la cuenta con una contraseña temporal. El
+   *  AppLayout muestra un diálogo bloqueante hasta que el usuario la
+   *  cambia (que setea esto en false). Columna mig 20260710000000;
+   *  opcional en el type por compat con entornos sin la migración. */
+  must_change_password?: boolean;
 }
 
 export function useAuth() {

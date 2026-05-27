@@ -106,6 +106,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Si un Admin reseteó la contraseña de OTRO usuario (no la suya
+    // propia), ese usuario debe cambiarla en su próximo inicio de sesión.
+    // Cuando el caller resetea SU propia contraseña (self-service desde
+    // el perfil) NO forzamos el cambio.
+    if (caller.user.id !== userId) {
+      await adminClient
+        .from("profiles")
+        .update({ must_change_password: true })
+        .eq("id", userId);
+    }
+
     await auditAdminReset(caller.user, userId, "info", null);
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

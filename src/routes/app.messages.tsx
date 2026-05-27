@@ -25,7 +25,7 @@
  *   - `message_attachments.*`: el uploader es yo + el mensaje es mío.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,16 +71,24 @@ import {
   Hammer,
   FileText,
   FolderKanban,
+  Clock,
+  CalendarClock,
 } from "lucide-react";
 import {
   parseMessageBody,
   tagRoute,
   buildTagToken,
-  findActiveTagQuery,
-  TAG_TYPE_LABEL,
   type ContentTag,
 } from "@/modules/messaging/message-tags";
 import { MessageTagPicker } from "@/modules/messaging/MessageTagPicker";
+import { TagTextarea } from "@/modules/messaging/TagTextarea";
+import { DateTimePicker } from "@/components/ui/date-picker";
+import {
+  validateScheduledSend,
+  localToIso,
+  SCHEDULED_STATUS_LABEL,
+  type ScheduledStatus,
+} from "@/modules/messaging/scheduled";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -192,84 +200,14 @@ function MessagesPage() {
   // queda embebido como token `[[T:type:id:label]]` en el body — el
   // renderer lo parsea y lo muestra como Link clickeable.
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  // Inserta un tag desde el picker (botón #). Lo anexa al final del body;
+  // TagTextarea lo renderiza como preview + lo manda en el body. El
+  // autocomplete inline `#` lo maneja TagTextarea internamente.
   const insertTag = (tag: ContentTag) => {
     const token = buildTagToken(tag);
-    // Si hay texto, agregamos espacio antes del token para separarlo
-    // del último char (que típicamente es texto del usuario o un tag
-    // previo). Si el body está vacío, no necesitamos espacio.
     setBody((prev) => (prev.length === 0 ? token + " " : `${prev.trimEnd()} ${token} `));
-    // Devolvemos foco al textarea para que el usuario siga escribiendo.
-    setTimeout(() => composerRef.current?.focus(), 0);
   };
 
-  // ── Autocomplete inline de tags al escribir `#` ──
-  // Estilo Slack/Discord: el usuario escribe `#parc` y aparece un
-  // dropdown con talleres/exámenes/proyectos que matchean. Seleccionar
-  // reemplaza el `#query` por el token `[[T:...]]`. Ver `findActiveTagQuery`.
-  // `tagQuery` = mención activa (o null). `taggable` = catálogo cacheado
-  // (se carga lazy en el primer `#`). `tagActiveIdx` = item resaltado para
-  // navegación con flechas.
-  const [tagQuery, setTagQuery] = useState<{ query: string; start: number } | null>(null);
-  const [taggable, setTaggable] = useState<ContentTag[] | null>(null);
-  const [tagActiveIdx, setTagActiveIdx] = useState(0);
-
-  const loadTaggable = async () => {
-    if (taggable !== null) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbAny = supabase as any;
-    const [ws, ex, pj] = await Promise.all([
-      dbAny.from("workshops").select("id, title").order("title").limit(200),
-      dbAny.from("exams").select("id, title").order("title").limit(200),
-      dbAny.from("projects").select("id, title").order("title").limit(200),
-    ]);
-    const out: ContentTag[] = [];
-    for (const r of (ws.data ?? []) as Array<{ id: string; title: string | null }>)
-      out.push({ type: "workshop", id: String(r.id), label: String(r.title ?? "(sin título)") });
-    for (const r of (ex.data ?? []) as Array<{ id: string; title: string | null }>)
-      out.push({ type: "exam", id: String(r.id), label: String(r.title ?? "(sin título)") });
-    for (const r of (pj.data ?? []) as Array<{ id: string; title: string | null }>)
-      out.push({ type: "project", id: String(r.id), label: String(r.title ?? "(sin título)") });
-    setTaggable(out);
-  };
-
-  // Detecta la mención activa a partir del texto + posición del caret.
-  const handleComposerChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setBody(val);
-    const caret = e.target.selectionStart ?? val.length;
-    const q = findActiveTagQuery(val, caret);
-    setTagQuery(q);
-    setTagActiveIdx(0);
-    if (q) void loadTaggable();
-  };
-
-  // Items que matchean la mención activa (máx 8). El match es por label,
-  // case-insensitive, includes.
-  const tagMatches = useMemo(() => {
-    if (!tagQuery || !taggable) return [];
-    const q = tagQuery.query.trim().toLowerCase();
-    const base = q ? taggable.filter((t) => t.label.toLowerCase().includes(q)) : taggable;
-    return base.slice(0, 8);
-  }, [tagQuery, taggable]);
-
-  // Reemplaza el `#query` activo por el token del tag elegido.
-  const applyInlineTag = (tag: ContentTag) => {
-    if (!tagQuery) return;
-    const token = buildTagToken(tag);
-    const caretEnd = tagQuery.start + 1 + tagQuery.query.length;
-    setBody((prev) => {
-      const before = prev.slice(0, tagQuery.start);
-      const after = prev.slice(caretEnd);
-      const sep = after.startsWith(" ") ? "" : " ";
-      return `${before}${token}${sep}${after}`;
-    });
-    setTagQuery(null);
-    setTagActiveIdx(0);
-    setTimeout(() => composerRef.current?.focus(), 0);
-  };
-
-  const tagDropdownOpen = !!tagQuery && tagMatches.length > 0;
   const [contactSearch, setContactSearch] = useState("");
 
   // ── Broadcast a curso (Docente/Admin) ──
@@ -288,6 +226,28 @@ function MessagesPage() {
   const [broadcastSubject, setBroadcastSubject] = useState("");
   const [broadcastBody, setBroadcastBody] = useState("");
   const [broadcastSending, setBroadcastSending] = useState(false);
+  // Programación de la difusión: si `broadcastScheduleAt` tiene fecha, el
+  // botón pasa a "Programar" (inserta en scheduled_messages) en vez de
+  // "Enviar ahora". Formato local YYYY-MM-DDTHH:mm del DateTimePicker.
+  const [broadcastScheduleAt, setBroadcastScheduleAt] = useState("");
+
+  // ── Mensajes programados (lista + cancelar) ──
+  const [scheduledDialogOpen, setScheduledDialogOpen] = useState(false);
+  const [scheduledItems, setScheduledItems] = useState<
+    Array<{
+      id: string;
+      kind: "direct" | "broadcast";
+      subject: string | null;
+      body: string;
+      send_at: string;
+      status: ScheduledStatus;
+      error: string | null;
+    }>
+  >([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  // Programación de un mensaje directo desde el composer del chat.
+  const [directScheduleOpen, setDirectScheduleOpen] = useState(false);
+  const [directScheduleAt, setDirectScheduleAt] = useState("");
 
   // V2: búsqueda dentro de la conversación activa.
   const [searchQuery, setSearchQuery] = useState("");
@@ -561,6 +521,108 @@ function MessagesPage() {
       setBroadcastSending(false);
     }
   };
+
+  // Programa la difusión para más tarde: inserta en scheduled_messages.
+  // El cron `dispatch_scheduled_messages` la envía cuando vence.
+  const scheduleBroadcast = async () => {
+    if (broadcastCourseIds.length === 0) {
+      toast.error("Selecciona al menos un curso.");
+      return;
+    }
+    if (!broadcastSubject.trim() || !broadcastBody.trim()) {
+      toast.error("Asunto y mensaje son obligatorios.");
+      return;
+    }
+    const v = validateScheduledSend(broadcastScheduleAt);
+    if (!v.ok) {
+      toast.error(v.error ?? "Fecha inválida.");
+      return;
+    }
+    if (!myUserId) return;
+    setBroadcastSending(true);
+    try {
+      const { error } = await db.from("scheduled_messages").insert({
+        creator_id: myUserId,
+        kind: "broadcast",
+        course_ids: broadcastCourseIds,
+        subject: broadcastSubject.trim(),
+        body: broadcastBody.trim(),
+        send_at: localToIso(broadcastScheduleAt),
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(`Difusión programada para ${formatDateTime(localToIso(broadcastScheduleAt))}.`);
+      setBroadcastDialogOpen(false);
+      setBroadcastCourseIds([]);
+      setBroadcastSubject("");
+      setBroadcastBody("");
+      setBroadcastScheduleAt("");
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
+  // Programa un mensaje directo (1-a-1) al otro usuario de la conv activa.
+  const scheduleDirect = async () => {
+    if (!activeConv || !myUserId) return;
+    if (!body.trim()) {
+      toast.error("Escribe un mensaje.");
+      return;
+    }
+    const v = validateScheduledSend(directScheduleAt);
+    if (!v.ok) {
+      toast.error(v.error ?? "Fecha inválida.");
+      return;
+    }
+    const otherId =
+      activeConv.conv.user_a === myUserId ? activeConv.conv.user_b : activeConv.conv.user_a;
+    const { error } = await db.from("scheduled_messages").insert({
+      creator_id: myUserId,
+      kind: "direct",
+      recipient_id: otherId,
+      body: body.trim(),
+      send_at: localToIso(directScheduleAt),
+    });
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    toast.success(`Mensaje programado para ${formatDateTime(localToIso(directScheduleAt))}.`);
+    setBody("");
+    setDirectScheduleAt("");
+    setDirectScheduleOpen(false);
+  };
+
+  // Carga los mensajes programados del usuario (RLS: solo los suyos).
+  const loadScheduled = async () => {
+    setScheduledLoading(true);
+    const { data } = await db
+      .from("scheduled_messages")
+      .select("id, kind, subject, body, send_at, status, error")
+      .order("send_at", { ascending: true });
+    setScheduledItems((data ?? []) as typeof scheduledItems);
+    setScheduledLoading(false);
+  };
+
+  const cancelScheduled = async (id: string) => {
+    const { error } = await db
+      .from("scheduled_messages")
+      .update({ status: "cancelled" })
+      .eq("id", id);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    toast.success("Programación cancelada.");
+    void loadScheduled();
+  };
+
+  useEffect(() => {
+    if (scheduledDialogOpen) void loadScheduled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduledDialogOpen]);
 
   // Deep-link desde notificaciones/correo: si la URL trae ?conv=<id>,
   // auto-selecciona esa conversación cuando esté en la lista cargada.
@@ -1095,16 +1157,27 @@ function MessagesPage() {
         actions={
           <>
             {isStaff && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setBroadcastDialogOpen(true)}
-                title="Enviar un mensaje a todos los estudiantes de un curso. Genera notificación in-app y correo (con todos los alumnos en BCC)."
-              >
-                <Megaphone className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Enviar a todos los estudiantes</span>
-                <span className="sm:hidden">Broadcast</span>
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setScheduledDialogOpen(true)}
+                  title="Ver y cancelar mensajes programados (directos y de difusión)."
+                >
+                  <CalendarClock className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Programados</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setBroadcastDialogOpen(true)}
+                  title="Enviar (o programar) un mensaje a todos los estudiantes de uno o más cursos."
+                >
+                  <Megaphone className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Enviar a todos los estudiantes</span>
+                  <span className="sm:hidden">Broadcast</span>
+                </Button>
+              </>
             )}
             <Button size="sm" onClick={() => setNewDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
@@ -1787,92 +1860,18 @@ function MessagesPage() {
                 </div>
 
                 {/* Composer + adjuntos */}
-                <div className="border-t p-2 space-y-1.5 relative">
-                  {/* Autocomplete inline de tags (#): dropdown anclado
-                      arriba del composer. Aparece al escribir `#texto`.
-                      Navegable con flechas + Enter; click también. */}
-                  {tagDropdownOpen && (
-                    <div className="absolute bottom-full left-2 right-2 mb-1 z-20 rounded-md border bg-popover shadow-md overflow-hidden">
-                      <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
-                        Etiquetar contenido — Enter para insertar
-                      </div>
-                      <ul className="max-h-56 overflow-y-auto py-1">
-                        {tagMatches.map((tg, idx) => {
-                          const TagIcon =
-                            tg.type === "workshop"
-                              ? Hammer
-                              : tg.type === "exam"
-                                ? FileText
-                                : FolderKanban;
-                          return (
-                            <li key={`${tg.type}:${tg.id}`}>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => {
-                                  // onMouseDown (no onClick) para que el blur
-                                  // del textarea no cierre el dropdown antes
-                                  // de aplicar el tag.
-                                  e.preventDefault();
-                                  applyInlineTag(tg);
-                                }}
-                                onMouseEnter={() => setTagActiveIdx(idx)}
-                                className={cn(
-                                  "w-full text-left px-2.5 py-1.5 text-sm flex items-center gap-2",
-                                  idx === tagActiveIdx ? "bg-muted" : "hover:bg-muted/50",
-                                )}
-                              >
-                                <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="flex-1 truncate">{tg.label}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {TAG_TYPE_LABEL[tg.type]}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
+                <div className="border-t p-2 space-y-1.5">
                   <div className="flex gap-2">
-                    <Textarea
-                      ref={composerRef}
+                    {/* TagTextarea: textarea con autocomplete `#` para
+                        etiquetar contenido + preview de tags. Ctrl/Cmd+
+                        Enter envía. */}
+                    <TagTextarea
                       value={body}
-                      onChange={handleComposerChange}
+                      onChange={setBody}
+                      onSubmit={() => void send()}
                       placeholder="Escribe un mensaje… (usa # para etiquetar)"
                       rows={2}
                       className="text-sm min-h-[2.5rem] resize-none"
-                      onKeyDown={(e) => {
-                        // Cuando el dropdown de tags está abierto, las flechas
-                        // y Enter navegan/seleccionan en vez de mover el caret
-                        // o enviar el mensaje.
-                        if (tagDropdownOpen) {
-                          if (e.key === "ArrowDown") {
-                            e.preventDefault();
-                            setTagActiveIdx((i) => (i + 1) % tagMatches.length);
-                            return;
-                          }
-                          if (e.key === "ArrowUp") {
-                            e.preventDefault();
-                            setTagActiveIdx((i) => (i - 1 + tagMatches.length) % tagMatches.length);
-                            return;
-                          }
-                          if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
-                            e.preventDefault();
-                            const sel = tagMatches[tagActiveIdx];
-                            if (sel) applyInlineTag(sel);
-                            return;
-                          }
-                          if (e.key === "Escape") {
-                            e.preventDefault();
-                            setTagQuery(null);
-                            return;
-                          }
-                        }
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                          e.preventDefault();
-                          void send();
-                        }
-                      }}
                     />
                     <div className="flex flex-col gap-1 self-end">
                       <input
@@ -1912,6 +1911,23 @@ function MessagesPage() {
                       >
                         <Paperclip className="h-3.5 w-3.5" />
                       </Button>
+                      {/* Programar mensaje (solo staff): abre una fila con
+                          DateTimePicker para enviar el mensaje más tarde
+                          como mensaje directo al otro usuario de la conv. */}
+                      {isStaff && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-9 px-2"
+                          onClick={() => setDirectScheduleOpen((v) => !v)}
+                          disabled={sending || !body.trim()}
+                          title="Programar este mensaje para más tarde"
+                          aria-label="Programar mensaje"
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         onClick={() => void send()}
                         disabled={(!body.trim() && pendingFiles.length === 0) || sending}
@@ -1921,40 +1937,34 @@ function MessagesPage() {
                       </Button>
                     </div>
                   </div>
-                  {/* Preview de etiquetas: el textarea muestra el token
-                      crudo `[[T:...]]` (no puede renderizar chips). Esta
-                      línea muestra cómo se verá el mensaje — el nombre
-                      humano de cada tag — para que el usuario confirme
-                      antes de enviar. Solo aparece si el body tiene tags. */}
-                  {(() => {
-                    const segs = parseMessageBody(body);
-                    const tags = segs.filter(
-                      (s): s is Extract<typeof s, { kind: "tag" }> => s.kind === "tag",
-                    );
-                    if (tags.length === 0) return null;
-                    return (
-                      <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                        <span>Etiquetas:</span>
-                        {tags.map((s, i) => {
-                          const TagIcon =
-                            s.tag.type === "workshop"
-                              ? Hammer
-                              : s.tag.type === "exam"
-                                ? FileText
-                                : FolderKanban;
-                          return (
-                            <span
-                              key={`${s.tag.type}:${s.tag.id}:${i}`}
-                              className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-primary"
-                            >
-                              <TagIcon className="h-3 w-3 shrink-0" />
-                              <span className="truncate max-w-[160px]">{s.tag.label}</span>
-                            </span>
-                          );
-                        })}
+                  {/* Fila de programación del mensaje directo. */}
+                  {isStaff && directScheduleOpen && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
+                      <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-xs text-muted-foreground">Enviar el:</span>
+                      <div className="flex-1 min-w-[180px]">
+                        <DateTimePicker value={directScheduleAt} onChange={setDirectScheduleAt} />
                       </div>
-                    );
-                  })()}
+                      <Button
+                        size="sm"
+                        onClick={() => void scheduleDirect()}
+                        disabled={!directScheduleAt || !body.trim()}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5 mr-1" />
+                        Programar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setDirectScheduleOpen(false);
+                          setDirectScheduleAt("");
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  )}
                   {pendingFiles.length > 0 && (
                     <ul className="space-y-1" data-testid="message-pending-files">
                       {pendingFiles.map((f, idx) => (
@@ -2166,10 +2176,14 @@ function MessagesPage() {
 
             <div>
               <Label className="text-xs">Mensaje</Label>
-              <Textarea
+              {/* TagTextarea: permite etiquetar contenido (#) también en
+                  difusión. Los tags se replican como chips en el mensaje
+                  de /app/messages; en la notif/correo se humanizan a
+                  `#label` (edge → humanizeTags). */}
+              <TagTextarea
                 value={broadcastBody}
-                onChange={(e) => setBroadcastBody(e.target.value)}
-                placeholder="Escribe el mensaje que recibirán todos los estudiantes del curso…"
+                onChange={setBroadcastBody}
+                placeholder="Escribe el mensaje… (usa # para etiquetar contenido)"
                 rows={5}
                 maxLength={10000}
                 disabled={broadcastSending}
@@ -2177,6 +2191,26 @@ function MessagesPage() {
               <p className="text-[10px] text-muted-foreground text-right mt-0.5">
                 {broadcastBody.length} / 10000
               </p>
+            </div>
+
+            {/* Programar (opcional): si se elige fecha futura, el botón
+                pasa a "Programar" e inserta en scheduled_messages; el cron
+                la envía cuando vence. Vacío = enviar ahora. */}
+            <div>
+              <Label className="text-xs flex items-center gap-1.5">
+                <CalendarClock className="h-3.5 w-3.5" />
+                Programar envío (opcional)
+              </Label>
+              <DateTimePicker
+                value={broadcastScheduleAt}
+                onChange={setBroadcastScheduleAt}
+                disabled={broadcastSending}
+              />
+              {broadcastScheduleAt && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Se enviará automáticamente el {formatDateTime(localToIso(broadcastScheduleAt))}.
+                </p>
+              )}
             </div>
 
             <div className="rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/50 p-2 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-2">
@@ -2197,7 +2231,7 @@ function MessagesPage() {
               Cancelar
             </Button>
             <Button
-              onClick={() => void sendBroadcast()}
+              onClick={() => void (broadcastScheduleAt ? scheduleBroadcast() : sendBroadcast())}
               disabled={
                 broadcastSending ||
                 broadcastCourseIds.length === 0 ||
@@ -2207,10 +2241,12 @@ function MessagesPage() {
             >
               {broadcastSending ? (
                 <Spinner size="sm" className="mr-1" />
+              ) : broadcastScheduleAt ? (
+                <CalendarClock className="h-4 w-4 mr-1" />
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              Enviar a todos
+              {broadcastScheduleAt ? "Programar" : "Enviar a todos"}
             </Button>
           </div>
         </DialogContent>
@@ -2219,6 +2255,81 @@ function MessagesPage() {
       {/* Picker para etiquetar contenido — insertado a nivel root del
           componente para que no compita con z-index del bubble. */}
       <MessageTagPicker open={tagPickerOpen} onOpenChange={setTagPickerOpen} onPick={insertTag} />
+
+      {/* Mensajes programados — lista + cancelar. */}
+      <Dialog open={scheduledDialogOpen} onOpenChange={setScheduledDialogOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-cyan-500" />
+              Mensajes programados
+            </DialogTitle>
+            <DialogDescription>
+              Mensajes directos y de difusión que se enviarán automáticamente en su fecha. Puedes
+              cancelar los que sigan pendientes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {scheduledLoading ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">Cargando…</p>
+            ) : scheduledItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No tienes mensajes programados.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {scheduledItems.map((it) => {
+                  const sevColor =
+                    it.status === "failed"
+                      ? "text-destructive"
+                      : it.status === "sent"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : it.status === "cancelled"
+                          ? "text-muted-foreground"
+                          : "text-foreground";
+                  return (
+                    <li key={it.id} className="rounded-md border p-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {it.kind === "broadcast" ? "Difusión" : "Directo"}
+                          </Badge>
+                          <span className={`text-xs font-medium ${sevColor}`}>
+                            {SCHEDULED_STATUS_LABEL[it.status]}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                          {formatDateTime(it.send_at)}
+                        </span>
+                      </div>
+                      {it.subject && (
+                        <div className="text-sm font-medium truncate">{it.subject}</div>
+                      )}
+                      <div className="text-xs text-muted-foreground line-clamp-2">{it.body}</div>
+                      {it.status === "failed" && it.error && (
+                        <div className="text-[11px] text-destructive">Error: {it.error}</div>
+                      )}
+                      {it.status === "pending" && (
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => void cancelScheduled(it.id)}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
