@@ -18,6 +18,7 @@ import {
   buildTagToken,
   parseMessageBody,
   tagRoute,
+  findActiveTagQuery,
   TAG_TYPE_LABEL,
   type ContentTag,
   type TagType,
@@ -49,9 +50,7 @@ describe("buildTagToken", () => {
     // saneado intacto (no truncado).
     const parsed = parseMessageBody(token);
     expect(parsed).toHaveLength(1);
-    expect((parsed[0] as { kind: "tag"; tag: ContentTag }).tag.label).toBe(
-      "Parcial [unidad 2)",
-    );
+    expect((parsed[0] as { kind: "tag"; tag: ContentTag }).tag.label).toBe("Parcial [unidad 2)");
   });
 
   it("preserva tildes y caracteres unicode en el label", () => {
@@ -194,9 +193,7 @@ describe("tagRoute", () => {
   });
 
   it("mapea exam → /exams", () => {
-    expect(tagRoute({ type: "exam", id: "x", label: "L" }, "student")).toBe(
-      "/app/student/exams",
-    );
+    expect(tagRoute({ type: "exam", id: "x", label: "L" }, "student")).toBe("/app/student/exams");
   });
 
   it("mapea project → /projects", () => {
@@ -216,5 +213,49 @@ describe("TAG_TYPE_LABEL", () => {
       video: "Video",
     };
     expect(TAG_TYPE_LABEL).toEqual(expected);
+  });
+});
+
+describe("findActiveTagQuery", () => {
+  it("detecta '#' al inicio del texto", () => {
+    expect(findActiveTagQuery("#par", 4)).toEqual({ query: "par", start: 0 });
+  });
+
+  it("detecta '#' precedido por espacio", () => {
+    // "hola #par" — caret al final (9)
+    expect(findActiveTagQuery("hola #par", 9)).toEqual({ query: "par", start: 5 });
+  });
+
+  it("query vacío justo tras escribir '#'", () => {
+    expect(findActiveTagQuery("hola #", 6)).toEqual({ query: "", start: 5 });
+  });
+
+  it("NO dispara cuando el '#' está pegado a una palabra (C#, x#y)", () => {
+    expect(findActiveTagQuery("C#", 2)).toBeNull();
+    expect(findActiveTagQuery("x#y", 3)).toBeNull();
+  });
+
+  it("NO hay mención si hay un espacio entre '#' y el caret", () => {
+    // "Taller #1 entrega" — caret tras "entrega" (17): el espacio cierra
+    expect(findActiveTagQuery("Taller #1 entrega", 17)).toBeNull();
+  });
+
+  it("sí está activa mientras se escribe el nombre tras '#' sin espacio", () => {
+    // "Taller #1" caret al final (9): query "1" (literal o selección)
+    expect(findActiveTagQuery("Taller #1", 9)).toEqual({ query: "1", start: 7 });
+  });
+
+  it("usa el '#' MÁS CERCANO al caret", () => {
+    // "#a #b" caret al final (5) → segundo '#'
+    expect(findActiveTagQuery("#a #b", 5)).toEqual({ query: "b", start: 3 });
+  });
+
+  it("null cuando no hay '#' antes del caret", () => {
+    expect(findActiveTagQuery("hola mundo", 10)).toBeNull();
+  });
+
+  it("respeta la posición del caret (no usa el largo total)", () => {
+    // texto "#parcial" pero caret en 3 → query "pa"
+    expect(findActiveTagQuery("#parcial", 3)).toEqual({ query: "pa", start: 0 });
   });
 });

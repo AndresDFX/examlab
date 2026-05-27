@@ -39,6 +39,7 @@ import {
   Building2,
   Users as UsersIcon,
   BookOpen,
+  ShieldCheck,
 } from "lucide-react";
 
 /** Formato relativo simple ("ahora", "5m", "2h", "1d"). Duplicado del
@@ -1194,6 +1195,7 @@ function EventRow({
  * a "Ver como" o a editar.
  */
 function SuperAdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     tenantsActive: 0,
     tenantsInactive: 0,
@@ -1202,19 +1204,21 @@ function SuperAdminDashboard() {
     aiJobsPending: 0,
     aiJobsFailed: 0,
     newTenants30d: 0,
+    errors24h: 0,
+    submissionsToday: 0,
   });
-  const [recentTenants, setRecentTenants] = useState<
-    Array<{ id: string; slug: string; name: string; is_active: boolean; created_at: string }>
-  >([]);
-  const [recentEvents, setRecentEvents] = useState<
+  // Instituciones con su uso real (usuarios + cursos). Ordenadas por
+  // # de usuarios desc — el SuperAdmin ve de un vistazo cuáles
+  // instituciones están activas y cuáles vacías, más útil que un orden
+  // por fecha de creación.
+  const [tenantStats, setTenantStats] = useState<
     Array<{
       id: string;
-      action: string;
-      category: string;
-      severity: string;
-      actor_email: string | null;
-      entity_name: string | null;
-      created_at: string;
+      slug: string;
+      name: string;
+      is_active: boolean;
+      userCount: number;
+      courseCount: number;
     }>
   >([]);
   const [loading, setLoading] = useState(true);
@@ -1225,22 +1229,31 @@ function SuperAdminDashboard() {
       setLoading(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
-      const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const now = Date.now();
+      const since30Ms = now - 30 * 24 * 60 * 60 * 1000;
+      const since24hIso = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const sinceTodayIso = todayStart.toISOString();
+
       const [
-        tenantsActiveRes,
-        tenantsInactiveRes,
-        usersRes,
+        tenantsRes,
+        profilesRes,
         coursesRes,
         aiPendingRes,
         aiFailedRes,
-        newTenantsRes,
-        recentRes,
-        eventsRes,
+        errors24hRes,
+        subExamRes,
+        subWsRes,
+        subProjRes,
       ] = await Promise.all([
-        dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", true),
-        dbAny.from("tenants").select("id", { count: "exact", head: true }).eq("is_active", false),
-        dbAny.from("profiles").select("id", { count: "exact", head: true }),
-        dbAny.from("courses").select("id", { count: "exact", head: true }),
+        // Tenants completos: derivamos active/inactive/new30d/uso en memoria
+        // (1 query en vez de 4 counts separados).
+        dbAny.from("tenants").select("id, slug, name, is_active, created_at"),
+        // tenant_id de cada profile → total + conteo por institución.
+        dbAny.from("profiles").select("tenant_id"),
+        // tenant_id de cada curso → total + conteo por institución.
+        dbAny.from("courses").select("tenant_id"),
         dbAny
           .from("ai_grading_queue")
           .select("id", { count: "exact", head: true })
@@ -1250,32 +1263,69 @@ function SuperAdminDashboard() {
           .select("id", { count: "exact", head: true })
           .eq("status", "failed"),
         dbAny
-          .from("tenants")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", since30),
-        dbAny
-          .from("tenants")
-          .select("id, slug, name, is_active, created_at")
-          .order("created_at", { ascending: false })
-          .limit(8),
-        dbAny
           .from("audit_logs")
-          .select("id, action, category, severity, actor_email, entity_name, created_at")
-          .order("created_at", { ascending: false })
-          .limit(8),
+          .select("id", { count: "exact", head: true })
+          .eq("severity", "error")
+          .gte("created_at", since24hIso),
+        dbAny
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .gte("submitted_at", sinceTodayIso),
+        dbAny
+          .from("workshop_submissions")
+          .select("id", { count: "exact", head: true })
+          .gte("submitted_at", sinceTodayIso),
+        dbAny
+          .from("project_submissions")
+          .select("id", { count: "exact", head: true })
+          .gte("submitted_at", sinceTodayIso),
       ]);
       if (cancelled) return;
+
+      const tenants = (tenantsRes.data ?? []) as Array<{
+        id: string;
+        slug: string;
+        name: string;
+        is_active: boolean;
+        created_at: string;
+      }>;
+      const profiles = (profilesRes.data ?? []) as Array<{ tenant_id: string | null }>;
+      const courses = (coursesRes.data ?? []) as Array<{ tenant_id: string | null }>;
+
+      // Conteos por institución en memoria.
+      const usersByTenant = new Map<string, number>();
+      for (const p of profiles) {
+        if (p.tenant_id) usersByTenant.set(p.tenant_id, (usersByTenant.get(p.tenant_id) ?? 0) + 1);
+      }
+      const coursesByTenant = new Map<string, number>();
+      for (const c of courses) {
+        if (c.tenant_id)
+          coursesByTenant.set(c.tenant_id, (coursesByTenant.get(c.tenant_id) ?? 0) + 1);
+      }
+
+      const tenantsWithUse = tenants
+        .map((t) => ({
+          id: t.id,
+          slug: t.slug,
+          name: t.name,
+          is_active: t.is_active,
+          userCount: usersByTenant.get(t.id) ?? 0,
+          courseCount: coursesByTenant.get(t.id) ?? 0,
+        }))
+        .sort((a, b) => b.userCount - a.userCount || a.name.localeCompare(b.name));
+
+      setTenantStats(tenantsWithUse);
       setStats({
-        tenantsActive: tenantsActiveRes.count ?? 0,
-        tenantsInactive: tenantsInactiveRes.count ?? 0,
-        usersTotal: usersRes.count ?? 0,
-        coursesTotal: coursesRes.count ?? 0,
+        tenantsActive: tenants.filter((t) => t.is_active).length,
+        tenantsInactive: tenants.filter((t) => !t.is_active).length,
+        usersTotal: profiles.length,
+        coursesTotal: courses.length,
         aiJobsPending: aiPendingRes.count ?? 0,
         aiJobsFailed: aiFailedRes.count ?? 0,
-        newTenants30d: newTenantsRes.count ?? 0,
+        newTenants30d: tenants.filter((t) => new Date(t.created_at).getTime() >= since30Ms).length,
+        errors24h: errors24hRes.count ?? 0,
+        submissionsToday: (subExamRes.count ?? 0) + (subWsRes.count ?? 0) + (subProjRes.count ?? 0),
       });
-      setRecentTenants((recentRes.data ?? []) as typeof recentTenants);
-      setRecentEvents((eventsRes.data ?? []) as typeof recentEvents);
       setLoading(false);
     })();
     return () => {
@@ -1285,7 +1335,8 @@ function SuperAdminDashboard() {
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      {/* 4 stats arriba — mismo grid que Teacher/Student/Admin. */}
+      {/* 4 stats arriba — clickeables (navegan al módulo), igual que en
+          los dashboards de Teacher/Student. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={Building2}
@@ -1297,6 +1348,7 @@ function SuperAdminDashboard() {
               : "todas activas"
           }
           color="text-violet-500 dark:text-violet-400"
+          onClick={() => void navigate({ to: "/app/superadmin/tenants" })}
         />
         <Stat
           icon={UsersIcon}
@@ -1304,6 +1356,7 @@ function SuperAdminDashboard() {
           value={loading ? "—" : stats.usersTotal}
           sub="cross-tenant"
           color="text-indigo-500 dark:text-indigo-400"
+          onClick={() => void navigate({ to: "/app/admin/users" })}
         />
         <Stat
           icon={BookOpen}
@@ -1311,6 +1364,7 @@ function SuperAdminDashboard() {
           value={loading ? "—" : stats.coursesTotal}
           sub="cross-tenant"
           color="text-fuchsia-500 dark:text-fuchsia-400"
+          onClick={() => void navigate({ to: "/app/admin/courses" })}
         />
         <Stat
           icon={ListOrdered}
@@ -1326,21 +1380,22 @@ function SuperAdminDashboard() {
               ? "text-amber-500 dark:text-amber-400"
               : "text-emerald-500 dark:text-emerald-400"
           }
+          onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
         />
       </div>
 
       {/* 2 cards abajo que ocupan el alto restante del viewport. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
-        {/* Instituciones recientes */}
+        {/* Instituciones — ordenadas por uso (usuarios), con conteos. */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4 text-violet-500 dark:text-violet-400" />
-              Instituciones recientes
+              Instituciones
             </CardTitle>
             <Link to="/app/superadmin/tenants">
               <Button variant="ghost" size="sm" className="h-7 text-xs">
-                Ver todas <ArrowRight className="h-3 w-3 ml-1" />
+                Gestionar <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardHeader>
@@ -1348,28 +1403,38 @@ function SuperAdminDashboard() {
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {loading ? (
                 <p className="text-sm text-muted-foreground py-2">Cargando…</p>
-              ) : recentTenants.length === 0 ? (
+              ) : tenantStats.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
                   Sin instituciones todavía. Crea la primera desde el panel.
                 </p>
               ) : (
                 <ul className="space-y-1.5">
-                  {recentTenants.map((tt) => (
+                  {tenantStats.map((tt) => (
                     <li
                       key={tt.id}
                       className="flex items-center justify-between gap-2 rounded-md border p-2.5"
                     >
                       <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{tt.name}</div>
+                        <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                          {tt.name}
+                          {!tt.is_active && (
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              Pausada
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-[11px] text-muted-foreground truncate">
-                          <code>/t/{tt.slug}</code> · {formatDate(tt.created_at)}
+                          <code>/t/{tt.slug}</code>
                         </div>
                       </div>
-                      {!tt.is_active && (
-                        <Badge variant="outline" className="text-[10px] shrink-0">
-                          Pausada
-                        </Badge>
-                      )}
+                      <div className="text-[11px] text-muted-foreground text-right shrink-0 tabular-nums">
+                        <div>
+                          {tt.userCount} usuario{tt.userCount === 1 ? "" : "s"}
+                        </div>
+                        <div>
+                          {tt.courseCount} curso{tt.courseCount === 1 ? "" : "s"}
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1384,64 +1449,91 @@ function SuperAdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Actividad reciente — eventos de audit_logs cross-tenant. */}
+        {/* Salud del sistema — métricas operativas de la plataforma. */}
         <Card className="flex flex-col min-h-0">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <CircleCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              Actividad reciente
+              <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              Salud del sistema
             </CardTitle>
             <Link to="/app/admin/audit-logs">
               <Button variant="ghost" size="sm" className="h-7 text-xs">
-                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+                Auditoría <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
-              {loading ? (
-                <p className="text-sm text-muted-foreground py-2">Cargando…</p>
-              ) : recentEvents.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  Sin eventos registrados todavía.
-                </p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {recentEvents.map((ev) => {
-                    const sevDot =
-                      ev.severity === "error"
-                        ? "bg-rose-500"
-                        : ev.severity === "warning"
-                          ? "bg-amber-500"
-                          : "bg-emerald-500";
-                    return (
-                      <li key={ev.id} className="flex items-start gap-2 rounded-md border p-2">
-                        <span
-                          className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${sevDot}`}
-                          aria-hidden
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate" title={ev.action}>
-                            {ev.action}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground truncate">
-                            {ev.actor_email ?? "sistema"}
-                            {ev.entity_name ? ` · ${ev.entity_name}` : ""} ·{" "}
-                            {relativeAge(ev.created_at)}
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="text-[10px] shrink-0">
-                          {ev.category}
-                        </Badge>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+            <HealthRow
+              icon={AlertTriangle}
+              label="Errores (24h)"
+              value={loading ? "—" : stats.errors24h}
+              tone={stats.errors24h > 0 ? "bad" : "good"}
+              onClick={() => void navigate({ to: "/app/admin/audit-logs" })}
+            />
+            <HealthRow
+              icon={ListOrdered}
+              label="Cola IA fallida"
+              value={loading ? "—" : stats.aiJobsFailed}
+              tone={stats.aiJobsFailed > 0 ? "warn" : "good"}
+              onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
+            />
+            <HealthRow
+              icon={ListOrdered}
+              label="Cola IA pendiente"
+              value={loading ? "—" : stats.aiJobsPending}
+              tone="neutral"
+              onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
+            />
+            <HealthRow
+              icon={Send}
+              label="Entregas hoy"
+              value={loading ? "—" : stats.submissionsToday}
+              tone="neutral"
+            />
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+/** Fila de métrica para el card "Salud del sistema" del SuperAdmin.
+ *  `tone` colorea el valor según severidad. `onClick` la hace navegable. */
+function HealthRow({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number | string;
+  tone: "good" | "warn" | "bad" | "neutral";
+  onClick?: () => void;
+}) {
+  const valueColor =
+    tone === "bad"
+      ? "text-rose-500 dark:text-rose-400"
+      : tone === "warn"
+        ? "text-amber-500 dark:text-amber-400"
+        : tone === "good"
+          ? "text-emerald-500 dark:text-emerald-400"
+          : "text-foreground";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex items-center justify-between gap-2 rounded-md border p-2.5 text-left w-full ${
+        onClick ? "cursor-pointer hover:border-primary/40 transition-colors" : "cursor-default"
+      }`}
+    >
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon className="h-4 w-4" />
+        {label}
+      </span>
+      <span className={`text-lg font-semibold tabular-nums ${valueColor}`}>{value}</span>
+    </button>
   );
 }

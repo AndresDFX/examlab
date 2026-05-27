@@ -25,7 +25,7 @@
  *   - `message_attachments.*`: el uploader es yo + el mensaje es mío.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,7 +67,7 @@ import {
   Mail,
   MoreVertical,
   ArrowLeft,
-  AtSign,
+  Hash,
   Hammer,
   FileText,
   FolderKanban,
@@ -76,6 +76,8 @@ import {
   parseMessageBody,
   tagRoute,
   buildTagToken,
+  findActiveTagQuery,
+  TAG_TYPE_LABEL,
   type ContentTag,
 } from "@/modules/messaging/message-tags";
 import { MessageTagPicker } from "@/modules/messaging/MessageTagPicker";
@@ -185,7 +187,8 @@ function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   // Picker para etiquetar contenido (taller/examen/proyecto) dentro del
-  // mensaje. Se abre desde el botón AtSign al lado del adjuntar. El tag
+  // mensaje. Se abre desde el botón # al lado del adjuntar (o escribiendo
+  // `#` inline en el chat). El tag
   // queda embebido como token `[[T:type:id:label]]` en el body — el
   // renderer lo parsea y lo muestra como Link clickeable.
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
@@ -199,6 +202,74 @@ function MessagesPage() {
     // Devolvemos foco al textarea para que el usuario siga escribiendo.
     setTimeout(() => composerRef.current?.focus(), 0);
   };
+
+  // ── Autocomplete inline de tags al escribir `#` ──
+  // Estilo Slack/Discord: el usuario escribe `#parc` y aparece un
+  // dropdown con talleres/exámenes/proyectos que matchean. Seleccionar
+  // reemplaza el `#query` por el token `[[T:...]]`. Ver `findActiveTagQuery`.
+  // `tagQuery` = mención activa (o null). `taggable` = catálogo cacheado
+  // (se carga lazy en el primer `#`). `tagActiveIdx` = item resaltado para
+  // navegación con flechas.
+  const [tagQuery, setTagQuery] = useState<{ query: string; start: number } | null>(null);
+  const [taggable, setTaggable] = useState<ContentTag[] | null>(null);
+  const [tagActiveIdx, setTagActiveIdx] = useState(0);
+
+  const loadTaggable = async () => {
+    if (taggable !== null) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
+    const [ws, ex, pj] = await Promise.all([
+      dbAny.from("workshops").select("id, title").order("title").limit(200),
+      dbAny.from("exams").select("id, title").order("title").limit(200),
+      dbAny.from("projects").select("id, title").order("title").limit(200),
+    ]);
+    const out: ContentTag[] = [];
+    for (const r of (ws.data ?? []) as Array<{ id: string; title: string | null }>)
+      out.push({ type: "workshop", id: String(r.id), label: String(r.title ?? "(sin título)") });
+    for (const r of (ex.data ?? []) as Array<{ id: string; title: string | null }>)
+      out.push({ type: "exam", id: String(r.id), label: String(r.title ?? "(sin título)") });
+    for (const r of (pj.data ?? []) as Array<{ id: string; title: string | null }>)
+      out.push({ type: "project", id: String(r.id), label: String(r.title ?? "(sin título)") });
+    setTaggable(out);
+  };
+
+  // Detecta la mención activa a partir del texto + posición del caret.
+  const handleComposerChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setBody(val);
+    const caret = e.target.selectionStart ?? val.length;
+    const q = findActiveTagQuery(val, caret);
+    setTagQuery(q);
+    setTagActiveIdx(0);
+    if (q) void loadTaggable();
+  };
+
+  // Items que matchean la mención activa (máx 8). El match es por label,
+  // case-insensitive, includes.
+  const tagMatches = useMemo(() => {
+    if (!tagQuery || !taggable) return [];
+    const q = tagQuery.query.trim().toLowerCase();
+    const base = q ? taggable.filter((t) => t.label.toLowerCase().includes(q)) : taggable;
+    return base.slice(0, 8);
+  }, [tagQuery, taggable]);
+
+  // Reemplaza el `#query` activo por el token del tag elegido.
+  const applyInlineTag = (tag: ContentTag) => {
+    if (!tagQuery) return;
+    const token = buildTagToken(tag);
+    const caretEnd = tagQuery.start + 1 + tagQuery.query.length;
+    setBody((prev) => {
+      const before = prev.slice(0, tagQuery.start);
+      const after = prev.slice(caretEnd);
+      const sep = after.startsWith(" ") ? "" : " ";
+      return `${before}${token}${sep}${after}`;
+    });
+    setTagQuery(null);
+    setTagActiveIdx(0);
+    setTimeout(() => composerRef.current?.focus(), 0);
+  };
+
+  const tagDropdownOpen = !!tagQuery && tagMatches.length > 0;
   const [contactSearch, setContactSearch] = useState("");
 
   // ── Broadcast a curso (Docente/Admin) ──
@@ -1589,7 +1660,7 @@ function MessagesPage() {
                                                 ? FileText
                                                 : seg.tag.type === "project"
                                                   ? FolderKanban
-                                                  : AtSign;
+                                                  : Hash;
                                           const role: "student" | "teacher" = isStaff
                                             ? "teacher"
                                             : "student";
@@ -1716,16 +1787,87 @@ function MessagesPage() {
                 </div>
 
                 {/* Composer + adjuntos */}
-                <div className="border-t p-2 space-y-1.5">
+                <div className="border-t p-2 space-y-1.5 relative">
+                  {/* Autocomplete inline de tags (#): dropdown anclado
+                      arriba del composer. Aparece al escribir `#texto`.
+                      Navegable con flechas + Enter; click también. */}
+                  {tagDropdownOpen && (
+                    <div className="absolute bottom-full left-2 right-2 mb-1 z-20 rounded-md border bg-popover shadow-md overflow-hidden">
+                      <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
+                        Etiquetar contenido — Enter para insertar
+                      </div>
+                      <ul className="max-h-56 overflow-y-auto py-1">
+                        {tagMatches.map((tg, idx) => {
+                          const TagIcon =
+                            tg.type === "workshop"
+                              ? Hammer
+                              : tg.type === "exam"
+                                ? FileText
+                                : FolderKanban;
+                          return (
+                            <li key={`${tg.type}:${tg.id}`}>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => {
+                                  // onMouseDown (no onClick) para que el blur
+                                  // del textarea no cierre el dropdown antes
+                                  // de aplicar el tag.
+                                  e.preventDefault();
+                                  applyInlineTag(tg);
+                                }}
+                                onMouseEnter={() => setTagActiveIdx(idx)}
+                                className={cn(
+                                  "w-full text-left px-2.5 py-1.5 text-sm flex items-center gap-2",
+                                  idx === tagActiveIdx ? "bg-muted" : "hover:bg-muted/50",
+                                )}
+                              >
+                                <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="flex-1 truncate">{tg.label}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {TAG_TYPE_LABEL[tg.type]}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Textarea
                       ref={composerRef}
                       value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      placeholder="Escribe un mensaje…"
+                      onChange={handleComposerChange}
+                      placeholder="Escribe un mensaje… (usa # para etiquetar)"
                       rows={2}
                       className="text-sm min-h-[2.5rem] resize-none"
                       onKeyDown={(e) => {
+                        // Cuando el dropdown de tags está abierto, las flechas
+                        // y Enter navegan/seleccionan en vez de mover el caret
+                        // o enviar el mensaje.
+                        if (tagDropdownOpen) {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setTagActiveIdx((i) => (i + 1) % tagMatches.length);
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setTagActiveIdx((i) => (i - 1 + tagMatches.length) % tagMatches.length);
+                            return;
+                          }
+                          if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            const sel = tagMatches[tagActiveIdx];
+                            if (sel) applyInlineTag(sel);
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setTagQuery(null);
+                            return;
+                          }
+                        }
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                           e.preventDefault();
                           void send();
@@ -1742,10 +1884,10 @@ function MessagesPage() {
                         aria-label="Adjuntar archivos"
                         data-testid="message-file-input"
                       />
-                      {/* Etiquetar contenido: abre picker con tabs por
-                          tipo (taller/examen/proyecto). Útil cuando el
-                          estudiante pregunta sobre un item específico y
-                          quiere darle al docente un link directo. */}
+                      {/* Etiquetar contenido: abre el picker con tabs por
+                          tipo (taller/examen/proyecto). Alternativa al
+                          trigger inline `#`. Útil cuando el usuario
+                          prefiere buscar por tabs en vez de escribir. */}
                       <Button
                         type="button"
                         size="sm"
@@ -1753,10 +1895,10 @@ function MessagesPage() {
                         className="h-9 px-2"
                         onClick={() => setTagPickerOpen(true)}
                         disabled={sending}
-                        title="Etiquetar contenido (taller, examen o proyecto)"
+                        title="Etiquetar contenido — o escribe # en el mensaje"
                         aria-label="Etiquetar contenido"
                       >
-                        <AtSign className="h-3.5 w-3.5" />
+                        <Hash className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         type="button"
@@ -1779,6 +1921,40 @@ function MessagesPage() {
                       </Button>
                     </div>
                   </div>
+                  {/* Preview de etiquetas: el textarea muestra el token
+                      crudo `[[T:...]]` (no puede renderizar chips). Esta
+                      línea muestra cómo se verá el mensaje — el nombre
+                      humano de cada tag — para que el usuario confirme
+                      antes de enviar. Solo aparece si el body tiene tags. */}
+                  {(() => {
+                    const segs = parseMessageBody(body);
+                    const tags = segs.filter(
+                      (s): s is Extract<typeof s, { kind: "tag" }> => s.kind === "tag",
+                    );
+                    if (tags.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                        <span>Etiquetas:</span>
+                        {tags.map((s, i) => {
+                          const TagIcon =
+                            s.tag.type === "workshop"
+                              ? Hammer
+                              : s.tag.type === "exam"
+                                ? FileText
+                                : FolderKanban;
+                          return (
+                            <span
+                              key={`${s.tag.type}:${s.tag.id}:${i}`}
+                              className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-primary"
+                            >
+                              <TagIcon className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[160px]">{s.tag.label}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                   {pendingFiles.length > 0 && (
                     <ul className="space-y-1" data-testid="message-pending-files">
                       {pendingFiles.map((f, idx) => (
