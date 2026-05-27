@@ -26,32 +26,91 @@ const adminClient = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+// `npx web-push generate-vapid-keys` produce las claves como base64url
+// strings: 65-byte uncompressed P-256 point para la pública (0x04 || X || Y),
+// 32-byte raw scalar para la privada. Pero `@negrel/webpush` espera JsonWebKey
+// (formato {kty, crv, x, y, d}) y llama `crypto.subtle.importKey('jwk', ...)`
+// internamente. Sin esta conversión truena con "Argument 2 can not be
+// converted to a dictionary".
+function base64UrlToUint8Array(b64: string): Uint8Array {
+  const padding = "=".repeat((4 - (b64.length % 4)) % 4);
+  const standard = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(standard);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+function uint8ArrayToBase64Url(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 1) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+function vapidKeysToJwk(publicKeyB64: string, privateKeyB64: string): {
+  publicKey: JsonWebKey;
+  privateKey: JsonWebKey;
+} {
+  const pubBytes = base64UrlToUint8Array(publicKeyB64);
+  if (pubBytes.length !== 65 || pubBytes[0] !== 0x04) {
+    throw new Error(
+      `Invalid VAPID public key (length=${pubBytes.length}, prefix=0x${pubBytes[0]?.toString(16)}). Expected 65 bytes starting with 0x04.`,
+    );
+  }
+  const x = pubBytes.slice(1, 33);
+  const y = pubBytes.slice(33, 65);
+
+  const privBytes = base64UrlToUint8Array(privateKeyB64);
+  if (privBytes.length !== 32) {
+    throw new Error(
+      `Invalid VAPID private key (length=${privBytes.length}). Expected 32 bytes.`,
+    );
+  }
+
+  const xB64 = uint8ArrayToBase64Url(x);
+  const yB64 = uint8ArrayToBase64Url(y);
+  return {
+    publicKey: { kty: "EC", crv: "P-256", x: xB64, y: yB64, ext: true },
+    privateKey: {
+      kty: "EC",
+      crv: "P-256",
+      x: xB64,
+      y: yB64,
+      d: uint8ArrayToBase64Url(privBytes),
+      ext: true,
+    },
+  };
+}
+
 // Cache del ApplicationServer (lleva la VAPID key importada). Se crea
 // una sola vez por instancia de la edge function.
 let appServer: webpush.ApplicationServer | null = null;
+// Diferencia entre "no se configuró env" vs "se configuró pero el import
+// falló": el caller necesita saber si vale la pena reintentar o si está
+// muerto el config. Sin esto el response siempre dice "vapid_missing"
+// aunque las env vars sí estuvieran.
+let appServerInitError: string | null = null;
 async function getAppServer(): Promise<webpush.ApplicationServer | null> {
   if (appServer) return appServer;
   const pub = Deno.env.get("VAPID_PUBLIC_KEY");
   const priv = Deno.env.get("VAPID_PRIVATE_KEY");
   const subject = Deno.env.get("VAPID_SUBJECT");
   if (!pub || !priv || !subject) {
+    appServerInitError = "vapid_missing";
     console.warn("[send-push] VAPID env missing — push disabled");
     return null;
   }
   try {
-    const keys = await webpush.importVapidKeys(
-      {
-        publicKey: pub,
-        privateKey: priv,
-      },
-      { extractable: false },
-    );
+    const jwk = vapidKeysToJwk(pub, priv);
+    const keys = await webpush.importVapidKeys(jwk, { extractable: false });
     appServer = await webpush.ApplicationServer.new({
       contactInformation: subject,
       vapidKeys: keys,
     });
+    appServerInitError = null;
     return appServer;
   } catch (e) {
+    appServerInitError = "vapid_invalid";
     console.error("[send-push] failed to init ApplicationServer", e);
     return null;
   }
@@ -111,12 +170,15 @@ Deno.serve(async (req: Request) => {
 
   const server = await getAppServer();
   if (!server) {
-    // Sin VAPID configurado, retornamos OK pero no enviamos nada — así
+    // Sin VAPID utilizable, retornamos OK pero no enviamos nada — así
     // el trigger DB no falla. El log queda como warning para que el
-    // admin lo detecte.
-    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: "vapid_missing" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // admin lo detecte. `skipped` ahora discrimina entre "no se configuró"
+    // y "se configuró pero el import falló" — sin esto el diagnóstico
+    // queda atascado en falsos positivos.
+    return new Response(
+      JSON.stringify({ ok: true, sent: 0, skipped: appServerInitError ?? "vapid_unavailable" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 
   const { data: subs, error } = await adminClient
