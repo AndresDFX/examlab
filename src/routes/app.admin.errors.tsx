@@ -47,13 +47,12 @@ import {
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { errorMessage, ERROR_STATUSES, type ErrStatus } from "@/modules/errors/error-event";
 
 export const Route = createFileRoute("/app/admin/errors")({ component: ErrorsModule });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-
-type ErrStatus = "nuevo" | "revisando" | "resuelto" | "ignorado";
 
 interface ErrorEvent {
   id: string;
@@ -86,18 +85,6 @@ const STATUS_CFG: Record<
   },
   ignorado: { label: "Ignorado", badge: "outline", color: "text-muted-foreground" },
 };
-
-const ALL_STATUSES: ErrStatus[] = ["nuevo", "revisando", "resuelto", "ignorado"];
-
-/** Extrae un mensaje corto del metadata del error (error/reason/message). */
-function errorMessage(meta: unknown): string | null {
-  if (!meta || typeof meta !== "object") return null;
-  const m = meta as Record<string, unknown>;
-  for (const k of ["error", "reason", "message", "detail"]) {
-    if (typeof m[k] === "string" && m[k]) return m[k] as string;
-  }
-  return null;
-}
 
 function ErrorsModule() {
   const { roles } = useAuth();
@@ -168,7 +155,10 @@ function ErrorsModule() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin, tenantFilter, statusFilter, retryNonce]);
 
-  const total = useMemo(() => ALL_STATUSES.reduce((acc, s) => acc + (counts[s] ?? 0), 0), [counts]);
+  const total = useMemo(
+    () => ERROR_STATUSES.reduce((acc, s) => acc + (counts[s] ?? 0), 0),
+    [counts],
+  );
 
   const applyBulk = async () => {
     const ids = [...sel.selectedIds];
@@ -229,7 +219,7 @@ function ErrorsModule() {
           active={statusFilter === "all"}
           onClick={() => setStatusFilter("all")}
         />
-        {ALL_STATUSES.map((s) => (
+        {ERROR_STATUSES.map((s) => (
           <CountTile
             key={s}
             label={STATUS_CFG[s].label}
@@ -272,7 +262,7 @@ function ErrorsModule() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ALL_STATUSES.map((s) => (
+              {ERROR_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
                   {STATUS_CFG[s].label}
                 </SelectItem>

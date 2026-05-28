@@ -40,6 +40,7 @@ import { ForceChangePasswordDialog } from "@/modules/auth/ForceChangePasswordDia
 import { studentAccessLevel } from "@/modules/auth/access-control";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/shared/lib/rbac";
+import { sortRolesByDisplay } from "@/shared/lib/role-order";
 import { logEvent } from "@/shared/lib/audit";
 import { ensurePushSubscription } from "@/modules/notifications/push-subscription";
 import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
@@ -391,13 +392,6 @@ const ROLE_CONFIG: Record<
       "bg-rose-500/15 text-rose-700 border-rose-500/25 dark:bg-rose-400/15 dark:text-rose-300 dark:border-rose-400/25",
   },
 };
-
-// Orden de presentación del selector de rol: de mayor a menor alcance.
-// El array `roles` de useAuth no garantiza orden, así que lo ordenamos
-// por este índice antes de renderizar (jerárquico, no alfabético).
-const ROLE_ORDER: AppRole[] = ["SuperAdmin", "Admin", "Docente", "Estudiante"];
-const sortRolesByDisplay = (rs: AppRole[]): AppRole[] =>
-  [...rs].sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b));
 
 /**
  * Class única que se aplica a todos los íconos del sidebar nav. Resuelve

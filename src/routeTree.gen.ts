@@ -50,17 +50,17 @@ import { Route as AppStudentCalendarRouteImport } from './routes/app.student.cal
 import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.attendance'
 import { Route as AppForumCourseIdRouteImport } from './routes/app.forum.$courseId'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
-import { Route as AppAdminErrorsRouteImport } from './routes/app.admin.errors'
-import { Route as AppAdminAcademicRouteImport } from './routes/app.admin.academic'
 import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminSettingsRouteImport } from './routes/app.admin.settings'
 import { Route as AppAdminReportTemplatesRouteImport } from './routes/app.admin.report-templates'
+import { Route as AppAdminErrorsRouteImport } from './routes/app.admin.errors'
 import { Route as AppAdminEmailSettingsRouteImport } from './routes/app.admin.email-settings'
 import { Route as AppAdminCoursesRouteImport } from './routes/app.admin.courses'
 import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-logs'
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
 import { Route as AppAdminAiCronRouteImport } from './routes/app.admin.ai-cron'
+import { Route as AppAdminAcademicRouteImport } from './routes/app.admin.academic'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
@@ -279,16 +279,6 @@ const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAdminErrorsRoute = AppAdminErrorsRouteImport.update({
-  id: '/admin/errors',
-  path: '/admin/errors',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAdminAcademicRoute = AppAdminAcademicRouteImport.update({
-  id: '/admin/academic',
-  path: '/admin/academic',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppAdminSystemRoute = AppAdminSystemRouteImport.update({
   id: '/admin/system',
   path: '/admin/system',
@@ -307,6 +297,11 @@ const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
 const AppAdminReportTemplatesRoute = AppAdminReportTemplatesRouteImport.update({
   id: '/admin/report-templates',
   path: '/admin/report-templates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminErrorsRoute = AppAdminErrorsRouteImport.update({
+  id: '/admin/errors',
+  path: '/admin/errors',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAdminEmailSettingsRoute = AppAdminEmailSettingsRouteImport.update({
@@ -332,6 +327,11 @@ const AppAdminAiPromptsRoute = AppAdminAiPromptsRouteImport.update({
 const AppAdminAiCronRoute = AppAdminAiCronRouteImport.update({
   id: '/admin/ai-cron',
   path: '/admin/ai-cron',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminAcademicRoute = AppAdminAcademicRouteImport.update({
+  id: '/admin/academic',
+  path: '/admin/academic',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
@@ -414,18 +414,18 @@ export interface FileRoutesByFullPath {
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/app/admin/academic': typeof AppAdminAcademicRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/errors': typeof AppAdminErrorsRoute
   '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
-  '/app/admin/errors': typeof AppAdminErrorsRoute
-  '/app/admin/academic': typeof AppAdminAcademicRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/calendar': typeof AppStudentCalendarRoute
@@ -478,18 +478,18 @@ export interface FileRoutesByTo {
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
+  '/app/admin/academic': typeof AppAdminAcademicRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/errors': typeof AppAdminErrorsRoute
   '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
-  '/app/admin/errors': typeof AppAdminErrorsRoute
-  '/app/admin/academic': typeof AppAdminAcademicRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/calendar': typeof AppStudentCalendarRoute
@@ -545,18 +545,18 @@ export interface FileRoutesById {
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/app/admin/academic': typeof AppAdminAcademicRoute
   '/app/admin/ai-cron': typeof AppAdminAiCronRoute
   '/app/admin/ai-prompts': typeof AppAdminAiPromptsRoute
   '/app/admin/audit-logs': typeof AppAdminAuditLogsRoute
   '/app/admin/courses': typeof AppAdminCoursesRoute
   '/app/admin/email-settings': typeof AppAdminEmailSettingsRoute
+  '/app/admin/errors': typeof AppAdminErrorsRoute
   '/app/admin/report-templates': typeof AppAdminReportTemplatesRoute
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
-  '/app/admin/errors': typeof AppAdminErrorsRoute
-  '/app/admin/academic': typeof AppAdminAcademicRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/calendar': typeof AppStudentCalendarRoute
@@ -613,18 +613,18 @@ export interface FileRouteTypes {
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
+    | '/app/admin/academic'
     | '/app/admin/ai-cron'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/email-settings'
+    | '/app/admin/errors'
     | '/app/admin/report-templates'
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
-    | '/app/admin/errors'
-    | '/app/admin/academic'
     | '/app/forum/$courseId'
     | '/app/student/attendance'
     | '/app/student/calendar'
@@ -677,18 +677,18 @@ export interface FileRouteTypes {
     | '/verify/$shortCode'
     | '/app'
     | '/auth'
+    | '/app/admin/academic'
     | '/app/admin/ai-cron'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/email-settings'
+    | '/app/admin/errors'
     | '/app/admin/report-templates'
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
-    | '/app/admin/errors'
-    | '/app/admin/academic'
     | '/app/forum/$courseId'
     | '/app/student/attendance'
     | '/app/student/calendar'
@@ -743,18 +743,18 @@ export interface FileRouteTypes {
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
+    | '/app/admin/academic'
     | '/app/admin/ai-cron'
     | '/app/admin/ai-prompts'
     | '/app/admin/audit-logs'
     | '/app/admin/courses'
     | '/app/admin/email-settings'
+    | '/app/admin/errors'
     | '/app/admin/report-templates'
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
-    | '/app/admin/errors'
-    | '/app/admin/academic'
     | '/app/forum/$courseId'
     | '/app/student/attendance'
     | '/app/student/calendar'
@@ -1092,20 +1092,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/admin/errors': {
-      id: '/app/admin/errors'
-      path: '/admin/errors'
-      fullPath: '/app/admin/errors'
-      preLoaderRoute: typeof AppAdminErrorsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/admin/academic': {
-      id: '/app/admin/academic'
-      path: '/admin/academic'
-      fullPath: '/app/admin/academic'
-      preLoaderRoute: typeof AppAdminAcademicRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/admin/system': {
       id: '/app/admin/system'
       path: '/admin/system'
@@ -1132,6 +1118,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/report-templates'
       fullPath: '/app/admin/report-templates'
       preLoaderRoute: typeof AppAdminReportTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/admin/errors': {
+      id: '/app/admin/errors'
+      path: '/admin/errors'
+      fullPath: '/app/admin/errors'
+      preLoaderRoute: typeof AppAdminErrorsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/admin/email-settings': {
@@ -1167,6 +1160,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/ai-cron'
       fullPath: '/app/admin/ai-cron'
       preLoaderRoute: typeof AppAdminAiCronRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/admin/academic': {
+      id: '/app/admin/academic'
+      path: '/admin/academic'
+      fullPath: '/app/admin/academic'
+      preLoaderRoute: typeof AppAdminAcademicRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/exams/': {
@@ -1288,18 +1288,18 @@ interface AppRouteChildren {
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppVideosRoute: typeof AppVideosRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAdminAcademicRoute: typeof AppAdminAcademicRoute
   AppAdminAiCronRoute: typeof AppAdminAiCronRoute
   AppAdminAiPromptsRoute: typeof AppAdminAiPromptsRoute
   AppAdminAuditLogsRoute: typeof AppAdminAuditLogsRoute
   AppAdminCoursesRoute: typeof AppAdminCoursesRoute
   AppAdminEmailSettingsRoute: typeof AppAdminEmailSettingsRoute
+  AppAdminErrorsRoute: typeof AppAdminErrorsRoute
   AppAdminReportTemplatesRoute: typeof AppAdminReportTemplatesRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
   AppAdminSystemRoute: typeof AppAdminSystemRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
-  AppAdminErrorsRoute: typeof AppAdminErrorsRoute
-  AppAdminAcademicRoute: typeof AppAdminAcademicRoute
   AppForumCourseIdRoute: typeof AppForumCourseIdRouteWithChildren
   AppStudentAttendanceRoute: typeof AppStudentAttendanceRoute
   AppStudentCalendarRoute: typeof AppStudentCalendarRoute
@@ -1344,18 +1344,18 @@ const AppRouteChildren: AppRouteChildren = {
   AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppVideosRoute: AppVideosRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAdminAcademicRoute: AppAdminAcademicRoute,
   AppAdminAiCronRoute: AppAdminAiCronRoute,
   AppAdminAiPromptsRoute: AppAdminAiPromptsRoute,
   AppAdminAuditLogsRoute: AppAdminAuditLogsRoute,
   AppAdminCoursesRoute: AppAdminCoursesRoute,
   AppAdminEmailSettingsRoute: AppAdminEmailSettingsRoute,
+  AppAdminErrorsRoute: AppAdminErrorsRoute,
   AppAdminReportTemplatesRoute: AppAdminReportTemplatesRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
   AppAdminSystemRoute: AppAdminSystemRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
-  AppAdminErrorsRoute: AppAdminErrorsRoute,
-  AppAdminAcademicRoute: AppAdminAcademicRoute,
   AppForumCourseIdRoute: AppForumCourseIdRouteWithChildren,
   AppStudentAttendanceRoute: AppStudentAttendanceRoute,
   AppStudentCalendarRoute: AppStudentCalendarRoute,
