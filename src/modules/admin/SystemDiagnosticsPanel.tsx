@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 
 /**
@@ -334,6 +335,25 @@ export function SystemDiagnosticsPanel() {
   const [pushSubs, setPushSubs] = useState<
     Array<{ id: string; user_agent: string | null; updated_at: string }>
   >([]);
+  // Suscripciones de TODA la plataforma — para que el Admin (acotado a
+  // su tenant via la RPC `admin_list_push_subscriptions`) y el SuperAdmin
+  // (cross-tenant) puedan ver qué usuarios tienen la PWA instalada y
+  // cuáles devices. RLS de `push_subscriptions` solo deja al dueño leer
+  // las suyas, así que esta visibilidad se hace vía RPC SECURITY DEFINER
+  // (migración 20260716000000).
+  const [allPushSubs, setAllPushSubs] = useState<
+    Array<{
+      id: string;
+      user_id: string;
+      user_email: string | null;
+      user_full_name: string | null;
+      user_agent: string | null;
+      updated_at: string;
+      tenant_name: string | null;
+    }>
+  >([]);
+  const [loadingAllPushSubs, setLoadingAllPushSubs] = useState(false);
+  const [allPushSubsError, setAllPushSubsError] = useState<string | null>(null);
   const [sendingTestPush, setSendingTestPush] = useState(false);
 
   /**
@@ -393,6 +413,25 @@ export function SystemDiagnosticsPanel() {
       .eq("user_id", u.user.id)
       .order("updated_at", { ascending: false });
     setPushSubs(data ?? []);
+  }
+
+  /**
+   * Carga TODAS las suscripciones de push de la plataforma (Admin: solo
+   * su tenant; SuperAdmin: cross-tenant) vía la RPC SECURITY DEFINER. La
+   * tabla `push_subscriptions` tiene RLS USING (user_id = auth.uid()),
+   * así que sin la RPC el cliente solo vería las suyas.
+   */
+  async function loadAllPushSubs() {
+    setLoadingAllPushSubs(true);
+    setAllPushSubsError(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("admin_list_push_subscriptions");
+    setLoadingAllPushSubs(false);
+    if (error) {
+      setAllPushSubsError(friendlyError(error, "No pudimos cargar los dispositivos"));
+      return;
+    }
+    setAllPushSubs(data ?? []);
   }
 
   async function runEdgeFunction() {
@@ -820,35 +859,130 @@ export function SystemDiagnosticsPanel() {
                       );
                     },
                   )}
-                  {/* Suscripciones del admin */}
-                  <div className="border-t pt-2 mt-2 space-y-1">
-                    <MutedLine label="Tus devices suscritos" value={pushSubs.length} />
-                    {pushSubs.length === 0 && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        Sin suscripciones — abre esta sesión en una PWA instalada (móvil o
-                        escritorio) y otorga permisos de notificación.
-                      </p>
-                    )}
-                    {pushSubs.slice(0, 3).map((s) => (
-                      <div
-                        key={s.id}
-                        className="flex items-center justify-between text-[11px] text-muted-foreground gap-2"
-                      >
-                        <span className="truncate flex-1" title={s.user_agent ?? ""}>
-                          {s.user_agent
-                            ? s.user_agent.slice(0, 60) + (s.user_agent.length > 60 ? "…" : "")
-                            : "device sin UA"}
-                        </span>
-                        <span className="tabular-nums shrink-0">
-                          {formatDateTime(s.updated_at)}
-                        </span>
-                      </div>
-                    ))}
-                    {pushSubs.length > 3 && (
-                      <p className="text-[10px] text-muted-foreground">
-                        + {pushSubs.length - 3} más
-                      </p>
-                    )}
+                  {/* Suscripciones — dos tabs:
+                      - "Míos": los devices del admin que está mirando
+                        (consultados directo a push_subscriptions con RLS).
+                      - "Todos": los devices de TODA la plataforma con email
+                        del dueño — Admin acotado a su tenant, SuperAdmin
+                        cross-tenant — vía la RPC admin_list_push_subscriptions.
+                      Útil para diagnosticar "¿a quién le llegan los pushes?". */}
+                  <div className="border-t pt-2 mt-2">
+                    <Tabs
+                      defaultValue="mine"
+                      onValueChange={(v) => {
+                        if (v === "all" && allPushSubs.length === 0 && !loadingAllPushSubs) {
+                          void loadAllPushSubs();
+                        }
+                      }}
+                    >
+                      <TabsList className="h-8 grid w-full grid-cols-2">
+                        <TabsTrigger value="mine" className="text-xs h-6">
+                          Míos ({pushSubs.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="all" className="text-xs h-6">
+                          Todos
+                          {allPushSubs.length > 0 ? ` (${allPushSubs.length})` : ""}
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="mine" className="space-y-1 mt-2">
+                        {pushSubs.length === 0 && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            Sin suscripciones — abrí esta sesión en una PWA instalada (móvil o
+                            escritorio) y otorgá permisos de notificación.
+                          </p>
+                        )}
+                        {pushSubs.slice(0, 3).map((s) => (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between text-[11px] text-muted-foreground gap-2"
+                          >
+                            <span className="truncate flex-1" title={s.user_agent ?? ""}>
+                              {s.user_agent
+                                ? s.user_agent.slice(0, 60) + (s.user_agent.length > 60 ? "…" : "")
+                                : "device sin UA"}
+                            </span>
+                            <span className="tabular-nums shrink-0">
+                              {formatDateTime(s.updated_at)}
+                            </span>
+                          </div>
+                        ))}
+                        {pushSubs.length > 3 && (
+                          <p className="text-[10px] text-muted-foreground">
+                            + {pushSubs.length - 3} más
+                          </p>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="all" className="space-y-1 mt-2">
+                        {loadingAllPushSubs ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                            <Spinner size="sm" /> Cargando dispositivos…
+                          </div>
+                        ) : allPushSubsError ? (
+                          <div className="text-xs text-destructive">
+                            {allPushSubsError}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="ml-1 h-5 text-[10px]"
+                              onClick={() => void loadAllPushSubs()}
+                            >
+                              Reintentar
+                            </Button>
+                          </div>
+                        ) : allPushSubs.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Sin dispositivos suscritos todavía.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="max-h-56 overflow-y-auto -mx-1 px-1 space-y-1">
+                              {allPushSubs.map((s) => (
+                                <div
+                                  key={s.id}
+                                  className="rounded border bg-background/50 p-1.5 text-[11px] space-y-0.5"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span
+                                      className="font-medium truncate"
+                                      title={s.user_email ?? s.user_id}
+                                    >
+                                      {s.user_email ?? "(sin email)"}
+                                    </span>
+                                    <span className="tabular-nums shrink-0 text-muted-foreground">
+                                      {formatDateTime(s.updated_at)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    {s.user_full_name && (
+                                      <span className="truncate">{s.user_full_name}</span>
+                                    )}
+                                    {s.tenant_name && (
+                                      <span className="shrink-0">· {s.tenant_name}</span>
+                                    )}
+                                  </div>
+                                  <div
+                                    className="text-muted-foreground truncate"
+                                    title={s.user_agent ?? ""}
+                                  >
+                                    {s.user_agent
+                                      ? s.user_agent.slice(0, 80) +
+                                        (s.user_agent.length > 80 ? "…" : "")
+                                      : "device sin UA"}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground pt-1">
+                              {allPushSubs.length} dispositivo
+                              {allPushSubs.length === 1 ? "" : "s"} suscrito
+                              {allPushSubs.length === 1 ? "" : "s"} en total.
+                            </p>
+                          </>
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   </div>
                   {/* Botón de prueba — encola una notification para el admin
                       actual, que dispara el trigger y manda el push. */}

@@ -98,6 +98,12 @@ function SuperAdminTenantsPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
+  // En modo CREAR no existe aún `tenant.id`, así que no se puede subir al
+  // bucket todavía (el path es `${tenantId}/logo.ext`). Guardamos el File
+  // en memoria + una preview con URL.createObjectURL, y el upload real se
+  // hace dentro de `save()` después del INSERT, usando el id recién creado.
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+  const [pendingLogoPreview, setPendingLogoPreview] = useState<string | null>(null);
   /** Estado del dialog 'Gestionar usuarios' — el SuperAdmin decide qué
    *  usuarios pertenecen a este tenant (marca para agregar, desmarca
    *  para quitar). tenant=null = cerrado. */
@@ -131,8 +137,17 @@ function SuperAdminTenantsPage() {
     return <Navigate to="/app" />;
   }
 
+  // Libera el blob URL del archivo pendiente. Si no se libera, el browser
+  // mantiene el File vivo en memoria hasta el unload del tab.
+  const clearPendingLogo = () => {
+    if (pendingLogoPreview) URL.revokeObjectURL(pendingLogoPreview);
+    setPendingLogoFile(null);
+    setPendingLogoPreview(null);
+  };
+
   const openCreate = () => {
     setEditing(null);
+    clearPendingLogo();
     setForm({
       slug: "",
       name: "",
@@ -179,49 +194,80 @@ function SuperAdminTenantsPage() {
    * `current_tenant_id()` del caller. Solo aplica en edit (necesitamos
    * `editing.id` para construir el path).
    */
-  const uploadLogo = async (file: File) => {
-    if (!editing) {
-      toast.error("Crea la institución primero, luego edita para subir el logo.");
-      return;
-    }
+  /** Valida tipo + tamaño. Devuelve null si inválido (con toast) o el
+   *  mismo archivo si es válido. Compartido por modos crear y editar. */
+  const validateLogoFile = (file: File): File | null => {
     const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!validTypes.includes(file.type)) {
       toast.error("Formato no soportado. Usa PNG, JPG, SVG o WebP.");
-      return;
+      return null;
     }
     if (file.size > 2 * 1024 * 1024) {
       toast.error("El logo no puede pesar más de 2 MB.");
+      return null;
+    }
+    return file;
+  };
+
+  /** Sube un File al bucket `tenant-logos` con path `${tenantId}/logo.ext`.
+   *  Aplica el resize de `resizeImageForLogo` antes. Devuelve el path
+   *  guardado o null si falló (con toast). Útil tanto para uploads
+   *  inmediatos (edit) como para uploads post-INSERT (create). */
+  const uploadLogoToBucket = async (file: File, tenantId: string): Promise<string | null> => {
+    const { file: finalFile, resized, originalSize, finalSize } = await resizeImageForLogo(file);
+    const ext =
+      finalFile.type === "image/png"
+        ? "png"
+        : finalFile.type === "image/jpeg"
+          ? "jpg"
+          : finalFile.type === "image/svg+xml"
+            ? "svg"
+            : "webp";
+    const path = `${tenantId}/logo.${ext}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: upErr } = await (supabase.storage as any)
+      .from("tenant-logos")
+      .upload(path, finalFile, { upsert: true, contentType: finalFile.type });
+    if (upErr) {
+      toast.error(friendlyError(upErr, "No se pudo subir el logo"));
+      return null;
+    }
+    if (resized) {
+      const kbBefore = Math.round(originalSize / 1024);
+      const kbAfter = Math.round(finalSize / 1024);
+      toast.success(`Logo subido (optimizado: ${kbBefore} KB → ${kbAfter} KB).`);
+    }
+    return path;
+  };
+
+  /**
+   * Handler del input file. En MODO EDITAR sube inmediatamente al bucket
+   * (ya hay `editing.id`). En MODO CREAR no hay tenant todavía, así que
+   * solo validamos + stasheamos el File con una preview local — el upload
+   * real lo hace `save()` después del INSERT del tenant.
+   */
+  const uploadLogo = async (file: File) => {
+    const valid = validateLogoFile(file);
+    if (!valid) return;
+
+    if (!editing) {
+      // Modo crear: stash + preview local.
+      if (pendingLogoPreview) URL.revokeObjectURL(pendingLogoPreview);
+      const preview = URL.createObjectURL(valid);
+      setPendingLogoFile(valid);
+      setPendingLogoPreview(preview);
+      setForm((p) => ({ ...p, logo_url: "" }));
+      if (logoFileInputRef.current) logoFileInputRef.current.value = "";
+      toast.success("Logo listo. Se subirá al guardar la institución.");
       return;
     }
+
+    // Modo editar: subimos al toque al bucket usando editing.id.
     setUploadingLogo(true);
     try {
-      const { file: finalFile, resized, originalSize, finalSize } =
-        await resizeImageForLogo(file);
-      const ext =
-        finalFile.type === "image/png"
-          ? "png"
-          : finalFile.type === "image/jpeg"
-            ? "jpg"
-            : finalFile.type === "image/svg+xml"
-              ? "svg"
-              : "webp";
-      const path = `${editing.id}/logo.${ext}`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: upErr } = await (supabase.storage as any)
-        .from("tenant-logos")
-        .upload(path, finalFile, { upsert: true, contentType: finalFile.type });
-      if (upErr) {
-        toast.error(friendlyError(upErr, "No se pudo subir el logo"));
-        return;
-      }
-      setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
-      if (resized) {
-        const kbBefore = Math.round(originalSize / 1024);
-        const kbAfter = Math.round(finalSize / 1024);
-        toast.success(
-          `Logo subido (optimizado: ${kbBefore} KB → ${kbAfter} KB). Recuerda 'Guardar'.`,
-        );
-      } else {
+      const path = await uploadLogoToBucket(valid, editing.id);
+      if (path) {
+        setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
         toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
       }
     } finally {
@@ -232,7 +278,8 @@ function SuperAdminTenantsPage() {
 
   const removeLogo = () => {
     setForm((p) => ({ ...p, logo_path: "", logo_url: "" }));
-    toast.info("Logo removido. 'Guardar' para aplicar.");
+    clearPendingLogo();
+    toast.info("Logo removido.");
   };
 
   const save = async () => {
@@ -290,11 +337,36 @@ function SuperAdminTenantsPage() {
       }
       toast.success("Institución actualizada");
     } else {
-      const { error } = await db.from("tenants").insert(payload);
+      // Modo crear: INSERT y nos quedamos con el id retornado, porque si
+      // hay un `pendingLogoFile` necesitamos subirlo al bucket y luego
+      // hacer un UPDATE con su path.
+      const { data: created, error } = await db
+        .from("tenants")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) {
         toast.error(friendlyError(error, "No se pudo crear"));
         setSaving(false);
         return;
+      }
+
+      if (pendingLogoFile && created?.id) {
+        const path = await uploadLogoToBucket(pendingLogoFile, created.id as string);
+        if (path) {
+          const { error: updErr } = await db
+            .from("tenants")
+            .update({ logo_path: path, logo_url: null })
+            .eq("id", created.id);
+          if (updErr) {
+            // No abortamos: el tenant está creado, solo falló asociar el
+            // logo. El SuperAdmin puede reintentar desde "Editar".
+            toast.error(
+              friendlyError(updErr, "Institución creada, pero no se pudo asociar el logo"),
+            );
+          }
+        }
+        clearPendingLogo();
       }
       toast.success("Institución creada");
     }
@@ -315,10 +387,7 @@ function SuperAdminTenantsPage() {
       });
       if (!ok) return;
     }
-    const { error } = await db
-      .from("tenants")
-      .update({ is_active: !t.is_active })
-      .eq("id", t.id);
+    const { error } = await db.from("tenants").update({ is_active: !t.is_active }).eq("id", t.id);
     if (error) {
       toast.error(friendlyError(error));
       return;
@@ -541,9 +610,7 @@ function SuperAdminTenantsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editing ? `Editar ${editing.name}` : "Nueva institución"}
-            </DialogTitle>
+            <DialogTitle>{editing ? `Editar ${editing.name}` : "Nueva institución"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Cada field es un stack vertical Label → Input → helper text
@@ -561,8 +628,8 @@ function SuperAdminTenantsPage() {
                 placeholder="sena-bogota"
               />
               <p className="text-[11px] text-muted-foreground">
-                URL: <code>/t/{form.slug || "..."}/app/...</code>. Minúsculas, números
-                y guiones; 3–50 chars.
+                URL: <code>/t/{form.slug || "..."}/app/...</code>. Minúsculas, números y guiones;
+                3–50 chars.
                 {editing && (
                   <>
                     {" "}
@@ -594,89 +661,93 @@ function SuperAdminTenantsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Logo institucional</Label>
-              {editing ? (
-                <div className="flex items-center gap-3 mt-1">
-                  {/* Preview del logo (path actual del form). Si el SuperAdmin
-                      acaba de subir uno nuevo, form.logo_path lo refleja al
-                      instante. resolveTenantLogoUrl resuelve la URL pública
-                      desde el bucket. */}
-                  {form.logo_path ? (
-                    <div className="h-14 w-14 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
-                      <img
-                        src={
-                          supabase.storage
-                            .from("tenant-logos")
-                            .getPublicUrl(form.logo_path).data?.publicUrl ?? ""
-                        }
-                        alt={form.name}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  ) : form.logo_url ? (
-                    <div className="h-14 w-14 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
-                      <img
-                        src={form.logo_url}
-                        alt={form.name}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-14 w-14 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
-                      Sin logo
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <input
-                      ref={logoFileInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void uploadLogo(f);
-                      }}
+              {/* Misma UI en crear y editar. La diferencia vive en uploadLogo:
+                  - Editar: sube al bucket al instante (tenemos editing.id).
+                  - Crear: stashea el File + preview local; el upload real lo
+                    hace save() después del INSERT, usando el id recién creado. */}
+              <div className="flex items-center gap-3 mt-1">
+                {form.logo_path ? (
+                  <div className="h-14 w-14 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
+                    <img
+                      src={
+                        supabase.storage.from("tenant-logos").getPublicUrl(form.logo_path).data
+                          ?.publicUrl ?? ""
+                      }
+                      alt={form.name}
+                      className="h-full w-full object-contain"
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => logoFileInputRef.current?.click()}
-                        disabled={uploadingLogo}
-                      >
-                        <Upload className="h-3.5 w-3.5 mr-1" />
-                        {uploadingLogo ? "Subiendo…" : "Subir logo"}
-                      </Button>
-                      {(form.logo_path || form.logo_url) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={removeLogo}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />
-                          Quitar
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-1">
-                      PNG/JPG/SVG/WebP · 2 MB max. Sobrescribe el que tenga el
-                      Admin del tenant.
-                    </p>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    value={form.logo_url}
-                    onChange={(e) => setForm((p) => ({ ...p, logo_url: e.target.value }))}
-                    placeholder="https://.../logo.png (opcional)"
+                ) : pendingLogoPreview ? (
+                  <div className="h-14 w-14 rounded-lg border border-primary/40 bg-background flex items-center justify-center overflow-hidden shrink-0">
+                    <img
+                      src={pendingLogoPreview}
+                      alt={form.name}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                ) : form.logo_url ? (
+                  <div className="h-14 w-14 rounded-lg border bg-background flex items-center justify-center overflow-hidden shrink-0">
+                    <img
+                      src={form.logo_url}
+                      alt={form.name}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-14 w-14 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+                    Sin logo
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <input
+                    ref={logoFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadLogo(f);
+                    }}
                   />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => logoFileInputRef.current?.click()}
+                      disabled={uploadingLogo}
+                    >
+                      <Upload className="h-3.5 w-3.5 mr-1" />
+                      {uploadingLogo ? "Subiendo…" : "Subir logo"}
+                    </Button>
+                    {(form.logo_path || form.logo_url || pendingLogoFile) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={removeLogo}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        Quitar
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    Para subir un archivo, crea la institución primero y luego
-                    edítala — necesitamos el ID del tenant para guardar el archivo
-                    en el bucket.
+                    PNG/JPG/SVG/WebP · 2 MB max.
+                    {!editing && pendingLogoFile ? " Se subirá al guardar la institución." : ""}
                   </p>
-                </>
+                </div>
+              </div>
+              {/* Campo URL alternativo: para casos en que el SuperAdmin
+                  prefiere usar un asset alojado en otro lado (ej. CDN
+                  corporativo). Si hay archivo subido / pendiente, este
+                  campo queda informativo y no se usa. */}
+              {!form.logo_path && !pendingLogoFile && (
+                <Input
+                  value={form.logo_url}
+                  onChange={(e) => setForm((p) => ({ ...p, logo_url: e.target.value }))}
+                  placeholder="...o pega una URL pública (opcional)"
+                  className="mt-2"
+                />
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
@@ -732,8 +803,7 @@ function SuperAdminTenantsPage() {
             <div className="space-y-2 pt-2 border-t">
               <Label className="text-sm font-medium">Cuotas de usuarios</Label>
               <p className="text-[11px] text-muted-foreground">
-                Tope de usuarios por rol. Deja vacío para ilimitado. SuperAdmin
-                no consume cuota.
+                Tope de usuarios por rol. Deja vacío para ilimitado. SuperAdmin no consume cuota.
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1.5">

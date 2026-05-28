@@ -248,7 +248,11 @@ function CertificatesAdmin() {
               la query principal. Mismo patrón que app.admin.users y
               app.admin.courses pero adaptado al schema sin tenant_id
               en certificates (resuelto via cursos del tenant). */}
-          {isSuperAdminCaller && tenants.length > 1 && (
+          {/* Antes gateado a `tenants.length > 1` (escondía el filtro en
+              deploys con un solo tenant). Bajado a `> 0` para coincidir
+              con Usuarios/Cursos/Errores/Cola — el filtro queda visible
+              siempre que el SuperAdmin tenga ≥1 institución. */}
+          {isSuperAdminCaller && tenants.length > 0 && (
             <Select value={tenantFilter} onValueChange={setTenantFilter}>
               <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
                 <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />

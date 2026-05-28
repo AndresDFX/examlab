@@ -634,9 +634,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               />
             </div>
 
-            {/* Filtro institución — solo SuperAdmin con ≥1 tenant cargado.
-                Aplica `.eq('tenant_id', X)` a la query de audit_logs. */}
-            {isSuperAdminCaller && tenants.length > 1 && (
+            {/* Filtro institución — siempre visible para SuperAdmin si hay
+                al menos un tenant (consistente con Usuarios/Cursos/Errores/
+                Cola/Certificados; antes gateado a `> 1`). Aplica
+                `.eq('tenant_id', X)` a la query de audit_logs. */}
+            {isSuperAdminCaller && tenants.length > 0 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
                 <SelectTrigger className="w-48 h-9">
                   <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
@@ -802,124 +804,128 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : (
-          <div className="overflow-x-auto">
-            <Table resizable>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-36">{t("common.date")}</TableHead>
-                  <TableHead className="w-48">{t("common.actor")}</TableHead>
-                  <TableHead>{t("common.action")}</TableHead>
-                  <TableHead className="w-32">{t("common.category")}</TableHead>
-                  <TableHead className="w-40">{t("common.entity")}</TableHead>
-                  {mode === "admin" && <TableHead className="w-40">{t("common.course")}</TableHead>}
-                  <TableHead className="w-28">{t("common.level")}</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableSkeleton cols={mode === "admin" ? 8 : 7} rows={10} />
-                ) : filtered.length === 0 ? (
-                  <TableEmpty colSpan={mode === "admin" ? 8 : 7} text={t("audit.noEvents")} />
-                ) : (
-                  filtered.map((log) => {
-                    const sev = SEVERITY_CONFIG[log.severity] ?? SEVERITY_CONFIG.info;
-                    const cat = CATEGORY_CONFIG[log.category];
-                    return (
-                      <TableRow
-                        key={log.id}
-                        className={`cursor-pointer hover:bg-muted/40 ${sev.rowCls}`}
-                        onClick={() => {
-                          setDetail(log);
-                          setDetailJsonOpen(false);
-                        }}
-                      >
-                        {/* Fecha */}
-                        <TableCell className="whitespace-nowrap">
-                          <DateCell value={log.created_at} variant="datetime" />
-                        </TableCell>
+            <div className="overflow-x-auto">
+              <Table resizable>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-36">{t("common.date")}</TableHead>
+                    <TableHead className="w-48">{t("common.actor")}</TableHead>
+                    <TableHead>{t("common.action")}</TableHead>
+                    <TableHead className="w-32">{t("common.category")}</TableHead>
+                    <TableHead className="w-40">{t("common.entity")}</TableHead>
+                    {mode === "admin" && (
+                      <TableHead className="w-40">{t("common.course")}</TableHead>
+                    )}
+                    <TableHead className="w-28">{t("common.level")}</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableSkeleton cols={mode === "admin" ? 8 : 7} rows={10} />
+                  ) : filtered.length === 0 ? (
+                    <TableEmpty colSpan={mode === "admin" ? 8 : 7} text={t("audit.noEvents")} />
+                  ) : (
+                    filtered.map((log) => {
+                      const sev = SEVERITY_CONFIG[log.severity] ?? SEVERITY_CONFIG.info;
+                      const cat = CATEGORY_CONFIG[log.category];
+                      return (
+                        <TableRow
+                          key={log.id}
+                          className={`cursor-pointer hover:bg-muted/40 ${sev.rowCls}`}
+                          onClick={() => {
+                            setDetail(log);
+                            setDetailJsonOpen(false);
+                          }}
+                        >
+                          {/* Fecha */}
+                          <TableCell className="whitespace-nowrap">
+                            <DateCell value={log.created_at} variant="datetime" />
+                          </TableCell>
 
-                        {/* Actor */}
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span
-                              className="text-sm truncate max-w-44"
-                              title={log.actor_email ?? t("audit.system")}
-                            >
-                              {log.actor_email ?? (
-                                <span className="italic text-muted-foreground">
-                                  {t("audit.system")}
-                                </span>
-                              )}
-                            </span>
-                            {log.actor_role && (
-                              <Badge
-                                variant="outline"
-                                className={`self-start text-[10px] py-0 ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}
+                          {/* Actor */}
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <span
+                                className="text-sm truncate max-w-44"
+                                title={log.actor_email ?? t("audit.system")}
                               >
-                                {log.actor_role}
+                                {log.actor_email ?? (
+                                  <span className="italic text-muted-foreground">
+                                    {t("audit.system")}
+                                  </span>
+                                )}
+                              </span>
+                              {log.actor_role && (
+                                <Badge
+                                  variant="outline"
+                                  className={`self-start text-[10px] py-0 ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}
+                                >
+                                  {log.actor_role}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Acción */}
+                          <TableCell className="text-sm">
+                            {ACTION_LABELS[log.action] ?? log.action}
+                          </TableCell>
+
+                          {/* Categoría */}
+                          <TableCell>
+                            {cat && (
+                              <Badge variant="outline" className={`text-[10px] ${cat.cls}`}>
+                                {t(`audit.categories.${log.category}`)}
                               </Badge>
                             )}
-                          </div>
-                        </TableCell>
+                          </TableCell>
 
-                        {/* Acción */}
-                        <TableCell className="text-sm">
-                          {ACTION_LABELS[log.action] ?? log.action}
-                        </TableCell>
-
-                        {/* Categoría */}
-                        <TableCell>
-                          {cat && (
-                            <Badge variant="outline" className={`text-[10px] ${cat.cls}`}>
-                              {t(`audit.categories.${log.category}`)}
-                            </Badge>
-                          )}
-                        </TableCell>
-
-                        {/* Entidad */}
-                        <TableCell>
-                          <span
-                            className="text-sm truncate block max-w-36"
-                            title={log.entity_name ?? ""}
-                          >
-                            {log.entity_name ?? "—"}
-                          </span>
-                        </TableCell>
-
-                        {/* Curso (admin only) */}
-                        {mode === "admin" && (
+                          {/* Entidad */}
                           <TableCell>
                             <span
-                              className="text-sm truncate block max-w-36 text-muted-foreground"
-                              title={log.course_name ?? ""}
+                              className="text-sm truncate block max-w-36"
+                              title={log.entity_name ?? ""}
                             >
-                              {log.course_name ?? "—"}
+                              {log.entity_name ?? "—"}
                             </span>
                           </TableCell>
-                        )}
 
-                        {/* Nivel */}
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center gap-1 text-xs font-medium ${sev.iconCls}`}
-                          >
-                            {SEVERITY_ICONS[log.severity]}
-                            {t(`audit.severities.${log.severity}`, { defaultValue: log.severity })}
-                          </span>
-                        </TableCell>
+                          {/* Curso (admin only) */}
+                          {mode === "admin" && (
+                            <TableCell>
+                              <span
+                                className="text-sm truncate block max-w-36 text-muted-foreground"
+                                title={log.course_name ?? ""}
+                              >
+                                {log.course_name ?? "—"}
+                              </span>
+                            </TableCell>
+                          )}
 
-                        {/* Detalle icon */}
-                        <TableCell>
-                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                          {/* Nivel */}
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center gap-1 text-xs font-medium ${sev.iconCls}`}
+                            >
+                              {SEVERITY_ICONS[log.severity]}
+                              {t(`audit.severities.${log.severity}`, {
+                                defaultValue: log.severity,
+                              })}
+                            </span>
+                          </TableCell>
+
+                          {/* Detalle icon */}
+                          <TableCell>
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
           {/* Cargar más */}
