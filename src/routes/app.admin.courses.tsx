@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -205,7 +205,13 @@ export function AdminCourses() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Search params: `subjectFilter` viene del flujo 'Ver cursos asociados'
   // desde el panel de asignaturas. Filtra el grid a una sola asignatura.
-  const routeSearch = Route.useSearch();
+  // Usamos `strict: false` porque este componente se reusa en /app/teacher/courses,
+  // y `Route.useSearch()` (atado a /app/admin/courses) dispara "Invariant failed"
+  // cuando la ruta activa no coincide.
+  const routeSearch = useSearch({ strict: false }) as {
+    subjectFilter?: string;
+    fromSubject?: string;
+  };
   const subjectFilter = routeSearch.subjectFilter ?? null;
   const fromSubject = routeSearch.fromSubject ?? null;
 
