@@ -133,10 +133,13 @@ function useColumnResize(
       if (cells.length < 2) return;
       // 1. Pin del ancho actual de cada columna visible (el que dé el
       //    layout `table-fixed`). Sin esto, ensanchar una columna haría
-      //    que `table-fixed` robe espacio a las demás.
+      //    que `table-fixed` robe espacio a las demás. MIN_COL_WIDTH evita
+      //    que columnas sin `w-X` explícito colapsen a unos pocos px
+      //    cuando las otras columnas suman casi todo el viewport.
       for (const th of cells) {
         if (isVisibleCol(th)) {
-          th.style.width = `${Math.round(th.getBoundingClientRect().width)}px`;
+          const natural = Math.round(th.getBoundingClientRect().width);
+          th.style.width = `${Math.max(MIN_COL_WIDTH, natural)}px`;
         }
       }
       // 2. Overrides guardados (anchos que el usuario arrastró antes).
@@ -147,7 +150,7 @@ function useColumnResize(
           cells.forEach((th, i) => {
             const w = saved[i];
             if (typeof w === "number" && w > 0 && isVisibleCol(th)) {
-              th.style.width = `${w}px`;
+              th.style.width = `${Math.max(MIN_COL_WIDTH, w)}px`;
             }
           });
         }
@@ -367,7 +370,12 @@ const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
         )}
         {...props}
       >
-        {truncate ? <div className="truncate">{children}</div> : children}
+        {/* En tablas resizable (table-fixed), el texto del header se trunca
+            automáticamente: sin esto, un <th> más estrecho que su texto
+            desborda visualmente sobre la columna vecina (los headers se
+            ven superpuestos como "Tí­tu­lo" + "Curso"). El handle de
+            resize queda como sibling fuera del wrapper para no clipearse. */}
+        {truncate || resizable ? <div className="truncate">{children}</div> : children}
         {resizable ? <ColumnResizeHandle /> : null}
       </th>
     );
