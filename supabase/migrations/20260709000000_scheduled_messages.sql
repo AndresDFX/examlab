@@ -223,7 +223,10 @@ BEGIN
   PERFORM extensions.cron.schedule(
     'dispatch-scheduled-messages',
     '* * * * *',
-    $$ SELECT public.dispatch_scheduled_messages(); $$
+    -- Tag de dollar-quote DISTINTO ($cron$) — usar $$ acá colisiona con
+    -- el $$ del bloque DO externo y rompe el parse ("syntax error at
+    -- SELECT"). Mismo patrón que las otras migraciones de cron del repo.
+    $cron$ SELECT public.dispatch_scheduled_messages(); $cron$
   );
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'Setup del cron de mensajes programados falló: %', SQLERRM;

@@ -134,6 +134,7 @@ interface QueueJob {
   // Resolución best-effort
   examTitle?: string;
   projectTitle?: string;
+  workshopTitle?: string;
   studentName?: string;
   courseName?: string;
   examId?: string;
@@ -278,9 +279,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   // toca cerrar"). "history" = done + cancelled + rechazos acusados —
   // los jobs ya cerrados. "all" trae todo sin discriminar. Y cada
   // estado individual queda como filtro fino.
-  const [statusFilter, setStatusFilter] = useState<"active" | "history" | Status | "all">(
-    "active",
-  );
+  const [statusFilter, setStatusFilter] = useState<"active" | "history" | Status | "all">("active");
   // Usuario actual — necesario para detectar "este rechazo es para mí"
   // y mostrar el banner inline al docente que originó el job. Admin
   // que rechazó NO necesita banner; ya sabe que rechazó.
@@ -362,39 +361,35 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       // del filtro "active" muestra todos los failed sin importar la
       // antigüedad. Antes un `.gte(completed_at, -24h)` dejaba fallos
       // viejos fuera del contador pero visibles en la lista.
-      const [
-        { count: pending },
-        { count: processing },
-        { count: failed },
-        { data: lastDone },
-      ] = await Promise.all([
-        applyTenant(
-          db
-            .from("ai_grading_queue")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending"),
-        ),
-        applyTenant(
-          db
-            .from("ai_grading_queue")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "processing"),
-        ),
-        applyTenant(
-          db
-            .from("ai_grading_queue")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "failed"),
-        ),
-        applyTenant(
-          db
-            .from("ai_grading_queue")
-            .select("completed_at")
-            .eq("status", "done")
-            .order("completed_at", { ascending: false })
-            .limit(1),
-        ).maybeSingle(),
-      ]);
+      const [{ count: pending }, { count: processing }, { count: failed }, { data: lastDone }] =
+        await Promise.all([
+          applyTenant(
+            db
+              .from("ai_grading_queue")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "pending"),
+          ),
+          applyTenant(
+            db
+              .from("ai_grading_queue")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "processing"),
+          ),
+          applyTenant(
+            db
+              .from("ai_grading_queue")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "failed"),
+          ),
+          applyTenant(
+            db
+              .from("ai_grading_queue")
+              .select("completed_at")
+              .eq("status", "done")
+              .order("completed_at", { ascending: false })
+              .limit(1),
+          ).maybeSingle(),
+        ]);
       setCounts({
         pending: pending ?? 0,
         processing: processing ?? 0,
@@ -442,24 +437,50 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       const projectFileIds = baseJobs
         .filter((j) => j.target_table === "project_submission_files")
         .map((j) => j.target_row_id);
+      // Jobs de taller: "Pregunta de taller" apunta a
+      // workshop_submission_answers (→ submission_id), "Taller" completo
+      // apunta directo a workshop_submissions. Resolvemos ambos a
+      // workshop + estudiante para que el Admin vea el origen del evento.
+      const wsAnswerIds = baseJobs
+        .filter((j) => j.target_table === "workshop_submission_answers")
+        .map((j) => j.target_row_id);
+      const directWsSubIds = baseJobs
+        .filter((j) => j.target_table === "workshop_submissions")
+        .map((j) => j.target_row_id);
       const courseIds = Array.from(
         new Set(baseJobs.map((j) => j.course_id).filter((c): c is string => !!c)),
       );
 
-      const [submissionsLookup, projectFilesLookup, courseLookup] = await Promise.all([
-        examIds.length > 0
-          ? db.from("submissions").select("id, user_id, exam_id").in("id", examIds)
-          : Promise.resolve({ data: [] as unknown[] }),
-        projectFileIds.length > 0
-          ? db
-              .from("project_submission_files")
-              .select("id, submission_id")
-              .in("id", projectFileIds)
-          : Promise.resolve({ data: [] as unknown[] }),
-        courseIds.length > 0
-          ? db.from("courses").select("id, name").in("id", courseIds)
-          : Promise.resolve({ data: [] as unknown[] }),
-      ]);
+      const [submissionsLookup, projectFilesLookup, courseLookup, wsAnswersLookup] =
+        await Promise.all([
+          examIds.length > 0
+            ? db.from("submissions").select("id, user_id, exam_id").in("id", examIds)
+            : Promise.resolve({ data: [] as unknown[] }),
+          projectFileIds.length > 0
+            ? db
+                .from("project_submission_files")
+                .select("id, submission_id")
+                .in("id", projectFileIds)
+            : Promise.resolve({ data: [] as unknown[] }),
+          courseIds.length > 0
+            ? db.from("courses").select("id, name").in("id", courseIds)
+            : Promise.resolve({ data: [] as unknown[] }),
+          wsAnswerIds.length > 0
+            ? db
+                .from("workshop_submission_answers")
+                .select("id, submission_id")
+                .in("id", wsAnswerIds)
+            : Promise.resolve({ data: [] as unknown[] }),
+        ]);
+
+      // answer.id → workshop_submission.id
+      const wsAnswerToSub = new Map<string, string>();
+      for (const a of (wsAnswersLookup.data ?? []) as Array<{
+        id: string;
+        submission_id: string;
+      }>) {
+        wsAnswerToSub.set(a.id, a.submission_id);
+      }
 
       const submissionsRows = (submissionsLookup.data ?? []) as Array<{
         id: string;
@@ -475,14 +496,18 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         courseMap.set(c.id, c.name);
       }
 
-      const projectSubmissionIds = Array.from(
-        new Set(projectFileRows.map((r) => r.submission_id)),
-      );
+      const projectSubmissionIds = Array.from(new Set(projectFileRows.map((r) => r.submission_id)));
       const allUserIds = new Set<string>();
       for (const s of submissionsRows) allUserIds.add(s.user_id);
       const examIdsForLookup = Array.from(new Set(submissionsRows.map((s) => s.exam_id)));
 
-      const [projectSubsLookup, examsLookup] = await Promise.all([
+      // IDs de workshop_submissions a resolver: los directos + los
+      // derivados de answers. Dedup.
+      const wsSubIds = Array.from(
+        new Set([...directWsSubIds, ...Array.from(wsAnswerToSub.values())]),
+      );
+
+      const [projectSubsLookup, examsLookup, wsSubsLookup] = await Promise.all([
         projectSubmissionIds.length > 0
           ? db
               .from("project_submissions")
@@ -491,6 +516,9 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           : Promise.resolve({ data: [] as unknown[] }),
         examIdsForLookup.length > 0
           ? db.from("exams").select("id, title").in("id", examIdsForLookup)
+          : Promise.resolve({ data: [] as unknown[] }),
+        wsSubIds.length > 0
+          ? db.from("workshop_submissions").select("id, user_id, workshop_id").in("id", wsSubIds)
           : Promise.resolve({ data: [] as unknown[] }),
       ]);
 
@@ -501,16 +529,36 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       }>;
       for (const s of projectSubsRows) allUserIds.add(s.user_id);
 
+      const wsSubsRows = (wsSubsLookup.data ?? []) as Array<{
+        id: string;
+        user_id: string;
+        workshop_id: string;
+      }>;
+      const wsSubMap = new Map<string, { user_id: string; workshop_id: string }>();
+      for (const s of wsSubsRows) {
+        wsSubMap.set(s.id, s);
+        allUserIds.add(s.user_id);
+      }
+      const workshopIdsForLookup = Array.from(new Set(wsSubsRows.map((s) => s.workshop_id)));
+
       const projectIdsForLookup = Array.from(new Set(projectSubsRows.map((s) => s.project_id)));
 
-      const [profilesLookup, projectsLookup] = await Promise.all([
+      const [profilesLookup, projectsLookup, workshopsLookup] = await Promise.all([
         allUserIds.size > 0
           ? db.from("profiles").select("id, full_name").in("id", Array.from(allUserIds))
           : Promise.resolve({ data: [] as unknown[] }),
         projectIdsForLookup.length > 0
           ? db.from("projects").select("id, title").in("id", projectIdsForLookup)
           : Promise.resolve({ data: [] as unknown[] }),
+        workshopIdsForLookup.length > 0
+          ? db.from("workshops").select("id, title").in("id", workshopIdsForLookup)
+          : Promise.resolve({ data: [] as unknown[] }),
       ]);
+
+      const workshopTitleMap = new Map<string, string>();
+      for (const w of (workshopsLookup.data ?? []) as Array<{ id: string; title: string }>) {
+        workshopTitleMap.set(w.id, w.title);
+      }
 
       const profileMap = new Map<string, string>();
       for (const p of (profilesLookup.data ?? []) as Array<{ id: string; full_name: string }>) {
@@ -548,6 +596,21 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             out.projectId = ps.project_id;
             out.projectTitle = projectTitleMap.get(ps.project_id);
             out.studentName = profileMap.get(ps.user_id);
+          }
+        } else if (
+          j.target_table === "workshop_submission_answers" ||
+          j.target_table === "workshop_submissions"
+        ) {
+          // Pregunta de taller → answer → submission; Taller completo →
+          // submission directo. Resolvemos workshop + estudiante.
+          const subId =
+            j.target_table === "workshop_submission_answers"
+              ? wsAnswerToSub.get(j.target_row_id)
+              : j.target_row_id;
+          const ws = subId ? wsSubMap.get(subId) : undefined;
+          if (ws) {
+            out.workshopTitle = workshopTitleMap.get(ws.workshop_id);
+            out.studentName = profileMap.get(ws.user_id);
           }
         }
         return out;
@@ -683,10 +746,9 @@ function AiQueuePanel({ isAdmin = false }: Props) {
    */
   const acknowledgeReject = async (jobId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc(
-      "acknowledge_rejected_ai_grading_job",
-      { _job_id: jobId },
-    );
+    const { error } = await (supabase as any).rpc("acknowledge_rejected_ai_grading_job", {
+      _job_id: jobId,
+    });
     if (error) {
       toast.error(friendlyError(error, "No se pudo cerrar el rechazo"));
       return;
@@ -809,7 +871,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         .filter((j) => multi.isSelected(j.id))
         .map((j) => {
           const kindLabel = KIND_LABELS[j.kind] ?? j.kind;
-          const label = j.examTitle ?? j.projectTitle ?? kindLabel;
+          const label = j.examTitle ?? j.projectTitle ?? j.workshopTitle ?? kindLabel;
           return { id: j.id, label };
         }),
     [selectableJobs, multi],
@@ -1056,7 +1118,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 const isCancelling = cancelling.has(j.id);
                 const isProcessingNow = processingOne.has(j.id);
                 const expanded = expandedId === j.id;
-                const label = j.examTitle ?? j.projectTitle ?? kindLabel;
+                const label = j.examTitle ?? j.projectTitle ?? j.workshopTitle ?? kindLabel;
                 const subtitleParts = [j.studentName, j.courseName].filter(Boolean) as string[];
                 const busy = isRetrying || isCancelling || isProcessingNow;
 
@@ -1065,11 +1127,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                   <div key={j.id} className="text-sm">
                     <div
                       className={`px-3 py-2 flex items-center gap-2 ${
-                        isFailed
-                          ? "bg-destructive/5"
-                          : isMyRejection
-                            ? "bg-orange-500/5"
-                            : ""
+                        isFailed ? "bg-destructive/5" : isMyRejection ? "bg-orange-500/5" : ""
                       } hover:bg-muted/40 transition-colors`}
                     >
                       {/* Checkbox por fila — visible para jobs cancelables
@@ -1219,11 +1277,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                                 : "Cancelar"
                             }
                           >
-                            {isCancelling ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <X className="h-3.5 w-3.5" />
-                            )}
+                            {isCancelling ? <Spinner size="sm" /> : <X className="h-3.5 w-3.5" />}
                           </Button>
                         )}
                         {/* Acusar recibo del rechazo. Aparece para el docente
@@ -1293,6 +1347,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         {j.studentName && <DetailRow k="Estudiante" v={j.studentName} />}
                         {j.examTitle && <DetailRow k="Examen" v={j.examTitle} />}
                         {j.projectTitle && <DetailRow k="Proyecto" v={j.projectTitle} />}
+                        {j.workshopTitle && <DetailRow k="Taller" v={j.workshopTitle} />}
                         <DetailRow k="Creado" v={formatDateTime(j.created_at)} />
                         {j.completed_at && (
                           <DetailRow k="Finalizado" v={formatDateTime(j.completed_at)} />
@@ -1322,7 +1377,9 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <>
                             {j.rejection_reason && (
                               <div className="pt-1">
-                                <div className="text-muted-foreground mb-0.5">Razón del rechazo</div>
+                                <div className="text-muted-foreground mb-0.5">
+                                  Razón del rechazo
+                                </div>
                                 <pre className="text-[11px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
                                   {j.rejection_reason}
                                 </pre>
@@ -1434,11 +1491,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setRejectJobTarget(null)}
-              disabled={rejecting}
-            >
+            <Button variant="outline" onClick={() => setRejectJobTarget(null)} disabled={rejecting}>
               Cancelar
             </Button>
             <Button

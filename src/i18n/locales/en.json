@@ -75,6 +75,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "users": "Users",
+    "errors": "Errors",
     "tenants": "Institutions",
     "system": "System",
     "courses": "Courses",

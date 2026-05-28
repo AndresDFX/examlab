@@ -37,6 +37,7 @@ import { MessagesFab } from "@/modules/messaging/MessagesFab";
 import { ChangePasswordDialog } from "@/modules/auth/ChangePasswordDialog";
 import { EditProfileDialog } from "@/modules/auth/EditProfileDialog";
 import { ForceChangePasswordDialog } from "@/modules/auth/ForceChangePasswordDialog";
+import { studentAccessLevel } from "@/modules/auth/access-control";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/shared/lib/rbac";
 import { logEvent } from "@/shared/lib/audit";
@@ -79,6 +80,7 @@ import {
   ListOrdered,
   Building2,
   Wrench,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -316,6 +318,10 @@ const NAV: NavItem[] = [
   },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
+  // Errores de la plataforma. Admin ve los de su institución; SuperAdmin
+  // (que hereda los items Admin) los de toda la plataforma + filtro por
+  // institución. Estados aplicables en bulk + conteo de eventos.
+  { to: "/app/admin/errors", labelKey: "nav.errors", icon: AlertTriangle, roles: ["Admin"] },
   // SuperAdmin: panel cross-tenant para gestionar instituciones. Se muestra
   // siempre que el usuario tenga el rol SuperAdmin, independiente del
   // activeRole (ver lógica especial en visibleNav filter más abajo).
@@ -593,6 +599,36 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user) return null;
+
+  // ── Control de acceso por estado académico del estudiante ──
+  // retirado/aplazado → pantalla bloqueante (no entra). graduado →
+  // banner de solo-lectura (el RLS `student_can_write` bloquea sus
+  // escrituras). Staff nunca se bloquea. Ver access-control.ts. El
+  // enforcement real de escritura está en RLS (mig 20260711000000);
+  // esto es la cara de UX.
+  const accessLevel = studentAccessLevel(profile?.estado, roles);
+  if (accessLevel === "blocked") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-md text-center space-y-4">
+          <div className="mx-auto h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+            <ShieldEllipsis className="h-6 w-6 text-destructive" />
+          </div>
+          <h1 className="text-xl font-semibold">Acceso restringido</h1>
+          <p className="text-sm text-muted-foreground">
+            Tu cuenta de estudiante está marcada como{" "}
+            <strong>{profile?.estado === "aplazado" ? "aplazada" : "retirada"}</strong>, por lo que
+            no tienes acceso a la plataforma. Si crees que es un error, comunícate con la
+            administración de tu institución.
+          </p>
+          <Button variant="outline" onClick={signOut}>
+            <LogOut className="h-4 w-4 mr-1.5" />
+            Cerrar sesión
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Mapeo path → módulo. Cumple dos funciones:
   //   1. Filtro de visibilidad: el sidebar oculta items cuyo módulo
@@ -1311,6 +1347,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             datos están filtrados a ese tenant y le da el botón "Salir
             del modo institución" para volver al estado cross-tenant. */}
         <TenantOverrideBanner />
+        {/* Banner de solo-lectura para estudiantes graduados: pueden ver
+            (certificados, notas) pero no crear entregas. No se muestra
+            durante un examen. El bloqueo de escritura real lo impone RLS. */}
+        {accessLevel === "readonly" && !isTakingExam && (
+          <div className="bg-amber-500/10 border-b border-amber-400/40 px-4 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+            <ShieldEllipsis className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              Cuenta <strong>graduada</strong>: acceso de solo lectura. Puedes consultar tus
+              certificados y notas, pero no realizar nuevas entregas ni exámenes.
+            </span>
+          </div>
+        )}
         {/* Page container — full-bleed: ocupa TODO el ancho disponible
             (viewport menos el sidebar fixed), con gutters de 16px mobile
             / 32px desktop. Bottom padding reserva espacio para el

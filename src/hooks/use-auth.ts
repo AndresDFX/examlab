@@ -19,6 +19,11 @@ export interface Profile {
    *  cambia (que setea esto en false). Columna mig 20260710000000;
    *  opcional en el type por compat con entornos sin la migración. */
   must_change_password?: boolean;
+  /** Estado académico del estudiante (activo/retirado/graduado/aplazado).
+   *  Gobierna el acceso: retirado/aplazado bloquean, graduado = solo
+   *  lectura (ver access-control.ts). NULL para staff o estudiantes sin
+   *  estado. Columna mig 20260612000000. */
+  estado?: string | null;
 }
 
 export function useAuth() {

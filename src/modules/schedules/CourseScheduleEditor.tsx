@@ -201,7 +201,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-cyan-500" />
@@ -228,7 +228,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                 {visible.map((b) => (
                   <div
                     key={b._key}
-                    className={`rounded-md border p-3 grid grid-cols-2 sm:grid-cols-[140px_120px_120px_140px_1fr_36px] items-end gap-2 ${
+                    className={`rounded-md border p-3 grid grid-cols-2 sm:grid-cols-[120px_104px_104px_130px_minmax(150px,1fr)_36px] items-end gap-2 ${
                       overlapKeys.has(b._key)
                         ? "border-amber-400 bg-amber-50/50 dark:bg-amber-500/5"
                         : ""
@@ -284,9 +284,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                       </Label>
                       <Select
                         value={b.modalidad}
-                        onValueChange={(v) =>
-                          updateBlock(b._key, { modalidad: v as Modalidad })
-                        }
+                        onValueChange={(v) => updateBlock(b._key, { modalidad: v as Modalidad })}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue />

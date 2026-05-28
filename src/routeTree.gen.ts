@@ -50,6 +50,7 @@ import { Route as AppStudentCalendarRouteImport } from './routes/app.student.cal
 import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.attendance'
 import { Route as AppForumCourseIdRouteImport } from './routes/app.forum.$courseId'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
+import { Route as AppAdminErrorsRouteImport } from './routes/app.admin.errors'
 import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminSettingsRouteImport } from './routes/app.admin.settings'
@@ -277,6 +278,11 @@ const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminErrorsRoute = AppAdminErrorsRouteImport.update({
+  id: '/admin/errors',
+  path: '/admin/errors',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminSystemRoute = AppAdminSystemRouteImport.update({
   id: '/admin/system',
   path: '/admin/system',
@@ -412,6 +418,7 @@ export interface FileRoutesByFullPath {
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/admin/errors': typeof AppAdminErrorsRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/calendar': typeof AppStudentCalendarRoute
@@ -474,6 +481,7 @@ export interface FileRoutesByTo {
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/admin/errors': typeof AppAdminErrorsRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/calendar': typeof AppStudentCalendarRoute
@@ -539,6 +547,7 @@ export interface FileRoutesById {
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
+  '/app/admin/errors': typeof AppAdminErrorsRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
   '/app/student/attendance': typeof AppStudentAttendanceRoute
   '/app/student/calendar': typeof AppStudentCalendarRoute
@@ -605,6 +614,7 @@ export interface FileRouteTypes {
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
+    | '/app/admin/errors'
     | '/app/forum/$courseId'
     | '/app/student/attendance'
     | '/app/student/calendar'
@@ -667,6 +677,7 @@ export interface FileRouteTypes {
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
+    | '/app/admin/errors'
     | '/app/forum/$courseId'
     | '/app/student/attendance'
     | '/app/student/calendar'
@@ -731,6 +742,7 @@ export interface FileRouteTypes {
     | '/app/admin/statistics'
     | '/app/admin/system'
     | '/app/admin/users'
+    | '/app/admin/errors'
     | '/app/forum/$courseId'
     | '/app/student/attendance'
     | '/app/student/calendar'
@@ -1068,6 +1080,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/errors': {
+      id: '/app/admin/errors'
+      path: '/admin/errors'
+      fullPath: '/app/admin/errors'
+      preLoaderRoute: typeof AppAdminErrorsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/admin/system': {
       id: '/app/admin/system'
       path: '/admin/system'
@@ -1260,6 +1279,7 @@ interface AppRouteChildren {
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
   AppAdminSystemRoute: typeof AppAdminSystemRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppAdminErrorsRoute: typeof AppAdminErrorsRoute
   AppForumCourseIdRoute: typeof AppForumCourseIdRouteWithChildren
   AppStudentAttendanceRoute: typeof AppStudentAttendanceRoute
   AppStudentCalendarRoute: typeof AppStudentCalendarRoute
@@ -1314,6 +1334,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
   AppAdminSystemRoute: AppAdminSystemRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
+  AppAdminErrorsRoute: AppAdminErrorsRoute,
   AppForumCourseIdRoute: AppForumCourseIdRouteWithChildren,
   AppStudentAttendanceRoute: AppStudentAttendanceRoute,
   AppStudentCalendarRoute: AppStudentCalendarRoute,
