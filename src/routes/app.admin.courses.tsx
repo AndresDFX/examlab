@@ -1546,35 +1546,81 @@ export function AdminCourses() {
                   />
                 )}
               </div>
-              {/* Asignatura del plan. Es la ÚNICA fuente de "carrera/
-                  programa" del curso: la asignatura ya tiene `program_id`
-                  fijo desde su definición en /app/admin/academic, así
-                  que pedir un programa aparte acá era redundante y
-                  abría la puerta a inconsistencias (curso con un
-                  programa pero asignatura de otro). Al elegir una
-                  asignatura sincronizamos `program_id` y `semestre`
-                  del curso desde ella; el `program_id` del curso es
-                  ahora un cache derivado, no un campo independiente. */}
+              {/* Programa / Nivel. Funciona como FILTRO de la lista de
+                  asignaturas: cuando hay programa elegido, el siguiente
+                  select solo muestra las asignaturas pertenecientes a
+                  ESE programa — útil cuando la institución tiene
+                  decenas de asignaturas cross-program y el admin
+                  necesita acotar. Si dejás "Todos los programas", la
+                  lista de asignaturas muestra todas.
+                  La fuente de verdad sobre el programa del curso sigue
+                  siendo la asignatura (program_id del curso se setea
+                  desde subj.program_id al elegir); este field es
+                  PURAMENTE un filtro de la UI. */}
+              <div>
+                <Label>Programa / Nivel</Label>
+                <Select
+                  value={editing.program_id ?? "__none__"}
+                  onValueChange={(v) => {
+                    const nextProgramId = v === "__none__" ? null : v;
+                    // Si la asignatura actualmente elegida NO pertenece
+                    // al nuevo programa, deseleccionamos la asignatura
+                    // (queda en blanco). Esto evita estados inconsistentes
+                    // donde Programa=A pero Asignatura=B(A's subject) tras
+                    // cambiar a Programa B.
+                    const currentSubj = subjects.find((s) => s.id === editing.subject_id);
+                    const subjectStillValid =
+                      !nextProgramId ||
+                      !currentSubj?.program_id ||
+                      currentSubj.program_id === nextProgramId;
+                    setEditing({
+                      ...editing,
+                      program_id: nextProgramId,
+                      subject_id: subjectStillValid ? editing.subject_id : null,
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los programas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Todos los programas</SelectItem>
+                    {programs.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Asignatura del plan. La asignatura es la FUENTE DE VERDAD
+                  para programa + semestre del curso: al elegirla, ambos
+                  se heredan automáticamente — el form no pide grado/
+                  semestre como input separado. Filtrada por el programa
+                  seleccionado arriba (si no hay programa → todas). */}
               <div>
                 <Label>Asignatura del plan</Label>
                 <Select
                   value={editing.subject_id ?? "__none__"}
                   onValueChange={(v) => {
                     if (v === "__none__") {
-                      setEditing({ ...editing, subject_id: null, program_id: null });
+                      // Al limpiar la asignatura NO tocamos program_id:
+                      // el admin puede dejar el filtro Programa elegido
+                      // para luego elegir otra del mismo programa.
+                      setEditing({ ...editing, subject_id: null, semestre: null });
                       return;
                     }
                     const subj = subjects.find((s) => s.id === v);
                     setEditing({
                       ...editing,
                       subject_id: v,
-                      // La asignatura define el programa del curso —
-                      // siempre lo heredamos (override previo NO se
-                      // preserva: la asignatura es la fuente de verdad).
-                      program_id: subj?.program_id ?? null,
-                      // El semestre del plan se sugiere cuando el curso
-                      // no tiene uno propio todavía.
-                      semestre: editing.semestre ?? subj?.semestre ?? null,
+                      // Heredamos siempre desde la asignatura — incluso
+                      // si el admin tenía otro program_id como filtro,
+                      // gana el de la asignatura elegida.
+                      program_id: subj?.program_id ?? editing.program_id ?? null,
+                      // Semestre derivado: viene de la asignatura, no
+                      // se pide como input.
+                      semestre: subj?.semestre ?? null,
                     });
                   }}
                 >
@@ -1583,61 +1629,58 @@ export function AdminCourses() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Sin asignatura asociada</SelectItem>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                        {s.code ? ` (${s.code})` : ""}
-                        {s.semestre ? ` · Sem ${s.semestre}` : ""}
-                        {s.program_id
-                          ? ` · ${programs.find((p) => p.id === s.program_id)?.name ?? "Programa"}`
-                          : ""}
-                      </SelectItem>
-                    ))}
+                    {subjects
+                      .filter(
+                        (s) =>
+                          // Filtro por programa seleccionado: si hay uno,
+                          // solo asignaturas de ese programa (o sin
+                          // programa fijo, por defensa).
+                          !editing.program_id ||
+                          !s.program_id ||
+                          s.program_id === editing.program_id,
+                      )
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.code ? ` (${s.code})` : ""}
+                          {s.semestre ? ` · Sem ${s.semestre}` : ""}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
-                {/* Confirmación visual de la herencia: cuando hay
-                    asignatura elegida y trae programa, lo mostramos
-                    en texto chico para que el admin vea explícitamente
-                    de dónde sale el programa del curso. */}
+                {/* Confirmación visual de qué se está heredando. Se
+                    muestra el semestre de la asignatura (que es lo
+                    que reemplaza al input "Grado / Semestre" que tenía
+                    el form antes). */}
                 {(() => {
                   const subj = subjects.find((s) => s.id === editing.subject_id);
-                  if (!subj?.program_id) return null;
-                  const prog = programs.find((p) => p.id === subj.program_id);
-                  return prog ? (
+                  if (!subj) return null;
+                  const parts: string[] = [];
+                  if (subj.program_id) {
+                    const prog = programs.find((p) => p.id === subj.program_id);
+                    if (prog) parts.push(`Programa: ${prog.name}`);
+                  }
+                  if (subj.semestre) parts.push(`Semestre: ${subj.semestre}`);
+                  if (parts.length === 0) return null;
+                  return (
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Programa: <span className="font-medium">{prog.name}</span> (heredado de la
-                      asignatura).
+                      {parts.join(" · ")} (heredado de la asignatura)
                     </p>
-                  ) : null;
+                  );
                 })()}
               </div>
-              {/* Campos opcionales que alimentan los headers de los informes
-                  institucionales (Diagnóstico, Acuerdo Pedagógico). Si el
-                  docente no los completa quedan vacíos en el reporte —
-                  preferible a forzar a inventar valores. */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Campos opcionales para los headers de los informes
+                  institucionales (Diagnóstico, Acuerdo Pedagógico).
+                  El "Grado / Semestre" se removió: se deriva de la
+                  asignatura del plan (subj.semestre) y NO se pide como
+                  input separado para evitar inconsistencias. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label>Código</Label>
                   <Input
                     value={editing.code ?? ""}
                     onChange={(e) => setEditing({ ...editing, code: e.target.value || null })}
                     placeholder="Ej: ProgII"
-                  />
-                </div>
-                <div>
-                  <Label>Grado / Semestre</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={editing.semestre ?? ""}
-                    onChange={(e) =>
-                      setEditing({
-                        ...editing,
-                        semestre: e.target.value === "" ? null : Number(e.target.value),
-                      })
-                    }
-                    placeholder="1–12"
                   />
                 </div>
                 <div>

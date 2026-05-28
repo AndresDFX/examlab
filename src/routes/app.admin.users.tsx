@@ -146,6 +146,18 @@ function AdminUsers() {
   // `showTenantUI`) para acotar la vista cross-tenant.
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [tenantFilter, setTenantFilter] = useState<string>("all");
+  // Cursos disponibles para inscripción inmediata al crear un Estudiante.
+  // Se carga solo cuando el dialog está abierto en modo crear + role
+  // Estudiante (lazy). Para Admin: cursos de su tenant via RLS; para
+  // SuperAdmin: filtrados al tenant elegido en el form (editing.tenant_id),
+  // o todos cross-tenant si todavía no eligió.
+  const [enrollCourses, setEnrollCourses] = useState<
+    Array<{ id: string; name: string; period: string | null; tenant_id: string | null }>
+  >([]);
+  // Curso seleccionado en el dialog para inscribir al estudiante recién
+  // creado. NULL = sin inscripción automática (el admin lo matricula
+  // manualmente después si quiere).
+  const [enrollCourseId, setEnrollCourseId] = useState<string | null>(null);
   // El filtro de institución solo debe aparecer cuando el usuario está
   // ACTIVAMENTE actuando como SuperAdmin (no por solo tener el rol). Un
   // usuario con SuperAdmin + Admin que cambia a Admin con el role-switcher
@@ -177,6 +189,10 @@ function AdminUsers() {
   // (re-corre cuando tenantFilter cambia). Aquí solo dejamos el filtro
   // por search, que necesita ser en memoria para responder rápido a cada
   // tecla sin re-pegarle a la DB.
+  // Filtro por rol — "all" muestra todos. Si el rol elegido es
+  // SuperAdmin pero el caller no lo tiene, el Select no muestra esa
+  // opción (filtered abajo en el render).
+  const [roleFilter, setRoleFilter] = useState<"all" | AppRole>("all");
   const filteredRows = useMemo(() => {
     let out = rows;
     if (search.trim()) {
@@ -189,8 +205,11 @@ function AdminUsers() {
           r.roles.some((role) => role.toLowerCase().includes(q)),
       );
     }
+    if (roleFilter !== "all") {
+      out = out.filter((r) => r.roles.includes(roleFilter));
+    }
     return out;
-  }, [rows, search]);
+  }, [rows, search, roleFilter]);
   // El multi-select trabaja sobre la lista visible. Si seleccioné todo
   // con un filtro activo, "seleccionar todos" se refiere a lo filtrado.
   const sel = useMultiSelect(filteredRows);
@@ -365,14 +384,64 @@ function AdminUsers() {
   const openNew = () => {
     setEditing({ ...EMPTY_NEW });
     setPassword("");
+    setEnrollCourseId(null);
     setDialogOpen(true);
   };
 
   const openEdit = (r: Row) => {
     setEditing({ ...r });
     setPassword("");
+    setEnrollCourseId(null);
     setDialogOpen(true);
   };
+
+  /**
+   * Carga los cursos disponibles para inscripción inmediata. Se dispara
+   * cuando el dialog está en modo CREAR + role Estudiante. Para el Admin
+   * RLS acota a su tenant; para el SuperAdmin filtramos por
+   * `editing.tenant_id` si lo eligió (para evitar listar cursos de
+   * tenants donde el estudiante no terminó), o traemos todos sino.
+   * El curso elegido se inserta en `course_enrollments` después de crear
+   * el usuario en el `save` (best-effort: si falla, el usuario queda
+   * creado y el admin lo matricula manualmente).
+   */
+  useEffect(() => {
+    if (!dialogOpen || !editing) return;
+    if (editing.id) return; // solo modo crear
+    if (!editing.roles.includes("Estudiante")) return;
+    let cancelled = false;
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
+        .from("courses")
+        .select("id, name, period, tenant_id")
+        .order("created_at", { ascending: false });
+      // Para SuperAdmin: si eligió tenant en el form, acotamos. Para
+      // Admin: RLS ya filtra a su tenant.
+      if (isSuperAdminCaller && editing.tenant_id) {
+        q = q.eq("tenant_id", editing.tenant_id);
+      } else if (!isSuperAdminCaller && myTenantIdRef.current) {
+        q = q.eq("tenant_id", myTenantIdRef.current);
+      }
+      const { data } = await q;
+      if (cancelled) return;
+      setEnrollCourses(
+        (data ?? []) as Array<{
+          id: string;
+          name: string;
+          period: string | null;
+          tenant_id: string | null;
+        }>,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Listamos las props específicas de `editing` que importan para el
+    // fetch; incluir `editing` entero re-dispararía el effect cada vez
+    // que el admin tipea en el form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, editing?.id, editing?.roles, editing?.tenant_id, isSuperAdminCaller]);
 
   /** Validación proactiva de unicidad — antes de mandar el form al
    *  backend. Llama al RPC `check_email_taken` (case-insensitive,
@@ -555,6 +624,32 @@ function AdminUsers() {
             );
           }
         }
+        // Inscripción inmediata al curso elegido (opcional). Solo para
+        // estudiantes — para Admin/Docente no tiene sentido matricularlos
+        // como alumnos en un curso. Best-effort: si falla (UNIQUE
+        // violation, RLS, lo que sea), el usuario queda creado y el admin
+        // lo matricula manualmente desde el curso.
+        if (newUserId && enrollCourseId && editing.roles.includes("Estudiante")) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: enrollErr } = await (supabase as any)
+            .from("course_enrollments")
+            .insert({ course_id: enrollCourseId, user_id: newUserId });
+          if (enrollErr) {
+            console.warn("[admin.users] enrollment failed:", enrollErr.message);
+            toast.warning(
+              "Usuario creado, pero no se pudo inscribir al curso. Matricúlalo manualmente desde el curso.",
+            );
+          } else {
+            void logEvent({
+              action: "enrollment.added",
+              category: "course",
+              actorRole: roles[0],
+              entityType: "course",
+              entityId: enrollCourseId,
+              metadata: { user_id: newUserId, source: "user_create_dialog" },
+            });
+          }
+        }
         toast.success("Usuario creado correctamente");
         void logEvent({
           action: "user.created",
@@ -723,6 +818,23 @@ function AdminUsers() {
           placeholder="Buscar por nombre, correo o rol…"
           className="flex-1"
         />
+        {/* Filtro por rol — siempre visible. Compone con search e
+            institución (todos AND). El SuperAdmin se filtra del listado
+            si el caller no tiene ese rol, para que un Admin común no
+            vea una opción que su RLS nunca le mostraría. */}
+        <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as "all" | AppRole)}>
+          <SelectTrigger className="sm:w-44">
+            <SelectValue placeholder="Todos los roles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los roles</SelectItem>
+            {ALL_ROLES.filter((r) => r !== "SuperAdmin" || isSuperAdminCaller).map((r) => (
+              <SelectItem key={r} value={r}>
+                {r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {/* Filtro de institución — visible para el SuperAdmin siempre que
             haya tenants cargados. Admin normal no lo ve. */}
         {showTenantUI && (
@@ -1109,6 +1221,41 @@ function AdminUsers() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* Inscripción inmediata a curso — solo en modo CREAR
+                        (no en edit: para reasignar cursos existentes ya
+                        existe el grid de matrículas dentro del curso).
+                        Opcional: si el admin no elige nada, el alumno
+                        queda creado sin inscripción y el admin lo
+                        matricula manualmente desde el curso. */}
+                    {!editing.id && (
+                      <div className="sm:col-span-2">
+                        <Label className="text-xs">Inscribir en curso (opcional)</Label>
+                        <Select
+                          value={enrollCourseId ?? "__none__"}
+                          onValueChange={(v) => setEnrollCourseId(v === "__none__" ? null : v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="No inscribir todavía" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">No inscribir todavía</SelectItem>
+                            {enrollCourses.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                                {c.period ? ` · ${c.period}` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          {isSuperAdminCaller && !editing.tenant_id
+                            ? "Eligí primero una institución arriba para filtrar los cursos."
+                            : enrollCourses.length === 0
+                              ? "No hay cursos disponibles en esta institución."
+                              : "El alumno queda matriculado al guardar. Después podés ajustar desde el curso."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
