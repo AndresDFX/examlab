@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -411,7 +412,10 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   // acota los logs a su tenant. Para SuperAdmin (cross-tenant) ofrecemos
   // un Select que aplica `.eq('tenant_id', X)` a la query principal.
   const { roles } = useAuth();
-  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  const activeRole = useActiveRole();
+  // Solo true cuando actúa como SuperAdmin (no por solo tener el rol).
+  // Ver comentario en app.admin.users.
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const [tenantFilter, setTenantFilter] = useState("all");
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
 
@@ -611,19 +615,24 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
       />
 
       {/* ── Filtros ──
-          Layout en 2 filas explícitas:
-          - Fila 1: búsqueda (flex-1) + 4 selects principales (categoría,
-            evento, nivel, rol). Antes todo iba en un solo flex-wrap, lo
-            que truncaba placeholders ("Todas las categor…") y partía la
-            fila en lugares random según el ancho de viewport.
-          - Fila 2: filtros secundarios (curso + rango fechas) +
-            botón limpiar + contador alineado a la derecha. El contador
-            antes flotaba debajo de la card sin separación visual; pegado
-            a la fila 2 sirve como cierre del bloque de filtros. */}
+          Reorganización (UX): 2 filas con propósito claro.
+            • Fila 1 — BÚSQUEDA prominente (flex-1) + contador a la
+              derecha. Antes el contador flotaba en la fila 2 al final;
+              moverlo arriba lo destaca como métrica del set actual.
+            • Fila 2 — TODOS los filtros agrupados con separadores
+              verticales sutiles para que el ojo lea "dónde / qué /
+              cuándo" sin tener que leer cada label:
+                  [Institución] [Curso]  │  [Categoría] [Evento]
+                  [Nivel] [Rol]  │  [Desde – Hasta]  [Limpiar]
+              El separador `│` (`<div className="w-px h-5 bg-border" />`)
+              solo aparece en sm+ para no fragmentar la fila en mobile.
+          Antes los filtros ocupaban 2 filas crowded sin agrupamiento
+          visual; ahora son una sola wrap row donde cada bloque se lee
+          como una unidad. */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          {/* Fila 1 — búsqueda + filtros principales */}
-          <div className="flex flex-wrap gap-2 items-center">
+          {/* Fila 1 — búsqueda + contador */}
+          <div className="flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
@@ -633,21 +642,26 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 className="pl-8 h-9"
               />
             </div>
+            {total !== null && (
+              <p className="text-xs text-muted-foreground tabular-nums shrink-0">
+                {t("audit.totalEvents", { count: total })}
+                {filtered.length !== logs.length &&
+                  ` · ${t("audit.visibleWithSearch", { count: filtered.length })}`}
+              </p>
+            )}
+          </div>
 
-            {/* Filtro institución — siempre visible para SuperAdmin si hay
-                al menos un tenant (consistente con Usuarios/Cursos/Errores/
-                Cola/Certificados; antes gateado a `> 1`). Aplica
-                `.eq('tenant_id', X)` a la query de audit_logs. */}
+          {/* Fila 2 — todos los filtros agrupados con separadores. */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* ── Grupo "dónde" — scope: institución + curso ── */}
             {isSuperAdminCaller && tenants.length > 0 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
-                <SelectTrigger className="w-48 h-9">
+                <SelectTrigger className="w-44 h-9">
                   <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
-                  {/* Renombrado a `tn` adentro para no shadowear el `t`
-                      de useTranslation que se usa en otros SelectItems
-                      hermanos (ej. category labels arriba). */}
+                  {/* `tn` evita shadow del `t` de useTranslation. */}
                   {tenants.map((tn) => (
                     <SelectItem key={tn.id} value={tn.id}>
                       {tn.name}
@@ -656,9 +670,29 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 </SelectContent>
               </Select>
             )}
+            {mode === "admin" && (
+              <Select value={courseFilter} onValueChange={setCourseFilter}>
+                <SelectTrigger className="w-44 h-9">
+                  <SelectValue placeholder={t("audit.filters.coursePlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("audit.filters.courseAll")}</SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
+            {/* Separador sutil entre "dónde" y "qué". Oculto en mobile
+                (se vería suelto en la cuarta fila después del wrap). */}
+            <div className="hidden sm:block w-px h-5 bg-border mx-1" aria-hidden />
+
+            {/* ── Grupo "qué" — categoría / evento / nivel / rol ── */}
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-44 h-9">
+              <SelectTrigger className="w-40 h-9">
                 <SelectValue placeholder={t("audit.filters.categoryPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -671,11 +705,8 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </SelectContent>
             </Select>
 
-            {/* Tipo de evento (grupo de acción) — patrones ILIKE
-                server-side. Útil para enfocarse rápido sin tener que
-                conocer cada action key. */}
             <Select value={actionGroup} onValueChange={setActionGroup}>
-              <SelectTrigger className="w-48 h-9">
+              <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder={t("audit.filters.actionGroupPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -694,7 +725,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             </Select>
 
             <Select value={severity} onValueChange={setSeverity}>
-              <SelectTrigger className="w-40 h-9">
+              <SelectTrigger className="w-36 h-9">
                 <SelectValue placeholder={t("audit.filters.severityPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -707,14 +738,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </SelectContent>
             </Select>
 
-            {/* Rol del actor — filtra eventos por quién los ejecutó.
-                Los valores aquí deben coincidir EXACTAMENTE con lo que
-                el trigger DB y los helpers de edge functions persisten
-                en `actor_role` (Admin, Docente, Estudiante, Sistema,
-                Anónimo). El admin también necesita ver "Sistema"
-                (triggers internos como flagged_suspicious). */}
+            {/* Rol del actor — valores deben coincidir con los que el
+                trigger DB y los edges persisten en `actor_role` (Admin,
+                Docente, Estudiante, Sistema, Anónimo). */}
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-40 h-9">
+              <SelectTrigger className="w-36 h-9">
                 <SelectValue placeholder={t("audit.filters.rolePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -726,35 +754,17 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 <SelectItem value="Anónimo">{t("audit.filters.roleAnonymous")}</SelectItem>
               </SelectContent>
             </Select>
-          </div>
 
-          {/* Fila 2 — filtros secundarios + acciones + contador */}
-          <div className="flex flex-wrap gap-2 items-center">
-            {mode === "admin" && (
-              <Select value={courseFilter} onValueChange={setCourseFilter}>
-                <SelectTrigger className="w-48 h-9">
-                  <SelectValue placeholder={t("audit.filters.coursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("audit.filters.courseAll")}</SelectItem>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            {/* Separador entre "qué" y "cuándo". */}
+            <div className="hidden sm:block w-px h-5 bg-border mx-1" aria-hidden />
 
-            {/* Rango de fechas — envueltos en un div con borde sutil
-                para que se entiendan como un par (desde/hasta) y no como
-                dos inputs sueltos. */}
+            {/* ── Grupo "cuándo" — rango de fechas + Limpiar ── */}
             <div className="flex items-center gap-1 rounded-md border border-input bg-background h-9 px-1.5">
               <Input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="h-7 w-36 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-7 w-32 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
                 title={t("audit.filters.from")}
               />
               <span className="text-muted-foreground text-xs">–</span>
@@ -762,7 +772,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="h-7 w-36 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-7 w-32 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
                 title={t("audit.filters.to")}
               />
             </div>
@@ -772,23 +782,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="h-9 text-muted-foreground"
+                className="h-9 ml-auto text-muted-foreground"
               >
                 <X className="h-3.5 w-3.5 mr-1" />
                 {t("audit.filters.clear")}
               </Button>
-            )}
-
-            {/* Contador alineado a la derecha. `ml-auto` lo empuja al
-                final de la fila aprovechando el espacio sobrante. En
-                viewport angosto el flex-wrap lo baja a una tercera fila
-                pero ya sin verse "flotante". */}
-            {total !== null && (
-              <p className="ml-auto text-xs text-muted-foreground tabular-nums">
-                {t("audit.totalEvents", { count: total })}
-                {filtered.length !== logs.length &&
-                  ` · ${t("audit.visibleWithSearch", { count: filtered.length })}`}
-              </p>
             )}
           </div>
         </CardContent>

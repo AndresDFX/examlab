@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,8 +76,11 @@ type CourseSummary = {
 function AdminStatistics() {
   const { t } = useTranslation();
   const { roles } = useAuth();
+  const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
-  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  // Filtro cross-tenant solo cuando actúa como SuperAdmin (no por solo
+  // tener el rol). Ver comentario en app.admin.users.
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const [summaries, setSummaries] = useState<CourseSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -148,9 +152,7 @@ function AdminStatistics() {
         return;
       }
       setPrograms((progsRes.data ?? []) as Array<{ id: string; name: string }>);
-      setPeriods(
-        (periodsRes.data ?? []) as Array<{ id: string; code: string; status: string }>,
-      );
+      setPeriods((periodsRes.data ?? []) as Array<{ id: string; code: string; status: string }>);
       const list = (coursesRes.data ?? []) as Array<{
         id: string;
         name: string;
@@ -333,7 +335,10 @@ function AdminStatistics() {
               {/* Filtro institución — solo SuperAdmin con ≥1 tenant.
                   Aplica `.eq('tenant_id', X)` a la query principal de
                   courses → todo el pipeline de summaries hereda el filtro. */}
-              {isSuperAdminCaller && tenants.length > 1 && (
+              {/* Gate `> 0` (no `> 1`): el filtro queda visible siempre que el
+                  SuperAdmin tenga al menos una institución cargada, consistente
+                  con Usuarios/Cursos/Certificados/Errores/Cola/Auditoría. */}
+              {isSuperAdminCaller && tenants.length > 0 && (
                 <div className="flex-1 space-y-1">
                   <label className="text-xs text-muted-foreground">
                     {t("tenant.filterTenantLabel")}
@@ -385,9 +390,7 @@ function AdminStatistics() {
                   </SelectContent>
                 </Select>
               </div>
-              {(programFilter !== "all" ||
-                periodFilter !== "all" ||
-                tenantFilter !== "all") && (
+              {(programFilter !== "all" || periodFilter !== "all" || tenantFilter !== "all") && (
                 <div className="flex items-end">
                   <Button
                     size="sm"
@@ -480,7 +483,10 @@ function AdminStatistics() {
                 <TableBody>
                   {filteredSummaries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center text-sm text-muted-foreground py-6"
+                      >
                         Sin cursos que coincidan con los filtros.
                       </TableCell>
                     </TableRow>

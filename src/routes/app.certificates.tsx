@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,13 +79,16 @@ interface CertificateRow {
 function CertificatesAdmin() {
   const { t } = useTranslation();
   const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const isAdmin = roles.includes("Admin");
   const isDocente = roles.includes("Docente");
-  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  // Solo true cuando actúa como SuperAdmin (no por solo tener el rol).
+  // Ver comentario en app.admin.users.
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   // Filtros UI (mismo patrón que otros módulos): selector de curso +
   // search por nombre/email/código + toggle "mostrar revocados".
   const [filterCourseId, setFilterCourseId] = useState<string>("");

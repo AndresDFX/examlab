@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -290,7 +291,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   // tenant elegido, luego `.in('course_id', ids)` en cada count + en
   // la lista. Para Admin normal RLS acota; el Select no se renderiza.
   const { roles } = useAuth();
-  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  const activeRole = useActiveRole();
+  // Solo true cuando actúa como SuperAdmin (no por solo tener el rol).
+  // Ver comentario en app.admin.users.
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   useEffect(() => {

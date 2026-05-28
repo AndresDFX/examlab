@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { toCSV, downloadCSV } from "@/shared/lib/csv";
@@ -176,6 +177,7 @@ type CourseStats = {
 export function AdminCourses() {
   const { t } = useTranslation();
   const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
   /** Mapa courseId → stats. Vacío al inicio; se llena después del primer
@@ -341,7 +343,12 @@ export function AdminCourses() {
   const isAdmin = roles.includes("Admin");
   const isTeacher = roles.includes("Docente");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isSuperAdminCaller = (roles as any[]).includes("SuperAdmin");
+  // Solo `true` cuando el usuario está ACTIVAMENTE actuando como SuperAdmin.
+  // Si tiene también el rol Admin y cambió al switcher, debe verse como
+  // Admin común — sin filtro cross-tenant. Antes era `roles.includes(...)`,
+  // que filtraba bien sólo el rol pero no la intención del usuario.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && (roles as any[]).includes("SuperAdmin");
   // Docente tiene los mismos privilegios que Admin para gestionar
   // cursos, EXCEPTO auto-asignarse en course_teachers (lo bloquea
   // tanto la RLS como el filtro del dialog de docentes más abajo).
@@ -428,36 +435,31 @@ export function AdminCourses() {
     const courseIds = (data ?? []).map((c: { id: string }) => c.id);
     if (courseIds.length > 0) {
       try {
-        const [
-          { data: studs },
-          { data: teaches },
-          { data: exs },
-          { data: wks },
-          { data: prs },
-        ] = await Promise.all([
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any)
-            .from("course_enrollments")
-            .select("course_id")
-            .in("course_id", courseIds),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any)
-            .from("course_teachers")
-            .select("course_id")
-            .in("course_id", courseIds),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any).from("exams").select("course_id").in("course_id", courseIds),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any)
-            .from("workshop_courses")
-            .select("course_id")
-            .in("course_id", courseIds),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any)
-            .from("project_courses")
-            .select("course_id")
-            .in("course_id", courseIds),
-        ]);
+        const [{ data: studs }, { data: teaches }, { data: exs }, { data: wks }, { data: prs }] =
+          await Promise.all([
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase as any)
+              .from("course_enrollments")
+              .select("course_id")
+              .in("course_id", courseIds),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase as any)
+              .from("course_teachers")
+              .select("course_id")
+              .in("course_id", courseIds),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase as any).from("exams").select("course_id").in("course_id", courseIds),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase as any)
+              .from("workshop_courses")
+              .select("course_id")
+              .in("course_id", courseIds),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase as any)
+              .from("project_courses")
+              .select("course_id")
+              .in("course_id", courseIds),
+          ]);
         const next = new Map<string, CourseStats>();
         for (const id of courseIds) {
           next.set(id, { students: 0, teachers: 0, exams: 0, workshops: 0, projects: 0 });
@@ -1243,7 +1245,10 @@ export function AdminCourses() {
             — el SuperAdmin veía cursos cross-tenant sin poder acotar a
             una institución específica. Ahora aplica .eq('tenant_id', X)
             a la query principal. */}
-        {isSuperAdminCaller && tenants.length > 1 && (
+        {/* Gate `> 0` (no `> 1`): el filtro queda visible siempre que el
+            SuperAdmin tenga al menos una institución cargada, consistente
+            con Usuarios/Errores/Cola/Certificados/Auditoría. */}
+        {isSuperAdminCaller && tenants.length > 0 && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
             {/* En mobile: w-full para que después del wrap ocupe todo el
                 ancho disponible (sin un dropdown chiquito a la izquierda
@@ -1289,7 +1294,10 @@ export function AdminCourses() {
                 <TableHead className="hidden sm:table-cell w-24">{t("common.scale")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.end")}</TableHead>
-                <TableHead className="hidden lg:table-cell w-44" title="Estudiantes / Docentes / Items">
+                <TableHead
+                  className="hidden lg:table-cell w-44"
+                  title="Estudiantes / Docentes / Items"
+                >
                   Actividad
                 </TableHead>
                 <TableHead className="text-right w-28">{t("common.actions")}</TableHead>
@@ -1335,11 +1343,7 @@ export function AdminCourses() {
                     <div className="flex flex-col gap-1 min-w-0">
                       <span
                         className="truncate"
-                        title={
-                          c.description
-                            ? `${c.name}\n\n${c.description}`
-                            : c.name
-                        }
+                        title={c.description ? `${c.name}\n\n${c.description}` : c.name}
                       >
                         {c.name}
                       </span>
@@ -1536,55 +1540,34 @@ export function AdminCourses() {
                   />
                 )}
               </div>
-              {/* Programa académico (opcional, pero recomendado). Define
-                  la carrera/pregrado al que pertenece el curso — alimenta
-                  los headers de informes institucionales y analytics
-                  agregados por programa. La lista la mantiene el Admin
-                  desde Configuración → Académico. */}
-              <div>
-                <Label>Programa / Nivel</Label>
-                <Select
-                  value={editing.program_id ?? "__none__"}
-                  onValueChange={(v) =>
-                    setEditing({ ...editing, program_id: v === "__none__" ? null : v })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin programa asociado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin programa asociado</SelectItem>
-                    {programs.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Asignatura del plan (opcional). Asociar el curso a una
-                  asignatura abstracta permite agrupar todos los grupos
-                  de "Programación II" en reportes. Al seleccionar una
-                  asignatura, si tiene programa fijo, lo sincronizamos
-                  para evitar inconsistencias. */}
+              {/* Asignatura del plan. Es la ÚNICA fuente de "carrera/
+                  programa" del curso: la asignatura ya tiene `program_id`
+                  fijo desde su definición en /app/admin/academic, así
+                  que pedir un programa aparte acá era redundante y
+                  abría la puerta a inconsistencias (curso con un
+                  programa pero asignatura de otro). Al elegir una
+                  asignatura sincronizamos `program_id` y `semestre`
+                  del curso desde ella; el `program_id` del curso es
+                  ahora un cache derivado, no un campo independiente. */}
               <div>
                 <Label>Asignatura del plan</Label>
                 <Select
                   value={editing.subject_id ?? "__none__"}
                   onValueChange={(v) => {
                     if (v === "__none__") {
-                      setEditing({ ...editing, subject_id: null });
+                      setEditing({ ...editing, subject_id: null, program_id: null });
                       return;
                     }
                     const subj = subjects.find((s) => s.id === v);
                     setEditing({
                       ...editing,
                       subject_id: v,
-                      // Sync defensivo: si la asignatura tiene programa
-                      // fijo y el curso no, lo heredamos.
-                      program_id: editing.program_id ?? subj?.program_id ?? null,
-                      // Y si la asignatura tiene semestre del plan,
-                      // sugerirlo cuando el curso no lo tiene.
+                      // La asignatura define el programa del curso —
+                      // siempre lo heredamos (override previo NO se
+                      // preserva: la asignatura es la fuente de verdad).
+                      program_id: subj?.program_id ?? null,
+                      // El semestre del plan se sugiere cuando el curso
+                      // no tiene uno propio todavía.
                       semestre: editing.semestre ?? subj?.semestre ?? null,
                     });
                   }}
@@ -1594,23 +1577,33 @@ export function AdminCourses() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Sin asignatura asociada</SelectItem>
-                    {subjects
-                      // Filtrar por programa elegido si lo hay — relevancia.
-                      .filter(
-                        (s) =>
-                          !editing.program_id ||
-                          s.program_id === editing.program_id ||
-                          s.program_id == null,
-                      )
-                      .map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                          {s.code ? ` (${s.code})` : ""}
-                          {s.semestre ? ` · Sem ${s.semestre}` : ""}
-                        </SelectItem>
-                      ))}
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                        {s.code ? ` (${s.code})` : ""}
+                        {s.semestre ? ` · Sem ${s.semestre}` : ""}
+                        {s.program_id
+                          ? ` · ${programs.find((p) => p.id === s.program_id)?.name ?? "Programa"}`
+                          : ""}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {/* Confirmación visual de la herencia: cuando hay
+                    asignatura elegida y trae programa, lo mostramos
+                    en texto chico para que el admin vea explícitamente
+                    de dónde sale el programa del curso. */}
+                {(() => {
+                  const subj = subjects.find((s) => s.id === editing.subject_id);
+                  if (!subj?.program_id) return null;
+                  const prog = programs.find((p) => p.id === subj.program_id);
+                  return prog ? (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Programa: <span className="font-medium">{prog.name}</span> (heredado de la
+                      asignatura).
+                    </p>
+                  ) : null;
+                })()}
               </div>
               {/* Campos opcionales que alimentan los headers de los informes
                   institucionales (Diagnóstico, Acuerdo Pedagógico). Si el
@@ -2784,11 +2777,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                 className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md border border-input bg-background hover:bg-muted/40 cursor-pointer"
                 title={t("course.boardImportTooltip")}
               >
-                {importing ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <Upload className="h-3.5 w-3.5" />
-                )}
+                {importing ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
                 {t("course.boardImportCsv")}
                 <input
                   type="file"

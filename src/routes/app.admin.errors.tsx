@@ -25,6 +25,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -135,7 +136,10 @@ const STATUS_CFG: Record<
 
 function ErrorsModule() {
   const { roles } = useAuth();
-  const isSuperAdmin = roles.includes("SuperAdmin");
+  const activeRole = useActiveRole();
+  // Filtro cross-tenant solo cuando actúa como SuperAdmin (no por solo
+  // tener el rol). Ver comentario en app.admin.users.
+  const isSuperAdmin = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const isAdmin = roles.includes("Admin");
 
   const [events, setEvents] = useState<ErrorEvent[]>([]);

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,7 @@ const USERS_TEMPLATE_CSV = toCSV([
 function AdminUsers() {
   const { t } = useTranslation();
   const { roles, profile } = useAuth();
+  const activeRole = useActiveRole();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -144,7 +146,12 @@ function AdminUsers() {
   // `showTenantUI`) para acotar la vista cross-tenant.
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [tenantFilter, setTenantFilter] = useState<string>("all");
-  const isSuperAdminCaller = roles.includes("SuperAdmin");
+  // El filtro de institución solo debe aparecer cuando el usuario está
+  // ACTIVAMENTE actuando como SuperAdmin (no por solo tener el rol). Un
+  // usuario con SuperAdmin + Admin que cambia a Admin con el role-switcher
+  // ya no quiere ver el dropdown cross-tenant: en ese caso opera dentro
+  // de SU institución como cualquier Admin.
+  const isSuperAdminCaller = activeRole === "SuperAdmin";
   // Mostrar el filtro + columna "Institución" cuando el caller es
   // SuperAdmin y hay al menos una institución cargada. Antes el umbral
   // era `> 1` (escondíamos el filtro con un solo tenant para no mostrar

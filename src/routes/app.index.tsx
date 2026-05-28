@@ -1107,7 +1107,11 @@ function Stat({
   color = "text-primary",
   onClick,
 }: {
-  icon: any;
+  // `icon` opcional: sin ícono el card queda solo con label + valor + sub.
+  // SuperAdmin dashboard pidió esa variante para no recargar visualmente
+  // los 4 tiles superiores (los otros dashboards mantienen sus íconos).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon?: any;
   label: string;
   value: number | string;
   /** Línea secundaria debajo del valor (ej. "todas activas", "8 de 24").
@@ -1135,11 +1139,13 @@ function Stat({
               <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{sub}</div>
             )}
           </div>
-          <div
-            className={`h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 ${color}`}
-          >
-            <Icon className="h-4.5 w-4.5" />
-          </div>
+          {Icon && (
+            <div
+              className={`h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 ${color}`}
+            >
+              <Icon className="h-4.5 w-4.5" />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -1337,9 +1343,14 @@ function SuperAdminDashboard() {
     <div className="flex flex-col gap-4 flex-1 min-h-0">
       {/* 4 stats arriba — clickeables (navegan al módulo), igual que en
           los dashboards de Teacher/Student. */}
+      {/* SIN íconos: decisión de diseño 2026-05-27 — los 4 cards del
+          SuperAdmin van limpios (solo label + valor + sub). Los íconos
+          coloridos cargaban visualmente el header del dashboard y se
+          sentía inconsistente con la lectura "scan + entendí" del resto.
+          El componente <Stat> acepta `icon` opcional; los demás
+          dashboards (Admin/Teacher/Student) los mantienen. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
-          icon={Building2}
           label="Instituciones"
           value={loading ? "—" : stats.tenantsActive}
           sub={
@@ -1347,38 +1358,27 @@ function SuperAdminDashboard() {
               ? `${stats.tenantsInactive} pausada${stats.tenantsInactive === 1 ? "" : "s"}`
               : "todas activas"
           }
-          color="text-violet-500 dark:text-violet-400"
           onClick={() => void navigate({ to: "/app/superadmin/tenants" })}
         />
         <Stat
-          icon={UsersIcon}
           label="Usuarios"
           value={loading ? "—" : stats.usersTotal}
           sub="cross-tenant"
-          color="text-indigo-500 dark:text-indigo-400"
           onClick={() => void navigate({ to: "/app/admin/users" })}
         />
         <Stat
-          icon={BookOpen}
           label="Cursos"
           value={loading ? "—" : stats.coursesTotal}
           sub="cross-tenant"
-          color="text-fuchsia-500 dark:text-fuchsia-400"
           onClick={() => void navigate({ to: "/app/admin/courses" })}
         />
         <Stat
-          icon={ListOrdered}
           label="Cola IA"
           value={loading ? "—" : stats.aiJobsPending}
           sub={
             stats.aiJobsFailed > 0
               ? `${stats.aiJobsFailed} fallido${stats.aiJobsFailed === 1 ? "" : "s"}`
               : "sin fallidos"
-          }
-          color={
-            stats.aiJobsFailed > 0
-              ? "text-amber-500 dark:text-amber-400"
-              : "text-emerald-500 dark:text-emerald-400"
           }
           onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
         />

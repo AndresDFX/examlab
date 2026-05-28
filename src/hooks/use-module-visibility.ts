@@ -76,10 +76,16 @@ async function fetchVisibilityMap(): Promise<CombinedMaps> {
   if (cached) return cached;
   if (pending) return pending;
   pending = (async () => {
+    // Migración 20260717000000: ahora hay potencialmente DOS filas por
+    // (module_key, role) — la global (tenant_id IS NULL, definida por
+    // SuperAdmin) y el override del tenant del usuario. RLS ya filtra a
+    // (tenant_id IS NULL OR tenant_id = current_tenant_id()), así que
+    // la query trae lo correcto. El merge tenant-sobre-global lo hacemos
+    // acá: tenant gana sobre global, default true si no hay ninguna.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("module_visibility")
-      .select("module_key, role, enabled, display_order");
+      .select("module_key, role, enabled, display_order, tenant_id");
     if (error) {
       // En error caemos a mapa vacío → todos los módulos visibles
       // (default true). Mejor mostrar de más que romper la app por una
@@ -90,12 +96,30 @@ async function fetchVisibilityMap(): Promise<CombinedMaps> {
     }
     const visibility: VisibilityMap = {};
     const order: OrderMap = {};
-    for (const row of (data ?? []) as Array<{
+    type Row = {
       module_key: ModuleKey;
       role: RoleKey;
       enabled: boolean;
       display_order?: number | null;
-    }>) {
+      tenant_id?: string | null;
+    };
+    const rows = (data ?? []) as Row[];
+    // Procesar primero las filas del tenant (no-NULL), después las
+    // globales — track de qué celdas (módulo, rol) ya fueron decididas
+    // por un override del tenant para que la global no las pise.
+    const overriddenByTenant = new Set<string>();
+    const sorted = rows.slice().sort((a, b) => {
+      const at = a.tenant_id ? 0 : 1;
+      const bt = b.tenant_id ? 0 : 1;
+      return at - bt;
+    });
+    for (const row of sorted) {
+      const cellKey = `${row.module_key}::${row.role}`;
+      if (row.tenant_id) {
+        overriddenByTenant.add(cellKey);
+      } else if (overriddenByTenant.has(cellKey)) {
+        continue;
+      }
       const slot = visibility[row.module_key] ?? {};
       slot[row.role] = row.enabled;
       visibility[row.module_key] = slot;

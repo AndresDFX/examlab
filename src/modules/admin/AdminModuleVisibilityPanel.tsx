@@ -21,6 +21,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -36,25 +38,56 @@ import { friendlyError } from "@/shared/lib/db-errors";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type Row = { module_key: string; role: string; enabled: boolean; display_order: number };
+type Row = {
+  module_key: string;
+  role: string;
+  enabled: boolean;
+  display_order: number;
+  /** Migración 20260717000000: NULL = fila global (default plataforma);
+   *  UUID = override de ese tenant. El panel decide cuál cargar/escribir
+   *  según el "scope" del caller (global vs tenant). */
+  tenant_id: string | null;
+};
 
-// Lista canónica de módulos toggleables. Si agregas un módulo nuevo y
-// quieres que el admin lo controle, agrégalo acá + en la migración.
-//
-// `dashboard` se incluye aunque por convención sea siempre el primer
-// item del sidebar — algunos admins prefieren mandarlo al final cuando
-// la institución usa la app como "lista de tareas" en vez de "panel".
-// Permitirlo reordenar es coherente con que el panel maneje TODO el
-// sidebar, no solo "lo opcional".
-const MODULES: Array<{ key: string; label: string }> = [
+type ModuleRoleKey = "Admin" | "Docente" | "Estudiante";
+
+/**
+ * Lista canónica de FILAS del panel. La mayoría de filas usa `key` como
+ * module_key directo (1:1 con la tabla `module_visibility`). Algunas son
+ * VIRTUALES: una sola fila en el panel pero internamente se mapea a >1
+ * module_key dependiendo del rol. Ej.: "Calificaciones" muestra UN sólo
+ * row con switches Admin/Docente/Estudiante, pero detrás:
+ *   - Docente → escribe `gradebook` (la vista del docente)
+ *   - Estudiante → escribe `grades` (la vista del estudiante)
+ * Es el MISMO concepto del producto ("calificaciones"), expuesto distinto
+ * a cada rol; antes el panel mostraba 2 filas separadas y los Admins se
+ * confundían sobre cuál tocar.
+ *
+ * `roleKeyMap` (opcional) define el remapeo: si para un rol está
+ * presente, ese key se usa; si no, cae al `key` por defecto. Ej.:
+ *   - Para el Admin nunca hay vista "Calificaciones" propia, mapeamos
+ *     a `gradebook` (override-friendly: si lo prendés, Admin igual ve
+ *     todo por has_role).
+ */
+const MODULES: Array<{
+  key: string;
+  label: string;
+  roleKeyMap?: Partial<Record<ModuleRoleKey, string>>;
+}> = [
   { key: "dashboard", label: "Dashboard" },
   { key: "courses", label: "Cursos" },
   { key: "contents", label: "Contenidos (Docente)" },
   { key: "exams", label: "Exámenes" },
   { key: "workshops", label: "Talleres" },
   { key: "projects", label: "Proyectos" },
-  { key: "gradebook", label: "Calificaciones (Docente)" },
-  { key: "grades", label: "Calificaciones (Estudiante)" },
+  {
+    // Unificación: antes había dos filas separadas (`gradebook`,
+    // `grades`); las colapsamos en una sola "Calificaciones" — es el
+    // mismo módulo conceptual, solo cambia la VISTA por rol.
+    key: "calificaciones",
+    label: "Calificaciones",
+    roleKeyMap: { Admin: "gradebook", Docente: "gradebook", Estudiante: "grades" },
+  },
   { key: "attendance", label: "Asistencia" },
   { key: "forum", label: "Foro" },
   { key: "calendar", label: "Calendario" },
@@ -70,6 +103,14 @@ const MODULES: Array<{ key: string; label: string }> = [
   { key: "reports", label: "Informes" },
 ];
 
+/** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */
+function physicalKeyFor(
+  module: { key: string; roleKeyMap?: Partial<Record<ModuleRoleKey, string>> },
+  role: string,
+): string {
+  return module.roleKeyMap?.[role as ModuleRoleKey] ?? module.key;
+}
+
 const ROLES: Array<{ key: "Admin" | "Docente" | "Estudiante"; label: string }> = [
   { key: "Admin", label: "Admin" },
   { key: "Docente", label: "Docente" },
@@ -77,7 +118,15 @@ const ROLES: Array<{ key: "Admin" | "Docente" | "Estudiante"; label: string }> =
 ];
 
 export function AdminModuleVisibilityPanel() {
-  const { user } = useAuth();
+  const { user, profile, roles } = useAuth();
+  const activeRole = useActiveRole();
+  // Scope global = SuperAdmin actuando como SuperAdmin sin "Ver como"
+  // tenant. En ese caso el panel edita la fila `tenant_id IS NULL`
+  // (default de la plataforma). En cualquier otro escenario (Admin de
+  // tenant, o SuperAdmin con override activo) edita filas del tenant.
+  const isGlobalScope =
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
+  const scopeTenantId: string | null = isGlobalScope ? null : (profile?.tenant_id ?? null);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -93,28 +142,64 @@ export function AdminModuleVisibilityPanel() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
+    // En scope GLOBAL leemos solo las filas `tenant_id IS NULL`.
+    // En scope TENANT leemos AMBAS (NULL + del tenant), y mostramos las
+    // del tenant si existen, si no las del global como "default
+    // heredado". Así el Admin arranca viendo el orden/visibilidad que
+    // el SuperAdmin definió y solo crea overrides cuando toca algo.
+    let q = db
       .from("module_visibility")
-      .select("module_key, role, enabled, display_order");
+      .select("module_key, role, enabled, display_order, tenant_id");
+    if (isGlobalScope) {
+      q = q.is("tenant_id", null);
+    } else if (scopeTenantId) {
+      q = q.or(`tenant_id.is.null,tenant_id.eq.${scopeTenantId}`);
+    } else {
+      // Sin scope claro (Admin sin profile.tenant_id, raro): solo global.
+      q = q.is("tenant_id", null);
+    }
+    const { data, error } = await q;
     if (error) {
       setLoadError(friendlyError(error, "No pudimos cargar la visibilidad de módulos."));
       setLoading(false);
       return;
     }
     const fetched = (data ?? []) as Row[];
-    setRows(fetched);
-    // Construir el orden inicial: media del display_order por módulo (o
-    // el del rol Estudiante si existe — el "usuario más común"). Para
-    // módulos sin fila aún, los empujamos al final con índice alto.
-    const orderByModule = new Map<string, number>();
-    for (const r of fetched) {
-      if (!orderByModule.has(r.module_key)) {
-        orderByModule.set(r.module_key, r.display_order);
+    // Merge tenant-sobre-global solo aplica en scope tenant — collapsamos
+    // ambas fuentes en un solo conjunto preferente al override del tenant.
+    let displayRows: Row[] = fetched;
+    if (!isGlobalScope) {
+      const byKey = new Map<string, Row>();
+      // Primero las globales como base.
+      for (const r of fetched) if (r.tenant_id == null) byKey.set(`${r.module_key}::${r.role}`, r);
+      // Luego las del tenant pisan.
+      for (const r of fetched) if (r.tenant_id != null) byKey.set(`${r.module_key}::${r.role}`, r);
+      displayRows = [...byKey.values()];
+    }
+    setRows(displayRows);
+    // Construir el orden inicial: tomar el `display_order` de cualquier
+    // fila del módulo (después del merge, las del tenant ganan).
+    // El orden inicial se calcula contra las VIRTUALES — para módulos
+    // 1:1 con `key`, busca directamente; para los unificados (ej.
+    // "calificaciones" → gradebook/grades) toma el primer physical row
+    // encontrado entre los mapeos del rol. Tras un saveOrder ambos
+    // physical comparten display_order, así que da igual cuál de los
+    // dos vimos primero.
+    const orderByVirtual = new Map<string, number>();
+    for (const mod of MODULES) {
+      const physicalKeys = new Set<string>([mod.key]);
+      if (mod.roleKeyMap) {
+        for (const k of Object.values(mod.roleKeyMap)) if (k) physicalKeys.add(k);
+      }
+      for (const r of displayRows) {
+        if (physicalKeys.has(r.module_key)) {
+          if (!orderByVirtual.has(mod.key)) orderByVirtual.set(mod.key, r.display_order);
+        }
       }
     }
     const sorted = MODULES.slice().sort((a, b) => {
-      const oa = orderByModule.get(a.key) ?? 9999;
-      const ob = orderByModule.get(b.key) ?? 9999;
+      const oa = orderByVirtual.get(a.key) ?? 9999;
+      const ob = orderByVirtual.get(b.key) ?? 9999;
       if (oa !== ob) return oa - ob;
       return MODULES.findIndex((m) => m.key === a.key) - MODULES.findIndex((m) => m.key === b.key);
     });
@@ -124,24 +209,42 @@ export function AdminModuleVisibilityPanel() {
 
   useEffect(() => {
     void load();
+    // Cuando cambia el scope (el usuario alterna entre SuperAdmin
+    // cross-tenant y Admin / "Ver como"), tenemos que re-cargar para
+    // mostrar la fila correcta: global vs override del tenant.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, isGlobalScope, scopeTenantId]);
 
   // ── Mapas para el render ────────────────────────────────────────────
+  // enabledMap está indexado por physical_key::role. Los lookups del UI
+  // (que pasan virtualKey) van por `isOn`, que resuelve la traducción.
   const enabledMap = useMemo(() => {
     const m = new Map<string, boolean>();
     for (const r of rows) m.set(`${r.module_key}::${r.role}`, r.enabled);
     return m;
   }, [rows]);
-  const isOn = (mod: string, role: string) => enabledMap.get(`${mod}::${role}`) ?? true;
+  const isOn = (virtualKey: string, role: string) => {
+    const mod = MODULES.find((m) => m.key === virtualKey);
+    const physical = mod ? physicalKeyFor(mod, role) : virtualKey;
+    return enabledMap.get(`${physical}::${role}`) ?? true;
+  };
 
   // Posición persistida en DB para detectar si hay cambios sin guardar.
-  // Tomamos el `display_order` de cualquier fila del módulo (todas las
-  // roles deberían tener el mismo número tras un guardado).
+  // Indexado por VIRTUAL key (igual que localOrder). Para virtuales
+  // unificadas como "calificaciones" leemos el display_order del primer
+  // physical encontrado.
   const persistedOrderByModule = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of rows) {
-      if (!m.has(r.module_key)) m.set(r.module_key, r.display_order);
+    for (const mod of MODULES) {
+      const physicalKeys = new Set<string>([mod.key]);
+      if (mod.roleKeyMap) {
+        for (const k of Object.values(mod.roleKeyMap)) if (k) physicalKeys.add(k);
+      }
+      for (const r of rows) {
+        if (physicalKeys.has(r.module_key)) {
+          if (!m.has(mod.key)) m.set(mod.key, r.display_order);
+        }
+      }
     }
     return m;
   }, [rows]);
@@ -161,14 +264,21 @@ export function AdminModuleVisibilityPanel() {
   }, [localOrder, persistedOrderByModule]);
 
   // ── Toggle: persiste al instante ───────────────────────────────────
-  const toggle = async (moduleKey: string, role: string, next: boolean) => {
+  // `virtualKey` viene del UI (puede ser una fila unificada como
+  // "calificaciones"). Resolvemos al physical key real ANTES de tocar
+  // la DB o el state — todas las filas en `rows` viven en términos
+  // físicos.
+  const toggle = async (virtualKey: string, role: string, next: boolean) => {
     if (!user) return;
-    const key = `${moduleKey}::${role}`;
-    setTogglingKey(key);
-    const prev = isOn(moduleKey, role);
-    // Optimistic.
+    const mod = MODULES.find((m) => m.key === virtualKey);
+    const physicalKey = mod ? physicalKeyFor(mod, role) : virtualKey;
+    const togglingId = `${virtualKey}::${role}`;
+    setTogglingKey(togglingId);
+    const prev = isOn(virtualKey, role);
+    // Optimistic — usar physicalKey en setRows porque rows está en
+    // términos físicos.
     setRows((rs) => {
-      const idx = rs.findIndex((r) => r.module_key === moduleKey && r.role === role);
+      const idx = rs.findIndex((r) => r.module_key === physicalKey && r.role === role);
       if (idx >= 0) {
         const copy = rs.slice();
         copy[idx] = { ...copy[idx], enabled: next };
@@ -177,29 +287,39 @@ export function AdminModuleVisibilityPanel() {
       return [
         ...rs,
         {
-          module_key: moduleKey,
+          module_key: physicalKey,
           role,
           enabled: next,
-          display_order: persistedOrderByModule.get(moduleKey) ?? 100,
+          display_order: persistedOrderByModule.get(virtualKey) ?? 100,
+          tenant_id: scopeTenantId,
         },
       ];
     });
     const { error } = await db.from("module_visibility").upsert(
       {
-        module_key: moduleKey,
+        module_key: physicalKey,
         role,
         enabled: next,
-        display_order: persistedOrderByModule.get(moduleKey) ?? 100,
+        display_order: persistedOrderByModule.get(virtualKey) ?? 100,
         updated_by: user.id,
+        // En scope global escribimos NULL (la fila default de la
+        // plataforma). En scope tenant escribimos el id del tenant —
+        // esto CREA un override si no existía, o actualiza el existente.
+        tenant_id: scopeTenantId,
       },
-      { onConflict: "module_key,role" },
+      // El unique index ahora es (tenant_id, module_key, role) con NULLS
+      // NOT DISTINCT (migración 20260717000000), así que el onConflict
+      // tiene que incluir las 3 columnas. La fila global y la del tenant
+      // son filas DISTINTAS (no comparten PK), por eso podemos upsert
+      // sin pisar la otra.
+      { onConflict: "tenant_id,module_key,role" },
     );
     setTogglingKey(null);
     if (error) {
       toast.error(friendlyError(error));
       // Rollback
       setRows((rs) => {
-        const idx = rs.findIndex((r) => r.module_key === moduleKey && r.role === role);
+        const idx = rs.findIndex((r) => r.module_key === physicalKey && r.role === role);
         if (idx >= 0) {
           const copy = rs.slice();
           copy[idx] = { ...copy[idx], enabled: prev };
@@ -247,23 +367,31 @@ export function AdminModuleVisibilityPanel() {
       enabled: boolean;
       display_order: number;
       updated_by: string;
+      tenant_id: string | null;
     }> = [];
     for (let i = 0; i < localOrder.length; i++) {
-      const mod = localOrder[i];
+      const virtualKey = localOrder[i];
+      const moduleDef = MODULES.find((m) => m.key === virtualKey);
       const order = (i + 1) * 10;
+      // Para módulos unificados como "calificaciones", esto escribe
+      // 3 filas distintas: (gradebook, Admin), (gradebook, Docente),
+      // (grades, Estudiante) — todas con el MISMO display_order, así
+      // los physical keys quedan sincronizados en posición.
       for (const r of ROLES) {
+        const physicalKey = moduleDef ? physicalKeyFor(moduleDef, r.key) : virtualKey;
         updates.push({
-          module_key: mod,
+          module_key: physicalKey,
           role: r.key,
-          enabled: isOn(mod, r.key),
+          enabled: isOn(virtualKey, r.key),
           display_order: order,
           updated_by: user.id,
+          tenant_id: scopeTenantId,
         });
       }
     }
     const { error } = await db
       .from("module_visibility")
-      .upsert(updates, { onConflict: "module_key,role" });
+      .upsert(updates, { onConflict: "tenant_id,module_key,role" });
     setSavingOrder(false);
     if (error) {
       toast.error(`No se pudo guardar el orden: ${friendlyError(error)}`);
@@ -292,6 +420,31 @@ export function AdminModuleVisibilityPanel() {
         <p className="text-xs text-muted-foreground mt-1">
           Admin siempre ve todo (override). Tras un cambio los usuarios deben recargar para verlo.
         </p>
+        {/* Indicador de scope: el panel ahora opera en dos modos. El
+            SuperAdmin (cross-tenant) edita el DEFAULT global de toda la
+            plataforma; cada Admin (o SuperAdmin con "Ver como X") edita
+            el OVERRIDE de su institución sobre ese default. */}
+        <div
+          className={`mt-2 rounded-md border px-3 py-2 text-xs ${
+            isGlobalScope
+              ? "border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300"
+              : "border-indigo-500/30 bg-indigo-500/5 text-indigo-700 dark:text-indigo-300"
+          }`}
+        >
+          {isGlobalScope ? (
+            <>
+              <strong>Configuración global de la plataforma.</strong> Lo que guardás acá es el
+              default que reciben TODAS las instituciones. Cada Admin puede sobrescribirlo para su
+              institución desde su propio panel.
+            </>
+          ) : (
+            <>
+              <strong>Override por institución.</strong> Lo que guardás acá aplica SOLO a esta
+              institución y se superpone sobre la configuración global de la plataforma. Si dejás un
+              módulo o estado sin tocar, se hereda del default global.
+            </>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
@@ -306,91 +459,91 @@ export function AdminModuleVisibilityPanel() {
           />
         ) : (
           <>
-          {/* overflow-x-auto + min-w en el contenido evita que la matrix
+            {/* overflow-x-auto + min-w en el contenido evita que la matrix
               se apriete a 375px (3 switches w-16 + acciones w-16 + gaps
               ocupan ~256px fijos, dejaban <80px para el label del módulo
               — los nombres se truncaban a "Banc..." y eran ilegibles).
               En mobile la matrix scrollea horizontalmente; en sm+ cabe. */}
-          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-          <div className="min-w-[480px]">
-            {/* Header con etiquetas de los switches a la derecha */}
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
-              <span>Módulo</span>
-              <div className="flex gap-2">
-                {ROLES.map((r) => (
-                  <span key={r.key} className="w-16 text-center">
-                    {r.label}
-                  </span>
-                ))}
-              </div>
-              <span className="w-16 text-right">Posición</span>
-            </div>
-
-            <div className="border rounded-md divide-y bg-card">
-              {localOrder.map((modKey, idx) => {
-                const m = MODULES.find((x) => x.key === modKey);
-                if (!m) return null;
-                const isDragging = dragKey === modKey;
-                return (
-                  <div
-                    key={m.key}
-                    draggable
-                    onDragStart={() => onDragStart(m.key)}
-                    onDragOver={onDragOver}
-                    onDrop={() => onDrop(m.key)}
-                    onDragEnd={() => setDragKey(null)}
-                    className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 py-2 hover:bg-muted/30 transition-colors ${
-                      isDragging ? "opacity-40 bg-muted/40" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
-                        title="Arrastra para reordenar"
-                      >
-                        <GripVertical className="h-4 w-4" />
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <div className="min-w-[480px]">
+                {/* Header con etiquetas de los switches a la derecha */}
+                <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
+                  <span>Módulo</span>
+                  <div className="flex gap-2">
+                    {ROLES.map((r) => (
+                      <span key={r.key} className="w-16 text-center">
+                        {r.label}
                       </span>
-                      <div className="min-w-0">
-                        <div className="font-medium text-sm truncate">{m.label}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono truncate">
-                          {m.key}
+                    ))}
+                  </div>
+                  <span className="w-16 text-right">Posición</span>
+                </div>
+
+                <div className="border rounded-md divide-y bg-card">
+                  {localOrder.map((modKey, idx) => {
+                    const m = MODULES.find((x) => x.key === modKey);
+                    if (!m) return null;
+                    const isDragging = dragKey === modKey;
+                    return (
+                      <div
+                        key={m.key}
+                        draggable
+                        onDragStart={() => onDragStart(m.key)}
+                        onDragOver={onDragOver}
+                        onDrop={() => onDrop(m.key)}
+                        onDragEnd={() => setDragKey(null)}
+                        className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 py-2 hover:bg-muted/30 transition-colors ${
+                          isDragging ? "opacity-40 bg-muted/40" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+                            title="Arrastra para reordenar"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">{m.label}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono truncate">
+                              {m.key}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {ROLES.map((r) => {
+                            const key = `${m.key}::${r.key}`;
+                            return (
+                              <div key={r.key} className="w-16 flex justify-center">
+                                <Switch
+                                  checked={isOn(m.key, r.key)}
+                                  disabled={togglingKey === key}
+                                  onCheckedChange={(v) => void toggle(m.key, r.key, v)}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="w-16 flex items-center justify-end gap-0.5">
+                          <RowAction
+                            label="Subir"
+                            icon={ChevronUp}
+                            disabled={idx === 0}
+                            onClick={() => moveModule(idx, idx - 1)}
+                          />
+                          <RowAction
+                            label="Bajar"
+                            icon={ChevronDown}
+                            disabled={idx === localOrder.length - 1}
+                            onClick={() => moveModule(idx, idx + 1)}
+                          />
                         </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {ROLES.map((r) => {
-                        const key = `${m.key}::${r.key}`;
-                        return (
-                          <div key={r.key} className="w-16 flex justify-center">
-                            <Switch
-                              checked={isOn(m.key, r.key)}
-                              disabled={togglingKey === key}
-                              onCheckedChange={(v) => void toggle(m.key, r.key, v)}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="w-16 flex items-center justify-end gap-0.5">
-                      <RowAction
-                        label="Subir"
-                        icon={ChevronUp}
-                        disabled={idx === 0}
-                        onClick={() => moveModule(idx, idx - 1)}
-                      />
-                      <RowAction
-                        label="Bajar"
-                        icon={ChevronDown}
-                        disabled={idx === localOrder.length - 1}
-                        onClick={() => moveModule(idx, idx + 1)}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
-          </div>
 
             {/* Footer: estado + acciones (guardar / descartar). El badge
                 de cambios pendientes aparece solo cuando orderDirty=true. */}
