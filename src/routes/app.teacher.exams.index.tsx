@@ -647,7 +647,7 @@ function TeacherExams() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead className="max-w-[320px]">{t("exam.columns.title")}</TableHead>
+                <TableHead className="w-48 max-w-[320px]">{t("exam.columns.title")}</TableHead>
                 <TableHead className="hidden md:table-cell w-32">
                   {t("exam.columns.course")}
                 </TableHead>
