@@ -49,12 +49,14 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // flex flex-col (no `grid`): el DialogFooter usa `sticky bottom-0`,
-        // y un sticky DENTRO de un contenedor grid se posiciona respecto a
-        // su grid-area, no respecto al scroll container — eso rompía el
-        // pin al fondo y el footer terminaba SUPERPUESTO sobre el último
-        // campo del form. En flex column el sticky resuelve contra el
-        // contenedor scrolleable y queda pegado al fondo como se espera.
+        // flex flex-col + overflow-y-auto: scroll natural cuando el
+        // contenido excede `max-h`. El DialogFooter va en FLUJO NORMAL
+        // (no sticky) — el sticky con bg semi-opaco y `-mb` negativo
+        // mostraba el último campo del form parcialmente por debajo de
+        // los botones cuando el contenido apenas cabía en el viewport.
+        // Comportamiento estándar de la mayoría de Dialogs hoy: en forms
+        // largos el usuario scrollea hasta el footer; en cortos
+        // (la mayoría) ambos son visibles sin scrollear.
         "fixed left-[50%] top-[50%] z-50 flex flex-col w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-xl border bg-background p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:p-6 sm:rounded-lg",
         className,
       )}
@@ -78,29 +80,24 @@ const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 DialogHeader.displayName = "DialogHeader";
 
 /**
- * DialogFooter pegado al bottom del dialog. Cuando el dialog hace
- * scroll (form largo en mobile o muchas filas en dialogs de
- * configuración), los botones de acción ("Cancelar" / "Guardar") quedan
- * siempre visibles en la parte inferior — el usuario no tiene que
- * scrollear todo el contenido para encontrarlos.
+ * DialogFooter — sección de acciones (Cancelar / Guardar) al final del
+ * dialog. Va en FLUJO NORMAL (no sticky): cuando el form es corto se ve
+ * sin scrollear; cuando es largo el usuario scrollea hasta el final.
  *
- * Cómo funciona el sticky:
- *   - `sticky bottom-0` pega el footer al borde inferior del padre
- *     scrolleable (`DialogContent` con `overflow-y-auto`). Si no hay
- *     overflow, el footer simplemente queda en su posición natural.
- *   - Los `-mx-*` + `px-*` extienden el `bg-background` y el `border-t`
- *     hasta los bordes del dialog (compensando el padding del
- *     `DialogContent`). El `-mb-*` consume el bottom-padding del
- *     padre para que el footer quede pegado al borde inferior real.
+ * Antes era `sticky bottom-0` con margen negativo `-mb-*` para llegar
+ * hasta el borde del dialog. El sticky+margen-negativo causaba que en
+ * forms que apenas cabían en el viewport el último input/helper
+ * quedara parcialmente OCLUIDO por los botones del footer. Se removió.
  *
- * Si tu caso de uso necesita un footer NO-sticky (raro), pasa
- * `className="static"` para sobrescribir.
+ * Los `-mx-*` + `px-*` se mantienen para que la `border-t` y el bg
+ * lleguen edge-to-edge dentro del padding del DialogContent — eso es
+ * inofensivo (no afecta el layout vertical).
  */
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      "sticky bottom-0 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pt-3 pb-4 sm:pb-6 bg-background border-t",
+      "-mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pt-3 pb-4 sm:pb-6 bg-background border-t",
       className,
     )}
     {...props}

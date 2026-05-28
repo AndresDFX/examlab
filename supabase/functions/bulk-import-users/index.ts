@@ -2,6 +2,27 @@
 import { adminClient, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 
+// Token URL-safe de 32 bytes (~43 chars base64url). Mismo formato que
+// genera `request-password-reset`. Reusamos la tabla `password_reset_tokens`
+// y la ruta `/auth/reset-password?token=X` para que el usuario nuevo
+// defina su primera contraseña — el predicado `_notification_kind_emails`
+// ya dispara email automático para `system + /auth/reset-password%`.
+function generateWelcomeToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+// Ventana del link de bienvenida. Los password resets viven 1h porque
+// asumen al usuario YA logueado o atento; un alumno recién creado
+// puede tardar días en abrir el correo (admin importa al inicio del
+// semestre, alumnos lo ven cuando empieza el curso). 7 días es el
+// balance entre UX y seguridad: si caduca, el admin reimporta o el
+// alumno pide reset normal desde /auth.
+const WELCOME_TOKEN_TTL_HOURS = 24 * 7;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -153,6 +174,51 @@ Deno.serve(async (req) => {
             .from("profiles")
             .update({ must_change_password: true })
             .eq("id", userId);
+
+          // Correo de bienvenida con link para que el usuario defina
+          // su contraseña sin necesidad de conocer la temporal. Reusa
+          // la infra de password reset:
+          //   1) Token URL-safe en `password_reset_tokens` (7 días).
+          //   2) Notificación `kind='system'` + link `/auth/reset-password?token=X`
+          //      → el trigger `notify_send_email` dispara el correo
+          //      automáticamente (el predicado SQL ya acepta este path).
+          // Best-effort: si algo falla, el usuario queda creado y el
+          // admin puede mandar reset manual desde /auth. NO bloqueamos
+          // la creación por un fallo de correo.
+          try {
+            const welcomeToken = generateWelcomeToken();
+            const expiresAt = new Date(
+              Date.now() + WELCOME_TOKEN_TTL_HOURS * 60 * 60 * 1000,
+            ).toISOString();
+            const { error: tokErr } = await adminClient.from("password_reset_tokens").insert({
+              user_id: userId,
+              token: welcomeToken,
+              expires_at: expiresAt,
+            });
+            if (tokErr) throw tokErr;
+
+            const firstName = (full_name as string).split(" ")[0] ?? "";
+            const greeting = firstName ? `Hola ${firstName}, ` : "";
+            const { error: notifErr } = await adminClient.from("notifications").insert({
+              user_id: userId,
+              title: "Bienvenido a ExamLab — Define tu contraseña",
+              body:
+                `${greeting}se creó una cuenta para ti en ExamLab. ` +
+                "Haz click en el botón abajo para definir tu contraseña e ingresar a la plataforma.\n\n" +
+                "El enlace es válido por 7 días y solo puede usarse una vez. " +
+                "Si el enlace expira, puedes pedir uno nuevo desde la pantalla de inicio de sesión usando " +
+                'la opción "¿Olvidaste tu contraseña?".',
+              kind: "system",
+              link: `/auth/reset-password?token=${encodeURIComponent(welcomeToken)}`,
+            });
+            if (notifErr) throw notifErr;
+          } catch (welcomeErr) {
+            console.warn(
+              "[bulk-import-users] welcome email failed for",
+              institutional_email,
+              welcomeErr,
+            );
+          }
         }
         const roleList = (rolesStr || "Estudiante")
           .split("|")

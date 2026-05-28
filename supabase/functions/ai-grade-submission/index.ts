@@ -275,28 +275,40 @@ async function resolveSystemPrompt(
   fallback: string,
 ): Promise<string> {
   try {
-    let q = adminClient
-      .from("ai_prompts")
-      .select("system_prompt, course_id")
-      .eq("use_case", useCase);
-    // Guard: courseId se interpola en el filtro string de .or(). Si no
-    // es un UUID válido, ignoramos el override y caemos al global.
+    // 3 capas de override + fallback hardcodeado (mig 20260718000000):
+    //   1. course override     (course_id = X)                → más específico
+    //   2. tenant global       (course_id IS NULL, tenant_id != NULL)
+    //   3. platform default    (course_id IS NULL, tenant_id IS NULL)
+    //   4. fallback hardcodeado (`fallback` param)
+    // Traemos las filas que la RLS deja ver para el caller (en `adminClient`
+    // RLS está bypaseada, así que vienen TODAS las filas potencialmente
+    // relevantes) y rankeamos en JS. PostgREST no soporta ordenar por
+    // null-last directamente con multi-tabla, además el ranking es
+    // de 3 niveles — más simple en código.
     const isUuid = (s: string) =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    let q = adminClient
+      .from("ai_prompts")
+      .select("system_prompt, course_id, tenant_id")
+      .eq("use_case", useCase);
     if (courseId && isUuid(courseId)) {
+      // Si vino un courseId válido: traemos la del curso + la global del
+      // tenant del curso + la platform default.
       q = q.or(`course_id.eq.${courseId},course_id.is.null`);
     } else {
+      // Sin courseId: solo globales (tenant + platform).
       q = q.is("course_id", null);
     }
     const { data, error } = await q;
     if (error || !data || data.length === 0) return fallback;
-    // Override del curso gana sobre global. Ordenamos en JS porque
-    // PostgREST no permite ordenar nulls last directo en este esquema.
-    const sorted = [...data].sort((a, b) => {
-      if (a.course_id && !b.course_id) return -1;
-      if (!a.course_id && b.course_id) return 1;
-      return 0;
-    });
+    // Ranking: course override (3) > tenant global (2) > platform
+    // default (1). Tomamos la fila con mejor ranking.
+    const rank = (row: { course_id: string | null; tenant_id: string | null }): number => {
+      if (row.course_id) return 3;
+      if (row.tenant_id) return 2;
+      return 1;
+    };
+    const sorted = [...data].sort((a, b) => rank(b) - rank(a));
     return sorted[0]?.system_prompt || fallback;
   } catch (e) {
     console.warn("[ai_prompts] resolve failed, using fallback:", e);

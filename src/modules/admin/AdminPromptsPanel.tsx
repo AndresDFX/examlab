@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -257,7 +259,16 @@ type PromptRow = {
 };
 
 export function AdminPromptsPanel() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
+  // Scope: SuperAdmin cross-tenant escribe el "platform default"
+  // (tenant_id IS NULL, course_id IS NULL). Cualquier otro caller (Admin
+  // común, o SuperAdmin con override de tenant) escribe la fila del
+  // tenant. El trigger DB `tg_ai_prompts_set_tenant` ya respeta el
+  // tenant_id=NULL del SuperAdmin (post-mig 20260718000000); para el
+  // resto, deja que el trigger derive tenant_id de current_tenant_id().
+  const isGlobalScope =
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
   const confirm = useConfirm();
 
   const [drafts, setDrafts] = useState<Record<UseCase, string>>(
@@ -304,11 +315,22 @@ export function AdminPromptsPanel() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
+    // Filtramos por scope. La RLS post-mig 20260718000000 deja al caller
+    // VER tanto su tenant row como el platform default; al cargar
+    // queremos mostrar SOLO la fila relevante al scope que está
+    // editando, para que el campo refleje su valor actual sin
+    // confundirse con el del otro nivel.
+    let promptsQuery = db
+      .from("ai_prompts")
+      .select("id, use_case, course_id, system_prompt, tenant_id, updated_at")
+      .is("course_id", null);
+    if (isGlobalScope) {
+      promptsQuery = promptsQuery.is("tenant_id", null);
+    } else {
+      promptsQuery = promptsQuery.not("tenant_id", "is", null);
+    }
     const [{ data, error }, { data: brandRow }] = await Promise.all([
-      db
-        .from("ai_prompts")
-        .select("id, use_case, course_id, system_prompt, updated_at")
-        .is("course_id", null),
+      promptsQuery,
       db.from("content_brand_config").select("*").maybeSingle(),
     ]);
     if (error) {
@@ -349,8 +371,11 @@ export function AdminPromptsPanel() {
 
   useEffect(() => {
     void load();
+    // Reload cuando el scope cambia (ej. activeRole alterna entre
+    // SuperAdmin cross-tenant y Admin), para que cambien las filas
+    // mostradas (platform default vs tenant override).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, isGlobalScope]);
 
   const handleSaveBrand = async () => {
     if (!user) return;
@@ -415,12 +440,17 @@ export function AdminPromptsPanel() {
           return;
         }
       } else {
-        const { error } = await db.from("ai_prompts").insert({
+        // Insert: SuperAdmin (global scope) manda tenant_id: null
+        // explícito → trigger respeta y crea la fila platform-default.
+        // Admin no envía tenant_id → trigger derive current_tenant_id().
+        const payload: Record<string, unknown> = {
           use_case: uc.key,
           course_id: null,
           system_prompt: text,
           updated_by: user.id,
-        });
+        };
+        if (isGlobalScope) payload.tenant_id = null;
+        const { error } = await db.from("ai_prompts").insert(payload);
         if (error) {
           toast.error(friendlyError(error));
           return;
@@ -435,7 +465,7 @@ export function AdminPromptsPanel() {
         entityName: uc.label,
         metadata: {
           use_case: uc.key,
-          scope: "global",
+          scope: isGlobalScope ? "platform_default" : "tenant_global",
           length_before: previousText?.length ?? null,
           length_after: text.length,
         },
@@ -448,38 +478,61 @@ export function AdminPromptsPanel() {
   };
 
   const handleRestoreDefault = async (uc: UseCaseDef) => {
+    // En tenant scope, "Restaurar" significa BORRAR el override del
+    // tenant → la calificación vuelve a usar el platform default del
+    // SuperAdmin (o el fallback hardcodeado si no hay platform). En
+    // global scope (SuperAdmin), volvemos al texto hardcodeado del
+    // sistema (el `defaultPrompt` definido en USE_CASES).
     const ok = await confirm({
       title: `Restaurar default de "${uc.label}"`,
-      description:
-        "Volverás al prompt por defecto del sistema. Los overrides por curso (si existen) no se ven afectados.",
+      description: isGlobalScope
+        ? "Volverás al prompt por defecto hardcodeado del sistema. Es el último fallback de la cadena."
+        : "Eliminás el override de tu institución; la calificación va a usar el prompt default de la plataforma. Los overrides por curso no se afectan.",
       confirmLabel: "Restaurar",
       tone: "warning",
     });
     if (!ok) return;
-    setDrafts((d) => ({ ...d, [uc.key]: uc.defaultPrompt }));
     if (!user) return;
     setSavingKey(uc.key);
     try {
       const existing = rows[uc.key];
-      if (existing) {
-        const { error } = await db
-          .from("ai_prompts")
-          .update({ system_prompt: uc.defaultPrompt, updated_by: user.id })
-          .eq("id", existing.id);
+      if (!isGlobalScope && existing) {
+        // Tenant scope: delete row → fallback al platform default.
+        const { error } = await db.from("ai_prompts").delete().eq("id", existing.id);
         if (error) {
           toast.error(friendlyError(error));
           return;
         }
+        // El UI ahora muestra el hardcoded default (no podemos leer el
+        // platform en este momento sin un fetch extra; el load() de
+        // abajo recarga y muestra el estado real).
+        setDrafts((d) => ({ ...d, [uc.key]: uc.defaultPrompt }));
       } else {
-        const { error } = await db.from("ai_prompts").insert({
-          use_case: uc.key,
-          course_id: null,
-          system_prompt: uc.defaultPrompt,
-          updated_by: user.id,
-        });
-        if (error) {
-          toast.error(friendlyError(error));
-          return;
+        // Global scope (o tenant scope sin fila existente): overwrite
+        // / insert con el hardcoded default.
+        setDrafts((d) => ({ ...d, [uc.key]: uc.defaultPrompt }));
+        if (existing) {
+          const { error } = await db
+            .from("ai_prompts")
+            .update({ system_prompt: uc.defaultPrompt, updated_by: user.id })
+            .eq("id", existing.id);
+          if (error) {
+            toast.error(friendlyError(error));
+            return;
+          }
+        } else {
+          const payload: Record<string, unknown> = {
+            use_case: uc.key,
+            course_id: null,
+            system_prompt: uc.defaultPrompt,
+            updated_by: user.id,
+          };
+          if (isGlobalScope) payload.tenant_id = null;
+          const { error } = await db.from("ai_prompts").insert(payload);
+          if (error) {
+            toast.error(friendlyError(error));
+            return;
+          }
         }
       }
       void logEvent({
@@ -489,7 +542,11 @@ export function AdminPromptsPanel() {
         entityType: "ai_prompt",
         entityId: existing?.id ?? undefined,
         entityName: uc.label,
-        metadata: { use_case: uc.key, scope: "global" },
+        metadata: {
+          use_case: uc.key,
+          scope: isGlobalScope ? "platform_default" : "tenant_global",
+          action_taken: !isGlobalScope && existing ? "deleted_override" : "set_hardcoded_default",
+        },
       });
       toast.success(`"${uc.label}" restaurado al default`);
       await load();

@@ -9,8 +9,7 @@
  * URLs y el routeTree generado, aunque el módulo ahora abarca más que
  * solo prompts.
  */
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
+import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
@@ -24,52 +23,30 @@ import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 export const Route = createFileRoute("/app/admin/ai-prompts")({ component: AdminAIConfig });
 
 function AdminAIConfig() {
-  const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
-  // SuperAdmin cross-tenant: los prompts y el modelo IA son por institución
-  // (ai_prompts.tenant_id + ai_model_settings.tenant_id). Sin tenant
-  // elegido el panel no tiene scope. Redirige a Instituciones.
+  // SuperAdmin cross-tenant: ahora SÍ entra al panel — edita el
+  // "platform default" (filas con tenant_id IS NULL, course_id IS NULL).
+  // Cada Admin sigue editando el override de su institución, que cuando
+  // existe gana sobre el platform default. Si la institución no tiene
+  // override, la calificación cae al platform del SuperAdmin (mig
+  // 20260718000000). El AdminPromptsPanel detecta el scope solo.
   const isSuperAdminCrossTenant =
-    roles.includes("SuperAdmin") &&
-    activeRole === "SuperAdmin" &&
-    readTenantOverride() === null;
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
-
-  if (isSuperAdminCrossTenant) {
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
-          title="IA"
-          subtitle="Prompts y modelo IA por institución."
-        />
-        <Card>
-          <CardContent className="p-6 text-center space-y-3">
-            <p className="text-sm font-medium">{t("superAdmin.crossTenantTitle")}</p>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              {t("superAdmin.crossTenantAiHint")}
-            </p>
-            <Link
-              to="/app/superadmin/tenants"
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              {t("superAdmin.goToTenants")}
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-5">
       <PageHeader
         icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
         title="IA"
-        subtitle="Configura el modelo y los prompts globales que usa la calificación con IA."
+        subtitle={
+          isSuperAdminCrossTenant
+            ? "Configurá los prompts default de la plataforma (cada institución puede sobrescribirlos)."
+            : "Configura el modelo y los prompts globales que usa la calificación con IA."
+        }
       />
 
       <Tabs defaultValue="prompts">
@@ -78,6 +55,12 @@ function AdminAIConfig() {
             <FileText className="h-3.5 w-3.5" />
             Prompts
           </TabsTrigger>
+          {/* Modelo IA: SuperAdmin (cross-tenant) ahora edita el
+              "platform default" (mig 20260719000000); Admin sigue
+              editando el override de su institución. Cuando el tenant
+              no tiene fila propia, la calificación cae al platform
+              default — incluyendo la Gemini/OpenAI key del SuperAdmin
+              si la dejó configurada acá. */}
           <TabsTrigger value="model" className="gap-1.5">
             <Cpu className="h-3.5 w-3.5" />
             Modelo

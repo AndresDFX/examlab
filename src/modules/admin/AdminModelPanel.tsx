@@ -9,6 +9,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,7 +66,17 @@ const SECRET_NAME: Record<Provider, string> = {
 };
 
 export function AdminModelPanel() {
-  const { user } = useAuth();
+  const { user, profile, roles } = useAuth();
+  const activeRole = useActiveRole();
+  // Scope: SuperAdmin cross-tenant edita la fila PLATFORM-DEFAULT
+  // (tenant_id IS NULL, mig 20260719000000). Cualquier otro caller
+  // (Admin común o SuperAdmin con "Ver como") edita la fila de su
+  // tenant. Cada Admin puede no configurar nada y caer al platform
+  // default que el SuperAdmin haya dejado — incluyendo su Gemini /
+  // OpenAI key, así no todos los tenants tienen que pegar la suya.
+  const isGlobalScope =
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
+  const scopeTenantId: string | null = isGlobalScope ? null : (profile?.tenant_id ?? null);
   const [activeRow, setActiveRow] = useState<ModelRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<Provider>("lovable");
   const [draftModel, setDraftModel] = useState<string>("google/gemini-2.5-flash");
@@ -82,11 +94,22 @@ export function AdminModelPanel() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
+    // En scope global, la fila activa es la única con tenant_id IS NULL
+    // (mig 20260719000000). En tenant scope, la fila del tenant del
+    // caller. Filtramos explícitamente para no confundir filas — RLS
+    // post-mig SELECT también deja al SuperAdmin ver TODAS las filas,
+    // así que sin el filtro `.eq`/`.is` el `.maybeSingle()` se rompería
+    // con multiple rows.
+    let q = db
       .from("ai_model_settings")
       .select("id, provider, model, is_active, lovable_api_key, openai_api_key, gemini_api_key")
-      .eq("is_active", true)
-      .maybeSingle();
+      .eq("is_active", true);
+    if (isGlobalScope) {
+      q = q.is("tenant_id", null);
+    } else if (scopeTenantId) {
+      q = q.eq("tenant_id", scopeTenantId);
+    }
+    const { data, error } = await q.maybeSingle();
     if (error) {
       setLoadError(friendlyError(error, "No pudimos cargar la configuración del modelo."));
       setLoading(false);
@@ -100,14 +123,23 @@ export function AdminModelPanel() {
       setDraftLovableKey("__keep");
       setDraftOpenaiKey("__keep");
       setDraftGeminiKey("__keep");
+    } else {
+      // Sin fila para este scope — limpiar el activeRow para que el
+      // formulario muestre los defaults y la siguiente save haga INSERT
+      // sin pre-asumir keys del scope anterior.
+      setActiveRow(null);
+      setDraftLovableKey("__keep");
+      setDraftOpenaiKey("__keep");
+      setDraftGeminiKey("__keep");
     }
     setLoading(false);
   };
 
   useEffect(() => {
     void load();
+    // Reload cuando cambia el scope (alternar activeRole o tenant override).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, isGlobalScope, scopeTenantId]);
 
   const dirty =
     !activeRow ||
@@ -140,21 +172,37 @@ export function AdminModelPanel() {
       // Resolución de keys: si el admin no las tocó ("__keep"), heredan
       // las del activeRow. Si las cambió, usa el nuevo valor (incluido "" = borrar).
       const nextLovableKey =
-        draftLovableKey === "__keep" ? activeRow?.lovable_api_key ?? null : draftLovableKey || null;
+        draftLovableKey === "__keep"
+          ? (activeRow?.lovable_api_key ?? null)
+          : draftLovableKey || null;
       const nextOpenaiKey =
-        draftOpenaiKey === "__keep" ? activeRow?.openai_api_key ?? null : draftOpenaiKey || null;
+        draftOpenaiKey === "__keep" ? (activeRow?.openai_api_key ?? null) : draftOpenaiKey || null;
       const nextGeminiKey =
-        draftGeminiKey === "__keep" ? activeRow?.gemini_api_key ?? null : draftGeminiKey || null;
+        draftGeminiKey === "__keep" ? (activeRow?.gemini_api_key ?? null) : draftGeminiKey || null;
 
-      const { error: deactErr } = await db
+      // Desactivamos la fila activa del MISMO scope antes de insertar la
+      // nueva (mantenemos un singleton "active" por scope via los unique
+      // partial idx). Sin el filtro de tenant_id, un SuperAdmin
+      // accidentalmente desactivaría TODAS las filas activas
+      // cross-tenant (RLS lo deja escribir cualquier fila).
+      let deactQ = db
         .from("ai_model_settings")
         .update({ is_active: false, updated_by: user.id })
         .eq("is_active", true);
+      if (isGlobalScope) {
+        deactQ = deactQ.is("tenant_id", null);
+      } else if (scopeTenantId) {
+        deactQ = deactQ.eq("tenant_id", scopeTenantId);
+      }
+      const { error: deactErr } = await deactQ;
       if (deactErr) {
         toast.error(friendlyError(deactErr));
         return;
       }
-      const { error: insErr } = await db.from("ai_model_settings").insert({
+      // Insert: SuperAdmin (global scope) envía tenant_id: null explícito;
+      // el trigger respeta. Admin no envía tenant_id → trigger lo auto-
+      // setea con current_tenant_id().
+      const insertPayload: Record<string, unknown> = {
         provider: draftProvider,
         model: draftModel.trim(),
         is_active: true,
@@ -162,7 +210,9 @@ export function AdminModelPanel() {
         lovable_api_key: nextLovableKey,
         openai_api_key: nextOpenaiKey,
         gemini_api_key: nextGeminiKey,
-      });
+      };
+      if (isGlobalScope) insertPayload.tenant_id = null;
+      const { error: insErr } = await db.from("ai_model_settings").insert(insertPayload);
       if (insErr) {
         toast.error(friendlyError(insErr));
         return;
@@ -223,9 +273,35 @@ export function AdminModelPanel() {
           )}
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
-          Define qué modelo usa el edge function de calificación con IA. La configuración es
-          global para toda la plataforma.
+          Define qué modelo usa el edge function de calificación con IA.
         </p>
+        {/* Banner de scope: el SuperAdmin (cross-tenant) edita el
+            "platform default" que TODOS los tenants heredan cuando no
+            tienen su propia fila. El Admin común edita el override de
+            su institución. Si el Admin no configura nada, la calificación
+            cae al platform default del SuperAdmin (incluyendo la
+            Gemini/OpenAI key si la dejó configurada acá). */}
+        <div
+          className={`mt-2 rounded-md border px-3 py-2 text-xs ${
+            isGlobalScope
+              ? "border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300"
+              : "border-indigo-500/30 bg-indigo-500/5 text-indigo-700 dark:text-indigo-300"
+          }`}
+        >
+          {isGlobalScope ? (
+            <>
+              <strong>Default global de la plataforma.</strong> Lo que guardes acá es el modelo +
+              keys que reciben TODAS las instituciones que no configuraron el suyo. Cada Admin puede
+              sobrescribirlo desde su propio panel.
+            </>
+          ) : (
+            <>
+              <strong>Configuración de tu institución.</strong> Si no configuras nada, la
+              calificación usará el default global de la plataforma. Las keys que pongas acá tienen
+              prioridad sobre la del SuperAdmin.
+            </>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
@@ -273,9 +349,9 @@ export function AdminModelPanel() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Cada institución gestiona su propia API key del provider activo y sus propios
-            costos de IA. Si dejas el campo vacío al guardar, la plataforma cae al secret
-            configurado por el SuperAdmin (<code>{SECRET_NAME[draftProvider]}</code>).
+            Cada institución gestiona su propia API key del provider activo y sus propios costos de
+            IA. Si dejas el campo vacío al guardar, la plataforma cae al secret configurado por el
+            SuperAdmin (<code>{SECRET_NAME[draftProvider]}</code>).
           </AlertDescription>
         </Alert>
 
@@ -378,7 +454,12 @@ function ApiKeyInput({
           </Button>
         )}
         {isKeep && stored && (
-          <Button variant="ghost" size="sm" onClick={() => onChange("")} title="Borrar y usar env legacy">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onChange("")}
+            title="Borrar y usar env legacy"
+          >
             Borrar
           </Button>
         )}

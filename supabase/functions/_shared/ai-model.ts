@@ -109,6 +109,23 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
 
   if (cache.has(tenantId)) return cache.get(tenantId)!;
 
+  type Row = {
+    provider: string;
+    model: string;
+    gemini_api_key: string | null;
+    openai_api_key: string | null;
+    lovable_api_key: string | null;
+  };
+  const toActive = (row: Row, scope: "tenant" | "platform"): ActiveModel => ({
+    provider: row.provider as AiProvider,
+    model: row.model,
+    gemini_api_key: row.gemini_api_key,
+    openai_api_key: row.openai_api_key,
+    lovable_api_key: row.lovable_api_key,
+    tenant_id: scope === "tenant" ? tenantId : null,
+  });
+
+  // 1) Tenant row (más específico).
   if (tenantId) {
     const { data } = await adminClient
       .from("ai_model_settings")
@@ -117,33 +134,42 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (data) {
-      const row = data as {
-        provider: string;
-        model: string;
-        gemini_api_key: string | null;
-        openai_api_key: string | null;
-        lovable_api_key: string | null;
-      };
-      const resolved: ActiveModel = {
-        provider: row.provider as AiProvider,
-        model: row.model,
-        gemini_api_key: row.gemini_api_key,
-        openai_api_key: row.openai_api_key,
-        lovable_api_key: row.lovable_api_key,
-        tenant_id: tenantId,
-      };
+      const resolved = toActive(data as Row, "tenant");
       cache.set(tenantId, resolved);
       return resolved;
     }
   }
 
-  // Sin tenant o sin fila activa: fallback. NO cacheamos contra `tenantId`
-  // específico — guardamos contra null para no recordar "este tenant no
-  // tenía" si después configuran uno.
+  // 2) Platform default — mig 20260719000000. Una sola fila activa con
+  // tenant_id IS NULL configurada por el SuperAdmin desde la UI. Sirve
+  // como fallback para tenants que no han elegido su propio provider/key.
+  {
+    const { data } = await adminClient
+      .from("ai_model_settings")
+      .select("provider, model, gemini_api_key, openai_api_key, lovable_api_key")
+      .eq("is_active", true)
+      .is("tenant_id", null)
+      .maybeSingle();
+    if (data) {
+      const resolved = toActive(data as Row, "platform");
+      // Cacheamos contra el tenantId del caller (no NULL) porque la
+      // resolución es "para este caller" — si después configuran su
+      // tenant row, `clearAiModelCache()` invalida.
+      cache.set(tenantId, resolved);
+      if (tenantId) {
+        console.info(
+          `[ai-model] tenant ${tenantId} sin fila propia; usando platform default del SuperAdmin.`,
+        );
+      }
+      return resolved;
+    }
+  }
+
+  // 3) Fallback hardcodeado (Lovable Gateway + Gemini Flash).
   cache.set(null, DEFAULT_MODEL);
   if (tenantId) {
     console.warn(
-      `[ai-model] tenant ${tenantId} sin fila is_active=true en ai_model_settings; usando default Lovable.`,
+      `[ai-model] tenant ${tenantId} sin fila propia y sin platform default; cayendo a DEFAULT_MODEL hardcoded.`,
     );
   }
   return DEFAULT_MODEL;
