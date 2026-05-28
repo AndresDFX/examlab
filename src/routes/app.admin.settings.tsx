@@ -8,7 +8,8 @@
  *
  * Tabs:
  *   - Generales:     defaults de cursos/exámenes + alerta de volumen de correos.
- *   - Institución:   branding + programas + asignaturas + periodos + certificados.
+ *   - Institución:   branding + certificados. (La estructura académica —
+ *                    carreras/asignaturas/periodos — vive en /app/admin/academic.)
  *   - Correos:       kill switch global + toggles por categoría de email.
  *   - Compilador:    proveedor de ejecución de código.
  *   - Modelo IA:     provider/modelo + API keys per-tenant (Gemini/OpenAI/Lovable).
@@ -44,10 +45,6 @@ import { AdminGeneralSettingsPanel } from "@/modules/admin/AdminGeneralSettingsP
 import { AdminCertificateSettingsPanel } from "@/modules/admin/AdminCertificateSettingsPanel";
 import { AdminModuleVisibilityPanel } from "@/modules/admin/AdminModuleVisibilityPanel";
 import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
-import { AdminAcademicProgramsPanel } from "@/modules/admin/AdminAcademicProgramsPanel";
-import { AdminAcademicPeriodsPanel } from "@/modules/admin/AdminAcademicPeriodsPanel";
-import { AdminAcademicSubjectsPanel } from "@/modules/admin/AdminAcademicSubjectsPanel";
-import { AdminProgramOverviewPanel } from "@/modules/admin/AdminProgramOverviewPanel";
 import { AdminMyTenantPanel } from "@/modules/admin/AdminMyTenantPanel";
 
 export const Route = createFileRoute("/app/admin/settings")({ component: AdminSettings });
@@ -61,9 +58,7 @@ function AdminSettings() {
   // institución (branding, programas, periodos, etc.). Cuando el
   // SuperAdmin no eligió una vía "Ver como X", redirige a Instituciones.
   const isSuperAdminCrossTenant =
-    roles.includes("SuperAdmin") &&
-    activeRole === "SuperAdmin" &&
-    readTenantOverride() === null;
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
@@ -146,14 +141,10 @@ function AdminSettings() {
           <AdminGeneralSettingsPanel />
         </TabsContent>
         <TabsContent value="institution" className="space-y-4 mt-4">
-          {/* Orden intencional: branding institucional primero (lo que
-              el Admin edita cuando "configura su institución"), luego
-              resumen integral, luego CRUDs académicos específicos. */}
+          {/* Branding institucional + certificados. La estructura académica
+              (carreras / asignaturas / periodos) se movió a su módulo propio
+              /app/admin/academic para darle visibilidad en el sidebar. */}
           <AdminMyTenantPanel />
-          <AdminProgramOverviewPanel />
-          <AdminAcademicProgramsPanel />
-          <AdminAcademicSubjectsPanel />
-          <AdminAcademicPeriodsPanel />
           <AdminCertificateSettingsPanel />
         </TabsContent>
         <TabsContent value="email" className="space-y-4 mt-4">

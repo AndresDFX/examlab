@@ -115,6 +115,10 @@ const NAV: NavItem[] = [
     icon: LayoutDashboard,
     roles: ["Admin", "Docente", "Estudiante"],
   },
+  // Académico: estructura carreras → asignaturas → periodos (el nivel sobre
+  // el Curso). Antes vivía dentro de Configuración → Institución; se sacó a
+  // su módulo propio para darle visibilidad. SuperAdmin lo hereda vía Admin.
+  { to: "/app/admin/academic", labelKey: "nav.academic", icon: GraduationCap, roles: ["Admin"] },
   // Cursos
   { to: "/app/admin/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Admin"] },
   { to: "/app/teacher/courses", labelKey: "nav.courses", icon: BookOpen, roles: ["Docente"] },
@@ -387,6 +391,13 @@ const ROLE_CONFIG: Record<
       "bg-rose-500/15 text-rose-700 border-rose-500/25 dark:bg-rose-400/15 dark:text-rose-300 dark:border-rose-400/25",
   },
 };
+
+// Orden de presentación del selector de rol: de mayor a menor alcance.
+// El array `roles` de useAuth no garantiza orden, así que lo ordenamos
+// por este índice antes de renderizar (jerárquico, no alfabético).
+const ROLE_ORDER: AppRole[] = ["SuperAdmin", "Admin", "Docente", "Estudiante"];
+const sortRolesByDisplay = (rs: AppRole[]): AppRole[] =>
+  [...rs].sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b));
 
 /**
  * Class única que se aplica a todos los íconos del sidebar nav. Resuelve
@@ -825,7 +836,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((r) => {
+                {sortRolesByDisplay(roles).map((r) => {
                   // Defensive: si un rol nuevo se agrega en DB pero el
                   // cliente no se ha actualizado, ROLE_CONFIG[r] puede ser
                   // undefined. Sin guard la app entera crasheaba al
@@ -1123,7 +1134,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                     </SelectTrigger>
                     <SelectContent>
-                      {roles.map((r) => {
+                      {sortRolesByDisplay(roles).map((r) => {
                         // Defensive: ver comentario en el otro role-switcher.
                         const cfg = ROLE_CONFIG[r];
                         if (!cfg) return null;

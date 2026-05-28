@@ -223,9 +223,12 @@ BEGIN
   PERFORM extensions.cron.schedule(
     'dispatch-scheduled-messages',
     '* * * * *',
-    -- Tag de dollar-quote DISTINTO ($cron$) — usar $$ acá colisiona con
-    -- el $$ del bloque DO externo y rompe el parse ("syntax error at
-    -- SELECT"). Mismo patrón que las otras migraciones de cron del repo.
+    -- El comando va con tag de dollar-quote DISTINTO ($cron$): el tag
+    -- por defecto colisionaría con el del bloque DO externo y rompería
+    -- el parse. OJO: ni siquiera en un comentario se puede escribir el
+    -- tag doble-dólar, porque dentro de un dollar-quote el lexer lo
+    -- trata como literal y cerraría el bloque. Mismo patrón que las
+    -- otras migraciones de cron del repo.
     $cron$ SELECT public.dispatch_scheduled_messages(); $cron$
   );
 EXCEPTION WHEN OTHERS THEN
