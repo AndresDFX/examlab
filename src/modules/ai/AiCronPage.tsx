@@ -1026,12 +1026,14 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             </Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Filtro institución — solo SuperAdmin con ≥1 tenant.
-                Resuelve los course_ids del tenant y los aplica como
-                `.in('course_id', ids)` a TODAS las queries del panel
-                (counts + lista). Para Admin RLS ya acota — el Select
-                no se renderiza para evitar dropdowns ruidosos. */}
-            {isSuperAdminCaller && tenants.length > 1 && (
+            {/* Filtro institución — siempre visible para SuperAdmin si hay
+                al menos un tenant (consistente con Usuarios/Cursos/Errores/
+                Estadísticas; antes estaba gateado a `> 1` y desaparecía en
+                deploys de un solo tenant). Resuelve los course_ids del
+                tenant y los aplica como `.in('course_id', ids)` a TODAS
+                las queries del panel (counts + lista). Para Admin RLS ya
+                acota — el Select no se renderiza. */}
+            {isSuperAdminCaller && tenants.length > 0 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
                 <SelectTrigger className="h-8 w-48 text-xs">
                   <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />

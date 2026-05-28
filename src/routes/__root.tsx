@@ -61,8 +61,16 @@ export const Route = createRootRoute({
       { name: "description", content: "Online exam management and execution platform." },
       { property: "og:description", content: "Online exam management and execution platform." },
       { name: "twitter:description", content: "Online exam management and execution platform." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/46f6c31a-cc9f-43d8-98c5-90caf08ac519/id-preview-d54ebc1f--9f16eaeb-e983-4536-9a73-1461f295b2d3.lovable.app-1777090431857.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/46f6c31a-cc9f-43d8-98c5-90caf08ac519/id-preview-d54ebc1f--9f16eaeb-e983-4536-9a73-1461f295b2d3.lovable.app-1777090431857.png" },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/46f6c31a-cc9f-43d8-98c5-90caf08ac519/id-preview-d54ebc1f--9f16eaeb-e983-4536-9a73-1461f295b2d3.lovable.app-1777090431857.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/46f6c31a-cc9f-43d8-98c5-90caf08ac519/id-preview-d54ebc1f--9f16eaeb-e983-4536-9a73-1461f295b2d3.lovable.app-1777090431857.png",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -88,7 +96,14 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    // suppressHydrationWarning: el <script> pre-paint de abajo le agrega
+    // la clase `.dark` al <html> ANTES de que React hidrate. Sin esto, el
+    // <html> del DOM (con `class="dark"`) no coincide con el que React
+    // renderizó en el server (sin clase) → React error #418, intermitente
+    // (solo dispara para usuarios con tema oscuro guardado). Patrón estándar
+    // de los theme scripts (next-themes, etc.): silenciar el warning de
+    // hidratación SOLO en el elemento que el script muta.
+    <html lang="es" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

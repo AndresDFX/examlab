@@ -62,28 +62,73 @@ function AdminSettings() {
 
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
+  // SuperAdmin cross-tenant: en lugar de bloquear toda la página, mostramos
+  // SOLO las tabs que son verdaderamente PLATAFORMA-GLOBAL (las tablas no
+  // tienen `tenant_id` y guardan una única fila para todo el deploy):
+  //   - Módulos       (module_visibility)        — orden + visibilidad del sidebar
+  //   - Compilador    (code_execution_settings)  — proveedor del runner de código
+  //   - Auditoría     (audit_retention_settings) — retención de audit_logs (singleton)
+  //
+  // Las tabs per-tenant (Generales, Institución, Correos, Modelo IA) quedan
+  // detrás del flujo "Ver como esta institución" desde /app/superadmin/tenants
+  // porque dependen del tenant activo. El banner las explica.
+  //
+  // El acceso de escritura para un SuperAdmin puro (sin rol Admin) se habilitó
+  // en la migración 20260714000000_global_settings_super_admin_access.sql, que
+  // agregó `OR is_super_admin()` a las policies de write de esas 3 tablas.
   if (isSuperAdminCrossTenant) {
     return (
       <div className="space-y-5">
         <PageHeader
           icon={<Settings className="h-6 w-6 text-indigo-500" />}
           title="Configuración"
-          subtitle="Configuración por institución."
+          subtitle="Configuración global de la plataforma."
         />
+
         <Card>
-          <CardContent className="p-6 text-center space-y-3">
-            <p className="text-sm font-medium">{t("superAdmin.crossTenantTitle")}</p>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              {t("superAdmin.crossTenantSettingsHint")}
-            </p>
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-sm font-medium">Configuración por institución</p>
+              <p className="text-xs text-muted-foreground">
+                Branding, correos, modelo IA y otros ajustes son por institución. Entrá a una
+                institución con "Ver como esta institución" para configurarlos. Acá solo aparece la
+                configuración global de la plataforma.
+              </p>
+            </div>
             <Link
               to="/app/superadmin/tenants"
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
             >
               {t("superAdmin.goToTenants")}
             </Link>
           </CardContent>
         </Card>
+
+        <Tabs defaultValue="modules">
+          <TabsList className="flex flex-wrap h-auto justify-start gap-1">
+            <TabsTrigger value="modules" className="gap-1.5">
+              <Layers className="h-3.5 w-3.5" />
+              Módulos
+            </TabsTrigger>
+            <TabsTrigger value="compiler" className="gap-1.5">
+              <Code2 className="h-3.5 w-3.5" />
+              Compilador
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-1.5">
+              <ScrollText className="h-3.5 w-3.5" />
+              Auditoría
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="modules" className="space-y-4 mt-4">
+            <AdminModuleVisibilityPanel />
+          </TabsContent>
+          <TabsContent value="compiler" className="space-y-4 mt-4">
+            <AdminCodeExecutionPanel />
+          </TabsContent>
+          <TabsContent value="audit" className="space-y-4 mt-4">
+            <AdminAuditRetentionPanel />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }

@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Users as UsersIcon, Eye } from "lucide-react";
+import { DateCell } from "@/components/ui/date-cell";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { Spinner } from "@/components/ui/spinner";
 import { toCSV } from "@/shared/lib/csv";
@@ -76,6 +77,11 @@ type Row = {
   /** Tenant del usuario (Fase 1 multi-tenant). Para Admin viene siempre
    *  el suyo (RLS filtra); para SuperAdmin viene cross-tenant. */
   tenant_id: string | null;
+  /** Fecha de creación del profile (replica de auth.users.created_at). */
+  created_at: string | null;
+  /** Último sign-in. Sincronizado por trigger desde auth.users
+   *  (migración 20260715000000). null si nunca inició sesión. */
+  last_sign_in_at: string | null;
 };
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante", "SuperAdmin"];
@@ -99,6 +105,10 @@ const EMPTY_NEW: Row = {
   estado: null,
   programa_id: null,
   tenant_id: null,
+  // Sin profile aún: created_at lo asigna la DB en INSERT, last_sign_in_at
+  // llega cuando el usuario inicia sesión (trigger desde auth.users).
+  created_at: null,
+  last_sign_in_at: null,
 };
 
 const USERS_TEMPLATE_CSV = toCSV([
@@ -132,9 +142,7 @@ function AdminUsers() {
   // instituciones (via RLS); el Admin normal solo ve la suya. Para el
   // SuperAdmin exponemos un filtro de institución arriba del grid (ver
   // `showTenantUI`) para acotar la vista cross-tenant.
-  const [tenants, setTenants] = useState<
-    Array<{ id: string; slug: string; name: string }>
-  >([]);
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const isSuperAdminCaller = roles.includes("SuperAdmin");
   // Mostrar el filtro + columna "Institución" cuando el caller es
@@ -755,22 +763,26 @@ function AdminUsers() {
                     <TableHead className="hidden md:table-cell">
                       {t("users.personalEmail")}
                     </TableHead>
-                    <TableHead className="hidden xs:table-cell w-40">
-                      {t("common.roles")}
-                    </TableHead>
+                    <TableHead className="hidden xs:table-cell w-40">{t("common.roles")}</TableHead>
                     {/* Columna Institución solo visible al SuperAdmin.
                         Para el Admin normal es siempre su tenant
                         (redundante). */}
                     {showTenantUI && (
                       <TableHead className="hidden lg:table-cell w-40">Institución</TableHead>
                     )}
+                    {/* Fecha de creación + último acceso. Ocultas hasta xl
+                        porque la tabla ya carga muchas columnas; en mobile
+                        no aportan vs nombre/email. Sin íconos para no
+                        recargar la cabecera. */}
+                    <TableHead className="hidden xl:table-cell w-28">Creado</TableHead>
+                    <TableHead className="hidden xl:table-cell w-32">Último acceso</TableHead>
                     <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRows.length === 0 && (
                     <TableEmpty
-                      colSpan={showTenantUI ? 7 : 6}
+                      colSpan={showTenantUI ? 9 : 8}
                       icon={UsersIcon}
                       text={
                         search.trim() && rows.length > 0
@@ -810,7 +822,10 @@ function AdminUsers() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm hidden sm:table-cell" title={r.institutional_email}>
+                      <TableCell
+                        className="text-sm hidden sm:table-cell"
+                        title={r.institutional_email}
+                      >
                         <div className="truncate">{r.institutional_email}</div>
                       </TableCell>
                       <TableCell
@@ -827,6 +842,12 @@ function AdminUsers() {
                           {tenants.find((t) => t.id === r.tenant_id)?.name ?? "—"}
                         </TableCell>
                       )}
+                      <TableCell className="hidden xl:table-cell text-xs">
+                        <DateCell value={r.created_at} variant="date" />
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell text-xs">
+                        <DateCell value={r.last_sign_in_at} variant="datetime" />
+                      </TableCell>
                       <TableCell className="text-right">
                         <RowActionsMenu
                           actions={[
@@ -970,9 +991,7 @@ function AdminUsers() {
                   <Label className="mb-2 block">Institución</Label>
                   <Select
                     value={editing.tenant_id ?? ""}
-                    onValueChange={(v) =>
-                      setEditing({ ...editing, tenant_id: v || null })
-                    }
+                    onValueChange={(v) => setEditing({ ...editing, tenant_id: v || null })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona institución…" />
@@ -1011,9 +1030,7 @@ function AdminUsers() {
                       <Label className="text-xs">Código estudiantil</Label>
                       <Input
                         value={editing.codigo ?? ""}
-                        onChange={(e) =>
-                          setEditing({ ...editing, codigo: e.target.value || null })
-                        }
+                        onChange={(e) => setEditing({ ...editing, codigo: e.target.value || null })}
                         placeholder="Ej: 202412345"
                       />
                     </div>
