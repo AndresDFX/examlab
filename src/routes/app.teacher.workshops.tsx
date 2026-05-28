@@ -245,7 +245,7 @@ type WsAnswer = {
 function TeacherWorkshops() {
   const { t } = useTranslation();
 
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const confirm = useConfirm();
   // Gate IA: cubre los tres handlers que invocan IA acá —
   // aiRegradeAnswer (re-grade pregunta), gradeOneWithAI (calificar
@@ -2186,6 +2186,7 @@ function TeacherWorkshops() {
     toast.success(t("workshop.submissionDeleted"));
   };
 
+  if (authLoading) return null;
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   if (loadError) {

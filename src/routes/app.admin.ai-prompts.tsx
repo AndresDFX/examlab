@@ -23,7 +23,7 @@ import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 export const Route = createFileRoute("/app/admin/ai-prompts")({ component: AdminAIConfig });
 
 function AdminAIConfig() {
-  const { roles } = useAuth();
+  const { roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   // SuperAdmin cross-tenant: ahora SÍ entra al panel — edita el
@@ -35,6 +35,7 @@ function AdminAIConfig() {
   const isSuperAdminCrossTenant =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
+  if (authLoading) return null;
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
   return (

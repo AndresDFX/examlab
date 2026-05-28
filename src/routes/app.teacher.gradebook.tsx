@@ -172,7 +172,7 @@ type EditMap = Record<string, string>;
 function Gradebook() {
   const { t } = useTranslation();
 
-  const { roles } = useAuth();
+  const { roles, loading: authLoading } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1134,6 +1134,7 @@ function Gradebook() {
     }
   };
 
+  if (authLoading) return null;
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   if (loadError) {

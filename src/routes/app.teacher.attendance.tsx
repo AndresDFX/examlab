@@ -171,7 +171,7 @@ const STATUS_OPTIONS = [
 ];
 
 function TeacherAttendance() {
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const confirm = useConfirm();
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -919,6 +919,7 @@ function TeacherAttendance() {
     });
   }, [students, studentSearch]);
 
+  if (authLoading) return null;
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   if (loadError) {

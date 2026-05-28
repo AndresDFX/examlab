@@ -125,7 +125,7 @@ const USERS_TEMPLATE_CSV = toCSV([
 
 function AdminUsers() {
   const { t } = useTranslation();
-  const { roles, profile } = useAuth();
+  const { roles, profile, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -759,6 +759,7 @@ function AdminUsers() {
     }
   };
 
+  if (authLoading) return null;
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
   if (loadError) {

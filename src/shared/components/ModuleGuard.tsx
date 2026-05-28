@@ -35,11 +35,12 @@ interface Props {
 }
 
 export function ModuleGuard({ module, children }: Props) {
-  const { user, roles } = useAuth();
-  const { map, loading } = useModuleVisibility();
+  const { user, roles, loading: authLoading } = useAuth();
+  const { map, loading: modLoading } = useModuleVisibility();
 
-  // Mientras carga, no bloquear — evitamos flash de "deshabilitado".
-  if (loading || !user) {
+  // Mientras carga (auth O módulos), no bloquear — evitamos flash de
+  // "deshabilitado" cuando user ya se hidrató pero roles todavía es [].
+  if (authLoading || modLoading || !user) {
     return <PageLoader />;
   }
 

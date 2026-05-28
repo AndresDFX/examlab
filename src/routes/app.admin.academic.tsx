@@ -36,7 +36,7 @@ export const Route = createFileRoute("/app/admin/academic")({ component: AdminAc
 
 function AdminAcademic() {
   const { t } = useTranslation();
-  const { roles } = useAuth();
+  const { roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   // SuperAdmin cross-tenant: la estructura académica pertenece a UNA
@@ -45,6 +45,7 @@ function AdminAcademic() {
   const isSuperAdminCrossTenant =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
+  if (authLoading) return null;
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
   if (isSuperAdminCrossTenant) {

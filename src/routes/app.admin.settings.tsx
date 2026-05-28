@@ -51,7 +51,7 @@ export const Route = createFileRoute("/app/admin/settings")({ component: AdminSe
 
 function AdminSettings() {
   const { t } = useTranslation();
-  const { roles } = useAuth();
+  const { roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   // SuperAdmin cross-tenant: este panel está pensado para configurar UNA
@@ -60,6 +60,7 @@ function AdminSettings() {
   const isSuperAdminCrossTenant =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
+  if (authLoading) return null;
   if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
 
   // SuperAdmin cross-tenant: en lugar de bloquear toda la página, mostramos

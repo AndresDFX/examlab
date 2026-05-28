@@ -139,7 +139,7 @@ type PromptRow = {
 type CourseLite = { id: string; name: string; period: string | null };
 
 function TeacherAIPrompts() {
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const confirm = useConfirm();
   const { t } = useTranslation();
   const isTeacher = roles.includes("Docente") || roles.includes("Admin");
@@ -343,6 +343,7 @@ function TeacherAIPrompts() {
     }
   };
 
+  if (authLoading) return null;
   if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
 
   const selectedCourse = courses.find((c) => c.id === courseId);
