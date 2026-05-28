@@ -367,7 +367,12 @@ const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
         )}
         {...props}
       >
-        {truncate ? <div className="truncate">{children}</div> : children}
+        {/* En tablas resizable (table-fixed), el texto del header se trunca
+            automáticamente: sin esto, un <th> más estrecho que su texto
+            desborda visualmente sobre la columna vecina (los headers se
+            ven superpuestos como "Tí­tu­lo" + "Curso"). El handle de
+            resize queda como sibling fuera del wrapper para no clipearse. */}
+        {truncate || resizable ? <div className="truncate">{children}</div> : children}
         {resizable ? <ColumnResizeHandle /> : null}
       </th>
     );
