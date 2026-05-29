@@ -215,6 +215,14 @@ export function AdminCourses() {
   const subjectFilter = routeSearch.subjectFilter ?? null;
   const fromSubject = routeSearch.fromSubject ?? null;
 
+  // Filtros UI del grid (separados del subjectFilter de la URL que viene
+  // del deep-link "Ver cursos asociados" de Asignaturas). El admin elige
+  // Programa → filtra el listado a cursos cuya asignatura pertenece a
+  // ese programa; encima puede filtrar por Asignatura específica. Los
+  // dos se combinan (AND) con search + tenantFilter.
+  const [programFilterUi, setProgramFilterUi] = useState<string>("all");
+  const [subjectFilterUi, setSubjectFilterUi] = useState<string>("all");
+
   // Filtramos por nombre + período + descripción. Case-insensitive,
   // includes. El multi-select trabaja sobre la lista visible. Si hay
   // subjectFilter (URL search), también acotamos.
@@ -223,6 +231,14 @@ export function AdminCourses() {
     if (subjectFilter) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       result = result.filter((c: any) => c.subject_id === subjectFilter);
+    }
+    if (programFilterUi !== "all") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result = result.filter((c: any) => c.program_id === programFilterUi);
+    }
+    if (subjectFilterUi !== "all") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result = result.filter((c: any) => c.subject_id === subjectFilterUi);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -234,7 +250,7 @@ export function AdminCourses() {
       );
     }
     return result;
-  }, [courses, search, subjectFilter]);
+  }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi]);
   const sel = useMultiSelect(filteredCourses);
 
   // Export del listado filtrado. No soportamos import porque cada curso
@@ -1270,6 +1286,63 @@ export function AdminCourses() {
                   {t.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* Filtros académicos: Programa + Asignatura.
+            - Programa: filtra cursos cuyo program_id matchee.
+            - Asignatura: filtra cursos cuyo subject_id matchee. La lista
+              se acota al programa elegido para no abrumar.
+            Solo se renderizan si la institución tiene programas / asigna-
+            turas cargados (para tenants sin estructura académica
+            todavía, no hay nada que filtrar). */}
+        {programs.length > 0 && (
+          <Select
+            value={programFilterUi}
+            onValueChange={(v) => {
+              setProgramFilterUi(v);
+              // Si cambia el programa, limpiamos la asignatura cuando no
+              // pertenece al nuevo programa — evita estados inconsistentes
+              // (Programa=A, Asignatura=de-otro-programa).
+              if (v !== "all") {
+                const subj = subjects.find((s) => s.id === subjectFilterUi);
+                if (subj && subj.program_id && subj.program_id !== v) {
+                  setSubjectFilterUi("all");
+                }
+              }
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+              <SelectValue placeholder="Todos los programas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los programas</SelectItem>
+              {programs.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {subjects.length > 0 && (
+          <Select value={subjectFilterUi} onValueChange={setSubjectFilterUi}>
+            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+              <SelectValue placeholder="Todas las asignaturas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las asignaturas</SelectItem>
+              {subjects
+                .filter(
+                  (s) =>
+                    programFilterUi === "all" || !s.program_id || s.program_id === programFilterUi,
+                )
+                .map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                    {s.code ? ` (${s.code})` : ""}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )}

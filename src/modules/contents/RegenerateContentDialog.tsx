@@ -91,8 +91,17 @@ export function RegenerateContentDialog({
       toast.error(t("contents.errorTopicRequired"));
       return;
     }
-    const decision = await aiGate.ensureAuthorized();
+    // Regeneración de contenido con IA — NO tiene worker async. Pasamos
+    // `allowQueue: false` para que el dialog del gate solo ofrezca
+    // "Activar IA inmediata" o "Cancelar".
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
     if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      toast.error(
+        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      );
+      return;
+    }
     setSaving(true);
     try {
       // Para regen COMPLETA: persistimos topic + instructions en la

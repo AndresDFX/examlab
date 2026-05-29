@@ -174,20 +174,28 @@ function AdminDashboard() {
       ] = await Promise.all([
         dbAny.from("courses").select("id", { count: "exact", head: true }),
         dbAny.from("profiles").select("id", { count: "exact", head: true }),
+        // Estado y columna de calificación dependen de la tabla:
+        //   - submissions (exámenes): status `en_progreso|completado|sospechoso`,
+        //     SIN columna `final_grade` — usamos `ai_grade IS NULL` para
+        //     detectar "pendiente de calificar IA".
+        //   - workshop_submissions / project_submissions: status
+        //     `pendiente|entregado|calificado`, sí tienen `final_grade`.
+        // Antes pasábamos "submitted"/"in_progress" (inglés) + filtro a
+        // `final_grade` en exámenes → 400 silencioso del PostgREST.
         dbAny
           .from("submissions")
           .select("id", { count: "exact", head: true })
-          .in("status", ["submitted", "in_progress"])
-          .is("final_grade", null),
+          .in("status", ["completado", "sospechoso"])
+          .is("ai_grade", null),
         dbAny
           .from("workshop_submissions")
           .select("id", { count: "exact", head: true })
-          .in("status", ["submitted", "in_progress"])
+          .eq("status", "entregado")
           .is("final_grade", null),
         dbAny
           .from("project_submissions")
           .select("id", { count: "exact", head: true })
-          .in("status", ["submitted", "in_progress"])
+          .eq("status", "entregado")
           .is("final_grade", null),
         // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
         // Los usamos para calcular cuántos esperan respuesta de un docente.

@@ -64,6 +64,7 @@ type CourseSummary = {
     period: string | null;
     program_id: string | null;
     period_id: string | null;
+    subject_id: string | null;
   };
   totalEnrolled: number;
   approvalRate: number;
@@ -92,6 +93,10 @@ function AdminStatistics() {
   // (no al drill-down de un curso individual).
   const [programFilter, setProgramFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
+  // Filtro por asignatura — independiente de programa para combinar
+  // libremente. Si el admin elige programa Y asignatura, vale el AND
+  // (la asignatura ya pertenece al programa por su schema).
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
   // SuperAdmin: filtro funcional por institución. Aplica `.eq('tenant_id', X)`
   // a la query de courses; el resto del pipeline (summaries por curso)
   // hereda la restricción porque opera sobre los course IDs ya filtrados.
@@ -99,6 +104,9 @@ function AdminStatistics() {
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
   const [periods, setPeriods] = useState<Array<{ id: string; code: string; status: string }>>([]);
+  const [subjects, setSubjects] = useState<
+    Array<{ id: string; name: string; code: string | null; program_id: string | null }>
+  >([]);
 
   // Cargar lista de tenants para el Select cuando es SuperAdmin.
   useEffect(() => {
@@ -130,12 +138,12 @@ function AdminStatistics() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let coursesQuery: any = (supabase as any)
         .from("courses")
-        .select("id, name, period, program_id, period_id")
+        .select("id, name, period, program_id, period_id, subject_id")
         .order("name");
       if (isSuperAdminCaller && tenantFilter !== "all") {
         coursesQuery = coursesQuery.eq("tenant_id", tenantFilter);
       }
-      const [coursesRes, progsRes, periodsRes] = await Promise.all([
+      const [coursesRes, progsRes, periodsRes, subjectsRes] = await Promise.all([
         coursesQuery,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any).from("academic_programs").select("id, name").order("name"),
@@ -144,6 +152,13 @@ function AdminStatistics() {
           .from("academic_periods")
           .select("id, code, status")
           .order("code", { ascending: false }),
+        // Asignaturas para el filtro. RLS las acota al tenant del Admin;
+        // SuperAdmin las ve cross-tenant.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("academic_subjects")
+          .select("id, name, code, program_id")
+          .order("name"),
       ]);
       if (cancelled) return;
       if (coursesRes.error) {
@@ -153,12 +168,21 @@ function AdminStatistics() {
       }
       setPrograms((progsRes.data ?? []) as Array<{ id: string; name: string }>);
       setPeriods((periodsRes.data ?? []) as Array<{ id: string; code: string; status: string }>);
+      setSubjects(
+        (subjectsRes.data ?? []) as Array<{
+          id: string;
+          name: string;
+          code: string | null;
+          program_id: string | null;
+        }>,
+      );
       const list = (coursesRes.data ?? []) as Array<{
         id: string;
         name: string;
         period: string | null;
         program_id: string | null;
         period_id: string | null;
+        subject_id: string | null;
       }>;
       // Cargamos en paralelo todos los datasets — ojo: si hay 50+ cursos
       // esto puede ser pesado. Para V1 nos sirve; si crece, mover a una
@@ -235,9 +259,10 @@ function AdminStatistics() {
     return summaries.filter((s) => {
       if (programFilter !== "all" && s.course.program_id !== programFilter) return false;
       if (periodFilter !== "all" && s.course.period_id !== periodFilter) return false;
+      if (subjectFilter !== "all" && s.course.subject_id !== subjectFilter) return false;
       return true;
     });
-  }, [summaries, programFilter, periodFilter]);
+  }, [summaries, programFilter, periodFilter, subjectFilter]);
 
   const totals = useMemo(() => {
     return filteredSummaries.reduce(
@@ -390,7 +415,40 @@ function AdminStatistics() {
                   </SelectContent>
                 </Select>
               </div>
-              {(programFilter !== "all" || periodFilter !== "all" || tenantFilter !== "all") && (
+              {/* Asignatura: acota a un curso o set de cursos atado a una
+                  asignatura específica del plan. La lista se filtra por
+                  programa cuando hay uno elegido (subjects sin programa
+                  fijo siempre aparecen — fallback). */}
+              {subjects.length > 0 && (
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">Asignatura</label>
+                  <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las asignaturas</SelectItem>
+                      {subjects
+                        .filter(
+                          (s) =>
+                            programFilter === "all" ||
+                            !s.program_id ||
+                            s.program_id === programFilter,
+                        )
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                            {s.code ? ` (${s.code})` : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(programFilter !== "all" ||
+                periodFilter !== "all" ||
+                tenantFilter !== "all" ||
+                subjectFilter !== "all") && (
                 <div className="flex items-end">
                   <Button
                     size="sm"
@@ -399,6 +457,7 @@ function AdminStatistics() {
                       setProgramFilter("all");
                       setPeriodFilter("all");
                       setTenantFilter("all");
+                      setSubjectFilter("all");
                     }}
                   >
                     Limpiar filtros

@@ -56,6 +56,22 @@ import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 
 export type GateDecision = "proceed-sync" | "proceed-async" | "cancel";
 
+/**
+ * Opciones por llamada de `ensureAuthorized`. Por default todo se asume
+ * "soporta cola" (las calificaciones tienen worker async). Para acciones
+ * que NO tienen worker — ej. generación de preguntas con IA — se pasa
+ * `allowQueue: false`:
+ *   1. El dialog NO muestra el botón "Continuar en cola".
+ *   2. Si el modo global es async y el docente no tiene override, las
+ *      únicas salidas son "Activar IA inmediata" o "Cancelar".
+ *   3. Defensivamente el caller también debería tratar el caso
+ *      `proceed-async` como un no-op, pero con `allowQueue: false` el
+ *      dialog nunca devuelve esa decisión.
+ */
+export interface GateOptions {
+  allowQueue?: boolean;
+}
+
 interface OverrideStatus {
   active: boolean;
   remaining: number | null;
@@ -92,6 +108,10 @@ export function useAiAuthorizationGate() {
   const [open, setOpen] = useState(false);
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
   const pendingRef = useRef<PendingResolver | null>(null);
+  // `allowQueue` por-llamada: condiciona el dialog para esconder el
+  // botón "Continuar en cola" cuando la acción no tiene un worker async.
+  // Default `true` por compat (calificación de entregas SÍ tiene cola).
+  const [allowQueue, setAllowQueue] = useState(true);
 
   // Cierre del AiOverrideDialog → re-checa override y resuelve el gate
   // según el nuevo estado. Si el docente activó un código válido,
@@ -153,40 +173,47 @@ export function useAiAuthorizationGate() {
     };
   }, []);
 
-  const ensureAuthorized = useCallback(async (): Promise<GateDecision> => {
-    // 1) Admin: pasa siempre. Los admins gestionan los códigos, ven la
-    //    cola y entienden el modo async. Forzarlos a confirmar cada vez
-    //    sería ruido.
-    if (isAdmin) return "proceed-sync";
+  const ensureAuthorized = useCallback(
+    async (options?: GateOptions): Promise<GateDecision> => {
+      // Set por-llamada del flag que el dialog usa para condicionar el
+      // botón "Continuar en cola". Default true (compat con calificación).
+      setAllowQueue(options?.allowQueue !== false);
 
-    // 2) Modo global = sync: todo va sync, no hay gate que aplicar.
-    const mode = await getProcessingMode();
-    if (mode === "sync") return "proceed-sync";
+      // 1) Admin: pasa siempre. Los admins gestionan los códigos, ven la
+      //    cola y entienden el modo async. Forzarlos a confirmar cada vez
+      //    sería ruido.
+      if (isAdmin) return "proceed-sync";
 
-    // 3) Override activo localmente → bypass del dialog.
-    //
-    //    Antes hacíamos un round-trip extra a `current_ai_override_status`
-    //    aquí para validar cap server-side. Resultado: si la RPC fallaba,
-    //    devolvía algo raro o el plan multi-tenant introducía RLS más
-    //    estricta, el gate caía al dialog y le pedía al docente entrar
-    //    el código OTRA VEZ aunque ya tenía uno válido.
-    //
-    //    Nueva estrategia: localStorage es la fuente para "el docente
-    //    activó un código". El cap real lo enforza
-    //    `claim_ai_override_message` en `aiGradeOrEnqueue` (atómico,
-    //    server-side, FOR UPDATE). Si el cap está agotado, el claim
-    //    devuelve `cap_reached`, el helper limpia el localStorage y cae
-    //    al path async de forma transparente — el docente ve "encolado"
-    //    en vez de un dialog molesto pidiendo otro código.
-    const localExp = readOverrideExpiry();
-    if (localExp) return "proceed-sync";
+      // 2) Modo global = sync: todo va sync, no hay gate que aplicar.
+      const mode = await getProcessingMode();
+      if (mode === "sync") return "proceed-sync";
 
-    // 4) Modo async + sin override → pedir confirmación.
-    return new Promise<GateDecision>((resolve) => {
-      pendingRef.current = { resolve };
-      setOpen(true);
-    });
-  }, [isAdmin]);
+      // 3) Override activo localmente → bypass del dialog.
+      //
+      //    Antes hacíamos un round-trip extra a `current_ai_override_status`
+      //    aquí para validar cap server-side. Resultado: si la RPC fallaba,
+      //    devolvía algo raro o el plan multi-tenant introducía RLS más
+      //    estricta, el gate caía al dialog y le pedía al docente entrar
+      //    el código OTRA VEZ aunque ya tenía uno válido.
+      //
+      //    Nueva estrategia: localStorage es la fuente para "el docente
+      //    activó un código". El cap real lo enforza
+      //    `claim_ai_override_message` en `aiGradeOrEnqueue` (atómico,
+      //    server-side, FOR UPDATE). Si el cap está agotado, el claim
+      //    devuelve `cap_reached`, el helper limpia el localStorage y cae
+      //    al path async de forma transparente — el docente ve "encolado"
+      //    en vez de un dialog molesto pidiendo otro código.
+      const localExp = readOverrideExpiry();
+      if (localExp) return "proceed-sync";
+
+      // 4) Modo async + sin override → pedir confirmación.
+      return new Promise<GateDecision>((resolve) => {
+        pendingRef.current = { resolve };
+        setOpen(true);
+      });
+    },
+    [isAdmin],
+  );
 
   const GateDialog = useCallback(() => {
     return (
@@ -203,9 +230,10 @@ export function useAiAuthorizationGate() {
                 <Badge variant="outline" className="text-[10px] mx-1">
                   cola (batch)
                 </Badge>
-                . Las llamadas IA quedan pendientes hasta que el worker drene la cola (máx. 1
-                hora). Si necesitás la nota <strong>ya</strong>, podés activar un código de
-                IA inmediata que el administrador te haya entregado.
+                .{" "}
+                {allowQueue
+                  ? "Las llamadas IA quedan pendientes hasta que el worker drene la cola (máx. 1 hora). Si necesitás la nota ya, podés activar un código de IA inmediata que el administrador te haya entregado."
+                  : "Esta acción NO se puede encolar (no hay worker para ella). Para continuar, activá un código de IA inmediata o cancelá."}
               </DialogDescription>
             </DialogHeader>
 
@@ -217,13 +245,15 @@ export function useAiAuthorizationGate() {
                   una ventana sincrónica corta.
                 </span>
               </div>
-              <div className="flex items-start gap-2">
-                <Clock className="h-3.5 w-3.5 text-sky-500 mt-0.5 shrink-0" />
-                <span>
-                  <strong>Continuar en cola</strong>: el job se encola y procesa cuando corra el
-                  worker. Sin costo de cuota inmediato.
-                </span>
-              </div>
+              {allowQueue && (
+                <div className="flex items-start gap-2">
+                  <Clock className="h-3.5 w-3.5 text-sky-500 mt-0.5 shrink-0" />
+                  <span>
+                    <strong>Continuar en cola</strong>: el job se encola y procesa cuando corra el
+                    worker. Sin costo de cuota inmediato.
+                  </span>
+                </div>
+              )}
             </div>
 
             <DialogFooter className="static gap-2 flex-col sm:flex-row">
@@ -231,10 +261,12 @@ export function useAiAuthorizationGate() {
                 <X className="h-3.5 w-3.5 mr-1" />
                 Cancelar
               </Button>
-              <Button variant="outline" size="sm" onClick={handleProceedAsync}>
-                <Clock className="h-3.5 w-3.5 mr-1" />
-                Continuar en cola
-              </Button>
+              {allowQueue && (
+                <Button variant="outline" size="sm" onClick={handleProceedAsync}>
+                  <Clock className="h-3.5 w-3.5 mr-1" />
+                  Continuar en cola
+                </Button>
+              )}
               <Button size="sm" onClick={handleActivate}>
                 <Zap className="h-3.5 w-3.5 mr-1" />
                 Activar IA inmediata
@@ -253,6 +285,7 @@ export function useAiAuthorizationGate() {
     handleActivate,
     handleProceedAsync,
     handleCancel,
+    allowQueue,
   ]);
 
   return { ensureAuthorized, GateDialog };

@@ -366,8 +366,18 @@ export function TeacherProjectFilesEditor({
       );
       return;
     }
-    const decision = await aiGate.ensureAuthorized();
+    // Generación de preguntas con IA — NO tiene worker async. Pasamos
+    // `allowQueue: false` para que el dialog del gate solo ofrezca
+    // "Activar IA inmediata" o "Cancelar". Antes en modo batch el
+    // docente "encolaba" y el código llamaba al edge igual sin código.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
     if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      toast.error(
+        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      );
+      return;
+    }
     setAutoLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
@@ -412,8 +422,16 @@ export function TeacherProjectFilesEditor({
     }
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
-    const decision = await aiGate.ensureAuthorized();
+    // Generación de preguntas con IA — NO tiene worker async. Ver
+    // comentario en generateFromDescription arriba.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
     if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      toast.error(
+        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      );
+      return;
+    }
     setAiLoading(true);
     let totalInserted = 0;
     try {
@@ -727,11 +745,11 @@ export function TeacherProjectFilesEditor({
                 ) : (
                   <>
                     El estudiante seleccionará <strong>varios archivos de código fuente</strong>{" "}
-                    directo (sin comprimir). Solo se aceptan archivos cuya extensión coincida con
-                    el lenguaje principal; cualquier otro archivo bloquea la entrega antes de
-                    subir. La IA recibe todos los archivos minificados en un solo prompt y
-                    califica el proyecto como conjunto según la rúbrica y los puntos. Diagramas y
-                    documentos van en preguntas separadas (tipo Abierta o Diagrama).
+                    directo (sin comprimir). Solo se aceptan archivos cuya extensión coincida con el
+                    lenguaje principal; cualquier otro archivo bloquea la entrega antes de subir. La
+                    IA recibe todos los archivos minificados en un solo prompt y califica el
+                    proyecto como conjunto según la rúbrica y los puntos. Diagramas y documentos van
+                    en preguntas separadas (tipo Abierta o Diagrama).
                   </>
                 )}
               </div>
@@ -1874,9 +1892,12 @@ export function StudentProjectTaker({
             }
           } else {
             console.error("[project-submit] upsert failed", qid, error);
-            toast.error(`No se pudo guardar la calificación de una sección: ${friendlyError(error)}`, {
-              duration: 10000,
-            });
+            toast.error(
+              `No se pudo guardar la calificación de una sección: ${friendlyError(error)}`,
+              {
+                duration: 10000,
+              },
+            );
           }
         }
       }
@@ -2151,7 +2172,8 @@ export function StudentProjectTaker({
                 height="280px"
               />
             )}
-            {q.type === "codigo_zip" && q.zip_single &&
+            {q.type === "codigo_zip" &&
+              q.zip_single &&
               (() => {
                 // Modo ZIP único (scaffolding): un solo .zip → backend
                 // descomprime → IA recibe archivos crudos en un prompt
@@ -2161,9 +2183,9 @@ export function StudentProjectTaker({
                 return (
                   <div className="space-y-2">
                     <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
-                      <strong>Modo ZIP único:</strong> sube un archivo{" "}
-                      <code>.zip</code> con todo tu proyecto. El servidor lo
-                      descomprime y la IA califica todos los archivos juntos.
+                      <strong>Modo ZIP único:</strong> sube un archivo <code>.zip</code> con todo tu
+                      proyecto. El servidor lo descomprime y la IA califica todos los archivos
+                      juntos.
                     </div>
                     <input
                       type="file"
@@ -2219,7 +2241,8 @@ export function StudentProjectTaker({
                   </div>
                 );
               })()}
-            {q.type === "codigo_zip" && !q.zip_single &&
+            {q.type === "codigo_zip" &&
+              !q.zip_single &&
               (() => {
                 const langKey = (q.language ?? "").toLowerCase().trim();
                 const allowedExts = LANG_TO_EXT[langKey] ?? null;

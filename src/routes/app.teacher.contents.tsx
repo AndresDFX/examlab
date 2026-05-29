@@ -320,11 +320,7 @@ function TeacherContents() {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
-    const [
-      { data: gens, error: gensErr },
-      { data: brandRow },
-      { data: cs },
-    ] = await Promise.all([
+    const [{ data: gens, error: gensErr }, { data: brandRow }, { data: cs }] = await Promise.all([
       db
         .from("generated_contents")
         .select("*")
@@ -425,8 +421,17 @@ function TeacherContents() {
       toast.error(t("contents.tagsRequired"));
       return;
     }
-    const decision = await aiGate.ensureAuthorized();
+    // Generación de contenidos con IA — NO tiene worker async. Pasamos
+    // `allowQueue: false` para que el dialog del gate solo ofrezca
+    // "Activar IA inmediata" o "Cancelar".
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
     if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      toast.error(
+        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      );
+      return;
+    }
     setCreating(true);
     try {
       const insertPayload: Record<string, unknown> = {
@@ -1018,9 +1023,9 @@ function TeacherContents() {
               <Label required>
                 Nombre del contenido
                 <HelpHint>
-                  Nombre único para identificar este contenido en el tablero y en los
-                  selectores. Por ejemplo: "Semana 5 — Estructuras de control" o "Cohorte
-                  2026-I · Algoritmos". Es distinto del tema (lo que se le pide a la IA).
+                  Nombre único para identificar este contenido en el tablero y en los selectores.
+                  Por ejemplo: "Semana 5 — Estructuras de control" o "Cohorte 2026-I · Algoritmos".
+                  Es distinto del tema (lo que se le pide a la IA).
                 </HelpHint>
               </Label>
               <Input
@@ -1227,9 +1232,9 @@ function TeacherContents() {
                   Liberar al estudiante solo desde la fecha de sesión
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Si está activo, el estudiante verá el contenido únicamente cuando llegue la
-                  fecha de la sesión a la que se asignó. Útil para evitar spoilers de talleres,
-                  ejercicios o exámenes.
+                  Si está activo, el estudiante verá el contenido únicamente cuando llegue la fecha
+                  de la sesión a la que se asignó. Útil para evitar spoilers de talleres, ejercicios
+                  o exámenes.
                 </p>
               </div>
               <Switch
@@ -2596,7 +2601,6 @@ function iconForFile(f: FileEntry): LucideIcon {
 // - Helpers: `src/lib/session-dates.ts`
 // - Componente: `src/components/GenerateSessionsDialog.tsx`
 
-
 function FilesByClassDialog({
   content,
   brand,
@@ -2948,9 +2952,7 @@ function FilesByClassDialog({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent align="start" className="w-72 p-1">
-                                <div className="space-y-0.5">
-                                  {intro.map(renderMaterialItem)}
-                                </div>
+                                <div className="space-y-0.5">{intro.map(renderMaterialItem)}</div>
                               </PopoverContent>
                             </Popover>
                           </TableCell>

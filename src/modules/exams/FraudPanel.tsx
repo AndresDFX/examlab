@@ -354,8 +354,17 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   };
 
   const runDetection = async () => {
-    const decision = await aiGate.ensureAuthorized();
+    // Detección de plagio con IA — invoca el edge directamente, NO
+    // tiene worker async. Antes en modo batch el docente "encolaba"
+    // pero el código llamaba al edge igual sin código de activación.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
     if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      toast.error(
+        "La detección de plagio no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      );
+      return;
+    }
     setDetecting(true);
     try {
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
@@ -654,120 +663,120 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             </p>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-32">Estudiante</TableHead>
-                  <TableHead className="w-28">Probabilidad</TableHead>
-                  <TableHead className="min-w-40 hidden md:table-cell">Razones</TableHead>
-                  <TableHead className="w-24 text-right">Nota actual</TableHead>
-                  <TableHead className="w-24 text-right">
-                    <span className="inline-flex items-center gap-1 justify-end">
-                      Sugerida
-                      <HelpHint>
-                        La nota se ingresa en la escala del item (0 al puntaje máximo del
-                        examen/taller/proyecto). Decimales con coma (ej. 4,5).
-                      </HelpHint>
-                    </span>
-                  </TableHead>
-                  <TableHead className="w-28 text-right">Aplicar</TableHead>
-                  <TableHead className="w-32 text-right">Revisión</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {aiSignals.map((row) => {
-                  const snap = gradesByUser[row.userId];
-                  const current = snap?.currentGrade ?? null;
-                  const rowKey = `ai-${row.userId}`;
-                  const suggested = getSuggestedValue(rowKey, current, row.score);
-                  const canApply =
-                    suggested != null &&
-                    !Number.isNaN(suggested) &&
-                    row.score >= INTEGRITY_ALERT_THRESHOLD;
-                  const busy = !!applying[row.userId];
-                  return (
-                    <TableRow key={row.submissionId}>
-                      <TableCell className="font-medium">
-                        {shortName(row.userId, userNames)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={scoreVariant(row.score)}>{formatScore(row.score)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-pre-wrap">
-                        {row.reasons ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right text-xs tabular-nums">
-                        {current != null ? current.toFixed(2) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DecimalInput
-                          min={0}
-                          max={snap?.maxScore}
-                          value={suggested}
-                          onChange={(v) =>
-                            setEditedSuggestion((prev) => ({ ...prev, [rowKey]: v }))
-                          }
-                          placeholder="—"
-                          className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
-                          aria-label="Nota sugerida editable"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          disabled={!canApply || busy}
-                          onClick={() => applyPenalty(row.userId, suggested)}
-                          title={
-                            canApply
-                              ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
-                              : "Sin nota previa, severidad < 60%, o nota inválida"
-                          }
-                        >
-                          {busy ? (
-                            <Spinner size="sm" className="mr-1" />
-                          ) : (
-                            <Check className="h-3 w-3 mr-1" />
-                          )}
-                          Aplicar
-                        </Button>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.reviewedAt ? (
-                          <div className="flex flex-col items-end gap-1">
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
-                            >
-                              <Check className="h-3 w-3 mr-1" />
-                              Revisada
-                            </Badge>
-                            <button
-                              type="button"
-                              className="text-[10px] text-muted-foreground hover:text-foreground underline"
-                              onClick={() => toggleAiReviewed(row.submissionId, true)}
-                            >
-                              Reabrir
-                            </button>
-                          </div>
-                        ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-32">Estudiante</TableHead>
+                    <TableHead className="w-28">Probabilidad</TableHead>
+                    <TableHead className="min-w-40 hidden md:table-cell">Razones</TableHead>
+                    <TableHead className="w-24 text-right">Nota actual</TableHead>
+                    <TableHead className="w-24 text-right">
+                      <span className="inline-flex items-center gap-1 justify-end">
+                        Sugerida
+                        <HelpHint>
+                          La nota se ingresa en la escala del item (0 al puntaje máximo del
+                          examen/taller/proyecto). Decimales con coma (ej. 4,5).
+                        </HelpHint>
+                      </span>
+                    </TableHead>
+                    <TableHead className="w-28 text-right">Aplicar</TableHead>
+                    <TableHead className="w-32 text-right">Revisión</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {aiSignals.map((row) => {
+                    const snap = gradesByUser[row.userId];
+                    const current = snap?.currentGrade ?? null;
+                    const rowKey = `ai-${row.userId}`;
+                    const suggested = getSuggestedValue(rowKey, current, row.score);
+                    const canApply =
+                      suggested != null &&
+                      !Number.isNaN(suggested) &&
+                      row.score >= INTEGRITY_ALERT_THRESHOLD;
+                    const busy = !!applying[row.userId];
+                    return (
+                      <TableRow key={row.submissionId}>
+                        <TableCell className="font-medium">
+                          {shortName(row.userId, userNames)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={scoreVariant(row.score)}>{formatScore(row.score)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-pre-wrap">
+                          {row.reasons ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">
+                          {current != null ? current.toFixed(2) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DecimalInput
+                            min={0}
+                            max={snap?.maxScore}
+                            value={suggested}
+                            onChange={(v) =>
+                              setEditedSuggestion((prev) => ({ ...prev, [rowKey]: v }))
+                            }
+                            placeholder="—"
+                            className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
+                            aria-label="Nota sugerida editable"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
                           <Button
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => toggleAiReviewed(row.submissionId, false)}
+                            disabled={!canApply || busy}
+                            onClick={() => applyPenalty(row.userId, suggested)}
+                            title={
+                              canApply
+                                ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
+                                : "Sin nota previa, severidad < 60%, o nota inválida"
+                            }
                           >
-                            <Check className="h-3 w-3 mr-1" />
-                            Marcar revisada
+                            {busy ? (
+                              <Spinner size="sm" className="mr-1" />
+                            ) : (
+                              <Check className="h-3 w-3 mr-1" />
+                            )}
+                            Aplicar
                           </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {row.reviewedAt ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                Revisada
+                              </Badge>
+                              <button
+                                type="button"
+                                className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                onClick={() => toggleAiReviewed(row.submissionId, true)}
+                              >
+                                Reabrir
+                              </button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => toggleAiReviewed(row.submissionId, false)}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Marcar revisada
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
@@ -791,97 +800,99 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           ) : (
             <>
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-32">Estudiante A</TableHead>
-                    <TableHead className="min-w-32">Estudiante B</TableHead>
-                    <TableHead className="w-32">Similitud máx</TableHead>
-                    <TableHead className="w-24 hidden sm:table-cell">Preguntas</TableHead>
-                    <TableHead className="w-32 text-right">Revisión</TableHead>
-                    <TableHead className="text-right">Detalle</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedPairs.map((g) => {
-                    const reviewedCount = g.pairs.filter((p) => p.reviewed_at != null).length;
-                    const allReviewed = reviewedCount === g.pairs.length;
-                    const someReviewed = reviewedCount > 0;
-                    const markAll = async () => {
-                      // Marca/desmarca todos los pares del grupo según el
-                      // estado actual: si TODOS están revisados → desmarca
-                      // todos; en cualquier otro caso → marca todos.
-                      const targetUnmark = allReviewed;
-                      for (const p of g.pairs) {
-                        const isReviewed = p.reviewed_at != null;
-                        if (targetUnmark && !isReviewed) continue;
-                        if (!targetUnmark && isReviewed) continue;
-                        await togglePairReviewed(p.id, isReviewed);
-                      }
-                    };
-                    return (
-                      <TableRow key={`${g.userA}::${g.userB}`}>
-                        <TableCell className="font-medium">
-                          {shortName(g.userA, userNames)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {shortName(g.userB, userNames)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={scoreVariant(g.maxScore)}>
-                            {formatScore(g.maxScore)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs tabular-nums hidden sm:table-cell">{g.questionCount}</TableCell>
-                        <TableCell className="text-right">
-                          {allReviewed ? (
-                            <div className="flex flex-col items-end gap-1">
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-32">Estudiante A</TableHead>
+                      <TableHead className="min-w-32">Estudiante B</TableHead>
+                      <TableHead className="w-32">Similitud máx</TableHead>
+                      <TableHead className="w-24 hidden sm:table-cell">Preguntas</TableHead>
+                      <TableHead className="w-32 text-right">Revisión</TableHead>
+                      <TableHead className="text-right">Detalle</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupedPairs.map((g) => {
+                      const reviewedCount = g.pairs.filter((p) => p.reviewed_at != null).length;
+                      const allReviewed = reviewedCount === g.pairs.length;
+                      const someReviewed = reviewedCount > 0;
+                      const markAll = async () => {
+                        // Marca/desmarca todos los pares del grupo según el
+                        // estado actual: si TODOS están revisados → desmarca
+                        // todos; en cualquier otro caso → marca todos.
+                        const targetUnmark = allReviewed;
+                        for (const p of g.pairs) {
+                          const isReviewed = p.reviewed_at != null;
+                          if (targetUnmark && !isReviewed) continue;
+                          if (!targetUnmark && isReviewed) continue;
+                          await togglePairReviewed(p.id, isReviewed);
+                        }
+                      };
+                      return (
+                        <TableRow key={`${g.userA}::${g.userB}`}>
+                          <TableCell className="font-medium">
+                            {shortName(g.userA, userNames)}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {shortName(g.userB, userNames)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={scoreVariant(g.maxScore)}>
+                              {formatScore(g.maxScore)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs tabular-nums hidden sm:table-cell">
+                            {g.questionCount}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {allReviewed ? (
+                              <div className="flex flex-col items-end gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                >
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Revisada
+                                </Badge>
+                                <button
+                                  type="button"
+                                  className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                  onClick={markAll}
+                                >
+                                  Reabrir
+                                </button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs"
+                                onClick={markAll}
+                                title={
+                                  someReviewed
+                                    ? `${reviewedCount}/${g.pairs.length} ya revisado(s) — marcar el resto`
+                                    : "Marca todos los pares como revisados"
+                                }
                               >
                                 <Check className="h-3 w-3 mr-1" />
-                                Revisada
-                              </Badge>
-                              <button
-                                type="button"
-                                className="text-[10px] text-muted-foreground hover:text-foreground underline"
-                                onClick={markAll}
-                              >
-                                Reabrir
-                              </button>
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              onClick={markAll}
-                              title={
-                                someReviewed
-                                  ? `${reviewedCount}/${g.pairs.length} ya revisado(s) — marcar el resto`
-                                  : "Marca todos los pares como revisados"
-                              }
-                            >
-                              <Check className="h-3 w-3 mr-1" />
-                              {someReviewed
-                                ? `Revisar resto (${g.pairs.length - reviewedCount})`
-                                : "Marcar revisada"}
-                            </Button>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <RowAction
-                            label="Ver preguntas con posible copia"
-                            icon={Eye}
-                            onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                                {someReviewed
+                                  ? `Revisar resto (${g.pairs.length - reviewedCount})`
+                                  : "Marcar revisada"}
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <RowAction
+                              label="Ver preguntas con posible copia"
+                              icon={Eye}
+                              onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
 
               {/* Vista por estudiante: aplica la sugerencia 1 click por
@@ -927,96 +938,98 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                   )}
                 </div>
                 <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-32">Estudiante</TableHead>
-                      <TableHead className="w-28">Similitud máx</TableHead>
-                      <TableHead className="min-w-40 hidden md:table-cell">Coincide con</TableHead>
-                      <TableHead className="w-24 text-right">Nota actual</TableHead>
-                      <TableHead className="w-24 text-right">
-                        <span className="inline-flex items-center gap-1 justify-end">
-                          Sugerida
-                          <HelpHint>
-                            La nota se ingresa en la escala del item (0 al puntaje máximo del
-                            examen/taller/proyecto). Decimales con coma (ej. 4,5).
-                          </HelpHint>
-                        </span>
-                      </TableHead>
-                      <TableHead className="w-28 text-right">Aplicar</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {plagiarismByStudent.map((s) => {
-                      const snap = gradesByUser[s.userId];
-                      const current = snap?.currentGrade ?? null;
-                      const rowKey = `pl-${s.userId}`;
-                      const suggested = getSuggestedValue(rowKey, current, s.maxScore);
-                      const canApply =
-                        suggested != null &&
-                        !Number.isNaN(suggested) &&
-                        s.maxScore >= INTEGRITY_ALERT_THRESHOLD;
-                      const busy = !!applying[s.userId];
-                      const peerLabel = s.peerIds
-                        .slice(0, 3)
-                        .map((p) => shortName(p, userNames))
-                        .join(", ");
-                      return (
-                        <TableRow key={s.userId}>
-                          <TableCell className="font-medium">
-                            {shortName(s.userId, userNames)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={scoreVariant(s.maxScore)}>
-                              {formatScore(s.maxScore)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
-                            {peerLabel}
-                            {s.peerIds.length > 3 && ` +${s.peerIds.length - 3}`}
-                          </TableCell>
-                          <TableCell className="text-right text-xs tabular-nums">
-                            {current != null ? current.toFixed(2) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DecimalInput
-                              min={0}
-                              max={snap?.maxScore}
-                              value={suggested}
-                              onChange={(v) =>
-                                setEditedSuggestion((prev) => ({ ...prev, [rowKey]: v }))
-                              }
-                              placeholder="—"
-                              className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
-                              aria-label="Nota sugerida editable"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              disabled={!canApply || busy}
-                              onClick={() => applyPenalty(s.userId, suggested)}
-                              title={
-                                canApply
-                                  ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
-                                  : "Sin nota previa, severidad < 60%, o nota inválida"
-                              }
-                            >
-                              {busy ? (
-                                <Spinner size="sm" className="mr-1" />
-                              ) : (
-                                <Check className="h-3 w-3 mr-1" />
-                              )}
-                              Aplicar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-32">Estudiante</TableHead>
+                        <TableHead className="w-28">Similitud máx</TableHead>
+                        <TableHead className="min-w-40 hidden md:table-cell">
+                          Coincide con
+                        </TableHead>
+                        <TableHead className="w-24 text-right">Nota actual</TableHead>
+                        <TableHead className="w-24 text-right">
+                          <span className="inline-flex items-center gap-1 justify-end">
+                            Sugerida
+                            <HelpHint>
+                              La nota se ingresa en la escala del item (0 al puntaje máximo del
+                              examen/taller/proyecto). Decimales con coma (ej. 4,5).
+                            </HelpHint>
+                          </span>
+                        </TableHead>
+                        <TableHead className="w-28 text-right">Aplicar</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {plagiarismByStudent.map((s) => {
+                        const snap = gradesByUser[s.userId];
+                        const current = snap?.currentGrade ?? null;
+                        const rowKey = `pl-${s.userId}`;
+                        const suggested = getSuggestedValue(rowKey, current, s.maxScore);
+                        const canApply =
+                          suggested != null &&
+                          !Number.isNaN(suggested) &&
+                          s.maxScore >= INTEGRITY_ALERT_THRESHOLD;
+                        const busy = !!applying[s.userId];
+                        const peerLabel = s.peerIds
+                          .slice(0, 3)
+                          .map((p) => shortName(p, userNames))
+                          .join(", ");
+                        return (
+                          <TableRow key={s.userId}>
+                            <TableCell className="font-medium">
+                              {shortName(s.userId, userNames)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={scoreVariant(s.maxScore)}>
+                                {formatScore(s.maxScore)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
+                              {peerLabel}
+                              {s.peerIds.length > 3 && ` +${s.peerIds.length - 3}`}
+                            </TableCell>
+                            <TableCell className="text-right text-xs tabular-nums">
+                              {current != null ? current.toFixed(2) : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DecimalInput
+                                min={0}
+                                max={snap?.maxScore}
+                                value={suggested}
+                                onChange={(v) =>
+                                  setEditedSuggestion((prev) => ({ ...prev, [rowKey]: v }))
+                                }
+                                placeholder="—"
+                                className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
+                                aria-label="Nota sugerida editable"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                disabled={!canApply || busy}
+                                onClick={() => applyPenalty(s.userId, suggested)}
+                                title={
+                                  canApply
+                                    ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
+                                    : "Sin nota previa, severidad < 60%, o nota inválida"
+                                }
+                              >
+                                {busy ? (
+                                  <Spinner size="sm" className="mr-1" />
+                                ) : (
+                                  <Check className="h-3 w-3 mr-1" />
+                                )}
+                                Aplicar
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             </>

@@ -321,8 +321,22 @@ export function TeacherWorkshopQuestionsEditor({
     }
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
-    const decision = await aiGate.ensureAuthorized();
+    // La generación de preguntas con IA NO tiene worker async (a
+    // diferencia de la calificación, que usa `ai_grading_queue`). El gate
+    // se llama con `allowQueue: false` para que el dialog solo ofrezca
+    // "Activar IA inmediata" o "Cancelar". El caso `proceed-async` no
+    // debería ocurrir, pero lo trato defensivamente: antes el código
+    // ignoraba el valor del decision y llamaba al edge igual, lo que
+    // hacía que en modo batch el docente "encolara" pero la IA se
+    // disparara igual (sin código de activación).
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
     if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      toast.error(
+        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      );
+      return;
+    }
     setAiLoading(true);
     let totalInserted = 0;
     try {
@@ -879,11 +893,7 @@ export function StudentWorkshopTaker({
             .eq("workshop_id", workshopId)
             .order("position"),
           dbAny.from("workshops").select("max_attempts").eq("id", workshopId).maybeSingle(),
-          dbAny
-            .from("app_settings")
-            .select("default_workshop_max_attempts")
-            .limit(1)
-            .maybeSingle(),
+          dbAny.from("app_settings").select("default_workshop_max_attempts").limit(1).maybeSingle(),
         ]);
       if (cancelled) return;
       setQuestions((qs ?? []) as WorkshopQuestion[]);
@@ -1157,19 +1167,37 @@ export function StudentWorkshopTaker({
             if (!zipFile) {
               payload.ai_grade = 0;
               payload.ai_feedback = "Sin archivo ZIP entregado";
-              breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+              breakdown.push({
+                qid: q.id,
+                type: q.type,
+                points: q.points,
+                earned: 0,
+                feedback: payload.ai_feedback,
+              });
             } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
               payload.ai_grade = 0;
               payload.ai_feedback = `El ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`;
               toast.error(payload.ai_feedback, { duration: 8000 });
-              breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+              breakdown.push({
+                qid: q.id,
+                type: q.type,
+                points: q.points,
+                earned: 0,
+                feedback: payload.ai_feedback,
+              });
             } else {
               const preCheck = await preValidateZipInBrowser(zipFile, allowedExts);
               if (!preCheck.ok) {
                 payload.ai_grade = 0;
                 payload.ai_feedback = preCheck.error;
                 toast.error(preCheck.error, { duration: 10000 });
-                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: preCheck.error });
+                breakdown.push({
+                  qid: q.id,
+                  type: q.type,
+                  points: q.points,
+                  earned: 0,
+                  feedback: preCheck.error,
+                });
               } else {
                 const zipPath = `${rootFolder}/${submissionId}/${q.id}.zip`;
                 const { error: upErr } = await supabase.storage
@@ -1179,7 +1207,13 @@ export function StudentWorkshopTaker({
                   payload.ai_grade = 0;
                   payload.ai_feedback = `Error al subir el ZIP: ${upErr.message}`;
                   toast.error(payload.ai_feedback, { duration: 8000 });
-                  breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                  breakdown.push({
+                    qid: q.id,
+                    type: q.type,
+                    points: q.points,
+                    earned: 0,
+                    feedback: payload.ai_feedback,
+                  });
                 } else {
                   payload.zip_path = zipPath;
                   const aiBody: Record<string, unknown> = {
@@ -1195,7 +1229,13 @@ export function StudentWorkshopTaker({
                     payload.ai_grade = null;
                     payload.ai_feedback = PENDING_AI_FEEDBACK;
                     pendingZipEnqueues.push({ qid: q.id, body: aiBody });
-                    breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: PENDING_AI_FEEDBACK });
+                    breakdown.push({
+                      qid: q.id,
+                      type: q.type,
+                      points: q.points,
+                      earned: 0,
+                      feedback: PENDING_AI_FEEDBACK,
+                    });
                   } else {
                     const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                       "ai-grade-submission",
@@ -1206,14 +1246,25 @@ export function StudentWorkshopTaker({
                       payload.ai_grade = 0;
                       payload.ai_feedback = detail || "Error IA al calificar el ZIP";
                       toast.error(payload.ai_feedback, { duration: 8000 });
-                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                      breakdown.push({
+                        qid: q.id,
+                        type: q.type,
+                        points: q.points,
+                        earned: 0,
+                        feedback: payload.ai_feedback,
+                      });
                     } else {
-                      const earned = Math.max(0, Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0));
+                      const earned = Math.max(
+                        0,
+                        Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0),
+                      );
                       const fb = (aiData as any)?.feedback ?? "Sin retroalimentación";
                       payload.ai_grade = earned;
                       payload.ai_feedback = fb;
                       payload.ai_likelihood =
-                        typeof (aiData as any)?.ai_likelihood === "number" ? (aiData as any).ai_likelihood : null;
+                        typeof (aiData as any)?.ai_likelihood === "number"
+                          ? (aiData as any).ai_likelihood
+                          : null;
                       payload.ai_reasons = (aiData as any)?.ai_reasons ?? null;
                       if (typeof (aiData as any)?.zip_truncated === "boolean") {
                         payload.zip_truncated = (aiData as any).zip_truncated;
@@ -1222,7 +1273,13 @@ export function StudentWorkshopTaker({
                         payload.zip_chars_used = (aiData as any).zip_chars_used;
                       }
                       totalEarned += earned;
-                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
+                      breakdown.push({
+                        qid: q.id,
+                        type: q.type,
+                        points: q.points,
+                        earned,
+                        feedback: fb,
+                      });
                     }
                   }
                 }
@@ -1238,28 +1295,57 @@ export function StudentWorkshopTaker({
             if (filesArr.length === 0) {
               payload.ai_grade = 0;
               payload.ai_feedback = "Sin archivos de código entregados";
-              breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+              breakdown.push({
+                qid: q.id,
+                type: q.type,
+                points: q.points,
+                earned: 0,
+                feedback: payload.ai_feedback,
+              });
             } else {
-              const violations = allowedExts ? filesArr.filter((f) => !isFileAllowed(f.name, allowedExts)) : [];
+              const violations = allowedExts
+                ? filesArr.filter((f) => !isFileAllowed(f.name, allowedExts))
+                : [];
               const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
               if (violations.length > 0) {
-                const sample = violations.slice(0, 5).map((f) => f.name).join(", ");
+                const sample = violations
+                  .slice(0, 5)
+                  .map((f) => f.name)
+                  .join(", ");
                 const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
                 const allowedLabel = (allowedExts ?? []).map((e) => `.${e}`).join(", ");
                 payload.ai_grade = 0;
                 payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
                 toast.error(payload.ai_feedback, { duration: 8000 });
-                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                breakdown.push({
+                  qid: q.id,
+                  type: q.type,
+                  points: q.points,
+                  earned: 0,
+                  feedback: payload.ai_feedback,
+                });
               } else if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                 payload.ai_grade = 0;
                 payload.ai_feedback = `El total supera el tope de 50 MB (${formatFileSize(totalBytes)}).`;
                 toast.error(payload.ai_feedback, { duration: 8000 });
-                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                breakdown.push({
+                  qid: q.id,
+                  type: q.type,
+                  points: q.points,
+                  earned: 0,
+                  feedback: payload.ai_feedback,
+                });
               } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
                 payload.ai_grade = 0;
                 payload.ai_feedback = `Demasiados archivos (${filesArr.length}). Máximo: ${MAX_CODE_FILES_COUNT}.`;
                 toast.error(payload.ai_feedback, { duration: 8000 });
-                breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                breakdown.push({
+                  qid: q.id,
+                  type: q.type,
+                  points: q.points,
+                  earned: 0,
+                  feedback: payload.ai_feedback,
+                });
               } else {
                 const usedNames = new Set<string>();
                 const uploads = await Promise.all(
@@ -1279,7 +1365,13 @@ export function StudentWorkshopTaker({
                   payload.ai_grade = 0;
                   payload.ai_feedback = `Error al subir ${upFailed.length} archivo(s): ${upFailed[0].error?.message ?? ""}`;
                   toast.error(payload.ai_feedback, { duration: 8000 });
-                  breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                  breakdown.push({
+                    qid: q.id,
+                    type: q.type,
+                    points: q.points,
+                    earned: 0,
+                    feedback: payload.ai_feedback,
+                  });
                 } else {
                   const uploadedPaths = uploads.map((u) => u.path);
                   payload.code_paths = uploadedPaths;
@@ -1296,7 +1388,13 @@ export function StudentWorkshopTaker({
                     payload.ai_grade = null;
                     payload.ai_feedback = PENDING_AI_FEEDBACK;
                     pendingZipEnqueues.push({ qid: q.id, body: aiBody });
-                    breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: PENDING_AI_FEEDBACK });
+                    breakdown.push({
+                      qid: q.id,
+                      type: q.type,
+                      points: q.points,
+                      earned: 0,
+                      feedback: PENDING_AI_FEEDBACK,
+                    });
                   } else {
                     const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                       "ai-grade-submission",
@@ -1307,17 +1405,34 @@ export function StudentWorkshopTaker({
                       payload.ai_grade = 0;
                       payload.ai_feedback = detail || "Error IA al calificar los archivos";
                       toast.error(payload.ai_feedback, { duration: 8000 });
-                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: payload.ai_feedback });
+                      breakdown.push({
+                        qid: q.id,
+                        type: q.type,
+                        points: q.points,
+                        earned: 0,
+                        feedback: payload.ai_feedback,
+                      });
                     } else {
-                      const earned = Math.max(0, Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0));
+                      const earned = Math.max(
+                        0,
+                        Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0),
+                      );
                       const fb = (aiData as any)?.feedback ?? "Sin retroalimentación";
                       payload.ai_grade = earned;
                       payload.ai_feedback = fb;
                       payload.ai_likelihood =
-                        typeof (aiData as any)?.ai_likelihood === "number" ? (aiData as any).ai_likelihood : null;
+                        typeof (aiData as any)?.ai_likelihood === "number"
+                          ? (aiData as any).ai_likelihood
+                          : null;
                       payload.ai_reasons = (aiData as any)?.ai_reasons ?? null;
                       totalEarned += earned;
-                      breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
+                      breakdown.push({
+                        qid: q.id,
+                        type: q.type,
+                        points: q.points,
+                        earned,
+                        feedback: fb,
+                      });
                     }
                   }
                 }
@@ -1775,191 +1890,197 @@ export function StudentWorkshopTaker({
                 height="280px"
               />
             )}
-            {q.type === "codigo_zip" && q.zip_single && (() => {
-              const currentZip: File | null =
-                answers[q.id] instanceof File ? (answers[q.id] as File) : null;
-              return (
-                <div className="space-y-2">
-                  <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
-                    <strong>Modo ZIP único:</strong> sube un archivo{" "}
-                    <code>.zip</code> con todo tu proyecto. El servidor lo
-                    descomprime y la IA califica todos los archivos juntos.
-                  </div>
-                  <input
-                    type="file"
-                    accept=".zip,application/zip,application/x-zip-compressed"
-                    onChange={(e) => {
-                      const picked = e.target.files?.[0];
-                      if (!picked) return;
-                      if (picked.size === 0) {
-                        toast.error("El archivo está vacío.");
-                        e.target.value = "";
-                        return;
-                      }
-                      if (picked.size > MAX_CODE_FILES_TOTAL_BYTES) {
-                        toast.error(
-                          `El ZIP pesa ${formatFileSize(picked.size)} y supera el tope de 50 MB.`,
-                        );
-                        e.target.value = "";
-                        return;
-                      }
-                      if (!picked.name.toLowerCase().endsWith(".zip")) {
-                        toast.error("Solo se acepta un archivo .zip.");
-                        e.target.value = "";
-                        return;
-                      }
-                      e.target.value = "";
-                      updateAnswer(q.id, picked);
-                    }}
-                    className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Comprimí tu carpeta de proyecto en un único{" "}
-                    <span className="font-mono">.zip</span>. Tope: 50 MB.
-                  </p>
-                  {currentZip && (
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <Badge variant="secondary" className="text-[10px] gap-1 pr-1">
-                        <span className="truncate max-w-[16rem]">{currentZip.name}</span>
-                        <span className="text-muted-foreground">
-                          · {formatFileSizeShort(currentZip.size)}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Quitar ${currentZip.name}`}
-                          className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
-                          onClick={() => updateAnswer(q.id, null)}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
+            {q.type === "codigo_zip" &&
+              q.zip_single &&
+              (() => {
+                const currentZip: File | null =
+                  answers[q.id] instanceof File ? (answers[q.id] as File) : null;
+                return (
+                  <div className="space-y-2">
+                    <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                      <strong>Modo ZIP único:</strong> sube un archivo <code>.zip</code> con todo tu
+                      proyecto. El servidor lo descomprime y la IA califica todos los archivos
+                      juntos.
                     </div>
-                  )}
-                </div>
-              );
-            })()}
-            {q.type === "codigo_zip" && !q.zip_single && (() => {
-              const langKey = (q.language ?? "").toLowerCase().trim();
-              const allowedExts = LANG_TO_EXT[langKey] ?? null;
-              const acceptAttr = allowedExts
-                ? allowedExts.map((e) => `.${e}`).join(",")
-                : undefined;
-              const allowedLabel = allowedExts
-                ? allowedExts.map((e) => `.${e}`).join(", ")
-                : "archivos de código fuente";
-              const current: File[] = Array.isArray(answers[q.id])
-                ? (answers[q.id] as File[])
-                : answers[q.id] instanceof File
-                  ? [answers[q.id] as File]
-                  : [];
-              return (
-                <div className="space-y-2">
-                  <input
-                    type="file"
-                    multiple
-                    accept={acceptAttr}
-                    onChange={(e) => {
-                      const picked = Array.from(e.target.files ?? []);
-                      if (picked.length === 0) return;
-                      if (allowedExts) {
-                        const bad = picked.filter((f) => !isFileAllowed(f.name, allowedExts));
-                        if (bad.length > 0) {
-                          const sample = bad.slice(0, 5).map((f) => f.name).join(", ");
-                          const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
+                    <input
+                      type="file"
+                      accept=".zip,application/zip,application/x-zip-compressed"
+                      onChange={(e) => {
+                        const picked = e.target.files?.[0];
+                        if (!picked) return;
+                        if (picked.size === 0) {
+                          toast.error("El archivo está vacío.");
+                          e.target.value = "";
+                          return;
+                        }
+                        if (picked.size > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
-                            `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
-                            { duration: 8000 },
+                            `El ZIP pesa ${formatFileSize(picked.size)} y supera el tope de 50 MB.`,
                           );
                           e.target.value = "";
                           return;
                         }
-                      }
-                      const merged: File[] = [...current];
-                      for (const f of picked) {
-                        const idx = merged.findIndex(
-                          (m) => m.name === f.name && m.size === f.size,
-                        );
-                        if (idx >= 0) merged[idx] = f;
-                        else merged.push(f);
-                      }
-                      const totalBytes = merged.reduce((a, f) => a + f.size, 0);
-                      if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
-                        toast.error(
-                          `Los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
-                        );
+                        if (!picked.name.toLowerCase().endsWith(".zip")) {
+                          toast.error("Solo se acepta un archivo .zip.");
+                          e.target.value = "";
+                          return;
+                        }
                         e.target.value = "";
-                        return;
-                      }
-                      if (merged.length > MAX_CODE_FILES_COUNT) {
-                        toast.error(
-                          `Seleccionaste ${merged.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
-                        );
-                        e.target.value = "";
-                        return;
-                      }
-                      if (picked.some((f) => f.size === 0)) {
-                        toast.error("Hay archivos vacíos en la selección.");
-                        e.target.value = "";
-                        return;
-                      }
-                      e.target.value = "";
-                      updateAnswer(q.id, merged);
-                    }}
-                    className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Sube uno o varios archivos de código fuente — sin comprimir.
-                    Extensiones aceptadas:{" "}
-                    <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB
-                    total y hasta {MAX_CODE_FILES_COUNT} archivos.
-                  </p>
-                  {current.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                        <span>
-                          {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
-                          {formatFileSize(current.reduce((a, f) => a + f.size, 0))}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => updateAnswer(q.id, [])}
-                          className="text-destructive hover:underline"
-                        >
-                          Quitar todos
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {current.map((f, i) => (
-                          <Badge
-                            key={`${f.name}-${f.size}-${i}`}
-                            variant="secondary"
-                            className="text-[10px] gap-1 pr-1"
+                        updateAnswer(q.id, picked);
+                      }}
+                      className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Comprimí tu carpeta de proyecto en un único{" "}
+                      <span className="font-mono">.zip</span>. Tope: 50 MB.
+                    </p>
+                    {currentZip && (
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <Badge variant="secondary" className="text-[10px] gap-1 pr-1">
+                          <span className="truncate max-w-[16rem]">{currentZip.name}</span>
+                          <span className="text-muted-foreground">
+                            · {formatFileSizeShort(currentZip.size)}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Quitar ${currentZip.name}`}
+                            className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
+                            onClick={() => updateAnswer(q.id, null)}
                           >
-                            <span className="truncate max-w-[12rem]">{f.name}</span>
-                            <span className="text-muted-foreground">
-                              · {formatFileSizeShort(f.size)}
-                            </span>
-                            <button
-                              type="button"
-                              aria-label={`Quitar ${f.name}`}
-                              className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
-                              onClick={() =>
-                                updateAnswer(
-                                  q.id,
-                                  current.filter((_, j) => j !== i),
-                                )
-                              }
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                    )}
+                  </div>
+                );
+              })()}
+            {q.type === "codigo_zip" &&
+              !q.zip_single &&
+              (() => {
+                const langKey = (q.language ?? "").toLowerCase().trim();
+                const allowedExts = LANG_TO_EXT[langKey] ?? null;
+                const acceptAttr = allowedExts
+                  ? allowedExts.map((e) => `.${e}`).join(",")
+                  : undefined;
+                const allowedLabel = allowedExts
+                  ? allowedExts.map((e) => `.${e}`).join(", ")
+                  : "archivos de código fuente";
+                const current: File[] = Array.isArray(answers[q.id])
+                  ? (answers[q.id] as File[])
+                  : answers[q.id] instanceof File
+                    ? [answers[q.id] as File]
+                    : [];
+                return (
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      multiple
+                      accept={acceptAttr}
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? []);
+                        if (picked.length === 0) return;
+                        if (allowedExts) {
+                          const bad = picked.filter((f) => !isFileAllowed(f.name, allowedExts));
+                          if (bad.length > 0) {
+                            const sample = bad
+                              .slice(0, 5)
+                              .map((f) => f.name)
+                              .join(", ");
+                            const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
+                            toast.error(
+                              `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+                              { duration: 8000 },
+                            );
+                            e.target.value = "";
+                            return;
+                          }
+                        }
+                        const merged: File[] = [...current];
+                        for (const f of picked) {
+                          const idx = merged.findIndex(
+                            (m) => m.name === f.name && m.size === f.size,
+                          );
+                          if (idx >= 0) merged[idx] = f;
+                          else merged.push(f);
+                        }
+                        const totalBytes = merged.reduce((a, f) => a + f.size, 0);
+                        if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
+                          toast.error(
+                            `Los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        if (merged.length > MAX_CODE_FILES_COUNT) {
+                          toast.error(
+                            `Seleccionaste ${merged.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        if (picked.some((f) => f.size === 0)) {
+                          toast.error("Hay archivos vacíos en la selección.");
+                          e.target.value = "";
+                          return;
+                        }
+                        e.target.value = "";
+                        updateAnswer(q.id, merged);
+                      }}
+                      className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Sube uno o varios archivos de código fuente — sin comprimir. Extensiones
+                      aceptadas: <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB
+                      total y hasta {MAX_CODE_FILES_COUNT} archivos.
+                    </p>
+                    {current.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span>
+                            {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
+                            {formatFileSize(current.reduce((a, f) => a + f.size, 0))}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateAnswer(q.id, [])}
+                            className="text-destructive hover:underline"
+                          >
+                            Quitar todos
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {current.map((f, i) => (
+                            <Badge
+                              key={`${f.name}-${f.size}-${i}`}
+                              variant="secondary"
+                              className="text-[10px] gap-1 pr-1"
+                            >
+                              <span className="truncate max-w-[12rem]">{f.name}</span>
+                              <span className="text-muted-foreground">
+                                · {formatFileSizeShort(f.size)}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={`Quitar ${f.name}`}
+                                className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
+                                onClick={() =>
+                                  updateAnswer(
+                                    q.id,
+                                    current.filter((_, j) => j !== i),
+                                  )
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
           </CardContent>
         </Card>
       ))}
