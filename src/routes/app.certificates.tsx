@@ -84,7 +84,9 @@ function CertificatesAdmin() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  const isAdmin = roles.includes("Admin");
+  // SuperAdmin se cuenta como Admin para módulos compartidos — accede
+  // con filtro cross-tenant adicional renderizado más abajo.
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   const isDocente = roles.includes("Docente");
   // Solo true cuando actúa como SuperAdmin (no por solo tener el rol).
   // Ver comentario en app.admin.users.

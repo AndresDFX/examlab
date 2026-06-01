@@ -90,7 +90,9 @@ function Inner() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const isAdmin = roles.includes("Admin");
+  // SuperAdmin gestiona plantillas globales igual que Admin (módulo
+  // compartido). Las plantillas viven a nivel plataforma, no tenant.
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
 
   const load = async () => {
     setLoading(true);
@@ -122,8 +124,7 @@ function Inner() {
     const q = search.toLowerCase();
     return templates.filter(
       (t) =>
-        t.name.toLowerCase().includes(q) ||
-        (t.description?.toLowerCase().includes(q) ?? false),
+        t.name.toLowerCase().includes(q) || (t.description?.toLowerCase().includes(q) ?? false),
     );
   }, [templates, search]);
 
@@ -325,7 +326,11 @@ function Inner() {
                           <RowActionsMenu
                             actions={[
                               { label: "Editar", icon: Pencil, onClick: () => openEdit(t) },
-                              { label: "Duplicar", icon: Copy, onClick: () => void handleDuplicate(t) },
+                              {
+                                label: "Duplicar",
+                                icon: Copy,
+                                onClick: () => void handleDuplicate(t),
+                              },
                               {
                                 label: "Eliminar",
                                 icon: Trash2,

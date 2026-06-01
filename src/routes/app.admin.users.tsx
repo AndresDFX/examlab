@@ -240,7 +240,10 @@ function AdminUsers() {
     [rows, sel],
   );
 
-  const isAdmin = roles.includes("Admin");
+  // SuperAdmin hereda los privilegios de Admin en módulos compartidos —
+  // ve /app/admin/users con filtro extra cross-tenant. Ver CLAUDE.md
+  // sección "Filtros cross-tenant en módulos compartidos".
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
 
   const handleImpersonate = async (r: Row) => {
     if (r.roles.includes("Admin")) {

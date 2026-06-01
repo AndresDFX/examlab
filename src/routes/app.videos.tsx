@@ -144,7 +144,11 @@ function VideoLibrary() {
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
-  const isStaff = roles.includes("Docente") || roles.includes("Admin");
+  // SuperAdmin se considera "staff" para gestionar la biblioteca de
+  // videos — además puede marcar videos como platform-global (toggle
+  // específico que aparece más abajo solo cuando actúa como SuperAdmin).
+  const isStaff =
+    roles.includes("Docente") || roles.includes("Admin") || roles.includes("SuperAdmin");
   // El SuperAdmin actuando como tal puede publicar videos como
   // PLATFORM-GLOBAL (mig 20260722000000): `tenant_id IS NULL` los
   // hace visibles a TODOS los tenants. Cuando un usuario tiene el rol

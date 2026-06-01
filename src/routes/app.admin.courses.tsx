@@ -362,7 +362,9 @@ export function AdminCourses() {
   const [dupCopyTeachers, setDupCopyTeachers] = useState(false);
   const [dupLoading, setDupLoading] = useState(false);
 
-  const isAdmin = roles.includes("Admin");
+  // SuperAdmin tiene los mismos privilegios que Admin para gestión de
+  // cursos. Su vista incluye filtro extra cross-tenant abajo.
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   const isTeacher = roles.includes("Docente");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   // Solo `true` cuando el usuario está ACTIVAMENTE actuando como SuperAdmin.

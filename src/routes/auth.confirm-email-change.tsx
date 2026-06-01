@@ -45,7 +45,7 @@ export const Route = createFileRoute("/auth/confirm-email-change")({
 
 type State =
   | { kind: "checking" }
-  | { kind: "success"; newEmail: string }
+  | { kind: "success"; newEmail: string; applyAfter: string | null }
   | { kind: "error"; code: string };
 
 function ConfirmEmailChangePage() {
@@ -75,16 +75,46 @@ function ConfirmEmailChangePage() {
         return;
       }
       const newEmail = (data as { newEmail?: string } | null)?.newEmail ?? "";
-      setState({ kind: "success", newEmail });
+      const applyAfter = (data as { applyAfter?: string } | null)?.applyAfter ?? null;
+      setState({ kind: "success", newEmail, applyAfter });
     })();
   }, []);
+
+  // Formatea la fecha de aplicación a hora Colombia legible.
+  const formatApplyAt = (iso: string): string => {
+    try {
+      return new Date(iso).toLocaleString("es-CO", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "America/Bogota",
+      });
+    } catch {
+      return iso;
+    }
+  };
 
   // Mensaje legible por código de error. Genérico para no facilitar
   // enumeración (mismo mensaje para token_invalid / inexistente).
   const errorMessage = (code: string): string => {
     if (code === "token_expired") {
       return t("auth.confirmEmailChange.errorExpired", {
-        defaultValue: "El enlace expiró (vigencia 1h). Vuelve a solicitar el cambio desde tu perfil.",
+        defaultValue:
+          "El enlace expiró (vigencia 1h). Vuelve a solicitar el cambio desde tu perfil.",
+      });
+    }
+    if (code === "token_cancelled") {
+      return t("auth.confirmEmailChange.errorCancelled", {
+        defaultValue:
+          "Este cambio fue cancelado desde el correo anterior. Si fuiste tú, solicita uno nuevo desde tu perfil.",
+      });
+    }
+    if (code === "token_already_confirmed") {
+      return t("auth.confirmEmailChange.errorAlreadyConfirmed", {
+        defaultValue:
+          "Este cambio ya fue confirmado. Espera a que se aplique (24h tras la confirmación) o cancela desde el correo anterior si no fuiste tú.",
       });
     }
     if (code === "email_already_taken") {
@@ -95,7 +125,8 @@ function ConfirmEmailChangePage() {
     }
     if (code === "missing_token") {
       return t("auth.confirmEmailChange.errorMissingToken", {
-        defaultValue: "El enlace no contiene el token de confirmación. Verifica que abriste el correo completo.",
+        defaultValue:
+          "El enlace no contiene el token de confirmación. Verifica que abriste el correo completo.",
       });
     }
     return t("auth.confirmEmailChange.errorGeneric", {
@@ -120,8 +151,7 @@ function ConfirmEmailChangePage() {
           </CardTitle>
           <CardDescription>
             {t("auth.confirmEmailChange.subtitle", {
-              defaultValue:
-                "Estamos validando tu enlace para actualizar el correo de tu cuenta.",
+              defaultValue: "Estamos validando tu enlace para actualizar el correo de tu cuenta.",
             })}
           </CardDescription>
         </CardHeader>
@@ -137,27 +167,45 @@ function ConfirmEmailChangePage() {
 
           {state.kind === "success" && (
             <div className="space-y-4">
-              <div className="flex items-start gap-2 p-3 rounded-md border border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 text-sm">
+              <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400 text-sm">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <p className="font-medium">
-                    {t("auth.confirmEmailChange.successTitle", {
-                      defaultValue: "Correo actualizado",
+                    {t("auth.confirmEmailChange.pendingTitle", {
+                      defaultValue: "Cambio confirmado — pendiente de aplicar",
                     })}
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    {t("auth.confirmEmailChange.successBody", {
+                    {t("auth.confirmEmailChange.pendingBody", {
                       defaultValue:
-                        "Tu cuenta ahora usa este correo para iniciar sesión:",
+                        "Tu nuevo correo quedará activo, por seguridad, 24 horas después de la confirmación:",
                     })}
                   </p>
-                  <p className="mt-1 font-mono text-xs break-all">{state.newEmail}</p>
+                  <p className="mt-1 font-mono text-xs break-all text-foreground">
+                    {state.newEmail}
+                  </p>
+                  {state.applyAfter && (
+                    <p className="mt-2 text-xs">
+                      <span className="text-muted-foreground">
+                        {t("auth.confirmEmailChange.willApplyAt", {
+                          defaultValue: "Se aplicará el:",
+                        })}{" "}
+                      </span>
+                      <span className="font-semibold">{formatApplyAt(state.applyAfter)}</span>
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t("auth.confirmEmailChange.cancelHint", {
+                      defaultValue:
+                        "Mientras tanto, tu correo actual sigue funcionando. Si recibís un correo de cancelación en tu correo anterior, ese link permite frenar el cambio.",
+                    })}
+                  </p>
                 </div>
               </div>
               <Link to="/auth" className="block">
                 <Button className="w-full">
-                  {t("auth.confirmEmailChange.goToLogin", {
-                    defaultValue: "Iniciar sesión con el nuevo correo",
+                  {t("auth.confirmEmailChange.backToLoginCurrent", {
+                    defaultValue: "Volver al inicio de sesión",
                   })}
                 </Button>
               </Link>

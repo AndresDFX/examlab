@@ -18,6 +18,7 @@ import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
+import { Route as AuthCancelEmailChangeRouteImport } from './routes/auth.cancel-email-change'
 import { Route as AppVideosRouteImport } from './routes/app.videos'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
@@ -119,6 +120,11 @@ const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
 const AuthConfirmEmailChangeRoute = AuthConfirmEmailChangeRouteImport.update({
   id: '/confirm-email-change',
   path: '/confirm-email-change',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthCancelEmailChangeRoute = AuthCancelEmailChangeRouteImport.update({
+  id: '/cancel-email-change',
+  path: '/cancel-email-change',
   getParentRoute: () => AuthRoute,
 } as any)
 const AppVideosRoute = AppVideosRouteImport.update({
@@ -421,6 +427,7 @@ export interface FileRoutesByFullPath {
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
+  '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/t/$slug': typeof TSlugRouteWithChildren
   '/verify/$shortCode': typeof VerifyShortCodeRoute
@@ -487,6 +494,7 @@ export interface FileRoutesByTo {
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
+  '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/t/$slug': typeof TSlugRouteWithChildren
   '/verify/$shortCode': typeof VerifyShortCodeRoute
@@ -556,6 +564,7 @@ export interface FileRoutesById {
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
+  '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/t/$slug': typeof TSlugRouteWithChildren
   '/verify/$shortCode': typeof VerifyShortCodeRoute
@@ -626,6 +635,7 @@ export interface FileRouteTypes {
     | '/app/unauthorized'
     | '/app/videos'
     | '/auth/confirm-email-change'
+    | '/auth/cancel-email-change'
     | '/auth/reset-password'
     | '/t/$slug'
     | '/verify/$shortCode'
@@ -692,6 +702,7 @@ export interface FileRouteTypes {
     | '/app/unauthorized'
     | '/app/videos'
     | '/auth/confirm-email-change'
+    | '/auth/cancel-email-change'
     | '/auth/reset-password'
     | '/t/$slug'
     | '/verify/$shortCode'
@@ -760,6 +771,7 @@ export interface FileRouteTypes {
     | '/app/unauthorized'
     | '/app/videos'
     | '/auth/confirm-email-change'
+    | '/auth/cancel-email-change'
     | '/auth/reset-password'
     | '/t/$slug'
     | '/verify/$shortCode'
@@ -890,6 +902,13 @@ declare module '@tanstack/react-router' {
       path: '/confirm-email-change'
       fullPath: '/auth/confirm-email-change'
       preLoaderRoute: typeof AuthConfirmEmailChangeRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/cancel-email-change': {
+      id: '/auth/cancel-email-change'
+      path: '/cancel-email-change'
+      fullPath: '/auth/cancel-email-change'
+      preLoaderRoute: typeof AuthCancelEmailChangeRouteImport
       parentRoute: typeof AuthRoute
     }
     '/app/videos': {
@@ -1439,12 +1458,14 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AuthRouteChildren {
   AuthConfirmEmailChangeRoute: typeof AuthConfirmEmailChangeRoute
+  AuthCancelEmailChangeRoute: typeof AuthCancelEmailChangeRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthIndexRoute: typeof AuthIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthConfirmEmailChangeRoute: AuthConfirmEmailChangeRoute,
+  AuthCancelEmailChangeRoute: AuthCancelEmailChangeRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthIndexRoute: AuthIndexRoute,
 }
