@@ -399,17 +399,19 @@ function SuperAdminTenantsPage() {
     await load();
   };
 
-  // Hard navigate a /t/<slug>/app — recarga la página para que el
-  // router se reinicie con el nuevo basepath. Como hace reload, ningún
-  // toast posterior se vería; el banner azul `TenantOverrideBanner`
-  // hace de feedback visual al cargar el nuevo contexto.
+  // "Ver como X": setea el override en localStorage. `useTenant`
+  // detecta el CustomEvent y re-fetch; el banner azul
+  // `TenantOverrideBanner` muestra "Viendo como X". NO hace hard
+  // reload — la UI se actualiza in-place. Toast informativo.
   const viewAs = (t: Tenant) => {
     setTenantOverride(t.slug);
+    toast.success(`Viendo como: ${t.name}`);
   };
 
-  // Limpia el prefix → modo cross-tenant. Mismo hard reload.
+  // Limpia el override → modo cross-tenant. Mismo update in-place.
   const clearViewAs = () => {
     setTenantOverride(null);
+    toast.success("Volviste al modo cross-tenant");
   };
 
   /**

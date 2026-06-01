@@ -1,35 +1,25 @@
 /**
- * TenantOverrideBanner — banner sticky cuando el SuperAdmin está
- * viendo el app en el contexto de UN tenant específico (URL con
- * prefijo `/t/<slug>/...`).
+ * TenantOverrideBanner — banner azul "Viendo como institución X"
+ * cuando el SuperAdmin tiene `examlab_tenant_override` activo.
  *
- * Recordatorio constante de que TODO lo que ve abajo está filtrado al
- * tenant en URL (no es vista cross-tenant). Sin esto, el SuperAdmin se
- * puede confundir pensando que ve datos globales.
+ * El override vive en localStorage (no en URL — ver `TenantUrlGuard.tsx`
+ * para historia). El banner se monta a nivel AppLayout y aparece
+ * cuando:
+ *   - El usuario tiene rol SuperAdmin.
+ *   - `activeRole === "SuperAdmin"` (no cambió al role-switcher).
+ *   - `readTenantOverride()` retorna un slug válido.
  *
- * Diferencia clave vs ImpersonationBanner:
- *   - ImpersonationBanner: actúa como OTRO USUARIO (sesión reemplazada).
- *     Tono ámbar (alerta — privilege escalation visible).
- *   - TenantOverrideBanner: el SuperAdmin sigue siendo él, pero
- *     filtrando la vista a 1 institución. Tono azul (cambio de
- *     contexto, no de identidad).
- *
- * Auto-oculta cuando:
- *   - Usuario no es SuperAdmin.
- *   - `activeRole` no es SuperAdmin (cambió a Admin/Docente).
- *   - URL no tiene prefijo `/t/<slug>` (modo cross-tenant).
- *
- * Se monta a nivel AppLayout. NO depende de la ruta.
+ * Click en "Salir del modo institución" limpia el override y refresca
+ * el hook `useTenant` via CustomEvent.
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useRouterState } from "@tanstack/react-router";
 import { Eye, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
-import { getTenantSlugFromUrl, hardNavigateToTenant } from "./url";
+import { readTenantOverride, setTenantOverride } from "./use-tenant";
 
 interface TenantInfo {
   slug: string;
@@ -40,20 +30,22 @@ export function TenantOverrideBanner() {
   const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
-  // Suscribimos al pathname del router para re-evaluar el slug cuando
-  // cambie la URL (raro — el slug usualmente es estable por sesión).
-  const routerPathname = useRouterState({ select: (s) => s.location.pathname });
-  const [overrideSlug, setOverrideSlug] = useState<string | null>(() => getTenantSlugFromUrl());
+  const [overrideSlug, setOverrideSlug] = useState<string | null>(() => readTenantOverride());
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
 
-  // Sincronizar el slug local con el de la URL ante cualquier cambio
-  // de path. Necesario para popstate / soft navigations dentro del
-  // mismo basepath.
+  // Subscribe a cambios del override: setTenantOverride dispara
+  // CustomEvent; storage event cubre cross-tab.
   useEffect(() => {
-    setOverrideSlug(getTenantSlugFromUrl());
-  }, [routerPathname]);
+    const refresh = () => setOverrideSlug(readTenantOverride());
+    window.addEventListener("examlab:tenant-override-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("examlab:tenant-override-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
-  // Cargar nombre del tenant para mostrarlo legible.
+  // Resolver nombre del tenant para mostrarlo legible.
   useEffect(() => {
     if (!overrideSlug) {
       setTenantInfo(null);
@@ -69,6 +61,11 @@ export function TenantOverrideBanner() {
         .maybeSingle();
       if (cancelled) return;
       if (!data) {
+        // Slug inválido en localStorage (tenant renombrado/eliminado).
+        // Limpiamos para que el banner desaparezca y la app vuelva al
+        // tenant del profile.
+        setTenantOverride(null);
+        setOverrideSlug(null);
         setTenantInfo(null);
         return;
       }
@@ -79,18 +76,13 @@ export function TenantOverrideBanner() {
     };
   }, [overrideSlug]);
 
-  // Gate de visibilidad: solo SuperAdmin con activeRole SuperAdmin y
-  // slug en URL. Cualquier otro estado → no renderiza.
   const isSuperAdmin = roles.includes("SuperAdmin");
   if (!isSuperAdmin) return null;
   if (activeRole !== "SuperAdmin") return null;
   if (!overrideSlug) return null;
 
   const handleExit = () => {
-    // Hard navigate sin prefijo → recarga + router re-init en modo
-    // cross-tenant. Es la única forma de "salir" porque el URL es la
-    // fuente de verdad.
-    hardNavigateToTenant(null, "/app");
+    setTenantOverride(null);
   };
 
   return (

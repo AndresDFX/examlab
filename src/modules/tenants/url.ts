@@ -131,14 +131,32 @@ export function buildTenantUrl(slug: string | null, path: string): string {
  */
 export function hardNavigateToTenant(slug: string | null, path: string): void {
   if (typeof window === "undefined") return;
-  const target = buildTenantUrl(slug, path);
-  // Anti-loop: si el target es exactamente el URL actual (mismo path
-  // sin querystring/hash), no hacemos nada — un reload a la misma URL
-  // ejecuta los mismos effects, que podrían re-disparar el navigate y
-  // generar un loop. Esto puede pasar si dos efectos cargan estado en
-  // distinto orden y uno termina pidiendo el redirect "al mismo lugar".
-  if (window.location.pathname === target) return;
-  window.location.href = target;
+  // NOTA: por la causa del 307 en Lovable (ver `TenantUrlGuard.tsx`),
+  // ya NO incluimos el prefix `/t/<slug>/` en URLs reales. El tenant
+  // context se persiste en localStorage para el caso del SuperAdmin
+  // "Ver como X". Esta función queda para compat de los call-sites
+  // legacy — solo navega al path sin tocar el slug.
+  if (slug && isValidTenantSlug(slug)) {
+    // El caller pasó un slug: lo registramos en localStorage como
+    // override de "Ver como X" (mismo efecto que el viejo
+    // `setTenantOverride(slug)`).
+    try {
+      window.localStorage.setItem("examlab_tenant_override", slug);
+    } catch {
+      /* ignore */
+    }
+  } else {
+    // slug=null → limpia el override (modo cross-tenant del SuperAdmin).
+    try {
+      window.localStorage.removeItem("examlab_tenant_override");
+    } catch {
+      /* ignore */
+    }
+  }
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  // Anti-loop: si ya estamos en el path target, no recargamos.
+  if (window.location.pathname === clean) return;
+  window.location.href = clean;
 }
 
 /**

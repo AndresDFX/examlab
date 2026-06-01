@@ -194,14 +194,17 @@ export async function startImpersonate(userId: string): Promise<void> {
   }
 
   window.dispatchEvent(new Event("examlab:impersonation-changed"));
-  // Recarga dura al URL CORRECTO del target. Antes navegábamos a `/app`
-  // y dejábamos que `TenantUrlGuard` redirigiera a `/t/<slug>/app` en
-  // un segundo hard reload — eso causaba reload loops cuando el target
-  // tenía tenant pero la primera carga ejecutaba múltiples efectos en
-  // paralelo. Acá navegamos DIRECTO al URL final → el router boota una
-  // sola vez con el basepath correcto y el guard no necesita redirect.
-  const targetSlug = target.tenant_slug ?? null;
-  window.location.href = targetSlug ? `/t/${targetSlug}/app` : "/app";
+  // Hard reload a `/app`. NO usamos prefix `/t/<slug>/app` aunque el
+  // target tenga tenant — el SSR de Lovable rechazaba esos URLs con
+  // 307 Temporary Redirect (ver `TenantUrlGuard.tsx` para historia).
+  // El tenant del target lo resuelve `useTenant` via profile.tenant_id
+  // + RLS server-side. Limpiamos cualquier `examlab_tenant_override`
+  // que el caller hubiera tenido — al impersonar, el target no debe
+  // heredar el "Ver como X" del SuperAdmin.
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem("examlab_tenant_override");
+  }
+  window.location.href = "/app";
 }
 
 /**

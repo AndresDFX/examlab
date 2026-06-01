@@ -26,7 +26,7 @@ import { LanguageSwitcher } from "@/shared/components/LanguageSwitcher";
 import { toast } from "sonner";
 import { GraduationCap, KeyRound, Mail, Eye, EyeOff, Building2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { hardNavigateToTenant, getTenantSlugFromUrl } from "@/modules/tenants/url";
+import { getTenantSlugFromUrl } from "@/modules/tenants/url";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 export const Route = createFileRoute("/auth/")({
@@ -140,9 +140,10 @@ function AuthPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        // Hard navigate para que el router se reinicie con el basepath
-        // correcto. El guard prefijará al tenant del profile.
-        hardNavigateToTenant(null, "/app");
+        // Sesión ya activa → al app. No tocamos localStorage del
+        // override aquí (el usuario podría tener uno legítimo de
+        // antes; si es regular, `useTenant` lo ignora).
+        window.location.href = "/app";
       }
     });
   }, []);
@@ -232,11 +233,27 @@ function AuthPage() {
       });
       toast.success(t("auth.welcome"));
 
-      // Hard navigate al app con el prefijo correcto. Esto recarga la
-      // página para que `router.tsx` recompute el `basepath` con el
-      // nuevo slug. Sin reload, el router se quedaría en basepath="" y
-      // las navegaciones internas no incluirían el prefijo.
-      hardNavigateToTenant(targetSlug, "/app");
+      // Hard navigate al app. Para SuperAdmin que eligió un tenant
+      // concreto, escribimos el override en localStorage antes del
+      // reload — `useTenant` lo lee post-mount y aplica el branding/
+      // contexto del tenant seleccionado. Para users regulares no
+      // hace falta: su tenant viene de `profile.tenant_id` y el
+      // override se ignora.
+      if (isSuperAdmin && targetSlug) {
+        try {
+          window.localStorage.setItem("examlab_tenant_override", targetSlug);
+        } catch {
+          /* ignore */
+        }
+      } else if (isSuperAdmin && !targetSlug) {
+        // SuperAdmin eligió "modo cross-tenant" → limpia override.
+        try {
+          window.localStorage.removeItem("examlab_tenant_override");
+        } catch {
+          /* ignore */
+        }
+      }
+      window.location.href = "/app";
     } catch (err) {
       console.error("[auth] post-login validation failed", err);
       await supabase.auth.signOut();

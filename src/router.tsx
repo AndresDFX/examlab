@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routeTree } from "./routeTree.gen";
-import { createTenantRewrite, clearLegacyOverrideStorage } from "@/modules/tenants/url";
+import { clearLegacyOverrideStorage } from "@/modules/tenants/url";
 
 /**
  * Misma detección que ErrorBoundary + __root.tsx. Si cualquier ruta lazy
@@ -103,25 +103,26 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
 }
 
 export const getRouter = () => {
-  // Limpia el localStorage del override viejo (legacy). La fuente de
-  // verdad ahora es la URL — ver [`url.ts`](src/modules/tenants/url.ts).
+  // (Legado, ya no aplica.) clearLegacyOverrideStorage limpiaba el
+  // override viejo cuando intentamos hacer el slug visible en URL via
+  // un `rewrite` custom. Ese enfoque NO funcionó en Lovable: TanStack
+  // Start hace SSR + emite **307 canonical-redirect** cuando la
+  // INPUT-rewrite cambia el pathname pero la OUTPUT-rewrite no lo
+  // regenera idéntico — en server `window` es undefined, no captura el
+  // slug, y publicHref termina sin el prefix. Resultado: la URL
+  // `/t/<slug>/app` redirige a `/app` server-side, en loop infinito
+  // con el `TenantUrlGuard` del cliente.
+  //
+  // Decisión: la URL queda `/app/...` (sin prefix visible). El tenant
+  // context vive en localStorage `examlab_tenant_override` para el
+  // SuperAdmin "Ver como X". Para el resto de roles, su tenant_id del
+  // profile manda y la RLS los acota. No se pierde funcionalidad —
+  // solo el "slug en URL" decorativo.
   clearLegacyOverrideStorage();
 
-  // Rewrite dinámico para el prefix `/t/<slug>`. NO usamos `basepath`
-  // porque TanStack Start hace `router.update({ basepath:
-  // process.env.TSS_ROUTER_BASEPATH })` durante la hidratación del
-  // cliente, sobrescribiendo cualquier basepath dinámico que pasemos.
-  // El `rewrite` SÍ persiste porque router-core lo guarda en
-  // `options.rewrite` y lo re-incluye en cada `update`.
-  //
-  // - INPUT del rewrite: strippea `/t/<slug>` de URLs entrantes → el
-  //   router matchea contra `/app/...`.
-  // - OUTPUT del rewrite: agrega `/t/<slug>` a URLs salientes → los
-  //   Links/navigate generan hrefs con prefix.
   const router = createRouter({
     routeTree,
     context: {},
-    rewrite: createTenantRewrite(),
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
     defaultErrorComponent: DefaultErrorComponent,
