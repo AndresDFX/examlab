@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routeTree } from "./routeTree.gen";
-import { computeRouterBasepath, clearLegacyOverrideStorage } from "@/modules/tenants/url";
+import { createTenantRewrite, clearLegacyOverrideStorage } from "@/modules/tenants/url";
 
 /**
  * Misma detección que ErrorBoundary + __root.tsx. Si cualquier ruta lazy
@@ -107,18 +107,21 @@ export const getRouter = () => {
   // verdad ahora es la URL — ver [`url.ts`](src/modules/tenants/url.ts).
   clearLegacyOverrideStorage();
 
-  // Basepath dinámico computado del URL inicial. Si la URL es
-  // `/t/fesna/app/admin/users`, el basepath es `/t/fesna` y TanStack ve
-  // `/app/admin/users` internamente — matchea las rutas existentes sin
-  // renombrarlas. Si no hay prefix (landing, auth), basepath es "".
-  // Cambiar de tenant a runtime requiere `hardNavigateToTenant()` que
-  // recarga la página para re-inicializar el router con nuevo basepath.
-  const basepath = computeRouterBasepath();
-
+  // Rewrite dinámico para el prefix `/t/<slug>`. NO usamos `basepath`
+  // porque TanStack Start hace `router.update({ basepath:
+  // process.env.TSS_ROUTER_BASEPATH })` durante la hidratación del
+  // cliente, sobrescribiendo cualquier basepath dinámico que pasemos.
+  // El `rewrite` SÍ persiste porque router-core lo guarda en
+  // `options.rewrite` y lo re-incluye en cada `update`.
+  //
+  // - INPUT del rewrite: strippea `/t/<slug>` de URLs entrantes → el
+  //   router matchea contra `/app/...`.
+  // - OUTPUT del rewrite: agrega `/t/<slug>` a URLs salientes → los
+  //   Links/navigate generan hrefs con prefix.
   const router = createRouter({
     routeTree,
     context: {},
-    basepath: basepath || undefined,
+    rewrite: createTenantRewrite(),
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
     defaultErrorComponent: DefaultErrorComponent,

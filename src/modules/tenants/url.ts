@@ -16,6 +16,7 @@
  *   - El SuperAdmin "Ver como X" se traduce a una URL real, no a un
  *     estado oculto en storage.
  */
+import type { LocationRewrite } from "@tanstack/router-core";
 import { isValidTenantSlug } from "./tenant";
 
 // Match `/t/<slug>` al inicio del path. El slug sigue las reglas del SQL
@@ -36,16 +37,72 @@ export function getTenantSlugFromUrl(pathname?: string): string | null {
 
 /**
  * Computa el basepath para TanStack Router según el URL inicial.
- * Llamado UNA SOLA VEZ en `router.tsx` al boot. Para cambiar de tenant
- * a runtime, usar `hardNavigateToTenant` (full reload).
  *
- * - `/t/fesna/app/admin/users` → basepath `/t/fesna`, router ve `/app/admin/users`.
- * - `/auth` → basepath `""`, router ve `/auth`.
- * - `/` → basepath `""`, router ve `/`.
+ * **DEPRECATED:** TanStack Start hace `router.update({ basepath:
+ * process.env.TSS_ROUTER_BASEPATH })` durante la hidratación del
+ * cliente, lo que sobrescribe el basepath dinámico que pasemos en
+ * `createRouter`. Usar `createTenantRewrite()` en su lugar — los
+ * `rewrite` SÍ persisten a través de `router.update` porque se
+ * mantienen en `router.options.rewrite` y se recomponen automáticamente
+ * cada vez que basepath cambia (ver `router-core/router.js` línea 122).
+ *
+ * Se mantiene exportada por compat con el test `url.test.ts`.
  */
 export function computeRouterBasepath(): string {
   const slug = getTenantSlugFromUrl();
   return slug ? `/t/${slug}` : "";
+}
+
+/**
+ * Crea el par de rewrites (input/output) que TanStack Router usa para
+ * traducir entre URL pública (`/t/<slug>/app/...`) y URL interna del
+ * router (`/app/...`).
+ *
+ *   - INPUT (URL pública → interna): regex-strip de `/t/<slug>` al
+ *     inicio. Stateless: aplica a CUALQUIER URL con prefix válido. Corre
+ *     tanto en server (SSR) como en cliente.
+ *   - OUTPUT (URL interna → pública): prefija con el slug capturado al
+ *     boot del cliente. En server, `window` no existe → slug=null → no-op
+ *     (server renderiza hrefs "pelados"). En cliente, slug del URL
+ *     actual.
+ *
+ * **Por qué la diferencia entre input y output:** el input es regex puro
+ * porque la URL trae el slug explícito; el output necesita un slug
+ * implícito "del contexto" porque el caller pasa solo el destino
+ * (`/app/admin/users` sin saber el tenant actual). Closure al boot
+ * captura el slug del URL en la pestaña del usuario.
+ *
+ * **Hydration mismatch:** server renderiza hrefs sin prefix, cliente los
+ * regenera con prefix → mismatch breve en `<a href>`. React lo resuelve
+ * adoptando el valor del cliente; no rompe la app. Aceptable porque las
+ * navigaciones reales pasan por `pushState` (que SÍ tiene prefix).
+ */
+export function createTenantRewrite(): LocationRewrite {
+  const initialSlug = typeof window !== "undefined" ? getTenantSlugFromUrl() : null;
+  const prefix = initialSlug ? `/t/${initialSlug}` : "";
+
+  return {
+    input: ({ url }) => {
+      // Strippea `/t/<slug>` regex-stateless. Funciona en server (SSR) y
+      // cliente. Tolera slugs distintos al `initialSlug` por si el user
+      // pega un link de otro tenant — la routing match es la misma.
+      const m = url.pathname.match(TENANT_PREFIX_RE);
+      if (m) {
+        url.pathname = url.pathname.replace(TENANT_PREFIX_RE, "") || "/";
+      }
+      return url;
+    },
+    output: ({ url }) => {
+      if (!prefix) return url;
+      // No re-prefijar si ya tiene prefix (caller paso URL absoluta).
+      if (url.pathname.startsWith(`${prefix}/`) || url.pathname === prefix) return url;
+      // Auth y landing NO deben llevar prefix — son rutas globales del
+      // sistema. Si el caller navega a /auth o /, dejamos pelado.
+      if (url.pathname === "/" || url.pathname.startsWith("/auth")) return url;
+      url.pathname = `${prefix}${url.pathname}`;
+      return url;
+    },
+  };
 }
 
 /**
