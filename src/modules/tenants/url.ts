@@ -131,7 +131,14 @@ export function buildTenantUrl(slug: string | null, path: string): string {
  */
 export function hardNavigateToTenant(slug: string | null, path: string): void {
   if (typeof window === "undefined") return;
-  window.location.href = buildTenantUrl(slug, path);
+  const target = buildTenantUrl(slug, path);
+  // Anti-loop: si el target es exactamente el URL actual (mismo path
+  // sin querystring/hash), no hacemos nada — un reload a la misma URL
+  // ejecuta los mismos effects, que podrían re-disparar el navigate y
+  // generar un loop. Esto puede pasar si dos efectos cargan estado en
+  // distinto orden y uno termina pidiendo el redirect "al mismo lugar".
+  if (window.location.pathname === target) return;
+  window.location.href = target;
 }
 
 /**

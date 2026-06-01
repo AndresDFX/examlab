@@ -137,6 +137,19 @@ export async function startImpersonate(userId: string): Promise<void> {
     throw new Error(otpErr.message);
   }
 
+  // Defensa-en-profundidad antes del hard reload: confirmar que la
+  // nueva sesión QUEDÓ persistida en storage y es legible. Hubo un
+  // caso de "infinite reload" donde el verifyOtp respondía ok pero la
+  // siguiente page-load no veía la sesión (race entre IndexedDB
+  // commit y el `window.location.href`). Si getSession devuelve null
+  // o un user distinto al target, abortamos para que el caller pueda
+  // mostrar el error en vez de dejarnos en estado roto.
+  const { data: sessCheck } = await supabase.auth.getSession();
+  if (!sessCheck.session || sessCheck.session.user.id !== target.id) {
+    localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
+    throw new Error("La sesión impersonada no se persistió correctamente. Volvé a intentar.");
+  }
+
   window.dispatchEvent(new Event("examlab:impersonation-changed"));
   // Recarga dura al URL CORRECTO del target. Antes navegábamos a `/app`
   // y dejábamos que `TenantUrlGuard` redirigiera a `/t/<slug>/app` en

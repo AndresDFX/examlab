@@ -64,13 +64,28 @@ export function useAuth() {
       }
     });
 
-    // THEN check existing session
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) loadExtras(sess.user.id).finally(() => setLoading(false));
-      else setLoading(false);
-    });
+    // THEN check existing session. Si getSession() o loadExtras
+    // rechazan (token corrupto en storage, JWT expirado, refresh
+    // fallido, query bloqueada por RLS), `setLoading(false)` NUNCA se
+    // ejecutaba sin `.catch` → la app se quedaba pegada en "Cargando…"
+    // indefinidamente. El usuario lo vivió como "infinite reload" tras
+    // impersonar. Ahora cualquier falla resuelve loading; el efecto de
+    // redirect a /auth se dispara si el user quedó null.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: sess } }) => {
+        setSession(sess);
+        setUser(sess?.user ?? null);
+        if (sess?.user)
+          loadExtras(sess.user.id)
+            .catch((e) => console.warn("[useAuth] loadExtras failed", e))
+            .finally(() => setLoading(false));
+        else setLoading(false);
+      })
+      .catch((e) => {
+        console.warn("[useAuth] getSession failed", e);
+        setLoading(false);
+      });
 
     return () => sub.subscription.unsubscribe();
   }, [loadExtras]);
