@@ -33,6 +33,29 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export const IMPERSONATION_BACKUP_KEY = "examlab_admin_impersonation_backup";
 
+/**
+ * Flag de sessionStorage que indica "estamos en pleno
+ * `startImpersonate` o `stopImpersonate`, no autoredirijas".
+ *
+ * Problema que resuelve: entre `verifyOtp` (que cambia la sesión en
+ * memoria) y `window.location.href = ...` (que dispara el reload),
+ * React procesa eventos: auth.onAuthStateChange fires, effects
+ * re-corren, RBAC/URL guards observan estado "raro" (URL del SuperAdmin
+ * + sesión del Admin) y pueden disparar redirects que se acumulan o
+ * que dejan al cliente en un estado donde, al recargar, no encuentra
+ * sesión y va a /auth.
+ *
+ * Esta flag vive en sessionStorage (NO localStorage — sessionStorage
+ * se limpia al cerrar la tab pero sobrevive el reload). Cuando está
+ * presente:
+ *   - El effect de AppLayout que redirige a /auth cuando user=null
+ *     se abstiene.
+ *   - Cualquier otro auto-redirect crítico también la chequea.
+ * Se limpia en cuanto `AppLayout` confirma que el user post-reload
+ * está estable.
+ */
+export const IMPERSONATION_TRANSITION_FLAG = "examlab_impersonating_transition";
+
 interface ImpersonationBackup {
   /** Sesión del caller original (Admin o Docente). Nombre legacy
    *  `admin_session` se mantiene para no romper backups existentes
@@ -128,12 +151,23 @@ export async function startImpersonate(userId: string): Promise<void> {
   };
   localStorage.setItem(IMPERSONATION_BACKUP_KEY, JSON.stringify(backup));
 
+  // Setear flag de transición ANTES del verifyOtp. Esto le dice a
+  // `AppLayout` y otros guards que no autodisparen redirects basados en
+  // el cambio de auth state que está por venir — sin esto, entre el
+  // `auth.onAuthStateChange` (que actualiza el user en React) y el
+  // `window.location.href` (que dispara el reload), efectos como
+  // "user=null → navega a /auth" pueden ejecutarse contra estado
+  // transitorio y dejar al cliente en /auth (causa raíz del loop
+  // observado donde el SuperAdmin terminaba reingresando con login).
+  sessionStorage.setItem(IMPERSONATION_TRANSITION_FLAG, "1");
+
   const { error: otpErr } = await supabase.auth.verifyOtp({
     token_hash: hashedToken,
     type: "email",
   });
   if (otpErr) {
     localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
+    sessionStorage.removeItem(IMPERSONATION_TRANSITION_FLAG);
     throw new Error(otpErr.message);
   }
 
@@ -147,6 +181,7 @@ export async function startImpersonate(userId: string): Promise<void> {
   const { data: sessCheck } = await supabase.auth.getSession();
   if (!sessCheck.session || sessCheck.session.user.id !== target.id) {
     localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
+    sessionStorage.removeItem(IMPERSONATION_TRANSITION_FLAG);
     throw new Error("La sesión impersonada no se persistió correctamente. Volvé a intentar.");
   }
 
@@ -168,6 +203,10 @@ export async function startImpersonate(userId: string): Promise<void> {
 export async function stopImpersonate(): Promise<void> {
   const backup = readBackup();
   if (!backup) return;
+
+  // Flag de transición: bloqueamos auto-redirects mientras volvemos a
+  // la sesión del caller. Mismo motivo que startImpersonate.
+  sessionStorage.setItem(IMPERSONATION_TRANSITION_FLAG, "1");
 
   try {
     const { error } = await supabase.auth.setSession({

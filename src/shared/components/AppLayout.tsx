@@ -45,6 +45,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { ensurePushSubscription } from "@/modules/notifications/push-subscription";
 import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
+import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -572,8 +573,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Don't redirect mid-exam: TakeExam's submit/exit logic handles navigation.
-    if (!loading && !user && !isTakingExam) navigate({ to: "/auth" });
+    if (!loading && !user && !isTakingExam) {
+      // Tampoco redirigir si estamos en pleno start/stop de impersonación
+      // — la transición de session puede dejar a `user` momentáneamente
+      // null antes que el hard reload tome efecto. Si redirigíamos
+      // aquí, el reload aterrizaba en /auth y el caller tenía que
+      // re-loguearse (loop observado tras `auth.verifyOtp`).
+      if (sessionStorage.getItem(IMPERSONATION_TRANSITION_FLAG) === "1") return;
+      navigate({ to: "/auth" });
+    }
   }, [loading, user, navigate, isTakingExam]);
+
+  // Una vez confirmamos que el user post-reload está estable (loading
+  // false + user no null), limpiamos el flag de transición — su único
+  // propósito era proteger la ventana entre `verifyOtp` y el hard
+  // reload, y ya cumplió.
+  useEffect(() => {
+    if (!loading && user) {
+      sessionStorage.removeItem(IMPERSONATION_TRANSITION_FLAG);
+    }
+  }, [loading, user]);
 
   useEffect(() => {
     if (roles.length && !activeRole) {
