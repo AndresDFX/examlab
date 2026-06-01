@@ -23,19 +23,63 @@ import { isValidTenantSlug } from "@/modules/tenants/tenant";
 
 const OVERRIDE_KEY = "examlab_tenant_override";
 
-/** Lee el slug override desde localStorage (SuperAdmin "ver como"). */
+/**
+ * TTL del override en ms. Si el SuperAdmin dejó "Ver como X" activo y
+ * pasaron más de 60 min sin tocarlo, lo descartamos al leer.
+ *
+ * Por qué: olvidarse del override es fácil (cerrar tab, irse a almorzar,
+ * volver). Sin TTL el branding del último tenant visto puede persistir
+ * indefinidamente, lo cual es UX confusa (¿soy yo o estoy viendo como X?).
+ * No es control de seguridad — la RLS ya bloquea acceso real cross-tenant
+ * para non-SuperAdmin; y para SuperAdmin el override es legítimo. Es un
+ * nudge para que el modo "ver como" no se pegue.
+ */
+const OVERRIDE_TTL_MS = 60 * 60 * 1000;
+
+interface StoredOverride {
+  slug: string;
+  /** epoch ms cuando se setteó / refrescó. */
+  ts: number;
+}
+
+function parseStored(raw: string | null): StoredOverride | null {
+  if (!raw) return null;
+  // Soporte retro: si vino el slug "pelado" (versión vieja), lo aceptamos
+  // sin TTL y migramos al setear de nuevo. Evita romper sesiones activas.
+  if (isValidTenantSlug(raw)) return { slug: raw, ts: Date.now() };
+  try {
+    const obj = JSON.parse(raw) as Partial<StoredOverride>;
+    if (typeof obj.slug === "string" && isValidTenantSlug(obj.slug) && typeof obj.ts === "number") {
+      return { slug: obj.slug, ts: obj.ts };
+    }
+  } catch {
+    // Basura — caemos al null.
+  }
+  return null;
+}
+
+/**
+ * Lee el slug override desde localStorage (SuperAdmin "ver como").
+ * Si pasaron más de `OVERRIDE_TTL_MS` desde el último set, expira: limpia
+ * el storage y devuelve null.
+ */
 export function readTenantOverride(): string | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(OVERRIDE_KEY);
-  if (!raw || !isValidTenantSlug(raw)) return null;
-  return raw;
+  const stored = parseStored(window.localStorage.getItem(OVERRIDE_KEY));
+  if (!stored) return null;
+  if (Date.now() - stored.ts > OVERRIDE_TTL_MS) {
+    window.localStorage.removeItem(OVERRIDE_KEY);
+    return null;
+  }
+  return stored.slug;
 }
 
 /** Escribe el slug override en localStorage. Pasar null para limpiar. */
 export function setTenantOverride(slug: string | null): void {
   if (typeof window === "undefined") return;
   if (slug && isValidTenantSlug(slug)) {
-    window.localStorage.setItem(OVERRIDE_KEY, slug);
+    const payload: StoredOverride = { slug, ts: Date.now() };
+    window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify(payload));
   } else {
     window.localStorage.removeItem(OVERRIDE_KEY);
   }
@@ -43,6 +87,16 @@ export function setTenantOverride(slug: string | null): void {
   // localStorage 'storage' event solo dispara en OTRAS pestañas; para
   // refresh dentro de la misma pestaña usamos un CustomEvent custom.
   window.dispatchEvent(new CustomEvent("examlab:tenant-override-changed"));
+}
+
+/**
+ * Clears the override sin notificar (para usar cuando ya estás en un
+ * effect que va a re-resolver el tenant igual, evita doble fetch).
+ * Útil para `TenantOverrideBanner` cuando detecta que el slug es inválido.
+ */
+export function clearTenantOverrideSilent(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(OVERRIDE_KEY);
 }
 
 export interface UseTenantResult {
@@ -84,14 +138,22 @@ export function useTenant(): UseTenantResult {
         if (dbErr) {
           setError("load_error");
           setTenant(null);
-        } else if (!data) {
+          setLoading(false);
+          return;
+        }
+        if (!data) {
+          // Override stale (renombrado / eliminado). Limpiamos silencioso
+          // y caemos al camino normal (tenant del profile) en el próximo
+          // tick — evita dejar el branding pegado en un slug inválido.
+          clearTenantOverrideSilent();
           setError("override_not_found");
-          setTenant(null);
+          // No retornamos acá — seguimos al fallback de profile.tenant_id
+          // dentro de la misma corrida del effect.
         } else {
           setTenant(data as Tenant);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
       }
 
       // Camino normal: tenant del profile.

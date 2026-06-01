@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
-import { readTenantOverride, setTenantOverride } from "./use-tenant";
+import { readTenantOverride, setTenantOverride, clearTenantOverrideSilent } from "./use-tenant";
 
 interface TenantInfo {
   slug: string;
@@ -71,7 +71,16 @@ export function TenantOverrideBanner() {
         .eq("slug", overrideSlug)
         .maybeSingle();
       if (cancelled) return;
-      setTenantInfo((data as TenantInfo | null) ?? { slug: overrideSlug, name: overrideSlug });
+      if (!data) {
+        // El slug del override no corresponde a ningún tenant (renombrado,
+        // eliminado o nunca existió). Auto-limpiamos para que el resto de
+        // la app no quede en estado raro mostrando branding inválido.
+        clearTenantOverrideSilent();
+        setOverrideSlug(null);
+        setTenantInfo(null);
+        return;
+      }
+      setTenantInfo(data as TenantInfo);
     })();
     return () => {
       cancelled = true;
@@ -96,8 +105,7 @@ export function TenantOverrideBanner() {
       <div className="flex items-center gap-2 text-sm font-medium min-w-0">
         <Eye className="h-4 w-4 shrink-0" />
         <span className="truncate">
-          {t("tenant.overrideBannerViewingAs")}{" "}
-          <strong>{tenantInfo?.name ?? overrideSlug}</strong>
+          {t("tenant.overrideBannerViewingAs")} <strong>{tenantInfo?.name ?? overrideSlug}</strong>
           <span className="hidden sm:inline text-blue-100 font-normal">
             {" — "}
             {t("tenant.overrideBannerHint")}

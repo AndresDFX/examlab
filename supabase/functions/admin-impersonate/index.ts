@@ -3,26 +3,31 @@
  *
  * Permite "iniciar sesión como" otro usuario sin conocer su contraseña
  * — útil para diagnosticar problemas reportados desde la perspectiva
- * del usuario afectado. Dos roles autorizados con scopes distintos:
+ * del usuario afectado. Tres roles autorizados con scopes distintos:
  *
- *   - Admin: puede impersonar a CUALQUIER usuario no-Admin.
- *   - Docente: solo puede impersonar a ESTUDIANTES matriculados en un
- *     curso donde el Docente esté asignado (course_teachers). Esto
- *     evita que un Docente espíe a colegas o a estudiantes de cursos
- *     ajenos.
+ *   - SuperAdmin: puede impersonar a CUALQUIER usuario (Admin, Docente
+ *     o Estudiante) de CUALQUIER tenant. Es el único rol cross-tenant
+ *     en la plataforma. NO puede impersonar a otro SuperAdmin.
+ *   - Admin: puede impersonar a usuarios no-Admin DE SU MISMO TENANT.
+ *   - Docente: solo puede impersonar a ESTUDIANTES de su mismo tenant
+ *     que estén matriculados en al menos uno de sus cursos
+ *     (course_teachers). Esto evita que un Docente espíe a colegas o a
+ *     estudiantes de cursos ajenos.
  *
  * Flujo:
- *   1. Valida que el caller esté autenticado y tenga rol Admin o Docente.
- *   2. Valida que el target NO sea Admin (no se permite impersonar a
- *      otros administradores — evita escalación lateral). Para Docente
- *      también se rechaza si el target es otro Docente.
- *   3. Si el caller es Docente: chequea overlap de cursos (target
+ *   1. Valida que el caller esté autenticado y tenga rol SuperAdmin,
+ *      Admin o Docente.
+ *   2. Valida que el target NO sea SuperAdmin (nunca impersonable) y
+ *      que respete las reglas de jerarquía de roles del caller.
+ *   3. Si el caller NO es SuperAdmin, valida que caller y target estén
+ *      en el MISMO tenant (defensa-en-profundidad sobre la RLS).
+ *   4. Si el caller es Docente: chequea overlap de cursos (target
  *      enrollado en al menos un curso que el caller enseña).
- *   4. Genera un magic link `type=magiclink` con la Admin API de
+ *   5. Genera un magic link `type=magiclink` con la Admin API de
  *      Supabase y devuelve el `hashed_token` al cliente. El cliente
  *      llama `auth.verifyOtp({ token_hash, type: 'email' })` para
  *      cambiar de sesión sin redirect.
- *   5. Registra el evento en audit_logs con severidad warning.
+ *   6. Registra el evento en audit_logs con severidad warning.
  *
  * El cliente es responsable de guardar la sesión original en
  * localStorage ANTES de cambiar de cuenta — para poder restaurarla con
@@ -31,7 +36,13 @@
  * Body: { userId: string }
  * Response: { ok, hashed_token, email, target: { id, full_name, email } }
  */
-import { adminClient as admin, userClientFromRequest, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
+import {
+  adminClient as admin,
+  userClientFromRequest,
+  corsHeaders,
+  jsonError,
+  jsonResponse,
+} from "../_shared/admin.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -49,9 +60,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
-    const callerRoleSet = new Set(
-      ((callerRoles ?? []) as { role: string }[]).map((r) => r.role),
-    );
+    const callerRoleSet = new Set(((callerRoles ?? []) as { role: string }[]).map((r) => r.role));
     const callerIsAdmin = callerRoleSet.has("Admin");
     const callerIsDocente = callerRoleSet.has("Docente");
     const callerIsSuperAdmin = callerRoleSet.has("SuperAdmin");
@@ -79,9 +88,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", targetId);
-    const targetRoleSet = new Set(
-      ((targetRoles ?? []) as { role: string }[]).map((r) => r.role),
-    );
+    const targetRoleSet = new Set(((targetRoles ?? []) as { role: string }[]).map((r) => r.role));
     // Reglas de impersonación:
     //   - SuperAdmin: puede impersonar Admin/Docente/Estudiante de
     //     cualquier tenant (su rol es cross-tenant; debe poder entrar
@@ -97,6 +104,26 @@ Deno.serve(async (req) => {
     }
     if (!callerIsAdmin && !callerIsSuperAdmin && targetRoleSet.has("Docente")) {
       return jsonError("Como Docente solo puedes impersonar estudiantes", 403);
+    }
+
+    // Aislamiento por tenant: SOLO SuperAdmin opera cross-tenant. Para
+    // Admin y Docente exigimos explícitamente que caller y target
+    // pertenezcan al mismo tenant. La RLS de course_enrollments / users
+    // ya filtra intra-tenant, pero acá agregamos defensa-en-profundidad
+    // — fail-closed con error claro en vez de devolver 403 difuso por
+    // RLS empty result.
+    if (!callerIsSuperAdmin) {
+      const [callerProf, targetProf] = await Promise.all([
+        admin.from("profiles").select("tenant_id").eq("id", caller.id).maybeSingle(),
+        admin.from("profiles").select("tenant_id").eq("id", targetId).maybeSingle(),
+      ]);
+      const callerTenant =
+        (callerProf.data as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+      const targetTenant =
+        (targetProf.data as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+      if (!callerTenant || !targetTenant || callerTenant !== targetTenant) {
+        return jsonError("El usuario pertenece a otra institución", 403);
+      }
     }
 
     // Si el caller es SOLO Docente (no también Admin ni SuperAdmin),
@@ -121,10 +148,7 @@ Deno.serve(async (req) => {
         .in("course_id", callerCourseIds);
       const overlapped = (targetEnroll ?? []).length > 0;
       if (!overlapped) {
-        return jsonError(
-          "El estudiante no está matriculado en ninguno de tus cursos",
-          403,
-        );
+        return jsonError("El estudiante no está matriculado en ninguno de tus cursos", 403);
       }
     }
 
@@ -147,10 +171,7 @@ Deno.serve(async (req) => {
     });
     const hashedToken = linkData?.properties?.hashed_token;
     if (linkErr || !hashedToken) {
-      return jsonError(
-        `No se pudo generar el link: ${linkErr?.message ?? "respuesta vacía"}`,
-        500,
-      );
+      return jsonError(`No se pudo generar el link: ${linkErr?.message ?? "respuesta vacía"}`, 500);
     }
 
     // Cargar el nombre del target para devolverlo y mostrar en el banner.
@@ -166,11 +187,7 @@ Deno.serve(async (req) => {
     // scope real — SuperAdmin (cross-tenant), Admin (sin restricción
     // intra-tenant) o Docente (acotado a sus cursos). El metadata
     // incluye el rol efectivo usado.
-    const actorRole = callerIsSuperAdmin
-      ? "superadmin"
-      : callerIsAdmin
-        ? "admin"
-        : "teacher";
+    const actorRole = callerIsSuperAdmin ? "superadmin" : callerIsAdmin ? "admin" : "teacher";
     try {
       await userClient.rpc("log_audit_event", {
         p_action: `${actorRole}.impersonation.start`,
