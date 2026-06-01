@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -132,6 +133,13 @@ function AdminUsers() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [password, setPassword] = useState("");
+  // Si true, al crear el usuario se marca `must_change_password=true` en
+  // el profile → el primer login le exige cambiar la contraseña antes
+  // de usar la app (diálogo bloqueante en AppLayout). Default true por
+  // seguridad — la contraseña inicial la ve quien creó al usuario.
+  // El admin puede desactivar este toggle cuando crea cuentas de
+  // sistema/integraciones que no son de humano.
+  const [forcePasswordChange, setForcePasswordChange] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
@@ -387,6 +395,9 @@ function AdminUsers() {
   const openNew = () => {
     setEditing({ ...EMPTY_NEW });
     setPassword("");
+    // Cada usuario nuevo arranca con el default (true) — más seguro que
+    // heredar la elección del usuario creado anteriormente.
+    setForcePasswordChange(true);
     setEnrollCourseId(null);
     setDialogOpen(true);
   };
@@ -611,6 +622,11 @@ function AdminUsers() {
                 personal_email: editing.personal_email ?? "",
                 password,
                 roles: editing.roles.join("|"),
+                // Pasamos explícitamente true/false para que el edge no
+                // tenga que adivinar la intención. Si el caller fuera
+                // legacy (CSV viejo) sin este campo, la edge cae al
+                // default `true` por backward-compat.
+                force_password_change: forcePasswordChange,
               },
             ],
           },
@@ -1083,17 +1099,40 @@ function AdminUsers() {
                 />
               </div>
               {!editing.id && (
-                <div>
-                  <Label required>Contraseña inicial</Label>
-                  <Input
-                    type="text"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    El usuario podrá cambiarla después.
-                  </p>
+                <div className="space-y-2">
+                  <div>
+                    <Label required>Contraseña inicial</Label>
+                    <Input
+                      type="text"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                    />
+                  </div>
+                  {/* Toggle "pedir cambio en el primer login". Default ON
+                      por seguridad — la contraseña inicial la conoce el
+                      Admin que crea al usuario, no es ideal mantenerla.
+                      OFF para cuentas de sistema/integraciones o cuando
+                      el Admin coordina la contraseña offline. Cuando
+                      OFF, NO se envía el correo de bienvenida con link
+                      de definir contraseña (la edge lo omite). */}
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-2.5">
+                    <div className="space-y-0.5 min-w-0">
+                      <Label htmlFor="force-pwd-change" className="text-sm font-medium">
+                        Pedir cambio de contraseña en el primer login
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        {forcePasswordChange
+                          ? "El usuario deberá cambiar la contraseña antes de usar la app. Se envía un correo de bienvenida con un link para definirla."
+                          : "El usuario podrá usar la contraseña inicial directamente. NO se envía correo de bienvenida — coordina la contraseña con el usuario."}
+                      </p>
+                    </div>
+                    <Switch
+                      id="force-pwd-change"
+                      checked={forcePasswordChange}
+                      onCheckedChange={setForcePasswordChange}
+                    />
+                  </div>
                 </div>
               )}
               {editing.id && (
