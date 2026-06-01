@@ -1183,7 +1183,11 @@ function AdminUsers() {
                       ? ", o dejarlo sin institución para que opere cross-tenant."
                       : "."}
                     {editing.id &&
+                      !editing.roles.includes("SuperAdmin") &&
                       " Cambiar el valor falla si el usuario ya tiene cursos en la institución actual."}
+                    {editing.id &&
+                      editing.roles.includes("SuperAdmin") &&
+                      " Los SuperAdmin pueden cambiar de institución libremente — sus cursos quedan ligados al tenant original, pero siguen accesibles porque su rol bypassa la RLS."}
                   </p>
                 </div>
               )}
