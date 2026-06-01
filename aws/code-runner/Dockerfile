@@ -6,13 +6,18 @@
 #
 # Capacidades:
 #  - Modo `run` (default): compila + ejecuta Java por consola.
-#  - Modo `gui_screenshot`: ejecuta Java Swing/AWT/JavaFX bajo Xvfb
-#    (display virtual sin pantalla) y captura un PNG del frame, base64
-#    al cliente. Ver opción 2 en docs/JAVA-GUI-OPTIONS.md.
+#  - Modo `gui_screenshot`: ejecuta Java Swing/AWT bajo Xvfb (display
+#    virtual sin pantalla) y captura un PNG del frame, base64 al cliente.
+#  - Modo `gui_screenshot` con `framework=javafx`: ejecuta JavaFX
+#    (OpenJFX 21) usando el mismo Xvfb. JavaFX no es parte de la JRE
+#    desde Java 11, hay que instalarlo aparte (ver bloque OPENJFX
+#    abajo) y pasar `--module-path $JAVAFX_HOME/lib --add-modules
+#    javafx.controls,javafx.fxml,javafx.graphics` + flags Prism para
+#    forzar rendering por software (no hay GPU en Lambda).
 #
-# Tamaño final: ~620MB (sube ~140MB respecto al modo solo-consola por
-# Xvfb + ImageMagick + libs X11). Cabe holgado en ECR si mantienes
-# pocas tags antiguas — el deploy script setea lifecycle policy.
+# Tamaño final: ~770MB (Corretto 21 + Xvfb + libs X11 + OpenJFX 21).
+# Cabe holgado en ECR si mantienes pocas tags antiguas — el deploy
+# script setea lifecycle policy.
 #
 # Build (AMD64 — Lambda x86_64 por defecto):
 #   docker build --platform linux/amd64 -t examlab-code-runner .
@@ -185,6 +190,48 @@ RUN java -version \
 COPY GuiBootstrap.java /opt/GuiBootstrap.java
 RUN javac -d /opt /opt/GuiBootstrap.java \
  && ls -la /opt/GuiBootstrap.class
+
+# ── OPENJFX 21 (JavaFX) ──────────────────────────────────────────────
+# Instalamos el SDK de OpenJFX matching la versión del JDK (Java 21
+# LTS). JavaFX vive como módulos separados desde Java 11; no se puede
+# usar con la JRE base. Modules disponibles tras esto:
+#   javafx.base, javafx.controls, javafx.graphics, javafx.fxml,
+#   javafx.media, javafx.swing, javafx.web
+# Para uso académico solo cargamos controls/fxml/graphics (95% de
+# casos) — media/web requieren codecs nativos extra que abultan otros
+# ~80MB y rara vez se enseñan en una intro a JavaFX.
+#
+# Source: gluonhq (canonical build de OpenJFX, mismo binario que se
+# publica en openjfx.io). Versión 21.0.5 LTS — última con soporte
+# extendido al momento del build.
+#
+# Tamaño: ~135MB unzipped. Lo dejamos en /opt/javafx-sdk-21 con un
+# ENV apuntando al lib/ que es lo que `--module-path` espera.
+ARG OPENJFX_VERSION=21.0.5
+ENV JAVAFX_HOME=/opt/javafx-sdk-21
+RUN curl -fSL -o /tmp/openjfx.zip \
+      "https://download2.gluonhq.com/openjfx/${OPENJFX_VERSION}/openjfx-${OPENJFX_VERSION}_linux-x64_bin-sdk.zip" \
+ && unzip -q /tmp/openjfx.zip -d /opt \
+ && mv "/opt/javafx-sdk-${OPENJFX_VERSION}" "$JAVAFX_HOME" \
+ && rm /tmp/openjfx.zip \
+ # Sanity: lib/ debe contener los JARs de los modules principales.
+ && test -f "$JAVAFX_HOME/lib/javafx.controls.jar" \
+ && test -f "$JAVAFX_HOME/lib/javafx.graphics.jar" \
+ # Limpieza: src.zip de cada module (no se usa en runtime, ~40MB).
+ && rm -f "$JAVAFX_HOME"/lib/src.zip \
+ && ls -la "$JAVAFX_HOME/lib"/*.jar | head -10
+
+# Wrapper análogo a GuiBootstrap pero para JavaFX. Detecta si la clase
+# del estudiante extiende `javafx.application.Application` y la invoca
+# con `Application.launch(...)`; sino cae al patrón `main()` del
+# GuiBootstrap clásico. Compilamos contra `javafx.graphics` (que ya
+# trae Application).
+COPY JavaFxBootstrap.java /opt/JavaFxBootstrap.java
+RUN javac \
+      --module-path "$JAVAFX_HOME/lib" \
+      --add-modules javafx.graphics \
+      -d /opt /opt/JavaFxBootstrap.java \
+ && ls -la /opt/JavaFxBootstrap.class
 
 # Handler de Lambda (Python wrapper que llama a javac + java).
 COPY app.py ${LAMBDA_TASK_ROOT}/

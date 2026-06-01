@@ -2183,6 +2183,10 @@ export function StudentProjectTaker({
                 value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
                 onChange={(v) => updateAnswer(q.id, v)}
                 height="280px"
+                framework={
+                  (q.options as { java_framework?: "swing" | "javafx" } | null)?.java_framework ??
+                  "swing"
+                }
               />
             )}
             {q.type === "codigo_zip" &&

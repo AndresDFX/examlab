@@ -39,13 +39,21 @@ import {
   clearLocalAnswers,
 } from "@/modules/exams/offline-sync";
 import { useTranslation } from "react-i18next";
-import { computeSecondsLeft, computeSecondsLeftRelative, isExamOpen } from "@/modules/exams/exam-time";
+import {
+  computeSecondsLeft,
+  computeSecondsLeftRelative,
+  isExamOpen,
+} from "@/modules/exams/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/modules/exams/proctoring";
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/modules/exams/ExamNotesManager";
 import { logEvent } from "@/shared/lib/audit";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
-import { computeExtraSeconds, applyExtraTime, restoreQuestionIndex } from "@/modules/exams/exam-session";
+import {
+  computeExtraSeconds,
+  applyExtraTime,
+  restoreQuestionIndex,
+} from "@/modules/exams/exam-session";
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
@@ -962,15 +970,12 @@ function TakeExam() {
           if (!e) return;
           const newEndTime = (updated.end_time as string | undefined) ?? e.end_time;
           const newStartTime = (updated.start_time as string | undefined) ?? e.start_time;
-          const newLimit = (updated.time_limit_minutes as number | undefined) ?? e.time_limit_minutes;
+          const newLimit =
+            (updated.time_limit_minutes as number | undefined) ?? e.time_limit_minutes;
           const newScheduleType = (updated.schedule_type as string | undefined) ?? e.schedule_type;
           const newSeconds =
             newScheduleType === "relativo"
-              ? computeSecondsLeftRelative(
-                  submissionStartedAtRef.current,
-                  newLimit,
-                  newEndTime,
-                )
+              ? computeSecondsLeftRelative(submissionStartedAtRef.current, newLimit, newEndTime)
               : computeSecondsLeft(newEndTime);
           syncToSeconds(Math.max(0, newSeconds));
           setExam((prev) =>
@@ -1725,9 +1730,7 @@ function TakeExam() {
                 ) : q.type === "cerrada_multi" && q.options?.choices ? (
                   <div className="space-y-1.5">
                     {(() => {
-                      const sel = Array.isArray(answers[q.id])
-                        ? (answers[q.id] as number[])
-                        : [];
+                      const sel = Array.isArray(answers[q.id]) ? (answers[q.id] as number[]) : [];
                       const minS = q.options?.min_selections;
                       const maxS = q.options?.max_selections;
                       const hint =
@@ -1753,9 +1756,7 @@ function TakeExam() {
                                   checked={checked}
                                   onChange={(e) => {
                                     const next = e.target.checked
-                                      ? Array.from(new Set([...sel, ci])).sort(
-                                          (a, b) => a - b,
-                                        )
+                                      ? Array.from(new Set([...sel, ci])).sort((a, b) => a - b)
                                       : sel.filter((x) => x !== ci);
                                     updateAnswer(q.id, next);
                                     saveAnswersNow();
@@ -1821,6 +1822,10 @@ function TakeExam() {
                       value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
                       onChange={(v) => updateAnswer(q.id, v)}
                       height="280px"
+                      framework={
+                        (q.options as { java_framework?: "swing" | "javafx" } | null)
+                          ?.java_framework ?? "swing"
+                      }
                     />
                   </div>
                 ) : (

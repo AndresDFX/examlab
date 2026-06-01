@@ -52,6 +52,10 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatFileSize } from "@/shared/lib/format";
 
 type JavaGuiMode = "cheerp" | "aws_screenshot";
+/** Framework GUI Java. Solo aplica al runner `aws_screenshot` —
+ *  CheerpJ no incluye OpenJFX (los modules requieren nativos Prism).
+ *  Default `swing`. */
+export type JavaGuiFramework = "swing" | "javafx";
 
 declare global {
   interface Window {
@@ -99,6 +103,48 @@ function loadToolsJar(): Promise<Uint8Array> {
 }
 
 const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/4.3/loader.js";
+
+/**
+ * Snippet inicial para preguntas JavaFX. NO incluye `Application.launch()`
+ * en el `main` — el `JavaFxBootstrap` server-side lo invoca por reflection
+ * cuando detecta `extends Application`. Aún así dejamos el `main` con la
+ * llamada porque permite al alumno compilar/correr local en su IDE.
+ */
+export const JAVAFX_STARTER = `import javafx.application.Application;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
+import javafx.geometry.Pos;
+import javafx.geometry.Insets;
+import javafx.stage.Stage;
+
+public class Main extends Application {
+    @Override
+    public void start(Stage stage) {
+        Label label = new Label("¡Hola, mundo desde JavaFX!");
+        label.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+        Button btn = new Button("Saludar");
+        btn.setOnAction(e -> label.setText("¡Hola, " + System.currentTimeMillis() + "!"));
+
+        VBox root = new VBox(12, label, btn);
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(24));
+
+        stage.setScene(new Scene(root, 420, 240));
+        stage.setTitle("Hola JavaFX");
+        stage.show();
+    }
+
+    // Permite correr local desde IDE. En el runner del servidor NO se
+    // invoca este \`main\`: el wrapper JavaFxBootstrap detecta que la
+    // clase extiende Application y llama Application.launch directamente.
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
+`;
 
 export const JAVA_GUI_STARTER = `import javax.swing.*;
 import java.awt.*;
@@ -182,6 +228,11 @@ interface Props {
   readOnly?: boolean;
   /** Bloquea silenciosamente copiar/pegar/cortar dentro del editor. */
   blockClipboard?: boolean;
+  /** Framework GUI requerido por la pregunta. Si la pregunta no lo
+   *  especifica, default `swing`. Solo aplica al modo `aws_screenshot`
+   *  (CheerpJ no soporta JavaFX). El alumno puede overridearlo desde
+   *  el selector si el modo lo permite. */
+  framework?: JavaGuiFramework;
 }
 
 export function JavaGuiRunner({
@@ -190,6 +241,7 @@ export function JavaGuiRunner({
   height = "320px",
   readOnly = false,
   blockClipboard = false,
+  framework: defaultFramework = "swing",
 }: Props) {
   const editorRef = useRef<any>(null);
   const displayRef = useRef<HTMLDivElement>(null);
@@ -217,6 +269,11 @@ export function JavaGuiRunner({
   // mientras carga para no bloquear el render del editor.
   const [mode, setMode] = useState<JavaGuiMode>("cheerp");
   const [modeLoaded, setModeLoaded] = useState(false);
+  // Framework GUI. La pregunta puede especificar JavaFX vía prop; el
+  // alumno puede override si está en modo aws_screenshot. En modo
+  // cheerp el framework se fuerza a swing (CheerpJ no tiene OpenJFX).
+  const [framework, setFramework] = useState<JavaGuiFramework>(defaultFramework);
+  const effectiveFramework: JavaGuiFramework = mode === "cheerp" ? "swing" : framework;
 
   // Estado del modo screenshot (PNG + stdout/stderr del runner).
   const [screenshotData, setScreenshotData] = useState<{
@@ -327,6 +384,7 @@ export function JavaGuiRunner({
         body: {
           sourceCode: source,
           questionId: "java_gui_runner_preview",
+          framework: effectiveFramework,
         },
       });
       // Race contra cancel — si el alumno pulsa Cancelar mientras el
@@ -510,6 +568,9 @@ export function JavaGuiRunner({
             {mode === "aws_screenshot" ? (
               <>
                 <Camera className="h-3 w-3" /> Java GUI — captura PNG
+                {framework === "javafx" && (
+                  <span className="ml-1 text-[10px] text-muted-foreground">(JavaFX)</span>
+                )}
               </>
             ) : (
               <>
@@ -534,6 +595,26 @@ export function JavaGuiRunner({
               <SelectContent>
                 <SelectItem value="cheerp">CheerpJ (navegador)</SelectItem>
                 <SelectItem value="aws_screenshot">AWS Lambda — captura</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {/* Selector de framework GUI Java. Solo aparece en modo
+              `aws_screenshot` — CheerpJ no incluye OpenJFX (los
+              modules requieren libs nativas Prism que no compilan a
+              WASM). Si la pregunta exige JavaFX, el estudiante
+              debería usar el modo AWS.  */}
+          {modeLoaded && mode === "aws_screenshot" && (
+            <Select
+              value={framework}
+              disabled={readOnly || running || loadingCJ}
+              onValueChange={(v) => setFramework(v as JavaGuiFramework)}
+            >
+              <SelectTrigger className="h-7 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="swing">Swing / AWT</SelectItem>
+                <SelectItem value="javafx">JavaFX</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -573,9 +654,11 @@ export function JavaGuiRunner({
       <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
         <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
         <span>
-          {mode === "aws_screenshot"
-            ? "Tu código corre en el servidor y solo recibes una captura de pantalla — no podrás interactuar (clicks, teclas) con la ventana. Diseña la UI con valores iniciales visibles."
-            : "La primera ejecución tarda más porque el navegador descarga la máquina virtual de Java una sola vez. Las siguientes son inmediatas."}
+          {mode === "aws_screenshot" && framework === "javafx"
+            ? "JavaFX en el servidor — render por software (sin GPU). Tu clase debe extender javafx.application.Application; no llames Application.launch() vos, el runner lo hace. Diseña la UI con valores iniciales visibles."
+            : mode === "aws_screenshot"
+              ? "Tu código corre en el servidor y solo recibes una captura de pantalla — no podrás interactuar (clicks, teclas) con la ventana. Diseña la UI con valores iniciales visibles."
+              : "La primera ejecución tarda más porque el navegador descarga la máquina virtual de Java una sola vez. Las siguientes son inmediatas."}
         </span>
       </div>
 
@@ -738,11 +821,13 @@ export function JavaGuiRunner({
                               </p>
                               <p className="text-amber-900 dark:text-amber-200 mt-0.5">
                                 Tu <code className="font-mono">main</code> terminó antes de que
-                                Swing pintara. Agrega <code className="font-mono">Thread.sleep(5000);</code>{" "}
-                                al final de <code className="font-mono">main</code> (con{" "}
+                                Swing pintara. Agrega{" "}
+                                <code className="font-mono">Thread.sleep(5000);</code> al final de{" "}
+                                <code className="font-mono">main</code> (con{" "}
                                 <code className="font-mono">throws Exception</code> en la firma), o
                                 envuelve la creación del JFrame en{" "}
-                                <code className="font-mono">SwingUtilities.invokeAndWait(...)</code>.
+                                <code className="font-mono">SwingUtilities.invokeAndWait(...)</code>
+                                .
                               </p>
                             </div>
                           )}

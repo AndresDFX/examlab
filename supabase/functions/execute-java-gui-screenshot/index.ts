@@ -30,6 +30,10 @@ interface ScreenshotRequest {
   questionId: string;
   submissionId?: string;
   delayMs?: number;
+  /** "swing" (default) — JDK base, AWT/Swing bajo Xvfb.
+   *  "javafx" — OpenJFX 21 con `--module-path` + Prism software render.
+   *  Cualquier otro valor → tratado como "swing" en Lambda. */
+  framework?: "swing" | "javafx";
 }
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -47,13 +51,16 @@ Deno.serve(async (req) => {
 
   try {
     const body: ScreenshotRequest = await req.json();
-    const { sourceCode, questionId, submissionId, delayMs } = body;
+    const { sourceCode, questionId, submissionId, delayMs, framework } = body;
+    // Normalizar framework. Lambda también valida defensivamente.
+    const normalizedFramework: "swing" | "javafx" = framework === "javafx" ? "javafx" : "swing";
 
     Object.assign(requestContext, {
       questionId,
       submissionId: submissionId ?? null,
       source_length: sourceCode?.length ?? 0,
       delayMs: delayMs ?? null,
+      framework: normalizedFramework,
     });
 
     if (!sourceCode?.trim()) return jsonResponse(400, { error: "sourceCode requerido" });
@@ -109,6 +116,7 @@ Deno.serve(async (req) => {
         mode: "gui_screenshot",
         sourceCode,
         delayMs: typeof delayMs === "number" ? delayMs : undefined,
+        framework: normalizedFramework,
       }),
     });
     const totalMs = Date.now() - startTime;

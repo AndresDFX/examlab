@@ -38,7 +38,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { CodeEditor, getStarterCode } from "@/modules/code/CodeEditor";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
-import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
+import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
@@ -117,6 +117,9 @@ export function TeacherWorkshopQuestionsEditor({
   // multi-archivo. La columna `workshop_questions.zip_single` se agrega
   // en la migración 20260607010000.
   const [qZipSingle, setQZipSingle] = useState(false);
+  // Framework GUI para preguntas `java_gui`. Se persiste en
+  // `options.java_framework`. Default "swing" para retro-compat.
+  const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
 
   const resetForm = () => {
     setEditingId(null);
@@ -131,6 +134,7 @@ export function TeacherWorkshopQuestionsEditor({
     setQPoints(1);
     setQLanguage("java");
     setQZipSingle(false);
+    setQJavaFramework("swing");
   };
 
   const loadIntoForm = (q: WorkshopQuestion) => {
@@ -150,6 +154,8 @@ export function TeacherWorkshopQuestionsEditor({
     setQPoints(q.points);
     setQLanguage(q.language ?? "java");
     setQZipSingle(!!q.zip_single);
+    const fw = (q.options as { java_framework?: string } | null)?.java_framework;
+    setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
     setActiveTab("manual");
   };
 
@@ -210,7 +216,9 @@ export function TeacherWorkshopQuestionsEditor({
               ...(typeof qMinSelections === "number" ? { min_selections: qMinSelections } : {}),
               ...(typeof qMaxSelections === "number" ? { max_selections: qMaxSelections } : {}),
             }
-          : null;
+          : qType === "java_gui"
+            ? { java_framework: qJavaFramework }
+            : null;
     const language =
       qType === "codigo" || qType === "codigo_zip"
         ? qLanguage
@@ -255,7 +263,9 @@ export function TeacherWorkshopQuestionsEditor({
         zip_single: qType === "codigo_zip" ? qZipSingle : false,
         starter_code:
           qType === "java_gui"
-            ? JAVA_GUI_STARTER
+            ? qJavaFramework === "javafx"
+              ? JAVAFX_STARTER
+              : JAVA_GUI_STARTER
             : qType === "codigo"
               ? getStarterCode(language) || null
               : null,
@@ -612,6 +622,42 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="javascript">JavaScript</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {qType === "java_gui" && (
+            <div>
+              <Label className="flex items-center gap-1.5">
+                Framework
+                <HelpHint>
+                  <span>
+                    <strong>Swing/AWT</strong>: framework built-in del JDK, soportado por CheerpJ
+                    (navegador) y AWS Lambda. Default histórico.
+                  </span>
+                  <br />
+                  <span>
+                    <strong>JavaFX</strong>: requiere OpenJFX 21 (instalado en el runner Lambda). NO
+                    funciona con CheerpJ. La clase del alumno debe <code>extends Application</code>;
+                    el wrapper server-side llama <code>Application.launch()</code> automáticamente.
+                  </span>
+                </HelpHint>
+              </Label>
+              <Select
+                value={qJavaFramework}
+                onValueChange={(v) => setQJavaFramework(v as "swing" | "javafx")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="swing">Swing / AWT</SelectItem>
+                  <SelectItem value="javafx">JavaFX</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {qJavaFramework === "javafx"
+                  ? "Requiere modo runner AWS Lambda — CheerpJ no incluye OpenJFX."
+                  : "Compatible con ambos runners (CheerpJ + AWS Lambda)."}
+              </p>
             </div>
           )}
           {qType === "codigo_zip" && (
@@ -1905,6 +1951,10 @@ export function StudentWorkshopTaker({
                 value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
                 onChange={(v) => updateAnswer(q.id, v)}
                 height="280px"
+                framework={
+                  (q.options as { java_framework?: "swing" | "javafx" } | null)?.java_framework ??
+                  "swing"
+                }
               />
             )}
             {q.type === "codigo_zip" &&

@@ -229,20 +229,46 @@ def _handle_gui_screenshot(
     delay_ms: int,
     request_id: str,
     start: float,
+    framework: str = "swing",
 ) -> dict:
     """Compila + ejecuta Java con DISPLAY=Xvfb y retorna captura PNG base64.
 
+    Soporta dos frameworks GUI:
+      - "swing" (default): JDK base, wrapper GuiBootstrap. No requiere
+        flags adicionales — AWT/Swing pintan directo contra Xvfb.
+      - "javafx": OpenJFX 21 (instalado en /opt/javafx-sdk-21). Requiere
+        `--module-path` + `--add-modules` + flags Prism para forzar
+        rendering por software (Lambda no tiene GPU). Wrapper
+        `JavaFxBootstrap` detecta si la clase del estudiante extiende
+        `Application` y usa `Application.launch()` en vez de `main()`.
+
     Flow:
       1. Arrancar Xvfb en :99.
-      2. javac (mismo que modo run, con timeout).
-      3. java -cp tmp <Class> en BACKGROUND con DISPLAY=:99.
-      4. Sleep delay_ms (para que Swing pinte).
-      5. `import -window root -display :99 /tmp/x.png` → captura.
+      2. javac con classpath/module-path según framework.
+      3. java -cp tmp <Bootstrap> en BACKGROUND con DISPLAY=:99.
+      4. Sleep delay_ms (para que Swing/FX pinten).
+      5. Leer framebuffer raw de Xvfb → PNG via Pillow.
       6. Kill JVM + Xvfb.
       7. Base64-encode PNG y retornar.
     """
     # Cap defensivo del delay para no agotar el timeout de Lambda.
     delay_ms = max(200, min(GUI_MAX_DELAY_MS, delay_ms))
+
+    # Normalizar framework (defensivo — los callers deberían pasar uno
+    # válido pero no asumimos). "swing" es el default histórico.
+    framework = (framework or "swing").lower().strip()
+    if framework not in ("swing", "javafx"):
+        framework = "swing"
+    is_javafx = framework == "javafx"
+
+    # Path al SDK de OpenJFX (instalado en /opt/javafx-sdk-21 por el
+    # Dockerfile). Módulos cargados:
+    #   javafx.controls — Button, Label, TableView, etc.
+    #   javafx.fxml — para FXMLLoader (UI declarativa).
+    #   javafx.graphics — Scene, Stage, Application; transitivamente
+    #     pulled por controls, pero lo listamos explícito por claridad.
+    JAVAFX_HOME = "/opt/javafx-sdk-21"
+    JAVAFX_MODULES = "javafx.controls,javafx.fxml,javafx.graphics"
 
     with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
         source_path = os.path.join(tmp, f"{main_class}.java")
@@ -250,9 +276,19 @@ def _handle_gui_screenshot(
             f.write(source)
 
         # ── Compilar ──
+        # Swing: javac base sin flags extra.
+        # JavaFX: agregar --module-path + --add-modules para que el
+        # student code pueda hacer `import javafx.application.Application`.
+        compile_cmd = ["javac", "-encoding", "UTF-8", "-d", tmp]
+        if is_javafx:
+            compile_cmd += [
+                "--module-path", f"{JAVAFX_HOME}/lib",
+                "--add-modules", JAVAFX_MODULES,
+            ]
+        compile_cmd.append(source_path)
         try:
             compile_proc = subprocess.run(
-                ["javac", "-encoding", "UTF-8", "-d", tmp, source_path],
+                compile_cmd,
                 capture_output=True,
                 text=True,
                 timeout=COMPILE_TIMEOUT_S,
@@ -321,21 +357,68 @@ def _handle_gui_screenshot(
         env = os.environ.copy()
         env["DISPLAY"] = GUI_DISPLAY
         bootstrap_sleep_ms = max(500, delay_ms - 200)
-        java_proc = subprocess.Popen(
-            [
-                "java",
-                "-Djava.awt.headless=false",
-                f"-Dexamlab.gui.mainClass={main_class}",
-                f"-Dexamlab.gui.sleepMs={bootstrap_sleep_ms}",
-                "-Xmx512m",
-                "-cp",
-                f"{tmp}:/opt",
-                "GuiBootstrap",
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        # Construir el comando java según el framework.
+        # Comunes:
+        #   -Djava.awt.headless=false (Swing) / -Dprism.* (JavaFX)
+        #   -Dexamlab.gui.mainClass=<student class>
+        #   -Dexamlab.gui.sleepMs=<delay - 200ms margen>
+        #   -Xmx512m (cap heap para no OOM Lambda)
+        #
+        # Wrapper:
+        #   Swing → GuiBootstrap (invoca main() por reflection)
+        #   JavaFX → JavaFxBootstrap (detecta Application subclass y
+        #            usa Application.launch en hilo daemon)
+        if is_javafx:
+            # Prism flags CRÍTICOS para que JavaFX corra en Lambda:
+            #   prism.order=sw — force software renderer. SIN esto FX
+            #     intenta OpenGL/D3D y crashea en Lambda (sin GPU).
+            #   prism.lcdtext=false — LCD subpixel text rendering
+            #     requiere acceso al display HW; en SW mode forzamos
+            #     greyscale.
+            #   prism.text=t2k — T2K text renderer es más estable bajo
+            #     headless que el default (que intenta usar libraries
+            #     nativas que no están en Lambda).
+            #   glass.platform=gtk — fuerza GTK glass (el default en
+            #     Linux); evita que intente "monocle" sin que esté.
+            java_proc = subprocess.Popen(
+                [
+                    "java",
+                    "--module-path", f"{JAVAFX_HOME}/lib",
+                    "--add-modules", JAVAFX_MODULES,
+                    "-Dprism.order=sw",
+                    "-Dprism.lcdtext=false",
+                    "-Dprism.text=t2k",
+                    "-Dglass.platform=gtk",
+                    "-Djava.awt.headless=false",
+                    f"-Dexamlab.gui.mainClass={main_class}",
+                    f"-Dexamlab.gui.sleepMs={bootstrap_sleep_ms}",
+                    "-Xmx512m",
+                    "-cp",
+                    f"{tmp}:/opt",
+                    "JavaFxBootstrap",
+                ],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        else:
+            # Swing/AWT — JRE base, sin module-path. GuiBootstrap invoca
+            # main(String[]) del estudiante por reflection.
+            java_proc = subprocess.Popen(
+                [
+                    "java",
+                    "-Djava.awt.headless=false",
+                    f"-Dexamlab.gui.mainClass={main_class}",
+                    f"-Dexamlab.gui.sleepMs={bootstrap_sleep_ms}",
+                    "-Xmx512m",
+                    "-cp",
+                    f"{tmp}:/opt",
+                    "GuiBootstrap",
+                ],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
         # Espera SIEMPRE el delay completo. Antes rompíamos el loop
         # apenas la JVM terminaba (early_exit) y capturábamos
@@ -661,7 +744,13 @@ def handler(event, _context):
             delay_ms = int(body.get("delayMs", GUI_DEFAULT_DELAY_MS))
         except (TypeError, ValueError):
             delay_ms = GUI_DEFAULT_DELAY_MS
-        result = _handle_gui_screenshot(source, main_class, delay_ms, request_id, start)
+        # `framework`: "swing" (default) o "javafx". El caller lo pasa
+        # según el tipo de pregunta. Default a "swing" para retro-compat
+        # con edges/clientes que no manden el campo.
+        framework = str(body.get("framework") or "swing").lower()
+        result = _handle_gui_screenshot(
+            source, main_class, delay_ms, request_id, start, framework=framework,
+        )
         return _resp(200, result)
     # /tmp es escribible en Lambda (512MB-10GB ephemeral); TemporaryDirectory
     # se borra al salir del with.
