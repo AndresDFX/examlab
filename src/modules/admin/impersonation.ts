@@ -179,6 +179,14 @@ export async function startImpersonate(userId: string): Promise<void> {
   // o un user distinto al target, abortamos para que el caller pueda
   // mostrar el error en vez de dejarnos en estado roto.
   const { data: sessCheck } = await supabase.auth.getSession();
+  // eslint-disable-next-line no-console
+  console.info("[startImpersonate] post-verify session check:", {
+    hasSession: !!sessCheck.session,
+    sessionUserId: sessCheck.session?.user?.id,
+    targetUserId: target.id,
+    matches: sessCheck.session?.user?.id === target.id,
+    targetSlug: target.tenant_slug,
+  });
   if (!sessCheck.session || sessCheck.session.user.id !== target.id) {
     localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
     sessionStorage.removeItem(IMPERSONATION_TRANSITION_FLAG);

@@ -75,6 +75,18 @@ export function TenantUrlGuard() {
     const urlSlug = getTenantSlugFromUrl();
     const isSuperAdmin = roles.includes("SuperAdmin");
 
+    // Diagnóstico: el usuario reportó loops post-impersonación con
+    // sospecha de que el slug URL no se aplica. Este log nos da
+    // visibilidad de qué decisión toma el guard en cada render.
+    // eslint-disable-next-line no-console
+    console.info("[TenantUrlGuard]", {
+      path,
+      urlSlug,
+      profileSlug,
+      isSuperAdmin,
+      roles,
+    });
+
     // Caso 1: SuperAdmin sin prefijo en /app → modo cross-tenant, OK.
     if (!urlSlug && isSuperAdmin) return;
 
