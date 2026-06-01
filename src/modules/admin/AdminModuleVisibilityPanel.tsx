@@ -49,7 +49,7 @@ type Row = {
   tenant_id: string | null;
 };
 
-type ModuleRoleKey = "Admin" | "Docente" | "Estudiante";
+type ModuleRoleKey = "Admin" | "Docente" | "Estudiante" | "SuperAdmin";
 
 /**
  * Lista canónica de FILAS del panel. La mayoría de filas usa `key` como
@@ -122,7 +122,13 @@ function physicalKeyFor(
   return module.roleKeyMap?.[role as ModuleRoleKey] ?? module.key;
 }
 
-const ROLES: Array<{ key: "Admin" | "Docente" | "Estudiante"; label: string }> = [
+const ROLES: Array<{ key: ModuleRoleKey; label: string }> = [
+  // SuperAdmin primero por jerarquía. Sin fila explícita en
+  // module_visibility para `(tenant_id, key, 'SuperAdmin')`, el hook
+  // `isModuleEnabled` devuelve true (default visible) → el SuperAdmin
+  // hereda todo el menú de Admin. Apagando un toggle de esta columna
+  // se crea la fila con enabled=false y oculta ese item solo para él.
+  { key: "SuperAdmin", label: "SuperAdmin" },
   { key: "Admin", label: "Admin" },
   { key: "Docente", label: "Docente" },
   { key: "Estudiante", label: "Estudiante" },
@@ -482,7 +488,12 @@ export function AdminModuleVisibilityPanel() {
                   <span>Módulo</span>
                   <div className="flex gap-2">
                     {ROLES.map((r) => (
-                      <span key={r.key} className="w-16 text-center">
+                      // w-20 (antes w-16): "SuperAdmin" (10 chars) no entra
+                      // en 64px y se truncaba. 80px deja el label completo
+                      // en todos los roles, sin afectar layout — el
+                      // contenedor exterior tiene `min-w-[480px]` con
+                      // espacio sobrado.
+                      <span key={r.key} className="w-20 text-center">
                         {r.label}
                       </span>
                     ))}
@@ -525,7 +536,11 @@ export function AdminModuleVisibilityPanel() {
                           {ROLES.map((r) => {
                             const key = `${m.key}::${r.key}`;
                             return (
-                              <div key={r.key} className="w-16 flex justify-center">
+                              // Cada slot del switch matchea el ancho del
+                              // label del header (w-20). Sin esto los
+                              // switches quedan desalineados con sus
+                              // columnas cuando hay >3 roles.
+                              <div key={r.key} className="w-20 flex justify-center">
                                 <Switch
                                   checked={isOn(m.key, r.key)}
                                   disabled={togglingKey === key}

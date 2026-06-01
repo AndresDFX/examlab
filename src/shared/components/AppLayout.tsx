@@ -733,21 +733,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (n.roles.length === 1 && n.roles[0] === "SuperAdmin") {
       return activeRole === "SuperAdmin";
     }
-    // SuperAdmin = dueño de la plataforma. Ve TODO lo que ve Admin
-    // (gestión de cursos, configuración, prompts, cola, informes, etc.)
-    // PLUS los items SuperAdmin-only. Operativamente trabaja sobre el
-    // tenant activo (el suyo por default, o el override via "Ver como").
-    // No le ocultamos los items Admin — al revés, los necesita para
-    // hacer soporte / configuración cross-tenant.
+    // SuperAdmin = dueño de la plataforma. Ve los items Admin (gestión
+    // de cursos, configuración, prompts, cola, informes, etc.) PLUS los
+    // SuperAdmin-only. PERO con la mig 20260803 SuperAdmin ya tiene
+    // columna propia en `module_visibility` → si toggleó algo OFF, lo
+    // respetamos. Default ausente = visible (`isModuleEnabled` true).
     if (activeRole === "SuperAdmin" && n.roles.includes("Admin")) {
+      const modKey = moduleForNav(n.to);
+      if (modKey && !isModuleEnabled(moduleMap, modKey, "SuperAdmin")) return false;
       return true;
     }
     if (!n.roles.includes(activeRole)) return false;
     // Banco de preguntas legacy: el admin puede esconderlo globalmente.
     if (n.to === "/app/teacher/question-bank" && !questionBankEnabled) return false;
-    // Admin bypassa los toggles de visibilidad (siempre ve todo en el nav).
+    // Admin bypassa los toggles de visibilidad (siempre ve todo en el
+    // nav — el Admin es quien CONFIGURA la matriz, necesita acceso a
+    // todos los módulos para gobernarlos).
     if (activeRole === "Admin") return true;
-    // Filtro por module_visibility para Docente / Estudiante.
+    // Filtro por module_visibility para Docente / Estudiante /
+    // SuperAdmin actuando con su rol nativo.
     const modKey = moduleForNav(n.to);
     if (modKey) {
       if (!isModuleEnabled(moduleMap, modKey, activeRole as RoleKey)) return false;

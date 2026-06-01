@@ -13,8 +13,12 @@
  *   - Si solo hay 1 extra, el +N sigue ahí (UX consistente). Para
  *     "siempre mostrar todos si caben", el caller usa <Badge> directo.
  *
- * No bloquea wrap: si los `max` items entran en una sola línea, se
- * quedan en una. Si no caben (caso raro con strings muy largos), wrap.
+ * Una sola línea: usa `flex-nowrap` para evitar que un usuario con 3+
+ * badges rompa la altura uniforme del grid (cuando wrappeaba, esa fila
+ * quedaba ~2x más alta que sus vecinas). El contenedor además aplica
+ * `overflow-hidden` para que si los items NO caben en el ancho del
+ * cell, se clipean en el borde — preferible a desbordar y empujar la
+ * tabla a un layout incoherente.
  *
  * API mínima:
  *   <BadgeOverflow items={["Admin", "Docente", "Estudiante"]} max={2} />
@@ -30,12 +34,7 @@
  */
 import { type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 
 interface BadgeOverflowProps<T> {
@@ -83,7 +82,17 @@ export function BadgeOverflow<T>({
     renderTooltipItem ? renderTooltipItem(item) : String(item);
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-1", className)}>
+    <div
+      className={cn(
+        // `flex-nowrap`: badges siempre en UNA línea para mantener
+        // altura uniforme del grid. `min-w-0`: permite que el contenedor
+        // se encoja dentro de su flex/cell padre sin forzar overflow.
+        // `overflow-hidden`: si los badges no caben, se clipean en el
+        // borde del cell (mejor que romper la altura de la fila).
+        "flex flex-nowrap items-center gap-1 min-w-0 overflow-hidden",
+        className,
+      )}
+    >
       {visible.map((item, i) => {
         const key = getKey ? getKey(item, i) : String(item);
         // Si el caller pasa renderItem, asumimos que devuelve un nodo
@@ -113,9 +122,7 @@ export function BadgeOverflow<T>({
             <TooltipContent side="top" align="start" className="max-w-xs">
               <ul className="text-xs space-y-0.5">
                 {overflow.map((item, i) => (
-                  <li key={getKey ? getKey(item, i) : String(item)}>
-                    {renderTip(item)}
-                  </li>
+                  <li key={getKey ? getKey(item, i) : String(item)}>{renderTip(item)}</li>
                 ))}
               </ul>
             </TooltipContent>

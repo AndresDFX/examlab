@@ -49,7 +49,11 @@ export type ModuleKey =
   | "polls"
   | "audit_logs";
 
-export type RoleKey = "Admin" | "Docente" | "Estudiante";
+// SuperAdmin entró a la matriz (mig 20260803000000) — antes el rol
+// heredaba siempre los items de Admin sin posibilidad de silenciarlos.
+// Ahora tiene su propia columna en el panel y puede apagar módulos a
+// nivel cross-tenant (típico: Académico, que se gestiona por tenant).
+export type RoleKey = "Admin" | "Docente" | "Estudiante" | "SuperAdmin";
 
 export type VisibilityMap = Partial<Record<ModuleKey, Partial<Record<RoleKey, boolean>>>>;
 
