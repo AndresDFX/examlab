@@ -706,6 +706,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/teacher/students", "teacher_students"],
     ["/app/admin/report-templates", "reports"],
     ["/app/teacher/reports", "reports"],
+    // Académico: solo Admin (estructura programas/asignaturas/periodos).
+    ["/app/admin/academic", "academic"],
+    // Encuestas: Docente y Estudiante mapean al mismo módulo.
+    ["/app/teacher/polls", "polls"],
+    ["/app/student/polls", "polls"],
+    // Auditoría: variantes Admin y Docente.
+    ["/app/teacher/audit-logs", "audit_logs"],
+    ["/app/admin/audit-logs", "audit_logs"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

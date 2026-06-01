@@ -38,7 +38,16 @@ export type ModuleKey =
   | "videos"
   | "contents"
   | "teacher_students"
-  | "reports";
+  | "reports"
+  // ── Módulos faltantes en la matriz histórica. Se agregan acá para
+  // que el Admin pueda gobernar su visibilidad/orden desde el panel
+  // "Módulos" (antes solo el Sidebar respetaba RBAC, sin toggle):
+  //   - academic: programas/asignaturas/periodos (vivía en Configuración).
+  //   - polls: encuestas en sesión / async tipo Doodle.
+  //   - audit_logs: auditoría de eventos (variantes Docente/Admin).
+  | "academic"
+  | "polls"
+  | "audit_logs";
 
 export type RoleKey = "Admin" | "Docente" | "Estudiante";
 

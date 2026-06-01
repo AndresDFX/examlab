@@ -187,6 +187,12 @@ function TeacherContents() {
   const isAdminLikeView =
     (activeRole === "Admin" || activeRole === "SuperAdmin") &&
     (roles.includes("Admin") || roles.includes("SuperAdmin"));
+  // SuperAdmin "puro" (actuando como tal, sin override): habilita el
+  // filtro UI extra por institución. Cuando el override está activo
+  // (`/t/<slug>/...`) el SuperAdmin ya está acotado a UN tenant y este
+  // filtro no aporta — la propia URL hace de filtro. Mismo patrón que
+  // Cursos/Usuarios/Certificados.
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const { t } = useTranslation();
   const confirm = useConfirm();
   const navigate = useNavigate();
@@ -198,6 +204,12 @@ function TeacherContents() {
   const [items, setItems] = useState<GeneratedContent[]>([]);
   const [courses, setCourses] = useState<CourseLite[]>([]);
   const [brand, setBrand] = useState<BrandConfig | null>(null);
+  // Lista de instituciones — solo el SuperAdmin la usa. Con array de
+  // ≤1 tenant, la RLS ya acota al de su perfil y no renderizamos el
+  // filtro abajo.
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+  /** Filtro por institución (solo SuperAdmin). "all" = sin filtro. */
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -329,27 +341,61 @@ function TeacherContents() {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
+
+    // SuperAdmin con filtro de institución activo: la tabla
+    // `generated_contents` NO tiene `tenant_id` propia → resolvemos el
+    // tenant vía `teacher_id → profiles.tenant_id`. Patrón 2-step de
+    // CLAUDE.md: primero IDs de profiles del tenant, después
+    // `.in("teacher_id", ids)`. Crítico: si el tenant no tiene
+    // docentes, cortamos a corto-circuito antes de llamar a la tabla
+    // — un `.in("teacher_id", [])` en PostgREST devuelve TODOS los
+    // rows, no ninguno.
+    let teacherIdsForTenant: string[] | null = null;
+    if (isSuperAdminCaller && tenantFilter !== "all") {
+      const { data: profsForTenant } = await db
+        .from("profiles")
+        .select("id")
+        .eq("tenant_id", tenantFilter);
+      teacherIdsForTenant = ((profsForTenant ?? []) as { id: string }[]).map((p) => p.id);
+      if (teacherIdsForTenant.length === 0) {
+        setItems([]);
+        setDerived({});
+        setLoading(false);
+        return;
+      }
+    }
+
     // Admin/SuperAdmin: sin filtro por teacher_id → ven todos los
     // contenidos que la RLS de la institución les muestra (sirve para
     // auditar y gestionar lo que producen los docentes). Docente: solo
     // los suyos para no saturar el grid con material de colegas.
-    const contentsBase = db
+    let contentsQuery = db
       .from("generated_contents")
       .select("*")
       .order("created_at", { ascending: false });
-    const contentsQuery = isAdminLikeView ? contentsBase : contentsBase.eq("teacher_id", user.id);
-    const [{ data: gens, error: gensErr }, { data: brandRow }, { data: cs }] = await Promise.all([
-      contentsQuery,
-      db.from("content_brand_config").select("*").maybeSingle(),
-      // Cursos visibles para este usuario. Antes filtrábamos via
-      // `course_teachers`, pero esa tabla no siempre tiene una fila
-      // por docente (en orgs chicas o cuando los cursos los crea Admin
-      // sin asignación explícita queda vacía). Ahora pedimos `courses`
-      // directo y dejamos que la RLS de la tabla recorte: Admin ve
-      // todo, Docente ve sus cursos, Estudiante ve los matriculados.
-      // Mismo patrón que usan workshops/projects para el selector.
-      supabase.from("courses").select("id, name").order("name"),
-    ]);
+    if (!isAdminLikeView) {
+      contentsQuery = contentsQuery.eq("teacher_id", user.id);
+    } else if (teacherIdsForTenant !== null) {
+      contentsQuery = contentsQuery.in("teacher_id", teacherIdsForTenant);
+    }
+
+    const [{ data: gens, error: gensErr }, { data: brandRow }, { data: cs }, { data: tens }] =
+      await Promise.all([
+        contentsQuery,
+        db.from("content_brand_config").select("*").maybeSingle(),
+        // Cursos visibles para este usuario. Antes filtrábamos via
+        // `course_teachers`, pero esa tabla no siempre tiene una fila
+        // por docente (en orgs chicas o cuando los cursos los crea Admin
+        // sin asignación explícita queda vacía). Ahora pedimos `courses`
+        // directo y dejamos que la RLS de la tabla recorte.
+        supabase.from("courses").select("id, name").order("name"),
+        // Tenants — solo el SuperAdmin ve >1. Para Admin/Docente la RLS
+        // recorta al suyo y el array queda en 1 → el Select abajo no se
+        // renderiza (`tenants.length > 0` gate).
+        isSuperAdminCaller
+          ? db.from("tenants").select("id, slug, name").order("name")
+          : Promise.resolve({ data: [] }),
+      ]);
     // generated_contents es la query crítica — sin contenidos no hay
     // grid. brand y courses son secundarios (no bloquean el render).
     if (gensErr) {
@@ -360,6 +406,7 @@ function TeacherContents() {
     setItems((gens ?? []) as GeneratedContent[]);
     setBrand((brandRow as BrandConfig) ?? null);
     setCourses((cs ?? []) as CourseLite[]);
+    setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
 
     // Conteos derivados — solo para los contenidos del docente actual.
     // Hacemos 4 queries en paralelo y agregamos en memoria. Los SELECTs
@@ -400,8 +447,9 @@ function TeacherContents() {
     setLoading(false);
     // isAdminLikeView en deps: si el usuario alterna entre rol Admin y
     // Docente con el role-switcher, queremos re-cargar con el filtro
-    // correcto (Admin = todos; Docente = solo los suyos).
-  }, [user, isAdminLikeView]);
+    // correcto. `tenantFilter`/`isSuperAdminCaller` también — cambiar
+    // de institución vuelve a disparar la query principal.
+  }, [user, isAdminLikeView, isSuperAdminCaller, tenantFilter]);
 
   useEffect(() => {
     void load();
@@ -722,14 +770,37 @@ function TeacherContents() {
         }
       />
 
-      <ListFilters
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Buscar por nombre, tema o autor…"
-        courseId={courseFilter}
-        onCourseChange={setCourseFilter}
-        courses={courses}
-      />
+      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="flex-1 min-w-0">
+          <ListFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Buscar por nombre, tema o autor…"
+            courseId={courseFilter}
+            onCourseChange={setCourseFilter}
+            courses={courses}
+          />
+        </div>
+        {/* SuperAdmin cross-tenant: filtro por institución. Solo se
+            renderiza cuando el usuario actúa como SuperAdmin Y hay >0
+            tenants cargados (Admin común no llega a verlo). Aplica vía
+            `teacher_id IN (profiles del tenant)` en `load()`. */}
+        {isSuperAdminCaller && tenants.length > 0 && (
+          <Select value={tenantFilter} onValueChange={setTenantFilter}>
+            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+              <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
+              {tenants.map((tn) => (
+                <SelectItem key={tn.id} value={tn.id}>
+                  {tn.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       <Card>
         <CardContent className="p-0">

@@ -75,6 +75,12 @@ const MODULES: Array<{
   roleKeyMap?: Partial<Record<ModuleRoleKey, string>>;
 }> = [
   { key: "dashboard", label: "Dashboard" },
+  // Académico: programas / asignaturas / periodos. Solo aplica al rol
+  // Admin (estructura cross-curso). El SuperAdmin lo hereda vía Admin.
+  // Antes vivía como tab de Configuración → Institución y no era
+  // togglable desde acá; se sacó a su módulo propio para que el
+  // SuperAdmin pueda definir el orden/visibilidad central de los Admin.
+  { key: "academic", label: "Académico" },
   { key: "courses", label: "Cursos" },
   { key: "contents", label: "Contenidos" },
   { key: "exams", label: "Exámenes" },
@@ -89,6 +95,9 @@ const MODULES: Array<{
     roleKeyMap: { Admin: "gradebook", Docente: "gradebook", Estudiante: "grades" },
   },
   { key: "attendance", label: "Asistencia" },
+  // Encuestas (mig 20260720000000) — Docente y Estudiante. Tipos:
+  // single/multiple/slot. Async tipo Doodle o en vivo en sesión.
+  { key: "polls", label: "Encuestas" },
   { key: "forum", label: "Foro" },
   { key: "calendar", label: "Calendario" },
   { key: "certificates", label: "Certificados" },
@@ -101,6 +110,8 @@ const MODULES: Array<{
   { key: "videos", label: "Biblioteca de videos" },
   { key: "teacher_students", label: "Usuarios (Docente)" },
   { key: "reports", label: "Informes" },
+  // Auditoría: variantes Admin y Docente apuntan al mismo módulo.
+  { key: "audit_logs", label: "Auditoría" },
 ];
 
 /** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */

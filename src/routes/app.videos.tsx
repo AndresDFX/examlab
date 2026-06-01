@@ -180,16 +180,27 @@ function VideoLibrary() {
   const [search, setSearch] = useState("");
   const [filterCourseId, setFilterCourseId] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  // Tenants — solo el SuperAdmin ve la lista. La RLS acota a 1 para
+  // Admin/Docente normal y el filtro UI no se renderiza.
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+  // Filtro por institución para SuperAdmin. "all" = sin filtro,
+  // "global" = solo videos del catálogo global (tenant_id NULL),
+  // <uuid> = solo videos de ese tenant.
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
-      .from("videos")
-      .select("*")
-      .order("created_at", { ascending: false });
+    let q = db.from("videos").select("*").order("created_at", { ascending: false });
+    // Filtro server-side por institución (solo SuperAdmin). "global"
+    // mapea a `tenant_id IS NULL` (catálogo cross-tenant); un UUID
+    // específico a `.eq("tenant_id", X)`. "all" = sin filtro.
+    if (isSuperAdminActive && tenantFilter !== "all") {
+      q = tenantFilter === "global" ? q.is("tenant_id", null) : q.eq("tenant_id", tenantFilter);
+    }
+    const { data, error } = await q;
     if (error) {
       setLoadError(friendlyError(error, "No pudimos cargar los videos."));
     } else {
@@ -204,8 +215,15 @@ function VideoLibrary() {
       const { data } = await db.from("courses").select("id, name").order("name");
       setCourses((data ?? []) as CourseOption[]);
     })();
+    // Tenants — solo el SuperAdmin los necesita para el Select.
+    if (isSuperAdminActive) {
+      void (async () => {
+        const { data } = await db.from("tenants").select("id, slug, name").order("name");
+        setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
+      })();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, tenantFilter, isSuperAdminActive]);
 
   const visible = useMemo(
     () =>
@@ -533,14 +551,38 @@ function VideoLibrary() {
         }
       />
 
-      <ListFilters
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Buscar por título o descripción…"
-        courseId={filterCourseId}
-        onCourseChange={setFilterCourseId}
-        courses={courses}
-      />
+      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="flex-1 min-w-0">
+          <ListFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Buscar por título o descripción…"
+            courseId={filterCourseId}
+            onCourseChange={setFilterCourseId}
+            courses={courses}
+          />
+        </div>
+        {/* SuperAdmin cross-tenant: filtro por institución + opción
+            "Global plataforma" (videos con `tenant_id IS NULL`). El
+            filtro se aplica server-side en `load()` para que la RLS
+            cross-tenant del SuperAdmin no traiga toda la base. */}
+        {isSuperAdminActive && tenants.length > 0 && (
+          <Select value={tenantFilter} onValueChange={setTenantFilter}>
+            <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
+              <SelectValue placeholder="Institución" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las instituciones</SelectItem>
+              <SelectItem value="global">— Global plataforma —</SelectItem>
+              {tenants.map((tn) => (
+                <SelectItem key={tn.id} value={tn.id}>
+                  {tn.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
