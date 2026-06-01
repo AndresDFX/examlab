@@ -503,6 +503,20 @@ function AdminUsers() {
       ) {
         return;
       }
+      // Guardrail anti-huérfano: solo un SuperAdmin puro puede no tener
+      // institución. Si el form deja tenant_id=null pero el usuario no
+      // es SuperAdmin, abortar — sino la RLS de la app le devuelve datos
+      // vacíos en cada query (current_tenant_id() retorna null).
+      if (
+        isSuperAdminCaller &&
+        editing.tenant_id === null &&
+        !editing.roles.includes("SuperAdmin")
+      ) {
+        toast.error(
+          "Solo el rol SuperAdmin puede no tener institución. Asigna una institución o agrega el rol SuperAdmin.",
+        );
+        return;
+      }
       if (editing.id) {
         // Update profile
         // Identidad estudiantil — solo se persiste para usuarios con rol
@@ -522,8 +536,22 @@ function AdminUsers() {
           estado: isStudent ? editing.estado || null : null,
           programa_id: isStudent ? editing.programa_id || null : null,
         };
-        if (isSuperAdminCaller && editing.tenant_id) {
-          updatePayload.tenant_id = editing.tenant_id;
+        // Tenant assignment: SOLO el SuperAdmin puede tocar este campo.
+        // Cambios permitidos:
+        //   - Asignar institución (valor string).
+        //   - Desasociar — `tenant_id = null` SOLO si el usuario tiene
+        //     rol SuperAdmin (un Admin/Docente/Estudiante sin tenant
+        //     queda huérfano sin RLS funcional → mal estado).
+        // El trigger `tg_check_profile_tenant_change` rechaza el cambio
+        // si el usuario tiene cursos activos en el tenant viejo
+        // (excepto cuando viene de NULL).
+        if (isSuperAdminCaller) {
+          if (editing.tenant_id) {
+            updatePayload.tenant_id = editing.tenant_id;
+          } else if (editing.roles.includes("SuperAdmin")) {
+            // Desasociación explícita: solo válida para SuperAdmin puros.
+            updatePayload.tenant_id = null;
+          }
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
@@ -607,12 +635,22 @@ function AdminUsers() {
         //   - SuperAdmin elige institución en el form (editing.tenant_id).
         //   - Admin: si editing.tenant_id viene null/vacío, se asigna a SU
         //     tenant (los Admin solo crean usuarios para su institución).
+        //   - SuperAdmin con "Sin institución" + rol SuperAdmin: persiste
+        //     `tenant_id = null` explícitamente para que el usuario nazca
+        //     desligado del tenant default que asignó `handle_new_user`.
         //   - El trigger handle_new_user ya creó el profile con tenant
         //     default; ahora lo ajustamos.
         const newUserId = (result as { userId?: string })?.userId;
         const targetTenantId =
           editing.tenant_id || (isSuperAdminCaller ? null : myTenantIdRef.current);
-        if (newUserId && targetTenantId) {
+        // Actualizamos cuando hay tenant válido O cuando el nuevo
+        // usuario es SuperAdmin puro y se eligió "Sin institución"
+        // (target === null intencional). Sin esta segunda rama el
+        // usuario quedaba pegado al tenant default del trigger.
+        const shouldAssignTenant =
+          newUserId !== undefined &&
+          (targetTenantId !== null || (isSuperAdminCaller && editing.roles.includes("SuperAdmin")));
+        if (newUserId && shouldAssignTenant) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error: tErr } = await (supabase as any)
             .from("profiles")
@@ -1108,18 +1146,30 @@ function AdminUsers() {
                   ticamente a SU tenant. Para usuarios EXISTENTES, el
                   SuperAdmin también puede reasignar (sujeto al trigger
                   tg_check_profile_tenant_change que bloquea si el user
-                  tiene cursos activos en el tenant viejo). */}
+                  tiene cursos activos en el tenant viejo).
+                  Opción extra "Sin institución" solo cuando el user
+                  tiene rol SuperAdmin — un SuperAdmin puro opera
+                  cross-tenant sin pertenecer a ninguna institución;
+                  para otros roles esa opción produciría un usuario
+                  huérfano sin RLS funcional. */}
               {isSuperAdminCaller && (
                 <div>
                   <Label className="mb-2 block">Institución</Label>
                   <Select
-                    value={editing.tenant_id ?? ""}
-                    onValueChange={(v) => setEditing({ ...editing, tenant_id: v || null })}
+                    value={editing.tenant_id ?? "__none__"}
+                    onValueChange={(v) =>
+                      setEditing({ ...editing, tenant_id: v === "__none__" ? null : v })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona institución…" />
                     </SelectTrigger>
                     <SelectContent>
+                      {editing.roles.includes("SuperAdmin") && (
+                        <SelectItem value="__none__">
+                          — Sin institución (SuperAdmin puro) —
+                        </SelectItem>
+                      )}
                       {tenants.map((t) => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name}
@@ -1128,7 +1178,10 @@ function AdminUsers() {
                     </SelectContent>
                   </Select>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    El SuperAdmin puede asignar el usuario a cualquier institución.
+                    El SuperAdmin puede asignar el usuario a cualquier institución
+                    {editing.roles.includes("SuperAdmin")
+                      ? ", o dejarlo sin institución para que opere cross-tenant."
+                      : "."}
                     {editing.id &&
                       " Cambiar el valor falla si el usuario ya tiene cursos en la institución actual."}
                   </p>

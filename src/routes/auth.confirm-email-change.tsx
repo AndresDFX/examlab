@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { GraduationCap, Mail, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { formatDateTime } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/auth/confirm-email-change")({
   head: () => ({
@@ -80,21 +81,9 @@ function ConfirmEmailChangePage() {
     })();
   }, []);
 
-  // Formatea la fecha de aplicación a hora Colombia legible.
-  const formatApplyAt = (iso: string): string => {
-    try {
-      return new Date(iso).toLocaleString("es-CO", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "America/Bogota",
-      });
-    } catch {
-      return iso;
-    }
-  };
+  // Formatea la fecha de aplicación con el helper centralizado del
+  // design system (locale es-CO hardcoded, evita inconsistencias por OS).
+  const formatApplyAt = (iso: string): string => formatDateTime(iso, iso);
 
   // Mensaje legible por código de error. Genérico para no facilitar
   // enumeración (mismo mensaje para token_invalid / inexistente).

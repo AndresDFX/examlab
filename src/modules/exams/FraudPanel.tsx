@@ -27,6 +27,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 
 /**
@@ -137,6 +138,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   // Gate IA: detect-plagiarism consume cuota Gemini (N²/2 comparaciones).
   // En modo async sin override pedimos confirmación antes de gastar.
   const aiGate = useAiAuthorizationGate();
+  const confirm = useConfirm();
   const [aiSignals, setAiSignals] = useState<AiSignalRow[]>([]);
   const [pairs, setPairs] = useState<SimilarityRow[]>([]);
   const [questionLabels, setQuestionLabels] = useState<Record<string, string>>({});
@@ -566,10 +568,16 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         toast.info("Ninguna fila tiene sugerencia aplicable");
         return;
       }
-      const confirmMsg = `Vas a aplicar la sugerencia a ${applicable.length} estudiante${
-        applicable.length === 1 ? "" : "s"
-      }. La nota actual se reemplaza por la sugerida. ¿Continuar?`;
-      if (!window.confirm(confirmMsg)) return;
+      const ok = await confirm({
+        title: "Aplicar sugerencia en lote",
+        description:
+          `Vas a aplicar la sugerencia a ${applicable.length} estudiante` +
+          `${applicable.length === 1 ? "" : "s"}. La nota actual se reemplaza por la sugerida. ` +
+          `Esta acción no se puede deshacer.`,
+        confirmLabel: "Aplicar",
+        tone: "warning",
+      });
+      if (!ok) return;
 
       setBulkApplying(true);
       let okCount = 0;
@@ -590,7 +598,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         );
       }
     },
-    [applyPenalty],
+    [applyPenalty, confirm],
   );
 
   return (

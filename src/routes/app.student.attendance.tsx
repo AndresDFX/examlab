@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionLoader } from "@/components/ui/loaders";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatDateOnly } from "@/shared/lib/format";
 import {
   Select,
@@ -440,12 +441,10 @@ function StudentAttendance() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <CalendarCheck className="h-5 w-5 text-primary" />
-            {t("nav.studentAttendance", { defaultValue: "Asistencia" })}
-          </h1>
-        </div>
+        <PageHeader
+          title={t("nav.studentAttendance", { defaultValue: "Asistencia" })}
+          icon={<CalendarCheck className="h-6 w-6 text-primary" />}
+        />
         <ErrorState
           message="No pudimos cargar tu asistencia"
           hint={loadError}
@@ -457,37 +456,33 @@ function StudentAttendance() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start gap-3 justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <CalendarCheck className="h-5 w-5 text-primary" />
-            {t("nav.studentAttendance", { defaultValue: "Asistencia" })}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Registro de asistencia que el docente ha cargado para tus cursos.
-          </p>
-        </div>
-        {courses.length > 0 && (
-          <div className="min-w-[220px]">
-            <Select
-              value={selectedCourseId ?? undefined}
-              onValueChange={(v) => setSelectedCourseId(v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un curso" />
-              </SelectTrigger>
-              <SelectContent>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                    {c.period ? ` · ${c.period}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title={t("nav.studentAttendance", { defaultValue: "Asistencia" })}
+        subtitle="Registro de asistencia que el docente ha cargado para tus cursos."
+        icon={<CalendarCheck className="h-6 w-6 text-primary" />}
+        actions={
+          courses.length > 0 ? (
+            <div className="min-w-[220px]">
+              <Select
+                value={selectedCourseId ?? undefined}
+                onValueChange={(v) => setSelectedCourseId(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      {c.period ? ` · ${c.period}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Check-in disponible */}
       {openSessions.length > 0 && (
