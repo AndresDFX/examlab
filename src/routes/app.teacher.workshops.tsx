@@ -1885,7 +1885,8 @@ function TeacherWorkshops() {
           });
         }
         for (const u of upserts) {
-          await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
             .from("workshop_submission_answers")
             .upsert(u, { onConflict: "submission_id,question_id" });
         }

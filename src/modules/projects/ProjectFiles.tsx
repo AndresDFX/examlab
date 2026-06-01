@@ -1150,8 +1150,15 @@ export function StudentProjectTaker({
 
   /**
    * Devuelve los números de pregunta (1-indexed) cuyas respuestas están
-   * vacías. Para "cerrada" cuenta como vacía si no se eligió opción;
-   * para el resto cuenta como vacía si el contenido (string) trim es "".
+   * vacías. Reglas por tipo:
+   *   - cerrada: no se eligió opción.
+   *   - cerrada_multi: array vacío, o menos selecciones que `min_selections`.
+   *   - codigo_zip: sin archivo (acepta File[] o File legacy).
+   *   - codigo: vacío O idéntico al `starter_code` del slot. La
+   *     calificación cuenta este caso como "Sin respuesta" (ver línea
+   *     ~1737); advertimos al entregar para evitar entregas accidentales
+   *     donde el alumno abrió la pregunta y no escribió código propio.
+   *   - resto (abierta/diagrama/etc.): string trim() vacío.
    */
   const getUnansweredNumbers = (): number[] => {
     const empty: number[] = [];
@@ -1170,6 +1177,12 @@ export function StudentProjectTaker({
       } else if (q.type === "codigo_zip") {
         // Acepta File[] (nuevo flujo multi-archivo) o File suelto (legacy).
         isBlank = !((Array.isArray(a) && a.length > 0) || a instanceof File);
+      } else if (q.type === "codigo") {
+        // Misma lógica que aplica la calificación (línea ~1737): vacío
+        // O igual al starter_code → cuenta como no respondida.
+        const trimmedAnswer = String(a ?? "").trim();
+        const trimmedStarter = String(q.starter_code ?? "").trim();
+        isBlank = !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
       } else {
         isBlank = !String(a ?? "").trim();
       }

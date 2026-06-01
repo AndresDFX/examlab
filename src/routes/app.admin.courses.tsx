@@ -1079,8 +1079,11 @@ export function AdminCourses() {
     setDupLoading(true);
     let copiedStudents = 0;
     try {
-      // 1. Create new course
-      const { data: newCourse, error: cErr } = await supabase
+      // 1. Create new course — usar `db` (cast a any) porque el trigger
+      // `tg_courses_set_tenant_on_insert` autoasigna `tenant_id` desde
+      // `current_tenant_id()`, pero los types generados de Supabase lo
+      // marcan como required en el INSERT type.
+      const { data: newCourse, error: cErr } = await db
         .from("courses")
         .insert({
           name: dupName,

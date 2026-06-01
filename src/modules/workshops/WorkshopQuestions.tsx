@@ -976,8 +976,16 @@ export function StudentWorkshopTaker({
 
   /**
    * Devuelve los números de pregunta (1-indexed) cuyas respuestas están
-   * vacías. Para "cerrada" cuenta como vacía si no se eligió opción;
-   * para el resto cuenta como vacía si el contenido (string) trim es "".
+   * vacías. Reglas por tipo:
+   *   - cerrada: no se eligió opción.
+   *   - cerrada_multi: array vacío, o menos selecciones que `min_selections`.
+   *   - codigo_zip: sin archivo / archivo vacío.
+   *   - codigo: contenido vacío O idéntico al starter_code (el alumno
+   *     abrió la pregunta y NO escribió código propio — la IA igual
+   *     graduaría como 0 con feedback "Sin respuesta", ver lógica de
+   *     calificación más abajo; advertimos al entregar para evitar
+   *     entregas accidentales).
+   *   - resto (abierta/diagrama/etc.): string trim() vacío.
    */
   const getUnansweredNumbers = (): number[] => {
     const empty: number[] = [];
@@ -998,6 +1006,15 @@ export function StudentWorkshopTaker({
         if (a instanceof File) isBlank = a.size === 0;
         else if (Array.isArray(a)) isBlank = a.length === 0;
         else isBlank = true;
+      } else if (q.type === "codigo") {
+        // Misma lógica de "Sin respuesta" que aplica la calificación
+        // (ver línea ~1475): vacío O igual al starter_code → cuenta
+        // como no respondida. Sin esta detección, un alumno que pulsa
+        // Entregar sin tocar el editor pasaba el check (starter_code
+        // truthy) y entregaba con 0 puntos sin advertencia.
+        const trimmedAnswer = String(a ?? "").trim();
+        const trimmedStarter = String(q.starter_code ?? "").trim();
+        isBlank = !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
       } else {
         isBlank = !String(a ?? "").trim();
       }

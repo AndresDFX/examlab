@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/shared/components/ConfirmDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
-import { TenantUrlGuard } from "@/modules/tenants/TenantUrlGuard";
 import { TenantThemeProvider } from "@/modules/tenants/TenantThemeProvider";
 import { GlobalErrorLogger } from "@/shared/components/GlobalErrorLogger";
 import { IosInstallBanner } from "@/modules/pwa/IosInstallBanner";
@@ -256,7 +255,6 @@ function RootComponent() {
       <TooltipProvider delayDuration={200}>
         <ConfirmProvider>
           <GlobalErrorLogger />
-          <TenantUrlGuard />
           <TenantThemeProvider>
             <Outlet />
           </TenantThemeProvider>

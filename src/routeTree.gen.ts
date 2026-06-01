@@ -15,7 +15,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
-import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
 import { Route as AuthCancelEmailChangeRouteImport } from './routes/auth.cancel-email-change'
@@ -24,7 +23,6 @@ import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
-import { Route as TSlugSplatRouteImport } from './routes/t.$slug.$'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
@@ -107,11 +105,6 @@ const VerifyShortCodeRoute = VerifyShortCodeRouteImport.update({
   path: '/verify/$shortCode',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TSlugRoute = TSlugRouteImport.update({
-  id: '/t/$slug',
-  path: '/t/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -151,11 +144,6 @@ const AppCertificatesRoute = AppCertificatesRouteImport.update({
   id: '/certificates',
   path: '/certificates',
   getParentRoute: () => AppRoute,
-} as any)
-const TSlugSplatRoute = TSlugSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => TSlugRoute,
 } as any)
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
   id: '/teacher/workshops',
@@ -429,7 +417,6 @@ export interface FileRoutesByFullPath {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/t/$slug': typeof TSlugRouteWithChildren
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
@@ -472,7 +459,6 @@ export interface FileRoutesByFullPath {
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
-  '/t/$slug/$': typeof TSlugSplatRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
@@ -496,7 +482,6 @@ export interface FileRoutesByTo {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/t/$slug': typeof TSlugRouteWithChildren
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
@@ -539,7 +524,6 @@ export interface FileRoutesByTo {
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
-  '/t/$slug/$': typeof TSlugSplatRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
@@ -566,7 +550,6 @@ export interface FileRoutesById {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/t/$slug': typeof TSlugRouteWithChildren
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
@@ -609,7 +592,6 @@ export interface FileRoutesById {
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
-  '/t/$slug/$': typeof TSlugSplatRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
@@ -637,7 +619,6 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/cancel-email-change'
     | '/auth/reset-password'
-    | '/t/$slug'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
@@ -680,7 +661,6 @@ export interface FileRouteTypes {
     | '/app/teacher/statistics'
     | '/app/teacher/students'
     | '/app/teacher/workshops'
-    | '/t/$slug/$'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
@@ -704,7 +684,6 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/cancel-email-change'
     | '/auth/reset-password'
-    | '/t/$slug'
     | '/verify/$shortCode'
     | '/app'
     | '/auth'
@@ -747,7 +726,6 @@ export interface FileRouteTypes {
     | '/app/teacher/statistics'
     | '/app/teacher/students'
     | '/app/teacher/workshops'
-    | '/t/$slug/$'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
@@ -773,7 +751,6 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/cancel-email-change'
     | '/auth/reset-password'
-    | '/t/$slug'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
@@ -816,7 +793,6 @@ export interface FileRouteTypes {
     | '/app/teacher/statistics'
     | '/app/teacher/students'
     | '/app/teacher/workshops'
-    | '/t/$slug/$'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
@@ -835,7 +811,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
-  TSlugRoute: typeof TSlugRouteWithChildren
   VerifyShortCodeRoute: typeof VerifyShortCodeRoute
 }
 
@@ -881,13 +856,6 @@ declare module '@tanstack/react-router' {
       path: '/verify/$shortCode'
       fullPath: '/verify/$shortCode'
       preLoaderRoute: typeof VerifyShortCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/t/$slug': {
-      id: '/t/$slug'
-      path: '/t/$slug'
-      fullPath: '/t/$slug'
-      preLoaderRoute: typeof TSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/reset-password': {
@@ -945,13 +913,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/certificates'
       preLoaderRoute: typeof AppCertificatesRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/t/$slug/$': {
-      id: '/t/$slug/$'
-      path: '/$'
-      fullPath: '/t/$slug/$'
-      preLoaderRoute: typeof TSlugSplatRouteImport
-      parentRoute: typeof TSlugRoute
     }
     '/app/teacher/workshops': {
       id: '/app/teacher/workshops'
@@ -1472,21 +1433,10 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
-interface TSlugRouteChildren {
-  TSlugSplatRoute: typeof TSlugSplatRoute
-}
-
-const TSlugRouteChildren: TSlugRouteChildren = {
-  TSlugSplatRoute: TSlugSplatRoute,
-}
-
-const TSlugRouteWithChildren = TSlugRoute._addFileChildren(TSlugRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
-  TSlugRoute: TSlugRouteWithChildren,
   VerifyShortCodeRoute: VerifyShortCodeRoute,
 }
 export const routeTree = rootRouteImport

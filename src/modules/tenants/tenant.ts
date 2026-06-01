@@ -126,60 +126,7 @@ export function slugifyTenantName(name: string | null | undefined): string {
   return normalized || "institution";
 }
 
-/**
- * Extrae el slug de tenant de un pathname. Soporta:
- *   - `/t/<slug>/app/...`
- *   - `/t/<slug>` (sin trailing path)
- *
- * Devuelve null si la URL no tiene prefijo `/t/<slug>` válido. Útil para
- * el guard del router (Fase 7).
- */
-export function extractTenantSlugFromPath(pathname: string): string | null {
-  const m = pathname.match(/^\/t\/([^/]+)(?:\/|$)/);
-  if (!m) return null;
-  const slug = m[1];
-  return isValidTenantSlug(slug) ? slug : null;
-}
-
-/**
- * Construye una URL canónica con prefijo de tenant. Si el path ya tiene
- * prefijo `/t/...` lo reemplaza; si no, lo añade adelante.
- */
-export function withTenantPrefix(slug: string, path: string): string {
-  if (!isValidTenantSlug(slug)) return path;
-  // Normaliza: garantiza que path arranque con "/"
-  const clean = path.startsWith("/") ? path : `/${path}`;
-  // Si ya trae prefijo de tenant, reemplazamos el slug.
-  const stripped = clean.replace(/^\/t\/[^/]+/, "");
-  const tail = stripped.startsWith("/") ? stripped : `/${stripped}`;
-  return `/t/${slug}${tail}`;
-}
-
-/**
- * Resultado de la decisión del URL-guard al inspeccionar un pathname.
- *   - `strippedPath`: el pathname normalizado sin prefijo `/t/<slug>` (o
- *     null si no había prefijo que strip — caller no hace replaceState).
- *   - `overrideSlug`: slug del tenant a setear como override en
- *     localStorage. Solo se setea si el caller es SuperAdmin Y había
- *     prefijo válido. Null = no setear.
- *
- * La lógica es pura — no toca window/localStorage. El componente
- * `TenantUrlGuard` aplica los efectos secundarios.
- */
-export interface TenantUrlAction {
-  strippedPath: string | null;
-  overrideSlug: string | null;
-}
-
-export function decideTenantUrlAction(pathname: string, isSuperAdmin: boolean): TenantUrlAction {
-  const slug = extractTenantSlugFromPath(pathname);
-  if (!slug) {
-    return { strippedPath: null, overrideSlug: null };
-  }
-  // Strip el prefijo. Si el path era exactamente `/t/<slug>`, queda "/".
-  const stripped = pathname.replace(/^\/t\/[^/]+/, "") || "/";
-  return {
-    strippedPath: stripped,
-    overrideSlug: isSuperAdmin ? slug : null,
-  };
-}
+// Helpers URL-prefix (`extractTenantSlugFromPath`, `withTenantPrefix`,
+// `decideTenantUrlAction`) fueron removidos en el rollback del enfoque
+// `/t/<slug>/...`. Si necesitás extraer el slug de un pathname, usa
+// `getTenantSlugFromUrl` en `src/modules/tenants/url.ts`.
